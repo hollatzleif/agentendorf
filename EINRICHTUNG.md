@@ -42,7 +42,11 @@ scp deploy/bootstrap.sh root@<IP>:
 ```
 
 ```bash
-ssh root@<IP> bash bootstrap.sh --benutzer leif --ssh-schluessel "\"$(cat ~/.ssh/id_ed25519.pub)\"" --deploy-schluessel "\"$(cat ~/.ssh/dorf-deploy.pub)\"" --domain dorf.deine-domain.de
+scp ~/.ssh/id_ed25519.pub ~/.ssh/dorf-deploy.pub root@<IP>:
+```
+
+```bash
+ssh root@<IP> bash bootstrap.sh --benutzer leif --ssh-schluessel id_ed25519.pub --deploy-schluessel dorf-deploy.pub --domain dorf.deine-domain.de
 ```
 
 Am Ende steht ein **Bericht** (CPU, RAM, empfohlene Parallelität, Werte für GitHub). **Wichtig:** Danach sind Root-Login und Passwort-Login aus. Teste in einem zweiten Terminal `ssh leif@dorf.deine-domain.de`, bevor du die Root-Sitzung schließt. (Notfall-Zugang: die Browser-Konsole im Hostinger-Panel.)

@@ -1,0 +1,7 @@
+# Shell-Skripte und Server-Dateien immer mit Unix-Zeilenenden (auch beim Auschecken unter Windows)
+*.sh text eol=lf
+deploy/dorf text eol=lf
+deploy/Caddyfile text eol=lf
+deploy/*.yml text eol=lf
+Dockerfile text eol=lf
+*.mjs text eol=lf

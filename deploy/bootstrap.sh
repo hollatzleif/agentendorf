@@ -2,9 +2,10 @@
 # Agentendorf – Ersteinrichtung eines frischen Ubuntu-LTS-Servers. Einmal als root ausführen:
 #
 #   bash bootstrap.sh --benutzer leif \
-#     --ssh-schluessel "ssh-ed25519 AAAA… leif@mac" \
-#     --deploy-schluessel "ssh-ed25519 AAAA… github-actions" \
+#     --ssh-schluessel id_ed25519.pub \
+#     --deploy-schluessel dorf-deploy.pub \
 #     --domain dorf.example.de
+#   (Schlüssel als Datei oder direkt als Text "ssh-ed25519 AAAA…")
 #
 # Was passiert:
 #   1. Systemupdate, Grundpakete, 4 GB Swap, Zeitzone
@@ -30,6 +31,10 @@ while [ $# -gt 0 ]; do
   esac
 done
 [ "$(id -u)" -eq 0 ] || { echo "Bitte als root ausführen."; exit 1; }
+# Schlüssel dürfen auch als Datei übergeben werden (z. B. id_ed25519.pub); Windows-Zeilenenden werden entfernt.
+schluessel_lesen() { if [ -n "$1" ] && [ -f "$1" ]; then tr -d '\r' < "$1" | head -n1; else printf '%s' "$1" | tr -d '\r'; fi; }
+SSH_SCHLUESSEL=$(schluessel_lesen "$SSH_SCHLUESSEL")
+DEPLOY_SCHLUESSEL=$(schluessel_lesen "$DEPLOY_SCHLUESSEL")
 [ -n "$BENUTZER" ] && [ -n "$SSH_SCHLUESSEL" ] && [ -n "$DOMAIN" ] || { echo "Pflicht: --benutzer, --ssh-schluessel, --domain"; exit 1; }
 case "$SSH_SCHLUESSEL" in ssh-ed25519\ *|ssh-rsa\ *|ecdsa-sha2-*\ *) ;; *) echo "--ssh-schluessel sieht nicht wie ein öffentlicher SSH-Schlüssel aus."; exit 1 ;; esac
 . /etc/os-release
