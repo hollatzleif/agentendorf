@@ -25,6 +25,7 @@ test('falsches Passwort wird abgelehnt, richtiges führt ins Dorf', async ({ pag
 test('Gebäude öffnen zeigt die Arbeitsanweisung', async ({ page }) => {
   await anmelden(page);
   await page.locator('.gebaeude-karte', { hasText: 'Uni' }).click();
+  await page.getByRole('button', { name: 'Übersicht' }).click();
   await expect(page.getByRole('heading', { name: /Uni – Arbeitsanweisung/ })).toBeVisible();
   await page.getByRole('button', { name: 'Dateien' }).click();
   await expect(page.getByRole('button', { name: /faecher/ })).toBeVisible();
@@ -78,4 +79,31 @@ test('Einstellungen zeigen angemeldete Geräte; Abmelden wirkt', async ({ page }
   await expect(page.getByText('dieses Gerät')).toBeVisible();
   await page.getByRole('button', { name: 'Auf diesem Gerät abmelden' }).click();
   await expect(page.getByRole('button', { name: 'Ins Dorf' })).toBeVisible();
+});
+
+test('Aktion starten, Chat live, fortsetzen, Freigabe annehmen, Verbrauch', async ({ page }, info) => {
+  await anmelden(page);
+  await page.goto('/gebaeude/Rathaus');
+  await page.getByRole('button', { name: /Frage stellen/ }).click();
+  const ziel = `Rathaus/schreibtisch/2026-11-16_1200_e2e-${info.project.name}.md`;
+  await page.getByLabel(/Deine Frage/).fill(`Lege bitte etwas ab [schreibe ${ziel}] und beantrage [freigabe ${ziel}]`);
+  await page.getByRole('button', { name: 'Starten' }).click();
+  await expect(page).toHaveURL(/\/chats\//);
+  await expect(page.getByText(/Erledigt\. \(claude-code, claude-opus-5-5/)).toBeVisible();
+  await expect(page.getByText(/Lauf 1: fertig/)).toBeVisible();
+
+  await page.getByPlaceholder('Weiter im Gespräch …').fill('Und noch etwas?');
+  await page.getByRole('button', { name: 'Senden' }).click();
+  await expect(page.getByText(/Lauf 2: fertig/)).toBeVisible();
+
+  // Freigabe im Kopf und im Rathaus
+  await page.locator('.abzeichen.brief').click();
+  await expect(page.getByRole('heading', { name: `${ziel} löschen` })).toBeVisible();
+  await page.getByRole('button', { name: 'Ja, ausführen' }).first().click();
+  await expect(page.getByText('Nichts offen.')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Verbrauch' }).click();
+  await expect(page.locator('table.tabelle').first()).toContainText('2');
+  await page.getByRole('button', { name: 'Agenten-Einstellungen' }).click();
+  await expect(page.getByLabel('Modell gross')).toHaveValue('claude-fable-5-2');
 });

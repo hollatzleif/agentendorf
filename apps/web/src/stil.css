@@ -166,3 +166,36 @@ mark { background: color-mix(in srgb, var(--dach) 35%, transparent); color: inhe
   .nur-mobil { display: inline-block; }
   .tabelle td:nth-child(3), .tabelle th:nth-child(3) { display: none; }
 }
+
+/* ---- Etappe 2a: Aktionen, Chats, Rathaus ---- */
+textarea, select {
+  font: inherit; color: var(--text); background: var(--karte); border: 1px solid var(--rand);
+  border-radius: 8px; padding: 0.5rem 0.7rem; width: 100%;
+}
+label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.92rem; }
+.innen { box-shadow: none; margin-top: 0.8rem; }
+.formspalte.breit { max-width: 640px; }
+.aktions-knoepfe { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.6rem; }
+.aktion-knopf { display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; padding: 0.7rem 0.9rem; text-align: left; }
+.aktion-knopf.aktiv { border-color: var(--gruen); background: var(--gruen-hell); }
+.aktion-knopf.kaputt { border-color: var(--rot); }
+.chatliste { list-style: none; padding: 0; margin: 0.6rem 0 0; }
+.chatliste li { padding: 0.45rem 0; border-bottom: 1px solid var(--rand); }
+.lauf-chip { display: inline-block; font-size: 0.78rem; padding: 0.05rem 0.5rem; border-radius: 99px; background: var(--gruen-hell); margin: 0.15rem 0.3rem 0 0; }
+.lauf-chip.fehler { background: color-mix(in srgb, var(--rot) 20%, transparent); }
+.lauf-chip.laeuft, .lauf-chip.wartend, .lauf-chip.wartet_freigabe { background: color-mix(in srgb, var(--dach) 25%, transparent); }
+.abzeichen.brief { background: var(--dach); color: #fff; }
+.chat { max-width: 900px; }
+.nachrichten { display: flex; flex-direction: column; gap: 0.7rem; margin: 1rem 0; }
+.nachricht { background: var(--karte); border: 1px solid var(--rand); border-radius: var(--radius); padding: 0.6rem 0.9rem; }
+.nachricht.nutzer { background: var(--gruen-hell); align-self: flex-end; max-width: 85%; }
+.nachricht.nutzer .nutzertext { white-space: pre-wrap; margin: 0; }
+.nachricht.werkzeug { background: none; border-style: dashed; font-size: 0.85rem; }
+.nachricht.werkzeug pre { white-space: pre-wrap; word-break: break-word; margin: 0.4rem 0 0; }
+.nachricht.hinweis { background: none; border: none; padding: 0; }
+.nachricht.laufend { border-color: var(--dach); }
+.nachricht .zeit { text-align: right; font-size: 0.75rem; }
+.chat-eingabe { position: sticky; bottom: 0; background: var(--grund); padding: 0.5rem 0 max(0.5rem, env(safe-area-inset-bottom)); }
+.freigabe h4 { margin: 0.3rem 0; }
+.tabelle.zahlen td:not(:first-child), .tabelle.zahlen th:not(:first-child) { text-align: right; }
+.stufe-name { min-width: 4rem; align-self: center; }

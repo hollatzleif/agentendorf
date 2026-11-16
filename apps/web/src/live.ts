@@ -69,6 +69,31 @@ export function useLiveVerbindung(qc: QueryClient, aktiv: boolean) {
           case 'sitzung.beendet':
             window.dispatchEvent(new Event('dorf:abgemeldet'));
             break;
+          case 'lauf.status':
+            void qc.invalidateQueries({ queryKey: ['chat', e.chatId] });
+            void qc.invalidateQueries({ queryKey: ['chats'] });
+            void qc.invalidateQueries({ queryKey: ['laeufe-aktiv'] });
+            if (e.status !== 'laeuft') liveTextLeeren(e.laufId);
+            break;
+          case 'lauf.text':
+            liveTextAnhaengen(e.laufId, e.text);
+            break;
+          case 'chat.geaendert':
+            void qc.invalidateQueries({ queryKey: ['chat', e.chatId] });
+            void qc.invalidateQueries({ queryKey: ['chats'] });
+            break;
+          case 'freigaben.geaendert':
+            void qc.invalidateQueries({ queryKey: ['freigaben'] });
+            break;
+          case 'verbrauch.geaendert':
+            void qc.invalidateQueries({ queryKey: ['verbrauch'] });
+            break;
+          case 'aktionen.geaendert':
+            void qc.invalidateQueries({ queryKey: ['aktionen'] });
+            break;
+          case 'konfig.geaendert':
+            void qc.invalidateQueries({ queryKey: ['agenten-konfig'] });
+            break;
         }
       };
       ws.onclose = (ev) => {
@@ -94,4 +119,24 @@ export function useLiveVerbindung(qc: QueryClient, aktiv: boolean) {
       ws?.close();
     };
   }, [qc, aktiv]);
+}
+
+// ---- Live-Text laufender Agenten (entsteht Stück für Stück) -----------------------------------
+const liveTexte = new Map<string, string>();
+const liveTextZuhoerer = new Set<() => void>();
+function liveTextAnhaengen(laufId: string, t: string) {
+  liveTexte.set(laufId, (liveTexte.get(laufId) ?? '') + t);
+  liveTextZuhoerer.forEach((f) => f());
+}
+function liveTextLeeren(laufId: string) {
+  if (liveTexte.delete(laufId)) liveTextZuhoerer.forEach((f) => f());
+}
+export function useLiveText(laufId: string | undefined) {
+  return useSyncExternalStore(
+    (f) => {
+      liveTextZuhoerer.add(f);
+      return () => liveTextZuhoerer.delete(f);
+    },
+    () => (laufId ? (liveTexte.get(laufId) ?? '') : ''),
+  );
 }
