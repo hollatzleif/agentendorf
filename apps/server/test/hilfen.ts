@@ -6,6 +6,7 @@ import { dorfStarten } from '../src/dorf.js';
 import { TestUhr } from '../src/uhr.js';
 import { attrappe } from '../src/agenten/motor-attrappe.js';
 import type { Motor } from '../src/agenten/motor.js';
+import type { WerkzeugRegister } from '../src/agenten/register.js';
 
 export const ORIGIN = 'https://dorf.test';
 
@@ -13,7 +14,9 @@ export function tempOrdner(praefix = 'dorf-test-') {
   return fs.mkdtempSync(path.join(os.tmpdir(), praefix));
 }
 
-export async function testDorf(opt: { beobachten?: boolean; motoren?: Record<'api' | 'claude-code', Motor> } = {}) {
+export async function testDorf(
+  opt: { beobachten?: boolean; motoren?: Record<'api' | 'claude-code', Motor> | ((r: WerkzeugRegister) => Record<'api' | 'claude-code', Motor>) } = {},
+) {
   const daten = tempOrdner();
   const konfig = konfigLaden({
     DATEN_DIR: daten,

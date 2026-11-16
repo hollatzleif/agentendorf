@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 const Schema = z.object({
   PORT: z.coerce.number().default(3000),
+  INTERN_PORT: z.coerce.number().default(3001),
   HOST: z.string().default('0.0.0.0'),
   DATEN_DIR: z.string().default('./daten'),
   VAULT_DIR: z.string().default('./daten/vault'),
@@ -20,6 +21,9 @@ const Schema = z.object({
     .transform((w) => w === 'true'),
   DORF_VERSION: z.string().default('entwicklung'),
   LOG_LEVEL: z.string().default('info'),
+  ANTHROPIC_API_KEY: z.string().optional(),
+  WERKSTATT_URL: z.string().default('http://werkstatt:4000'),
+  WERKSTATT_GEHEIMNIS: z.string().optional(),
   DORF_MOTOR_ATTRAPPE: z
     .string()
     .default('false')
@@ -28,6 +32,7 @@ const Schema = z.object({
 
 export interface Konfig {
   port: number;
+  internPort: number;
   host: string;
   datenDir: string;
   vaultDir: string;
@@ -39,12 +44,16 @@ export interface Konfig {
   version: string;
   logLevel: string;
   motorAttrappe: boolean;
+  anthropicApiKey?: string;
+  werkstattUrl: string;
+  werkstattGeheimnis?: string;
 }
 
 export function konfigLaden(env: NodeJS.ProcessEnv = process.env): Konfig {
   const e = Schema.parse(env);
   return {
     port: e.PORT,
+    internPort: e.INTERN_PORT,
     host: e.HOST,
     datenDir: path.resolve(e.DATEN_DIR),
     vaultDir: path.resolve(e.VAULT_DIR),
@@ -56,5 +65,8 @@ export function konfigLaden(env: NodeJS.ProcessEnv = process.env): Konfig {
     version: e.DORF_VERSION,
     logLevel: e.LOG_LEVEL,
     motorAttrappe: e.DORF_MOTOR_ATTRAPPE,
+    anthropicApiKey: e.ANTHROPIC_API_KEY || undefined,
+    werkstattUrl: e.WERKSTATT_URL,
+    werkstattGeheimnis: e.WERKSTATT_GEHEIMNIS || undefined,
   };
 }

@@ -11,6 +11,7 @@
     "cli": "tsx src/cli.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.9.0",
     "@fastify/cookie": "^11.1.5",
     "@fastify/multipart": "^10.1.9",
     "@fastify/static": "^10.1.11",

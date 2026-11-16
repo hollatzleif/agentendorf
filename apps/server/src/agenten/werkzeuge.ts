@@ -125,9 +125,9 @@ export class WerkzeugKiste {
     this.beiAufruf(werkzeug, erlaubt, `${pfad ?? ''} ${ergebnis.slice(0, 120)}`.trim());
   }
 
-  /** Für Web-Werkzeuge, die der Motor selbst ausführt (Server-Tools bzw. WebSearch/WebFetch) – nur fürs Protokoll. */
-  webMerken(werkzeug: string, eingabe: unknown) {
-    this.log(werkzeug, eingabe, 'Web', true, undefined, 'web');
+  /** Werkzeuge, die der Motor selbst ausführt (Web-Server-Tools, Read/Glob/Grep der Werkstatt) – nur fürs Protokoll. */
+  extern(werkzeug: string, eingabe: unknown, art: 'web' | 'gelesen', pfad?: string) {
+    this.log(werkzeug, eingabe, art === 'web' ? 'Web' : 'gelesen (Werkstatt)', true, pfad, art);
   }
 
   async aufrufen(name: string, eingabe: unknown): Promise<WerkzeugAufrufErgebnis> {

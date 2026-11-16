@@ -33,6 +33,8 @@ export interface LaufAuftrag {
   werkzeuge: WerkzeugKiste;
   web: boolean;
   signal: AbortSignal;
+  /** Textstücke live an die Oberfläche (während das Modell schreibt) */
+  liveText: (text: string) => void;
 }
 
 export type LaufEreignis =

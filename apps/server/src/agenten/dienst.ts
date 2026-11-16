@@ -270,7 +270,7 @@ export class AgentenDienst {
       }
       const verlauf = this.verlaufFuer(c, l.motor);
 
-      for await (const e of motor.starten({ laufId, chatId: c.id, modell: c.modell, aufwand: s.aufwand, system, nachricht, anhaenge, verlauf, werkzeuge: kiste, web: profil.web, signal: ac.signal })) {
+      for await (const e of motor.starten({ laufId, chatId: c.id, modell: c.modell, aufwand: s.aufwand, system, nachricht, anhaenge, verlauf, werkzeuge: kiste, web: profil.web, signal: ac.signal, liveText: (text) => this.hub.senden({ typ: 'lauf.text', laufId, chatId: c.id, text }) })) {
         switch (e.typ) {
           case 'text':
             this.hub.senden({ typ: 'lauf.text', laufId, chatId: c.id, text: e.text });
@@ -308,7 +308,6 @@ export class AgentenDienst {
         .prepare("INSERT INTO nachrichten (chat_id, lauf_id, rolle, text, motor, erstellt) VALUES (?, ?, 'hinweis', ?, ?, ?)")
         .run(c.id, laufId, status === 'abgebrochen' ? 'Lauf abgebrochen.' : `Fehler: ${fehler}`, l.motor, this.uhr.jetzt());
     } finally {
-      this.laufend.delete(laufId);
       this.db.prepare('UPDATE laeufe SET status = ?, fehler = ?, ende = ? WHERE id = ?').run(status, fehler, this.uhr.jetzt(), laufId);
       this.db.prepare('UPDATE chats SET geaendert = ? WHERE id = ?').run(this.uhr.jetzt(), c.id);
       try {
@@ -317,6 +316,7 @@ export class AgentenDienst {
       } catch (e) {
         console.error('Protokoll/Spiegel fehlgeschlagen', e);
       }
+      this.laufend.delete(laufId);
       this.statusMelden(laufId);
       this.hub.senden({ typ: 'chat.geaendert', chatId: c.id, gebaeude: c.gebaeude });
       this.hub.senden({ typ: 'verbrauch.geaendert' });

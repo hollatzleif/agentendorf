@@ -10,11 +10,17 @@ import { appBauen } from './app.js';
 import { AgentenDienst } from './agenten/dienst.js';
 import type { Motor } from './agenten/motor.js';
 import { motorenBauen } from './agenten/motoren.js';
+import { WerkzeugRegister } from './agenten/register.js';
+import { internBauen } from './intern.js';
 
 /** Baut das ganze Dorf zusammen (für Start und Integrationstests). */
 export async function dorfStarten(
   konfig: Konfig,
-  opt: { uhr?: Uhr; beobachten?: boolean; motoren?: Record<'api' | 'claude-code', Motor> } = {},
+  opt: {
+    uhr?: Uhr;
+    beobachten?: boolean;
+    motoren?: Record<'api' | 'claude-code', Motor> | ((r: WerkzeugRegister) => Record<'api' | 'claude-code', Motor>);
+  } = {},
 ) {
   const uhr = opt.uhr ?? systemUhr;
   const db = dbOeffnen(path.join(konfig.datenDir, 'dorf.db'));
@@ -36,12 +42,16 @@ export async function dorfStarten(
   vault.beobachten(aenderung);
   const waechter = opt.beobachten === false ? null : vaultBeobachten(vault.wurzel, aenderung);
 
-  const agenten = new AgentenDienst(db, uhr, vault, suche, hub, opt.motoren ?? motorenBauen(konfig));
+  const register = new WerkzeugRegister();
+  const motoren = typeof opt.motoren === 'function' ? opt.motoren(register) : (opt.motoren ?? motorenBauen(konfig, register));
+  const agenten = new AgentenDienst(db, uhr, vault, suche, hub, motoren);
+  const intern = await internBauen(register);
   agenten.anstossen();
   const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten });
   app.addHook('onClose', async () => {
+    await intern.close();
     await waechter?.close();
     db.close();
   });
-  return { app, db, vault, suche, hub, angelegt, agenten };
+  return { app, db, vault, suche, hub, angelegt, agenten, intern, register };
 }
