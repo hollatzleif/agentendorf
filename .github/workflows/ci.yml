@@ -1,0 +1,82 @@
+name: Prüfen und ausliefern
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: dorf-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  pruefen:
+    name: Tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Typen prüfen
+        run: pnpm typecheck
+      - name: Server-Tests (Leine, Vault-Regeln, Login, Sitzungen)
+        run: pnpm test
+      - name: Bauen
+        run: pnpm build
+      - name: Browser-Tests (Desktop und Handy)
+        run: |
+          pnpm --filter @dorf/web exec playwright install --with-deps chromium
+          pnpm e2e
+      - name: Backup- und Deploy-Tests (7 Tage, Wiederherstellung, Rollback)
+        run: |
+          sudo apt-get install -y -q restic sqlite3 jq shellcheck
+          bash deploy/test/backup-test.sh
+          bash deploy/test/empfangen-test.sh
+      - name: Shell-Skripte prüfen
+        run: shellcheck -x -S warning deploy/dorf deploy/bootstrap.sh deploy/test/*.sh
+
+  ausliefern:
+    name: Image bauen und deployen
+    needs: pruefen
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Image bauen
+        run: docker build -t agentendorf:ci .
+      - name: Rauchtest des Images
+        run: |
+          mkdir -p /tmp/dorf/vault /tmp/dorf/daten && sudo chown -R 1000:1000 /tmp/dorf
+          docker run -d --name rauch -p 3000:3000 --read-only --tmpfs /tmp \
+            -v /tmp/dorf/vault:/vault -v /tmp/dorf/daten:/daten -e ORIGIN=http://localhost:3000 agentendorf:ci
+          for i in $(seq 1 30); do curl -fs http://localhost:3000/api/gesundheit && break; sleep 1; done
+          curl -fs http://localhost:3000/api/gesundheit
+          curl -fs http://localhost:3000/ | grep -q Agentendorf
+          test -f /tmp/dorf/vault/00_Stadtordnung/stadtordnung.md
+          docker logs rauch
+      - name: An den Server ausliefern
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          if [ -z "$DEPLOY_HOST" ]; then
+            echo "::notice::Deploy-Secrets fehlen noch – Auslieferung übersprungen."
+            exit 0
+          fi
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          VERSION=$(git rev-parse --short=12 HEAD)
+          mkdir buendel && echo "$VERSION" > buendel/VERSION && cp -r deploy buendel/deploy
+          docker tag agentendorf:ci "agentendorf:$VERSION"
+          docker save "agentendorf:$VERSION" | gzip > buendel/image.tar.gz
+          tar -czf buendel.tar.gz -C buendel VERSION deploy image.tar.gz
+          ls -lh buendel.tar.gz
+          ssh -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" empfangen < buendel.tar.gz

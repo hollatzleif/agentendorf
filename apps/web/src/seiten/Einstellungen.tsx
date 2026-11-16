@@ -1,0 +1,254 @@
+import { useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import QRCode from 'qrcode';
+import type { Ich, Konflikt, SitzungInfo } from '@dorf/shared';
+import { api, ApiFehler } from '../api';
+import { bibliothekUrl, linkKlick } from '../router';
+
+const fehlertext = (e: unknown) => (e instanceof ApiFehler ? e.message : String(e));
+const zeit = (iso: string) => new Date(iso).toLocaleString('de-AT', { dateStyle: 'short', timeStyle: 'short' });
+
+export function Einstellungen() {
+  const qc = useQueryClient();
+  const ich = useQuery({ queryKey: ['ich'], queryFn: () => api<Ich>('/api/ich') });
+
+  useEffect(() => {
+    if (location.hash) document.querySelector(location.hash)?.scrollIntoView();
+  }, []);
+
+  return (
+    <section className="einstellungen">
+      <h1>Einstellungen</h1>
+      <Konflikte />
+      <Sitzungen />
+      <Zweitfaktor aktiv={!!ich.data?.totpAktiv} />
+      <PasswortAendern />
+      <div className="karte">
+        <h2>Abmelden</h2>
+        <button
+          onClick={async () => {
+            await api('/api/abmeldung', { body: {} });
+            qc.clear();
+            location.href = '/';
+          }}
+        >
+          Auf diesem Gerät abmelden
+        </button>
+        <p className="leise">Version {ich.data?.version}</p>
+      </div>
+    </section>
+  );
+}
+
+function Konflikte() {
+  const k = useQuery({ queryKey: ['konflikte'], queryFn: () => api<Konflikt[]>('/api/vault/konflikte') });
+  return (
+    <div className="karte" id="konflikte">
+      <h2>Konflikte zwischen Geräten</h2>
+      {k.data?.length === 0 && <p className="leise">Keine Konflikte. 👍</p>}
+      {k.data && k.data.length > 0 && (
+        <>
+          <p>
+            Diese Dateien wurden auf zwei Geräten gleichzeitig geändert. Nichts wurde überschrieben: Öffne beide Fassungen, übernimm, was du
+            brauchst, und lösche dann die Konfliktkopie.
+          </p>
+          <ul>
+            {k.data.map((x) => (
+              <li key={x.pfad}>
+                <a href={bibliothekUrl(x.pfad)} onClick={linkKlick}>
+                  {x.pfad}
+                </a>{' '}
+                ↔{' '}
+                <a href={bibliothekUrl(x.original)} onClick={linkKlick}>
+                  {x.original}
+                </a>{' '}
+                <span className="leise">
+                  ({x.quelle === 'syncthing' ? 'Syncthing' : 'Dorf'}, {zeit(x.geaendert)})
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Sitzungen() {
+  const qc = useQueryClient();
+  const s = useQuery({ queryKey: ['sitzungen'], queryFn: () => api<SitzungInfo[]>('/api/sitzungen') });
+  const [fehler, setFehler] = useState('');
+  const neu = () => qc.invalidateQueries({ queryKey: ['sitzungen'] });
+  return (
+    <div className="karte">
+      <h2>Angemeldete Geräte</h2>
+      {fehler && <p className="fehler">{fehler}</p>}
+      <table className="tabelle">
+        <thead>
+          <tr>
+            <th>Gerät</th>
+            <th>Zuletzt</th>
+            <th>IP</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {s.data?.map((x) => (
+            <tr key={x.id}>
+              <td title={x.geraet}>
+                {geraetKurz(x.geraet)} {x.aktuell && <span className="abzeichen">dieses Gerät</span>}
+              </td>
+              <td>{zeit(x.zuletzt)}</td>
+              <td>{x.ip}</td>
+              <td>
+                {!x.aktuell && (
+                  <button
+                    onClick={() =>
+                      api(`/api/sitzungen/${x.id}`, { methode: 'DELETE' })
+                        .then(neu)
+                        .catch((e) => setFehler(fehlertext(e)))
+                    }
+                  >
+                    Abmelden
+                  </button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <button
+        onClick={() =>
+          api('/api/sitzungen/andere-beenden', { body: {} })
+            .then(neu)
+            .catch((e) => setFehler(fehlertext(e)))
+        }
+      >
+        Alle anderen Geräte abmelden
+      </button>
+    </div>
+  );
+}
+
+function geraetKurz(ua: string) {
+  const sys = /iPhone|iPad|Android|Macintosh|Windows|Linux/.exec(ua)?.[0] ?? '';
+  const br = /Edg|Firefox|Chrome|Safari|Tauri/.exec(ua)?.[0] ?? '';
+  return [br === 'Edg' ? 'Edge' : br, sys === 'Macintosh' ? 'Mac' : sys].filter(Boolean).join(' auf ') || ua.slice(0, 40) || 'unbekannt';
+}
+
+function Zweitfaktor({ aktiv }: { aktiv: boolean }) {
+  const qc = useQueryClient();
+  const [passwort, setPasswort] = useState('');
+  const [code, setCode] = useState('');
+  const [einrichtung, setEinrichtung] = useState<{ geheimnis: string; qr: string } | null>(null);
+  const [meldung, setMeldung] = useState('');
+
+  const starten = async () => {
+    try {
+      const r = await api<{ geheimnis: string; uri: string }>('/api/totp/einrichten', { body: { passwort } });
+      setEinrichtung({ geheimnis: r.geheimnis, qr: await QRCode.toDataURL(r.uri, { margin: 1, width: 220 }) });
+      setPasswort('');
+      setMeldung('');
+    } catch (e) {
+      setMeldung(fehlertext(e));
+    }
+  };
+  const bestaetigen = async () => {
+    try {
+      await api('/api/totp/bestaetigen', { body: { code } });
+      setEinrichtung(null);
+      setCode('');
+      setMeldung('Zweiter Faktor ist aktiv. Ab jetzt brauchst du beim Anmelden zusätzlich den Code.');
+      await qc.invalidateQueries({ queryKey: ['ich'] });
+    } catch (e) {
+      setMeldung(fehlertext(e));
+    }
+  };
+  const abschalten = async () => {
+    try {
+      await api('/api/totp/abschalten', { body: { passwort, code } });
+      setPasswort('');
+      setCode('');
+      setMeldung('Zweiter Faktor abgeschaltet.');
+      await qc.invalidateQueries({ queryKey: ['ich'] });
+    } catch (e) {
+      setMeldung(fehlertext(e));
+    }
+  };
+
+  return (
+    <div className="karte">
+      <h2>Zweiter Faktor (TOTP) {aktiv ? <span className="abzeichen gut">aktiv</span> : <span className="abzeichen">aus</span>}</h2>
+      {meldung && <p className="hinweis">{meldung}</p>}
+      {!aktiv && !einrichtung && (
+        <div className="formzeile">
+          <input type="password" placeholder="Passwort zur Bestätigung" value={passwort} onChange={(e) => setPasswort(e.target.value)} />
+          <button onClick={starten} disabled={!passwort}>
+            Einrichten
+          </button>
+        </div>
+      )}
+      {einrichtung && (
+        <div>
+          <p>Scanne den Code mit einer Authenticator-App (z. B. Aegis, 2FAS, Google Authenticator) und gib den angezeigten Code ein.</p>
+          <img src={einrichtung.qr} alt="QR-Code für die Authenticator-App" width={220} height={220} />
+          <p className="leise">
+            Oder von Hand: <code>{einrichtung.geheimnis}</code>
+          </p>
+          <div className="formzeile">
+            <input inputMode="numeric" placeholder="6-stelliger Code" value={code} onChange={(e) => setCode(e.target.value)} />
+            <button onClick={bestaetigen} disabled={code.length < 6}>
+              Bestätigen
+            </button>
+          </div>
+        </div>
+      )}
+      {aktiv && (
+        <div className="formzeile">
+          <input type="password" placeholder="Passwort" value={passwort} onChange={(e) => setPasswort(e.target.value)} />
+          <input inputMode="numeric" placeholder="Code" value={code} onChange={(e) => setCode(e.target.value)} />
+          <button onClick={abschalten} className="gefahr" disabled={!passwort || !code}>
+            Abschalten
+          </button>
+        </div>
+      )}
+      <p className="leise">Handy verloren? Auf dem Server hilft <code>./dorf totp-aus</code>.</p>
+    </div>
+  );
+}
+
+function PasswortAendern() {
+  const [alt, setAlt] = useState('');
+  const [neu, setNeu] = useState('');
+  const [neu2, setNeu2] = useState('');
+  const [meldung, setMeldung] = useState('');
+  return (
+    <div className="karte">
+      <h2>Passwort ändern</h2>
+      <form
+        className="formspalte"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (neu !== neu2) return setMeldung('Die neuen Passwörter stimmen nicht überein.');
+          try {
+            const r = await api<{ andereBeendet: number }>('/api/passwort', { body: { alt, neu } });
+            setMeldung(`Passwort geändert. ${r.andereBeendet} andere Sitzung(en) beendet.`);
+            setAlt('');
+            setNeu('');
+            setNeu2('');
+          } catch (err) {
+            setMeldung(fehlertext(err));
+          }
+        }}
+      >
+        <input type="password" autoComplete="current-password" placeholder="Aktuelles Passwort" value={alt} onChange={(e) => setAlt(e.target.value)} />
+        <input type="password" autoComplete="new-password" placeholder="Neues Passwort (mind. 14 Zeichen)" value={neu} onChange={(e) => setNeu(e.target.value)} />
+        <input type="password" autoComplete="new-password" placeholder="Neues Passwort wiederholen" value={neu2} onChange={(e) => setNeu2(e.target.value)} />
+        <button type="submit" disabled={!alt || neu.length < 14}>
+          Ändern
+        </button>
+      </form>
+      {meldung && <p className="hinweis">{meldung}</p>}
+    </div>
+  );
+}

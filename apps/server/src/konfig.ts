@@ -1,0 +1,54 @@
+import path from 'node:path';
+import { z } from 'zod';
+
+const Schema = z.object({
+  PORT: z.coerce.number().default(3000),
+  HOST: z.string().default('0.0.0.0'),
+  DATEN_DIR: z.string().default('./daten'),
+  VAULT_DIR: z.string().default('./daten/vault'),
+  VORLAGE_DIR: z.string().default(path.resolve(import.meta.dirname, '../../../vault-vorlage')),
+  WEB_DIR: z.string().default(path.resolve(import.meta.dirname, '../../web/dist')),
+  /** Öffentliche Adresse, z. B. https://dorf.example.de – wird für die Herkunftsprüfung genutzt. Mehrere mit Komma. */
+  ORIGIN: z.string().default('http://localhost:5173,http://localhost:3000'),
+  COOKIE_SICHER: z
+    .string()
+    .default('true')
+    .transform((w) => w !== 'false'),
+  HINTER_PROXY: z
+    .string()
+    .default('false')
+    .transform((w) => w === 'true'),
+  DORF_VERSION: z.string().default('entwicklung'),
+  LOG_LEVEL: z.string().default('info'),
+});
+
+export interface Konfig {
+  port: number;
+  host: string;
+  datenDir: string;
+  vaultDir: string;
+  vorlageDir: string;
+  webDir: string;
+  origins: string[];
+  cookieSicher: boolean;
+  hinterProxy: boolean;
+  version: string;
+  logLevel: string;
+}
+
+export function konfigLaden(env: NodeJS.ProcessEnv = process.env): Konfig {
+  const e = Schema.parse(env);
+  return {
+    port: e.PORT,
+    host: e.HOST,
+    datenDir: path.resolve(e.DATEN_DIR),
+    vaultDir: path.resolve(e.VAULT_DIR),
+    vorlageDir: path.resolve(e.VORLAGE_DIR),
+    webDir: path.resolve(e.WEB_DIR),
+    origins: e.ORIGIN.split(',').map((o) => o.trim().replace(/\/$/, '')).filter(Boolean),
+    cookieSicher: e.COOKIE_SICHER,
+    hinterProxy: e.HINTER_PROXY,
+    version: e.DORF_VERSION,
+    logLevel: e.LOG_LEVEL,
+  };
+}

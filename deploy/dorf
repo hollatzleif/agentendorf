@@ -1,0 +1,224 @@
+#!/usr/bin/env bash
+# Agentendorf – Verwaltung auf dem Server. Aufruf: dorf <befehl>   (dorf hilfe zeigt alles)
+set -euo pipefail
+
+BASIS=${DORF_BASIS:-/srv/dorf}
+# Alles läuft als root (Docker, Backup-Passwort). Der Benutzer hat sudo ohne Passwort.
+if [ "$(id -u)" -ne 0 ] && [ -z "${DORF_TEST:-}" ]; then
+  exec sudo -n SSH_ORIGINAL_COMMAND="${SSH_ORIGINAL_COMMAND:-}" DORF_BASIS="$BASIS" "$(readlink -f "$0")" "$@"
+fi
+APP="$BASIS/app"
+AKTUELL="$APP/current"
+ENV_DATEI="$BASIS/.env"
+export RESTIC_REPOSITORY="$BASIS/backup/restic"
+export RESTIC_PASSWORD_FILE="$BASIS/backup/restic-passwort"
+BEHALTEN_TAGE=7d
+
+rot() { printf '\033[31m%s\033[0m\n' "$*" >&2; }
+gruen() { printf '\033[32m%s\033[0m\n' "$*"; }
+info() { printf '» %s\n' "$*"; }
+
+compose() {
+  local version
+  version=$(cat "$AKTUELL/VERSION" 2>/dev/null || echo latest)
+  DORF_VERSION="$version" docker compose --project-name dorf --env-file "$ENV_DATEI" -f "$AKTUELL/deploy/compose.yml" "$@"
+}
+
+gesund_warten() {
+
+  for _ in $(seq 1 60); do
+    if compose exec -T dorf node -e "fetch('http://127.0.0.1:3000/api/gesundheit').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" 2>/dev/null; then
+      return 0
+    fi
+    sleep 2
+  done
+  return 1
+}
+
+cmd_deploy() {
+  info "Starte Version $(cat "$AKTUELL/VERSION") …"
+  compose up -d --remove-orphans
+  if gesund_warten; then gruen "Dorf läuft: https://$(grep -E '^DORF_DOMAIN=' "$ENV_DATEI" | cut -d= -f2)"; else rot "Dorf meldet sich nicht gesund."; compose logs --tail 50 dorf; return 1; fi
+}
+
+# Wird von GitHub Actions per SSH aufgerufen (erzwungener Befehl). Erwartet ein tar.gz-Bündel auf stdin:
+#   VERSION, deploy/…, image.tar.gz
+cmd_empfangen() {
+  local tmp version ziel vorher
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' RETURN
+  tar -xzf - -C "$tmp"
+  version=$(tr -cd 'a-zA-Z0-9._-' < "$tmp/VERSION")
+  [ -n "$version" ] || { rot "Bündel ohne VERSION"; return 1; }
+  info "Empfange Version $version"
+  ziel="$APP/releases/$version"
+  rm -rf "$ziel"; mkdir -p "$ziel"
+  cp -r "$tmp/deploy" "$ziel/deploy"
+  echo "$version" > "$ziel/VERSION"
+  info "Lade Image …"
+  gunzip -c "$tmp/image.tar.gz" | docker load
+  vorher=$(readlink -f "$AKTUELL" 2>/dev/null || true)
+  ln -sfn "$ziel" "$AKTUELL.neu" && mv -T "$AKTUELL.neu" "$AKTUELL"
+  ln -sfn "$AKTUELL/deploy/dorf" /usr/local/bin/dorf 2>/dev/null || true
+  if cmd_deploy; then
+    # nur die letzten 3 Versionen behalten
+    ls -1dt "$APP"/releases/* | tail -n +4 | while read -r alt; do
+      docker image rm "agentendorf:$(basename "$alt")" >/dev/null 2>&1 || true
+      rm -rf "$alt"
+    done
+    gruen "Deploy von $version erfolgreich."
+  else
+    if [ -n "$vorher" ] && [ "$vorher" != "$ziel" ]; then
+      rot "Deploy fehlgeschlagen – zurück auf $(basename "$vorher")"
+      ln -sfn "$vorher" "$AKTUELL.neu" && mv -T "$AKTUELL.neu" "$AKTUELL"
+      cmd_deploy || true
+    fi
+    return 1
+  fi
+}
+
+# Erzwungener SSH-Befehl für den CI-Schlüssel: erlaubt nur "empfangen".
+cmd_ci() {
+  case "${SSH_ORIGINAL_COMMAND:-}" in
+    empfangen) cmd_empfangen ;;
+    status) cmd_status ;;
+    *) rot "Nicht erlaubt: ${SSH_ORIGINAL_COMMAND:-}"; exit 1 ;;
+  esac
+}
+
+cmd_rollback() {
+  local liste ziel
+  liste=$(ls -1dt "$APP"/releases/*)
+  ziel=$(echo "$liste" | grep -vx "$(readlink -f "$AKTUELL")" | head -1 || true)
+  [ -n "$ziel" ] || { rot "Keine ältere Version vorhanden."; return 1; }
+  ln -sfn "$ziel" "$AKTUELL.neu" && mv -T "$AKTUELL.neu" "$AKTUELL"
+  cmd_deploy
+}
+
+cmd_status() {
+  echo "Version: $(cat "$AKTUELL/VERSION" 2>/dev/null || echo –)"
+  compose ps
+  echo
+  echo "Speicher:"; free -h | head -2
+  echo "Platte:"; df -h "$BASIS" | tail -1
+  echo "Last:"; uptime
+  echo
+  echo "Letzte Sicherungen:"; restic snapshots --compact 2>/dev/null | tail -9 || echo "  (noch keine)"
+}
+
+cmd_cli() { compose exec "$@"; }
+
+cmd_backup() {
+  mkdir -p "$BASIS/backup" "$BASIS/daten/sicherung"
+  chown "$(stat -c %u "$BASIS/daten")" "$BASIS/daten/sicherung"
+  restic cat config >/dev/null 2>&1 || restic init
+  info "Sichere Datenbank konsistent …"
+  compose exec -T dorf node dist/cli.js db-sichern /daten/sicherung/dorf.db
+  info "Sichere Vault, Datenbank, Syncthing-Konfiguration, .env …"
+  # DORF_BACKUP_ZEIT nur für Tests (simuliert ältere Tage)
+  restic backup --tag taeglich --host agentendorf ${DORF_BACKUP_ZEIT:+--time "$DORF_BACKUP_ZEIT"} \
+    --exclude "$BASIS/syncthing/index-*" \
+    "$BASIS/vault" "$BASIS/daten/sicherung" "$BASIS/syncthing/config" "$ENV_DATEI"
+  info "Behalte nur die Stände der letzten 7 Tage …"
+  restic forget --tag taeglich --keep-within-daily "$BEHALTEN_TAGE" --prune
+  restic check
+  gruen "Sicherung fertig."
+}
+
+# Stellt den neuesten (oder angegebenen) Stand in einen Testordner wieder her und prüft ihn – ohne das Dorf anzufassen.
+cmd_restore_test() {
+  local snap=${1:-latest} ziel n_snap n_ziel unterschiede
+  ziel=$(mktemp -d /tmp/dorf-wiederherstellungstest.XXXX)
+  info "Stelle $snap nach $ziel wieder her …"
+  restic restore "$snap" --target "$ziel"
+  n_snap=$(restic ls "$snap" --json 2>/dev/null | grep -c '"type":"file"' || true)
+  n_ziel=$(find "$ziel" -type f | wc -l)
+  echo "Dateien im Stand: $n_snap, wiederhergestellt: $n_ziel"
+  [ "$n_snap" -eq "$n_ziel" ] || { rot "Anzahl stimmt nicht!"; return 1; }
+  if [ -f "$ziel$BASIS/daten/sicherung/dorf.db" ]; then
+    echo -n "Datenbank: "; sqlite3 "$ziel$BASIS/daten/sicherung/dorf.db" "PRAGMA integrity_check;"
+  fi
+  unterschiede=$(diff -rq "$ziel$BASIS/vault" "$BASIS/vault" 2>/dev/null | wc -l || true)
+  echo "Unterschiede zum aktuellen Vault (Änderungen seit der Sicherung): $unterschiede"
+  restic check --read-data-subset=10%
+  rm -rf "$ziel"
+  gruen "Wiederherstellungstest bestanden."
+}
+
+# Echte Wiederherstellung des Vaults. Der aktuelle Stand wird vorher beiseitegelegt, nichts geht verloren.
+cmd_wiederherstellen() {
+  local snap=${1:-} zeit
+  [ -n "$snap" ] || { echo "Aufruf: dorf wiederherstellen <snapshot-id|latest>"; restic snapshots --compact; return 1; }
+  zeit=$(date +%Y%m%d-%H%M%S)
+  read -r -p "Vault auf Stand $snap zurücksetzen? Aktueller Stand wird nach vault.vor-wiederherstellung-$zeit verschoben. [ja/nein] " a
+  [ "$a" = ja ] || return 1
+  compose stop dorf syncthing
+  mv "$BASIS/vault" "$BASIS/vault.vor-wiederherstellung-$zeit"
+  local tmp; tmp=$(mktemp -d)
+  restic restore "$snap" --target "$tmp" --include "$BASIS/vault"
+  mv "$tmp$BASIS/vault" "$BASIS/vault"
+  rm -rf "$tmp"
+  compose start dorf syncthing
+  gesund_warten && gruen "Vault wiederhergestellt. Alter Stand liegt in $BASIS/vault.vor-wiederherstellung-$zeit"
+}
+
+cmd_syncthing_id() { compose exec -T syncthing syncthing device-id 2>/dev/null || compose exec -T syncthing syncthing --device-id; }
+
+cmd_syncthing_geraet() {
+  local id=${1:-} name=${2:-}
+  [ -n "$id" ] && [ -n "$name" ] || { echo "Aufruf: dorf syncthing-geraet <GERAETE-ID> <Name>"; return 1; }
+  local st=(compose exec -T syncthing syncthing cli)
+  "${st[@]}" config folders list 2>/dev/null | grep -qx vault || "${st[@]}" config folders add --id vault --label Agentendorf --path /var/syncthing/vault
+  "${st[@]}" config devices add --device-id "$id" --name "$name"
+  "${st[@]}" config folders vault devices add --device-id "$id"
+  gruen "Gerät $name hinzugefügt. Auf dem Gerät: Server-ID ($(cmd_syncthing_id)) hinzufügen und den Ordner 'Agentendorf' annehmen."
+}
+
+cmd_hilfe() {
+  cat <<HILFE
+Agentendorf – Befehle auf dem Server
+
+  dorf status                    Container, Version, Speicher, letzte Sicherungen
+  dorf logs [dorf|caddy|syncthing]  Protokolle ansehen (Strg+C beendet)
+  dorf deploy                    aktuelle Version (neu) starten
+  dorf rollback                  zur vorherigen Version zurück
+
+  dorf passwort                  Passwort setzen/ändern
+  dorf totp-aus                  zweiten Faktor abschalten (Notfall)
+  dorf sitzungen-beenden         alle Geräte abmelden
+
+  dorf backup                    Sicherung jetzt (läuft sonst täglich 03:30)
+  dorf restore-test [stand]      Wiederherstellung in Testordner prüfen
+  dorf wiederherstellen <stand>  Vault wirklich zurücksetzen (alter Stand bleibt erhalten)
+
+  dorf syncthing-id              Geräte-ID des Servers für Syncthing
+  dorf syncthing-geraet <ID> <Name>  Gerät (Mac/PC) mit dem Vault koppeln
+  Syncthing-Oberfläche:          ssh -L 8384:127.0.0.1:8384 <server>  → http://localhost:8384
+HILFE
+}
+
+haupt() {
+befehl=${1:-hilfe}; shift || true
+case "$befehl" in
+  deploy) cmd_deploy ;;
+  empfangen) cmd_empfangen ;;
+  ci) cmd_ci ;;
+  rollback) cmd_rollback ;;
+  status) cmd_status ;;
+  logs) compose logs -f --tail 100 "$@" ;;
+  passwort) cmd_cli dorf node dist/cli.js passwort ;;
+  totp-aus) cmd_cli -T dorf node dist/cli.js totp-aus ;;
+  sitzungen-beenden) cmd_cli -T dorf node dist/cli.js sitzungen-beenden ;;
+  vault-ergaenzen) cmd_cli -T dorf node dist/cli.js vault-ergaenzen ;;
+  backup) cmd_backup ;;
+  restore-test) cmd_restore_test "$@" ;;
+  wiederherstellen) cmd_wiederherstellen "$@" ;;
+  syncthing-id) cmd_syncthing_id ;;
+  syncthing-geraet) cmd_syncthing_geraet "$@" ;;
+  hilfe|-h|--help) cmd_hilfe ;;
+  *) rot "Unbekannter Befehl: $befehl"; cmd_hilfe; exit 1 ;;
+esac
+}
+
+# Beim Einbinden in Tests (source) nichts ausführen.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then haupt "$@"; fi

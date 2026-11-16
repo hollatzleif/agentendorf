@@ -1,0 +1,64 @@
+# Agentendorf – Docker Compose (Produktion). Gestartet wird über ./dorf, nicht direkt.
+# Pfade auf dem Server: /srv/dorf/{vault,daten,syncthing,backup}, Geheimnisse in /srv/dorf/.env
+name: dorf
+
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DORF_DOMAIN: ${DORF_DOMAIN:?DORF_DOMAIN fehlt in /srv/dorf/.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-daten:/data
+      - caddy-konfig:/config
+    depends_on:
+      - dorf
+    mem_limit: 128m
+
+  dorf:
+    image: agentendorf:${DORF_VERSION:-latest}
+    restart: unless-stopped
+    env_file: /srv/dorf/.env
+    environment:
+      ORIGIN: https://${DORF_DOMAIN}
+      HINTER_PROXY: "true"
+      DORF_VERSION: ${DORF_VERSION:-unbekannt}
+    user: "${DORF_UID:-1000}:${DORF_UID:-1000}"
+    volumes:
+      - /srv/dorf/vault:/vault
+      - /srv/dorf/daten:/daten
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 768m
+    # kein Port nach außen – nur Caddy spricht mit dem Dorf
+
+  syncthing:
+    image: syncthing/syncthing:2
+    restart: unless-stopped
+    hostname: agentendorf
+    environment:
+      PUID: ${DORF_UID:-1000}
+      PGID: ${DORF_UID:-1000}
+      STGUIADDRESS: 0.0.0.0:8384
+    volumes:
+      - /srv/dorf/syncthing:/var/syncthing
+      - /srv/dorf/vault:/var/syncthing/vault
+    ports:
+      - "22000:22000/tcp"
+      - "22000:22000/udp"
+      # Oberfläche nur lokal – Zugriff per SSH-Tunnel (./dorf hilfe)
+      - "127.0.0.1:8384:8384"
+    mem_limit: 256m
+
+volumes:
+  caddy-daten:
+  caddy-konfig:

@@ -1,0 +1,10 @@
+// Syncthing: diese Dateien werden nicht zwischen Geräten gespiegelt
+.papierkorb
+(?d).DS_Store
+(?d)Thumbs.db
+(?d)desktop.ini
+.*.dorf-tmp-*
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/cache
+.trash

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "hinweis": "Layout des Dorfs. Wird ab Etappe 5 im Bau-Modus bearbeitet und live an alle Geräte verteilt.",
+  "gebaeude": {
+    "Rathaus": { "x": 0, "y": 0 },
+    "Uni": { "x": 4, "y": -2 },
+    "Post": { "x": -4, "y": -1 },
+    "Marktplatz": { "x": 0, "y": 4 },
+    "Bibliothek": { "x": 4, "y": 3 },
+    "Corpshaus": { "x": -4, "y": 4 },
+    "Bank": { "x": 7, "y": 0 },
+    "Boerse": { "x": 7, "y": 4 },
+    "Einkaufsladen": { "x": -7, "y": 2 }
+  },
+  "wege": [],
+  "deko": []
+}

@@ -1,0 +1,17 @@
+# HTTPS mit automatischem Let's-Encrypt-Zertifikat. HTTP wird automatisch auf HTTPS umgeleitet.
+{$DORF_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "same-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		# Nur setzen, wenn das Dorf selbst keine strengere Regel schickt (z. B. für Rohdateien aus dem Vault)
+		?Content-Security-Policy "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self' wss://{$DORF_DOMAIN}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		-Server
+	}
+
+	reverse_proxy dorf:3000
+}
