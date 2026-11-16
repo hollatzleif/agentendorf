@@ -5,13 +5,21 @@ Einmalig. Danach deployt jeder Push auf `main` automatisch.
 ## 0. Was du brauchst
 
 - Den Hostinger-VPS (frisch mit **Ubuntu 24.04 LTS** aufgesetzt, Root-Zugang)
-- Eine Domain oder Subdomain, z. B. `dorf.deine-domain.de`
+- Eine kostenlose DuckDNS-Adresse, z. B. `agentendorf-lh.duckdns.org` (siehe Schritt 1)
 - Dieses Repository als **privates** GitHub-Repo (Konto bitte mit 2FA schützen)
 - Auf dem Mac: Terminal mit `ssh`
 
-## 1. DNS
+## 1. DuckDNS-Adresse
 
-Beim Domain-Anbieter einen **A-Eintrag** anlegen: `dorf.deine-domain.de → <IP des VPS>`. Das muss stehen, bevor Caddy das Zertifikat holt (dauert oft nur Minuten).
+1. Auf [duckdns.org](https://www.duckdns.org) mit GitHub oder Google anmelden.
+2. Unter *sub domain* einen freien Namen eintragen (z. B. `agentendorf-lh`) → *add domain*.
+3. Bei *current ip* die **IP des VPS** eintragen → *update ip*.
+
+Fertig: `agentendorf-lh.duckdns.org` zeigt auf den Server. Die VPS-IP ist fest, ein Updater ist nicht nötig. Das HTTPS-Zertifikat holt Caddy automatisch von Let's Encrypt (duckdns.org steht auf der Public-Suffix-Liste, die Zertifikatsgrenzen gelten also nur für deine Adresse).
+
+Das DuckDNS-Token brauchst du **nicht** – bitte nirgends eintragen.
+
+Im Folgenden steht `dorf.deine-domain.de` für deine DuckDNS-Adresse.
 
 ## 2. Zwei SSH-Schlüssel auf dem Mac
 
