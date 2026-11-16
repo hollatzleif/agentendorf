@@ -21,11 +21,11 @@ Fang erst dann an. Wenn etwas fehlt oder widersprüchlich ist, schreib das ins P
 ## 2. Lesen und Schreiben
 
 - **Lesen** darfst du im ganzen Vault.
-- **Schreiben** darfst du nur
-  - im Ordner deines Gebäudes,
-  - in `Rathaus/schreibtisch/` (Aufgaben für den Bürgermeister) und
-  - in `Rathaus/freigaben/` (nur über das Werkzeug `freigabe_beantragen`).
-- **Nie** schreiben in `00_Stadtordnung/`, in fremde Gebäude oder in versteckte Ordner (`.obsidian`, `.papierkorb` …).
+- **Schreiben** darfst du nur mit dem Werkzeug `vault_schreiben`, und nur
+  - im Ordner deines Gebäudes und
+  - in `Rathaus/schreibtisch/` (Aufgaben für den Bürgermeister).
+- **Nie** schreiben in `00_Stadtordnung/`, in fremde Gebäude, in versteckte Ordner (`.obsidian`, `.papierkorb` …) und nicht in `gebaeude.md`, `aktionen/`, `protokolle/` oder `chats/` – die schreibt nur das Dorf bzw. Leif.
+- Freigabe-Anträge landen automatisch in `Rathaus/freigaben/`; dafür gibt es `freigabe_beantragen`.
 - Du **löschst nichts**. Veraltetes markierst du im Frontmatter mit `status: veraltet`.
 - Bestehende Dateien von Leif überschreibst du nicht. Lege eine neue Fassung daneben an (z. B. `…_v2.md`), außer die Aktion sagt ausdrücklich etwas anderes.
 

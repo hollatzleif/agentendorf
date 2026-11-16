@@ -76,7 +76,25 @@ Mindestens 14 Zeichen. Dann `https://dorf.deine-domain.de` öffnen. In *Einstell
 
 **Aufs Handy:** Seite im Browser öffnen → *Zum Startbildschirm hinzufügen* (iPhone: Teilen-Menü; Android: Menü → *App installieren*).
 
-## 6. Vault auf Mac und PCs (Syncthing + Obsidian)
+## 6. Agenten-Motoren anmelden
+
+**claude-code-Motor (dein Max-Abo)** – auf dem Server:
+
+```bash
+dorf claude-anmelden
+```
+
+Es erscheint ein Link: im Browser öffnen, mit deinem Claude-Konto anmelden, das angezeigte Token kopieren und im Terminal einfügen (Eingabe bleibt unsichtbar). Das Token gilt ein Jahr und liegt nur in `/srv/dorf/werkstatt.env`.
+
+**api-Motor (für alles Automatische)** – API-Schlüssel aus der [Claude Console](https://platform.claude.com) (*API Keys → Create Key*):
+
+```bash
+dorf api-schluessel
+```
+
+Danach im Rathaus die Aktion **Frage stellen** ausprobieren. Im Chat siehst du Motor, Modell und Token, das Protokoll liegt in `Rathaus/protokolle/`.
+
+## 7. Vault auf Mac und PCs (Syncthing + Obsidian)
 
 1. Syncthing installieren: Mac `brew install --cask syncthing` (oder syncthing.net), Windows: *Syncthing Windows Setup* von syncthing.net/downloads.
 2. Geräte-ID des Servers anzeigen:
@@ -95,7 +113,7 @@ Für Windows-PC und -Laptop ebenso. Konflikte überschreibt Syncthing nie. Es le
 
 > Falls `dorf syncthing-geraet` meldet, dass ein Befehl unbekannt ist (Syncthing ändert seine Kommandozeile gelegentlich), geht es auch über die Oberfläche: `ssh -L 8384:127.0.0.1:8384 leif@dorf.deine-domain.de`, dann im Browser `http://localhost:8384`.
 
-## 7. Backup prüfen (einmal real)
+## 8. Backup prüfen (einmal real)
 
 ```bash
 dorf backup

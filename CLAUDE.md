@@ -8,9 +8,26 @@ Persönliche Agenten-Zentrale für **Leif** (einziger Nutzer). Oberfläche, Vaul
 apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts, Zusammenbau: src/dorf.ts, Routen: src/app.ts
   src/auth/       Passwort (Argon2id), Sitzungen (Cookie, nur Hash in DB), Drossel, TOTP (eigene RFC-6238-Implementierung)
   src/vault/      VaultDienst (einziger Weg zu den Dateien), Pfadregeln, Gebäude-Erkennung, Suche (FTS5), Dateiwächter
+  src/agenten/    Agenten-Kern (Etappe 2a):
+    aktionen.ts     Aktionen = Markdown-Skills in <Gebäude>/aktionen/ (Zod-Frontmatter, Fehler sichtbar)
+    modelle.ts      Stufen klein/mittel/gross + Motoren/Notschalter aus 00_Stadtordnung/{modelle,motoren}.md
+    leine.ts        DIE Stelle für Regeln: Werkzeugprofil, Schreibregeln, Web vs. Fremdinhalte, Fremdinhalt-Hülle
+    werkzeuge.ts    vault_lesen/liste/suchen/schreiben, freigabe_beantragen – mit Leine und werkzeug_log
+    freigaben.ts    Anträge, atomar genau einmal entscheiden, Ausführer, Spiegel in Rathaus/freigaben/
+    dienst.ts       Chats, Läufe, Warteschlange (Obergrenzen je Motor), Ausführung, Verlauf je Motor
+    kontext.ts      Systemprompt (Stadtordnung, gebaeude.md, neueste Protokolle), Anhänge
+    protokolle.ts   Protokoll pro Chat (Fakten aus DB/Log) + Chat-Spiegel in <Gebäude>/chats/
+    motor-api.ts    api-Motor: eigene Streaming-Schleife, Beta-Endpunkt (Ausweichmodelle), Verlauf nur anhängen
+    motor-claude-code.ts  claude-code-Motor: Auftrag an die Werkstatt, stream-json-Parser
+    motor-attrappe.ts     Motor ohne Tokenverbrauch (Tests, DORF_MOTOR_ATTRAPPE=1)
+  src/intern.ts   interner Port 3001 (nur Docker-Netz): Werkzeugaufrufe der Werkstatt per Lauf-Token
   src/live.ts     WebSocket-Hub: Ereignisse an alle Geräte
   src/cli.ts      Verwaltung (passwort, totp-aus, sitzungen-beenden, db-sichern, vault-ergaenzen)
 apps/web        React + Vite, eigener Mini-Router (src/router.ts), TanStack Query, PWA (vite-plugin-pwa)
+apps/werkstatt  eigener Container: unverändertes claude-CLI (Version im Dockerfile gepinnt) + Runner (HTTP, startet
+                claude, streamt stream-json) + stdio-MCP-Server "dorf" (reicht Werkzeugaufrufe an intern.ts weiter).
+                Baut die claude-Argumente SELBST (auftrag.ts): nur Read/Glob/Grep (+Web wenn erlaubt), kein Bash/Edit/Write,
+                --strict-mcp-config, --setting-sources user, kein --bare (bare liest kein Abo-Token).
 packages/shared Typen für HTTP und WebSocket (LiveEreignis, VaultEintrag …) – wird in den Server gebündelt
 vault-vorlage   Startinhalt des Vaults (Stadtordnung, gebaeude.md je Gebäude). Wird nur in einen LEEREN Vault kopiert.
 deploy          compose.yml, Caddyfile, dorf (Server-Verwaltung), bootstrap.sh (Ersteinrichtung), test/ (Backup-/Deploy-Tests)
@@ -22,7 +39,9 @@ deploy          compose.yml, Caddyfile, dorf (Server-Verwaltung), bootstrap.sh (
 - Ein Gebäude = Ordner auf oberster Ebene mit `gebaeude.md` (Frontmatter per Zod geprüft; Fehler werden angezeigt, nicht verschluckt).
 - Schreibende Anfragen und WebSocket brauchen passende `Origin` (CSRF-Schutz) und ein gültiges Sitzungs-Cookie (`HttpOnly`, `Secure`, `SameSite=Strict`).
 - Rohdateien aus dem Vault werden mit `Content-Security-Policy: sandbox` ausgeliefert, HTML/SVG nur als Download (Vault-Inhalte können aus fremden Quellen stammen).
-- Geheimnisse nur in `/srv/dorf/.env` auf dem Server – nie im Repo, nie im Vault.
+- Geheimnisse nur auf dem Server – nie im Repo, nie im Vault: `/srv/dorf/.env` (Dorf: ANTHROPIC_API_KEY, WERKSTATT_GEHEIMNIS) und `/srv/dorf/werkstatt.env` (Werkstatt: CLAUDE_CODE_OAUTH_TOKEN, WERKSTATT_GEHEIMNIS). Der API-Schlüssel erreicht die Werkstatt nie, das Abo-Token das Dorf nie.
+- **Die Leine sitzt im Code** (`agenten/leine.ts`, `werkzeuge.ts`, Werkstatt-Argumente): Agenten haben kein eingebautes Schreiben/Shell, Außenwirkung nur über `freigabe_beantragen`, Ausführung erst nach Leifs Klick (`freigaben.ts`). Zeitgesteuerte Läufe laufen immer über `api`; Notschalter `alle_auf` übersteuert alles.
+- api-Verlauf wird **nur angehängt**, Antworten unverändert zurückgeschickt (Opus 5.5/Fable 5.2 prüfen das).
 
 ## Befehle
 
@@ -31,14 +50,14 @@ pnpm install
 pnpm dev                 # Server (3000, tsx watch) + Web (5173, Proxy auf /api)
 pnpm --filter @dorf/server cli passwort   # lokales Passwort setzen (Daten in apps/server/daten/)
 pnpm typecheck
-pnpm test                # Vitest (Server)
+pnpm test                # Vitest (Server inkl. Ende-zu-Ende über Werkstatt mit Fake-claude, Werkstatt)
 pnpm build
 pnpm e2e                 # Playwright, Desktop + Handy, startet eigenen Testserver (Port 3999)
 bash deploy/test/backup-test.sh      # braucht restic, sqlite3, jq
 bash deploy/test/empfangen-test.sh
 shellcheck -x -S warning deploy/dorf deploy/bootstrap.sh deploy/test/*.sh
 ```
-Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server über Vite-Proxy braucht das).
+Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server über Vite-Proxy braucht das). `DORF_MOTOR_ATTRAPPE=1` ersetzt beide Motoren durch die Attrappe (Befehle in der Nachricht: `[schreibe pfad]`, `[freigabe pfad]`, `[fehler]`, `[warte ms]`).
 
 **Auf dem Server:** `dorf hilfe`. Deploy = Push auf `main` → GitHub Actions testet, baut das Image, schickt ein Bündel per SSH (erzwungener Befehl `empfangen`) → `dorf empfangen` schaltet um, prüft Gesundheit, rollt bei Fehler zurück.
 
@@ -54,7 +73,7 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 ## Stand
 
 - [x] Etappe 1 – Fundament (Code fertig und getestet; Deploy auf den Server steht aus, siehe EINRICHTUNG.md)
-- [ ] Etappe 2a – Agenten-Kern
+- [x] Etappe 2a – Agenten-Kern (Code fertig und getestet; echte Läufe beider Motoren erst auf dem Server)
 - [ ] Etappe 2b – Bürgermeister + Telegram
 - [ ] Etappe 3 – Uni
 - [ ] Etappe 4 – Post, Kalender, To-dos, Aufwachen, Morgenzeitung

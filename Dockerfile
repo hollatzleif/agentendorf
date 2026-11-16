@@ -6,6 +6,7 @@ WORKDIR /bau
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY apps/server/package.json apps/server/
 COPY apps/web/package.json apps/web/
+COPY apps/werkstatt/package.json apps/werkstatt/
 COPY packages/shared/package.json packages/shared/
 RUN pnpm install --frozen-lockfile
 COPY . .
@@ -21,7 +22,8 @@ ENV NODE_ENV=production \
     DATEN_DIR=/daten \
     VAULT_DIR=/vault \
     HINTER_PROXY=true \
-    PORT=3000
+    PORT=3000 \
+    INTERN_PORT=3001
 WORKDIR /app
 COPY --from=bau /laufzeit/node_modules ./node_modules
 COPY --from=bau /laufzeit/package.json ./package.json
@@ -29,7 +31,7 @@ COPY --from=bau /bau/apps/server/dist ./dist
 COPY --from=bau /bau/apps/web/dist ./web
 COPY --from=bau /bau/vault-vorlage ./vault-vorlage
 USER node
-EXPOSE 3000
+EXPOSE 3000 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
   CMD node -e "fetch('http://127.0.0.1:3000/api/gesundheit').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 CMD ["node", "--enable-source-maps", "dist/start.js"]

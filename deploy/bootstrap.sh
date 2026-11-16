@@ -125,14 +125,15 @@ systemctl restart docker
 
 schritt "5/7 /srv/dorf, Geheimnisse, Backup"
 DORF_UID=$(id -u "$BENUTZER")
-install -d -m 750 -o "$BENUTZER" -g "$BENUTZER" /srv/dorf /srv/dorf/app /srv/dorf/app/releases /srv/dorf/vault /srv/dorf/daten /srv/dorf/syncthing
+install -d -m 750 -o "$BENUTZER" -g "$BENUTZER" /srv/dorf /srv/dorf/app /srv/dorf/app/releases /srv/dorf/vault /srv/dorf/daten /srv/dorf/syncthing /srv/dorf/claude
 install -d -m 700 -o root -g root /srv/dorf/backup
 if [ ! -f /srv/dorf/.env ]; then
   cat > /srv/dorf/.env <<ENV
 # Agentendorf – Geheimnisse und Einstellungen. Nur auf dem Server, nie im Repo, nie im Vault.
 DORF_DOMAIN=$DOMAIN
 DORF_UID=$DORF_UID
-# ab Etappe 2a:
+WERKSTATT_GEHEIMNIS=$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 40)
+# api-Motor – eintragen mit: dorf api-schluessel
 # ANTHROPIC_API_KEY=
 # ab Etappe 2b:
 # TELEGRAM_BOT_TOKEN=
@@ -141,6 +142,11 @@ ENV
 fi
 sed -i "s/^DORF_DOMAIN=.*/DORF_DOMAIN=$DOMAIN/" /srv/dorf/.env
 chown root:"$BENUTZER" /srv/dorf/.env; chmod 640 /srv/dorf/.env
+if [ ! -f /srv/dorf/werkstatt.env ]; then
+  G=$(grep -E '^WERKSTATT_GEHEIMNIS=' /srv/dorf/.env | cut -d= -f2)
+  printf '# Nur für den Werkstatt-Container. Abo-Token mit: dorf claude-anmelden\nWERKSTATT_GEHEIMNIS=%s\nCLAUDE_CODE_OAUTH_TOKEN=\n' "$G" > /srv/dorf/werkstatt.env
+fi
+chown "$BENUTZER:$BENUTZER" /srv/dorf/werkstatt.env; chmod 600 /srv/dorf/werkstatt.env
 [ -f /srv/dorf/backup/restic-passwort ] || (umask 077; head -c 32 /dev/urandom | base64 > /srv/dorf/backup/restic-passwort)
 
 cat > /etc/systemd/system/dorf-backup.service <<UNIT

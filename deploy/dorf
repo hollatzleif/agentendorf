@@ -35,7 +35,28 @@ gesund_warten() {
   return 1
 }
 
+# Werkstatt-Geheimnis (Dorf ↔ Werkstatt) und werkstatt.env anlegen, falls sie fehlen. Bestehendes bleibt.
+geheimnisse_sicherstellen() {
+  local g uid
+  uid=$(grep -E '^DORF_UID=' "$ENV_DATEI" | cut -d= -f2 || true)
+  if ! grep -qE '^WERKSTATT_GEHEIMNIS=.{32,}' "$ENV_DATEI"; then
+    g=$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 40)
+    sed -i '/^WERKSTATT_GEHEIMNIS=/d' "$ENV_DATEI"
+    echo "WERKSTATT_GEHEIMNIS=$g" >> "$ENV_DATEI"
+  fi
+  g=$(grep -E '^WERKSTATT_GEHEIMNIS=' "$ENV_DATEI" | cut -d= -f2)
+  if [ ! -f "$BASIS/werkstatt.env" ]; then
+    printf '# Nur für den Werkstatt-Container. Abo-Token mit: dorf claude-anmelden\nWERKSTATT_GEHEIMNIS=%s\nCLAUDE_CODE_OAUTH_TOKEN=\n' "$g" > "$BASIS/werkstatt.env"
+  else
+    sed -i "s/^WERKSTATT_GEHEIMNIS=.*/WERKSTATT_GEHEIMNIS=$g/" "$BASIS/werkstatt.env"
+  fi
+  chmod 600 "$BASIS/werkstatt.env"
+  mkdir -p "$BASIS/claude"
+  [ -n "$uid" ] && chown "$uid:$uid" "$BASIS/claude" "$BASIS/werkstatt.env" 2>/dev/null || true
+}
+
 cmd_deploy() {
+  [ -n "${DORF_TEST:-}" ] || geheimnisse_sicherstellen
   info "Starte Version $(cat "$AKTUELL/VERSION") …"
   compose up -d --remove-orphans
   if gesund_warten; then gruen "Dorf läuft: https://$(grep -E '^DORF_DOMAIN=' "$ENV_DATEI" | cut -d= -f2)"; else rot "Dorf meldet sich nicht gesund."; compose logs --tail 50 dorf; return 1; fi
@@ -63,7 +84,7 @@ cmd_empfangen() {
   if cmd_deploy; then
     # nur die letzten 3 Versionen behalten
     ls -1dt "$APP"/releases/* | tail -n +4 | while read -r alt; do
-      docker image rm "agentendorf:$(basename "$alt")" >/dev/null 2>&1 || true
+      docker image rm "agentendorf:$(basename "$alt")" "agentendorf-werkstatt:$(basename "$alt")" >/dev/null 2>&1 || true
       rm -rf "$alt"
     done
     gruen "Deploy von $version erfolgreich."
@@ -116,9 +137,11 @@ cmd_backup() {
   compose exec -T dorf node dist/cli.js db-sichern /daten/sicherung/dorf.db
   info "Sichere Vault, Datenbank, Syncthing-Konfiguration, .env …"
   # DORF_BACKUP_ZEIT nur für Tests (simuliert ältere Tage)
+  local ziele=("$BASIS/vault" "$BASIS/daten/sicherung" "$ENV_DATEI")
+  local z
+  for z in "$BASIS/syncthing/config" "$BASIS/werkstatt.env"; do [ -e "$z" ] && ziele+=("$z"); done
   restic backup --tag taeglich --host agentendorf ${DORF_BACKUP_ZEIT:+--time "$DORF_BACKUP_ZEIT"} \
-    --exclude "$BASIS/syncthing/index-*" \
-    "$BASIS/vault" "$BASIS/daten/sicherung" "$BASIS/syncthing/config" "$ENV_DATEI"
+    --exclude "$BASIS/syncthing/index-*" "${ziele[@]}"
   info "Behalte nur die Stände der letzten 7 Tage …"
   restic forget --tag taeglich --keep-within-daily "$BEHALTEN_TAGE" --prune
   restic check
@@ -162,6 +185,33 @@ cmd_wiederherstellen() {
   gesund_warten && gruen "Vault wiederhergestellt. Alter Stand liegt in $BASIS/vault.vor-wiederherstellung-$zeit"
 }
 
+# Abo-Anmeldung für den claude-code-Motor. Du meldest dich über Anthropics eigenen Ablauf an;
+# das Token (1 Jahr gültig) landet nur in /srv/dorf/werkstatt.env – nie im Dorf, nie im Vault.
+cmd_claude_anmelden() {
+  geheimnisse_sicherstellen
+  info "Starte 'claude setup-token' in der Werkstatt. Öffne den angezeigten Link, melde dich an und kopiere das Token."
+  compose run --rm -it --no-deps --entrypoint claude werkstatt setup-token || true
+  local token
+  read -r -s -p "Token hier einfügen (Eingabe unsichtbar, leer = abbrechen): " token; echo
+  [ -n "$token" ] || { rot "Abgebrochen."; return 1; }
+  case "$token" in *[[:space:]]*|*'/'*) rot "Das sieht nicht wie ein Token aus."; return 1 ;; esac
+  sed -i "s/^CLAUDE_CODE_OAUTH_TOKEN=.*/CLAUDE_CODE_OAUTH_TOKEN=$token/" "$BASIS/werkstatt.env"
+  grep -q '^CLAUDE_CODE_OAUTH_TOKEN=' "$BASIS/werkstatt.env" || echo "CLAUDE_CODE_OAUTH_TOKEN=$token" >> "$BASIS/werkstatt.env"
+  compose up -d --force-recreate werkstatt
+  gruen "Abo-Token gespeichert, Werkstatt neu gestartet."
+}
+
+# API-Schlüssel für den api-Motor in /srv/dorf/.env eintragen (Eingabe unsichtbar).
+cmd_api_schluessel() {
+  local k
+  read -r -s -p "Anthropic-API-Schlüssel (sk-ant-…, Eingabe unsichtbar): " k; echo
+  case "$k" in sk-ant-*) ;; *) rot "Das sieht nicht wie ein API-Schlüssel aus."; return 1 ;; esac
+  sed -i '/^#\? *ANTHROPIC_API_KEY=/d' "$ENV_DATEI"
+  echo "ANTHROPIC_API_KEY=$k" >> "$ENV_DATEI"
+  compose up -d --force-recreate dorf
+  gruen "API-Schlüssel gespeichert, Dorf neu gestartet."
+}
+
 cmd_syncthing_id() { compose exec -T syncthing syncthing device-id 2>/dev/null || compose exec -T syncthing syncthing --device-id; }
 
 cmd_syncthing_geraet() {
@@ -186,6 +236,9 @@ Agentendorf – Befehle auf dem Server
   dorf passwort                  Passwort setzen/ändern
   dorf totp-aus                  zweiten Faktor abschalten (Notfall)
   dorf sitzungen-beenden         alle Geräte abmelden
+
+  dorf claude-anmelden           Abo für den claude-code-Motor anmelden (Token 1 Jahr gültig)
+  dorf api-schluessel            API-Schlüssel für den api-Motor eintragen
 
   dorf backup                    Sicherung jetzt (läuft sonst täglich 03:30)
   dorf restore-test [stand]      Wiederherstellung in Testordner prüfen
@@ -214,6 +267,8 @@ case "$befehl" in
   restore-test) cmd_restore_test "$@" ;;
   wiederherstellen) cmd_wiederherstellen "$@" ;;
   syncthing-id) cmd_syncthing_id ;;
+  claude-anmelden) cmd_claude_anmelden ;;
+  api-schluessel) cmd_api_schluessel ;;
   syncthing-geraet) cmd_syncthing_geraet "$@" ;;
   hilfe|-h|--help) cmd_hilfe ;;
   *) rot "Unbekannter Befehl: $befehl"; cmd_hilfe; exit 1 ;;

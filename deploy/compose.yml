@@ -28,6 +28,8 @@ services:
       ORIGIN: https://${DORF_DOMAIN}
       HINTER_PROXY: "true"
       DORF_VERSION: ${DORF_VERSION:-unbekannt}
+      WERKSTATT_URL: http://werkstatt:4000
+      TZ: Europe/Vienna
     user: "${DORF_UID:-1000}:${DORF_UID:-1000}"
     volumes:
       - /srv/dorf/vault:/vault
@@ -39,7 +41,28 @@ services:
     security_opt:
       - no-new-privileges:true
     mem_limit: 768m
-    # kein Port nach außen – nur Caddy spricht mit dem Dorf
+    # kein Port nach außen – nur Caddy spricht mit dem Dorf (3000); die Werkstatt ruft Werkzeuge über 3001 auf
+
+  werkstatt:
+    # unverändertes claude-CLI mit Leifs Abo. Vault NUR LESBAR. Kein API-Schlüssel, keine anderen Geheimnisse.
+    image: agentendorf-werkstatt:${DORF_VERSION:-latest}
+    restart: unless-stopped
+    env_file: /srv/dorf/werkstatt.env
+    environment:
+      DORF_INTERN_URL: http://dorf:3001
+      TZ: Europe/Vienna
+    user: "${DORF_UID:-1000}:${DORF_UID:-1000}"
+    volumes:
+      - /srv/dorf/vault:/vault:ro
+      - /srv/dorf/claude:/claude-konfig
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /arbeit
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1536m
 
   syncthing:
     image: syncthing/syncthing:2
