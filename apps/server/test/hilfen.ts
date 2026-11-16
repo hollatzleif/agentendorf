@@ -4,6 +4,8 @@ import path from 'node:path';
 import { konfigLaden } from '../src/konfig.js';
 import { dorfStarten } from '../src/dorf.js';
 import { TestUhr } from '../src/uhr.js';
+import { attrappe } from '../src/agenten/motor-attrappe.js';
+import type { Motor } from '../src/agenten/motor.js';
 
 export const ORIGIN = 'https://dorf.test';
 
@@ -11,7 +13,7 @@ export function tempOrdner(praefix = 'dorf-test-') {
   return fs.mkdtempSync(path.join(os.tmpdir(), praefix));
 }
 
-export async function testDorf(opt: { beobachten?: boolean } = {}) {
+export async function testDorf(opt: { beobachten?: boolean; motoren?: Record<'api' | 'claude-code', Motor> } = {}) {
   const daten = tempOrdner();
   const konfig = konfigLaden({
     DATEN_DIR: daten,
@@ -21,7 +23,11 @@ export async function testDorf(opt: { beobachten?: boolean } = {}) {
     WEB_DIR: path.join(daten, 'kein-web'),
   });
   const uhr = new TestUhr();
-  const d = await dorfStarten(konfig, { uhr, beobachten: opt.beobachten ?? false });
+  const d = await dorfStarten(konfig, {
+    uhr,
+    beobachten: opt.beobachten ?? false,
+    motoren: opt.motoren ?? { api: attrappe('api'), 'claude-code': attrappe('claude-code') },
+  });
   return { ...d, uhr, konfig, daten };
 }
 

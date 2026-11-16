@@ -41,6 +41,94 @@ const MIGRATIONEN: string[] = [
     groesse INTEGER NOT NULL
   );
   `,
+  // 2 – Etappe 2a: Agenten-Kern
+  `
+  CREATE TABLE chats (
+    id TEXT PRIMARY KEY,
+    gebaeude TEXT NOT NULL,
+    aktion TEXT,
+    titel TEXT NOT NULL,
+    motor TEXT NOT NULL,
+    stufe TEXT NOT NULL,
+    modell TEXT NOT NULL,
+    cc_sitzung TEXT,
+    eingaben_json TEXT NOT NULL DEFAULT '{}',
+    anhaenge_json TEXT NOT NULL DEFAULT '[]',   -- Anhang-Muster des ersten Laufs
+    werkzeuge_json TEXT NOT NULL DEFAULT '[]',
+    fremdinhalte INTEGER NOT NULL DEFAULT 0,
+    spiegel_pfad TEXT,
+    spiegel_version TEXT,
+    protokoll_pfad TEXT,
+    erstellt INTEGER NOT NULL,
+    geaendert INTEGER NOT NULL
+  );
+  CREATE INDEX chats_gebaeude ON chats (gebaeude, geaendert);
+  CREATE TABLE nachrichten (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_id TEXT NOT NULL REFERENCES chats (id) ON DELETE CASCADE,
+    lauf_id TEXT,
+    rolle TEXT NOT NULL,              -- nutzer | agent | werkzeug | hinweis
+    text TEXT NOT NULL DEFAULT '',
+    roh_json TEXT,                    -- unveränderter API-Inhalt (für den Verlauf des api-Motors)
+    motor TEXT,
+    erstellt INTEGER NOT NULL
+  );
+  CREATE INDEX nachrichten_chat ON nachrichten (chat_id, id);
+  CREATE TABLE laeufe (
+    id TEXT PRIMARY KEY,
+    chat_id TEXT NOT NULL REFERENCES chats (id) ON DELETE CASCADE,
+    nummer INTEGER NOT NULL,
+    motor TEXT NOT NULL,
+    modell TEXT NOT NULL,
+    stufe TEXT NOT NULL,
+    aufwand TEXT NOT NULL,
+    status TEXT NOT NULL,             -- wartet_freigabe | wartend | laeuft | fertig | fehler | abgebrochen
+    ausloeser TEXT NOT NULL,          -- klick | zeitplan | buergermeister
+    auftrag TEXT NOT NULL,
+    erstellt INTEGER NOT NULL,
+    start INTEGER,
+    ende INTEGER,
+    ein_token INTEGER NOT NULL DEFAULT 0,
+    aus_token INTEGER NOT NULL DEFAULT 0,
+    cache_lesen INTEGER NOT NULL DEFAULT 0,
+    cache_schreiben INTEGER NOT NULL DEFAULT 0,
+    kosten_usd REAL NOT NULL DEFAULT 0,
+    fehler TEXT,
+    zusammenfassung TEXT
+  );
+  CREATE INDEX laeufe_status ON laeufe (status, erstellt);
+  CREATE INDEX laeufe_chat ON laeufe (chat_id, nummer);
+  CREATE TABLE werkzeug_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lauf_id TEXT NOT NULL,
+    chat_id TEXT NOT NULL,
+    werkzeug TEXT NOT NULL,
+    eingabe_json TEXT NOT NULL,
+    ergebnis TEXT NOT NULL,
+    erlaubt INTEGER NOT NULL,
+    pfad TEXT,
+    art TEXT,                         -- gelesen | geschrieben | web | freigabe
+    zeit INTEGER NOT NULL
+  );
+  CREATE INDEX werkzeug_log_lauf ON werkzeug_log (lauf_id);
+  CREATE INDEX werkzeug_log_chat_pfad ON werkzeug_log (chat_id, pfad);
+  CREATE TABLE freigaben (
+    id TEXT PRIMARY KEY,
+    lauf_id TEXT,
+    chat_id TEXT,
+    gebaeude TEXT NOT NULL,
+    art TEXT NOT NULL,
+    titel TEXT NOT NULL,
+    begruendung TEXT NOT NULL DEFAULT '',
+    inhalt_json TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'offen', -- offen | abgelehnt | angenommen | ausgefuehrt | fehlgeschlagen
+    erstellt INTEGER NOT NULL,
+    entschieden INTEGER,
+    ergebnis TEXT,
+    vault_pfad TEXT
+  );
+  CREATE INDEX freigaben_status ON freigaben (status, erstellt);
+  `,
 ];
 
 export function dbOeffnen(datei: string): DB {

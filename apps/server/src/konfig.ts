@@ -20,6 +20,10 @@ const Schema = z.object({
     .transform((w) => w === 'true'),
   DORF_VERSION: z.string().default('entwicklung'),
   LOG_LEVEL: z.string().default('info'),
+  DORF_MOTOR_ATTRAPPE: z
+    .string()
+    .default('false')
+    .transform((w) => w === '1' || w === 'true'),
 });
 
 export interface Konfig {
@@ -34,6 +38,7 @@ export interface Konfig {
   hinterProxy: boolean;
   version: string;
   logLevel: string;
+  motorAttrappe: boolean;
 }
 
 export function konfigLaden(env: NodeJS.ProcessEnv = process.env): Konfig {
@@ -50,5 +55,6 @@ export function konfigLaden(env: NodeJS.ProcessEnv = process.env): Konfig {
     hinterProxy: e.HINTER_PROXY,
     version: e.DORF_VERSION,
     logLevel: e.LOG_LEVEL,
+    motorAttrappe: e.DORF_MOTOR_ATTRAPPE,
   };
 }

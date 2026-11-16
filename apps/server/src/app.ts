@@ -19,6 +19,8 @@ import { VaultDienst } from './vault/dienst.js';
 import { gebaeudeListe } from './vault/gebaeude.js';
 import { Suchindex } from './vault/suche.js';
 import { LiveHub } from './live.js';
+import type { AgentenDienst } from './agenten/dienst.js';
+import { agentenRouten } from './agenten/routen.js';
 
 export const COOKIE = 'dorf_sitzung';
 const OFFEN = new Set(['/api/gesundheit', '/api/anmeldung', '/api/anmeldung/info']);
@@ -36,6 +38,7 @@ export interface Abhaengigkeiten {
   vault: VaultDienst;
   suche: Suchindex;
   hub: LiveHub;
+  agenten: AgentenDienst;
 }
 
 const MIME: Record<string, string> = {
@@ -299,6 +302,9 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
   app.get('/api/vault/konflikte', async () => vault.konflikte());
 
   app.get('/api/gebaeude', async () => gebaeudeListe(vault));
+
+  // ---- Agenten (Etappe 2a) ------------------------------------------------------------------
+  agentenRouten(app, { agenten: a.agenten, vault, uhr, db, hub });
 
   // ---- Live-Verbindung ------------------------------------------------------------------------
   app.get('/api/live', { websocket: true }, (socket, req) => {

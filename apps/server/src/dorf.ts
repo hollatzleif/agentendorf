@@ -7,9 +7,15 @@ import { Suchindex, istText } from './vault/suche.js';
 import { vaultBeobachten } from './vault/waechter.js';
 import { LiveHub } from './live.js';
 import { appBauen } from './app.js';
+import { AgentenDienst } from './agenten/dienst.js';
+import type { Motor } from './agenten/motor.js';
+import { motorenBauen } from './agenten/motoren.js';
 
 /** Baut das ganze Dorf zusammen (für Start und Integrationstests). */
-export async function dorfStarten(konfig: Konfig, opt: { uhr?: Uhr; beobachten?: boolean } = {}) {
+export async function dorfStarten(
+  konfig: Konfig,
+  opt: { uhr?: Uhr; beobachten?: boolean; motoren?: Record<'api' | 'claude-code', Motor> } = {},
+) {
   const uhr = opt.uhr ?? systemUhr;
   const db = dbOeffnen(path.join(konfig.datenDir, 'dorf.db'));
   const vault = new VaultDienst(konfig.vaultDir, uhr);
@@ -24,14 +30,18 @@ export async function dorfStarten(konfig: Konfig, opt: { uhr?: Uhr; beobachten?:
     hub.gebuendelt({ typ: 'vault.geaendert', pfad: rel, art });
     if (!rel.includes('/') || /^[^/]+\/gebaeude\.md$/.test(rel) || /^[^/]+\/aktionen\//.test(rel)) hub.gebuendelt({ typ: 'gebaeude.geaendert' });
     if (VaultDienst.istKonflikt(rel)) hub.gebuendelt({ typ: 'konflikte.geaendert' });
+    if (/^[^/]+\/aktionen\//.test(rel)) hub.gebuendelt({ typ: 'aktionen.geaendert' });
+    if (rel.startsWith('00_Stadtordnung/')) hub.gebuendelt({ typ: 'konfig.geaendert' });
   };
   vault.beobachten(aenderung);
   const waechter = opt.beobachten === false ? null : vaultBeobachten(vault.wurzel, aenderung);
 
-  const app = await appBauen({ konfig, db, uhr, vault, suche, hub });
+  const agenten = new AgentenDienst(db, uhr, vault, suche, hub, opt.motoren ?? motorenBauen(konfig));
+  agenten.anstossen();
+  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten });
   app.addHook('onClose', async () => {
     await waechter?.close();
     db.close();
   });
-  return { app, db, vault, suche, hub, angelegt };
+  return { app, db, vault, suche, hub, angelegt, agenten };
 }
