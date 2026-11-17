@@ -5,7 +5,8 @@
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options "nosniff"
-		X-Frame-Options "DENY"
+		# Nur das Dorf selbst darf eigene Seiten einbetten (abgeschottete Lernzettel), sonst nie
+		?X-Frame-Options "DENY"
 		Referrer-Policy "same-origin"
 		Permissions-Policy "camera=(), microphone=(), geolocation=()"
 		# Nur setzen, wenn das Dorf selbst keine strengere Regel schickt (z. B. für Rohdateien aus dem Vault)

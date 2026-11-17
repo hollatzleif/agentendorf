@@ -25,6 +25,11 @@ export function agentenRouten(
     return (await aktionenListe(vault, gebaeude)).map(({ kopf: _k, prompt: _p, anhaenge: _a, ...info }) => info);
   });
 
+  app.get('/api/aktionen/quelle', async (req) => {
+    const q = z.object({ name: z.enum(['uni.faecher', 'uni.abgaben']) }).parse(req.query);
+    return agenten.quellen(q.name);
+  });
+
   app.post('/api/aktionen/starten', async (req) => {
     const b = z.object({ id: z.string(), eingaben: z.record(z.string(), z.string()).default({}) }).parse(req.body);
     return agenten.aktionStarten(b.id, b.eingaben, 'klick');

@@ -33,7 +33,8 @@ Das Dorf setzt diese Regeln zusätzlich technisch durch. Ein verweigerter Schrei
 
 ## 3. Dateinamen
 
-- Schema: `JJJJ-MM-TT_HHMM_kurztitel.md`, z. B. `2026-11-16_1430_entwurf-uebung-3.md`
+- Schema: `JJJJ-MM-TT_HHMM_kurztitel.md`, z. B. `2026-11-16_1430_entwurf-uebung-3.md` (erlaubte Endungen: .md, .txt, .csv, .json, .html)
+- `.html` zeigt das Dorf abgeschottet an: Skripte laufen, aber **ohne Netz** – CSS, JavaScript, Formeln (MathML) und Grafiken (SVG) gehören vollständig in die Datei, keine CDNs, keine externen Bilder.
 - Nur Kleinbuchstaben, Ziffern, `-` und `_`. Umlaute umschreiben (ä → ae, ß → ss). Keine Leerzeichen.
 - Jede Notiz bekommt Frontmatter mit mindestens `titel`, `erstellt`, `quelle` (Agent bzw. Aktion).
 - Verweise auf andere Notizen als Wikilink: `[[Dateiname]]`.

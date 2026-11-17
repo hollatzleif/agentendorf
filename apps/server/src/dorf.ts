@@ -79,6 +79,7 @@ export async function dorfStarten(
     pauseMs: opt.moodle ? 0 : 500,
     log: (t) => console.warn(t),
   });
+  agenten.quellen = (q) => uni.quelle(q);
   let telegram: TelegramBot | undefined;
   if ((konfig.telegramToken || opt.telegram) && konfig.telegramChatId) {
     telegram = new TelegramBot({

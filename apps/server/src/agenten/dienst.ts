@@ -6,7 +6,7 @@ import type { VaultDienst } from '../vault/dienst.js';
 import type { Suchindex } from '../vault/suche.js';
 import type { LiveHub } from '../live.js';
 import { DorfFehler } from '../fehler.js';
-import { aktionLaden, eingabenAnwenden } from './aktionen.js';
+import { aktionLaden, eingabenAnwenden, type QuellenFn } from './aktionen.js';
 import { BUERGERMEISTER_WERKZEUGE, LESE_WERKZEUGE, werkzeugprofil, type DorfWerkzeug } from './leine.js';
 import { kostenSchaetzen, motorenLaden, stufenLaden } from './modelle.js';
 import { anhaengeLaden, auftragMitAnhaengen, systemPromptBauen } from './kontext.js';
@@ -114,6 +114,8 @@ export class AgentenDienst {
   rollenWerkzeuge?: RollenHandler;
   /** Zuhörer für beendete Läufe (Telegram-Meldungen, Plan-Abschluss, Schreibtisch-Status) */
   readonly beiLaufEnde: ((e: LaufEnde) => void | Promise<void>)[] = [];
+  /** Server-Auswahlen für Aktions-Eingaben (z. B. Kurse aus Moodle) – wird beim Zusammenbau gesetzt */
+  quellen: QuellenFn = () => [];
 
   constructor(
     private db: DB,
@@ -146,7 +148,7 @@ export class AgentenDienst {
     herkunft: ChatHerkunft = {},
   ): Promise<{ chatId: string; laufId: string }> {
     const a = await aktionLaden(this.vault, aktionId);
-    const { prompt, anhaenge, werte } = eingabenAnwenden(a, eingaben);
+    const { prompt, anhaenge, werte } = eingabenAnwenden(a, eingaben, this.quellen);
     const profil = werkzeugprofil(a); // wirft bei Widerspruch (Web + Fremdinhalte)
     const erstesFeld = Object.values(werte).find((w) => w.trim()) ?? '';
     const titel = `${a.name}${erstesFeld ? `: ${erstesFeld.replace(/\s+/g, ' ').slice(0, 60)}` : ''}`;

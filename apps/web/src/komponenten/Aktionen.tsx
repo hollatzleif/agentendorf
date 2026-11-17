@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { AktionInfo } from '@dorf/shared';
+import type { AktionInfo, AktionQuelle, QuellenOption } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { navigieren } from '../router';
 import { alleDateien, useBaum } from '../vaultHilfen';
@@ -37,6 +37,27 @@ export function Aktionen({ gebaeude }: { gebaeude: string }) {
       </div>
       {offen && <AktionStarten key={offen} a={q.data.find((x) => x.id === offen)!} />}
     </div>
+  );
+}
+
+/** Auswahl, deren Werte der Server liefert (Kurse, offene Abgaben aus Moodle) */
+function QuellenAuswahl({ quelle, wert, setzen }: { quelle: AktionQuelle; wert: string; setzen: (w: string) => void }) {
+  const q = useQuery({ queryKey: ['aktion-quellen', quelle], queryFn: () => api<QuellenOption[]>(`/api/aktionen/quelle?name=${quelle}`) });
+  const erste = q.data?.[0]?.wert;
+  useEffect(() => {
+    if (!wert && erste) setzen(erste);
+  }, [wert, erste, setzen]);
+  if (!q.data) return <span className="leise"> Lade …</span>;
+  if (!q.data.length)
+    return <span className="leise"> – nichts zur Auswahl{quelle.startsWith('uni.') ? ' (Moodle verbunden und abgeglichen? Uni → Übersicht)' : ''}</span>;
+  return (
+    <select value={wert} onChange={(x) => setzen(x.target.value)} required>
+      {q.data.map((o) => (
+        <option key={o.wert} value={o.wert}>
+          {o.beschriftung}
+        </option>
+      ))}
+    </select>
   );
 }
 
@@ -83,6 +104,8 @@ function AktionStarten({ a }: { a: AktionInfo }) {
             {e.pflicht ? ' *' : ''}
             {e.typ === 'langtext' ? (
               <textarea rows={5} value={werte[e.name]} onChange={(x) => setzen(x.target.value)} required={e.pflicht} />
+            ) : e.quelle ? (
+              <QuellenAuswahl quelle={e.quelle} wert={werte[e.name] ?? ''} setzen={setzen} />
             ) : e.typ === 'auswahl' ? (
               <select value={werte[e.name]} onChange={(x) => setzen(x.target.value)}>
                 {e.optionen?.map((o) => (

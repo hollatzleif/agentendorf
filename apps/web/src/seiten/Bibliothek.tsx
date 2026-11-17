@@ -9,6 +9,7 @@ import { Dateibaum } from '../komponenten/Dateibaum';
 import { Markdown } from '../komponenten/Markdown';
 // Schwere Teile (PDF-Anzeige, Editor) erst laden, wenn sie gebraucht werden – wichtig fürs Handy.
 const Editor = lazy(() => import('../komponenten/Editor').then((m) => ({ default: m.Editor })));
+const HtmlAnsicht = lazy(() => import('../komponenten/HtmlAnsicht').then((m) => ({ default: m.HtmlAnsicht })));
 const PdfAnsicht = lazy(() => import('../komponenten/PdfAnsicht').then((m) => ({ default: m.PdfAnsicht })));
 
 export function Bibliothek() {
@@ -244,6 +245,12 @@ function OrdnerAnsicht({ pfad }: { pfad: string }) {
 function DateiAnsicht({ pfad }: { pfad: string }) {
   const e = endung(pfad);
   if (TEXT_ENDUNGEN.has(e)) return <TextAnsicht pfad={pfad} />;
+  if (e === 'html' || e === 'htm')
+    return (
+      <Suspense fallback={<p className="leise">Lade …</p>}>
+        <HtmlAnsicht pfad={pfad} />
+      </Suspense>
+    );
   if (e === 'pdf')
     return (
       <Suspense fallback={<p className="leise">Lade PDF-Anzeige …</p>}>

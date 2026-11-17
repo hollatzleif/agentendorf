@@ -53,7 +53,7 @@ export const WERKZEUG_DEFINITIONEN: Record<DorfWerkzeug, WerkzeugDefinition> = {
   vault_schreiben: {
     name: 'vault_schreiben',
     description:
-      'Legt eine Markdown-Datei im eigenen Gebäude an (oder auf Rathaus/schreibtisch/). Dateiname nach Schema JJJJ-MM-TT_HHMM_kurztitel.md. Bestehende Dateien von Leif werden nicht überschrieben – dafür freigabe_beantragen nutzen.',
+      'Legt eine Markdown-Datei im eigenen Gebäude an (oder auf Rathaus/schreibtisch/). Dateiname nach Schema JJJJ-MM-TT_HHMM_kurztitel.md (erlaubt: .md .txt .csv .json .html; .html wird abgeschottet ohne Netz angezeigt – alles inline, keine CDNs). Bestehende Dateien von Leif werden nicht überschrieben – dafür freigabe_beantragen nutzen.',
     input_schema: {
       type: 'object',
       properties: {

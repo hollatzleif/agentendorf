@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import matter from 'gray-matter';
 import { z } from 'zod';
-import type { AktionInfo } from '@dorf/shared';
+import type { AktionInfo, AktionQuelle, QuellenOption } from '@dorf/shared';
 import type { VaultDienst } from '../vault/dienst.js';
 import { gebaeudeListe } from '../vault/gebaeude.js';
 import { DorfFehler } from '../fehler.js';
@@ -17,7 +17,12 @@ const Eingabe = z.object({
   beschriftung: z.string().optional(),
   pflicht: JaNein.default(true),
   optionen: z.array(z.coerce.string()).optional(),
+  /** Auswahl vom Server: uni.faecher (Kurse), uni.abgaben (offene Abgaben) */
+  quelle: z.enum(['uni.faecher', 'uni.abgaben']).optional(),
 });
+
+/** Liefert die erlaubten Werte einer Server-Auswahl (beim Anzeigen UND beim Start geprüft). */
+export type QuellenFn = (q: AktionQuelle) => QuellenOption[];
 
 export const AktionKopf = z
   .object({
@@ -37,8 +42,8 @@ export const AktionKopf = z
   .superRefine((k, ctx) => {
     const f = aktionPruefen(k);
     if (f) ctx.addIssue({ code: 'custom', message: f, path: ['werkzeuge'] });
-    const typAuswahlOhne = k.eingaben.find((e) => e.typ === 'auswahl' && !e.optionen?.length);
-    if (typAuswahlOhne) ctx.addIssue({ code: 'custom', message: `Eingabe „${typAuswahlOhne.name}“ (auswahl) braucht optionen`, path: ['eingaben'] });
+    const typAuswahlOhne = k.eingaben.find((e) => e.typ === 'auswahl' && !e.optionen?.length && !e.quelle);
+    if (typAuswahlOhne) ctx.addIssue({ code: 'custom', message: `Eingabe „${typAuswahlOhne.name}“ (auswahl) braucht optionen oder quelle`, path: ['eingaben'] });
   });
 
 export type AktionKopfT = z.infer<typeof AktionKopf>;
@@ -119,13 +124,15 @@ export async function aktionLaden(vault: VaultDienst, id: string): Promise<Aktio
 }
 
 /** Prüft die Eingaben gegen die Aktion und setzt Platzhalter {name} im Prompt und in den Anhängen ein. */
-export function eingabenAnwenden(a: Aktion, eingaben: Record<string, string>) {
+export function eingabenAnwenden(a: Aktion, eingaben: Record<string, string>, quellen?: QuellenFn) {
   if (a.fehler) throw new DorfFehler(400, a.fehler);
   const werte: Record<string, string> = {};
   for (const e of a.eingaben) {
     const w = (eingaben[e.name] ?? '').toString();
     if (e.pflicht && !w.trim()) throw new DorfFehler(400, `Eingabe „${e.beschriftung ?? e.name}“ fehlt.`);
-    if (e.typ === 'auswahl' && w && !e.optionen?.includes(w)) throw new DorfFehler(400, `Ungültige Auswahl für „${e.name}“.`);
+    if (e.quelle) {
+      if (w && !(quellen?.(e.quelle) ?? []).some((o) => o.wert === w)) throw new DorfFehler(400, `Ungültige Auswahl für „${e.beschriftung ?? e.name}“ (nicht in ${e.quelle}).`);
+    } else if (e.typ === 'auswahl' && w && !e.optionen?.includes(w)) throw new DorfFehler(400, `Ungültige Auswahl für „${e.name}“.`);
     if (w.length > 100_000) throw new DorfFehler(400, `Eingabe „${e.name}“ ist zu lang.`);
     werte[e.name] = w;
   }

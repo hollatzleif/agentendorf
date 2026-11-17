@@ -50,6 +50,21 @@ export interface Abhaengigkeiten {
   uni: Uni;
 }
 
+/** Für Agenten-HTML: Skripte ja, aber undurchsichtiger Ursprung und kein Netz. Bilder/Schriften nur eingebettet (data:). */
+export const SEITEN_CSP = [
+  'sandbox allow-scripts',
+  "default-src 'none'",
+  "script-src 'unsafe-inline'",
+  "style-src 'unsafe-inline'",
+  'img-src data: blob:',
+  'font-src data:',
+  'media-src data: blob:',
+  "connect-src 'none'",
+  "form-action 'none'",
+  "base-uri 'none'",
+  "frame-ancestors 'self'",
+].join('; ');
+
 const MIME: Record<string, string> = {
   '.md': 'text/markdown; charset=utf-8',
   '.txt': 'text/plain; charset=utf-8',
@@ -268,6 +283,26 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
         'Content-Disposition',
         `${q.download || !anzeigbar ? 'attachment' : 'inline'}; filename*=UTF-8''${encodeURIComponent(name)}`,
       );
+    return reply.send(r.strom);
+  });
+
+  /**
+   * HTML aus dem Vault (Lernzettel, Probeklausuren) als abgeschottete Seite: Skripte laufen, aber in einem
+   * eigenen, undurchsichtigen Ursprung (kein allow-same-origin → kein Zugriff auf App, Cookies, API)
+   * und ohne Netz (default-src 'none'): nichts nachladen, nichts hinausschicken.
+   */
+  app.get('/api/vault/seite', async (req, reply) => {
+    const q = z.object({ pfad: z.string(), v: z.string().optional() }).parse(req.query);
+    if (!/\.html?$/i.test(q.pfad)) throw new DorfFehler(400, 'Nur .html-Dateien.');
+    const r = vault.rohOeffnen(q.pfad);
+    reply
+      .header('Content-Type', 'text/html; charset=utf-8')
+      .header('Content-Length', String(r.groesse))
+      .header('X-Content-Type-Options', 'nosniff')
+      .header('Content-Security-Policy', SEITEN_CSP)
+      .header('X-Frame-Options', 'SAMEORIGIN')
+      .header('Referrer-Policy', 'no-referrer')
+      .header('Cache-Control', 'private, no-cache');
     return reply.send(r.strom);
   });
 

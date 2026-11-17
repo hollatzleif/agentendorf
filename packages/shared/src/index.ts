@@ -94,6 +94,14 @@ export interface AktionEingabe {
   beschriftung?: string;
   pflicht: boolean;
   optionen?: string[];
+  /** Auswahl, die der Server liefert (z. B. Kurse aus Moodle) */
+  quelle?: AktionQuelle;
+}
+
+export type AktionQuelle = 'uni.faecher' | 'uni.abgaben';
+export interface QuellenOption {
+  wert: string;
+  beschriftung: string;
 }
 
 export interface AktionInfo {

@@ -48,7 +48,7 @@ export function werkzeugprofil(a: { werkzeuge: AktionsWerkzeug[]; fremdinhalte: 
 }
 
 /** Namensschema für Dateien, die Agenten anlegen: JJJJ-MM-TT_HHMM_kurztitel.endung */
-export const AGENTEN_DATEINAME = /^\d{4}-\d{2}-\d{2}_\d{4}_[a-z0-9]+(?:-[a-z0-9]+)*\.(md|txt|csv|json)$/;
+export const AGENTEN_DATEINAME = /^\d{4}-\d{2}-\d{2}_\d{4}_[a-z0-9]+(?:-[a-z0-9]+)*\.(md|txt|csv|json|html)$/;
 
 /** Bereiche eines Gebäudes, die nur das Dorf selbst (bzw. Leif) schreibt – nie ein Agent. */
 const GESCHUETZT_IM_GEBAEUDE = ['gebaeude.md', 'aktionen', 'protokolle', 'chats'];

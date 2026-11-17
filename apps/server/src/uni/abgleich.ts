@@ -3,7 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import matter from 'gray-matter';
 import type Database from 'better-sqlite3';
-import type { UniAbgleich, UniFrist, UniKurs, UniUebersicht } from '@dorf/shared';
+import type { AktionQuelle, QuellenOption, UniAbgleich, UniFrist, UniKurs, UniUebersicht } from '@dorf/shared';
 import type { Uhr } from '../uhr.js';
 import type { VaultDienst } from '../vault/dienst.js';
 import type { LiveHub } from '../live.js';
@@ -440,6 +440,21 @@ export class Uni {
       neueAbgaben: a.neue_abgaben,
       hinweise: a.hinweise ? a.hinweise.split('\n') : [],
     };
+  }
+
+  /**
+   * Auswahlen für Aktionen: uni.faecher → Ordnername unter Uni/faecher/, uni.abgaben → „<Fach>/aufgaben/<Abgabe>“.
+   * Beim Start einer Aktion wird gegen genau diese Liste geprüft – andere Werte kommen nicht in den Prompt.
+   */
+  quelle(q: AktionQuelle): QuellenOption[] {
+    const relativ = (p: string) => p.slice(UNI_FAECHER.length + 1);
+    if (q === 'uni.faecher') return this.kurse().map((k) => ({ wert: relativ(k.ordner), beschriftung: k.name }));
+    return this.fristen()
+      .filter((f) => f.art === 'abgabe' && f.pfad && !f.abgegeben)
+      .map((f) => ({
+        wert: relativ(f.pfad!),
+        beschriftung: `${f.titel} – ${f.kurs} (${f.frist ? `Frist ${fristText(Date.parse(f.frist))}` : 'ohne Frist'})`,
+      }));
   }
 
   uebersicht(): UniUebersicht {
