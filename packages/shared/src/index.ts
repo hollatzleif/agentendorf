@@ -75,6 +75,7 @@ export type LiveEreignis =
   | { typ: 'gebaeude.geaendert' }
   | { typ: 'konflikte.geaendert' }
   | { typ: 'sitzung.beendet' }
+  | { typ: 'dorf.geaendert'; version: number }
   | AgentenEreignis;
 
 export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
@@ -385,3 +386,5 @@ export interface MorgenzeitungUebersicht {
   naechste: string | null;
   laeuft: boolean;
 }
+
+export * from './dorf.js';

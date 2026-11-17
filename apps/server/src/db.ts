@@ -264,6 +264,15 @@ const MIGRATIONEN: string[] = [
     wert TEXT NOT NULL
   );
   `,
+  // 10 – Etappe 5: Layout des Dorfs (eine Zeile, Versionsnummer gegen gleichzeitiges Bauen)
+  `
+  CREATE TABLE dorf_layout (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    inhalt_json TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    geaendert INTEGER NOT NULL
+  );
+  `,
 ];
 
 export function dbOeffnen(datei: string): DB {

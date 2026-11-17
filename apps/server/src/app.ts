@@ -1,3 +1,4 @@
+import type { Dorfplan } from './dorfplan.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
@@ -54,6 +55,7 @@ export interface Abhaengigkeiten {
   postbote: Postbote;
   morgenzeitung: Morgenzeitung;
   aufwachen: Aufwachen;
+  dorfplan: Dorfplan;
 }
 
 /** Für Agenten-HTML: Skripte ja, aber undurchsichtiger Ursprung und kein Netz. Bilder/Schriften nur eingebettet (data:). */
@@ -419,6 +421,14 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
   app.post('/api/aufwachen/jetzt', async () => a.aufwachen.aufwachen());
 
   // ---- Live-Verbindung ------------------------------------------------------------------------
+  // ---- Etappe 5: Dorf ------------------------------------------------------------------------
+  app.get('/api/dorf', async () => a.dorfplan.laden());
+  app.put('/api/dorf/layout', async (req) => {
+    const b = z.object({ basisVersion: z.number().int().min(0), layout: z.unknown() }).parse(req.body);
+    return a.dorfplan.speichern(b.basisVersion, b.layout);
+  });
+  app.get('/api/dorf/status', async () => a.dorfplan.status());
+
   app.get('/api/live', { websocket: true }, (socket, req) => {
     const abmelden = hub.anmelden({
       sitzungId: req.sitzung!.id,

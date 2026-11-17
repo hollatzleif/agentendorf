@@ -1,3 +1,4 @@
+import { Dorfplan } from './dorfplan.js';
 import path from 'node:path';
 import type { Konfig } from './konfig.js';
 import { dbOeffnen } from './db.js';
@@ -174,7 +175,8 @@ export async function dorfStarten(
   if (!opt.gmail && opt.beobachten !== false) postbote.starten();
   if (opt.beobachten !== false) morgenzeitung.starten();
   if (opt.beobachten !== false) aufwachen.starten();
-  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen });
+  const dorfplan = new Dorfplan({ db, uhr, hub, vault, uni });
+  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen, dorfplan });
   app.addHook('onClose', async () => {
     uni.stoppen();
     postbote.stoppen();
@@ -187,5 +189,5 @@ export async function dorfStarten(
     await agenten.ruhe();
     db.close();
   });
-  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen };
+  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan };
 }
