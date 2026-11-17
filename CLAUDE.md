@@ -69,6 +69,7 @@ pnpm e2e                 # Playwright, Desktop + Handy, startet eigenen Testserv
 python3 -m unittest discover -s apps/rechenraum/test   # Rechenraum-Runner
 bash deploy/test/backup-test.sh      # braucht restic, sqlite3, jq
 bash deploy/test/empfangen-test.sh
+bash deploy/test/moodle-anmelden-test.sh
 shellcheck -x -S warning deploy/dorf deploy/bootstrap.sh deploy/test/*.sh
 ```
 Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server über Vite-Proxy braucht das). `DORF_MOTOR_ATTRAPPE=1` ersetzt beide Motoren durch die Attrappe (Befehle in der Nachricht: `[schreibe pfad]`, `[freigabe pfad]`, `[fehler]`, `[warte ms]`, `[helfer Gebäude|Auftrag]`, `[plan Gebäude|Titel; …]`, `<<werkzeug name {json}>>`).

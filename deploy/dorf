@@ -14,6 +14,8 @@ export RESTIC_REPOSITORY="$BASIS/backup/restic"
 export RESTIC_PASSWORD_FILE="$BASIS/backup/restic-passwort"
 BEHALTEN_TAGE=7d
 
+# Zufällige Zeichenkette (A-Za-z0-9). Endliche Quelle statt „tr </dev/urandom | head“ – das bricht mit pipefail still ab.
+zufall() { head -c 96 /dev/urandom | base64 -w0 | tr -dc 'A-Za-z0-9' | cut -c1-"$1"; }
 rot() { printf '\033[31m%s\033[0m\n' "$*" >&2; }
 gruen() { printf '\033[32m%s\033[0m\n' "$*"; }
 info() { printf '» %s\n' "$*"; }
@@ -57,7 +59,7 @@ geheimnisse_sicherstellen() {
   local g uid
   uid=$(grep -E '^DORF_UID=' "$ENV_DATEI" | cut -d= -f2 || true)
   if ! grep -qE '^WERKSTATT_GEHEIMNIS=.{32,}' "$ENV_DATEI"; then
-    g=$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 40)
+    g=$(zufall 40)
     sed -i '/^WERKSTATT_GEHEIMNIS=/d' "$ENV_DATEI"
     echo "WERKSTATT_GEHEIMNIS=$g" >> "$ENV_DATEI"
   fi
@@ -70,7 +72,7 @@ geheimnisse_sicherstellen() {
   chmod 600 "$BASIS/werkstatt.env"
   # Rechenraum: eigenes Geheimnis, eigene Datei (bekommt sonst NICHTS aus .env)
   if ! grep -qE '^RECHENRAUM_GEHEIMNIS=.{32,}' "$ENV_DATEI"; then
-    g=$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 40)
+    g=$(zufall 40)
     sed -i '/^RECHENRAUM_GEHEIMNIS=/d' "$ENV_DATEI"
     echo "RECHENRAUM_GEHEIMNIS=$g" >> "$ENV_DATEI"
   fi
@@ -314,7 +316,7 @@ cmd_moodle_anmelden() {
   url=${url:-https://moodle.jku.at}
   url=${url%/}
   [[ "$url" =~ ^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._/-]*)?$ ]] || { rot "Ungültige Moodle-Adresse: $url"; return 1; }
-  passport=$(tr -dc 0-9 </dev/urandom | head -c 12)
+  passport=$(head -c 16 /dev/urandom | od -An -tu4 | tr -dc 0-9 | cut -c1-12)
   info "1. Öffne am PC diese Adresse und melde dich mit deinem JKU-Konto an:"
   echo
   echo "   $url/admin/tool/mobile/launch.php?service=moodle_mobile_app&passport=$passport&urlscheme=moodlemobile"
@@ -376,6 +378,9 @@ HILFE
 }
 
 haupt() {
+# Nie still abbrechen: bei einem unerwarteten Fehler Zeile und Befehl nennen
+set -E
+trap 'rot "Abbruch in deploy/dorf, Zeile $LINENO: $BASH_COMMAND"' ERR
 befehl=${1:-hilfe}; shift || true
 case "$befehl" in
   deploy) cmd_deploy ;;
