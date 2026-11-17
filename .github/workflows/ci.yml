@@ -61,7 +61,8 @@ jobs:
           test -f /tmp/dorf/vault/00_Stadtordnung/stadtordnung.md
           docker logs rauch
           # Werkstatt: startet, claude-CLI vorhanden, Gesundheit ohne Geheimnis erreichbar
-          docker run -d --name werkstatt-rauch -p 4000:4000 --read-only --tmpfs /tmp --tmpfs /arbeit \
+          docker run -d --name werkstatt-rauch -p 4000:4000 --read-only -u 1000:1000 \
+            --mount type=tmpfs,destination=/tmp,tmpfs-mode=1777 --mount type=tmpfs,destination=/arbeit,tmpfs-mode=1777 \
             -v /tmp/dorf/claude:/claude-konfig -e WERKSTATT_GEHEIMNIS=ci-geheimnis-ci-geheimnis-ci-geheimnis-12 agentendorf-werkstatt:ci
           for i in $(seq 1 30); do curl -fs http://localhost:4000/gesundheit && break; sleep 1; done
           curl -fs http://localhost:4000/gesundheit

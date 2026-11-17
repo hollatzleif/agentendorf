@@ -22,6 +22,16 @@ if (GEHEIMNIS.length < 32) {
   console.error('WERKSTATT_GEHEIMNIS fehlt oder ist zu kurz.');
   process.exit(1);
 }
+// Ohne beschreibbaren Arbeitsordner kann kein Lauf starten – lieber gleich laut scheitern.
+try {
+  fs.mkdirSync(arbeit, { recursive: true });
+  const probe = path.join(arbeit, `.probe-${process.pid}`);
+  fs.mkdirSync(probe);
+  fs.rmdirSync(probe);
+} catch (e) {
+  console.error(`Arbeitsordner ${arbeit} ist nicht beschreibbar (${(e as Error).message}). In compose.yml muss er als tmpfs mit mode 01777 eingehängt sein.`);
+  process.exit(1);
+}
 const laufend = new Map<string, ChildProcess>();
 
 function berechtigt(req: http.IncomingMessage) {
@@ -40,7 +50,15 @@ async function koerper(req: http.IncomingMessage) {
   return JSON.parse(Buffer.concat(teile).toString('utf8'));
 }
 
-const server = http.createServer(async (req, res) => {
+const server = http.createServer((req, res) => {
+  behandeln(req, res).catch((e: Error) => {
+    console.error('Fehler im Runner:', e);
+    if (!res.headersSent) res.writeHead(500, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ fehler: `Werkstatt-Fehler: ${e.message}` }));
+  });
+});
+
+async function behandeln(req: http.IncomingMessage, res: http.ServerResponse) {
   const ende = (status: number, daten: unknown) => {
     res.writeHead(status, { 'content-type': 'application/json' });
     res.end(JSON.stringify(daten));
@@ -66,9 +84,13 @@ const server = http.createServer(async (req, res) => {
     }
     if (laufend.has(a.laufId)) return ende(409, { fehler: 'läuft schon' });
     const dir = path.join(arbeit, a.laufId);
-    fs.mkdirSync(dir, { recursive: true });
     const systemDatei = path.join(dir, 'system.md');
-    fs.writeFileSync(systemDatei, a.system);
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(systemDatei, a.system);
+    } catch (e) {
+      return ende(500, { fehler: `Werkstatt kann ihren Arbeitsordner nicht anlegen: ${(e as Error).message}` });
+    }
     const args = claudeArgumente(a, { systemDatei, mcpBefehl: MCP_BEFEHL, internUrl: INTERN_URL });
     const p = spawn(CLAUDE, args, { cwd: dir, env: claudeUmgebung(process.env), stdio: ['pipe', 'pipe', 'pipe'] });
     laufend.set(a.laufId, p);
@@ -97,7 +119,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   ende(404, { fehler: 'unbekannt' });
-});
+}
 
 server.listen(PORT, '0.0.0.0', () => console.log(`Werkstatt bereit auf Port ${PORT}`));
 for (const sig of ['SIGTERM', 'SIGINT'] as const)

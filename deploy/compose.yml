@@ -34,9 +34,10 @@ services:
     volumes:
       - /srv/dorf/vault:/vault
       - /srv/dorf/daten:/daten
+      - type: tmpfs
+        target: /tmp
+        tmpfs: { mode: 01777 }
     read_only: true
-    tmpfs:
-      - /tmp
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
@@ -52,13 +53,17 @@ services:
       DORF_INTERN_URL: http://dorf:3001
       TZ: Europe/Vienna
     user: "${DORF_UID:-1000}:${DORF_UID:-1000}"
+    read_only: true
+    # tmpfs ausdrücklich mit 1777: sonst übernimmt Docker die Rechte aus dem Image mit root als Besitzer (EACCES)
     volumes:
       - /srv/dorf/vault:/vault:ro
       - /srv/dorf/claude:/claude-konfig
-    read_only: true
-    tmpfs:
-      - /tmp
-      - /arbeit
+      - type: tmpfs
+        target: /tmp
+        tmpfs: { mode: 01777 }
+      - type: tmpfs
+        target: /arbeit
+        tmpfs: { mode: 01777 }
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true

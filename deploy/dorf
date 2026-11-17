@@ -25,14 +25,19 @@ compose() {
 }
 
 gesund_warten() {
-
-  for _ in $(seq 1 60); do
-    if compose exec -T dorf node -e "fetch('http://127.0.0.1:3000/api/gesundheit').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" 2>/dev/null; then
-      return 0
-    fi
-    sleep 2
+  local eintrag dienst port pfad ok
+  for eintrag in dorf:3000:/api/gesundheit werkstatt:4000:/gesundheit; do
+    IFS=: read -r dienst port pfad <<< "$eintrag"
+    ok=nein
+    for _ in $(seq 1 60); do
+      if compose exec -T "$dienst" node -e "fetch('http://127.0.0.1:$port$pfad').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" 2>/dev/null; then
+        ok=ja
+        break
+      fi
+      sleep 2
+    done
+    [ "$ok" = ja ] || { rot "Dienst $dienst meldet sich nicht gesund."; compose logs --tail 30 "$dienst"; return 1; }
   done
-  return 1
 }
 
 # Werkstatt-Geheimnis (Dorf ↔ Werkstatt) und werkstatt.env anlegen, falls sie fehlen. Bestehendes bleibt.
@@ -59,7 +64,7 @@ cmd_deploy() {
   [ -n "${DORF_TEST:-}" ] || geheimnisse_sicherstellen
   info "Starte Version $(cat "$AKTUELL/VERSION") …"
   compose up -d --remove-orphans
-  if gesund_warten; then gruen "Dorf läuft: https://$(grep -E '^DORF_DOMAIN=' "$ENV_DATEI" | cut -d= -f2)"; else rot "Dorf meldet sich nicht gesund."; compose logs --tail 50 dorf; return 1; fi
+  if gesund_warten; then gruen "Dorf läuft: https://$(grep -E '^DORF_DOMAIN=' "$ENV_DATEI" | cut -d= -f2)"; else return 1; fi
 }
 
 # Wird von GitHub Actions per SSH aufgerufen (erzwungener Befehl). Erwartet ein tar.gz-Bündel auf stdin:
