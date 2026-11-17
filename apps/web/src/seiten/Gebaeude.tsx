@@ -12,6 +12,7 @@ import { AgentenEinstellungen } from '../komponenten/AgentenEinstellungen';
 import { Schreibtisch } from '../komponenten/Schreibtisch';
 import { Plaene } from '../komponenten/Plaene';
 import { UniUebersicht } from '../komponenten/UniUebersicht';
+import { PostEingang } from '../komponenten/PostEingang';
 
 const REITER = [
   ['aktionen', 'Aktionen'],
@@ -24,6 +25,7 @@ const RATHAUS_VORNE = [
   ['plaene', 'Pläne'],
 ] as const;
 const UNI_VORNE = [['studium', 'Studium']] as const;
+const POST_VORNE = [['eingang', 'Eingang']] as const;
 const RATHAUS_REITER = [
   ['freigaben', 'Freigaben'],
   ['alle-chats', 'Alle Chats'],
@@ -33,7 +35,7 @@ const RATHAUS_REITER = [
 
 export function GebaeudeSeite({ id }: { id: string }) {
   const { suche } = useOrt();
-  const reiter = suche.get('reiter') ?? (id === 'Rathaus' ? 'schreibtisch' : id === 'Uni' ? 'studium' : 'aktionen');
+  const reiter = suche.get('reiter') ?? (id === 'Rathaus' ? 'schreibtisch' : id === 'Uni' ? 'studium' : id === 'Post' ? 'eingang' : 'aktionen');
   const liste = useQuery({ queryKey: ['gebaeude'], queryFn: () => api<Gebaeude[]>('/api/gebaeude') });
   const g = liste.data?.find((x) => x.id === id);
   const anweisung = useQuery({
@@ -44,7 +46,7 @@ export function GebaeudeSeite({ id }: { id: string }) {
 
   if (liste.isPending) return <p>Lade …</p>;
   if (!g) return <p className="karte">Gebäude „{id}“ gibt es nicht (mehr).</p>;
-  const alle = id === 'Rathaus' ? [...RATHAUS_VORNE, ...REITER, ...RATHAUS_REITER] : id === 'Uni' ? [...UNI_VORNE, ...REITER] : REITER;
+  const alle = id === 'Rathaus' ? [...RATHAUS_VORNE, ...REITER, ...RATHAUS_REITER] : id === 'Uni' ? [...UNI_VORNE, ...REITER] : id === 'Post' ? [...POST_VORNE, ...REITER] : REITER;
 
   return (
     <section>
@@ -70,6 +72,7 @@ export function GebaeudeSeite({ id }: { id: string }) {
         {reiter === 'dateien' && <Dateibaum wurzel={id} />}
         {reiter === 'schreibtisch' && <Schreibtisch />}
         {reiter === 'studium' && <UniUebersicht />}
+        {reiter === 'eingang' && <PostEingang />}
         {reiter === 'plaene' && <Plaene />}
         {reiter === 'freigaben' && <Freigaben />}
         {reiter === 'alle-chats' && <ChatListe />}

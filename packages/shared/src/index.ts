@@ -228,7 +228,8 @@ export type AgentenEreignis =
   | { typ: 'konfig.geaendert' }
   | { typ: 'schreibtisch.geaendert' }
   | { typ: 'plaene.geaendert' }
-  | { typ: 'uni.geaendert' };
+  | { typ: 'uni.geaendert' }
+  | { typ: 'post.geaendert' };
 
 // ---- Etappe 2b: Bürgermeister, Schreibtisch, Pläne ---------------------------------------------
 
@@ -344,4 +345,28 @@ export interface UniUebersicht {
   kurse: UniKurs[];
   faecher: UniFach[];
   fristen: UniFrist[];
+}
+
+// ---- Etappe 4: Post ----------------------------------------------------------------------------
+
+export interface PostMail {
+  id: string;
+  threadId: string;
+  von: string;
+  betreff: string;
+  datum: string; // ISO
+  kategorie: string | null;
+  wichtig: boolean;
+  antwortNoetig: boolean;
+  zusammenfassung: string | null;
+  frist: string | null;
+  eingeordnet: boolean;
+}
+
+export interface PostUebersicht {
+  verbunden: boolean;
+  einordnungMoeglich: boolean;
+  laeuft: boolean;
+  letzter: { zeit: number; ok: boolean; fehler: string | null; neu: number; eingeordnet: number } | null;
+  mails: PostMail[];
 }

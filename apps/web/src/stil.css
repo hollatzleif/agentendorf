@@ -222,3 +222,9 @@ button.klein { font-size: 0.8rem; padding: 0.1rem 0.5rem; margin-left: 0.4rem; }
 .uni form.zeile input { flex: 1 1 16rem; }
 .uni .haken { display: inline-flex; gap: 0.3rem; align-items: center; white-space: nowrap; }
 .fristen tr.laeuft td:first-child { color: var(--gruen, #2f7d4f); font-weight: 600; }
+
+/* Post: Eingang */
+.post .zeile { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; margin-bottom: 0.6rem; }
+.mailliste { list-style: none; padding: 0; margin: 0; }
+.mailliste li { padding: 0.55rem 0; border-bottom: 1px solid var(--rand); display: flex; flex-direction: column; gap: 0.15rem; }
+.mailliste li.wichtig strong { color: var(--rot); }

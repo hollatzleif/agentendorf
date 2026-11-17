@@ -157,12 +157,14 @@ describe('Vorlagen aktualisieren – nur wenn Leif nichts geändert hat', () => 
     const d = await testDorf();
     await d.vault.schreiben('Uni/gebaeude.md', alt('uni-gebaeude-2b.md'));
     await d.vault.schreiben('Uni/aktionen/lernen.md', alt('lernen-3.md'));
+    await d.vault.schreiben('Post/gebaeude.md', alt('post-gebaeude-3.md'));
     await d.vault.schreiben('Uni/aktionen/abgabe-bearbeiten.md', alt('abgabe-bearbeiten-3.md') + '\nMeine Ergänzung.\n');
     await d.app.close();
     const d2 = await dorfStarten(d.konfig, { beobachten: false });
     const neu = (p: string) => fs.readFileSync(path.join(d.konfig.vorlageDir, p), 'utf8');
     expect((await d2.vault.lesen('Uni/gebaeude.md')).inhalt).toBe(neu('Uni/gebaeude.md'));
     expect((await d2.vault.lesen('Uni/aktionen/lernen.md')).inhalt).toBe(neu('Uni/aktionen/lernen.md'));
+    expect((await d2.vault.lesen('Post/gebaeude.md')).inhalt).toBe(neu('Post/gebaeude.md'));
     expect((await d2.vault.lesen('Uni/aktionen/abgabe-bearbeiten.md')).inhalt).toContain('Meine Ergänzung.');
     expect((await d2.vault.konflikte()).length).toBe(0);
     await d2.app.close();

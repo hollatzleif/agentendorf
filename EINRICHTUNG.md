@@ -135,7 +135,31 @@ Die JKU sperrt den Zugang für die Moodle-App. Deshalb holt das Dorf nur die **T
 
 > `dorf moodle-anmelden` (der App-Weg) bleibt im Dorf, falls die JKU den App-Zugang je freischaltet.
 
-## 9. Vault auf Mac und PCs (Syncthing + Obsidian)
+## 9. Post: Gmail verbinden (nur Lesen und Entwürfe)
+
+Das Dorf liest dein Gmail und legt höchstens **Entwürfe** an. Senden kann es nicht, weil die Anmeldung das gar nicht erlaubt.
+
+**Google-Cloud-Projekt (einmalig, im Browser):**
+1. Öffne **console.cloud.google.com** und melde dich mit dem Gmail-Konto an, das das Dorf lesen soll. Leg oben über die Projektauswahl ein **neues Projekt** an, z. B. `Agentendorf`.
+2. Unter **APIs & Dienste → Bibliothek** nach **Gmail API** suchen und auf **Aktivieren** klicken.
+3. Unter **OAuth-Zustimmungsbildschirm** (teils „Google Auth Platform“) einstellen:
+   - Nutzertyp **Extern**, App-Name `Agentendorf`, deine Mail als Kontakt.
+   - Bei **Testnutzer** deine Gmail-Adresse eintragen.
+   - Bei **Bereiche/Datenzugriff** `.../auth/gmail.readonly` und `.../auth/gmail.compose` hinzufügen.
+4. Unter **Clients** (oder „Anmeldedaten → OAuth-Client-ID erstellen“) als Anwendungstyp **Desktop-App** wählen. Notier dir **Client-ID** und **Clientschlüssel**, aber gib sie nirgends weiter.
+5. **Wichtig:** Stell die App auf **In Produktion** (Zielgruppe / Veröffentlichungsstatus). Im Status „Testing“ läuft die Anmeldung laut Google-Foren nach 7 Tagen ab. Google zeigt dann beim Anmelden „App nicht überprüft“. Für deine eigene App klickst du auf **Erweitert → Weiter zu Agentendorf**.
+
+**Auf dem Server:**
+```bash
+dorf gmail-anmelden
+```
+Das Skript fragt nach Client-ID und Clientschlüssel und zeigt dann eine Google-Adresse. Die öffnest du im Browser, meldest dich an und erlaubst beide Zugriffe. Danach lädt eine Seite, die nicht erreichbar ist (`127.0.0.1`), das ist richtig so. Kopier die **komplette Adresse** aus der Adresszeile und füg sie im Terminal ein.
+
+Danach in der App: **Post → Eingang → Jetzt abholen**. Ab dann holt das Dorf alle 10 Minuten neue Mails ab, ordnet sie mit dem `api`-Motor (kleine Stufe) ein und hält sie knapp in `Post/eingang/` fest. Telegram-Meldungen zu Mails sind aus, solange du sie nicht unter **Rathaus → Agenten-Einstellungen → Telegram** einschaltest.
+
+Meldet das Dorf irgendwann „Google-Anmeldung abgelaufen oder widerrufen“, führst du `dorf gmail-anmelden` noch einmal aus. Passiert das jede Woche, steht das Projekt noch auf „Testing“.
+
+## 10. Vault auf Mac und PCs (Syncthing + Obsidian)
 
 1. Syncthing installieren: Mac `brew install --cask syncthing` (oder syncthing.net), Windows: *Syncthing Windows Setup* von syncthing.net/downloads.
 2. Geräte-ID des Servers anzeigen:
@@ -154,7 +178,7 @@ Für Windows-PC und -Laptop ebenso. Konflikte überschreibt Syncthing nie. Es le
 
 > Falls `dorf syncthing-geraet` meldet, dass ein Befehl unbekannt ist (Syncthing ändert seine Kommandozeile gelegentlich), geht es auch über die Oberfläche: `ssh -L 8384:127.0.0.1:8384 leif@dorf.deine-domain.de`, dann im Browser `http://localhost:8384`.
 
-## 10. Backup prüfen (einmal real)
+## 11. Backup prüfen (einmal real)
 
 ```bash
 dorf backup

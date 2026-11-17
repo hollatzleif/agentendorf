@@ -25,6 +25,7 @@ import type { Schreibtisch } from './schreibtisch.js';
 import type { Buergermeister } from './agenten/buergermeister.js';
 import type { TelegramBot } from './telegram/bot.js';
 import type { Uni } from './uni/abgleich.js';
+import type { Postbote } from './post/postbote.js';
 import { einstellungenLaden, einstellungenSetzen } from './telegram/einstellungen.js';
 
 export const COOKIE = 'dorf_sitzung';
@@ -48,6 +49,7 @@ export interface Abhaengigkeiten {
   buergermeister: Buergermeister;
   telegram?: TelegramBot;
   uni: Uni;
+  postbote: Postbote;
 }
 
 /** Für Agenten-HTML: Skripte ja, aber undurchsichtiger Ursprung und kein Netz. Bilder/Schriften nur eingebettet (data:). */
@@ -389,6 +391,15 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
     if (!a.uni.verbunden) throw new DorfFehler(409, 'Moodle ist nicht eingerichtet. Auf dem Server: dorf moodle-kalender');
     if (a.uni.laeuft) return { gestartet: false };
     void a.uni.abgleichen();
+    return { gestartet: true };
+  });
+
+  // ---- Post (Etappe 4) -----------------------------------------------------------------------
+  app.get('/api/post', async () => a.postbote.uebersicht());
+  app.post('/api/post/abholen', async () => {
+    if (!a.postbote.verbunden) throw new DorfFehler(409, 'Gmail ist nicht verbunden. Auf dem Server: dorf gmail-anmelden');
+    if (a.postbote.laeuft) return { gestartet: false };
+    void a.postbote.abholen().catch(() => undefined);
     return { gestartet: true };
   });
 

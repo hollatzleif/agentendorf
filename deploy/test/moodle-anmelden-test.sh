@@ -11,6 +11,18 @@ ATTRAPPEN=$(mktemp -d)
 # docker-Attrappe: "compose exec … moodle-token <url> <prüfwert>" prüft den Prüfwert und gibt ein Token aus
 cat > "$ATTRAPPEN/docker" <<'DOCKER'
 #!/usr/bin/env bash
+if [[ " $* " == *" gmail-anmelden-start "* ]]; then
+  printf 'https://accounts.google.com/o/oauth2/v2/auth?client_id=x\nVERIFIER123\nSTATE456\n'
+  exit 0
+fi
+if [[ " $* " == *" gmail-anmelden-tauschen "* ]]; then
+  e=$(cat)
+  [ "$(jq -r .verifier <<<"$e")" = VERIFIER123 ] && [ "$(jq -r .state <<<"$e")" = STATE456 ] || { echo "state/verifier falsch" >&2; exit 1; }
+  [[ "$(jq -r .adresse <<<"$e")" == *code=gut* ]] || { echo "Google meldet: access_denied" >&2; exit 1; }
+  echo "Verbunden mit leif@example.com." >&2
+  printf '1//0gREFRESHtoken-abc_123'
+  exit 0
+fi
 if [[ " $* " == *" google-kalender-pruefen "* ]]; then
   url=$(cat)
   [[ "$url" == *private-aaaa* ]] || { echo "Kalender antwortet mit HTTP 404" >&2; exit 1; }
@@ -87,6 +99,20 @@ for falsch in 'https://calendar.google.com/calendar/ical/x%40gmail.com/public/ba
 done
 cmp -s "$BASIS/.env" "$BASIS/env.vorher" || fehler ".env nach abgelehnter Google-Adresse verändert"
 echo "Google-Kalender eintragen, prüfen, Moodle-Kalender ablösen: bestanden"
+
+# Gmail: Client-ID/-Schlüssel prüfen, Adresse tauschen, Token speichern
+ID='123456789-abcdef.apps.googleusercontent.com'
+aus=$(printf '%s\nGOCSPX-geheim123\nhttp://127.0.0.1:8765/?state=STATE456&code=gut&scope=x\n' "$ID" | dorf gmail-anmelden 2>&1) || fehler "gmail-anmelden endet mit Fehler: $aus"
+grep -q 'accounts.google.com' <<<"$aus" || fehler "keine Anmelde-Adresse gezeigt"
+grep -qxF "GMAIL_CLIENT_ID=$ID" "$BASIS/.env" || fehler "GMAIL_CLIENT_ID fehlt"
+grep -qx 'GMAIL_CLIENT_SECRET=GOCSPX-geheim123' "$BASIS/.env" || fehler "GMAIL_CLIENT_SECRET fehlt"
+grep -qx 'GMAIL_REFRESH_TOKEN=1//0gREFRESHtoken-abc_123' "$BASIS/.env" || fehler "GMAIL_REFRESH_TOKEN fehlt"
+grep -qF 'GOCSPX-geheim123' <<<"$aus" && fehler "Clientschlüssel wurde ausgegeben"
+cp "$BASIS/.env" "$BASIS/env.vorher"
+printf '%s\nGOCSPX-geheim123\nhttp://127.0.0.1:8765/?error=access_denied&state=STATE456\n' "$ID" | dorf gmail-anmelden >/dev/null 2>&1 && fehler "abgelehnte Anmeldung gespeichert"
+printf 'keine-id\nGOCSPX-x\nx\n' | dorf gmail-anmelden >/dev/null 2>&1 && fehler "falsche Client-ID angenommen"
+cmp -s "$BASIS/.env" "$BASIS/env.vorher" || fehler ".env nach abgelehnter Gmail-Anmeldung verändert"
+echo "Gmail anmelden: bestanden"
 
 # Unerwartete Fehler werden benannt statt still zu enden (rollback ohne Versionen: ls schlägt fehl)
 if aus=$(dorf rollback 2>&1 </dev/null); then fehler "rollback ohne Versionen gelang"; fi

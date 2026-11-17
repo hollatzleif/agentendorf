@@ -10,6 +10,8 @@ import { DorfFehler } from '../fehler.js';
 import { MAX_DATEI, type TelegramSchnittstelle } from './api.js';
 import { einstellungenLaden } from './einstellungen.js';
 import type { AbgleichErgebnis, FaelligeErinnerung, Uni } from '../uni/abgleich.js';
+import type { Postbote } from '../post/postbote.js';
+import type { PostMail } from '@dorf/shared';
 import { fristText } from '../uni/text.js';
 import type { Uhr } from '../uhr.js';
 import { fremdinhaltHuelle } from '../agenten/leine.js';
@@ -77,6 +79,7 @@ export class TelegramBot {
       schreibtisch: Schreibtisch;
       buergermeister: Buergermeister;
       uni?: Uni;
+      postbote?: Postbote;
       log?: (t: string) => void;
     },
   ) {
@@ -87,9 +90,17 @@ export class TelegramBot {
     o.agenten.beiLaufEnde.push((e) => void this.laufMelden(e).catch((x) => this.fehler(x)));
     o.buergermeister.beiAbschluss.push((a) => void this.abschlussMelden(a).catch((x) => this.fehler(x)));
     o.uni?.beiAbgleich.push((e) => this.moodleMelden(e).catch((x) => this.fehler(x)));
+    o.postbote?.beiNeu.push((m) => this.mailsMelden(m).catch((x) => this.fehler(x)));
   }
 
   private letzterMoodleFehler: string | null = null;
+
+  /** Wichtige neue Mails – nur mit Schalter „mails“ (standardmäßig aus: Leifs Mail-Assistent meldet schon) */
+  async mailsMelden(m: PostMail[]) {
+    if (!(await einstellungenLaden(this.o.vault)).mails) return;
+    const zeilen = m.slice(0, 8).map((x) => `• ${h(x.von)}: <b>${h(x.betreff)}</b>${x.zusammenfassung ? `\n  ${h(x.zusammenfassung)}` : ''}`);
+    await this.senden(`📬 <b>${m.length === 1 ? 'Wichtige Mail' : `${m.length} wichtige Mails`}</b>\n${zeilen.join('\n')}\n<a href="${this.link('/gebaeude/Post')}">Zur Post</a>`);
+  }
 
   /** Neues aus Moodle (Schalter „moodle“); ein Abgleich-Fehler wird nur gemeldet, wenn er neu ist (nicht alle 3 Stunden derselbe). */
   async moodleMelden(e: AbgleichErgebnis) {

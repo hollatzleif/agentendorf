@@ -11,6 +11,8 @@ import { moodleKlient, tokenAusLaunch, verbindungPruefen } from './uni/moodle.js
 import { kalenderQuelle } from './uni/abgleich.js';
 import { icsLesen, icsTermine } from './uni/ical.js';
 import { fristText } from './uni/text.js';
+import { GMAIL_BEREICHE, GoogleZugang, anmeldungVorbereiten, codeAusAdresse, codeTauschen } from './post/google-oauth.js';
+import { gmailKlient } from './post/gmail.js';
 
 const HILFE = `Agentendorf – Verwaltung
   passwort                 Passwort setzen oder ändern (beendet alle Sitzungen)
@@ -22,6 +24,10 @@ const HILFE = `Agentendorf – Verwaltung
   moodle-token <url> <prüfwert>
                            Liest die moodlemobile://-Adresse von stdin, prüft Signatur und Verbindung,
                            gibt das Token auf stdout aus (nur für dorf moodle-anmelden)
+  gmail-anmelden-start <client-id>
+                           Gibt Anmelde-Adresse, PKCE-Prüfwert und state aus (je eine Zeile; nur für dorf gmail-anmelden)
+  gmail-anmelden-tauschen  Liest {clientId, clientSecret, verifier, state, adresse} als JSON von stdin, tauscht den Code,
+                           prüft den Zugang und gibt das Refresh-Token auf stdout aus (nur für dorf gmail-anmelden)
   google-kalender-pruefen <fristen|pflicht>
                            Liest eine geheime Google-Kalender-Adresse von stdin, lädt sie und zeigt, was das Dorf übernimmt
   moodle-kalender-pruefen  Liest die Kalender-Adresse von stdin, lädt den Export und zeigt, was drin ist
@@ -102,6 +108,29 @@ try {
       }
       for (const f of v.optionalFehlend) console.error(`Hinweis: ${f} ist nicht erlaubt – dieser Teil des Abgleichs fällt weg.`);
       process.stdout.write(token);
+      break;
+    }
+    case 'gmail-anmelden-start': {
+      const id = rest[0];
+      if (!id) throw new Error('Aufruf: gmail-anmelden-start <client-id>');
+      const a = anmeldungVorbereiten(id);
+      process.stdout.write(`${a.adresse}\n${a.verifier}\n${a.state}\n`);
+      break;
+    }
+    case 'gmail-anmelden-tauschen': {
+      const e = JSON.parse(await stdinLesen()) as { clientId: string; clientSecret: string; verifier: string; state: string; adresse: string };
+      const code = codeAusAdresse(e.adresse, e.state);
+      const t = await codeTauschen({ clientId: e.clientId, clientSecret: e.clientSecret, code, verifier: e.verifier, tokenUrl: konfig.googleTokenUrl });
+      const fehlend = GMAIL_BEREICHE.filter((b) => !t.bereiche.includes(b));
+      if (fehlend.some((b) => b.endsWith('gmail.readonly'))) {
+        console.error('STOPP: Lesen wurde nicht erlaubt (gmail.readonly fehlt). Bitte neu anmelden und den Haken setzen.');
+        process.exitCode = 2;
+        break;
+      }
+      if (fehlend.length) console.error('Hinweis: Entwürfe wurden nicht erlaubt (gmail.compose fehlt) – „Antwort entwerfen“ geht dann nicht.');
+      const p = await gmailKlient(new GoogleZugang({ clientId: e.clientId, clientSecret: e.clientSecret, refreshToken: t.refreshToken, tokenUrl: konfig.googleTokenUrl }), konfig.gmailApiUrl).profil();
+      console.error(`Verbunden mit ${p.emailAddress}.`);
+      process.stdout.write(t.refreshToken);
       break;
     }
     case 'google-kalender-pruefen': {

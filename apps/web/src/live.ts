@@ -102,6 +102,9 @@ export function useLiveVerbindung(qc: QueryClient, aktiv: boolean) {
           case 'plaene.geaendert':
             void qc.invalidateQueries({ queryKey: ['plaene'] });
             break;
+          case 'post.geaendert':
+            void qc.invalidateQueries({ queryKey: ['post'] });
+            break;
           case 'uni.geaendert':
             void qc.invalidateQueries({ queryKey: ['uni'] });
             void qc.invalidateQueries({ queryKey: ['aktion-quellen'] });

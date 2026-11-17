@@ -20,6 +20,11 @@ import { telegramApi, type TelegramSchnittstelle } from './telegram/api.js';
 import { Uni, kalenderQuelle, type KalenderQuelle } from './uni/abgleich.js';
 import { moodleKlient, type MoodleKlient } from './uni/moodle.js';
 import { rechenraumKlient } from './agenten/rechenraum.js';
+import { SystemAufrufe } from './agenten/system.js';
+import { sdkKlient, type ModellKlient } from './agenten/motor-api.js';
+import { Postbote } from './post/postbote.js';
+import { gmailKlient, type GmailKlient } from './post/gmail.js';
+import { GoogleZugang } from './post/google-oauth.js';
 
 /** Dateien, die das Dorf zum Arbeiten braucht: fehlen sie (z. B. Vault aus einer älteren Etappe), werden sie aus der Vorlage ergänzt – nie überschrieben. */
 const PFLICHT_DATEIEN = ['Rathaus/aktionen/buergermeister.md', '00_Stadtordnung/telegram.md', 'Uni/aktionen/lernen.md', 'Uni/aktionen/abgabe-bearbeiten.md'];
@@ -35,6 +40,7 @@ const VORLAGE_FRUEHERE_FASSUNGEN: Record<string, string[]> = {
   ],
   'Uni/aktionen/abgabe-bearbeiten.md': ['28289a20e8f718a2b45d16b34ab2a578350078df696a855dccd52e6857259b11'],
   'Uni/aktionen/lernen.md': ['fe2283fc7e878ffd5f7f6a01ec776f50e49b6f96446c28db7cfcec36f48f1dd1'],
+  'Post/gebaeude.md': ['313622cda22bc8ff13c0a644fab2c49f1bdf84c57eb2702231a70f2ac1e9a076'], // bis Etappe 3
 };
 
 /** Baut das ganze Dorf zusammen (für Start und Integrationstests). */
@@ -50,6 +56,9 @@ export async function dorfStarten(
     moodle?: MoodleKlient;
     /** Für Tests: nachgebauter Kalender-Export */
     kalender?: KalenderQuelle;
+    /** Für Tests: nachgebautes Gmail und Modell für Aufrufe ohne Werkzeuge (Einordnung, Morgenzeitung) */
+    gmail?: GmailKlient;
+    ki?: () => ModellKlient;
     /** Für Tests: nachgebaute Google-Kalender */
     google?: { fristen?: KalenderQuelle; pflicht?: KalenderQuelle };
   } = {},
@@ -110,6 +119,22 @@ export async function dorfStarten(
     log: (t) => console.warn(t),
   });
   agenten.quellen = (q) => uni.quelle(q);
+  const ki = new SystemAufrufe({
+    db,
+    uhr,
+    vault,
+    hub,
+    klient: opt.ki ?? (konfig.anthropicApiKey && !konfig.motorAttrappe ? () => sdkKlient(konfig.anthropicApiKey!) : undefined),
+  });
+  const postbote = new Postbote({
+    db,
+    uhr,
+    vault,
+    hub,
+    ki,
+    gmail: opt.gmail ?? (konfig.gmail ? gmailKlient(new GoogleZugang({ ...konfig.gmail, tokenUrl: konfig.googleTokenUrl }), konfig.gmailApiUrl) : undefined),
+    log: (t) => console.warn(t),
+  });
   let telegram: TelegramBot | undefined;
   if ((konfig.telegramToken || opt.telegram) && konfig.telegramChatId) {
     telegram = new TelegramBot({
@@ -124,15 +149,18 @@ export async function dorfStarten(
       schreibtisch,
       buergermeister,
       uni,
+      postbote,
       log: (t) => console.warn(t),
     });
     if (!opt.telegram) telegram.starten();
   }
   agenten.anstossen();
   if (!opt.moodle && !opt.kalender && !opt.google && opt.beobachten !== false) uni.starten();
-  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni });
+  if (!opt.gmail && opt.beobachten !== false) postbote.starten();
+  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote });
   app.addHook('onClose', async () => {
     uni.stoppen();
+    postbote.stoppen();
     telegram?.stoppen();
     await intern.close();
     await waechter?.close();
@@ -140,5 +168,5 @@ export async function dorfStarten(
     await agenten.ruhe();
     db.close();
   });
-  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni };
+  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki };
 }

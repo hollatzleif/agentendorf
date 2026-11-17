@@ -235,6 +235,28 @@ const MIGRATIONEN: string[] = [
   );
   CREATE INDEX telegram_verlauf_nr ON telegram_verlauf (nr);
   `,
+  // 8 – Etappe 4: Post (Gmail) – nur Kopfdaten und Einordnung, keine Mailtexte
+  `
+  CREATE TABLE post_mails (
+    id TEXT PRIMARY KEY,              -- Gmail-Nachrichten-ID
+    thread_id TEXT NOT NULL,
+    von TEXT NOT NULL DEFAULT '',
+    betreff TEXT NOT NULL DEFAULT '',
+    datum INTEGER NOT NULL,
+    kategorie TEXT,
+    wichtig INTEGER,
+    antwort_noetig INTEGER,
+    zusammenfassung TEXT,
+    frist TEXT,
+    eingeordnet INTEGER,              -- Zeitpunkt; NULL = wartet auf Einordnung
+    versuche INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX post_mails_datum ON post_mails (datum);
+  CREATE TABLE post_stand (
+    schluessel TEXT PRIMARY KEY,      -- history_id | letzter | datei:<pfad>
+    wert TEXT NOT NULL
+  );
+  `,
 ];
 
 export function dbOeffnen(datei: string): DB {
