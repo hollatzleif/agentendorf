@@ -67,7 +67,8 @@ cmd_deploy() {
 cmd_empfangen() {
   local tmp version ziel vorher
   tmp=$(mktemp -d)
-  trap 'rm -rf "$tmp"' RETURN
+  # Aufräumen beim Verlassen dieser Funktion – die Falle entfernt sich selbst, sonst feuert sie später erneut.
+  trap 'rm -rf "${tmp:-}"; trap - RETURN' RETURN
   tar -xzf - -C "$tmp"
   version=$(tr -cd 'a-zA-Z0-9._-' < "$tmp/VERSION")
   [ -n "$version" ] || { rot "Bündel ohne VERSION"; return 1; }

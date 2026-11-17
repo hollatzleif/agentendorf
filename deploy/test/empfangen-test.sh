@@ -40,4 +40,15 @@ echo "Rollback bei Fehler: bestanden"
 GESUND=ja
 ( SSH_ORIGINAL_COMMAND="rm -rf /" cmd_ci ) >/dev/null 2>&1 && fehler "fremder Befehl über CI-Schlüssel erlaubt"
 echo "CI-Schlüssel nur für 'empfangen': bestanden"
+# Wie auf dem Server: Skript als eigener Prozess (nicht eingebunden), docker durch eine Attrappe ersetzt
+ATTRAPPEN=$(mktemp -d)
+cat > "$ATTRAPPEN/docker" <<'DOCKER'
+#!/usr/bin/env bash
+[ "${1:-}" = load ] && cat > /dev/null
+exit 0
+DOCKER
+chmod +x "$ATTRAPPEN/docker"
+PATH="$ATTRAPPEN:$PATH" bash "$HIER/../dorf" empfangen < "$(buendel v6)" > /dev/null 2>&1 || fehler "dorf empfangen als Prozess endet mit Fehler (Exit $?)"
+[ "$(cat "$AKTUELL/VERSION")" = v6 ] || fehler "v6 nicht aktiv"
+echo "Empfang als eigener Prozess (Exit-Code 0): bestanden"
 echo "ALLE EMPFANGS-TESTS BESTANDEN"
