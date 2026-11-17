@@ -274,7 +274,7 @@ function TextAnsicht({ pfad }: { pfad: string }) {
   // Neue Fassung vom Server übernehmen, solange nichts ungespeichert ist.
   useEffect(() => {
     if (!datei.data) return;
-    if (!ungespeichert) {
+    if (!ungespeichert || datei.data.inhalt === text) {
       setText(datei.data.inhalt);
       setBasis(datei.data.version);
       setGeaendertWoanders(false);
@@ -304,6 +304,8 @@ function TextAnsicht({ pfad }: { pfad: string }) {
     setStatus('Speichere …');
     try {
       const r = await api<SchreibErgebnis>('/api/vault/datei', { methode: 'PUT', body: { pfad, inhalt: text, basisVersion: basis ?? undefined } });
+      // Abfragen, die noch vor dem Speichern losgeschickt wurden, liefern die alte Fassung – verwerfen.
+      await qc.cancelQueries({ queryKey: ['datei', pfad] });
       if (r.konflikt) {
         setStatus(`Die Datei wurde inzwischen woanders geändert. Deine Fassung liegt als Konfliktkopie daneben: ${r.konfliktPfad}`);
         setBasis(null);
@@ -313,6 +315,7 @@ function TextAnsicht({ pfad }: { pfad: string }) {
         qc.setQueryData(['datei', pfad], (alt: VaultDatei | undefined) => (alt ? { ...alt, inhalt: text, version: r.version } : alt));
         setGeaendertWoanders(false);
         setStatus('Gespeichert.');
+        void qc.invalidateQueries({ queryKey: ['datei', pfad] });
       }
     } catch (e) {
       setStatus(e instanceof ApiFehler ? e.message : String(e));
