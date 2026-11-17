@@ -194,8 +194,14 @@ cmd_claude_anmelden() {
   compose run --rm -it --no-deps --entrypoint claude werkstatt setup-token || true
   local token
   read -r -s -p "Token hier einfügen (Eingabe unsichtbar, leer = abbrechen): " token; echo
+  token=$(printf '%s' "$token" | tr -d '\r\n ')
   [ -n "$token" ] || { rot "Abgebrochen."; return 1; }
-  case "$token" in *[[:space:]]*|*'/'*) rot "Das sieht nicht wie ein Token aus."; return 1 ;; esac
+  case "$token" in
+    sk-ant-oat*) ;;
+    *) rot "Das sieht nicht wie ein Abo-Token aus (es beginnt mit sk-ant-oat…)."; return 1 ;;
+  esac
+  case "$token" in *'/'*|*'|'*|*'&'*) rot "Ungültige Zeichen im Token."; return 1 ;; esac
+  [ "${#token}" -ge 80 ] || { rot "Token zu kurz (${#token} Zeichen) – vermutlich beim Kopieren abgeschnitten (Zeilenumbruch?). Fenster breiter ziehen und neu versuchen."; return 1; }
   sed -i "s/^CLAUDE_CODE_OAUTH_TOKEN=.*/CLAUDE_CODE_OAUTH_TOKEN=$token/" "$BASIS/werkstatt.env"
   grep -q '^CLAUDE_CODE_OAUTH_TOKEN=' "$BASIS/werkstatt.env" || echo "CLAUDE_CODE_OAUTH_TOKEN=$token" >> "$BASIS/werkstatt.env"
   compose up -d --force-recreate werkstatt
@@ -205,8 +211,11 @@ cmd_claude_anmelden() {
 # API-Schlüssel für den api-Motor in /srv/dorf/.env eintragen (Eingabe unsichtbar).
 cmd_api_schluessel() {
   local k
-  read -r -s -p "Anthropic-API-Schlüssel (sk-ant-…, Eingabe unsichtbar): " k; echo
-  case "$k" in sk-ant-*) ;; *) rot "Das sieht nicht wie ein API-Schlüssel aus."; return 1 ;; esac
+  read -r -s -p "Anthropic-API-Schlüssel (sk-ant-api…, Eingabe unsichtbar): " k; echo
+  k=$(printf '%s' "$k" | tr -d '\r\n ')
+  case "$k" in sk-ant-oat*) rot "Das ist ein Abo-Token, kein API-Schlüssel – dafür: dorf claude-anmelden"; return 1 ;; sk-ant-*) ;; *) rot "Das sieht nicht wie ein API-Schlüssel aus."; return 1 ;; esac
+  case "$k" in *'/'*|*'|'*|*'&'*) rot "Ungültige Zeichen im Schlüssel."; return 1 ;; esac
+  [ "${#k}" -ge 80 ] || { rot "Schlüssel zu kurz (${#k} Zeichen) – vermutlich abgeschnitten."; return 1; }
   sed -i '/^#\? *ANTHROPIC_API_KEY=/d' "$ENV_DATEI"
   echo "ANTHROPIC_API_KEY=$k" >> "$ENV_DATEI"
   compose up -d --force-recreate dorf
