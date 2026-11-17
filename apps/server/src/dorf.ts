@@ -15,6 +15,8 @@ import { internBauen } from './intern.js';
 import { Schreibtisch } from './schreibtisch.js';
 import { Buergermeister } from './agenten/buergermeister.js';
 import fs from 'node:fs';
+import { TelegramBot } from './telegram/bot.js';
+import { telegramApi, type TelegramSchnittstelle } from './telegram/api.js';
 
 /** Dateien, die das Dorf zum Arbeiten braucht: fehlen sie (z. B. Vault aus einer älteren Etappe), werden sie aus der Vorlage ergänzt – nie überschrieben. */
 const PFLICHT_DATEIEN = ['Rathaus/aktionen/buergermeister.md', '00_Stadtordnung/telegram.md'];
@@ -26,6 +28,8 @@ export async function dorfStarten(
     uhr?: Uhr;
     beobachten?: boolean;
     motoren?: Record<'api' | 'claude-code', Motor> | ((r: WerkzeugRegister) => Record<'api' | 'claude-code', Motor>);
+    /** Für Tests: nachgebaute Bot-API; das Polling startet dann nicht automatisch */
+    telegram?: TelegramSchnittstelle;
   } = {},
 ) {
   const uhr = opt.uhr ?? systemUhr;
@@ -62,12 +66,29 @@ export async function dorfStarten(
   schreibtischRef.aktuell = schreibtisch;
   const buergermeister = new Buergermeister(db, uhr, vault, agenten, schreibtisch, hub);
   await schreibtisch.abgleichen();
+  let telegram: TelegramBot | undefined;
+  if ((konfig.telegramToken || opt.telegram) && konfig.telegramChatId) {
+    telegram = new TelegramBot({
+      api: opt.telegram ?? telegramApi(konfig.telegramToken!, konfig.telegramApiUrl),
+      chatId: konfig.telegramChatId,
+      geheimnis: konfig.werkstattGeheimnis ?? konfig.telegramToken ?? 'test',
+      appUrl: konfig.origins[0] ?? '',
+      db,
+      vault,
+      agenten,
+      schreibtisch,
+      buergermeister,
+      log: (t) => console.warn(t),
+    });
+    if (!opt.telegram) telegram.starten();
+  }
   agenten.anstossen();
-  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister });
+  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram });
   app.addHook('onClose', async () => {
+    telegram?.stoppen();
     await intern.close();
     await waechter?.close();
     db.close();
   });
-  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister };
+  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram };
 }

@@ -23,6 +23,8 @@ import type { AgentenDienst } from './agenten/dienst.js';
 import { agentenRouten } from './agenten/routen.js';
 import type { Schreibtisch } from './schreibtisch.js';
 import type { Buergermeister } from './agenten/buergermeister.js';
+import type { TelegramBot } from './telegram/bot.js';
+import { einstellungenLaden, einstellungenSetzen } from './telegram/einstellungen.js';
 
 export const COOKIE = 'dorf_sitzung';
 const OFFEN = new Set(['/api/gesundheit', '/api/anmeldung', '/api/anmeldung/info']);
@@ -43,6 +45,7 @@ export interface Abhaengigkeiten {
   agenten: AgentenDienst;
   schreibtisch: Schreibtisch;
   buergermeister: Buergermeister;
+  telegram?: TelegramBot;
 }
 
 const MIME: Record<string, string> = {
@@ -309,6 +312,22 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
 
   // ---- Agenten (Etappe 2a) ------------------------------------------------------------------
   agentenRouten(app, { agenten: a.agenten, vault, uhr, db, hub, schreibtisch: a.schreibtisch, buergermeister: a.buergermeister });
+
+  // ---- Telegram (Etappe 2b) -----------------------------------------------------------------
+  app.get('/api/telegram/status', async () => {
+    const e = await einstellungenLaden(vault);
+    if (a.telegram) return a.telegram.status(e);
+    return { tokenGesetzt: !!konfig.telegramToken, chatGekoppelt: !!konfig.telegramChatId, laeuft: false, einstellungen: e };
+  });
+  app.put('/api/telegram/einstellungen', async (req) => {
+    const b = z.object({ freigaben: z.boolean(), entwuerfe: z.boolean(), fehler: z.boolean(), beendet: z.boolean(), mails: z.boolean() }).parse(req.body);
+    return einstellungenSetzen(vault, b);
+  });
+  app.post('/api/telegram/test', async () => {
+    if (!a.telegram) throw new DorfFehler(409, 'Telegram ist nicht eingerichtet. Auf dem Server: dorf telegram-einrichten');
+    await a.telegram.senden('👋 Testnachricht aus dem Agentendorf – die Verbindung steht.');
+    return { ok: true };
+  });
 
   // ---- Live-Verbindung ------------------------------------------------------------------------
   app.get('/api/live', { websocket: true }, (socket, req) => {

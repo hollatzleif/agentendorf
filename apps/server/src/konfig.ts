@@ -24,6 +24,9 @@ const Schema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
   WERKSTATT_URL: z.string().default('http://werkstatt:4000'),
   WERKSTATT_GEHEIMNIS: z.string().optional(),
+  TELEGRAM_BOT_TOKEN: z.string().optional(),
+  TELEGRAM_CHAT_ID: z.string().optional(),
+  TELEGRAM_API_URL: z.string().default('https://api.telegram.org'),
   DORF_MOTOR_ATTRAPPE: z
     .string()
     .default('false')
@@ -47,6 +50,9 @@ export interface Konfig {
   anthropicApiKey?: string;
   werkstattUrl: string;
   werkstattGeheimnis?: string;
+  telegramToken?: string;
+  telegramChatId?: string;
+  telegramApiUrl: string;
 }
 
 export function konfigLaden(env: NodeJS.ProcessEnv = process.env): Konfig {
@@ -68,5 +74,8 @@ export function konfigLaden(env: NodeJS.ProcessEnv = process.env): Konfig {
     anthropicApiKey: e.ANTHROPIC_API_KEY || undefined,
     werkstattUrl: e.WERKSTATT_URL,
     werkstattGeheimnis: e.WERKSTATT_GEHEIMNIS || undefined,
+    telegramToken: e.TELEGRAM_BOT_TOKEN || undefined,
+    telegramChatId: e.TELEGRAM_CHAT_ID || undefined,
+    telegramApiUrl: e.TELEGRAM_API_URL,
   };
 }

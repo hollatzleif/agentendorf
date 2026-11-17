@@ -7,6 +7,7 @@ import { TestUhr } from '../src/uhr.js';
 import { attrappe } from '../src/agenten/motor-attrappe.js';
 import type { Motor } from '../src/agenten/motor.js';
 import type { WerkzeugRegister } from '../src/agenten/register.js';
+import type { TelegramSchnittstelle } from '../src/telegram/api.js';
 
 export const ORIGIN = 'https://dorf.test';
 
@@ -15,7 +16,12 @@ export function tempOrdner(praefix = 'dorf-test-') {
 }
 
 export async function testDorf(
-  opt: { beobachten?: boolean; motoren?: Record<'api' | 'claude-code', Motor> | ((r: WerkzeugRegister) => Record<'api' | 'claude-code', Motor>) } = {},
+  opt: {
+    beobachten?: boolean;
+    motoren?: Record<'api' | 'claude-code', Motor> | ((r: WerkzeugRegister) => Record<'api' | 'claude-code', Motor>);
+    env?: Record<string, string>;
+    telegram?: TelegramSchnittstelle;
+  } = {},
 ) {
   const daten = tempOrdner();
   const konfig = konfigLaden({
@@ -24,12 +30,14 @@ export async function testDorf(
     ORIGIN,
     LOG_LEVEL: 'silent',
     WEB_DIR: path.join(daten, 'kein-web'),
+    ...opt.env,
   });
   const uhr = new TestUhr();
   const d = await dorfStarten(konfig, {
     uhr,
     beobachten: opt.beobachten ?? false,
     motoren: opt.motoren ?? { api: attrappe('api'), 'claude-code': attrappe('claude-code') },
+    telegram: opt.telegram,
   });
   return { ...d, uhr, konfig, daten };
 }
