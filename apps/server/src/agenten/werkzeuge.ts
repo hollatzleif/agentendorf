@@ -80,7 +80,66 @@ export const WERKZEUG_DEFINITIONEN: Record<DorfWerkzeug, WerkzeugDefinition> = {
       additionalProperties: false,
     },
   },
+  aktionen_liste: {
+    name: 'aktionen_liste',
+    description:
+      'Nur für den Bürgermeister: Liste aller Aktionen in allen offenen Gebäuden (ID, Name, Beschreibung, Eingaben, Stufe, Motor). Nutze die IDs für helfer_starten und plan_vorlegen.',
+    input_schema: { type: 'object', properties: {}, required: [], additionalProperties: false },
+  },
+  helfer_starten: {
+    name: 'helfer_starten',
+    description:
+      'Nur für den Bürgermeister: startet GENAU EINEN Helfer für diese Aufgabe ohne Rückfrage. Für zwei oder mehr Helfer stattdessen plan_vorlegen benutzen. Mit "aktion" (Name aus aktionen_liste, ohne Gebäude) wird diese Aktion mit "eingaben" gestartet; ohne "aktion" arbeitet ein freier Helfer im Gebäude nach "auftrag".',
+    input_schema: {
+      type: 'object',
+      properties: {
+        gebaeude: { type: 'string', description: 'Ordnername des Gebäudes, z. B. "Bibliothek"' },
+        aktion: { type: 'string', description: 'Optional: Aktionsname wie in aktionen_liste (Teil nach dem /)' },
+        eingaben: { type: 'object', description: 'Optional: Eingaben der Aktion als {name: wert}' },
+        auftrag: { type: 'string', description: 'Was der Helfer tun soll (bei freien Helfern der ganze Auftrag)' },
+        stufe: { type: 'string', enum: ['klein', 'mittel', 'gross'] },
+      },
+      required: ['gebaeude', 'auftrag', 'stufe'],
+      additionalProperties: false,
+    },
+  },
+  plan_vorlegen: {
+    name: 'plan_vorlegen',
+    description:
+      'Nur für den Bürgermeister: legt Leif einen Plan mit 1–10 Teilaufgaben zur Freigabe vor. Nach seinem Okay startet das Dorf die Helfer selbst – du startest dann nichts mehr. Beende danach deinen Lauf.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        zusammenfassung: { type: 'string', description: 'Ein, zwei Sätze: was am Ende herauskommt' },
+        begruendung: { type: 'string', description: 'Warum diese Aufteilung?' },
+        teilaufgaben: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 10,
+          items: {
+            type: 'object',
+            properties: {
+              titel: { type: 'string' },
+              gebaeude: { type: 'string' },
+              aktion: { type: 'string', description: 'Optional: Aktionsname aus aktionen_liste' },
+              eingaben: { type: 'object', description: 'Optional: Eingaben der Aktion' },
+              auftrag: { type: 'string' },
+              stufe: { type: 'string', enum: ['klein', 'mittel', 'gross'] },
+            },
+            required: ['titel', 'gebaeude', 'auftrag', 'stufe'],
+          },
+        },
+      },
+      required: ['zusammenfassung', 'begruendung', 'teilaufgaben'],
+      additionalProperties: false,
+    },
+  },
 };
+
+/** Führt die Sonder-Werkzeuge einer Rolle aus (Bürgermeister). */
+export interface RollenHandler {
+  aufrufen(name: string, eingabe: unknown, k: LaufKontext): Promise<WerkzeugAufrufErgebnis>;
+}
 
 const MAX_LESEN = 200_000;
 
@@ -110,6 +169,7 @@ export class WerkzeugKiste {
     private suche: Suchindex,
     private freigaben: Freigaben,
     public readonly k: LaufKontext,
+    private rolle?: RollenHandler,
   ) {}
 
   definitionen() {
@@ -152,6 +212,14 @@ export class WerkzeugKiste {
         case 'vault_schreiben': {
           const e = z.object({ pfad: z.string(), inhalt: z.string().max(2_000_000) }).parse(eingabe);
           return await this.schreiben(e.pfad, e.inhalt);
+        }
+        case 'aktionen_liste':
+        case 'helfer_starten':
+        case 'plan_vorlegen': {
+          if (!this.rolle) throw new DorfFehler(403, 'Dieses Werkzeug hat nur der Bürgermeister.');
+          const r = await this.rolle.aufrufen(name, eingabe, this.k);
+          this.log(name, eingabe, r.text.slice(0, 300), r.ok, undefined, name === 'aktionen_liste' ? undefined : 'freigabe');
+          return r;
         }
         case 'freigabe_beantragen': {
           const e = z

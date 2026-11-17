@@ -10,8 +10,22 @@ import { DorfFehler } from '../fehler.js';
  */
 
 /** Werkzeuge, die ein Agent überhaupt bekommen kann (Namen wie im Modell sichtbar). */
-export type DorfWerkzeug = 'vault_lesen' | 'vault_liste' | 'vault_suchen' | 'vault_schreiben' | 'freigabe_beantragen';
+export type DorfWerkzeug =
+  | 'vault_lesen'
+  | 'vault_liste'
+  | 'vault_suchen'
+  | 'vault_schreiben'
+  | 'freigabe_beantragen'
+  | 'aktionen_liste'
+  | 'helfer_starten'
+  | 'plan_vorlegen';
 export const LESE_WERKZEUGE: DorfWerkzeug[] = ['vault_lesen', 'vault_liste', 'vault_suchen'];
+/** Nur Aktionen mit rolle: buergermeister bekommen diese Werkzeuge. */
+export const BUERGERMEISTER_WERKZEUGE: DorfWerkzeug[] = ['aktionen_liste', 'helfer_starten', 'plan_vorlegen'];
+/** Höchstens so viele Helfer pro Plan */
+export const MAX_HELFER_PRO_PLAN = 10;
+/** So viele Helfer darf der Bürgermeister pro Aufgabe ohne Plan starten (Leifs Vorgabe: ab 2 Helfern nur mit Plan) */
+export const MAX_HELFER_OHNE_PLAN = 1;
 
 export interface Werkzeugprofil {
   dorf: DorfWerkzeug[];

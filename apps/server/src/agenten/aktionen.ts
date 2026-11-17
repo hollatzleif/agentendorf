@@ -31,6 +31,8 @@ export const AktionKopf = z
     werkzeuge: z.array(z.enum(['vault_lesen', 'vault_suchen', 'vault_schreiben', 'web'])).default(['vault_lesen', 'vault_suchen', 'vault_schreiben']),
     fremdinhalte: JaNein.default(false),
     freigabe_vor_start: JaNein.default(false),
+    /** Sonderrolle: buergermeister bekommt aktionen_liste, helfer_starten, plan_vorlegen */
+    rolle: z.enum(['buergermeister']).optional(),
   })
   .superRefine((k, ctx) => {
     const f = aktionPruefen(k);
@@ -67,6 +69,7 @@ function zuInfo(gebaeude: string, datei: string, roh: string): Aktion {
       werkzeuge: k.werkzeuge,
       fremdinhalte: k.fremdinhalte,
       freigabeVorStart: k.freigabe_vor_start,
+      rolle: k.rolle,
       kopf: k,
       prompt: m.content.trim(),
       anhaenge: k.anhaenge,

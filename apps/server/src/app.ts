@@ -21,6 +21,8 @@ import { Suchindex } from './vault/suche.js';
 import { LiveHub } from './live.js';
 import type { AgentenDienst } from './agenten/dienst.js';
 import { agentenRouten } from './agenten/routen.js';
+import type { Schreibtisch } from './schreibtisch.js';
+import type { Buergermeister } from './agenten/buergermeister.js';
 
 export const COOKIE = 'dorf_sitzung';
 const OFFEN = new Set(['/api/gesundheit', '/api/anmeldung', '/api/anmeldung/info']);
@@ -39,6 +41,8 @@ export interface Abhaengigkeiten {
   suche: Suchindex;
   hub: LiveHub;
   agenten: AgentenDienst;
+  schreibtisch: Schreibtisch;
+  buergermeister: Buergermeister;
 }
 
 const MIME: Record<string, string> = {
@@ -304,7 +308,7 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
   app.get('/api/gebaeude', async () => gebaeudeListe(vault));
 
   // ---- Agenten (Etappe 2a) ------------------------------------------------------------------
-  agentenRouten(app, { agenten: a.agenten, vault, uhr, db, hub });
+  agentenRouten(app, { agenten: a.agenten, vault, uhr, db, hub, schreibtisch: a.schreibtisch, buergermeister: a.buergermeister });
 
   // ---- Live-Verbindung ------------------------------------------------------------------------
   app.get('/api/live', { websocket: true }, (socket, req) => {

@@ -108,6 +108,7 @@ export interface AktionInfo {
   werkzeuge: AktionsWerkzeug[];
   fremdinhalte: boolean;
   freigabeVorStart: boolean;
+  rolle?: 'buergermeister';
   fehler?: string;
 }
 
@@ -145,6 +146,10 @@ export interface ChatInfo {
   status?: LaufStatus; // Status des letzten Laufs
   spiegelPfad?: string;
   protokollPfad?: string;
+  rolle?: string;
+  schreibtischId?: string;
+  elternChatId?: string;
+  planId?: string;
 }
 
 export interface ChatNachricht {
@@ -212,4 +217,63 @@ export type AgentenEreignis =
   | { typ: 'freigaben.geaendert' }
   | { typ: 'verbrauch.geaendert' }
   | { typ: 'aktionen.geaendert' }
-  | { typ: 'konfig.geaendert' };
+  | { typ: 'konfig.geaendert' }
+  | { typ: 'schreibtisch.geaendert' }
+  | { typ: 'plaene.geaendert' };
+
+// ---- Etappe 2b: Bürgermeister, Schreibtisch, Pläne ---------------------------------------------
+
+export type SchreibtischStatus = 'neu' | 'in_arbeit' | 'plan_wartet' | 'helfer_laufen' | 'erledigt' | 'beantwortet' | 'abgelehnt' | 'fehler';
+export interface SchreibtischAufgabe {
+  id: string;
+  pfad: string;
+  titel: string;
+  quelle: 'app' | 'telegram' | 'vault';
+  status: SchreibtischStatus;
+  chatId?: string;
+  planId?: string;
+  erstellt: string;
+}
+
+export interface PlanTeilaufgabe {
+  titel: string;
+  gebaeude: string;
+  aktion?: string;
+  eingaben?: Record<string, string>;
+  auftrag: string;
+  stufe: Stufe;
+  motor: Motor;
+  modell: string;
+  kostenUsd: number; // nur api-Motor, sonst 0
+}
+export interface PlanInhalt {
+  planId: string;
+  zusammenfassung: string;
+  begruendung: string;
+  teilaufgaben: PlanTeilaufgabe[];
+  kostenUsd: number;
+  hinweis: string;
+}
+export interface PlanInfo extends PlanInhalt {
+  status: 'wartet' | 'abgelehnt' | 'laeuft' | 'fertig';
+  chatId: string;
+  schreibtischId?: string;
+  vaultPfad?: string;
+  erstellt: string;
+  helfer: { nr: number; chatId: string; titel: string; status?: LaufStatus }[];
+}
+
+export interface TelegramStatus {
+  tokenGesetzt: boolean;
+  chatGekoppelt: boolean;
+  laeuft: boolean;
+  letzterFehler?: string;
+  einstellungen: TelegramEinstellungen;
+}
+export interface TelegramEinstellungen {
+  freigaben: boolean;
+  entwuerfe: boolean;
+  fehler: boolean;
+  beendet: boolean;
+  mails: boolean;
+}

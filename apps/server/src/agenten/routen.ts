@@ -9,8 +9,14 @@ import type { AgentenDienst } from './dienst.js';
 import { aktionenListe } from './aktionen.js';
 import { motorenLaden, motorenSetzen, stufeSetzen, stufenLaden } from './modelle.js';
 import { verbrauchAuswerten } from './verbrauch.js';
+import type { Schreibtisch } from '../schreibtisch.js';
+import type { Buergermeister } from './buergermeister.js';
+import { DorfFehler } from '../fehler.js';
 
-export function agentenRouten(app: FastifyInstance, d: { agenten: AgentenDienst; vault: VaultDienst; uhr: Uhr; db: DB; hub: LiveHub }) {
+export function agentenRouten(
+  app: FastifyInstance,
+  d: { agenten: AgentenDienst; vault: VaultDienst; uhr: Uhr; db: DB; hub: LiveHub; schreibtisch: Schreibtisch; buergermeister: Buergermeister },
+) {
   const { agenten, vault } = d;
 
   app.get('/api/aktionen', async (req): Promise<AktionInfo[]> => {
@@ -73,4 +79,33 @@ export function agentenRouten(app: FastifyInstance, d: { agenten: AgentenDienst;
     agenten.anstossen();
     return motorenLaden(vault);
   });
+
+  // ---- Schreibtisch und Pläne (Etappe 2b) -----------------------------------------------------
+  app.get('/api/schreibtisch', async () => d.schreibtisch.liste());
+
+  /** Neue Aufgabe (Text + Dateien, multipart oder JSON) – der Bürgermeister legt sofort los. */
+  app.post('/api/schreibtisch', async (req) => {
+    let text = '';
+    const anhaenge: string[] = [];
+    if (req.isMultipart()) {
+      for await (const teil of req.parts()) {
+        if (teil.type === 'file') anhaenge.push(await d.schreibtisch.anhangSpeichern(teil.filename, teil.file));
+        else if (teil.fieldname === 'text') text = String(teil.value ?? '');
+      }
+    } else text = z.object({ text: z.string() }).parse(req.body).text;
+    const a = await d.schreibtisch.anlegen({ text, quelle: 'app', anhaenge });
+    await d.buergermeister.starten(a.id, 'klick');
+    return d.schreibtisch.holen(a.id);
+  });
+
+  app.post('/api/schreibtisch/:id/bearbeiten', async (req) => {
+    const { id } = z.object({ id: z.string() }).parse(req.params);
+    const a = d.schreibtisch.holen(id);
+    if (a.status !== 'neu') throw new DorfFehler(409, 'Diese Aufgabe ist schon in Arbeit oder erledigt.');
+    await d.buergermeister.starten(id, 'klick');
+    return d.schreibtisch.holen(id);
+  });
+
+  app.get('/api/plaene', async () => d.buergermeister.plaene());
+  app.get('/api/plaene/:id', async (req) => d.buergermeister.planInfo(z.object({ id: z.string() }).parse(req.params).id));
 }

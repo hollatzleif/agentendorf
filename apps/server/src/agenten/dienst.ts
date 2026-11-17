@@ -7,10 +7,10 @@ import type { Suchindex } from '../vault/suche.js';
 import type { LiveHub } from '../live.js';
 import { DorfFehler } from '../fehler.js';
 import { aktionLaden, eingabenAnwenden } from './aktionen.js';
-import { werkzeugprofil, type DorfWerkzeug } from './leine.js';
+import { BUERGERMEISTER_WERKZEUGE, LESE_WERKZEUGE, werkzeugprofil, type DorfWerkzeug } from './leine.js';
 import { kostenSchaetzen, motorenLaden, stufenLaden } from './modelle.js';
 import { anhaengeLaden, auftragMitAnhaengen, systemPromptBauen } from './kontext.js';
-import { WerkzeugKiste } from './werkzeuge.js';
+import { WerkzeugKiste, type RollenHandler } from './werkzeuge.js';
 import { Freigaben } from './freigaben.js';
 import { AbbruchFehler, type Anhang, type Motor, type Verlauf } from './motor.js';
 import { chatSpiegeln, protokollSchreiben } from './protokolle.js';
@@ -30,6 +30,10 @@ interface ChatZeile {
   fremdinhalte: number;
   spiegel_pfad: string | null;
   protokoll_pfad: string | null;
+  rolle: string | null;
+  schreibtisch_id: string | null;
+  eltern_chat_id: string | null;
+  plan_id: string | null;
   erstellt: number;
   geaendert: number;
 }
@@ -79,6 +83,23 @@ export function laufInfo(l: LaufZeile): LaufInfo {
   };
 }
 
+/** Zusätzliche Verknüpfungen eines Chats (Bürgermeister, Helfer, Pläne) */
+export interface ChatHerkunft {
+  schreibtischId?: string;
+  elternChatId?: string;
+  planId?: string;
+  /** zusätzliche Anhänge (z. B. die Notiz vom Schreibtisch) */
+  extraAnhaenge?: string[];
+}
+
+export interface LaufEnde {
+  laufId: string;
+  chatId: string;
+  status: LaufStatus;
+  fehler?: string;
+  geschrieben: string[];
+}
+
 /**
  * Agenten-Kern: legt Chats und Läufe an, hält die Warteschlange (Obergrenzen je Motor aus motoren.md),
  * führt Läufe über den passenden Motor aus und schreibt Chat-Spiegel, Protokoll und Verbrauch.
@@ -89,6 +110,10 @@ export class AgentenDienst {
   private nochmal = false;
   private idle: Promise<void> = Promise.resolve();
   readonly freigaben: Freigaben;
+  /** Sonder-Werkzeuge für Chats mit rolle = buergermeister (setzt der Bürgermeister-Dienst) */
+  rollenWerkzeuge?: RollenHandler;
+  /** Zuhörer für beendete Läufe (Telegram-Meldungen, Plan-Abschluss, Schreibtisch-Status) */
+  readonly beiLaufEnde: ((e: LaufEnde) => void | Promise<void>)[] = [];
 
   constructor(
     private db: DB,
@@ -114,23 +139,31 @@ export class AgentenDienst {
   }
 
   /** Startet eine Aktion: neuer Chat + erster Lauf. */
-  async aktionStarten(aktionId: string, eingaben: Record<string, string>, ausloeser: Ausloeser = 'klick'): Promise<{ chatId: string; laufId: string }> {
+  async aktionStarten(
+    aktionId: string,
+    eingaben: Record<string, string>,
+    ausloeser: Ausloeser = 'klick',
+    herkunft: ChatHerkunft = {},
+  ): Promise<{ chatId: string; laufId: string }> {
     const a = await aktionLaden(this.vault, aktionId);
     const { prompt, anhaenge, werte } = eingabenAnwenden(a, eingaben);
     const profil = werkzeugprofil(a); // wirft bei Widerspruch (Web + Fremdinhalte)
-    const stufen = await stufenLaden(this.vault);
-    const s = stufen.stufen[a.stufe];
-    const jetzt = this.uhr.jetzt();
-    const chatId = crypto.randomUUID();
     const erstesFeld = Object.values(werte).find((w) => w.trim()) ?? '';
     const titel = `${a.name}${erstesFeld ? `: ${erstesFeld.replace(/\s+/g, ' ').slice(0, 60)}` : ''}`;
-    const werkzeugListe = [...profil.dorf, ...(profil.web ? ['web'] : [])];
-    this.db
-      .prepare(
-        `INSERT INTO chats (id, gebaeude, aktion, titel, motor, stufe, modell, eingaben_json, anhaenge_json, werkzeuge_json, fremdinhalte, erstellt, geaendert)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(chatId, a.gebaeude, a.id, titel, a.motor, a.stufe, s.modell, JSON.stringify(werte), JSON.stringify(anhaenge), JSON.stringify(werkzeugListe), a.fremdinhalte ? 1 : 0, jetzt, jetzt);
+    const werkzeugListe: string[] = [...profil.dorf, ...(a.rolle === 'buergermeister' ? BUERGERMEISTER_WERKZEUGE : []), ...(profil.web ? ['web'] : [])];
+    const chatId = await this.chatAnlegen({
+      gebaeude: a.gebaeude,
+      aktion: a.id,
+      titel,
+      motor: a.motor,
+      stufe: a.stufe,
+      werte,
+      anhaenge: [...anhaenge, ...(herkunft.extraAnhaenge ?? [])],
+      werkzeuge: werkzeugListe,
+      fremdinhalte: a.fremdinhalte,
+      rolle: a.rolle,
+      herkunft,
+    });
     const laufId = this.laufAnlegen(chatId, prompt, ausloeser, a.freigabeVorStart);
     if (a.freigabeVorStart) {
       await this.freigaben.beantragen({
@@ -146,6 +179,92 @@ export class AgentenDienst {
     this.hub.senden({ typ: 'chat.geaendert', chatId, gebaeude: a.gebaeude });
     this.anstossen();
     return { chatId, laufId };
+  }
+
+  private async chatAnlegen(o: {
+    gebaeude: string;
+    aktion: string | null;
+    titel: string;
+    motor: MotorName;
+    stufe: Stufe;
+    werte: Record<string, string>;
+    anhaenge: string[];
+    werkzeuge: string[];
+    fremdinhalte: boolean;
+    rolle?: string;
+    herkunft: ChatHerkunft;
+  }) {
+    const stufen = await stufenLaden(this.vault);
+    const jetzt = this.uhr.jetzt();
+    const chatId = crypto.randomUUID();
+    this.db
+      .prepare(
+        `INSERT INTO chats (id, gebaeude, aktion, titel, motor, stufe, modell, eingaben_json, anhaenge_json, werkzeuge_json, fremdinhalte,
+                            rolle, schreibtisch_id, eltern_chat_id, plan_id, erstellt, geaendert)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        chatId,
+        o.gebaeude,
+        o.aktion,
+        o.titel,
+        o.motor,
+        o.stufe,
+        stufen.stufen[o.stufe].modell,
+        JSON.stringify(o.werte),
+        JSON.stringify(o.anhaenge),
+        JSON.stringify(o.werkzeuge),
+        o.fremdinhalte ? 1 : 0,
+        o.rolle ?? null,
+        o.herkunft.schreibtischId ?? null,
+        o.herkunft.elternChatId ?? null,
+        o.herkunft.planId ?? null,
+        jetzt,
+        jetzt,
+      );
+    return chatId;
+  }
+
+  /**
+   * Freier Helfer (ohne Aktionsdatei): arbeitet im Zielgebäude nach dessen Arbeitsanweisung,
+   * mit Standard-Werkzeugen (lesen, schreiben im Gebäude, Freigaben) – kein Web. Motor: claude-code (zählt als Leifs Klick).
+   */
+  async helferStarten(o: { gebaeude: string; titel: string; auftrag: string; stufe: Stufe; ausloeser: Ausloeser; herkunft: ChatHerkunft }) {
+    const werkzeuge: DorfWerkzeug[] = [...LESE_WERKZEUGE, 'freigabe_beantragen', 'vault_schreiben'];
+    const chatId = await this.chatAnlegen({
+      gebaeude: o.gebaeude,
+      aktion: null,
+      titel: `Helfer: ${o.titel.slice(0, 80)}`,
+      motor: 'claude-code',
+      stufe: o.stufe,
+      werte: {},
+      anhaenge: o.herkunft.extraAnhaenge ?? [],
+      werkzeuge,
+      fremdinhalte: false,
+      herkunft: o.herkunft,
+    });
+    const prompt = `Du bist ein Helfer des Bürgermeisters im Gebäude ${o.gebaeude}.
+
+Auftrag: ${o.titel}
+
+${o.auftrag}
+
+Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab und nenne den Pfad in deiner Zusammenfassung.`;
+    const laufId = this.laufAnlegen(chatId, prompt, o.ausloeser, false);
+    this.hub.senden({ typ: 'chat.geaendert', chatId, gebaeude: o.gebaeude });
+    this.anstossen();
+    return { chatId, laufId };
+  }
+
+  /** Hinweis in einen Chat schreiben (z. B. Abschluss eines Plans). Wird nicht Teil des Modell-Verlaufs. */
+  async hinweisSchreiben(chatId: string, text: string) {
+    const c = this.chatZeile(chatId);
+    this.db
+      .prepare("INSERT INTO nachrichten (chat_id, lauf_id, rolle, text, motor, erstellt) VALUES (?, NULL, 'hinweis', ?, ?, ?)")
+      .run(chatId, text, c.motor, this.uhr.jetzt());
+    this.db.prepare('UPDATE chats SET geaendert = ? WHERE id = ?').run(this.uhr.jetzt(), chatId);
+    await chatSpiegeln(this.db, this.vault, chatId).catch(() => undefined);
+    this.hub.senden({ typ: 'chat.geaendert', chatId, gebaeude: c.gebaeude });
   }
 
   /** Setzt einen Chat mit einer neuen Nachricht von Leif fort. */
@@ -248,15 +367,18 @@ export class AgentenDienst {
       const motor = this.motoren[l.motor];
       const werkzeugListe = JSON.parse(c.werkzeuge_json) as string[];
       const profil = { dorf: werkzeugListe.filter((w) => w !== 'web') as DorfWerkzeug[], web: werkzeugListe.includes('web') };
-      const kiste = new WerkzeugKiste(this.db, this.uhr, this.vault, this.suche, this.freigaben, {
-        laufId,
-        chatId: c.id,
-        gebaeude: c.gebaeude,
-        erlaubt: profil.dorf,
-      });
+      const kiste = new WerkzeugKiste(
+        this.db,
+        this.uhr,
+        this.vault,
+        this.suche,
+        this.freigaben,
+        { laufId, chatId: c.id, gebaeude: c.gebaeude, erlaubt: profil.dorf },
+        c.rolle === 'buergermeister' ? this.rollenWerkzeuge : undefined,
+      );
       kiste.beiAufruf = (name, erlaubt, kurz) => this.hub.senden({ typ: 'lauf.werkzeug', laufId, chatId: c.id, name, erlaubt, kurz });
 
-      const aktionName = c.aktion ? c.aktion.split('/')[1]! : 'Chat';
+      const aktionName = c.aktion ? c.aktion.split('/')[1]! : c.eltern_chat_id ? 'Helfer des Bürgermeisters' : 'Chat';
       const system = await systemPromptBauen(this.vault, { gebaeude: c.gebaeude, aktionName, profil, jetzt: this.uhr.jetzt(), motor: l.motor, stufe: c.stufe });
       let anhaenge: Anhang[] = [];
       let nachricht = l.auftrag;
@@ -316,6 +438,18 @@ export class AgentenDienst {
       } catch (e) {
         console.error('Protokoll/Spiegel fehlgeschlagen', e);
       }
+      const geschrieben = (
+        this.db
+          .prepare("SELECT DISTINCT pfad FROM werkzeug_log WHERE lauf_id = ? AND art = 'geschrieben' AND erlaubt = 1 AND pfad IS NOT NULL")
+          .all(laufId) as { pfad: string }[]
+      ).map((r) => r.pfad);
+      for (const fn of this.beiLaufEnde) {
+        try {
+          await fn({ laufId, chatId: c.id, status, fehler: fehler ?? undefined, geschrieben });
+        } catch (e) {
+          console.error('Zuhörer für Laufende fehlgeschlagen', e);
+        }
+      }
       this.laufend.delete(laufId);
       this.statusMelden(laufId);
       this.hub.senden({ typ: 'chat.geaendert', chatId: c.id, gebaeude: c.gebaeude });
@@ -351,7 +485,7 @@ export class AgentenDienst {
     this.hub.senden({ typ: 'lauf.status', laufId, chatId: l.chat_id, status: l.status });
   }
 
-  private chatZeile(id: string) {
+  chatZeile(id: string) {
     const c = this.db.prepare('SELECT * FROM chats WHERE id = ?').get(id) as ChatZeile | undefined;
     if (!c) throw new DorfFehler(404, 'Chat nicht gefunden.');
     return c;
@@ -386,6 +520,10 @@ export class AgentenDienst {
       status,
       spiegelPfad: c.spiegel_pfad ?? undefined,
       protokollPfad: c.protokoll_pfad ?? undefined,
+      rolle: c.rolle ?? undefined,
+      schreibtischId: c.schreibtisch_id ?? undefined,
+      elternChatId: c.eltern_chat_id ?? undefined,
+      planId: c.plan_id ?? undefined,
     };
   }
 

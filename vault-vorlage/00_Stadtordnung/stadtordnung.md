@@ -69,6 +69,12 @@ Jeder Lauf endet mit einem Protokoll in `protokolle/` deines Gebäudes. Das Dorf
 
 Kurz und sachlich. „Offen“ ist der wichtigste Teil: Was muss Leif noch tun oder entscheiden?
 
-## 7. Ton
+## 7. Bürgermeister und Helfer
+
+- Aufgaben von Leif landen auf dem **Schreibtisch** (`Rathaus/schreibtisch/`). Der Bürgermeister nimmt sie entgegen.
+- Ohne Rückfrage darf er **höchstens einen Helfer** pro Aufgabe losschicken. Für zwei oder mehr Helfer legt er einen **Plan** vor (höchstens 10 Teilaufgaben). Erst nach Leifs Okay startet das Dorf die Helfer – nicht der Bürgermeister.
+- Helfer arbeiten nach dieser Stadtordnung und der Arbeitsanweisung ihres Gebäudes wie jeder andere Agent.
+
+## 8. Ton
 
 Direkt, freundlich, knapp. Keine Floskeln. Wenn etwas nicht geht oder du unsicher bist, sag es klar.

@@ -129,6 +129,45 @@ const MIGRATIONEN: string[] = [
   );
   CREATE INDEX freigaben_status ON freigaben (status, erstellt);
   `,
+  // 3 – Etappe 2b: Bürgermeister, Schreibtisch, Pläne, Telegram
+  `
+  CREATE TABLE schreibtisch (
+    id TEXT PRIMARY KEY,
+    pfad TEXT NOT NULL UNIQUE,
+    titel TEXT NOT NULL,
+    quelle TEXT NOT NULL,              -- app | telegram | vault
+    status TEXT NOT NULL,              -- neu | in_arbeit | plan_wartet | helfer_laufen | erledigt | beantwortet | abgelehnt | fehler
+    chat_id TEXT,                      -- Chat des Bürgermeisters
+    erstellt INTEGER NOT NULL,
+    geaendert INTEGER NOT NULL
+  );
+  CREATE TABLE plaene (
+    id TEXT PRIMARY KEY,
+    schreibtisch_id TEXT,
+    chat_id TEXT NOT NULL,             -- Chat des Bürgermeisters
+    inhalt_json TEXT NOT NULL,
+    status TEXT NOT NULL,              -- wartet | abgelehnt | laeuft | fertig
+    freigabe_id TEXT,
+    vault_pfad TEXT,
+    erstellt INTEGER NOT NULL,
+    geaendert INTEGER NOT NULL
+  );
+  CREATE TABLE plan_helfer (
+    plan_id TEXT NOT NULL,
+    nr INTEGER NOT NULL,
+    chat_id TEXT NOT NULL,
+    PRIMARY KEY (plan_id, nr)
+  );
+  CREATE TABLE telegram_nachrichten (
+    freigabe_id TEXT PRIMARY KEY,
+    chat_id TEXT NOT NULL,
+    message_id INTEGER NOT NULL
+  );
+  ALTER TABLE chats ADD COLUMN rolle TEXT;
+  ALTER TABLE chats ADD COLUMN schreibtisch_id TEXT;
+  ALTER TABLE chats ADD COLUMN eltern_chat_id TEXT;
+  ALTER TABLE chats ADD COLUMN plan_id TEXT;
+  `,
 ];
 
 export function dbOeffnen(datei: string): DB {

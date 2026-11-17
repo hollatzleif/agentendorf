@@ -18,6 +18,8 @@ export const FREIGABE_ARTEN = {
   datei_ueberschreiben: z.object({ pfad: z.string().min(1), inhalt: z.string() }),
   sonstiges: z.object({ beschreibung: z.string().min(1) }),
   lauf_starten: z.object({ laufId: z.string() }),
+  // Inhalt enthält zusätzlich den ganzen Plan (für Anzeige in App und Telegram)
+  plan_ausfuehren: z.object({ planId: z.string() }).passthrough(),
 } as const;
 export type FreigabeArt = keyof typeof FREIGABE_ARTEN;
 /** Arten, die ein Agent beantragen darf (lauf_starten legt nur das Dorf selbst an). */
@@ -61,6 +63,20 @@ function info(z: Zeile): FreigabeInfo {
 export class Freigaben {
   private ausfuehrer = new Map<string, Ausfuehrer>();
   beiAenderung: () => void = () => {};
+  /** Zuhörer für neue Anträge (z. B. Telegram) */
+  readonly beiNeu: ((f: FreigabeInfo) => void | Promise<void>)[] = [];
+  /** Zuhörer für Entscheidungen (z. B. Telegram-Nachricht umschreiben, Plan abgelehnt) */
+  readonly beiEntscheidung: ((f: FreigabeInfo) => void | Promise<void>)[] = [];
+
+  private async melden(liste: ((f: FreigabeInfo) => void | Promise<void>)[], f: FreigabeInfo) {
+    for (const fn of liste) {
+      try {
+        await fn(f);
+      } catch (e) {
+        console.error('Freigabe-Zuhörer fehlgeschlagen', e);
+      }
+    }
+  }
 
   constructor(
     private db: DB,
@@ -83,7 +99,7 @@ export class Freigaben {
   async beantragen(a: { art: string; titel: string; begruendung?: string; inhalt: unknown; gebaeude: string; laufId?: string; chatId?: string }) {
     if (!(a.art in FREIGABE_ARTEN)) throw new DorfFehler(400, `Unbekannte Art „${a.art}“. Erlaubt: ${AGENTEN_ARTEN.join(', ')}.`);
     const inhalt = FREIGABE_ARTEN[a.art as FreigabeArt].parse(a.inhalt);
-    if ('pfad' in inhalt) (inhalt as { pfad: string }).pfad = normalisieren(inhalt.pfad);
+    if ('pfad' in inhalt) (inhalt as { pfad: string }).pfad = normalisieren(String(inhalt.pfad));
     const id = crypto.randomUUID();
     const jetzt = this.uhr.jetzt();
     this.db
@@ -94,7 +110,9 @@ export class Freigaben {
       .run(id, a.laufId ?? null, a.chatId ?? null, a.gebaeude, a.art, a.titel.slice(0, 200), (a.begruendung ?? '').slice(0, 4000), JSON.stringify(inhalt), jetzt);
     await this.spiegeln(id);
     this.beiAenderung();
-    return this.holen(id);
+    const neu = this.holen(id);
+    await this.melden(this.beiNeu, neu);
+    return neu;
   }
 
   holen(id: string): FreigabeInfo {
@@ -143,7 +161,9 @@ export class Freigaben {
     }
     await this.spiegeln(id);
     this.beiAenderung();
-    return this.holen(id);
+    const f = this.holen(id);
+    await this.melden(this.beiEntscheidung, f);
+    return f;
   }
 
   /** Markdown-Spiegel in Rathaus/freigaben/ (für Obsidian). */
