@@ -28,6 +28,16 @@ function textAus(content: BetaContentBlock[]) {
     .join('');
 }
 
+/** Strict-Werkzeuge verlangen: jedes Objekt im Schema hat additionalProperties: false (rekursiv). */
+export function strictTauglich(schema: unknown): boolean {
+  if (!schema || typeof schema !== 'object') return true;
+  const o = schema as Record<string, unknown>;
+  if (o.type === 'object' && o.additionalProperties !== false) return false;
+  for (const w of Object.values((o.properties as Record<string, unknown>) ?? {})) if (!strictTauglich(w)) return false;
+  if (o.items && !strictTauglich(o.items)) return false;
+  return true;
+}
+
 function alsBloecke(c: BetaMessageParam['content']): BetaContentBlockParam[] {
   if (!c) return [];
   return typeof c === 'string' ? [{ type: 'text', text: c }] : (c as BetaContentBlockParam[]);
@@ -74,7 +84,9 @@ export function apiMotor(klientFabrik: () => ModellKlient): Motor {
       } else nachrichten.push(nutzerNachricht);
       yield { typ: 'nachricht', rolle: 'nutzer', text: a.nachricht, roh: nutzerNachricht };
 
-      const werkzeuge: BetaToolUnion[] = a.werkzeuge.definitionen().map((d) => ({ ...d, strict: true }) as BetaToolUnion);
+      // strict nur, wo das Schema es erlaubt (jedes Objekt mit fester Feldliste) – sonst lehnt die API mit 400 ab.
+      // Die Eingaben prüft die WerkzeugKiste ohnehin selbst (Zod).
+      const werkzeuge: BetaToolUnion[] = a.werkzeuge.definitionen().map((d) => ({ ...d, ...(strictTauglich(d.input_schema) ? { strict: true } : {}) }) as BetaToolUnion);
       if (a.web) {
         werkzeuge.push({ type: 'web_search_20260209', name: 'web_search', max_uses: 8 } as BetaToolUnion);
         werkzeuge.push({ type: 'web_fetch_20260209', name: 'web_fetch', max_uses: 8 } as BetaToolUnion);
