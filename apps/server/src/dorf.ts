@@ -129,6 +129,8 @@ export async function dorfStarten(
     telegram?.stoppen();
     await intern.close();
     await waechter?.close();
+    // erst die Warteschlange zur Ruhe kommen lassen, dann die Datenbank schließen
+    await agenten.ruhe();
     db.close();
   });
   return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni };

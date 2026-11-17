@@ -343,6 +343,11 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
     return l.motor;
   }
 
+  /** Beim Herunterfahren: wartet, bis die Warteschlange gerade nichts mehr in der Datenbank tut. */
+  async ruhe() {
+    await this.idle.catch(() => undefined);
+  }
+
   /** Für Tests: wartet, bis keine Läufe mehr laufen oder warten. */
   async leerlauf(maxMs = 10_000) {
     const ende = Date.now() + maxMs;
