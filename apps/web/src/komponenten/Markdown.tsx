@@ -58,6 +58,13 @@ export function Markdown({ inhalt, pfad }: { inhalt: string; pfad: string }) {
                 </a>
               );
             if (href.startsWith('#')) return <a href={href}>{children}</a>;
+            // Links innerhalb der App (z. B. vom Bürgermeister: /chats/…)
+            if (/^\/(chats|gebaeude|bibliothek|einstellungen)(\/|\?|$)/.test(href))
+              return (
+                <a href={href} onClick={linkKlick}>
+                  {children}
+                </a>
+              );
             return (
               <a href={bibliothekUrl(relativAufloesen(ordner, href.split('#')[0]!))} onClick={linkKlick}>
                 {children}

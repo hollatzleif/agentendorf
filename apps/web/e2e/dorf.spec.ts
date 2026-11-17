@@ -83,7 +83,7 @@ test('Einstellungen zeigen angemeldete Geräte; Abmelden wirkt', async ({ page }
 
 test('Aktion starten, Chat live, fortsetzen, Freigabe annehmen, Verbrauch', async ({ page }, info) => {
   await anmelden(page);
-  await page.goto('/gebaeude/Rathaus');
+  await page.goto('/gebaeude/Rathaus?reiter=aktionen');
   await page.getByRole('button', { name: /Frage stellen/ }).click();
   const ziel = `Rathaus/schreibtisch/2026-11-16_1200_e2e-${info.project.name}.md`;
   await page.getByLabel(/Deine Frage/).fill(`Lege bitte etwas ab [schreibe ${ziel}] und beantrage [freigabe ${ziel}]`);
@@ -106,4 +106,29 @@ test('Aktion starten, Chat live, fortsetzen, Freigabe annehmen, Verbrauch', asyn
   await expect(page.locator('table.tabelle').first()).toContainText('2');
   await page.getByRole('button', { name: 'Agenten-Einstellungen' }).click();
   await expect(page.getByLabel('Modell gross')).toHaveValue('claude-fable-5-2');
+});
+
+test('Schreibtisch: Aufgabe hinlegen, Plan freigeben, Helfer arbeiten, Aufgabe erledigt', async ({ page }, info) => {
+  await anmelden(page);
+  await page.goto('/gebaeude/Rathaus');
+  await expect(page.getByRole('button', { name: 'Schreibtisch', exact: true })).toHaveClass(/aktiv/);
+  const titel = `Projekt ${info.project.name}`;
+  await page.getByLabel('Neue Aufgabe für den Bürgermeister').fill(`${titel} [plan Bibliothek|Übersicht; Uni|Lernplan]`);
+  await page.getByRole('button', { name: 'Auf den Schreibtisch' }).click();
+  const zeile = page.locator('.chatliste li', { hasText: titel });
+  await expect(zeile.getByText('Plan wartet auf dich')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Freigaben', exact: true }).click();
+  const karte = page.locator('.freigabe', { hasText: 'Testplan' }).first();
+  await expect(karte.getByRole('cell', { name: 'Lernplan' })).toBeVisible();
+  await karte.getByRole('button', { name: 'Ja, ausführen' }).click();
+
+  await page.getByRole('button', { name: 'Pläne', exact: true }).click();
+  await expect(page.locator('.karte.innen', { hasText: 'Testplan' }).first().getByText('fertig').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Schreibtisch', exact: true }).click();
+  await expect(zeile.getByText('erledigt')).toBeVisible();
+  await zeile.getByRole('link').first().click();
+  await expect(page.getByText('Alle Helfer sind fertig')).toBeVisible();
+  await page.getByRole('link', { name: 'Helfer: Lernplan' }).click();
+  await expect(page.getByRole('link', { name: 'Bürgermeisters', exact: true })).toBeVisible();
 });

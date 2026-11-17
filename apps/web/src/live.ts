@@ -70,6 +70,7 @@ export function useLiveVerbindung(qc: QueryClient, aktiv: boolean) {
             window.dispatchEvent(new Event('dorf:abgemeldet'));
             break;
           case 'lauf.status':
+            void qc.invalidateQueries({ queryKey: ['plaene'] });
             void qc.invalidateQueries({ queryKey: ['chat', e.chatId] });
             void qc.invalidateQueries({ queryKey: ['chats'] });
             void qc.invalidateQueries({ queryKey: ['laeufe-aktiv'] });
@@ -93,6 +94,13 @@ export function useLiveVerbindung(qc: QueryClient, aktiv: boolean) {
             break;
           case 'konfig.geaendert':
             void qc.invalidateQueries({ queryKey: ['agenten-konfig'] });
+            void qc.invalidateQueries({ queryKey: ['telegram'] });
+            break;
+          case 'schreibtisch.geaendert':
+            void qc.invalidateQueries({ queryKey: ['schreibtisch'] });
+            break;
+          case 'plaene.geaendert':
+            void qc.invalidateQueries({ queryKey: ['plaene'] });
             break;
         }
       };

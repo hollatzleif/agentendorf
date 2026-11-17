@@ -9,12 +9,18 @@ import { ChatListe } from '../komponenten/ChatListe';
 import { Freigaben } from '../komponenten/Freigaben';
 import { Verbrauch } from '../komponenten/Verbrauch';
 import { AgentenEinstellungen } from '../komponenten/AgentenEinstellungen';
+import { Schreibtisch } from '../komponenten/Schreibtisch';
+import { Plaene } from '../komponenten/Plaene';
 
 const REITER = [
   ['aktionen', 'Aktionen'],
   ['chats', 'Chats'],
   ['uebersicht', 'Übersicht'],
   ['dateien', 'Dateien'],
+] as const;
+const RATHAUS_VORNE = [
+  ['schreibtisch', 'Schreibtisch'],
+  ['plaene', 'Pläne'],
 ] as const;
 const RATHAUS_REITER = [
   ['freigaben', 'Freigaben'],
@@ -25,7 +31,7 @@ const RATHAUS_REITER = [
 
 export function GebaeudeSeite({ id }: { id: string }) {
   const { suche } = useOrt();
-  const reiter = suche.get('reiter') ?? 'aktionen';
+  const reiter = suche.get('reiter') ?? (id === 'Rathaus' ? 'schreibtisch' : 'aktionen');
   const liste = useQuery({ queryKey: ['gebaeude'], queryFn: () => api<Gebaeude[]>('/api/gebaeude') });
   const g = liste.data?.find((x) => x.id === id);
   const anweisung = useQuery({
@@ -36,7 +42,7 @@ export function GebaeudeSeite({ id }: { id: string }) {
 
   if (liste.isPending) return <p>Lade …</p>;
   if (!g) return <p className="karte">Gebäude „{id}“ gibt es nicht (mehr).</p>;
-  const alle = id === 'Rathaus' ? [...REITER, ...RATHAUS_REITER] : REITER;
+  const alle = id === 'Rathaus' ? [...RATHAUS_VORNE, ...REITER, ...RATHAUS_REITER] : REITER;
 
   return (
     <section>
@@ -60,6 +66,8 @@ export function GebaeudeSeite({ id }: { id: string }) {
         {reiter === 'chats' && <ChatListe gebaeude={id} />}
         {reiter === 'uebersicht' && (anweisung.data ? <Markdown inhalt={anweisung.data.inhalt} pfad={anweisung.data.pfad} /> : <p>Lade …</p>)}
         {reiter === 'dateien' && <Dateibaum wurzel={id} />}
+        {reiter === 'schreibtisch' && <Schreibtisch />}
+        {reiter === 'plaene' && <Plaene />}
         {reiter === 'freigaben' && <Freigaben />}
         {reiter === 'alle-chats' && <ChatListe />}
         {reiter === 'verbrauch' && <Verbrauch />}

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { FreigabeInfo } from '@dorf/shared';
+import type { FreigabeInfo, PlanInhalt } from '@dorf/shared';
+import { PlanTabelle } from './Plaene';
 import { api, ApiFehler } from '../api';
 import { bibliothekUrl, linkKlick } from '../router';
 import { zeitKurz } from '../texte';
@@ -10,6 +11,7 @@ const ARTEN: Record<string, string> = {
   datei_ueberschreiben: 'Datei überschreiben',
   sonstiges: 'Sonstiges (erledigst du selbst)',
   lauf_starten: 'Aktion starten',
+  plan_ausfuehren: 'Plan des Bürgermeisters',
 };
 
 export function Freigaben() {
@@ -62,6 +64,12 @@ function FreigabeKarte({ f }: { f: FreigabeInfo }) {
         )}
       </div>
       <h4>{f.titel}</h4>
+      {f.art === 'plan_ausfuehren' && (
+        <>
+          <PlanTabelle p={f.inhalt as PlanInhalt} />
+          <p className="leise">{(f.inhalt as PlanInhalt).hinweis}</p>
+        </>
+      )}
       {f.begruendung && <p>{f.begruendung}</p>}
       {inhalt.pfad && (
         <p>
@@ -71,7 +79,7 @@ function FreigabeKarte({ f }: { f: FreigabeInfo }) {
           </a>
         </p>
       )}
-      {inhalt.beschreibung && <p>{inhalt.beschreibung}</p>}
+      {inhalt.beschreibung && f.art !== 'plan_ausfuehren' && <p>{inhalt.beschreibung}</p>}
       {inhalt.inhalt !== undefined && (
         <details>
           <summary>Neuer Inhalt ansehen</summary>

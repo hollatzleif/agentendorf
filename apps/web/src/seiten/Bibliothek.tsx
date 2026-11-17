@@ -265,22 +265,27 @@ function TextAnsicht({ pfad }: { pfad: string }) {
   const qc = useQueryClient();
   const datei = useQuery({ queryKey: ['datei', pfad], queryFn: () => api<VaultDatei>(`/api/vault/datei?pfad=${encodeURIComponent(pfad)}`) });
   const [bearbeiten, setBearbeiten] = useState(suche.get('bearbeiten') === '1');
+  // Während des Bearbeitens gehört der Text allein dem Editor: Serverstände ersetzen ihn nie, sie lösen nur einen Hinweis aus.
   const [text, setText] = useState('');
-  const [basis, setBasis] = useState<string | null>(null);
+  const [basis, setBasis] = useState<string | null>(null); // Version, auf der die Bearbeitung beruht
+  const [gespeichert, setGespeichert] = useState<string | null>(null); // Text beim Laden/letzten Speichern
+  const [editorSchluessel, setEditorSchluessel] = useState(0);
   const [geaendertWoanders, setGeaendertWoanders] = useState(false);
   const [status, setStatus] = useState('');
-  const ungespeichert = basis !== null && datei.data !== undefined && text !== datei.data.inhalt;
+  const ungespeichert = bearbeiten && gespeichert !== null && text !== gespeichert;
 
-  // Neue Fassung vom Server übernehmen, solange nichts ungespeichert ist.
+  const vomServer = useCallback((d: VaultDatei) => {
+    setText(d.inhalt);
+    setBasis(d.version);
+    setGespeichert(d.inhalt);
+    setGeaendertWoanders(false);
+    setEditorSchluessel((k) => k + 1);
+  }, []);
+
   useEffect(() => {
     if (!datei.data) return;
-    if (!ungespeichert || datei.data.inhalt === text) {
-      setText(datei.data.inhalt);
-      setBasis(datei.data.version);
-      setGeaendertWoanders(false);
-    } else if (datei.data.version !== basis) {
-      setGeaendertWoanders(true);
-    }
+    if (!bearbeiten || basis === null) vomServer(datei.data);
+    else if (datei.data.version !== basis && datei.data.inhalt !== text) setGeaendertWoanders(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [datei.data]);
 
@@ -302,25 +307,28 @@ function TextAnsicht({ pfad }: { pfad: string }) {
 
   const speichern = useCallback(async () => {
     setStatus('Speichere …');
+    const inhalt = text;
     try {
-      const r = await api<SchreibErgebnis>('/api/vault/datei', { methode: 'PUT', body: { pfad, inhalt: text, basisVersion: basis ?? undefined } });
+      const r = await api<SchreibErgebnis>('/api/vault/datei', { methode: 'PUT', body: { pfad, inhalt, basisVersion: basis ?? undefined } });
       // Abfragen, die noch vor dem Speichern losgeschickt wurden, liefern die alte Fassung – verwerfen.
       await qc.cancelQueries({ queryKey: ['datei', pfad] });
       if (r.konflikt) {
         setStatus(`Die Datei wurde inzwischen woanders geändert. Deine Fassung liegt als Konfliktkopie daneben: ${r.konfliktPfad}`);
-        setBasis(null);
+        setBearbeiten(false);
         await qc.invalidateQueries({ queryKey: ['datei', pfad] });
+        const d = qc.getQueryData<VaultDatei>(['datei', pfad]);
+        if (d) vomServer(d);
       } else {
         setBasis(r.version);
-        qc.setQueryData(['datei', pfad], (alt: VaultDatei | undefined) => (alt ? { ...alt, inhalt: text, version: r.version } : alt));
+        setGespeichert(inhalt);
         setGeaendertWoanders(false);
+        qc.setQueryData(['datei', pfad], (alt: VaultDatei | undefined) => (alt ? { ...alt, inhalt, version: r.version } : alt));
         setStatus('Gespeichert.');
-        void qc.invalidateQueries({ queryKey: ['datei', pfad] });
       }
     } catch (e) {
       setStatus(e instanceof ApiFehler ? e.message : String(e));
     }
-  }, [pfad, text, basis, qc]);
+  }, [pfad, text, basis, qc, vomServer]);
 
   if (datei.isPending) return <p>Lade …</p>;
   if (datei.isError) return <p className="fehler">{datei.error.message}</p>;
@@ -336,29 +344,35 @@ function TextAnsicht({ pfad }: { pfad: string }) {
             <button
               onClick={() => {
                 if (ungespeichert && !confirm('Ungespeicherte Änderungen verwerfen?')) return;
-                setText(datei.data.inhalt);
-                setBasis(datei.data.version);
                 setBearbeiten(false);
+                vomServer(datei.data);
               }}
             >
               Fertig
             </button>
           </>
         ) : (
-          <button onClick={() => setBearbeiten(true)}>Bearbeiten</button>
+          <button
+            onClick={() => {
+              vomServer(datei.data);
+              setBearbeiten(true);
+            }}
+          >
+            Bearbeiten
+          </button>
         )}
         {ungespeichert && <span className="leise">ungespeichert</span>}
         {status && <span className="leise">{status}</span>}
       </div>
       {geaendertWoanders && (
         <p className="hinweis">
-          Diese Datei wurde gerade woanders geändert (Obsidian oder ein anderes Gerät). Beim Speichern entsteht eine Konfliktkopie – nichts geht
-          verloren.
+          Diese Datei wurde gerade woanders geändert (Obsidian oder ein anderes Gerät). Dein Text bleibt unangetastet; beim Speichern entsteht
+          eine Konfliktkopie – nichts geht verloren.
         </p>
       )}
       {bearbeiten ? (
         <Suspense fallback={<p className="leise">Lade Editor …</p>}>
-          <Editor wert={text} beiAenderung={setText} beiSpeichern={() => void speichern()} />
+          <Editor key={editorSchluessel} wert={text} beiAenderung={setText} beiSpeichern={() => void speichern()} />
         </Suspense>
       ) : endung(pfad) === 'md' || endung(pfad) === 'markdown' ? (
         <Markdown inhalt={datei.data.inhalt} pfad={pfad} />

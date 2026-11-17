@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { Aufwand, MotorenKonfig, Stufe, StufenKonfig } from '@dorf/shared';
+import type { Aufwand, MotorenKonfig, Stufe, StufenKonfig, TelegramEinstellungen, TelegramStatus } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { stufeText } from '../texte';
 
@@ -30,6 +30,8 @@ export function AgentenEinstellungen() {
       ))}
       <h3>Motoren</h3>
       <MotorenForm k={k.data.motoren} beiFehler={fehler} beiOk={() => (setMeldung('Motoren gespeichert.'), neu())} />
+      <h3>Telegram</h3>
+      <TelegramBereich beiMeldung={setMeldung} />
       {meldung && <p className="hinweis">{meldung}</p>}
       <p className="leise">
         Gespeichert wird in <code>00_Stadtordnung/modelle.md</code> und <code>motoren.md</code> – du kannst beides auch in Obsidian ändern.
@@ -83,6 +85,63 @@ function MotorenForm(p: { k: MotorenKonfig; beiFehler: (e: unknown) => void; bei
       <button onClick={() => api('/api/einstellungen/motoren', { methode: 'PUT', body: { alleAuf, parallel: { 'claude-code': cc, api: apiN } } }).then(p.beiOk, p.beiFehler)}>
         Speichern
       </button>
+    </div>
+  );
+}
+
+const SCHALTER: [keyof TelegramEinstellungen, string][] = [
+  ['freigaben', 'Freigaben und Pläne (mit Ja/Nein-Knöpfen)'],
+  ['entwuerfe', 'Fertige Entwürfe (Läufe, die Dateien angelegt haben)'],
+  ['fehler', 'Fehler'],
+  ['beendet', 'Jede beendete Aufgabe'],
+  ['mails', 'Mail-Meldungen (ab Etappe 4)'],
+];
+
+function TelegramBereich({ beiMeldung }: { beiMeldung: (t: string) => void }) {
+  const qc = useQueryClient();
+  const t = useQuery({ queryKey: ['telegram'], queryFn: () => api<TelegramStatus>('/api/telegram/status') });
+  if (!t.data) return <p className="leise">Lade …</p>;
+  const s = t.data;
+  const setzen = async (k: keyof TelegramEinstellungen, w: boolean) => {
+    try {
+      await api('/api/telegram/einstellungen', { methode: 'PUT', body: { ...s.einstellungen, [k]: w } });
+      await qc.invalidateQueries({ queryKey: ['telegram'] });
+    } catch (e) {
+      beiMeldung(e instanceof ApiFehler ? e.message : String(e));
+    }
+  };
+  return (
+    <div className="formspalte">
+      <p>
+        {!s.tokenGesetzt || !s.chatGekoppelt ? (
+          <>
+            Noch nicht eingerichtet. Auf dem Server: <code>dorf telegram-einrichten</code>
+          </>
+        ) : s.laeuft ? (
+          <span className="abzeichen gut">verbunden</span>
+        ) : (
+          <span className="abzeichen warnung">nicht verbunden</span>
+        )}
+        {s.letzterFehler && <span className="leise"> · letzter Fehler: {s.letzterFehler}</span>}
+      </p>
+      {SCHALTER.map(([k, text]) => (
+        <label key={k} className="schalter">
+          <input type="checkbox" checked={s.einstellungen[k]} onChange={(e) => void setzen(k, e.target.checked)} />
+          {text}
+        </label>
+      ))}
+      {s.chatGekoppelt && (
+        <button
+          onClick={() =>
+            api('/api/telegram/test', { body: {} }).then(
+              () => beiMeldung('Testnachricht verschickt.'),
+              (e: Error) => beiMeldung(e.message),
+            )
+          }
+        >
+          Testnachricht senden
+        </button>
+      )}
     </div>
   );
 }

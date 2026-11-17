@@ -43,6 +43,15 @@ export function ChatSeite({ id }: { id: string }) {
         ← {c.gebaeude}
       </a>
       <h1>{c.titel}</h1>
+      {c.elternChatId && (
+        <p className="leise">
+          Helfer des{' '}
+          <a href={`/chats/${c.elternChatId}`} onClick={linkKlick}>
+            Bürgermeisters
+          </a>
+          {c.planId ? ' (aus einem Plan)' : ''}
+        </p>
+      )}
       <p className="leise">
         {c.motor} · {c.modell} ({stufeText(c.stufe)})
         {c.spiegelPfad && (
@@ -132,7 +141,15 @@ function Nachricht({ n }: { n: ChatNachricht }) {
   if (n.rolle === 'agent' && !n.text.trim()) return null;
   return (
     <div className={`nachricht ${n.rolle}`}>
-      {n.rolle === 'nutzer' ? <p className="nutzertext">{n.text}</p> : n.rolle === 'hinweis' ? <p className="hinweis">{n.text}</p> : <Markdown inhalt={n.text} pfad="" />}
+      {n.rolle === 'nutzer' ? (
+        <p className="nutzertext">{n.text}</p>
+      ) : n.rolle === 'hinweis' ? (
+        <div className="hinweis">
+          <Markdown inhalt={n.text} pfad="" />
+        </div>
+      ) : (
+        <Markdown inhalt={n.text} pfad="" />
+      )}
       <div className="leise zeit">{new Date(n.erstellt).toLocaleString('de-AT', { dateStyle: 'short', timeStyle: 'short' })}</div>
     </div>
   );

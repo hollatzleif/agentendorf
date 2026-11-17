@@ -199,3 +199,11 @@ label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.92rem;
 .freigabe h4 { margin: 0.3rem 0; }
 .tabelle.zahlen td:not(:first-child), .tabelle.zahlen th:not(:first-child) { text-align: right; }
 .stufe-name { min-width: 4rem; align-self: center; }
+
+/* ---- Etappe 2b ---- */
+label.schalter { flex-direction: row; align-items: center; gap: 0.5rem; }
+label.schalter input { width: auto; }
+button.klein { font-size: 0.8rem; padding: 0.1rem 0.5rem; margin-left: 0.4rem; }
+.lauf-chip.sd-plan_wartet, .lauf-chip.plan-wartet { background: var(--dach); color: #fff; }
+.lauf-chip.sd-fehler, .lauf-chip.sd-abgelehnt, .lauf-chip.plan-abgelehnt { background: color-mix(in srgb, var(--rot) 20%, transparent); }
+.lauf-chip.sd-in_arbeit, .lauf-chip.sd-helfer_laufen, .lauf-chip.plan-laeuft { background: color-mix(in srgb, var(--dach) 25%, transparent); }

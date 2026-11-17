@@ -3,7 +3,10 @@ import { EditorView, basicSetup } from 'codemirror';
 import { keymap } from '@codemirror/view';
 import { markdown } from '@codemirror/lang-markdown';
 
-/** CodeMirror-Editor für Markdown. Strg/Cmd+S speichert. */
+/**
+ * CodeMirror-Editor für Markdown. Strg/Cmd+S speichert.
+ * `wert` ist nur der Startwert: Von außen wird der Text nie ersetzt (neu laden = Komponente mit neuem key).
+ */
 export function Editor({ wert, beiAenderung, beiSpeichern }: { wert: string; beiAenderung: (t: string) => void; beiSpeichern: () => void }) {
   const box = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
@@ -27,12 +30,6 @@ export function Editor({ wert, beiAenderung, beiSpeichern }: { wert: string; bei
     return () => view.current?.destroy();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Wert von außen übernehmen (z. B. nach Neuladen)
-  useEffect(() => {
-    const v = view.current;
-    if (v && v.state.doc.toString() !== wert) v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: wert } });
-  }, [wert]);
 
   return <div className="editor" ref={box} />;
 }
