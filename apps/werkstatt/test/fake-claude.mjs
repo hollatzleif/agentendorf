@@ -23,11 +23,17 @@ await client.connect(new StdioClientTransport({ command: mcp.command, args: mcp.
 const werkzeuge = (await client.listTools()).tools.map((t) => t.name);
 const r1 = await client.callTool({ name: 'vault_schreiben', arguments: { pfad: 'Uni/2026-11-16_1200_aus-der-werkstatt.md', inhalt: '# Werkstatt' } });
 const r2 = await client.callTool({ name: 'vault_schreiben', arguments: { pfad: 'Post/2026-11-16_1200_fremd.md', inhalt: 'nein' } });
+// Bild-Ergebnis (Rechenraum-Seite) – Inhalt so zurückmelden, wie claude ihn bekäme
+const r3 = prompt.includes('[seite]')
+  ? (await client.callTool({ name: 'rechenraum_seite_ansehen', arguments: { pdf: 'a.pdf', seite: 1 } })).content.map((c) =>
+      c.type === 'image' ? `image:${c.mimeType}:${c.data}` : `text:${c.text}`,
+    )
+  : undefined;
 await client.close();
 
 aus({ type: 'stream_event', parent_tool_use_id: null, event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Hallo ' } } });
 aus({ type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'tool_use', name: 'Read', input: { file_path: '/vault/Start.md' } }] } });
-const bericht = { werkzeuge, r1: r1.content[0].text, r1Fehler: !!r1.isError, r2: r2.content[0].text, r2Fehler: !!r2.isError, args, prompt };
+const bericht = { werkzeuge, r1: r1.content[0].text, r1Fehler: !!r1.isError, r2: r2.content[0].text, r2Fehler: !!r2.isError, r3, args, prompt };
 aus({
   type: 'result',
   subtype: prompt.includes('[fehler]') ? 'error_during_execution' : 'success',

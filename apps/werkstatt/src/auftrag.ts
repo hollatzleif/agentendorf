@@ -54,7 +54,8 @@ export function claudeArgumente(a: AuftragT, pfade: { systemDatei: string; mcpBe
     '--disable-slash-commands',
     '--add-dir', VAULT,
     '--append-system-prompt-file', pfade.systemDatei,
-    '--max-turns', '60',
+    // Lernzettel über ein ganzes Semester und Abgaben mit LaTeX-Schleifen brauchen viele Schritte
+    '--max-turns', '200',
     ...(a.sitzung.art === 'neu' ? ['--session-id', a.sitzung.id] : ['--resume', a.sitzung.id]),
   ];
 }

@@ -33,7 +33,7 @@ export const AktionKopf = z
     stufe: z.enum(['klein', 'mittel', 'gross']).default('mittel'),
     eingaben: z.array(Eingabe).default([]),
     anhaenge: z.array(z.string()).default([]),
-    werkzeuge: z.array(z.enum(['vault_lesen', 'vault_suchen', 'vault_schreiben', 'web'])).default(['vault_lesen', 'vault_suchen', 'vault_schreiben']),
+    werkzeuge: z.array(z.enum(['vault_lesen', 'vault_suchen', 'vault_schreiben', 'web', 'rechenraum'])).default(['vault_lesen', 'vault_suchen', 'vault_schreiben']),
     fremdinhalte: JaNein.default(false),
     freigabe_vor_start: JaNein.default(false),
     /** Sonderrolle: buergermeister bekommt aktionen_liste, helfer_starten, plan_vorlegen */

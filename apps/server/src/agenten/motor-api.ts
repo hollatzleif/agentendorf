@@ -146,7 +146,13 @@ export function apiMotor(klientFabrik: () => ModellKlient): Motor {
         for (const t of aufrufe) {
           if (a.signal.aborted) throw new AbbruchFehler();
           const r = await a.werkzeuge.aufrufen(t.name, t.input);
-          ergebnisse.push({ type: 'tool_result', tool_use_id: t.id, content: r.text, ...(r.ok ? {} : { is_error: true }) });
+          const inhalt = r.bilder?.length
+            ? [
+                { type: 'text' as const, text: r.text },
+                ...r.bilder.map((b) => ({ type: 'image' as const, source: { type: 'base64' as const, media_type: b.mime, data: b.base64 } })),
+              ]
+            : r.text;
+          ergebnisse.push({ type: 'tool_result', tool_use_id: t.id, content: inhalt, ...(r.ok ? {} : { is_error: true }) });
           kurz.push(`${t.name}${r.ok ? '' : ' (verweigert)'}: ${r.text.slice(0, 200)}`);
         }
         const werkzeugNachricht: BetaMessageParam = { role: 'user', content: ergebnisse };

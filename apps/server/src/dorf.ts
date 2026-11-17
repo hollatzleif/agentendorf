@@ -19,6 +19,7 @@ import { TelegramBot } from './telegram/bot.js';
 import { telegramApi, type TelegramSchnittstelle } from './telegram/api.js';
 import { Uni } from './uni/abgleich.js';
 import { moodleKlient, type MoodleKlient } from './uni/moodle.js';
+import { rechenraumKlient } from './agenten/rechenraum.js';
 
 /** Dateien, die das Dorf zum Arbeiten braucht: fehlen sie (z. B. Vault aus einer älteren Etappe), werden sie aus der Vorlage ergänzt – nie überschrieben. */
 const PFLICHT_DATEIEN = ['Rathaus/aktionen/buergermeister.md', '00_Stadtordnung/telegram.md'];
@@ -65,6 +66,7 @@ export async function dorfStarten(
   const register = new WerkzeugRegister();
   const motoren = typeof opt.motoren === 'function' ? opt.motoren(register) : (opt.motoren ?? motorenBauen(konfig, register));
   const agenten = new AgentenDienst(db, uhr, vault, suche, hub, motoren);
+  if (konfig.rechenraumGeheimnis) agenten.rechenraum = rechenraumKlient(konfig.rechenraumUrl, konfig.rechenraumGeheimnis);
   const intern = await internBauen(register);
   const schreibtisch = new Schreibtisch(db, uhr, vault, hub);
   schreibtischRef.aktuell = schreibtisch;

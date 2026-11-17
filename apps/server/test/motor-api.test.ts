@@ -145,3 +145,42 @@ describe('api-Motor', () => {
     expect(letzte.at(-1)!.content[0]).toMatchObject({ type: 'tool_result', tool_use_id: 'tX', is_error: true });
   });
 });
+
+describe('api-Motor: Bilder in Werkzeug-Ergebnissen', () => {
+  it('gerenderte PDF-Seite geht als image-Block im tool_result an das Modell', async () => {
+    const d = await dorfMit(
+      [
+        {
+          content: [{ type: 'tool_use', id: 't1', name: 'rechenraum_seite_ansehen', input: { pdf: 'a.pdf', seite: 2 }, caller: { type: 'direct' } }] as BetaMessage['content'],
+          stop_reason: 'tool_use',
+        },
+        { content: [text('Sieht gut aus.')], stop_reason: 'end_turn' },
+      ],
+      'motor: api\nfremdinhalte: ja\nwerkzeuge: [vault_lesen, rechenraum]',
+    );
+    const png = Buffer.from('\x89PNG-attrappe');
+    d.agenten.rechenraum = {
+      befehl: async () => ({ code: 0, abgelaufen: false, sekunden: 0, ausgabe: '' }),
+      schreiben: async () => undefined,
+      lesen: async () => Buffer.from(''),
+      dateien: async () => [],
+      seite: async (_raum, pdf, seite) => {
+        expect([pdf, seite]).toEqual(['a.pdf', 2]);
+        return { png, seiten: 3 };
+      },
+      aufraeumen: async () => undefined,
+    };
+    const { chatId } = await d.agenten.aktionStarten('Uni/a', {});
+    await d.agenten.leerlauf();
+    expect(d.agenten.chatDetail(chatId).laeufe[0]!.status).toBe('fertig');
+    const tools = (d.anfragen[0]!.tools as { name: string }[]).map((t) => t.name);
+    expect(tools).toContain('rechenraum_ablegen');
+    expect(tools).not.toContain('vault_schreiben');
+    const ergebnis = (d.anfragen[1]!.messages as { content: unknown[] }[]).at(-1)!.content[0] as { type: string; content: unknown[] };
+    expect(ergebnis.type).toBe('tool_result');
+    expect(ergebnis.content).toEqual([
+      { type: 'text', text: 'a.pdf, Seite 2 von 3:' },
+      { type: 'image', source: { type: 'base64', media_type: 'image/png', data: png.toString('base64') } },
+    ]);
+  });
+});

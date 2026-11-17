@@ -7,6 +7,7 @@ import type { Suchindex } from '../vault/suche.js';
 import type { LiveHub } from '../live.js';
 import { DorfFehler } from '../fehler.js';
 import { aktionLaden, eingabenAnwenden, type QuellenFn } from './aktionen.js';
+import { ablageOrdner, type RechenraumKlient } from './rechenraum.js';
 import { BUERGERMEISTER_WERKZEUGE, LESE_WERKZEUGE, werkzeugprofil, type DorfWerkzeug } from './leine.js';
 import { kostenSchaetzen, motorenLaden, stufenLaden } from './modelle.js';
 import { anhaengeLaden, auftragMitAnhaengen, systemPromptBauen } from './kontext.js';
@@ -27,6 +28,7 @@ interface ChatZeile {
   cc_sitzung: string | null;
   werkzeuge_json: string;
   anhaenge_json: string;
+  eingaben_json: string;
   fremdinhalte: number;
   spiegel_pfad: string | null;
   protokoll_pfad: string | null;
@@ -116,6 +118,8 @@ export class AgentenDienst {
   readonly beiLaufEnde: ((e: LaufEnde) => void | Promise<void>)[] = [];
   /** Server-Auswahlen für Aktions-Eingaben (z. B. Kurse aus Moodle) – wird beim Zusammenbau gesetzt */
   quellen: QuellenFn = () => [];
+  /** Rechenraum (pdflatex/Python ohne Netz) – nur gesetzt, wenn eingerichtet */
+  rechenraum?: RechenraumKlient;
 
   constructor(
     private db: DB,
@@ -375,7 +379,16 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
         this.vault,
         this.suche,
         this.freigaben,
-        { laufId, chatId: c.id, gebaeude: c.gebaeude, erlaubt: profil.dorf },
+        {
+          laufId,
+          chatId: c.id,
+          gebaeude: c.gebaeude,
+          erlaubt: profil.dorf,
+          rechenraum:
+            this.rechenraum && profil.dorf.includes('rechenraum_befehl')
+              ? { klient: this.rechenraum, ablage: ablageOrdner({ gebaeude: c.gebaeude, titel: c.titel, erstellt: c.erstellt, eingaben: JSON.parse(c.eingaben_json || '{}') }) }
+              : undefined,
+        },
         c.rolle === 'buergermeister' ? this.rollenWerkzeuge : undefined,
       );
       kiste.beiAufruf = (name, erlaubt, kurz) => this.hub.senden({ typ: 'lauf.werkzeug', laufId, chatId: c.id, name, erlaubt, kurz });

@@ -52,12 +52,36 @@ function bericht(text: string) {
     r1Fehler: boolean;
     r2: string;
     r2Fehler: boolean;
+    r3?: string[];
     args: string[];
     prompt: string;
   };
 }
 
 describe('claude-code-Motor über die Werkstatt', () => {
+  it('Bilder aus Werkzeug-Ergebnissen (Rechenraum-Seite) kommen über MCP als Bild bei claude an', async () => {
+    fs.writeFileSync(path.join(d.vault.wurzel, 'Uni/aktionen/cc-bild.md'), '---\nname: CC Bild\nmotor: claude-code\nwerkzeuge: [vault_lesen, rechenraum]\n---\n[seite]');
+    const vorher = d.agenten.rechenraum;
+    d.agenten.rechenraum = {
+      befehl: async () => ({ code: 0, abgelaufen: false, sekunden: 0, ausgabe: '' }),
+      schreiben: async () => undefined,
+      lesen: async () => Buffer.from(''),
+      dateien: async () => [],
+      seite: async () => ({ png: Buffer.from('PNG!'), seiten: 1 }),
+      aufraeumen: async () => undefined,
+    };
+    try {
+      const { chatId } = await d.agenten.aktionStarten('Uni/cc-bild', {});
+      await d.agenten.leerlauf(20_000);
+      const b = bericht(d.agenten.chatDetail(chatId).nachrichten.at(-1)!.text);
+      expect(b.werkzeuge).toEqual(expect.arrayContaining(['rechenraum_befehl', 'rechenraum_seite_ansehen', 'rechenraum_ablegen']));
+      expect(b.werkzeuge).not.toContain('vault_schreiben');
+      expect(b.r3).toEqual(['text:a.pdf, Seite 1 von 1:', `image:image/png:${Buffer.from('PNG!').toString('base64')}`]);
+    } finally {
+      d.agenten.rechenraum = vorher;
+    }
+  }, 30_000);
+
   it('ganzer Weg: Runner → claude → MCP → Leine im Dorf → Protokoll; sichere Argumente', async () => {
     fs.writeFileSync(path.join(d.vault.wurzel, 'Uni/aktionen/cc.md'), '---\nname: CC\nmotor: claude-code\nstufe: gross\n---\nMach was.');
     const { chatId } = await d.agenten.aktionStarten('Uni/cc', {});

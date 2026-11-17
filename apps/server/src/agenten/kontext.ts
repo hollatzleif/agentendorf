@@ -36,6 +36,13 @@ export async function systemPromptBauen(
       : '- Schreiben ist in dieser Aktion nicht erlaubt.',
     '- freigabe_beantragen: für alles, was Leif freigeben muss (löschen, überschreiben, alles mit Außenwirkung)',
     a.profil.web ? '- Websuche und Webseiten abrufen sind erlaubt.' : '- Kein Internetzugriff in dieser Aktion.',
+    ...(a.profil.dorf.includes('rechenraum_befehl')
+      ? [
+          '- rechenraum_*: eigener Arbeitsordner mit pdflatex, python3 (numpy, sympy, scipy, matplotlib), pdftoppm/pdftotext – ohne Internet, ohne Vault.',
+          '  Vault-Dateien holst du mit rechenraum_vault_kopieren hinein, PDF-Seiten schaust du mit rechenraum_seite_ansehen als Bild an,',
+          '  fertige .pdf/.tex legst du mit rechenraum_ablegen ab (der Zielordner steht fest – du wählst nur die Datei).',
+        ]
+      : []),
   ].join('\n');
 
   return `Du bist ein Agent im Agentendorf von Leif. Gebäude: ${a.gebaeude}. Aktion: ${a.aktionName}.

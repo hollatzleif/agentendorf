@@ -9,6 +9,7 @@ import type { Suchindex } from '../vault/suche.js';
 import { normalisieren } from '../vault/pfade.js';
 import { DorfFehler } from '../fehler.js';
 import { fremdinhaltHuelle, schreibenPruefen, type DorfWerkzeug } from './leine.js';
+import { ablageName, type RechenraumKlient } from './rechenraum.js';
 import { AGENTEN_ARTEN, type Freigaben } from './freigaben.js';
 
 /** Beschreibung der Dorf-Werkzeuge – identisch für den api-Motor (Tool-Definition) und den MCP-Server der Werkstatt. */
@@ -134,6 +135,68 @@ export const WERKZEUG_DEFINITIONEN: Record<DorfWerkzeug, WerkzeugDefinition> = {
       additionalProperties: false,
     },
   },
+
+  rechenraum_befehl: {
+    name: 'rechenraum_befehl',
+    description:
+      'Führt einen Shell-Befehl im eigenen Arbeitsordner des Rechenraums aus (bash, Zeitlimit 120 s), z. B. "pdflatex -interaction=nonstopmode blatt.tex", "python3 rechnung.py", "pdftotext -layout blatt.pdf -", "grep -n \'^!\\|Overfull\' blatt.log". Kein Internet, kein Vault. Gibt Exit-Code und Ausgabe (gekürzt) zurück.',
+    input_schema: {
+      type: 'object',
+      properties: { befehl: { type: 'string', description: 'bash-Befehl, läuft im Arbeitsordner' } },
+      required: ['befehl'],
+      additionalProperties: false,
+    },
+  },
+  rechenraum_schreiben: {
+    name: 'rechenraum_schreiben',
+    description: 'Schreibt eine Textdatei in den Arbeitsordner des Rechenraums (z. B. blatt.tex, rechnung.py). Überschreibt eine gleichnamige Datei dort.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        pfad: { type: 'string', description: 'relativ zum Arbeitsordner, z. B. "blatt.tex"' },
+        inhalt: { type: 'string', description: 'vollständiger Dateiinhalt' },
+      },
+      required: ['pfad', 'inhalt'],
+      additionalProperties: false,
+    },
+  },
+  rechenraum_vault_kopieren: {
+    name: 'rechenraum_vault_kopieren',
+    description: 'Kopiert eine Datei aus dem Vault (z. B. das Übungsblatt-PDF) in den Arbeitsordner des Rechenraums. Gibt den Namen im Arbeitsordner zurück.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        vault_pfad: { type: 'string', description: 'Pfad relativ zum Vault' },
+        ziel: { type: 'string', description: 'Optional: Name im Arbeitsordner (Standard: Dateiname)' },
+      },
+      required: ['vault_pfad'],
+      additionalProperties: false,
+    },
+  },
+  rechenraum_seite_ansehen: {
+    name: 'rechenraum_seite_ansehen',
+    description: 'Rendert eine Seite eines PDFs im Arbeitsordner als Bild und zeigt sie dir – für die Sichtprüfung (Ränder, Layout, Vergleich mit dem Original).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        pdf: { type: 'string', description: 'PDF im Arbeitsordner, z. B. "Blatt3_Loesung.pdf"' },
+        seite: { type: 'integer', description: 'Seitennummer ab 1' },
+      },
+      required: ['pdf', 'seite'],
+      additionalProperties: false,
+    },
+  },
+  rechenraum_ablegen: {
+    name: 'rechenraum_ablegen',
+    description:
+      'Legt eine fertige .pdf- oder .tex-Datei aus dem Arbeitsordner im Vault ab. Der Zielordner ist für diesen Chat fest vorgegeben (bei Abgaben: Uni/faecher/<Fach>/entwuerfe/…) – du wählst nur die Datei. Abgegeben wird nie automatisch.',
+    input_schema: {
+      type: 'object',
+      properties: { datei: { type: 'string', description: 'Datei im Arbeitsordner, z. B. "Blatt3_Loesung.pdf"' } },
+      required: ['datei'],
+      additionalProperties: false,
+    },
+  },
 };
 
 /** Führt die Sonder-Werkzeuge einer Rolle aus (Bürgermeister). */
@@ -146,6 +209,8 @@ const MAX_LESEN = 200_000;
 export interface WerkzeugAufrufErgebnis {
   ok: boolean;
   text: string;
+  /** Bilder für das Modell (z. B. gerenderte PDF-Seite) – beide Motoren reichen sie als Bild-Block weiter */
+  bilder?: { mime: 'image/png'; base64: string }[];
 }
 
 export interface LaufKontext {
@@ -153,6 +218,8 @@ export interface LaufKontext {
   chatId: string;
   gebaeude: string;
   erlaubt: DorfWerkzeug[];
+  /** Raum im Rechenraum (= Chat) und Zielordner für rechenraum_ablegen – beides vom Code bestimmt */
+  rechenraum?: { klient: RechenraumKlient; ablage: string };
 }
 
 /**
@@ -221,6 +288,12 @@ export class WerkzeugKiste {
           this.log(name, eingabe, r.text.slice(0, 300), r.ok, undefined, name === 'aktionen_liste' ? undefined : 'freigabe');
           return r;
         }
+        case 'rechenraum_befehl':
+        case 'rechenraum_schreiben':
+        case 'rechenraum_vault_kopieren':
+        case 'rechenraum_seite_ansehen':
+        case 'rechenraum_ablegen':
+          return await this.rechenraum(name, eingabe);
         case 'freigabe_beantragen': {
           const e = z
             .object({ art: z.enum(AGENTEN_ARTEN), titel: z.string().min(1), begruendung: z.string().default(''), inhalt: z.unknown() })
@@ -234,6 +307,65 @@ export class WerkzeugKiste {
       const t = e instanceof z.ZodError ? `Ungültige Eingabe: ${e.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}` : (e as Error).message;
       this.log(name, eingabe, t, false);
       return { ok: false, text: t };
+    }
+    return { ok: false, text: 'Unbekanntes Werkzeug.' };
+  }
+
+  private async rechenraum(name: string, eingabe: unknown): Promise<WerkzeugAufrufErgebnis> {
+    const r = this.k.rechenraum;
+    if (!r) throw new DorfFehler(503, 'Der Rechenraum ist auf diesem Server nicht eingerichtet.');
+    const raum = this.k.chatId;
+    switch (name) {
+      case 'rechenraum_befehl': {
+        const { befehl } = z.object({ befehl: z.string().min(1).max(4000) }).parse(eingabe);
+        const e = await r.klient.befehl(raum, befehl);
+        const kopf = e.abgelaufen ? `Abgebrochen nach ${e.sekunden} s (Zeitlimit).` : `Exit-Code ${e.code} (${e.sekunden} s).`;
+        this.log(name, eingabe, kopf, true);
+        return { ok: !e.abgelaufen, text: `${kopf}\n${e.ausgabe}` };
+      }
+      case 'rechenraum_schreiben': {
+        const e = z.object({ pfad: z.string().min(1), inhalt: z.string().max(2_000_000) }).parse(eingabe);
+        await r.klient.schreiben(raum, e.pfad, Buffer.from(e.inhalt, 'utf8'));
+        this.log(name, { pfad: e.pfad }, `${e.inhalt.length} Zeichen`, true);
+        return { ok: true, text: `Geschrieben: ${e.pfad}` };
+      }
+      case 'rechenraum_vault_kopieren': {
+        const e = z.object({ vault_pfad: z.string(), ziel: z.string().optional() }).parse(eingabe);
+        const pfad = normalisieren(e.vault_pfad);
+        const st = await fs.stat(this.vault.abs(pfad)).catch(() => null);
+        if (!st?.isFile()) throw new DorfFehler(404, `Gibt es nicht: ${pfad}`);
+        if (st.size > 50 * 1024 * 1024) throw new DorfFehler(413, 'Datei zu groß (max. 50 MB).');
+        const ziel = e.ziel || path.posix.basename(pfad);
+        await r.klient.schreiben(raum, ziel, await fs.readFile(this.vault.abs(pfad)));
+        this.log(name, eingabe, `→ ${ziel}`, true, pfad, 'gelesen');
+        return { ok: true, text: `Kopiert nach ${ziel} (${Math.round(st.size / 1024)} KB).` };
+      }
+      case 'rechenraum_seite_ansehen': {
+        const e = z.object({ pdf: z.string().min(1), seite: z.coerce.number().int().min(1).max(2000) }).parse(eingabe);
+        const s = await r.klient.seite(raum, e.pdf, e.seite);
+        this.log(name, eingabe, `Seite ${e.seite}${s.seiten ? ` von ${s.seiten}` : ''}`, true);
+        return {
+          ok: true,
+          text: `${e.pdf}, Seite ${e.seite}${s.seiten ? ` von ${s.seiten}` : ''}:`,
+          bilder: [{ mime: 'image/png', base64: s.png.toString('base64') }],
+        };
+      }
+      case 'rechenraum_ablegen': {
+        const { datei } = z.object({ datei: z.string().min(1) }).parse(eingabe);
+        const ziel = `${r.ablage}/${ablageName(datei)}`;
+        const existiert = await this.vault.existiert(ziel);
+        const vonDiesemChat =
+          existiert &&
+          !!this.db.prepare("SELECT 1 FROM werkzeug_log WHERE chat_id = ? AND pfad = ? AND art = 'geschrieben' AND erlaubt = 1 LIMIT 1").get(this.k.chatId, ziel);
+        if (existiert && !vonDiesemChat) {
+          this.log(name, eingabe, 'verweigert: Datei stammt nicht aus diesem Chat', false, ziel);
+          return { ok: false, text: `Verweigert: ${ziel} gibt es schon und stammt nicht aus diesem Chat.` };
+        }
+        const inhalt = await r.klient.lesen(raum, datei);
+        const w = await this.vault.schreiben(ziel, inhalt);
+        this.log(name, eingabe, `${Math.round(inhalt.length / 1024)} KB abgelegt`, true, w.pfad, 'geschrieben');
+        return { ok: true, text: `Abgelegt: ${w.pfad}` };
+      }
     }
     return { ok: false, text: 'Unbekanntes Werkzeug.' };
   }

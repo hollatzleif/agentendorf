@@ -27,6 +27,8 @@ const Schema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_CHAT_ID: z.string().optional(),
   TELEGRAM_API_URL: z.string().default('https://api.telegram.org'),
+  RECHENRAUM_URL: z.string().default('http://rechenraum:4100'),
+  RECHENRAUM_GEHEIMNIS: z.string().optional(),
   MOODLE_URL: z.string().optional(),
   MOODLE_TOKEN: z.string().optional(),
   DORF_MOTOR_ATTRAPPE: z
@@ -57,6 +59,8 @@ export interface Konfig {
   telegramApiUrl: string;
   moodleUrl?: string;
   moodleToken?: string;
+  rechenraumUrl: string;
+  rechenraumGeheimnis?: string;
 }
 
 export function konfigLaden(env: NodeJS.ProcessEnv = process.env): Konfig {
@@ -83,5 +87,7 @@ export function konfigLaden(env: NodeJS.ProcessEnv = process.env): Konfig {
     telegramApiUrl: e.TELEGRAM_API_URL,
     moodleUrl: e.MOODLE_URL?.replace(/\/$/, '') || undefined,
     moodleToken: e.MOODLE_TOKEN || undefined,
+    rechenraumUrl: e.RECHENRAUM_URL,
+    rechenraumGeheimnis: e.RECHENRAUM_GEHEIMNIS || undefined,
   };
 }

@@ -28,8 +28,13 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
   try {
-    const r = await dorf<{ ok: boolean; text: string }>('/intern/werkzeug', { name: req.params.name, eingabe: req.params.arguments ?? {} });
-    return { content: [{ type: 'text', text: r.text }], isError: !r.ok };
+    const r = await dorf<{ ok: boolean; text: string; bilder?: { mime: string; base64: string }[] }>('/intern/werkzeug', {
+      name: req.params.name,
+      eingabe: req.params.arguments ?? {},
+    });
+    // Bilder (z. B. gerenderte PDF-Seiten aus dem Rechenraum) gehen als Bild-Inhalt an claude
+    const bilder = (r.bilder ?? []).map((b) => ({ type: 'image' as const, data: b.base64, mimeType: b.mime }));
+    return { content: [{ type: 'text' as const, text: r.text }, ...bilder], isError: !r.ok };
   } catch (e) {
     return { content: [{ type: 'text', text: (e as Error).message }], isError: true };
   }

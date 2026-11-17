@@ -18,10 +18,26 @@ export type DorfWerkzeug =
   | 'freigabe_beantragen'
   | 'aktionen_liste'
   | 'helfer_starten'
-  | 'plan_vorlegen';
+  | 'plan_vorlegen'
+  | 'rechenraum_befehl'
+  | 'rechenraum_schreiben'
+  | 'rechenraum_vault_kopieren'
+  | 'rechenraum_seite_ansehen'
+  | 'rechenraum_ablegen';
 export const LESE_WERKZEUGE: DorfWerkzeug[] = ['vault_lesen', 'vault_liste', 'vault_suchen'];
 /** Nur Aktionen mit rolle: buergermeister bekommen diese Werkzeuge. */
 export const BUERGERMEISTER_WERKZEUGE: DorfWerkzeug[] = ['aktionen_liste', 'helfer_starten', 'plan_vorlegen'];
+/**
+ * Nur Aktionen mit werkzeuge: [rechenraum]. Der Rechenraum hat weder Internet noch Vault – darum ist er auch
+ * mit Fremdinhalten erlaubt. Heraus kommt nur, was rechenraum_ablegen in den vom Code bestimmten Ordner legt.
+ */
+export const RECHENRAUM_WERKZEUGE: DorfWerkzeug[] = [
+  'rechenraum_befehl',
+  'rechenraum_schreiben',
+  'rechenraum_vault_kopieren',
+  'rechenraum_seite_ansehen',
+  'rechenraum_ablegen',
+];
 /** Höchstens so viele Helfer pro Plan */
 export const MAX_HELFER_PRO_PLAN = 10;
 /** So viele Helfer darf der Bürgermeister pro Aufgabe ohne Plan starten (Leifs Vorgabe: ab 2 Helfern nur mit Plan) */
@@ -44,6 +60,7 @@ export function werkzeugprofil(a: { werkzeuge: AktionsWerkzeug[]; fremdinhalte: 
   if (fehler) throw new DorfFehler(400, fehler);
   const dorf: DorfWerkzeug[] = [...LESE_WERKZEUGE, 'freigabe_beantragen'];
   if (a.werkzeuge.includes('vault_schreiben')) dorf.push('vault_schreiben');
+  if (a.werkzeuge.includes('rechenraum')) dorf.push(...RECHENRAUM_WERKZEUGE);
   return { dorf, web: a.werkzeuge.includes('web') && !a.fremdinhalte };
 }
 
