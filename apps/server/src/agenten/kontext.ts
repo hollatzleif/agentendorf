@@ -43,6 +43,9 @@ export async function systemPromptBauen(
           '  fertige .pdf/.tex legst du mit rechenraum_ablegen ab (der Zielordner steht fest – du wählst nur die Datei).',
         ]
       : []),
+    ...(a.profil.dorf.includes('post_lesen')
+      ? ['- post_lesen, post_entwurf: eine Mail aus Leifs Posteingang lesen (Fremdinhalt!) und einen Antwort-ENTWURF in Gmail anlegen – senden geht nicht.']
+      : []),
   ].join('\n');
 
   return `Du bist ein Agent im Agentendorf von Leif. Gebäude: ${a.gebaeude}. Aktion: ${a.aktionName}.

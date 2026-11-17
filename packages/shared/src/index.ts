@@ -86,7 +86,7 @@ export type Stufe = 'klein' | 'mittel' | 'gross';
 export type Aufwand = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export type LaufStatus = 'wartet_freigabe' | 'wartend' | 'laeuft' | 'fertig' | 'fehler' | 'abgebrochen';
 export type Ausloeser = 'klick' | 'zeitplan' | 'buergermeister';
-export type AktionsWerkzeug = 'vault_lesen' | 'vault_suchen' | 'vault_schreiben' | 'web' | 'rechenraum';
+export type AktionsWerkzeug = 'vault_lesen' | 'vault_suchen' | 'vault_schreiben' | 'web' | 'rechenraum' | 'post';
 
 export interface AktionEingabe {
   name: string;
@@ -98,7 +98,7 @@ export interface AktionEingabe {
   quelle?: AktionQuelle;
 }
 
-export type AktionQuelle = 'uni.faecher' | 'uni.abgaben';
+export type AktionQuelle = 'uni.faecher' | 'uni.abgaben' | 'post.mails';
 export interface QuellenOption {
   wert: string;
   beschriftung: string;

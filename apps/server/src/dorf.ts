@@ -27,7 +27,13 @@ import { gmailKlient, type GmailKlient } from './post/gmail.js';
 import { GoogleZugang } from './post/google-oauth.js';
 
 /** Dateien, die das Dorf zum Arbeiten braucht: fehlen sie (z. B. Vault aus einer älteren Etappe), werden sie aus der Vorlage ergänzt – nie überschrieben. */
-const PFLICHT_DATEIEN = ['Rathaus/aktionen/buergermeister.md', '00_Stadtordnung/telegram.md', 'Uni/aktionen/lernen.md', 'Uni/aktionen/abgabe-bearbeiten.md'];
+const PFLICHT_DATEIEN = [
+  'Rathaus/aktionen/buergermeister.md',
+  '00_Stadtordnung/telegram.md',
+  'Uni/aktionen/lernen.md',
+  'Uni/aktionen/abgabe-bearbeiten.md',
+  'Post/aktionen/antwort-entwerfen.md',
+];
 
 /**
  * Vorlagendateien, die das Dorf ersetzen darf – aber NUR, wenn sie byte-genau einer früheren Vorlagenfassung
@@ -118,7 +124,8 @@ export async function dorfStarten(
     pauseMs: opt.moodle ? 0 : 500,
     log: (t) => console.warn(t),
   });
-  agenten.quellen = (q) => uni.quelle(q);
+  agenten.quellen = (q) => (q === 'post.mails' ? postbote.quelle() : uni.quelle(q));
+  const gmail = opt.gmail ?? (konfig.gmail ? gmailKlient(new GoogleZugang({ ...konfig.gmail, tokenUrl: konfig.googleTokenUrl }), konfig.gmailApiUrl) : undefined);
   const ki = new SystemAufrufe({
     db,
     uhr,
@@ -132,9 +139,10 @@ export async function dorfStarten(
     vault,
     hub,
     ki,
-    gmail: opt.gmail ?? (konfig.gmail ? gmailKlient(new GoogleZugang({ ...konfig.gmail, tokenUrl: konfig.googleTokenUrl }), konfig.gmailApiUrl) : undefined),
+    gmail,
     log: (t) => console.warn(t),
   });
+  agenten.post = gmail;
   let telegram: TelegramBot | undefined;
   if ((konfig.telegramToken || opt.telegram) && konfig.telegramChatId) {
     telegram = new TelegramBot({

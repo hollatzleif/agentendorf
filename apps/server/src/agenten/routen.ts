@@ -26,7 +26,7 @@ export function agentenRouten(
   });
 
   app.get('/api/aktionen/quelle', async (req) => {
-    const q = z.object({ name: z.enum(['uni.faecher', 'uni.abgaben']) }).parse(req.query);
+    const q = z.object({ name: z.enum(['uni.faecher', 'uni.abgaben', 'post.mails']) }).parse(req.query);
     return agenten.quellen(q.name);
   });
 

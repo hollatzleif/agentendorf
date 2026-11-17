@@ -275,6 +275,18 @@ export class Postbote {
     };
   }
 
+  /** Auswahl für „Antwort entwerfen“: die letzten Mails, „Antwort nötig“ zuerst */
+  quelle() {
+    const z = this.o.db
+      .prepare('SELECT * FROM post_mails ORDER BY COALESCE(antwort_noetig, 0) DESC, datum DESC LIMIT 60')
+      .all() as PostZeile[];
+    const datum = new Intl.DateTimeFormat('de-AT', { timeZone: 'Europe/Vienna', day: '2-digit', month: '2-digit' });
+    return z.map((m) => ({
+      wert: m.id,
+      beschriftung: `${m.antwort_noetig ? '✉️ ' : ''}${m.wichtig ? '⭐ ' : ''}${m.betreff} – ${m.von} (${datum.format(new Date(m.datum))})`.slice(0, 160),
+    }));
+  }
+
   /** Für Morgenzeitung und Aufwachen */
   wichtigeSeit(seit: number): PostMail[] {
     return (this.o.db.prepare('SELECT * FROM post_mails WHERE wichtig = 1 AND datum >= ? ORDER BY datum DESC').all(seit) as PostZeile[]).map(zuMail);

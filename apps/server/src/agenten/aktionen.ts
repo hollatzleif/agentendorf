@@ -18,7 +18,7 @@ const Eingabe = z.object({
   pflicht: JaNein.default(true),
   optionen: z.array(z.coerce.string()).optional(),
   /** Auswahl vom Server: uni.faecher (Kurse), uni.abgaben (offene Abgaben) */
-  quelle: z.enum(['uni.faecher', 'uni.abgaben']).optional(),
+  quelle: z.enum(['uni.faecher', 'uni.abgaben', 'post.mails']).optional(),
 });
 
 /** Liefert die erlaubten Werte einer Server-Auswahl (beim Anzeigen UND beim Start geprüft). */
@@ -33,7 +33,7 @@ export const AktionKopf = z
     stufe: z.enum(['klein', 'mittel', 'gross']).default('mittel'),
     eingaben: z.array(Eingabe).default([]),
     anhaenge: z.array(z.string()).default([]),
-    werkzeuge: z.array(z.enum(['vault_lesen', 'vault_suchen', 'vault_schreiben', 'web', 'rechenraum'])).default(['vault_lesen', 'vault_suchen', 'vault_schreiben']),
+    werkzeuge: z.array(z.enum(['vault_lesen', 'vault_suchen', 'vault_schreiben', 'web', 'rechenraum', 'post'])).default(['vault_lesen', 'vault_suchen', 'vault_schreiben']),
     fremdinhalte: JaNein.default(false),
     freigabe_vor_start: JaNein.default(false),
     /** Sonderrolle: buergermeister bekommt aktionen_liste, helfer_starten, plan_vorlegen */

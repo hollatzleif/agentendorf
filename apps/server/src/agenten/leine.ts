@@ -23,7 +23,9 @@ export type DorfWerkzeug =
   | 'rechenraum_schreiben'
   | 'rechenraum_vault_kopieren'
   | 'rechenraum_seite_ansehen'
-  | 'rechenraum_ablegen';
+  | 'rechenraum_ablegen'
+  | 'post_lesen'
+  | 'post_entwurf';
 export const LESE_WERKZEUGE: DorfWerkzeug[] = ['vault_lesen', 'vault_liste', 'vault_suchen'];
 /** Nur Aktionen mit rolle: buergermeister bekommen diese Werkzeuge. */
 export const BUERGERMEISTER_WERKZEUGE: DorfWerkzeug[] = ['aktionen_liste', 'helfer_starten', 'plan_vorlegen'];
@@ -38,6 +40,11 @@ export const RECHENRAUM_WERKZEUGE: DorfWerkzeug[] = [
   'rechenraum_seite_ansehen',
   'rechenraum_ablegen',
 ];
+/**
+ * Nur Aktionen mit werkzeuge: [post]. Lesen nur von Mails aus dem Posteingang (dem Dorf bekannt),
+ * Entwurf nur als Antwort auf genau so eine Mail – kein frei wählbarer Empfänger, Senden gibt es nicht.
+ */
+export const POST_WERKZEUGE: DorfWerkzeug[] = ['post_lesen', 'post_entwurf'];
 /** Höchstens so viele Helfer pro Plan */
 export const MAX_HELFER_PRO_PLAN = 10;
 /** So viele Helfer darf der Bürgermeister pro Aufgabe ohne Plan starten (Leifs Vorgabe: ab 2 Helfern nur mit Plan) */
@@ -61,6 +68,7 @@ export function werkzeugprofil(a: { werkzeuge: AktionsWerkzeug[]; fremdinhalte: 
   const dorf: DorfWerkzeug[] = [...LESE_WERKZEUGE, 'freigabe_beantragen'];
   if (a.werkzeuge.includes('vault_schreiben')) dorf.push('vault_schreiben');
   if (a.werkzeuge.includes('rechenraum')) dorf.push(...RECHENRAUM_WERKZEUGE);
+  if (a.werkzeuge.includes('post')) dorf.push(...POST_WERKZEUGE);
   return { dorf, web: a.werkzeuge.includes('web') && !a.fremdinhalte };
 }
 

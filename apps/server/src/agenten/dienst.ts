@@ -8,6 +8,7 @@ import type { LiveHub } from '../live.js';
 import { DorfFehler } from '../fehler.js';
 import { aktionLaden, eingabenAnwenden, type QuellenFn } from './aktionen.js';
 import { ablageOrdner, type RechenraumKlient } from './rechenraum.js';
+import type { GmailKlient } from '../post/gmail.js';
 import { BUERGERMEISTER_WERKZEUGE, LESE_WERKZEUGE, werkzeugprofil, type DorfWerkzeug } from './leine.js';
 import { kostenSchaetzen, motorenLaden, stufenLaden } from './modelle.js';
 import { anhaengeLaden, auftragMitAnhaengen, systemPromptBauen } from './kontext.js';
@@ -120,6 +121,8 @@ export class AgentenDienst {
   quellen: QuellenFn = () => [];
   /** Rechenraum (pdflatex/Python ohne Netz) – nur gesetzt, wenn eingerichtet */
   rechenraum?: RechenraumKlient;
+  /** Gmail (nur Lesen + Entwürfe) – nur gesetzt, wenn verbunden */
+  post?: GmailKlient;
 
   constructor(
     private db: DB,
@@ -393,6 +396,7 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
             this.rechenraum && profil.dorf.includes('rechenraum_befehl')
               ? { klient: this.rechenraum, ablage: ablageOrdner({ gebaeude: c.gebaeude, titel: c.titel, erstellt: c.erstellt, eingaben: JSON.parse(c.eingaben_json || '{}') }) }
               : undefined,
+          post: profil.dorf.includes('post_lesen') ? this.post : undefined,
         },
         c.rolle === 'buergermeister' ? this.rollenWerkzeuge : undefined,
       );
