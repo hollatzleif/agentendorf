@@ -225,6 +225,16 @@ const MIGRATIONEN: string[] = [
   `
   ALTER TABLE moodle_fristen ADD COLUMN ende INTEGER;
   `,
+  // 7 – Telegram: Gesprächszusammenhang (welche Bot-Nachricht gehört zu welchem Chat)
+  `
+  CREATE TABLE telegram_verlauf (
+    message_id INTEGER PRIMARY KEY,   -- Nachricht im gekoppelten Chat (vom Bot oder von Leif)
+    chat_id TEXT NOT NULL,            -- Dorf-Chat; '' = „/neu“ (Gespräch bewusst beendet)
+    zeit INTEGER NOT NULL,
+    nr INTEGER NOT NULL               -- Reihenfolge des Austauschs (zuletzt = größte Nummer)
+  );
+  CREATE INDEX telegram_verlauf_nr ON telegram_verlauf (nr);
+  `,
 ];
 
 export function dbOeffnen(datei: string): DB {

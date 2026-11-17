@@ -11,6 +11,11 @@ import { MAX_DATEI, type TelegramSchnittstelle } from './api.js';
 import { einstellungenLaden } from './einstellungen.js';
 import type { AbgleichErgebnis, FaelligeErinnerung, Uni } from '../uni/abgleich.js';
 import { fristText } from '../uni/text.js';
+import type { Uhr } from '../uhr.js';
+import { fremdinhaltHuelle } from '../agenten/leine.js';
+
+/** So lange nach dem letzten Austausch gilt eine neue Nachricht als Fortsetzung des Gesprächs */
+export const GESPRAECH_MINUTEN = 60;
 
 /** HTML-sicher für Telegram (parse_mode HTML) */
 export const h = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -30,6 +35,7 @@ interface TgNachricht {
   forward_from?: unknown;
   forward_from_chat?: unknown;
   forward_date?: number;
+  reply_to_message?: { message_id: number; text?: string; caption?: string };
 }
 interface TgUpdate {
   update_id: number;
@@ -60,6 +66,7 @@ export class TelegramBot {
 
   constructor(
     private o: {
+      uhr: Uhr;
       api: TelegramSchnittstelle;
       chatId: string;
       geheimnis: string;
@@ -223,10 +230,48 @@ export class TelegramBot {
       this.o.log?.(`Telegram: Nachricht aus fremdem Chat ${m.chat.id} ignoriert.`);
       return;
     }
-    const text = (m.text ?? m.caption ?? '').trim();
-    if (text.startsWith('/')) return this.befehl(text.split(/\s/)[0]!.split('@')[0]!.toLowerCase());
+    let text = (m.text ?? m.caption ?? '').trim();
+    if (text.startsWith('/')) {
+      const b = text.split(/\s/)[0]!.split('@')[0]!.toLowerCase();
+      if (b !== '/neu') return this.befehl(b);
+      // „/neu“ beendet das laufende Gespräch; „/neu <Text>“ legt gleich eine neue Aufgabe an
+      this.verlaufMerken(m.message_id, '');
+      text = text.slice(text.split(/\s/)[0]!.length).trim();
+      if (!text && !m.document && !m.photo?.length) return this.senden('🆕 Okay – deine nächste Nachricht wird eine neue Aufgabe.');
+      return this.neueAufgabe(m, text);
+    }
     if (m.voice || m.audio || m.video_note) return this.senden('🎙️ Sprachnachrichten kann das Dorf noch nicht verarbeiten. Schreib mir die Aufgabe bitte als Text.');
 
+    // Reiner Text (nicht weitergeleitet, keine Datei) kann ein laufendes Gespräch fortsetzen.
+    // Weitergeleitetes und Dateien werden immer neue Aufgaben – Fremdinhalt kommt nie direkt in einen Auftrag.
+    const fremd = !!(m.forward_origin || m.forward_from || m.forward_from_chat || m.forward_date);
+    if (text && !fremd && !m.document && !m.photo?.length) {
+      const chatId = this.gespraechFinden(m);
+      if (chatId) return this.fortsetzen(m, chatId, text);
+    }
+    return this.neueAufgabe(m, text);
+  }
+
+  private async fortsetzen(m: TgNachricht, chatId: string, text: string) {
+    let c: ReturnType<AgentenDienst['chatZeile']>;
+    try {
+      c = this.o.agenten.chatZeile(chatId);
+    } catch {
+      return this.neueAufgabe(m, text);
+    }
+    try {
+      this.o.agenten.nachrichtSenden(chatId, text, 'klick');
+    } catch (e) {
+      if (e instanceof DorfFehler && e.status === 409)
+        return this.senden(`⏳ Im Gespräch „${h(c.titel)}“ wird gerade noch gearbeitet. Schick deine Nachricht gleich nochmal – oder <code>/neu …</code> für eine neue Aufgabe.`);
+      return this.senden(`⚠️ Konnte die Nachricht nicht weitergeben: ${h((e as Error).message)}`);
+    }
+    this.verlaufMerken(m.message_id, chatId);
+    await this.senden(`↪️ Weiter im Gespräch: <b>${h(c.titel)}</b> · <a href="${this.link(`/chats/${chatId}`)}">Chat öffnen</a>\n<i>/neu startet eine neue Aufgabe</i>`, {}, chatId);
+  }
+
+  private async neueAufgabe(m: TgNachricht, textRoh: string) {
+    let text = textRoh;
     const anhaenge: string[] = [];
     try {
       const datei = m.document ?? (m.photo?.length ? { ...m.photo[m.photo.length - 1]!, file_name: `foto-${m.message_id}.jpg` } : undefined);
@@ -237,10 +282,16 @@ export class TelegramBot {
       }
       if (!text && !anhaenge.length) return;
       const fremd = !!(m.forward_origin || m.forward_from || m.forward_from_chat || m.forward_date);
+      // Antwort auf eine Dorf-Nachricht ohne zugehörigen Chat (z. B. Erinnerung): deren Text als Bezug mitgeben – als Daten
+      const bezug = !fremd && m.reply_to_message ? (m.reply_to_message.text ?? m.reply_to_message.caption ?? '').trim() : '';
+      if (bezug) text = `${text}\n\n---\nBezug – die Nachricht des Dorfs, auf die Leif antwortet:\n${fremdinhaltHuelle('telegram-bezug', bezug.slice(0, 2000))}`;
       const a = await this.o.schreibtisch.anlegen({ text, quelle: 'telegram', fremd, anhaenge });
       const r = await this.o.buergermeister.starten(a.id, 'klick');
+      this.verlaufMerken(m.message_id, r.chatId);
       await this.senden(
-        `📥 Auf dem Schreibtisch: <b>${h(a.titel)}</b>${fremd ? '\n(weitergeleitet – wird als Fremdinhalt behandelt)' : ''}\nDer Bürgermeister kümmert sich. <a href="${this.link(`/chats/${r.chatId}`)}">Chat öffnen</a>`,
+        `📥 Neue Aufgabe auf dem Schreibtisch: <b>${h(a.titel)}</b>${fremd ? '\n(weitergeleitet – wird als Fremdinhalt behandelt)' : ''}\nDer Bürgermeister kümmert sich. <a href="${this.link(`/chats/${r.chatId}`)}">Chat öffnen</a>\n<i>Antworte einfach – das Gespräch läuft ${GESPRAECH_MINUTEN} Minuten weiter.</i>`,
+        {},
+        r.chatId,
       );
     } catch (e) {
       await this.senden(`⚠️ Konnte die Aufgabe nicht anlegen: ${h((e as Error).message)}`);
@@ -250,7 +301,7 @@ export class TelegramBot {
   private async befehl(b: string) {
     if (b === '/start' || b === '/hilfe' || b === '/help')
       return this.senden(
-        '🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/hilfe – diese Hilfe',
+        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/hilfe – diese Hilfe`,
       );
     if (b === '/status') {
       const aktiv = this.o.agenten.aktiveLaeufe();
@@ -313,14 +364,48 @@ export class TelegramBot {
     return `${this.o.appUrl}${pfad}`;
   }
 
-  async senden(text: string, extra: Record<string, unknown> = {}) {
-    return this.o.api.aufruf<{ message_id: number }>('sendMessage', {
+  async senden(text: string, extra: Record<string, unknown> = {}, gehoertZuChat?: string) {
+    const r = await this.o.api.aufruf<{ message_id: number }>('sendMessage', {
       chat_id: this.o.chatId,
       text: text.slice(0, 4000),
       parse_mode: 'HTML',
       link_preview_options: { is_disabled: true },
       ...extra,
     });
+    // Merken, zu welchem Dorf-Chat die Nachricht gehört – eine Antwort darauf setzt genau diesen Chat fort
+    if (gehoertZuChat && typeof r?.message_id === 'number') this.verlaufMerken(r.message_id, gehoertZuChat);
+    return r;
+  }
+
+  private verlaufMerken(messageId: number, chatId: string) {
+    this.o.db
+      .prepare(
+        `INSERT INTO telegram_verlauf (message_id, chat_id, zeit, nr) VALUES (?, ?, ?, (SELECT COALESCE(MAX(nr), 0) + 1 FROM telegram_verlauf))
+         ON CONFLICT(message_id) DO UPDATE SET chat_id = excluded.chat_id, zeit = excluded.zeit, nr = excluded.nr`,
+      )
+      .run(messageId, chatId, this.o.uhr.jetzt());
+  }
+
+  /**
+   * Wohin gehört eine neue Textnachricht?
+   * 1. Antwort auf eine Bot-Nachricht → deren Chat.
+   * 2. Sonst: das laufende Gespräch mit dem Bürgermeister, wenn der letzte Austausch < GESPRAECH_MINUTEN her ist
+   *    und danach kein /neu kam.
+   * 3. Sonst: neue Aufgabe.
+   */
+  private gespraechFinden(m: TgNachricht): string | null {
+    const db = this.o.db;
+    if (m.reply_to_message) {
+      const z = db.prepare('SELECT chat_id FROM telegram_verlauf WHERE message_id = ?').get(m.reply_to_message.message_id) as { chat_id: string } | undefined;
+      return z?.chat_id || null;
+    }
+    const letzte = db.prepare('SELECT chat_id, zeit FROM telegram_verlauf ORDER BY nr DESC LIMIT 1').get() as { chat_id: string; zeit: number } | undefined;
+    if (!letzte?.chat_id || this.o.uhr.jetzt() - letzte.zeit > GESPRAECH_MINUTEN * 60_000) return null;
+    // fortgesetzt wird das Gespräch mit dem Bürgermeister (nicht ein Helfer-Chat, zu dem zuletzt eine Meldung kam)
+    const c = db.prepare('SELECT id, rolle, eltern_chat_id FROM chats WHERE id = ?').get(letzte.chat_id) as { id: string; rolle: string | null; eltern_chat_id: string | null } | undefined;
+    if (!c) return null;
+    const ziel = c.rolle === 'buergermeister' ? c.id : c.eltern_chat_id;
+    return ziel ?? null;
   }
 
   private freigabeText(f: FreigabeInfo) {
@@ -336,9 +421,11 @@ export class TelegramBot {
   private async freigabeMelden(f: FreigabeInfo, immer = false) {
     if (!immer && !(await einstellungenLaden(this.o.vault)).freigaben) return;
     if (f.status !== 'offen') return;
-    const r = await this.senden(`${this.freigabeText(f)}\n\n<a href="${this.link('/gebaeude/Rathaus?reiter=freigaben')}">In der App ansehen</a>`, {
-      reply_markup: this.knoepfe(f.id),
-    });
+    const r = await this.senden(
+      `${this.freigabeText(f)}\n\n<a href="${this.link('/gebaeude/Rathaus?reiter=freigaben')}">In der App ansehen</a>`,
+      { reply_markup: this.knoepfe(f.id) },
+      f.chatId ?? undefined,
+    );
     this.o.db
       .prepare('INSERT INTO telegram_nachrichten (freigabe_id, chat_id, message_id) VALUES (?, ?, ?) ON CONFLICT(freigabe_id) DO UPDATE SET message_id = excluded.message_id')
       .run(f.id, this.o.chatId, r.message_id);
@@ -367,20 +454,20 @@ export class TelegramBot {
     const c = this.o.agenten.chatZeile(e.chatId);
     const link = `<a href="${this.link(`/chats/${c.id}`)}">Chat öffnen</a>`;
     if (e.status === 'fehler') {
-      if (k.fehler) await this.senden(`❌ <b>Fehler</b>: ${h(c.titel)}\n${h((e.fehler ?? '').slice(0, 500))}\n${link}`);
+      if (k.fehler) await this.senden(`❌ <b>Fehler</b>: ${h(c.titel)}\n${h((e.fehler ?? '').slice(0, 500))}\n${link}`, {}, c.id);
       return;
     }
     // Wartet ein Plan auf Freigabe, kommt die Plan-Nachricht mit Knöpfen – keine zweite Meldung.
     if (c.rolle === 'buergermeister' && this.o.db.prepare("SELECT 1 FROM plaene WHERE chat_id = ? AND status = 'wartet'").get(c.id)) return;
     if (e.geschrieben.length && k.entwuerfe) {
       const dateien = e.geschrieben.slice(0, 5).map((p) => `• <code>${h(p)}</code>`).join('\n');
-      await this.senden(`📝 <b>Fertig mit Entwurf</b>: ${h(c.titel)}\n${dateien}\n${link}`);
+      await this.senden(`📝 <b>Fertig mit Entwurf</b>: ${h(c.titel)}\n${dateien}\n${link}`, {}, c.id);
       return;
     }
     if (k.beendet) {
       const antwort = (this.o.db.prepare("SELECT text FROM nachrichten WHERE lauf_id = ? AND rolle = 'agent' ORDER BY id DESC LIMIT 1").get(e.laufId) as { text: string } | undefined)?.text ?? '';
       const kurz = antwort.split(/^##\s*Zusammenfassung/m)[0]!.trim().slice(0, 600);
-      await this.senden(`✅ <b>Fertig</b>: ${h(c.titel)}${kurz ? `\n\n${h(kurz)}${antwort.length > 600 ? ' …' : ''}` : ''}\n${link}`);
+      await this.senden(`✅ <b>Fertig</b>: ${h(c.titel)}${kurz ? `\n\n${h(kurz)}${antwort.length > 600 ? ' …' : ''}` : ''}\n${link}`, {}, c.id);
     }
   }
 
@@ -392,6 +479,6 @@ export class TelegramBot {
       .filter((z) => z.startsWith('- '))
       .map((z) => h(z.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/ · \[\[[^\]]*\]\]/g, '')))
       .join('\n');
-    await this.senden(`🏁 <b>Aufgabe erledigt</b>: ${h(a.titel)}\n${zeilen}\n<a href="${this.link(`/chats/${a.chatId}`)}">Chat öffnen</a>`);
+    await this.senden(`🏁 <b>Aufgabe erledigt</b>: ${h(a.titel)}\n${zeilen}\n<a href="${this.link(`/chats/${a.chatId}`)}">Chat öffnen</a>`, {}, a.chatId);
   }
 }

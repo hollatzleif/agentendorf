@@ -113,6 +113,7 @@ export async function dorfStarten(
   let telegram: TelegramBot | undefined;
   if ((konfig.telegramToken || opt.telegram) && konfig.telegramChatId) {
     telegram = new TelegramBot({
+      uhr,
       api: opt.telegram ?? telegramApi(konfig.telegramToken!, konfig.telegramApiUrl),
       chatId: konfig.telegramChatId,
       geheimnis: konfig.werkstattGeheimnis ?? konfig.telegramToken ?? 'test',
