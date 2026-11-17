@@ -11,6 +11,7 @@ import { MAX_DATEI, type TelegramSchnittstelle } from './api.js';
 import { einstellungenLaden } from './einstellungen.js';
 import type { AbgleichErgebnis, FaelligeErinnerung, Uni } from '../uni/abgleich.js';
 import type { Postbote } from '../post/postbote.js';
+import type { Morgenzeitung, Zeitung } from '../morgenzeitung.js';
 import type { PostMail } from '@dorf/shared';
 import { fristText } from '../uni/text.js';
 import type { Uhr } from '../uhr.js';
@@ -80,6 +81,7 @@ export class TelegramBot {
       buergermeister: Buergermeister;
       uni?: Uni;
       postbote?: Postbote;
+      morgenzeitung?: Morgenzeitung;
       log?: (t: string) => void;
     },
   ) {
@@ -91,9 +93,22 @@ export class TelegramBot {
     o.buergermeister.beiAbschluss.push((a) => void this.abschlussMelden(a).catch((x) => this.fehler(x)));
     o.uni?.beiAbgleich.push((e) => this.moodleMelden(e).catch((x) => this.fehler(x)));
     o.postbote?.beiNeu.push((m) => this.mailsMelden(m).catch((x) => this.fehler(x)));
+    o.morgenzeitung?.beiNeu.push((z) => this.zeitungSenden(z).catch((x) => this.fehler(x)));
   }
 
   private letzterMoodleFehler: string | null = null;
+
+  /** Morgenzeitung als Telegram-Nachricht (Schalter „morgenzeitung“) */
+  async zeitungSenden(z: Zeitung) {
+    if (!(await einstellungenLaden(this.o.vault)).morgenzeitung) return;
+    const fett = (t: string) => h(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+    const teile = [`☀️ <b>Morgenzeitung</b>`];
+    if (z.einleitung) teile.push(`<i>${h(z.einleitung)}</i>`);
+    for (const a of z.abschnitte) if (a.zeilen.length) teile.push(`<b>${h(a.titel)}</b>\n${a.zeilen.slice(0, 8).map((x) => `• ${fett(x)}`).join('\n')}`);
+    let text = teile.join('\n\n');
+    if (text.length > 3700) text = `${text.slice(0, 3700)} …`;
+    await this.senden(`${text}\n\n<a href="${this.link('/gebaeude/Rathaus?reiter=morgenzeitung')}">Ganze Zeitung</a>`);
+  }
 
   /** Wichtige neue Mails – nur mit Schalter „mails“ (standardmäßig aus: Leifs Mail-Assistent meldet schon) */
   async mailsMelden(m: PostMail[]) {

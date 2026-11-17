@@ -229,7 +229,8 @@ export type AgentenEreignis =
   | { typ: 'schreibtisch.geaendert' }
   | { typ: 'plaene.geaendert' }
   | { typ: 'uni.geaendert' }
-  | { typ: 'post.geaendert' };
+  | { typ: 'post.geaendert' }
+  | { typ: 'morgenzeitung.geaendert' };
 
 // ---- Etappe 2b: Bürgermeister, Schreibtisch, Pläne ---------------------------------------------
 
@@ -288,6 +289,7 @@ export interface TelegramEinstellungen {
   mails: boolean;
   moodle: boolean;
   erinnerungen: boolean;
+  morgenzeitung: boolean;
 }
 
 // ---- Etappe 3: Uni -------------------------------------------------------------------------------
@@ -369,4 +371,17 @@ export interface PostUebersicht {
   laeuft: boolean;
   letzter: { zeit: number; ok: boolean; fehler: string | null; neu: number; eingeordnet: number } | null;
   mails: PostMail[];
+}
+
+export interface MorgenzeitungInfo {
+  datum: string; // JJJJ-MM-TT
+  pfad: string;
+  inhalt: string; // Markdown
+  erstellt: string; // ISO
+}
+export interface MorgenzeitungUebersicht {
+  aktuell: MorgenzeitungInfo | null;
+  aeltere: { datum: string; pfad: string }[];
+  naechste: string | null;
+  laeuft: boolean;
 }

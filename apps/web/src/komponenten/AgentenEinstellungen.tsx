@@ -94,6 +94,7 @@ const SCHALTER: [keyof TelegramEinstellungen, string][] = [
   ['entwuerfe', 'Fertige Entwürfe (Läufe, die Dateien angelegt haben)'],
   ['fehler', 'Fehler'],
   ['beendet', 'Jede beendete Aufgabe'],
+  ['morgenzeitung', 'Morgenzeitung (06:30)'],
   ['moodle', 'Neue Fristen aus Moodle'],
   ['erinnerungen', 'Erinnerungen an Abgaben und Tests (3 Tage, 1 Tag, 3 Stunden vorher; Nachfrage danach)'],
   ['mails', 'Mail-Meldungen (ab Etappe 4)'],

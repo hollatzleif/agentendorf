@@ -228,3 +228,4 @@ button.klein { font-size: 0.8rem; padding: 0.1rem 0.5rem; margin-left: 0.4rem; }
 .mailliste { list-style: none; padding: 0; margin: 0; }
 .mailliste li { padding: 0.55rem 0; border-bottom: 1px solid var(--rand); display: flex; flex-direction: column; gap: 0.15rem; }
 .mailliste li.wichtig strong { color: var(--rot); }
+.morgenzeitung .zeile { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; margin-bottom: 0.6rem; }

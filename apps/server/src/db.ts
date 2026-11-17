@@ -257,6 +257,13 @@ const MIGRATIONEN: string[] = [
     wert TEXT NOT NULL
   );
   `,
+  // 9 – Etappe 4: kleiner Zustandsspeicher (Morgenzeitung, Aufwachen)
+  `
+  CREATE TABLE dorf_stand (
+    schluessel TEXT PRIMARY KEY,
+    wert TEXT NOT NULL
+  );
+  `,
 ];
 
 export function dbOeffnen(datei: string): DB {

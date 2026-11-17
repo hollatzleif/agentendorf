@@ -368,18 +368,18 @@ cmd_gmail_anmelden() {
   gruen "Gmail verbunden. In der App: Post → Eingang → Jetzt abholen (sonst automatisch alle 10 Minuten)."
 }
 
-# Google-Kalender (geheime iCal-Adressen): „Moodle-Fristen (automatisch)“ aus Leifs Skript und „JKU Pflicht“.
+# Google-Kalender (geheime iCal-Adressen): „Moodle-Fristen (automatisch)“ aus Leifs Skript, „JKU Pflicht“
+# und der Hauptkalender (nur für die Morgenzeitung, wird nicht gespeichert).
 cmd_google_kalender() {
   local art url var geaendert=""
   info "Google Kalender (Browser) → Zahnrad → Einstellungen → links den Kalender wählen → Kalender integrieren"
   info "→ Geheime Adresse im iCal-Format kopieren. Leer lassen + Enter = diesen Kalender nicht ändern."
-  for art in fristen pflicht; do
-    if [ "$art" = fristen ]; then var=GOOGLE_FRISTEN_ICS; else var=GOOGLE_PFLICHT_ICS; fi
-    if [ "$art" = fristen ]; then
-      read -r -s -p "Adresse von Moodle-Fristen (automatisch) (unsichtbar): " url; echo
-    else
-      read -r -s -p "Adresse von JKU Pflicht (unsichtbar): " url; echo
-    fi
+  for art in fristen pflicht termine; do
+    case "$art" in
+      fristen) var=GOOGLE_FRISTEN_ICS; read -r -s -p "Adresse von Moodle-Fristen (automatisch) (unsichtbar): " url; echo ;;
+      pflicht) var=GOOGLE_PFLICHT_ICS; read -r -s -p "Adresse von JKU Pflicht (unsichtbar): " url; echo ;;
+      termine) var=GOOGLE_TERMINE_ICS; read -r -s -p "Adresse deines Hauptkalenders, fuer die Morgenzeitung (unsichtbar): " url; echo ;;
+    esac
     url=$(printf '%s' "$url" | tr -d '\r\n ')
     if [ -z "$url" ]; then info "übersprungen"; continue; fi
     [[ "$url" =~ ^https://calendar\.google\.com/calendar/ical/[A-Za-z0-9%._@+-]+/private-[0-9a-f]{16,64}/basic\.ics$ ]] \

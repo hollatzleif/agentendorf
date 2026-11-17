@@ -43,3 +43,15 @@ const FORMAT = new Intl.DateTimeFormat('de-AT', { timeZone: 'Europe/Vienna', wee
 export function fristText(ms: number | null) {
   return ms == null ? 'ohne Frist' : FORMAT.format(new Date(ms));
 }
+
+/** Fremdtext für eine einzelne Zeile in Markdown entschärfen (keine Zeilenumbrüche, kein HTML, keine Wikilinks) */
+export function einzeilig(t: string, max = 200) {
+  return t
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\[\[|\]\]/g, '')
+    .replace(/[<>]/g, (z) => (z === '<' ? '‹' : '›'))
+    .replace(/\|/g, '¦')
+    .replace(/^[#>\-*\s]+/, '')
+    .trim()
+    .slice(0, max);
+}

@@ -7,6 +7,7 @@ entwuerfe: true    # Läufe, die Dateien angelegt haben
 fehler: true       # Läufe, die mit Fehler enden
 beendet: true      # jede beendete Aufgabe (auch ohne neue Dateien)
 moodle: true       # neue Fristen aus Moodle (Uni)
+morgenzeitung: true # jeden Morgen um 06:30 die Zeitung
 erinnerungen: true # Erinnerungen an nicht abgehakte Abgaben/Tests, mit Knopf „Erledigt“
 mails: false       # Mail-Meldungen (Etappe 4) – bleiben aus, dein Mail-Assistent meldet schon
 ---

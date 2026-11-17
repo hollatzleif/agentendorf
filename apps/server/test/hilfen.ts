@@ -27,7 +27,7 @@ export async function testDorf(
     telegram?: TelegramSchnittstelle;
     moodle?: MoodleKlient;
     kalender?: KalenderQuelle;
-    google?: { fristen?: KalenderQuelle; pflicht?: KalenderQuelle };
+    google?: { fristen?: KalenderQuelle; pflicht?: KalenderQuelle; termine?: KalenderQuelle };
     gmail?: GmailKlient;
     ki?: () => ModellKlient;
   } = {},

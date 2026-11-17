@@ -25,6 +25,8 @@ import { sdkKlient, type ModellKlient } from './agenten/motor-api.js';
 import { Postbote } from './post/postbote.js';
 import { gmailKlient, type GmailKlient } from './post/gmail.js';
 import { GoogleZugang } from './post/google-oauth.js';
+import { Terminkalender } from './kalender.js';
+import { Morgenzeitung } from './morgenzeitung.js';
 
 /** Dateien, die das Dorf zum Arbeiten braucht: fehlen sie (z. B. Vault aus einer älteren Etappe), werden sie aus der Vorlage ergänzt – nie überschrieben. */
 const PFLICHT_DATEIEN = [
@@ -66,7 +68,7 @@ export async function dorfStarten(
     gmail?: GmailKlient;
     ki?: () => ModellKlient;
     /** Für Tests: nachgebaute Google-Kalender */
-    google?: { fristen?: KalenderQuelle; pflicht?: KalenderQuelle };
+    google?: { fristen?: KalenderQuelle; pflicht?: KalenderQuelle; termine?: KalenderQuelle };
   } = {},
 ) {
   const uhr = opt.uhr ?? systemUhr;
@@ -143,6 +145,8 @@ export async function dorfStarten(
     log: (t) => console.warn(t),
   });
   agenten.post = gmail;
+  const kalender = new Terminkalender(opt.google ? opt.google.termine : konfig.googleTermineIcs ? kalenderQuelle(konfig.googleTermineIcs) : undefined, () => uhr.jetzt());
+  const morgenzeitung = new Morgenzeitung({ db, uhr, vault, hub, ki, freigaben: agenten.freigaben, schreibtisch, uni, postbote, kalender, log: (t) => console.warn(t) });
   let telegram: TelegramBot | undefined;
   if ((konfig.telegramToken || opt.telegram) && konfig.telegramChatId) {
     telegram = new TelegramBot({
@@ -158,6 +162,7 @@ export async function dorfStarten(
       buergermeister,
       uni,
       postbote,
+      morgenzeitung,
       log: (t) => console.warn(t),
     });
     if (!opt.telegram) telegram.starten();
@@ -165,10 +170,12 @@ export async function dorfStarten(
   agenten.anstossen();
   if (!opt.moodle && !opt.kalender && !opt.google && opt.beobachten !== false) uni.starten();
   if (!opt.gmail && opt.beobachten !== false) postbote.starten();
-  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote });
+  if (opt.beobachten !== false) morgenzeitung.starten();
+  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung });
   app.addHook('onClose', async () => {
     uni.stoppen();
     postbote.stoppen();
+    morgenzeitung.stoppen();
     telegram?.stoppen();
     await intern.close();
     await waechter?.close();
@@ -176,5 +183,5 @@ export async function dorfStarten(
     await agenten.ruhe();
     db.close();
   });
-  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki };
+  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung };
 }

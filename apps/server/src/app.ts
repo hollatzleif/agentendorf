@@ -26,6 +26,7 @@ import type { Buergermeister } from './agenten/buergermeister.js';
 import type { TelegramBot } from './telegram/bot.js';
 import type { Uni } from './uni/abgleich.js';
 import type { Postbote } from './post/postbote.js';
+import type { Morgenzeitung } from './morgenzeitung.js';
 import { einstellungenLaden, einstellungenSetzen } from './telegram/einstellungen.js';
 
 export const COOKIE = 'dorf_sitzung';
@@ -50,6 +51,7 @@ export interface Abhaengigkeiten {
   telegram?: TelegramBot;
   uni: Uni;
   postbote: Postbote;
+  morgenzeitung: Morgenzeitung;
 }
 
 /** Für Agenten-HTML: Skripte ja, aber undurchsichtiger Ursprung und kein Netz. Bilder/Schriften nur eingebettet (data:). */
@@ -359,7 +361,7 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
     return { tokenGesetzt: !!konfig.telegramToken, chatGekoppelt: !!konfig.telegramChatId, laeuft: false, einstellungen: e };
   });
   app.put('/api/telegram/einstellungen', async (req) => {
-    const b = z.object({ freigaben: z.boolean(), entwuerfe: z.boolean(), fehler: z.boolean(), beendet: z.boolean(), mails: z.boolean(), moodle: z.boolean().default(true), erinnerungen: z.boolean().default(true) }).parse(req.body);
+    const b = z.object({ freigaben: z.boolean(), entwuerfe: z.boolean(), fehler: z.boolean(), beendet: z.boolean(), mails: z.boolean(), moodle: z.boolean().default(true), erinnerungen: z.boolean().default(true), morgenzeitung: z.boolean().default(true) }).parse(req.body);
     return einstellungenSetzen(vault, b);
   });
   app.post('/api/telegram/test', async () => {
@@ -402,6 +404,10 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
     void a.postbote.abholen().catch(() => undefined);
     return { gestartet: true };
   });
+
+  // ---- Morgenzeitung (Etappe 4) --------------------------------------------------------------
+  app.get('/api/morgenzeitung', async () => a.morgenzeitung.uebersicht());
+  app.post('/api/morgenzeitung/erstellen', async () => ({ pfad: await a.morgenzeitung.erstellen() }));
 
   // ---- Live-Verbindung ------------------------------------------------------------------------
   app.get('/api/live', { websocket: true }, (socket, req) => {

@@ -28,7 +28,7 @@ const HILFE = `Agentendorf – Verwaltung
                            Gibt Anmelde-Adresse, PKCE-Prüfwert und state aus (je eine Zeile; nur für dorf gmail-anmelden)
   gmail-anmelden-tauschen  Liest {clientId, clientSecret, verifier, state, adresse} als JSON von stdin, tauscht den Code,
                            prüft den Zugang und gibt das Refresh-Token auf stdout aus (nur für dorf gmail-anmelden)
-  google-kalender-pruefen <fristen|pflicht>
+  google-kalender-pruefen <fristen|pflicht|termine>
                            Liest eine geheime Google-Kalender-Adresse von stdin, lädt sie und zeigt, was das Dorf übernimmt
   moodle-kalender-pruefen  Liest die Kalender-Adresse von stdin, lädt den Export und zeigt, was drin ist
                            (nur für dorf moodle-kalender; die Adresse selbst wird nie ausgegeben)`;
@@ -135,10 +135,14 @@ try {
     }
     case 'google-kalender-pruefen': {
       const art = rest[0];
-      if (art !== 'fristen' && art !== 'pflicht') throw new Error('Aufruf: google-kalender-pruefen <fristen|pflicht>');
+      if (art !== 'fristen' && art !== 'pflicht' && art !== 'termine') throw new Error('Aufruf: google-kalender-pruefen <fristen|pflicht|termine>');
       const url = (await stdinLesen()).trim();
       const jetzt = Date.now();
       const termine = icsTermine(await kalenderQuelle(url).laden(), jetzt, jetzt + 60 * 86_400_000);
+      if (art === 'termine') {
+        console.error(`Kalender gelesen: ${termine.length} Termine in den nächsten 60 Tagen (werden nur für die Morgenzeitung gelesen, nicht gespeichert).`);
+        break;
+      }
       const passend = art === 'fristen' ? termine.filter((t) => /^\s*(✅\s*)?(⏰|📝)/.test(t.titel)) : termine.filter((t) => /^\s*(pflicht|prüfung)\s*:/i.test(t.titel));
       console.error(
         art === 'fristen'

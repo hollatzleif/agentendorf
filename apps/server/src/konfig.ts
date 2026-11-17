@@ -33,6 +33,7 @@ const Schema = z.object({
   MOODLE_TOKEN: z.string().optional(),
   MOODLE_KALENDER_URL: z.string().optional(),
   GOOGLE_FRISTEN_ICS: z.string().optional(),
+  GOOGLE_TERMINE_ICS: z.string().optional(),
   GMAIL_CLIENT_ID: z.string().optional(),
   GMAIL_CLIENT_SECRET: z.string().optional(),
   GMAIL_REFRESH_TOKEN: z.string().optional(),
@@ -69,6 +70,7 @@ export interface Konfig {
   moodleToken?: string;
   moodleKalenderUrl?: string;
   googleFristenIcs?: string;
+  googleTermineIcs?: string;
   gmail?: { clientId: string; clientSecret: string; refreshToken: string };
   gmailApiUrl: string;
   googleTokenUrl: string;
@@ -103,6 +105,7 @@ export function konfigLaden(env: NodeJS.ProcessEnv = process.env): Konfig {
     moodleToken: e.MOODLE_TOKEN || undefined,
     moodleKalenderUrl: e.MOODLE_KALENDER_URL || undefined,
     googleFristenIcs: e.GOOGLE_FRISTEN_ICS || undefined,
+    googleTermineIcs: e.GOOGLE_TERMINE_ICS || undefined,
     gmail:
       e.GMAIL_CLIENT_ID && e.GMAIL_CLIENT_SECRET && e.GMAIL_REFRESH_TOKEN
         ? { clientId: e.GMAIL_CLIENT_ID, clientSecret: e.GMAIL_CLIENT_SECRET, refreshToken: e.GMAIL_REFRESH_TOKEN }

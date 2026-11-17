@@ -4,7 +4,7 @@ import type { TelegramEinstellungen } from '@dorf/shared';
 import type { VaultDienst } from '../vault/dienst.js';
 
 export const TELEGRAM_PFAD = '00_Stadtordnung/telegram.md';
-export const STANDARD: TelegramEinstellungen = { freigaben: true, entwuerfe: true, fehler: true, beendet: true, mails: false, moodle: true, erinnerungen: true };
+export const STANDARD: TelegramEinstellungen = { freigaben: true, entwuerfe: true, fehler: true, beendet: true, mails: false, moodle: true, erinnerungen: true, morgenzeitung: true };
 
 const JaNein = z.preprocess((w) => (w === 'ja' ? true : w === 'nein' ? false : w), z.boolean());
 const Schema = z.object({
@@ -15,6 +15,7 @@ const Schema = z.object({
   mails: JaNein.default(false),
   moodle: JaNein.default(true),
   erinnerungen: JaNein.default(true),
+  morgenzeitung: JaNein.default(true),
 });
 
 export async function einstellungenLaden(vault: VaultDienst): Promise<TelegramEinstellungen> {

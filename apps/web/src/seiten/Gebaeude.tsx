@@ -13,6 +13,7 @@ import { Schreibtisch } from '../komponenten/Schreibtisch';
 import { Plaene } from '../komponenten/Plaene';
 import { UniUebersicht } from '../komponenten/UniUebersicht';
 import { PostEingang } from '../komponenten/PostEingang';
+import { MorgenzeitungAnsicht } from '../komponenten/MorgenzeitungAnsicht';
 
 const REITER = [
   ['aktionen', 'Aktionen'],
@@ -22,6 +23,7 @@ const REITER = [
 ] as const;
 const RATHAUS_VORNE = [
   ['schreibtisch', 'Schreibtisch'],
+  ['morgenzeitung', 'Morgenzeitung'],
   ['plaene', 'Pläne'],
 ] as const;
 const UNI_VORNE = [['studium', 'Studium']] as const;
@@ -73,6 +75,7 @@ export function GebaeudeSeite({ id }: { id: string }) {
         {reiter === 'schreibtisch' && <Schreibtisch />}
         {reiter === 'studium' && <UniUebersicht />}
         {reiter === 'eingang' && <PostEingang />}
+        {reiter === 'morgenzeitung' && <MorgenzeitungAnsicht />}
         {reiter === 'plaene' && <Plaene />}
         {reiter === 'freigaben' && <Freigaben />}
         {reiter === 'alle-chats' && <ChatListe />}
