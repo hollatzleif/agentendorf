@@ -6,6 +6,7 @@ freigaben: true    # neue Freigaben und Pläne – mit Ja/Nein-Knöpfen
 entwuerfe: true    # Läufe, die Dateien angelegt haben
 fehler: true       # Läufe, die mit Fehler enden
 beendet: true      # jede beendete Aufgabe (auch ohne neue Dateien)
+moodle: true       # neue Dateien und Abgaben aus Moodle (Uni)
 mails: false       # Mail-Meldungen (Etappe 4) – bleiben aus, dein Mail-Assistent meldet schon
 ---
 

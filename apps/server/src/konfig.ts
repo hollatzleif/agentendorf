@@ -27,6 +27,8 @@ const Schema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_CHAT_ID: z.string().optional(),
   TELEGRAM_API_URL: z.string().default('https://api.telegram.org'),
+  MOODLE_URL: z.string().optional(),
+  MOODLE_TOKEN: z.string().optional(),
   DORF_MOTOR_ATTRAPPE: z
     .string()
     .default('false')
@@ -53,6 +55,8 @@ export interface Konfig {
   telegramToken?: string;
   telegramChatId?: string;
   telegramApiUrl: string;
+  moodleUrl?: string;
+  moodleToken?: string;
 }
 
 export function konfigLaden(env: NodeJS.ProcessEnv = process.env): Konfig {
@@ -77,5 +81,7 @@ export function konfigLaden(env: NodeJS.ProcessEnv = process.env): Konfig {
     telegramToken: e.TELEGRAM_BOT_TOKEN || undefined,
     telegramChatId: e.TELEGRAM_CHAT_ID || undefined,
     telegramApiUrl: e.TELEGRAM_API_URL,
+    moodleUrl: e.MOODLE_URL?.replace(/\/$/, '') || undefined,
+    moodleToken: e.MOODLE_TOKEN || undefined,
   };
 }

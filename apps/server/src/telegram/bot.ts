@@ -9,6 +9,8 @@ import type { Schreibtisch } from '../schreibtisch.js';
 import { DorfFehler } from '../fehler.js';
 import { MAX_DATEI, type TelegramSchnittstelle } from './api.js';
 import { einstellungenLaden } from './einstellungen.js';
+import type { AbgleichErgebnis, Uni } from '../uni/abgleich.js';
+import { fristText } from '../uni/text.js';
 
 /** HTML-sicher für Telegram (parse_mode HTML) */
 export const h = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -67,6 +69,7 @@ export class TelegramBot {
       agenten: AgentenDienst;
       schreibtisch: Schreibtisch;
       buergermeister: Buergermeister;
+      uni?: Uni;
       log?: (t: string) => void;
     },
   ) {
@@ -76,6 +79,30 @@ export class TelegramBot {
     o.agenten.freigaben.beiEntscheidung.push((f) => void this.freigabeAktualisieren(f).catch((e) => this.fehler(e)));
     o.agenten.beiLaufEnde.push((e) => void this.laufMelden(e).catch((x) => this.fehler(x)));
     o.buergermeister.beiAbschluss.push((a) => void this.abschlussMelden(a).catch((x) => this.fehler(x)));
+    o.uni?.beiAbgleich.push((e) => this.moodleMelden(e).catch((x) => this.fehler(x)));
+  }
+
+  private letzterMoodleFehler: string | null = null;
+
+  /** Neues aus Moodle (Schalter „moodle“); ein Abgleich-Fehler wird nur gemeldet, wenn er neu ist (nicht alle 3 Stunden derselbe). */
+  async moodleMelden(e: AbgleichErgebnis) {
+    const k = await einstellungenLaden(this.o.vault);
+    if (!e.ok) {
+      if (k.fehler && e.fehler !== this.letzterMoodleFehler) await this.senden(`❌ <b>Moodle-Abgleich fehlgeschlagen</b>\n${h((e.fehler ?? '').slice(0, 500))}`);
+      this.letzterMoodleFehler = e.fehler;
+      return;
+    }
+    this.letzterMoodleFehler = null;
+    if (!k.moodle || (!e.neueDateien && !e.neueAbgaben.length)) return;
+    const teile = [
+      e.neueDateien ? `${e.neueDateien} ${e.neueDateien === 1 ? 'Datei' : 'Dateien'}` : '',
+      e.neueAbgaben.length ? `${e.neueAbgaben.length} ${e.neueAbgaben.length === 1 ? 'Abgabe' : 'Abgaben'}` : '',
+    ].filter(Boolean);
+    const abgaben = e.neueAbgaben
+      .slice(0, 8)
+      .map((a) => `• ${h(a.titel)} (${h(a.kurs)}) – ${a.frist == null ? 'ohne Frist' : `Frist ${h(fristText(a.frist))}`}`)
+      .join('\n');
+    await this.senden(`🎓 <b>Neu in Moodle:</b> ${teile.join(', ')}${abgaben ? `\n${abgaben}` : ''}\n<a href="${this.link('/gebaeude/Uni')}">Zur Uni</a>`);
   }
 
   private fehler(e: unknown) {

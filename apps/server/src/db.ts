@@ -168,6 +168,49 @@ const MIGRATIONEN: string[] = [
   ALTER TABLE chats ADD COLUMN eltern_chat_id TEXT;
   ALTER TABLE chats ADD COLUMN plan_id TEXT;
   `,
+  // 4 – Etappe 3: Uni / Moodle
+  `
+  CREATE TABLE moodle_kurse (
+    id INTEGER PRIMARY KEY,           -- Moodle-Kurs-ID
+    name TEXT NOT NULL,
+    kurzname TEXT NOT NULL DEFAULT '',
+    ordner TEXT NOT NULL UNIQUE,      -- Ordnername unter Uni/faecher/
+    url TEXT NOT NULL DEFAULT '',
+    aktiv INTEGER NOT NULL DEFAULT 1, -- im aktuellen Semester
+    gesehen INTEGER NOT NULL
+  );
+  CREATE TABLE moodle_dateien (
+    schluessel TEXT PRIMARY KEY,      -- Datei-URL ohne Token bzw. aufgabe:<id>
+    kurs_id INTEGER NOT NULL,
+    pfad TEXT NOT NULL,
+    merkmal TEXT NOT NULL,            -- Zeitstempel+Größe aus Moodle bzw. Hash des erzeugten Texts
+    version TEXT NOT NULL,            -- sha256 dessen, was das Dorf zuletzt geschrieben hat
+    geladen INTEGER NOT NULL
+  );
+  CREATE TABLE moodle_fristen (
+    id TEXT PRIMARY KEY,              -- assign:<id> | event:<id>
+    kurs_id INTEGER,
+    kurs TEXT NOT NULL DEFAULT '',
+    titel TEXT NOT NULL,
+    art TEXT NOT NULL,                -- abgabe | test | termin
+    frist INTEGER,                    -- ms, NULL = keine Frist
+    url TEXT NOT NULL DEFAULT '',
+    pfad TEXT,                        -- Ordner der Abgabe im Vault
+    abgegeben INTEGER NOT NULL DEFAULT 0,
+    gesehen INTEGER NOT NULL
+  );
+  CREATE INDEX moodle_fristen_frist ON moodle_fristen (frist);
+  CREATE TABLE moodle_abgleiche (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    start INTEGER NOT NULL,
+    ende INTEGER,
+    ok INTEGER,
+    fehler TEXT,
+    neue_dateien INTEGER NOT NULL DEFAULT 0,
+    neue_abgaben INTEGER NOT NULL DEFAULT 0,
+    hinweise TEXT NOT NULL DEFAULT ''
+  );
+  `,
 ];
 
 export function dbOeffnen(datei: string): DB {

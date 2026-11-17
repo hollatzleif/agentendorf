@@ -17,6 +17,8 @@ import { Buergermeister } from './agenten/buergermeister.js';
 import fs from 'node:fs';
 import { TelegramBot } from './telegram/bot.js';
 import { telegramApi, type TelegramSchnittstelle } from './telegram/api.js';
+import { Uni } from './uni/abgleich.js';
+import { moodleKlient, type MoodleKlient } from './uni/moodle.js';
 
 /** Dateien, die das Dorf zum Arbeiten braucht: fehlen sie (z. B. Vault aus einer älteren Etappe), werden sie aus der Vorlage ergänzt – nie überschrieben. */
 const PFLICHT_DATEIEN = ['Rathaus/aktionen/buergermeister.md', '00_Stadtordnung/telegram.md'];
@@ -30,6 +32,8 @@ export async function dorfStarten(
     motoren?: Record<'api' | 'claude-code', Motor> | ((r: WerkzeugRegister) => Record<'api' | 'claude-code', Motor>);
     /** Für Tests: nachgebaute Bot-API; das Polling startet dann nicht automatisch */
     telegram?: TelegramSchnittstelle;
+    /** Für Tests: nachgebauter Moodle-Server; der 3-Stunden-Takt startet dann nicht */
+    moodle?: MoodleKlient;
   } = {},
 ) {
   const uhr = opt.uhr ?? systemUhr;
@@ -66,6 +70,15 @@ export async function dorfStarten(
   schreibtischRef.aktuell = schreibtisch;
   const buergermeister = new Buergermeister(db, uhr, vault, agenten, schreibtisch, hub);
   await schreibtisch.abgleichen();
+  const uni = new Uni({
+    db,
+    uhr,
+    vault,
+    hub,
+    klient: opt.moodle ?? (konfig.moodleUrl && konfig.moodleToken ? moodleKlient(konfig.moodleUrl, konfig.moodleToken) : undefined),
+    pauseMs: opt.moodle ? 0 : 500,
+    log: (t) => console.warn(t),
+  });
   let telegram: TelegramBot | undefined;
   if ((konfig.telegramToken || opt.telegram) && konfig.telegramChatId) {
     telegram = new TelegramBot({
@@ -78,17 +91,20 @@ export async function dorfStarten(
       agenten,
       schreibtisch,
       buergermeister,
+      uni,
       log: (t) => console.warn(t),
     });
     if (!opt.telegram) telegram.starten();
   }
   agenten.anstossen();
-  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram });
+  if (!opt.moodle && opt.beobachten !== false) uni.starten();
+  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni });
   app.addHook('onClose', async () => {
+    uni.stoppen();
     telegram?.stoppen();
     await intern.close();
     await waechter?.close();
     db.close();
   });
-  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram };
+  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni };
 }

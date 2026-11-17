@@ -8,6 +8,7 @@ import { attrappe } from '../src/agenten/motor-attrappe.js';
 import type { Motor } from '../src/agenten/motor.js';
 import type { WerkzeugRegister } from '../src/agenten/register.js';
 import type { TelegramSchnittstelle } from '../src/telegram/api.js';
+import type { MoodleKlient } from '../src/uni/moodle.js';
 
 export const ORIGIN = 'https://dorf.test';
 
@@ -21,6 +22,7 @@ export async function testDorf(
     motoren?: Record<'api' | 'claude-code', Motor> | ((r: WerkzeugRegister) => Record<'api' | 'claude-code', Motor>);
     env?: Record<string, string>;
     telegram?: TelegramSchnittstelle;
+    moodle?: MoodleKlient;
   } = {},
 ) {
   const daten = tempOrdner();
@@ -38,6 +40,7 @@ export async function testDorf(
     beobachten: opt.beobachten ?? false,
     motoren: opt.motoren ?? { api: attrappe('api'), 'claude-code': attrappe('claude-code') },
     telegram: opt.telegram,
+    moodle: opt.moodle,
   });
   return { ...d, uhr, konfig, daten };
 }

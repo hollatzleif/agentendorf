@@ -24,6 +24,7 @@ import { agentenRouten } from './agenten/routen.js';
 import type { Schreibtisch } from './schreibtisch.js';
 import type { Buergermeister } from './agenten/buergermeister.js';
 import type { TelegramBot } from './telegram/bot.js';
+import type { Uni } from './uni/abgleich.js';
 import { einstellungenLaden, einstellungenSetzen } from './telegram/einstellungen.js';
 
 export const COOKIE = 'dorf_sitzung';
@@ -46,6 +47,7 @@ export interface Abhaengigkeiten {
   schreibtisch: Schreibtisch;
   buergermeister: Buergermeister;
   telegram?: TelegramBot;
+  uni: Uni;
 }
 
 const MIME: Record<string, string> = {
@@ -320,13 +322,22 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
     return { tokenGesetzt: !!konfig.telegramToken, chatGekoppelt: !!konfig.telegramChatId, laeuft: false, einstellungen: e };
   });
   app.put('/api/telegram/einstellungen', async (req) => {
-    const b = z.object({ freigaben: z.boolean(), entwuerfe: z.boolean(), fehler: z.boolean(), beendet: z.boolean(), mails: z.boolean() }).parse(req.body);
+    const b = z.object({ freigaben: z.boolean(), entwuerfe: z.boolean(), fehler: z.boolean(), beendet: z.boolean(), mails: z.boolean(), moodle: z.boolean().default(true) }).parse(req.body);
     return einstellungenSetzen(vault, b);
   });
   app.post('/api/telegram/test', async () => {
     if (!a.telegram) throw new DorfFehler(409, 'Telegram ist nicht eingerichtet. Auf dem Server: dorf telegram-einrichten');
     await a.telegram.senden('👋 Testnachricht aus dem Agentendorf – die Verbindung steht.');
     return { ok: true };
+  });
+
+  // ---- Uni (Etappe 3) ------------------------------------------------------------------------
+  app.get('/api/uni', async () => a.uni.uebersicht());
+  app.post('/api/uni/abgleichen', async () => {
+    if (!a.uni.verbunden) throw new DorfFehler(409, 'Moodle ist nicht verbunden. Auf dem Server: dorf moodle-anmelden');
+    if (a.uni.laeuft) return { gestartet: false };
+    void a.uni.abgleichen();
+    return { gestartet: true };
   });
 
   // ---- Live-Verbindung ------------------------------------------------------------------------

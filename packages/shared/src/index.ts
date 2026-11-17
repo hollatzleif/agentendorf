@@ -219,7 +219,8 @@ export type AgentenEreignis =
   | { typ: 'aktionen.geaendert' }
   | { typ: 'konfig.geaendert' }
   | { typ: 'schreibtisch.geaendert' }
-  | { typ: 'plaene.geaendert' };
+  | { typ: 'plaene.geaendert' }
+  | { typ: 'uni.geaendert' };
 
 // ---- Etappe 2b: Bürgermeister, Schreibtisch, Pläne ---------------------------------------------
 
@@ -276,4 +277,47 @@ export interface TelegramEinstellungen {
   fehler: boolean;
   beendet: boolean;
   mails: boolean;
+  moodle: boolean;
+}
+
+// ---- Etappe 3: Uni -------------------------------------------------------------------------------
+
+export interface UniFrist {
+  id: string;
+  kursId: number | null;
+  kurs: string;
+  titel: string;
+  art: 'abgabe' | 'test' | 'termin';
+  frist: string | null; // ISO
+  url: string;
+  pfad: string | null;
+  abgegeben: boolean;
+}
+
+export interface UniKurs {
+  id: number;
+  name: string;
+  ordner: string; // Vault-Pfad Uni/faecher/<…>
+  url: string;
+  aktiv: boolean;
+}
+
+export interface UniAbgleich {
+  start: string;
+  ende: string | null;
+  ok: boolean | null;
+  fehler: string | null;
+  neueDateien: number;
+  neueAbgaben: number;
+  hinweise: string[];
+}
+
+export interface UniUebersicht {
+  verbunden: boolean;
+  moodleUrl: string | null;
+  laeuft: boolean;
+  letzter: UniAbgleich | null;
+  naechster: string | null;
+  kurse: UniKurs[];
+  fristen: UniFrist[];
 }
