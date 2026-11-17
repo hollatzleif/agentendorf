@@ -19,18 +19,30 @@ gruen() { printf '\033[32m%s\033[0m\n' "$*"; }
 info() { printf '» %s\n' "$*"; }
 
 compose() {
-  local version
+  local version rv
   version=$(cat "$AKTUELL/VERSION" 2>/dev/null || echo latest)
-  DORF_VERSION="$version" docker compose --project-name dorf --env-file "$ENV_DATEI" -f "$AKTUELL/deploy/compose.yml" "$@"
+  rv=$(cat "$AKTUELL/RECHENRAUM_VERSION" 2>/dev/null || echo fehlt)
+  DORF_VERSION="$version" RECHENRAUM_VERSION="$rv" docker compose --project-name dorf --env-file "$ENV_DATEI" -f "$AKTUELL/deploy/compose.yml" "$@"
+}
+
+# Gesundheitsprüfung eines Dienstes von innen (Rechenraum hat Python statt Node)
+gesund_pruefen() { # dienst port pfad
+  if [ "$1" = rechenraum ]; then
+    compose exec -T "$1" python3 -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:$2$3',timeout=3).status==200 else 1)" 2>/dev/null
+  else
+    compose exec -T "$1" node -e "fetch('http://127.0.0.1:$2$3').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" 2>/dev/null
+  fi
 }
 
 gesund_warten() {
   local eintrag dienst port pfad ok
-  for eintrag in dorf:3000:/api/gesundheit werkstatt:4000:/gesundheit; do
+  for eintrag in dorf:3000:/api/gesundheit werkstatt:4000:/gesundheit rechenraum:4100:/gesundheit; do
     IFS=: read -r dienst port pfad <<< "$eintrag"
+    # ältere Versionen (vor Etappe 3) haben keinen Rechenraum
+    [ "$dienst" != rechenraum ] || [ -f "$AKTUELL/RECHENRAUM_VERSION" ] || continue
     ok=nein
     for _ in $(seq 1 60); do
-      if compose exec -T "$dienst" node -e "fetch('http://127.0.0.1:$port$pfad').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" 2>/dev/null; then
+      if gesund_pruefen "$dienst" "$port" "$pfad"; then
         ok=ja
         break
       fi
@@ -56,6 +68,15 @@ geheimnisse_sicherstellen() {
     sed -i "s/^WERKSTATT_GEHEIMNIS=.*/WERKSTATT_GEHEIMNIS=$g/" "$BASIS/werkstatt.env"
   fi
   chmod 600 "$BASIS/werkstatt.env"
+  # Rechenraum: eigenes Geheimnis, eigene Datei (bekommt sonst NICHTS aus .env)
+  if ! grep -qE '^RECHENRAUM_GEHEIMNIS=.{32,}' "$ENV_DATEI"; then
+    g=$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 40)
+    sed -i '/^RECHENRAUM_GEHEIMNIS=/d' "$ENV_DATEI"
+    echo "RECHENRAUM_GEHEIMNIS=$g" >> "$ENV_DATEI"
+  fi
+  printf '# Nur für den Rechenraum-Container (wird von dorf deploy erzeugt)\nRECHENRAUM_GEHEIMNIS=%s\n' "$(grep -E '^RECHENRAUM_GEHEIMNIS=' "$ENV_DATEI" | cut -d= -f2)" > "$BASIS/rechenraum.env"
+  chmod 600 "$BASIS/rechenraum.env"
+  [ -n "$uid" ] && chown "$uid:$uid" "$BASIS/rechenraum.env" 2>/dev/null || true
   mkdir -p "$BASIS/claude"
   [ -n "$uid" ] && chown "$uid:$uid" "$BASIS/claude" "$BASIS/werkstatt.env" 2>/dev/null || true
 }
@@ -68,20 +89,31 @@ cmd_deploy() {
 }
 
 # Wird von GitHub Actions per SSH aufgerufen (erzwungener Befehl). Erwartet ein tar.gz-Bündel auf stdin:
-#   VERSION, deploy/…, image.tar.gz
+#   VERSION, deploy/…, image.tar.gz, RECHENRAUM_VERSION und – nur wenn der Server es noch nicht hat – rechenraum.tar.gz
 cmd_empfangen() {
-  local tmp version ziel vorher
+  local tmp version ziel vorher rv
   tmp=$(mktemp -d)
   # Aufräumen beim Verlassen dieser Funktion – die Falle entfernt sich selbst, sonst feuert sie später erneut.
   trap 'rm -rf "${tmp:-}"; trap - RETURN' RETURN
   tar -xzf - -C "$tmp"
   version=$(tr -cd 'a-zA-Z0-9._-' < "$tmp/VERSION")
   [ -n "$version" ] || { rot "Bündel ohne VERSION"; return 1; }
+  rv=""
+  if [ -f "$tmp/RECHENRAUM_VERSION" ]; then
+    rv=$(tr -cd 'a-f0-9' < "$tmp/RECHENRAUM_VERSION")
+    [[ "$rv" =~ ^[a-f0-9]{16}$ ]] || { rot "Ungültige RECHENRAUM_VERSION"; return 1; }
+    if [ -f "$tmp/rechenraum.tar.gz" ]; then
+      info "Lade Rechenraum-Image $rv …"
+      gunzip -c "$tmp/rechenraum.tar.gz" | docker load
+    fi
+    docker image inspect "agentendorf-rechenraum:$rv" >/dev/null 2>&1 || { rot "Rechenraum-Image $rv fehlt auf dem Server und war nicht im Bündel."; return 1; }
+  fi
   info "Empfange Version $version"
   ziel="$APP/releases/$version"
   rm -rf "$ziel"; mkdir -p "$ziel"
   cp -r "$tmp/deploy" "$ziel/deploy"
   echo "$version" > "$ziel/VERSION"
+  [ -z "$rv" ] || echo "$rv" > "$ziel/RECHENRAUM_VERSION"
   info "Lade Image …"
   gunzip -c "$tmp/image.tar.gz" | docker load
   vorher=$(readlink -f "$AKTUELL" 2>/dev/null || true)
@@ -93,6 +125,7 @@ cmd_empfangen() {
       docker image rm "agentendorf:$(basename "$alt")" "agentendorf-werkstatt:$(basename "$alt")" >/dev/null 2>&1 || true
       rm -rf "$alt"
     done
+    rechenraum_aufraeumen
     gruen "Deploy von $version erfolgreich."
   else
     if [ -n "$vorher" ] && [ "$vorher" != "$ziel" ]; then
@@ -104,12 +137,27 @@ cmd_empfangen() {
   fi
 }
 
-# Erzwungener SSH-Befehl für den CI-Schlüssel: erlaubt nur "empfangen".
+# Rechenraum-Images, die keine der behaltenen Versionen mehr braucht, entfernen (sie sind groß).
+rechenraum_aufraeumen() {
+  local behalten tag
+  behalten=$(cat "$APP"/releases/*/RECHENRAUM_VERSION 2>/dev/null || true)
+  docker images agentendorf-rechenraum --format '{{.Tag}}' 2>/dev/null | while read -r tag; do
+    [ -n "$tag" ] || continue
+    grep -qx "$tag" <<< "$behalten" || docker image rm "agentendorf-rechenraum:$tag" >/dev/null 2>&1 || true
+  done
+}
+
+# Erzwungener SSH-Befehl für den CI-Schlüssel: erlaubt nur "empfangen", "status" und "hat-image <16 Hex-Zeichen>".
 cmd_ci() {
-  case "${SSH_ORIGINAL_COMMAND:-}" in
+  local befehl=${SSH_ORIGINAL_COMMAND:-}
+  case "$befehl" in
     empfangen) cmd_empfangen ;;
     status) cmd_status ;;
-    *) rot "Nicht erlaubt: ${SSH_ORIGINAL_COMMAND:-}"; exit 1 ;;
+    "hat-image "*)
+      local rv=${befehl#hat-image }
+      [[ "$rv" =~ ^[a-f0-9]{16}$ ]] || { rot "Nicht erlaubt: $befehl"; exit 1; }
+      if docker image inspect "agentendorf-rechenraum:$rv" >/dev/null 2>&1; then echo ja; else echo nein; fi ;;
+    *) rot "Nicht erlaubt: $befehl"; exit 1 ;;
   esac
 }
 
@@ -304,7 +352,7 @@ cmd_hilfe() {
 Agentendorf – Befehle auf dem Server
 
   dorf status                    Container, Version, Speicher, letzte Sicherungen
-  dorf logs [dorf|caddy|syncthing]  Protokolle ansehen (Strg+C beendet)
+  dorf logs [dorf|werkstatt|rechenraum|caddy|syncthing]  Protokolle ansehen (Strg+C beendet)
   dorf deploy                    aktuelle Version (neu) starten
   dorf rollback                  zur vorherigen Version zurück
 

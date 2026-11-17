@@ -26,8 +26,12 @@ jobs:
         run: pnpm typecheck
       - name: Bauen
         run: pnpm build
-      - name: Server- und Werkstatt-Tests (Leine, Freigaben, Motoren, Vault-Regeln, Login)
-        run: pnpm test
+      - name: Server- und Werkstatt-Tests (Leine, Freigaben, Motoren, Vault-Regeln, Login, Moodle, Rechenraum)
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q poppler-utils
+          pnpm test
+      - name: Rechenraum-Runner (Geheimnis, Zeitlimit, Pfade, Aufräumen)
+        run: python3 -m unittest discover -s apps/rechenraum/test -v
       - name: Browser-Tests (Desktop und Handy)
         run: |
           pnpm --filter @dorf/web exec playwright install --with-deps chromium
@@ -46,10 +50,46 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - name: SSH vorbereiten und fragen, ob der Server das Rechenraum-Image schon hat
+        id: rechenraum
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          # Kennung = Hash über Dockerfile und Runner; gleiches Rezept → gleiches Image → nicht erneut schicken
+          RV=$(cat apps/rechenraum/Dockerfile apps/rechenraum/runner.py | sha256sum | cut -c1-16)
+          echo "kennung=$RV" >> "$GITHUB_OUTPUT"
+          HAT=nein
+          if [ -n "$DEPLOY_HOST" ] && [ "${{ github.ref }}" = refs/heads/main ] && [ "${{ github.event_name }}" != pull_request ]; then
+            install -m 700 -d ~/.ssh
+            printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+            printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+            # ältere dorf-Skripte kennen hat-image nicht → wie „nein“ behandeln
+            HAT=$(ssh -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" "hat-image $RV" 2>/dev/null || echo nein)
+          fi
+          echo "Server hat agentendorf-rechenraum:$RV: $HAT"
+          echo "hat=$HAT" >> "$GITHUB_OUTPUT"
       - name: Images bauen
         run: |
           docker build -t agentendorf:ci .
           docker build -f apps/werkstatt/Dockerfile -t agentendorf-werkstatt:ci .
+      - name: Rechenraum-Image bauen (nur wenn der Server es noch nicht hat)
+        if: steps.rechenraum.outputs.hat != 'ja'
+        run: docker build -f apps/rechenraum/Dockerfile -t "agentendorf-rechenraum:${{ steps.rechenraum.outputs.kennung }}" .
+      - name: Rauchtest Rechenraum (Leifs Präambel mit pdflatex, Python-Pakete, Seitenbild, kein Internet)
+        if: steps.rechenraum.outputs.hat != 'ja'
+        run: |
+          BILD="agentendorf-rechenraum:${{ steps.rechenraum.outputs.kennung }}"
+          docker network create --internal rauchnetz
+          docker run -d --name rr --network rauchnetz --read-only -u 1000:1000 \
+            --mount type=tmpfs,destination=/tmp,tmpfs-mode=1777 --mount type=tmpfs,destination=/arbeit,tmpfs-mode=1777 \
+            -e RECHENRAUM_GEHEIMNIS=ci-geheimnis-ci-geheimnis-ci-geheimnis-12 "$BILD"
+          for i in $(seq 1 30); do docker exec rr python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4100/gesundheit')" && break; sleep 1; done
+          # read-only-Container: Skript über stdin statt docker cp
+          docker exec -i rr python3 - < apps/rechenraum/test/rauchtest.py
+          docker logs rr
       - name: Rauchtest des Images
         run: |
           mkdir -p /tmp/dorf/vault /tmp/dorf/daten /tmp/dorf/claude && sudo chown -R 1000:1000 /tmp/dorf
@@ -79,14 +119,19 @@ jobs:
             echo "::notice::Deploy-Secrets fehlen noch – Auslieferung übersprungen."
             exit 0
           fi
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
-          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           VERSION=$(git rev-parse --short=12 HEAD)
+          RV="${{ steps.rechenraum.outputs.kennung }}"
           mkdir buendel && echo "$VERSION" > buendel/VERSION && cp -r deploy buendel/deploy
+          echo "$RV" > buendel/RECHENRAUM_VERSION
           docker tag agentendorf:ci "agentendorf:$VERSION"
           docker tag agentendorf-werkstatt:ci "agentendorf-werkstatt:$VERSION"
           docker save "agentendorf:$VERSION" "agentendorf-werkstatt:$VERSION" | gzip > buendel/image.tar.gz
-          tar -czf buendel.tar.gz -C buendel VERSION deploy image.tar.gz
+          DATEIEN="VERSION RECHENRAUM_VERSION deploy image.tar.gz"
+          if [ "${{ steps.rechenraum.outputs.hat }}" != ja ]; then
+            docker save "agentendorf-rechenraum:$RV" | gzip > buendel/rechenraum.tar.gz
+            DATEIEN="$DATEIEN rechenraum.tar.gz"
+          fi
+          # shellcheck disable=SC2086
+          tar -czf buendel.tar.gz -C buendel $DATEIEN
           ls -lh buendel.tar.gz
           ssh -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" empfangen < buendel.tar.gz

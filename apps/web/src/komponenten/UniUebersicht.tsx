@@ -121,7 +121,7 @@ export function UniUebersicht() {
             {l ? (
               <>
                 Letzter Abgleich: {zeitText(l.start)}
-                {l.ok === null ? ' – läuft …' : l.ok ? ` – ${l.neueDateien} neue Dateien, ${l.neueAbgaben} neue Abgaben.` : ''}
+                {l.ok === null ? ' – läuft …' : l.ok ? ` – ${l.neueDateien} ${l.neueDateien === 1 ? 'neue Datei' : 'neue Dateien'}, ${l.neueAbgaben} ${l.neueAbgaben === 1 ? 'neue Abgabe' : 'neue Abgaben'}.` : ''}
               </>
             ) : (
               'Noch kein Abgleich.'

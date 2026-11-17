@@ -146,7 +146,7 @@ test('Uni: Moodle abgleichen, Fristen und Fächer sehen, Aufgabe öffnen', async
   await expect(fristen.locator('tr.dringend', { hasText: 'Übung 1' })).toBeVisible(); // Frist in weniger als 3 Tagen
   await expect(fristen.locator('tr', { hasText: 'Übung 2' })).not.toHaveClass(/dringend/);
   await expect(page.locator('.uni .ordnerliste')).toContainText('Computational Data Analytics');
-  await expect(page.getByText(/Letzter Abgleich: .* neue Dateien/)).toBeVisible();
+  await expect(page.getByText(/Letzter Abgleich: .* neue (Datei|Dateien),/)).toBeVisible();
 
   await fristen.getByRole('link', { name: 'Übung 1' }).click();
   await expect(page).toHaveURL(/bibliothek\?pfad=Uni%2Ffaecher%2FComputational%20Data%20Analytics%2Faufgaben%2FUebung%201%2Faufgabe\.md/);

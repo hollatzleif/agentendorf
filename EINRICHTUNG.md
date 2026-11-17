@@ -114,7 +114,26 @@ dorf telegram-einrichten
 
 Danach: Jede Textnachricht an den Bot landet als Aufgabe auf dem Schreibtisch, Freigaben kommen mit Ja/Nein-Knöpfen. Welche Meldungen kommen, stellst du unter **Rathaus → Agenten-Einstellungen → Telegram** ein.
 
-## 8. Vault auf Mac und PCs (Syncthing + Obsidian)
+## 8. Uni: Moodle verbinden (JKU)
+
+Das Dorf meldet sich wie die offizielle **Moodle-App** an: über den Browser und das JKU-Login. Dein Passwort sieht das Dorf nie, es bekommt nur ein App-Token.
+
+1. Auf dem Server:
+   ```bash
+   dorf moodle-anmelden
+   ```
+2. Das Skript zeigt eine lange Adresse (`https://moodle.jku.at/admin/tool/mobile/launch.php?…`). Öffne sie **am PC im Browser** und melde dich mit dem JKU-Login an.
+3. Am Ende will Moodle eine Adresse `moodlemobile://token=…` öffnen. Die brauchst du vollständig:
+   - **Firefox:** Es erscheint meist ein Hinweis, dass die Adresse nicht geöffnet werden kann. Die Adresse steht dann in der Adresszeile bzw. in der Meldung.
+   - **Chrome/Edge:** Vor Schritt 2 **F12** drücken → Reiter **Netzwerk** → Haken bei **Log beibehalten**. Dann anmelden und in der Liste den letzten Eintrag `launch.php` anklicken → **Header** → Antwort-Header **Location** kopieren.
+4. Die Adresse im Terminal einfügen (die Eingabe bleibt unsichtbar). Das Skript prüft, ob sie wirklich zu diesem Anmeldevorgang gehört und welche Funktionen Moodle erlaubt. Erst dann speichert es das Token in `/srv/dorf/.env`.
+5. In der App: **Uni → Studium → Jetzt abgleichen**. Danach siehst du Fristen und Fächer, die Folien liegen unter `Uni/faecher/<Fach>/folien/`. Abgeglichen wird danach alle 3 Stunden.
+
+> Meldet das Skript **STOPP** (Moodle erlaubt eine Funktion nicht) oder klappt Schritt 3 anders als beschrieben: nichts erzwingen, sondern mir die Meldung schicken.
+
+Altklausuren, die nicht in Moodle liegen, legst du selbst nach `Uni/faecher/<Fach>/altklausuren/`. Die Aktion **Lernen** findet sie dort.
+
+## 9. Vault auf Mac und PCs (Syncthing + Obsidian)
 
 1. Syncthing installieren: Mac `brew install --cask syncthing` (oder syncthing.net), Windows: *Syncthing Windows Setup* von syncthing.net/downloads.
 2. Geräte-ID des Servers anzeigen:
@@ -133,7 +152,7 @@ Für Windows-PC und -Laptop ebenso. Konflikte überschreibt Syncthing nie. Es le
 
 > Falls `dorf syncthing-geraet` meldet, dass ein Befehl unbekannt ist (Syncthing ändert seine Kommandozeile gelegentlich), geht es auch über die Oberfläche: `ssh -L 8384:127.0.0.1:8384 leif@dorf.deine-domain.de`, dann im Browser `http://localhost:8384`.
 
-## 9. Backup prüfen (einmal real)
+## 10. Backup prüfen (einmal real)
 
 ```bash
 dorf backup

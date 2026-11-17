@@ -42,6 +42,7 @@ services:
     security_opt:
       - no-new-privileges:true
     mem_limit: 768m
+    networks: [default, rechennetz]
     # kein Port nach außen – nur Caddy spricht mit dem Dorf (3000); die Werkstatt ruft Werkzeuge über 3001 auf
 
   werkstatt:
@@ -69,6 +70,31 @@ services:
       - no-new-privileges:true
     mem_limit: 1536m
 
+  rechenraum:
+    # pdflatex + Python für „Abgabe bearbeiten“. KEIN Internet (internes Netz), KEIN Vault, nur das Dorf erreicht ihn.
+    # Image-Kennung = Hash über Dockerfile und Runner (wird nur neu geschickt, wenn sie sich ändern).
+    image: agentendorf-rechenraum:${RECHENRAUM_VERSION:-fehlt}
+    restart: unless-stopped
+    env_file: /srv/dorf/rechenraum.env
+    environment:
+      TZ: Europe/Vienna
+    user: "1000:1000"
+    read_only: true
+    networks: [rechennetz]
+    volumes:
+      - type: tmpfs
+        target: /tmp
+        tmpfs: { mode: 01777, size: 268435456 }
+      - type: tmpfs
+        target: /arbeit
+        tmpfs: { mode: 01777, size: 402653184 }
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    cpus: 1.0
+    pids_limit: 256
+
   syncthing:
     image: syncthing/syncthing:2
     restart: unless-stopped
@@ -86,6 +112,12 @@ services:
       # Oberfläche nur lokal – Zugriff per SSH-Tunnel (./dorf hilfe)
       - "127.0.0.1:8384:8384"
     mem_limit: 256m
+
+networks:
+  default: {}
+  # Nur Dorf ↔ Rechenraum, ohne Weg ins Internet
+  rechennetz:
+    internal: true
 
 volumes:
   caddy-daten:
