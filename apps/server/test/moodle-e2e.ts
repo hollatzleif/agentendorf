@@ -1,0 +1,20 @@
+// Nachgebautes Moodle für die Browser-Tests (gestartet von apps/web/e2e/server-starten.sh).
+import { moodleAttrappe } from './moodle-attrappe.js';
+
+const m = await moodleAttrappe(Number(process.env.MOODLE_PORT ?? 3998));
+const jetzt = Math.floor(Date.now() / 1000);
+m.s.abschnitte[11] = [
+  {
+    id: 1,
+    name: 'Woche 1',
+    section: 1,
+    modules: [{ id: 101, name: 'Folien 1', modname: 'resource', contents: [m.datei('/1/mod_resource/content/1/VO01.pdf', { inhalt: Buffer.from('%PDF-1.1\n%%EOF'), geaendert: 100 })] }],
+  },
+];
+m.s.aufgaben[11] = [
+  { id: 501, cmid: 106, course: 11, name: 'Übung 1', intro: '<p>Rechnen Sie <b>alles</b>.</p>', duedate: jetzt + 86_400 },
+  { id: 502, cmid: 107, course: 11, name: 'Übung 2', intro: '<p>Später.</p>', duedate: jetzt + 10 * 86_400 },
+];
+m.s.aufgaben[12] = [{ id: 601, cmid: 201, course: 12, name: 'Projekt', intro: '', duedate: 0 }];
+m.s.ereignisse = [{ id: 77, name: 'Zwischentest', modulename: 'quiz', timesort: jetzt + 3 * 86_400, course: { id: 12 }, url: `${m.basis}/mod/quiz/view.php?id=9` }];
+console.log(`Moodle-Attrappe auf ${m.basis}`);

@@ -11,7 +11,7 @@ interface Datei {
 }
 
 /** Nachgebauter Moodle-Server (REST + webservice/pluginfile.php), so wie die Moodle-App ihn sieht. */
-export async function moodleAttrappe() {
+export async function moodleAttrappe(port = 0) {
   const s = {
     funktionen: [
       'core_webservice_get_site_info',
@@ -90,7 +90,7 @@ export async function moodleAttrappe() {
       return antwort({ exception: 'x', errorcode: 'unbekannt', message: f });
     });
   });
-  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  await new Promise<void>((r) => server.listen(port, '127.0.0.1', r));
   basis = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   return { s, basis, datei, schliessen: () => new Promise<void>((r) => server.close(() => r())) };
 }

@@ -22,7 +22,7 @@ import { moodleKlient, type MoodleKlient } from './uni/moodle.js';
 import { rechenraumKlient } from './agenten/rechenraum.js';
 
 /** Dateien, die das Dorf zum Arbeiten braucht: fehlen sie (z. B. Vault aus einer älteren Etappe), werden sie aus der Vorlage ergänzt – nie überschrieben. */
-const PFLICHT_DATEIEN = ['Rathaus/aktionen/buergermeister.md', '00_Stadtordnung/telegram.md'];
+const PFLICHT_DATEIEN = ['Rathaus/aktionen/buergermeister.md', '00_Stadtordnung/telegram.md', 'Uni/aktionen/lernen.md', 'Uni/aktionen/abgabe-bearbeiten.md'];
 
 /** Baut das ganze Dorf zusammen (für Start und Integrationstests). */
 export async function dorfStarten(

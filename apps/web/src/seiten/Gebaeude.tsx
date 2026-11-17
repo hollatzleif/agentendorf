@@ -11,6 +11,7 @@ import { Verbrauch } from '../komponenten/Verbrauch';
 import { AgentenEinstellungen } from '../komponenten/AgentenEinstellungen';
 import { Schreibtisch } from '../komponenten/Schreibtisch';
 import { Plaene } from '../komponenten/Plaene';
+import { UniUebersicht } from '../komponenten/UniUebersicht';
 
 const REITER = [
   ['aktionen', 'Aktionen'],
@@ -22,6 +23,7 @@ const RATHAUS_VORNE = [
   ['schreibtisch', 'Schreibtisch'],
   ['plaene', 'Pläne'],
 ] as const;
+const UNI_VORNE = [['studium', 'Studium']] as const;
 const RATHAUS_REITER = [
   ['freigaben', 'Freigaben'],
   ['alle-chats', 'Alle Chats'],
@@ -31,7 +33,7 @@ const RATHAUS_REITER = [
 
 export function GebaeudeSeite({ id }: { id: string }) {
   const { suche } = useOrt();
-  const reiter = suche.get('reiter') ?? (id === 'Rathaus' ? 'schreibtisch' : 'aktionen');
+  const reiter = suche.get('reiter') ?? (id === 'Rathaus' ? 'schreibtisch' : id === 'Uni' ? 'studium' : 'aktionen');
   const liste = useQuery({ queryKey: ['gebaeude'], queryFn: () => api<Gebaeude[]>('/api/gebaeude') });
   const g = liste.data?.find((x) => x.id === id);
   const anweisung = useQuery({
@@ -42,7 +44,7 @@ export function GebaeudeSeite({ id }: { id: string }) {
 
   if (liste.isPending) return <p>Lade …</p>;
   if (!g) return <p className="karte">Gebäude „{id}“ gibt es nicht (mehr).</p>;
-  const alle = id === 'Rathaus' ? [...RATHAUS_VORNE, ...REITER, ...RATHAUS_REITER] : REITER;
+  const alle = id === 'Rathaus' ? [...RATHAUS_VORNE, ...REITER, ...RATHAUS_REITER] : id === 'Uni' ? [...UNI_VORNE, ...REITER] : REITER;
 
   return (
     <section>
@@ -67,6 +69,7 @@ export function GebaeudeSeite({ id }: { id: string }) {
         {reiter === 'uebersicht' && (anweisung.data ? <Markdown inhalt={anweisung.data.inhalt} pfad={anweisung.data.pfad} /> : <p>Lade …</p>)}
         {reiter === 'dateien' && <Dateibaum wurzel={id} />}
         {reiter === 'schreibtisch' && <Schreibtisch />}
+        {reiter === 'studium' && <UniUebersicht />}
         {reiter === 'plaene' && <Plaene />}
         {reiter === 'freigaben' && <Freigaben />}
         {reiter === 'alle-chats' && <ChatListe />}

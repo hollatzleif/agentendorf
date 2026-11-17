@@ -119,3 +119,46 @@ Lerne {fach}. Abgabe: {abgabe}
     expect(r.statusCode).toBe(400);
   });
 });
+
+describe('Aktionen der Uni aus der Vorlage', () => {
+  it('Lernen und Abgabe bearbeiten laden fehlerfrei; Platzhalter zerstören die LaTeX-Präambel nicht', async () => {
+    const { aktionenListe, eingabenAnwenden } = await import('../src/agenten/aktionen.js');
+    const d = await testDorf();
+    const liste = await aktionenListe(d.vault, 'Uni');
+    const lernen = liste.find((a) => a.id === 'Uni/lernen')!;
+    const abgabe = liste.find((a) => a.id === 'Uni/abgabe-bearbeiten')!;
+    for (const a of [lernen, abgabe]) {
+      expect(a.fehler).toBeUndefined();
+      expect(a).toMatchObject({ motor: 'claude-code', stufe: 'gross', fremdinhalte: true });
+      expect(a.werkzeuge).not.toContain('web');
+    }
+    expect(abgabe.werkzeuge).toContain('rechenraum');
+    expect(abgabe.werkzeuge).not.toContain('vault_schreiben');
+    expect(lernen.eingaben[0]).toMatchObject({ name: 'fach', quelle: 'uni.faecher' });
+    expect(abgabe.eingaben[0]).toMatchObject({ name: 'abgabe', quelle: 'uni.abgaben' });
+
+    const quellen = () => [{ wert: 'CDA/aufgaben/Blatt 3', beschriftung: 'x' }, { wert: 'CDA', beschriftung: 'CDA' }];
+    const a = eingabenAnwenden(abgabe, { abgabe: 'CDA/aufgaben/Blatt 3' }, quellen);
+    expect(a.prompt).toContain('\\definecolor{ex}{RGB}{0,120,40}');
+    expect(a.prompt).toContain('\\newenvironment{sol}{\\par\\medskip\\textbf{Solution.}\\par}{\\par\\medskip}');
+    expect(a.prompt).toContain('"\\def\\withexpl{1}\\input{blatt.tex}"');
+    expect(a.prompt).toContain('`Uni/faecher/CDA/aufgaben/Blatt 3/`');
+    expect(a.anhaenge).toEqual(['Uni/faecher/CDA/aufgaben/Blatt 3']);
+    const l = eingabenAnwenden(lernen, { fach: 'CDA' }, quellen);
+    expect(l.prompt).toContain('aus dem Fach **CDA**');
+    expect(l.prompt).toContain('`[lang=de] .en {display:none}`');
+    expect(l.anhaenge).toEqual(['Uni/faecher/CDA/kurs.md']);
+  });
+
+  it('fehlen die Aktionen in einem älteren Vault, ergänzt das Dorf sie beim Start (überschreibt nie)', async () => {
+    const d = await testDorf();
+    await d.vault.loeschen('Uni/aktionen/lernen.md');
+    await d.vault.schreiben('Uni/aktionen/abgabe-bearbeiten.md', '---\nname: Meine Fassung\n---\nEigenes.');
+    const { dorfStarten } = await import('../src/dorf.js');
+    await d.app.close();
+    const d2 = await dorfStarten(d.konfig, { beobachten: false });
+    expect(await d2.vault.existiert('Uni/aktionen/lernen.md')).toBe(true);
+    expect((await d2.vault.lesen('Uni/aktionen/abgabe-bearbeiten.md')).inhalt).toContain('Meine Fassung');
+    await d2.app.close();
+  });
+});

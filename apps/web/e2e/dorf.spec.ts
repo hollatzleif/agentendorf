@@ -132,3 +132,66 @@ test('Schreibtisch: Aufgabe hinlegen, Plan freigeben, Helfer arbeiten, Aufgabe e
   await page.getByRole('link', { name: 'Helfer: Lernplan' }).click();
   await expect(page.getByRole('link', { name: 'Bürgermeisters', exact: true })).toBeVisible();
 });
+
+test('Uni: Moodle abgleichen, Fristen und Fächer sehen, Aufgabe öffnen', async ({ page }) => {
+  await anmelden(page);
+  await page.locator('.gebaeude-karte', { hasText: 'Uni' }).click();
+  // „Studium“ ist der erste Reiter der Uni
+  await expect(page.getByRole('heading', { name: 'Fristen' })).toBeVisible();
+  await expect(page.getByText(/Verbunden mit http:\/\/127\.0\.0\.1:3998/)).toBeVisible();
+  await page.getByRole('button', { name: /Jetzt abgleichen|Abgleich läuft/ }).click();
+  const fristen = page.locator('table.fristen');
+  await expect(fristen).toContainText('Übung 1', { timeout: 20_000 });
+  await expect(fristen).toContainText('Zwischentest');
+  await expect(fristen.locator('tr.dringend', { hasText: 'Übung 1' })).toBeVisible(); // Frist in weniger als 3 Tagen
+  await expect(fristen.locator('tr', { hasText: 'Übung 2' })).not.toHaveClass(/dringend/);
+  await expect(page.locator('.uni .ordnerliste')).toContainText('Computational Data Analytics');
+  await expect(page.getByText(/Letzter Abgleich: .* neue Dateien/)).toBeVisible();
+
+  await fristen.getByRole('link', { name: 'Übung 1' }).click();
+  await expect(page).toHaveURL(/bibliothek\?pfad=Uni%2Ffaecher%2FComputational%20Data%20Analytics%2Faufgaben%2FUebung%201%2Faufgabe\.md/);
+  await expect(page.getByText('Rechnen Sie alles.')).toBeVisible();
+});
+
+test('Uni: „Lernen“ mit Fach aus Moodle starten', async ({ page }) => {
+  await anmelden(page);
+  // Abgleich sicherstellen (falls der andere Test noch nicht lief)
+  await page.request.post('/api/uni/abgleichen', { headers: { origin: 'http://127.0.0.1:3999' }, data: {} });
+  await expect.poll(async () => (await (await page.request.get('/api/uni')).json()).kurse.length, { timeout: 20_000 }).toBeGreaterThan(0);
+  await page.goto('/gebaeude/Uni?reiter=aktionen');
+  await page.getByRole('button', { name: /^Lernen/ }).click();
+  const fach = page.getByLabel(/Fach/);
+  await expect(fach.locator('option')).toHaveText(['Computational Data Analytics', 'Statistik / UE']);
+  await fach.selectOption({ label: 'Statistik / UE' });
+  await page.getByRole('button', { name: 'Starten' }).click();
+  await expect(page).toHaveURL(/\/chats\//);
+  await expect(page.getByText(/Lernen: Statistik - UE/).first()).toBeVisible();
+  await expect(page.getByText(/Lauf 1: fertig/)).toBeVisible();
+  // „Abgabe bearbeiten“ bietet nur offene Abgaben an
+  await page.goto('/gebaeude/Uni?reiter=aktionen');
+  await page.getByRole('button', { name: /^Abgabe bearbeiten/ }).click();
+  await expect(page.getByLabel(/Abgabe/).locator('option')).toHaveCount(3);
+});
+
+test('HTML-Seite aus dem Vault: Skript läuft, App, Speicher und Netz sind abgeschottet', async ({ page }, info) => {
+  await anmelden(page);
+  const pfad = `Uni/abschottung-${info.project.name}.html`;
+  const html = `<!doctype html><html><body>
+<p id="a">wartet</p><p id="b"></p><p id="c"></p><p id="d"></p>
+<script>
+const s = (id, t) => (document.getElementById(id).textContent = t);
+s('a', 'Skript läuft');
+try { parent.document.title; s('b', 'App erreichbar!'); } catch (e) { s('b', 'App blockiert'); }
+try { localStorage.getItem('x'); s('c', 'Speicher offen!'); } catch (e) { s('c', 'Speicher blockiert'); }
+fetch('/api/ich').then(() => s('d', 'Netz offen!'), () => s('d', 'Netz blockiert'));
+</script></body></html>`;
+  const r = await page.request.put('/api/vault/datei', { headers: { origin: 'http://127.0.0.1:3999' }, data: { pfad, inhalt: html } });
+  expect(r.ok()).toBe(true);
+  await page.goto(`/bibliothek?pfad=${encodeURIComponent(pfad)}`);
+  const rahmen = page.frameLocator('iframe.html-rahmen');
+  await expect(rahmen.locator('#a')).toHaveText('Skript läuft');
+  await expect(rahmen.locator('#b')).toHaveText('App blockiert');
+  await expect(rahmen.locator('#c')).toHaveText('Speicher blockiert');
+  await expect(rahmen.locator('#d')).toHaveText('Netz blockiert');
+  await expect(page.getByRole('link', { name: 'Vollbild' })).toHaveAttribute('target', '_blank');
+});
