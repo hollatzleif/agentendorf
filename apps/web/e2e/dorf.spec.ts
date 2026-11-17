@@ -133,44 +133,58 @@ test('Schreibtisch: Aufgabe hinlegen, Plan freigeben, Helfer arbeiten, Aufgabe e
   await expect(page.getByRole('link', { name: 'Bürgermeisters', exact: true })).toBeVisible();
 });
 
-test('Uni: Moodle abgleichen, Fristen und Fächer sehen, Aufgabe öffnen', async ({ page }) => {
+test('Uni: Fristen aus dem Moodle-Kalender, abhaken, Fach anlegen', async ({ page }, info) => {
   await anmelden(page);
   await page.locator('.gebaeude-karte', { hasText: 'Uni' }).click();
   // „Studium“ ist der erste Reiter der Uni
   await expect(page.getByRole('heading', { name: 'Fristen' })).toBeVisible();
-  await expect(page.getByText(/Verbunden mit http:\/\/127\.0\.0\.1:3998/)).toBeVisible();
+  await expect(page.getByText('Fristen kommen aus deinem Moodle-Kalender.')).toBeVisible();
   await page.getByRole('button', { name: /Jetzt abgleichen|Abgleich läuft/ }).click();
   const fristen = page.locator('table.fristen');
-  await expect(fristen).toContainText('Übung 1', { timeout: 20_000 });
-  await expect(fristen).toContainText('Zwischentest');
+  await expect(fristen).toContainText('Übung 1 ist fällig', { timeout: 20_000 });
+  await expect(fristen).toContainText('Zwischentest schließt');
   await expect(fristen.locator('tr.dringend', { hasText: 'Übung 1' })).toBeVisible(); // Frist in weniger als 3 Tagen
   await expect(fristen.locator('tr', { hasText: 'Übung 2' })).not.toHaveClass(/dringend/);
-  await expect(page.locator('.uni .ordnerliste')).toContainText('Computational Data Analytics');
-  await expect(page.getByText(/Letzter Abgleich: .* neue (Datei|Dateien),/)).toBeVisible();
+  await expect(page.getByText(/Letzter Abgleich: .* neue (Frist|Fristen)\./)).toBeVisible();
 
-  await fristen.getByRole('link', { name: 'Übung 1' }).click();
-  await expect(page).toHaveURL(/bibliothek\?pfad=Uni%2Ffaecher%2FComputational%20Data%20Analytics%2Faufgaben%2FUebung%201%2Faufgabe\.md/);
-  await expect(page.getByText('Rechnen Sie alles.')).toBeVisible();
+  // Abhaken (und für den nächsten Testlauf wieder zurück)
+  const zeile = fristen.locator('tr', { hasText: 'Übung 2' });
+  await zeile.getByLabel('erledigt').check();
+  await expect(zeile).toHaveClass(/erledigt/);
+  await zeile.getByLabel('erledigt').uncheck();
+  await expect(zeile).not.toHaveClass(/erledigt/);
+
+  const fach = `Fach ${info.project.name}`;
+  await page.getByLabel('Neues Fach').fill(fach);
+  await page.getByRole('button', { name: 'Fach anlegen' }).click();
+  await page.locator('.uni .ordnerliste').getByRole('link', { name: fach }).click();
+  await expect(page).toHaveURL(new RegExp(`bibliothek\\?pfad=Uni%2Ffaecher%2FFach%20${info.project.name}`));
+  await expect(page.getByRole('link', { name: /aufgaben/ })).toBeVisible();
 });
 
-test('Uni: „Lernen“ mit Fach aus Moodle starten', async ({ page }) => {
+test('Uni: „Lernen“ und „Abgabe bearbeiten“ bieten Leifs Ordner an', async ({ page }, info) => {
   await anmelden(page);
-  // Abgleich sicherstellen (falls der andere Test noch nicht lief)
-  await page.request.post('/api/uni/abgleichen', { headers: { origin: 'http://127.0.0.1:3999' }, data: {} });
-  await expect.poll(async () => (await (await page.request.get('/api/uni')).json()).kurse.length, { timeout: 20_000 }).toBeGreaterThan(0);
+  const h = { origin: 'http://127.0.0.1:3999' };
+  const fach = `Lernfach ${info.project.name}`;
+  await page.request.post('/api/uni/fach', { headers: h, data: { name: fach } });
+  await page.request.put('/api/vault/datei', { headers: h, data: { pfad: `Uni/faecher/${fach}/aufgaben/Blatt 3/Blatt3.pdf`, inhalt: '%PDF' } });
+  await page.request.put('/api/vault/datei', { headers: h, data: { pfad: `Uni/faecher/${fach}/aufgaben/erledigt/Blatt1.pdf`, inhalt: '%PDF' } });
+
   await page.goto('/gebaeude/Uni?reiter=aktionen');
   await page.getByRole('button', { name: /^Lernen/ }).click();
-  const fach = page.getByLabel(/Fach/);
-  await expect(fach.locator('option')).toHaveText(['Computational Data Analytics', 'Statistik / UE']);
-  await fach.selectOption({ label: 'Statistik / UE' });
+  const auswahl = page.getByLabel(/Fach/);
+  await expect(auswahl.locator('option', { hasText: fach })).toHaveCount(1);
+  await auswahl.selectOption({ label: fach });
   await page.getByRole('button', { name: 'Starten' }).click();
   await expect(page).toHaveURL(/\/chats\//);
-  await expect(page.getByText(/Lernen: Statistik - UE/).first()).toBeVisible();
+  await expect(page.getByText(new RegExp(`Lernen: ${fach}`)).first()).toBeVisible();
   await expect(page.getByText(/Lauf 1: fertig/)).toBeVisible();
-  // „Abgabe bearbeiten“ bietet nur offene Abgaben an
+
   await page.goto('/gebaeude/Uni?reiter=aktionen');
   await page.getByRole('button', { name: /^Abgabe bearbeiten/ }).click();
-  await expect(page.getByLabel(/Abgabe/).locator('option')).toHaveCount(3);
+  const abgabe = page.getByLabel(/Abgabe \(Ordner oder PDF/);
+  await expect(abgabe.locator('option', { hasText: `Blatt 3 – ${fach}` })).toHaveCount(1);
+  await expect(abgabe.locator('option', { hasText: 'Blatt1' })).toHaveCount(0); // erledigt/
 });
 
 test('HTML-Seite aus dem Vault: Skript läuft, App, Speicher und Netz sind abgeschottet', async ({ page }, info) => {

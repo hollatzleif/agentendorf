@@ -17,4 +17,9 @@ m.s.aufgaben[11] = [
 ];
 m.s.aufgaben[12] = [{ id: 601, cmid: 201, course: 12, name: 'Projekt', intro: '', duedate: 0 }];
 m.s.ereignisse = [{ id: 77, name: 'Zwischentest', modulename: 'quiz', timesort: jetzt + 3 * 86_400, course: { id: 12 }, url: `${m.basis}/mod/quiz/view.php?id=9` }];
+// Kalender-Export: so sieht der JKU-Weg aus (App-Zugang ist dort gesperrt)
+const z = (sek: number) => new Date(sek * 1000).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+const ev = (uid: string, titel: string, sek: number, kurs: string) =>
+  `BEGIN:VEVENT\r\nUID:${uid}@127.0.0.1\r\nSUMMARY:${titel}\r\nCATEGORIES:${kurs}\r\nDTSTART:${z(sek)}\r\nDTEND:${z(sek)}\r\nEND:VEVENT\r\n`;
+m.s.ics = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\n${ev('1', 'Übung 1 ist fällig', jetzt + 86_400, 'CDA')}${ev('2', 'Übung 2 ist fällig', jetzt + 10 * 86_400, 'CDA')}${ev('3', 'Zwischentest schließt', jetzt + 3 * 86_400, 'STAT')}END:VCALENDAR\r\n`;
 console.log(`Moodle-Attrappe auf ${m.basis}`);

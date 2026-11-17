@@ -31,6 +31,7 @@ const Schema = z.object({
   RECHENRAUM_GEHEIMNIS: z.string().optional(),
   MOODLE_URL: z.string().optional(),
   MOODLE_TOKEN: z.string().optional(),
+  MOODLE_KALENDER_URL: z.string().optional(),
   DORF_MOTOR_ATTRAPPE: z
     .string()
     .default('false')
@@ -59,6 +60,7 @@ export interface Konfig {
   telegramApiUrl: string;
   moodleUrl?: string;
   moodleToken?: string;
+  moodleKalenderUrl?: string;
   rechenraumUrl: string;
   rechenraumGeheimnis?: string;
 }
@@ -87,6 +89,7 @@ export function konfigLaden(env: NodeJS.ProcessEnv = process.env): Konfig {
     telegramApiUrl: e.TELEGRAM_API_URL,
     moodleUrl: e.MOODLE_URL?.replace(/\/$/, '') || undefined,
     moodleToken: e.MOODLE_TOKEN || undefined,
+    moodleKalenderUrl: e.MOODLE_KALENDER_URL || undefined,
     rechenraumUrl: e.RECHENRAUM_URL,
     rechenraumGeheimnis: e.RECHENRAUM_GEHEIMNIS || undefined,
   };

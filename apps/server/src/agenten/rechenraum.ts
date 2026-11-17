@@ -85,7 +85,7 @@ function stempel(ms: number) {
  */
 export function ablageOrdner(c: { gebaeude: string; titel: string; erstellt: number; eingaben: Record<string, string> }) {
   const m = c.gebaeude === 'Uni' ? /^([^/]+)\/aufgaben\/([^/]+)$/.exec(c.eingaben.abgabe ?? '') : null;
-  if (m && !m[1]!.startsWith('.')) return `Uni/faecher/${m[1]}/entwuerfe/${stempel(c.erstellt)}_${kurzname(m[2]!)}`;
+  if (m && !m[1]!.startsWith('.')) return `Uni/faecher/${m[1]}/entwuerfe/${stempel(c.erstellt)}_${kurzname(m[2]!.replace(/\.pdf$/i, ''))}`;
   return `${c.gebaeude}/entwuerfe/${stempel(c.erstellt)}_${kurzname(c.titel)}`;
 }
 

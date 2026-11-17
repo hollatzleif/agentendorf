@@ -8,6 +8,9 @@ import { passwortSetzen } from './auth/passwort.js';
 import { Sitzungen } from './auth/sitzungen.js';
 import { VaultDienst } from './vault/dienst.js';
 import { moodleKlient, tokenAusLaunch, verbindungPruefen } from './uni/moodle.js';
+import { kalenderQuelle } from './uni/abgleich.js';
+import { icsLesen } from './uni/ical.js';
+import { fristText } from './uni/text.js';
 
 const HILFE = `Agentendorf – Verwaltung
   passwort                 Passwort setzen oder ändern (beendet alle Sitzungen)
@@ -18,7 +21,9 @@ const HILFE = `Agentendorf – Verwaltung
   vault-ergaenzen          Fehlende Dateien aus der Vorlage ergänzen (überschreibt nie)
   moodle-token <url> <prüfwert>
                            Liest die moodlemobile://-Adresse von stdin, prüft Signatur und Verbindung,
-                           gibt das Token auf stdout aus (nur für dorf moodle-anmelden)`;
+                           gibt das Token auf stdout aus (nur für dorf moodle-anmelden)
+  moodle-kalender-pruefen  Liest die Kalender-Adresse von stdin, lädt den Export und zeigt, was drin ist
+                           (nur für dorf moodle-kalender; die Adresse selbst wird nie ausgegeben)`;
 
 async function verdecktFragen(frage: string): Promise<string> {
   let stumm = false;
@@ -95,6 +100,14 @@ try {
       }
       for (const f of v.optionalFehlend) console.error(`Hinweis: ${f} ist nicht erlaubt – dieser Teil des Abgleichs fällt weg.`);
       process.stdout.write(token);
+      break;
+    }
+    case 'moodle-kalender-pruefen': {
+      const url = (await stdinLesen()).trim();
+      const termine = icsLesen(await kalenderQuelle(url).laden());
+      const kommend = termine.filter((t) => t.start != null && t.start > Date.now()).sort((a, b) => a.start! - b.start!);
+      console.error(`Kalender gelesen: ${termine.length} Termine, davon ${kommend.length} in der Zukunft.`);
+      for (const t of kommend.slice(0, 5)) console.error(`  ${fristText(t.start)}  ${t.titel}${t.kategorie ? ` (${t.kategorie})` : ''}`);
       break;
     }
     default:

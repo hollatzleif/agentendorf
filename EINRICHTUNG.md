@@ -114,24 +114,24 @@ dorf telegram-einrichten
 
 Danach: Jede Textnachricht an den Bot landet als Aufgabe auf dem Schreibtisch, Freigaben kommen mit Ja/Nein-Knöpfen. Welche Meldungen kommen, stellst du unter **Rathaus → Agenten-Einstellungen → Telegram** ein.
 
-## 8. Uni: Moodle verbinden (JKU)
+## 8. Uni: Fristen aus Moodle und deine Fächer
 
-Das Dorf meldet sich wie die offizielle **Moodle-App** an: über den Browser und das JKU-Login. Dein Passwort sieht das Dorf nie, es bekommt nur ein App-Token.
+Die JKU sperrt den Zugang für die Moodle-App. Deshalb holt das Dorf nur die **Fristen** automatisch, und zwar über den Kalender-Export. Folien und Übungsblätter legst du selbst ab.
 
-1. Auf dem Server:
+**Fristen (einmalig):**
+1. In Moodle: **Kalender → Exportieren**. Wähl **Alle Termine** und den längsten Zeitraum und klick auf **Kalender-URL abrufen**. Dann die Adresse kopieren. Sie enthält einen persönlichen Schlüssel, also nirgends weitergeben.
+2. Auf dem Server:
    ```bash
-   dorf moodle-anmelden
+   dorf moodle-kalender
    ```
-2. Das Skript zeigt eine lange Adresse (`https://moodle.jku.at/admin/tool/mobile/launch.php?…`). Öffne sie **am PC im Browser** und melde dich mit dem JKU-Login an.
-3. Am Ende will Moodle eine Adresse `moodlemobile://token=…` öffnen. Die brauchst du vollständig:
-   - **Firefox:** Es erscheint meist ein Hinweis, dass die Adresse nicht geöffnet werden kann. Die Adresse steht dann in der Adresszeile bzw. in der Meldung.
-   - **Chrome/Edge:** Vor Schritt 2 **F12** drücken → Reiter **Netzwerk** → Haken bei **Log beibehalten**. Dann anmelden und in der Liste den letzten Eintrag `launch.php` anklicken → **Header** → Antwort-Header **Location** kopieren.
-4. Die Adresse im Terminal einfügen (die Eingabe bleibt unsichtbar). Das Skript prüft, ob sie wirklich zu diesem Anmeldevorgang gehört und welche Funktionen Moodle erlaubt. Erst dann speichert es das Token in `/srv/dorf/.env`.
-5. In der App: **Uni → Studium → Jetzt abgleichen**. Danach siehst du Fristen und Fächer, die Folien liegen unter `Uni/faecher/<Fach>/folien/`. Abgeglichen wird danach alle 3 Stunden.
+   Adresse einfügen (die Eingabe bleibt unsichtbar). Das Skript lädt den Kalender einmal zur Probe und zeigt die nächsten Termine. Erst dann speichert es die Adresse in `/srv/dorf/.env`.
+3. In der App: **Uni → Studium → Jetzt abgleichen**. Danach geht es automatisch alle 3 Stunden. Erledigtes hakst du in der Liste ab.
 
-> Meldet das Skript **STOPP** (Moodle erlaubt eine Funktion nicht) oder klappt Schritt 3 anders als beschrieben: nichts erzwingen, sondern mir die Meldung schicken.
+**Fächer:** **Uni → Studium → Fach anlegen** legt `Uni/faecher/<Fach>/` mit `folien/`, `altklausuren/` und `aufgaben/` an. Dort hinein lädst du die Dateien hoch, in der Bibliothek oder per Obsidian:
+- Übungsblätter: je Blatt ein Ordner oder direkt das PDF in `aufgaben/`. Erledigte Blätter verschiebst du nach `aufgaben/erledigt/`, dann bietet „Abgabe bearbeiten“ sie nicht mehr an.
+- „Lernen“ liest alles im Fach-Ordner: Folien, Altklausuren, Übungen.
 
-Altklausuren, die nicht in Moodle liegen, legst du selbst nach `Uni/faecher/<Fach>/altklausuren/`. Die Aktion **Lernen** findet sie dort.
+> `dorf moodle-anmelden` (der App-Weg) bleibt im Dorf, falls die JKU den App-Zugang je freischaltet.
 
 ## 9. Vault auf Mac und PCs (Syncthing + Obsidian)
 

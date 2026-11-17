@@ -9,7 +9,7 @@ eingaben:
   - name: abgabe
     typ: auswahl
     quelle: uni.abgaben
-    beschriftung: Abgabe
+    beschriftung: "Abgabe (Ordner oder PDF in aufgaben/)"
   - name: wuensche
     typ: langtext
     pflicht: nein
@@ -19,7 +19,7 @@ anhaenge:
 ---
 # Übungsblatt → 2 Lösungs-PDFs
 
-Die Abgabe liegt in `Uni/faecher/{abgabe}/` (in der Werkstatt: `/vault/Uni/faecher/{abgabe}/`): `aufgabe.md` mit Beschreibung und Frist, daneben das Übungsblatt als PDF. Liegt dort kein Blatt, such es im Fach-Ordner (z. B. in `folien/` mit gleichem Namen) – findest du keins, sag es und hör auf.
+Die Abgabe: `Uni/faecher/{abgabe}` (in der Werkstatt: `/vault/Uni/faecher/{abgabe}`). Das ist entweder direkt das PDF des Übungsblatts oder ein Ordner mit dem Blatt (und evtl. weiteren Dateien wie Daten oder einer `aufgabe.md`). Findest du kein Übungsblatt, sag es und hör auf.
 
 Zusätzliche Hinweise von Leif: {wuensche}
 

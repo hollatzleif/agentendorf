@@ -337,6 +337,25 @@ cmd_moodle_anmelden() {
   gruen "Moodle verbunden. Der erste Abgleich startet in einer Minute (Uni → Übersicht → 'Jetzt abgleichen' geht sofort)."
 }
 
+# Fristen über den Kalender-Export von Moodle (an der JKU der Weg, weil der App-Zugang gesperrt ist).
+cmd_moodle_kalender() {
+  local url
+  info "In Moodle: Kalender → Exportieren → Alle Termine + längster Zeitraum → Kalender-URL abrufen → Adresse kopieren."
+  read -r -s -p "Kalender-Adresse hier einfügen (Eingabe unsichtbar, leer = abbrechen): " url; echo
+  url=$(printf '%s' "$url" | tr -d '\r\n ')
+  [ -n "$url" ] || { rot "Abgebrochen."; return 1; }
+  [[ "$url" =~ ^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._-]+)*/calendar/export_execute\.php\?[A-Za-z0-9_=\&%.+-]+$ ]] \
+    || { rot "Das sieht nicht wie eine Moodle-Kalender-Adresse aus (…/calendar/export_execute.php?…)."; return 1; }
+  [[ "$url" == *authtoken=* ]] || { rot "In der Adresse fehlt authtoken= – bitte die vollständige Adresse kopieren."; return 1; }
+  if ! printf '%s' "$url" | compose exec -T dorf node dist/cli.js moodle-kalender-pruefen; then
+    rot "Nicht gespeichert (siehe Meldung oben)."; return 1
+  fi
+  sed -i '/^MOODLE_KALENDER_URL=/d' "$ENV_DATEI"
+  printf 'MOODLE_KALENDER_URL=%s\n' "$url" >> "$ENV_DATEI"
+  compose up -d --force-recreate dorf
+  gruen "Kalender verbunden. In der App: Uni → Studium → Jetzt abgleichen (sonst automatisch alle 3 Stunden)."
+}
+
 cmd_syncthing_id() { compose exec -T syncthing syncthing device-id 2>/dev/null || compose exec -T syncthing syncthing --device-id; }
 
 cmd_syncthing_geraet() {
@@ -365,7 +384,8 @@ Agentendorf – Befehle auf dem Server
   dorf claude-anmelden           Abo für den claude-code-Motor anmelden (Token 1 Jahr gültig)
   dorf api-schluessel            API-Schlüssel für den api-Motor eintragen
   dorf telegram-einrichten       eigenen Telegram-Bot koppeln (Token von @BotFather)
-  dorf moodle-anmelden [url]     Moodle verbinden (Standard: https://moodle.jku.at), Anmeldung über JKU-Login
+  dorf moodle-kalender           Fristen aus Moodle: Kalender-Adresse (Moodle: Kalender-URL abrufen) eintragen
+  dorf moodle-anmelden [url]     Moodle-App-Zugang (an der JKU derzeit gesperrt)
 
   dorf backup                    Sicherung jetzt (läuft sonst täglich 03:30)
   dorf restore-test [stand]      Wiederherstellung in Testordner prüfen
@@ -401,6 +421,7 @@ case "$befehl" in
   api-schluessel) cmd_api_schluessel ;;
   telegram-einrichten) cmd_telegram_einrichten ;;
   moodle-anmelden) cmd_moodle_anmelden "$@" ;;
+  moodle-kalender) cmd_moodle_kalender ;;
   syncthing-geraet) cmd_syncthing_geraet "$@" ;;
   hilfe|-h|--help) cmd_hilfe ;;
   *) rot "Unbekannter Befehl: $befehl"; cmd_hilfe; exit 1 ;;

@@ -33,6 +33,8 @@ export async function moodleAttrappe(port = 0) {
     ereignisse: [] as unknown[],
     aufrufe: [] as { funktion: string; params: Record<string, string> }[],
     downloads: [] as string[],
+    /** Kalender-Export (iCal), abrufbar mit authtoken=e2e */
+    ics: 'BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n',
   };
   let basis = '';
   const datei = (pfad: string, d: Datei) => {
@@ -50,6 +52,10 @@ export async function moodleAttrappe(port = 0) {
 
   const server = http.createServer((req, res) => {
     const u = new URL(req.url!, basis);
+    if (u.pathname === '/calendar/export_execute.php') {
+      if (u.searchParams.get('authtoken') !== 'e2e') return void res.writeHead(403).end('Ungültig');
+      return void res.writeHead(200, { 'content-type': 'text/calendar; charset=utf-8' }).end(s.ics);
+    }
     if (u.pathname.startsWith('/webservice/pluginfile.php')) {
       if (u.searchParams.get('token') !== TOKEN) return void res.writeHead(403).end('{"error":"invalidtoken"}');
       const pfad = decodeURIComponent(u.pathname.slice('/webservice/pluginfile.php'.length));

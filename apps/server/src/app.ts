@@ -368,8 +368,25 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
 
   // ---- Uni (Etappe 3) ------------------------------------------------------------------------
   app.get('/api/uni', async () => a.uni.uebersicht());
+  app.post('/api/uni/fristen/erledigt', async (req) => {
+    const b = z.object({ id: z.string().min(1).max(100), erledigt: z.boolean() }).parse(req.body);
+    try {
+      a.uni.erledigtSetzen(b.id, b.erledigt);
+    } catch (e) {
+      throw new DorfFehler(404, (e as Error).message);
+    }
+    return { ok: true };
+  });
+  app.post('/api/uni/fach', async (req) => {
+    const b = z.object({ name: z.string().min(1).max(120) }).parse(req.body);
+    try {
+      return { ordner: await a.uni.fachAnlegen(b.name) };
+    } catch (e) {
+      throw e instanceof DorfFehler ? e : new DorfFehler(409, (e as Error).message);
+    }
+  });
   app.post('/api/uni/abgleichen', async () => {
-    if (!a.uni.verbunden) throw new DorfFehler(409, 'Moodle ist nicht verbunden. Auf dem Server: dorf moodle-anmelden');
+    if (!a.uni.verbunden) throw new DorfFehler(409, 'Moodle ist nicht eingerichtet. Auf dem Server: dorf moodle-kalender');
     if (a.uni.laeuft) return { gestartet: false };
     void a.uni.abgleichen();
     return { gestartet: true };

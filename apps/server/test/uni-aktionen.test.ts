@@ -142,7 +142,7 @@ describe('Aktionen der Uni aus der Vorlage', () => {
     expect(a.prompt).toContain('\\definecolor{ex}{RGB}{0,120,40}');
     expect(a.prompt).toContain('\\newenvironment{sol}{\\par\\medskip\\textbf{Solution.}\\par}{\\par\\medskip}');
     expect(a.prompt).toContain('"\\def\\withexpl{1}\\input{blatt.tex}"');
-    expect(a.prompt).toContain('`Uni/faecher/CDA/aufgaben/Blatt 3/`');
+    expect(a.prompt).toContain('`Uni/faecher/CDA/aufgaben/Blatt 3`');
     expect(a.anhaenge).toEqual(['Uni/faecher/CDA/aufgaben/Blatt 3']);
     const l = eingabenAnwenden(lernen, { fach: 'CDA' }, quellen);
     expect(l.prompt).toContain('aus dem Fach **CDA**');

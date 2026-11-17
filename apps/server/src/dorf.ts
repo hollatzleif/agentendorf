@@ -17,12 +17,25 @@ import { Buergermeister } from './agenten/buergermeister.js';
 import fs from 'node:fs';
 import { TelegramBot } from './telegram/bot.js';
 import { telegramApi, type TelegramSchnittstelle } from './telegram/api.js';
-import { Uni } from './uni/abgleich.js';
+import { Uni, kalenderQuelle, type KalenderQuelle } from './uni/abgleich.js';
 import { moodleKlient, type MoodleKlient } from './uni/moodle.js';
 import { rechenraumKlient } from './agenten/rechenraum.js';
 
 /** Dateien, die das Dorf zum Arbeiten braucht: fehlen sie (z. B. Vault aus einer älteren Etappe), werden sie aus der Vorlage ergänzt – nie überschrieben. */
 const PFLICHT_DATEIEN = ['Rathaus/aktionen/buergermeister.md', '00_Stadtordnung/telegram.md', 'Uni/aktionen/lernen.md', 'Uni/aktionen/abgabe-bearbeiten.md'];
+
+/**
+ * Vorlagendateien, die das Dorf ersetzen darf – aber NUR, wenn sie byte-genau einer früheren Vorlagenfassung
+ * entsprechen (sha256), Leif sie also nie verändert hat. Alles andere bleibt unangetastet.
+ */
+const VORLAGE_FRUEHERE_FASSUNGEN: Record<string, string[]> = {
+  'Uni/gebaeude.md': [
+    'ec2518b6e8de76279701087fca5af642c2a164939cf3d69f8f2edb7643080077', // bis Etappe 2b
+    'a0c46bec0fab52f7d0f900a1b10253c4bc6125d4e81ed8863599782af2e96ad2', // Etappe 3 (Moodle-App)
+  ],
+  'Uni/aktionen/abgabe-bearbeiten.md': ['28289a20e8f718a2b45d16b34ab2a578350078df696a855dccd52e6857259b11'],
+  'Uni/aktionen/lernen.md': ['fe2283fc7e878ffd5f7f6a01ec776f50e49b6f96446c28db7cfcec36f48f1dd1'],
+};
 
 /** Baut das ganze Dorf zusammen (für Start und Integrationstests). */
 export async function dorfStarten(
@@ -35,6 +48,8 @@ export async function dorfStarten(
     telegram?: TelegramSchnittstelle;
     /** Für Tests: nachgebauter Moodle-Server; der 3-Stunden-Takt startet dann nicht */
     moodle?: MoodleKlient;
+    /** Für Tests: nachgebauter Kalender-Export */
+    kalender?: KalenderQuelle;
   } = {},
 ) {
   const uhr = opt.uhr ?? systemUhr;
@@ -44,6 +59,12 @@ export async function dorfStarten(
   for (const p of PFLICHT_DATEIEN) {
     const quelle = path.join(konfig.vorlageDir, p);
     if (!(await vault.existiert(p)) && fs.existsSync(quelle)) await vault.schreiben(p, fs.readFileSync(quelle, 'utf8'), { nurNeu: true });
+  }
+  for (const [p, fassungen] of Object.entries(VORLAGE_FRUEHERE_FASSUNGEN)) {
+    const quelle = path.join(konfig.vorlageDir, p);
+    if (!fs.existsSync(quelle) || !(await vault.existiert(p))) continue;
+    const jetzt = await vault.lesen(p);
+    if (fassungen.includes(jetzt.version)) await vault.schreiben(p, fs.readFileSync(quelle, 'utf8'), { basisVersion: jetzt.version });
   }
   const suche = new Suchindex(db, vault);
   await suche.vollIndex();
@@ -78,6 +99,7 @@ export async function dorfStarten(
     vault,
     hub,
     klient: opt.moodle ?? (konfig.moodleUrl && konfig.moodleToken ? moodleKlient(konfig.moodleUrl, konfig.moodleToken) : undefined),
+    kalender: opt.kalender ?? (konfig.moodleKalenderUrl ? kalenderQuelle(konfig.moodleKalenderUrl) : undefined),
     pauseMs: opt.moodle ? 0 : 500,
     log: (t) => console.warn(t),
   });
@@ -100,7 +122,7 @@ export async function dorfStarten(
     if (!opt.telegram) telegram.starten();
   }
   agenten.anstossen();
-  if (!opt.moodle && opt.beobachten !== false) uni.starten();
+  if (!opt.moodle && !opt.kalender && opt.beobachten !== false) uni.starten();
   const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni });
   app.addHook('onClose', async () => {
     uni.stoppen();

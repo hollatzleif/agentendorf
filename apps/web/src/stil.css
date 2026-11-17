@@ -218,3 +218,6 @@ button.klein { font-size: 0.8rem; padding: 0.1rem 0.5rem; margin-left: 0.4rem; }
 .fristen tr.erledigt { opacity: 0.55; }
 .uni h2 { margin-top: 1.2rem; }
 .uni h2:first-child { margin-top: 0; }
+.uni form.zeile { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0.5rem 0; }
+.uni form.zeile input { flex: 1 1 16rem; }
+.uni .haken { display: inline-flex; gap: 0.3rem; align-items: center; white-space: nowrap; }

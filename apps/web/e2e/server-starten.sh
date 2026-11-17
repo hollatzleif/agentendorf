@@ -12,6 +12,7 @@ MOODLE_PORT=${E2E_MOODLE_PORT:-3998}
 MOODLE_PORT=$MOODLE_PORT npx tsx test/moodle-e2e.ts &
 MOODLE_PID=$!
 trap 'kill $MOODLE_PID 2>/dev/null || true' EXIT
-export MOODLE_URL="http://127.0.0.1:$MOODLE_PORT" MOODLE_TOKEN=abcdef0123456789abcdef0123456789
+# wie an der JKU: nur der Kalender-Export (der App-Zugang ist dort gesperrt)
+export MOODLE_KALENDER_URL="http://127.0.0.1:$MOODLE_PORT/calendar/export_execute.php?userid=1&authtoken=e2e&preset_what=all&preset_time=recentupcoming"
 echo -n 'e2e-Passwort-sehr-lang-1' | npx tsx src/cli.ts passwort --stdin
 npx tsx src/start.ts

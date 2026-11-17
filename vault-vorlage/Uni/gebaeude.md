@@ -11,12 +11,13 @@ beschreibung: "Fächer, Folien, Abgaben mit Fristen, Entwürfe, Lernsitzungen"
 Leif studiert an der JKU Linz. Hier liegt alles rund ums Studium.
 
 ## Ordner
-- `faecher/<Fach>/kurs.md` – Kurs aus Moodle (Name, Link)
-- `faecher/<Fach>/folien/<Abschnitt>/` – Vorlesungsfolien (alle 3 Stunden aus Moodle abgeglichen)
-- `faecher/<Fach>/aufgaben/<Abgabe>/aufgabe.md` – Aufgabenstellung mit Frist im Frontmatter, Anhänge daneben
-- `faecher/<Fach>/altklausuren/` – Altklausuren und Notizen, die Leif selbst ablegt
-- `faecher/<Fach>/entwuerfe/` – Entwürfe der Agenten (z. B. Lösungs-PDFs aus „Abgabe bearbeiten“)
-- `faecher/<Fach>/lernsitzungen/` – Lernzettel, Probeklausuren, Auswertungen (HTML)
+- `faecher/<Fach>/` – ein Ordner pro Fach (in der App: Uni → Studium → „Fach anlegen“)
+  - `folien/` – Vorlesungsfolien (selbst aus Moodle heruntergeladen)
+  - `altklausuren/` – Altklausuren und Notizen
+  - `aufgaben/` – je Übungsblatt ein Ordner oder direkt das PDF; Erledigtes nach `aufgaben/erledigt/`
+  - `entwuerfe/` – Entwürfe der Agenten (z. B. Lösungs-PDFs aus „Abgabe bearbeiten“)
+  - `lernsitzungen/` – Lernzettel, Probeklausuren, Auswertungen (HTML)
+- Fristen kommen automatisch aus dem Moodle-Kalender (alle 3 Stunden) und stehen unter Uni → Studium.
 
 ## Regeln
 - **Abgegeben wird nie automatisch.** Leif gibt selbst in Moodle ab.

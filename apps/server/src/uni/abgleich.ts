@@ -3,13 +3,39 @@ import path from 'node:path';
 import fs from 'node:fs';
 import matter from 'gray-matter';
 import type Database from 'better-sqlite3';
-import type { AktionQuelle, QuellenOption, UniAbgleich, UniFrist, UniKurs, UniUebersicht } from '@dorf/shared';
+import type { AktionQuelle, QuellenOption, UniAbgleich, UniFach, UniFrist, UniKurs, UniUebersicht } from '@dorf/shared';
 import type { Uhr } from '../uhr.js';
 import type { VaultDienst } from '../vault/dienst.js';
 import type { LiveHub } from '../live.js';
 import { dateinameBereinigen } from '../vault/pfade.js';
 import { MoodleFehler, ohneToken, verbindungPruefen, type MoodleKlient } from './moodle.js';
 import { fristText, htmlZuMarkdown } from './text.js';
+import { icsLesen, terminArt } from './ical.js';
+
+/** Kalender-Export von Moodle (iCal) – liefert den Text der .ics-Datei */
+export interface KalenderQuelle {
+  laden(): Promise<string>;
+}
+
+const MAX_ICS_BYTES = 5 * 1024 * 1024;
+
+/** Lädt den Kalender-Export. Die Adresse enthält einen persönlichen Schlüssel – sie taucht in keiner Meldung auf. */
+export function kalenderQuelle(url: string): KalenderQuelle {
+  return {
+    async laden() {
+      let r: Response;
+      try {
+        r = await fetch(url, { signal: AbortSignal.timeout(60_000), headers: { accept: 'text/calendar' } });
+      } catch (f) {
+        throw new Error(`Kalender nicht erreichbar (${(f as Error).name})`);
+      }
+      if (!r.ok) throw new Error(`Kalender-Export antwortet mit HTTP ${r.status}${r.status === 403 || r.status === 404 ? ' – Adresse ungültig oder zurückgezogen? Neu: dorf moodle-kalender' : ''}`);
+      const buf = Buffer.from(await r.arrayBuffer());
+      if (buf.length > MAX_ICS_BYTES) throw new Error('Kalender-Export ist zu groß.');
+      return buf.toString('utf8');
+    },
+  };
+}
 
 export const UNI_FAECHER = 'Uni/faecher';
 export const MAX_DATEI_BYTES = 100 * 1024 * 1024;
@@ -64,6 +90,7 @@ interface EreignisRoh {
 }
 
 export interface NeueFrist {
+  art: 'abgabe' | 'test' | 'termin';
   titel: string;
   kurs: string;
   frist: number | null;
@@ -72,7 +99,7 @@ export interface AbgleichErgebnis {
   ok: boolean;
   fehler: string | null;
   neueDateien: number;
-  neueAbgaben: NeueFrist[];
+  neueFristen: NeueFrist[];
   hinweise: string[];
 }
 
@@ -104,6 +131,7 @@ export class Uni {
       vault: VaultDienst;
       hub: LiveHub;
       klient?: MoodleKlient;
+      kalender?: KalenderQuelle;
       /** Pause zwischen Anfragen (schont den Moodle-Server) */
       pauseMs?: number;
       log?: (t: string) => void;
@@ -111,11 +139,11 @@ export class Uni {
   ) {}
 
   get verbunden() {
-    return !!this.o.klient;
+    return !!this.o.klient || !!this.o.kalender;
   }
 
   starten() {
-    if (!this.o.klient || this.zeitgeber) return;
+    if (!this.verbunden || this.zeitgeber) return;
     const planen = (ms: number) => {
       this.naechsterLauf = this.o.uhr.jetzt() + ms;
       this.zeitgeber = setTimeout(() => {
@@ -155,26 +183,26 @@ export class Uni {
     const start = uhr.jetzt();
     const id = Number(db.prepare('INSERT INTO moodle_abgleiche (start) VALUES (?)').run(start).lastInsertRowid);
     hub.senden({ typ: 'uni.geaendert' });
-    const e: AbgleichErgebnis = { ok: true, fehler: null, neueDateien: 0, neueAbgaben: [], hinweise: [] };
-    try {
-      if (!this.o.klient) throw new Error('Moodle ist nicht verbunden. Auf dem Server: dorf moodle-anmelden');
-      const info = await verbindungPruefen(this.o.klient);
-      if (info.fehlend.length) throw new Error(`Moodle erlaubt der App-Schnittstelle diese Funktionen nicht: ${info.fehlend.join(', ')}. Abgleich gestoppt.`);
-      for (const f of info.optionalFehlend) e.hinweise.push(`Moodle erlaubt ${f} nicht – dieser Teil fällt weg.`);
-
-      const kurse = await this.kurseAbgleichen(start);
-      for (const k of kurse) {
-        try {
-          await this.inhalteAbgleichen(k, e);
-        } catch (f) {
-          e.hinweise.push(`${k.name}: ${(f as Error).message}`);
-        }
+    const e: AbgleichErgebnis = { ok: true, fehler: null, neueDateien: 0, neueFristen: [], hinweise: [] };
+    const fehler: string[] = [];
+    if (!this.verbunden) fehler.push('Moodle ist nicht eingerichtet. Auf dem Server: dorf moodle-kalender');
+    if (this.o.klient) {
+      try {
+        await this.appAbgleichen(start, e);
+      } catch (f) {
+        fehler.push((f as Error).message);
       }
-      await this.aufgabenAbgleichen(kurse, start, e, !info.optionalFehlend.includes('mod_assign_get_submission_status'));
-      if (!info.optionalFehlend.includes('core_calendar_get_action_events_by_timesort')) await this.ereignisseAbgleichen(kurse, start, e);
-    } catch (f) {
+    }
+    if (this.o.kalender) {
+      try {
+        await this.kalenderAbgleichen(start, e);
+      } catch (f) {
+        fehler.push(`Kalender: ${(f as Error).message}`);
+      }
+    }
+    if (fehler.length) {
       e.ok = false;
-      e.fehler = (f as Error).message;
+      e.fehler = fehler.join(' · ');
       this.o.log?.(`Moodle-Abgleich: ${e.fehler}`);
     }
     db.prepare('UPDATE moodle_abgleiche SET ende = ?, ok = ?, fehler = ?, neue_dateien = ?, neue_abgaben = ?, hinweise = ? WHERE id = ?').run(
@@ -182,13 +210,63 @@ export class Uni {
       e.ok ? 1 : 0,
       e.fehler,
       e.neueDateien,
-      e.neueAbgaben.length,
+      e.neueFristen.length,
       e.hinweise.slice(0, 50).join('\n'),
       id,
     );
     hub.senden({ typ: 'uni.geaendert' });
     for (const fn of this.beiAbgleich) await Promise.resolve(fn(e)).catch((f) => this.o.log?.(`Moodle-Meldung: ${(f as Error).message}`));
     return e;
+  }
+
+  /** Weg über die Moodle-App-Schnittstelle (an der JKU gesperrt – bleibt für den Fall, dass sie freigeschaltet wird) */
+  private async appAbgleichen(start: number, e: AbgleichErgebnis) {
+    const info = await verbindungPruefen(this.o.klient!);
+    if (info.fehlend.length) throw new Error(`Moodle erlaubt der App-Schnittstelle diese Funktionen nicht: ${info.fehlend.join(', ')}. Abgleich gestoppt.`);
+    for (const f of info.optionalFehlend) e.hinweise.push(`Moodle erlaubt ${f} nicht – dieser Teil fällt weg.`);
+    const kurse = await this.kurseAbgleichen(start);
+    for (const k of kurse) {
+      try {
+        await this.inhalteAbgleichen(k, e);
+      } catch (f) {
+        e.hinweise.push(`${k.name}: ${(f as Error).message}`);
+      }
+    }
+    await this.aufgabenAbgleichen(kurse, start, e, !info.optionalFehlend.includes('mod_assign_get_submission_status'));
+    if (!info.optionalFehlend.includes('core_calendar_get_action_events_by_timesort')) await this.ereignisseAbgleichen(kurse, start, e);
+  }
+
+  // ---- Kalender-Export (iCal) – der Weg an der JKU -----------------------------------------------
+
+  private async kalenderAbgleichen(start: number, e: AbgleichErgebnis) {
+    const { db } = this.o;
+    const termine = icsLesen(await this.o.kalender!.laden());
+    const gesehen = new Set<string>();
+    for (const t of termine) {
+      const id = `ical:${hash(t.uid).slice(0, 32)}`;
+      if (gesehen.has(id)) continue;
+      gesehen.add(id);
+      const art = terminArt(t.titel);
+      const alt = db.prepare('SELECT 1 FROM moodle_fristen WHERE id = ?').get(id);
+      // „erledigt“ (abgegeben) setzt Leif selbst – ein neuer Abgleich ändert das nicht
+      db.prepare(
+        `INSERT INTO moodle_fristen (id, kurs_id, kurs, titel, art, frist, url, pfad, abgegeben, gesehen) VALUES (?, NULL, ?, ?, ?, ?, ?, NULL, 0, ?)
+         ON CONFLICT(id) DO UPDATE SET kurs = excluded.kurs, titel = excluded.titel, art = excluded.art, frist = excluded.frist, url = excluded.url, gesehen = excluded.gesehen`,
+      ).run(id, t.kategorie, t.titel, art, t.start, /^https:\/\//.test(t.url) ? ohneToken(t.url) : '', start);
+      // gemeldet wird nur, was noch bevorsteht (der Export enthält auch Vergangenes)
+      if (!alt && (t.start == null || t.start > this.o.uhr.jetzt())) e.neueFristen.push({ art, titel: t.titel, kurs: t.kategorie, frist: t.start });
+    }
+    // Was nicht mehr im Export steht (verschoben, gelöscht, außerhalb des Zeitraums), fällt aus der Liste
+    const alle = db.prepare("SELECT id FROM moodle_fristen WHERE id LIKE 'ical:%'").all() as { id: string }[];
+    const weg = db.prepare('DELETE FROM moodle_fristen WHERE id = ?');
+    for (const z of alle) if (!gesehen.has(z.id)) weg.run(z.id);
+  }
+
+  /** Leif hakt eine Frist ab (oder wieder auf) */
+  erledigtSetzen(id: string, erledigt: boolean) {
+    const r = this.o.db.prepare('UPDATE moodle_fristen SET abgegeben = ? WHERE id = ?').run(erledigt ? 1 : 0, id);
+    if (r.changes !== 1) throw new Error('Frist nicht gefunden.');
+    this.o.hub.senden({ typ: 'uni.geaendert' });
   }
 
   // ---- Kurse ---------------------------------------------------------------------------------------
@@ -339,7 +417,7 @@ export class Uni {
           `INSERT INTO moodle_fristen (id, kurs_id, kurs, titel, art, frist, url, pfad, abgegeben, gesehen) VALUES (?, ?, ?, ?, 'abgabe', ?, ?, ?, ?, ?)
            ON CONFLICT(id) DO UPDATE SET kurs = excluded.kurs, titel = excluded.titel, frist = excluded.frist, url = excluded.url, abgegeben = excluded.abgegeben, gesehen = excluded.gesehen`,
         ).run(fid, k.id, k.name, a.name, frist, url, ordner, abgegeben ? 1 : 0, start);
-        if (!alt) e.neueAbgaben.push({ titel: a.name, kurs: k.name, frist });
+        if (!alt) e.neueFristen.push({ art: 'abgabe', titel: a.name, kurs: k.name, frist });
 
         const anhaenge: string[] = [];
         for (const d of a.introattachments ?? []) {
@@ -437,9 +515,74 @@ export class Uni {
       ok: a.ok == null ? null : a.ok === 1,
       fehler: a.fehler,
       neueDateien: a.neue_dateien,
-      neueAbgaben: a.neue_abgaben,
+      neueFristen: a.neue_abgaben,
       hinweise: a.hinweise ? a.hinweise.split('\n') : [],
     };
+  }
+
+  /** Fächer = Ordner unter Uni/faecher/ (selbst angelegt oder aus Moodle); Anzeigename aus Moodle, wenn bekannt */
+  faecher(): UniFach[] {
+    const wurzel = this.o.vault.abs(UNI_FAECHER);
+    const eintraege = fs.existsSync(wurzel) ? fs.readdirSync(wurzel, { withFileTypes: true }) : [];
+    const moodle = new Map(this.kurse(false).map((k) => [k.ordner, k]));
+    return eintraege
+      .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
+      .map((d) => {
+        const ordner = `${UNI_FAECHER}/${d.name}`;
+        const k = moodle.get(ordner);
+        return { name: d.name, titel: k?.name ?? d.name, ordner, moodleUrl: k?.url ?? null };
+      })
+      .sort((a, b) => a.titel.localeCompare(b.titel, 'de'));
+  }
+
+  /**
+   * Offene Abgaben = Unterordner oder PDFs in Uni/faecher/<Fach>/aufgaben/ (neueste zuerst).
+   * Nicht angeboten: Ordner „erledigt“/„abgegeben“ und was Moodle als abgegeben meldet.
+   */
+  abgaben(): { wert: string; titel: string; fach: string; frist: number | null; geaendert: number }[] {
+    const ausMoodle = new Map(
+      (this.o.db.prepare('SELECT pfad, titel, frist, abgegeben FROM moodle_fristen WHERE pfad IS NOT NULL').all() as { pfad: string; titel: string; frist: number | null; abgegeben: number }[]).map(
+        (z) => [z.pfad, z],
+      ),
+    );
+    const aus: { wert: string; titel: string; fach: string; frist: number | null; geaendert: number }[] = [];
+    for (const f of this.faecher()) {
+      const ordner = this.o.vault.abs(`${f.ordner}/aufgaben`);
+      if (!fs.existsSync(ordner)) continue;
+      for (const d of fs.readdirSync(ordner, { withFileTypes: true })) {
+        if (d.name.startsWith('.') || /^(erledigt|abgegeben)$/i.test(d.name)) continue;
+        if (!d.isDirectory() && !(d.isFile() && /\.pdf$/i.test(d.name))) continue;
+        const pfad = `${f.ordner}/aufgaben/${d.name}`;
+        const m = ausMoodle.get(pfad);
+        if (m?.abgegeben) continue;
+        aus.push({
+          wert: `${f.name}/aufgaben/${d.name}`,
+          titel: m?.titel ?? d.name.replace(/\.pdf$/i, ''),
+          fach: f.titel,
+          frist: m?.frist ?? null,
+          geaendert: fs.statSync(this.o.vault.abs(pfad)).mtimeMs,
+        });
+      }
+    }
+    return aus.sort((a, b) => b.geaendert - a.geaendert).slice(0, 60);
+  }
+
+  /** Neues Fach mit den üblichen Unterordnern anlegen */
+  async fachAnlegen(nameRoh: string) {
+    const name = dateinameBereinigen(kurz(nameRoh.trim(), 60)).replace(/[.\s]+$/, '');
+    if (!name) throw new Error('Name fehlt.');
+    const ordner = `${UNI_FAECHER}/${name}`;
+    if (await this.o.vault.existiert(ordner)) throw new Error(`Das Fach „${name}“ gibt es schon.`);
+    await this.o.vault.schreiben(
+      `${ordner}/kurs.md`,
+      matter.stringify(`\n# ${nameRoh.trim()}\n\n- \`folien/\` – Vorlesungsfolien\n- \`altklausuren/\` – Altklausuren und Notizen\n- \`aufgaben/\` – je Übungsblatt ein Ordner (oder direkt das PDF); Erledigtes nach \`aufgaben/erledigt/\`\n`, {
+        titel: nameRoh.trim(),
+      }),
+      { nurNeu: true },
+    );
+    for (const u of ['folien', 'altklausuren', 'aufgaben']) await this.o.vault.ordnerAnlegen(`${ordner}/${u}`);
+    this.o.hub.senden({ typ: 'uni.geaendert' });
+    return ordner;
   }
 
   /**
@@ -447,24 +590,21 @@ export class Uni {
    * Beim Start einer Aktion wird gegen genau diese Liste geprüft – andere Werte kommen nicht in den Prompt.
    */
   quelle(q: AktionQuelle): QuellenOption[] {
-    const relativ = (p: string) => p.slice(UNI_FAECHER.length + 1);
-    if (q === 'uni.faecher') return this.kurse().map((k) => ({ wert: relativ(k.ordner), beschriftung: k.name }));
-    return this.fristen()
-      .filter((f) => f.art === 'abgabe' && f.pfad && !f.abgegeben)
-      .map((f) => ({
-        wert: relativ(f.pfad!),
-        beschriftung: `${f.titel} – ${f.kurs} (${f.frist ? `Frist ${fristText(Date.parse(f.frist))}` : 'ohne Frist'})`,
-      }));
+    if (q === 'uni.faecher') return this.faecher().map((f) => ({ wert: f.name, beschriftung: f.titel }));
+    return this.abgaben().map((a) => ({ wert: a.wert, beschriftung: `${a.titel} – ${a.fach}${a.frist ? ` (Frist ${fristText(a.frist)})` : ''}` }));
   }
 
   uebersicht(): UniUebersicht {
     return {
       verbunden: this.verbunden,
+      kalender: !!this.o.kalender,
+      appZugang: !!this.o.klient,
       moodleUrl: this.o.klient?.basis ?? null,
       laeuft: this.laeuft,
       letzter: this.letzterAbgleich(),
       naechster: this.naechsterLauf == null ? null : new Date(this.naechsterLauf).toISOString(),
       kurse: this.kurse(),
+      faecher: this.faecher(),
       fristen: this.fristen(),
     };
   }

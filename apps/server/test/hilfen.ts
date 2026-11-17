@@ -9,6 +9,7 @@ import type { Motor } from '../src/agenten/motor.js';
 import type { WerkzeugRegister } from '../src/agenten/register.js';
 import type { TelegramSchnittstelle } from '../src/telegram/api.js';
 import type { MoodleKlient } from '../src/uni/moodle.js';
+import type { KalenderQuelle } from '../src/uni/abgleich.js';
 
 export const ORIGIN = 'https://dorf.test';
 
@@ -23,6 +24,7 @@ export async function testDorf(
     env?: Record<string, string>;
     telegram?: TelegramSchnittstelle;
     moodle?: MoodleKlient;
+    kalender?: KalenderQuelle;
   } = {},
 ) {
   const daten = tempOrdner();
@@ -41,6 +43,7 @@ export async function testDorf(
     motoren: opt.motoren ?? { api: attrappe('api'), 'claude-code': attrappe('claude-code') },
     telegram: opt.telegram,
     moodle: opt.moodle,
+    kalender: opt.kalender,
   });
   return { ...d, uhr, konfig, daten };
 }

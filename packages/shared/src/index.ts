@@ -316,16 +316,28 @@ export interface UniAbgleich {
   ok: boolean | null;
   fehler: string | null;
   neueDateien: number;
-  neueAbgaben: number;
+  neueFristen: number;
   hinweise: string[];
 }
 
+/** Ein Fach = Ordner unter Uni/faecher/ (selbst angelegt oder aus Moodle) */
+export interface UniFach {
+  name: string; // Ordnername
+  titel: string; // Anzeigename (Moodle-Kursname, sonst Ordnername)
+  ordner: string; // Uni/faecher/<name>
+  moodleUrl: string | null;
+}
+
 export interface UniUebersicht {
+  /** irgendeine Quelle eingerichtet (Kalender-Export oder App-Zugang) */
   verbunden: boolean;
+  kalender: boolean;
+  appZugang: boolean;
   moodleUrl: string | null;
   laeuft: boolean;
   letzter: UniAbgleich | null;
   naechster: string | null;
   kurse: UniKurs[];
+  faecher: UniFach[];
   fristen: UniFrist[];
 }

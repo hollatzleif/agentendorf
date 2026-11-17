@@ -153,7 +153,7 @@ describe('Moodle-Abgleich', () => {
     expect(a.content).toContain('[[Uebung1.pdf]]');
     expect(a.content).toContain(`${m.basis}/mod/assign/view.php?id=106`);
     expect(fs.readFileSync(d.vault.abs(`${F}/aufgaben/Uebung 1/Uebung1.pdf`), 'utf8')).toBe('%PDF uebung');
-    expect(e.neueAbgaben.map((x) => x.titel).sort()).toEqual(['Projekt', 'Übung 0', 'Übung 1']);
+    expect(e.neueFristen.map((x) => x.titel).sort()).toEqual(['Projekt', 'Übung 0', 'Übung 1']);
 
     // Fristen sortiert; Quiz aus dem Kalender, Abgaben nicht doppelt, altes Semester nicht; ohne Frist zuletzt
     const f = d.uni.fristen();
@@ -167,7 +167,7 @@ describe('Moodle-Abgleich', () => {
 
     // Token nirgends im Vault
     for (const t of vaultTexte(d.vault.wurzel)) expect(t).not.toContain(TOKEN);
-    expect(d.uni.letzterAbgleich()).toMatchObject({ ok: true, neueDateien: 4, neueAbgaben: 3 });
+    expect(d.uni.letzterAbgleich()).toMatchObject({ ok: true, neueDateien: 4, neueFristen: 3 });
   });
 
   it('lädt beim zweiten Mal nichts neu, Geändertes schon; Leifs Änderungen bleiben (Konfliktkopie)', async () => {
@@ -176,7 +176,7 @@ describe('Moodle-Abgleich', () => {
     const vorher = m.s.downloads.length;
     const e2 = await d.uni.abgleichen();
     expect(m.s.downloads.length - vorher).toBe(1); // nur die kaputte Datei wird erneut versucht
-    expect(e2).toMatchObject({ neueDateien: 0, neueAbgaben: [] });
+    expect(e2).toMatchObject({ neueDateien: 0, neueFristen: [] });
 
     const F = 'Uni/faecher/Computational Data Analytics/folien/00 Allgemeines';
     // Moodle ändert den Syllabus, Leif hat seine Kopie bearbeitet → seine bleibt, neue als Konfliktkopie
@@ -254,8 +254,8 @@ describe('Moodle-Abgleich', () => {
     const { m, d } = await aufbau({ telegram: api, env: { TELEGRAM_CHAT_ID: '1' } });
     await d.uni.abgleichen();
     expect(texte).toHaveLength(1);
-    expect(texte[0]).toMatch(/🎓 <b>Neu in Moodle:<\/b> 4 Dateien, 3 Abgaben/);
-    expect(texte[0]).toContain('Übung 1 (Computational Data Analytics) – Frist');
+    expect(texte[0]).toMatch(/🎓 <b>Neu in Moodle:<\/b> 4 Dateien, 3 Fristen/);
+    expect(texte[0]).toContain('Übung 1 (Computational Data Analytics) – ');
     await d.uni.abgleichen();
     expect(texte).toHaveLength(1); // nichts Neues → keine Meldung
 

@@ -11,6 +11,12 @@ ATTRAPPEN=$(mktemp -d)
 # docker-Attrappe: "compose exec … moodle-token <url> <prüfwert>" prüft den Prüfwert und gibt ein Token aus
 cat > "$ATTRAPPEN/docker" <<'DOCKER'
 #!/usr/bin/env bash
+if [[ " $* " == *" moodle-kalender-pruefen "* ]]; then
+  url=$(cat)
+  [[ "$url" == *authtoken=GUT* ]] || { echo "Kalender-Export antwortet mit HTTP 403" >&2; exit 1; }
+  echo "Kalender gelesen: 3 Termine" >&2
+  exit 0
+fi
 if [[ " $* " == *" moodle-token "* ]]; then
   adresse=$(cat)
   passport=${*: -1}
@@ -36,6 +42,22 @@ cmp -s "$BASIS/.env" "$BASIS/env.vorher" || fehler ".env nach Ablehnung verände
 if printf '\n' | dorf moodle-anmelden >/dev/null 2>&1; then fehler "leere Eingabe angenommen"; fi
 if dorf moodle-anmelden 'http://moodle.example' </dev/null >/dev/null 2>&1; then fehler "http-Adresse angenommen"; fi
 echo "Ablehnungen ändern nichts: bestanden"
+
+# Kalender-Adresse
+K='https://moodle.jku.at/calendar/export_execute.php?userid=4711&authtoken=GUT123&preset_what=all&preset_time=recentupcoming'
+aus=$(printf '%s\n' "$K" | dorf moodle-kalender 2>&1) || fehler "moodle-kalender endet mit Fehler: $aus"
+grep -qxF "MOODLE_KALENDER_URL=$K" "$BASIS/.env" || fehler "MOODLE_KALENDER_URL nicht gespeichert"
+grep -qF 'GUT123' <<<"$aus" && fehler "Kalender-Adresse wurde ausgegeben"
+cp "$BASIS/.env" "$BASIS/env.vorher"
+for falsch in 'https://moodle.jku.at/calendar/export_execute.php?userid=1&authtoken=SCHLECHT' \
+              'http://moodle.jku.at/calendar/export_execute.php?userid=1&authtoken=GUT1' \
+              'https://moodle.jku.at/calendar/export.php?authtoken=GUT1' \
+              'https://moodle.jku.at/calendar/export_execute.php?userid=1' \
+              'https://moodle.jku.at/calendar/export_execute.php?userid=1&authtoken=GUT1;rm -rf /'; do
+  if printf '%s\n' "$falsch" | dorf moodle-kalender >/dev/null 2>&1; then fehler "falsche Kalender-Adresse angenommen: $falsch"; fi
+done
+cmp -s "$BASIS/.env" "$BASIS/env.vorher" || fehler ".env nach abgelehnter Kalender-Adresse verändert"
+echo "Kalender-Adresse eintragen und prüfen: bestanden"
 
 # Unerwartete Fehler werden benannt statt still zu enden (rollback ohne Versionen: ls schlägt fehl)
 if aus=$(dorf rollback 2>&1 </dev/null); then fehler "rollback ohne Versionen gelang"; fi

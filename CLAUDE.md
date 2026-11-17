@@ -27,9 +27,10 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
                        den Bürgermeister sofort, Notizen aus Obsidian/von Agenten werden nur aufgenommen
   src/telegram/   eigener Bot ohne Bibliothek (fetch, Long Polling): nur EIN gekoppelter Chat, signierte Knöpfe (HMAC) über
                   freigaben.entscheiden, Meldungen schaltbar in 00_Stadtordnung/telegram.md, Weitergeleitetes = Fremdinhalt
-  src/uni/        Etappe 3: moodle.ts (REST-Client wie die Moodle-App, Token-Prüfung der launch.php-Adresse),
-                  abgleich.ts (Kurse/Folien/Abgaben/Fristen ohne Modell, alle 3 h, Konfliktkopie statt Überschreiben,
-                  Auswahlen uni.faecher/uni.abgaben), text.ts (Moodle-HTML → Markdown, Fristen in Linzer Zeit)
+  src/uni/        Etappe 3 (E41): JKU sperrt den Moodle-App-Zugang → Fristen über den Kalender-Export (ical.ts, alle 3 h),
+                  Fächer/Abgaben = Leifs Ordner unter Uni/faecher/ (abgleich.ts: faecher(), abgaben(), fachAnlegen()).
+                  Der App-Weg (moodle.ts, appAbgleichen) bleibt im Code, falls die JKU ihn freischaltet.
+                  text.ts: Moodle-HTML → Markdown, Fristen in Linzer Zeit
   src/intern.ts   interner Port 3001 (nur Docker-Netz): Werkzeugaufrufe der Werkstatt per Lauf-Token
   src/live.ts     WebSocket-Hub: Ereignisse an alle Geräte
   src/cli.ts      Verwaltung (passwort, totp-aus, sitzungen-beenden, db-sichern, vault-ergaenzen)
@@ -52,7 +53,7 @@ deploy          compose.yml, Caddyfile, dorf (Server-Verwaltung), bootstrap.sh (
 - Ein Gebäude = Ordner auf oberster Ebene mit `gebaeude.md` (Frontmatter per Zod geprüft; Fehler werden angezeigt, nicht verschluckt).
 - Schreibende Anfragen und WebSocket brauchen passende `Origin` (CSRF-Schutz) und ein gültiges Sitzungs-Cookie (`HttpOnly`, `Secure`, `SameSite=Strict`).
 - Rohdateien aus dem Vault werden mit `Content-Security-Policy: sandbox` ausgeliefert, HTML/SVG nur als Download (Vault-Inhalte können aus fremden Quellen stammen). Anzeigen lässt sich `.html` nur über `/api/vault/seite`: Skripte ja, aber undurchsichtiger Ursprung und kein Netz (E36).
-- Geheimnisse nur auf dem Server – nie im Repo, nie im Vault: `/srv/dorf/.env` (Dorf: ANTHROPIC_API_KEY, WERKSTATT_GEHEIMNIS, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, MOODLE_URL, MOODLE_TOKEN, RECHENRAUM_GEHEIMNIS), `/srv/dorf/rechenraum.env` (nur RECHENRAUM_GEHEIMNIS) und `/srv/dorf/werkstatt.env` (Werkstatt: CLAUDE_CODE_OAUTH_TOKEN, WERKSTATT_GEHEIMNIS). Der API-Schlüssel erreicht die Werkstatt nie, das Abo-Token das Dorf nie.
+- Geheimnisse nur auf dem Server – nie im Repo, nie im Vault: `/srv/dorf/.env` (Dorf: ANTHROPIC_API_KEY, WERKSTATT_GEHEIMNIS, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, MOODLE_KALENDER_URL, MOODLE_URL, MOODLE_TOKEN, RECHENRAUM_GEHEIMNIS), `/srv/dorf/rechenraum.env` (nur RECHENRAUM_GEHEIMNIS) und `/srv/dorf/werkstatt.env` (Werkstatt: CLAUDE_CODE_OAUTH_TOKEN, WERKSTATT_GEHEIMNIS). Der API-Schlüssel erreicht die Werkstatt nie, das Abo-Token das Dorf nie.
 - **Die Leine sitzt im Code** (`agenten/leine.ts`, `werkzeuge.ts`, Werkstatt-Argumente): Agenten haben kein eingebautes Schreiben/Shell, Außenwirkung nur über `freigabe_beantragen`, Ausführung erst nach Leifs Klick (`freigaben.ts`). Zeitgesteuerte Läufe laufen immer über `api`; Notschalter `alle_auf` übersteuert alles.
 - api-Verlauf wird **nur angehängt**, Antworten unverändert zurückgeschickt (Opus 5.5/Fable 5.2 prüfen das).
 
@@ -79,6 +80,7 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 ## Konventionen
 
 - Deutsche Bezeichner (`vaultDienst`, `schreiben`, `Gebaeude`), Umlaute nur in Texten/Kommentaren, nicht in Bezeichnern oder Dateinamen.
+- Vorlagendateien im Vault aktualisiert das Dorf nur, wenn sie byte-genau einer früheren Vorlagenfassung entsprechen (Hash in `dorf.ts` eintragen, wenn sich eine Vorlage ändert, die schon ausgeliefert wurde).
 - Neue Dateinamen im Vault: ASCII (`dateinameBereinigen`), Agenten-Schema `JJJJ-MM-TT_HHMM_kurztitel.md`.
 - DB-Migrationen nur anhängen (`src/db.ts`, `MIGRATIONEN`), nie bestehende ändern.
 - Tests sind Pflicht für alles, was Daten verändert oder nach außen wirkt (Leine, Freigaben, Vault-Regeln, Backup). Zeit in Tests über `TestUhr`.
@@ -90,7 +92,7 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] Etappe 1 – Fundament (Code fertig und getestet; Deploy auf den Server steht aus, siehe EINRICHTUNG.md)
 - [x] Etappe 2a – Agenten-Kern (Code fertig und getestet; echte Läufe beider Motoren erst auf dem Server)
 - [x] Etappe 2b – Bürgermeister + Telegram (Code fertig und getestet; Abnahme mit echtem Bot auf dem Server steht aus)
-- [x] Etappe 3 – Uni (Code fertig und getestet; Moodle-Anmeldung und echte Läufe erst auf dem Server)
+- [x] Etappe 3 – Uni (Code fertig und getestet; Kalender-Export und echte Läufe von Lernen/Abgabe auf dem Server abzunehmen)
 - [ ] Etappe 4 – Post, Kalender, To-dos, Aufwachen, Morgenzeitung
 - [ ] Etappe 5 – Dorf (Isometrie)
 - [ ] Etappe 6 – Programme (Tauri)

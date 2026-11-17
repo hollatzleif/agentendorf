@@ -93,14 +93,14 @@ export class TelegramBot {
       return;
     }
     this.letzterMoodleFehler = null;
-    if (!k.moodle || (!e.neueDateien && !e.neueAbgaben.length)) return;
+    if (!k.moodle || (!e.neueDateien && !e.neueFristen.length)) return;
     const teile = [
       e.neueDateien ? `${e.neueDateien} ${e.neueDateien === 1 ? 'Datei' : 'Dateien'}` : '',
-      e.neueAbgaben.length ? `${e.neueAbgaben.length} ${e.neueAbgaben.length === 1 ? 'Abgabe' : 'Abgaben'}` : '',
+      e.neueFristen.length ? `${e.neueFristen.length} ${e.neueFristen.length === 1 ? 'Frist' : 'Fristen'}` : '',
     ].filter(Boolean);
-    const abgaben = e.neueAbgaben
+    const abgaben = e.neueFristen
       .slice(0, 8)
-      .map((a) => `• ${h(a.titel)} (${h(a.kurs)}) – ${a.frist == null ? 'ohne Frist' : `Frist ${h(fristText(a.frist))}`}`)
+      .map((a) => `• ${h(a.titel)}${a.kurs ? ` (${h(a.kurs)})` : ''} – ${a.frist == null ? 'ohne Frist' : h(fristText(a.frist))}`)
       .join('\n');
     await this.senden(`🎓 <b>Neu in Moodle:</b> ${teile.join(', ')}${abgaben ? `\n${abgaben}` : ''}\n<a href="${this.link('/gebaeude/Uni')}">Zur Uni</a>`);
   }

@@ -24,6 +24,7 @@ export function UniUebersicht() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['uni'], queryFn: () => api<Daten>('/api/uni'), refetchInterval: (x) => (x.state.data?.laeuft ? 3000 : 60_000) });
   const [fehler, setFehler] = useState('');
+  const [neuesFach, setNeuesFach] = useState('');
   if (!q.data) return <p className="leise">Lade …</p>;
   const u = q.data;
   const l = u.letzter;
@@ -38,11 +39,36 @@ export function UniUebersicht() {
     }
   };
 
+  const erledigt = async (id: string, wert: boolean) => {
+    setFehler('');
+    // sofort umschalten, der Server bestätigt danach (bei Fehler holt invalidate den echten Stand)
+    qc.setQueryData<Daten>(['uni'], (alt) => (alt ? { ...alt, fristen: alt.fristen.map((f) => (f.id === id ? { ...f, abgegeben: wert } : f)) } : alt));
+    try {
+      await api('/api/uni/fristen/erledigt', { body: { id, erledigt: wert } });
+    } catch (e) {
+      setFehler(e instanceof ApiFehler ? e.message : String(e));
+    }
+    await qc.invalidateQueries({ queryKey: ['uni'] });
+  };
+
+  const fachAnlegen = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFehler('');
+    try {
+      await api('/api/uni/fach', { body: { name: neuesFach } });
+      setNeuesFach('');
+      await qc.invalidateQueries({ queryKey: ['uni'] });
+      await qc.invalidateQueries({ queryKey: ['aktion-quellen'] });
+    } catch (err) {
+      setFehler(err instanceof ApiFehler ? err.message : String(err));
+    }
+  };
+
   return (
     <div className="uni">
       <h2>Fristen</h2>
       {u.fristen.length === 0 ? (
-        <p className="leise">{u.verbunden ? 'Keine offenen Fristen.' : 'Noch keine Daten aus Moodle.'}</p>
+        <p className="leise">{u.verbunden ? 'Keine Fristen in den nächsten Wochen.' : 'Noch keine Fristen – siehe „Moodle“ unten.'}</p>
       ) : (
         <table className="tabelle fristen">
           <thead>
@@ -82,7 +108,11 @@ export function UniUebersicht() {
                     )}
                   </td>
                   <td>{f.kurs}</td>
-                  <td>{f.abgegeben ? '✅ abgegeben' : f.art === 'abgabe' ? 'offen' : ''}</td>
+                  <td>
+                    <label className="haken">
+                      <input type="checkbox" checked={f.abgegeben} onChange={(x) => void erledigt(f.id, x.target.checked)} /> erledigt
+                    </label>
+                  </td>
                 </tr>
               );
             })}
@@ -91,37 +121,54 @@ export function UniUebersicht() {
       )}
 
       <h2>Fächer</h2>
-      {u.kurse.length === 0 ? (
-        <p className="leise">Noch keine Kurse.</p>
+      {u.faecher.length === 0 ? (
+        <p className="leise">Noch keine Fächer. Leg unten eins an – dann Folien, Altklausuren und Übungsblätter hineinlegen.</p>
       ) : (
         <ul className="ordnerliste">
-          {u.kurse.map((k) => (
-            <li key={k.id}>
-              <a href={bibliothekUrl(k.ordner)} onClick={linkKlick}>
-                📁 {k.name}
+          {u.faecher.map((f) => (
+            <li key={f.name}>
+              <a href={bibliothekUrl(f.ordner)} onClick={linkKlick}>
+                📁 {f.titel}
               </a>
-              {' · '}
-              <a href={k.url} target="_blank" rel="noopener noreferrer">
-                Moodle
-              </a>
+              {f.moodleUrl && (
+                <>
+                  {' · '}
+                  <a href={f.moodleUrl} target="_blank" rel="noopener noreferrer">
+                    Moodle
+                  </a>
+                </>
+              )}
             </li>
           ))}
         </ul>
       )}
+      <form className="zeile" onSubmit={fachAnlegen}>
+        <input value={neuesFach} onChange={(x) => setNeuesFach(x.target.value)} placeholder="z. B. Computational Data Analytics" aria-label="Neues Fach" required />
+        <button type="submit">Fach anlegen</button>
+      </form>
+      <p className="leise">
+        Je Fach: <code>folien/</code>, <code>altklausuren/</code>, <code>aufgaben/</code> (je Übungsblatt ein Ordner oder direkt das PDF; Erledigtes nach{' '}
+        <code>aufgaben/erledigt/</code>). Hochladen in der Bibliothek oder per Obsidian.
+      </p>
 
       <h2>Moodle</h2>
       {!u.verbunden ? (
         <p>
-          Nicht verbunden. Auf dem Server: <code>dorf moodle-anmelden</code>
+          Fristen aus Moodle sind noch nicht eingerichtet. In Moodle: Kalender → Exportieren → Kalender-URL abrufen. Dann auf dem Server:{' '}
+          <code>dorf moodle-kalender</code>
         </p>
       ) : (
         <>
           <p>
-            Verbunden mit {u.moodleUrl}.{' '}
+            {u.kalender ? 'Fristen kommen aus deinem Moodle-Kalender.' : `Verbunden mit ${u.moodleUrl}.`}{' '}
             {l ? (
               <>
                 Letzter Abgleich: {zeitText(l.start)}
-                {l.ok === null ? ' – läuft …' : l.ok ? ` – ${l.neueDateien} ${l.neueDateien === 1 ? 'neue Datei' : 'neue Dateien'}, ${l.neueAbgaben} ${l.neueAbgaben === 1 ? 'neue Abgabe' : 'neue Abgaben'}.` : ''}
+                {l.ok === null
+                  ? ' – läuft …'
+                  : l.ok
+                    ? ` – ${u.appZugang ? `${l.neueDateien} ${l.neueDateien === 1 ? 'neue Datei' : 'neue Dateien'}, ` : ''}${l.neueFristen} ${l.neueFristen === 1 ? 'neue Frist' : 'neue Fristen'}.`
+                    : ''}
               </>
             ) : (
               'Noch kein Abgleich.'
@@ -142,9 +189,9 @@ export function UniUebersicht() {
           <button onClick={() => void abgleichen()} disabled={u.laeuft}>
             {u.laeuft ? 'Abgleich läuft …' : 'Jetzt abgleichen'}
           </button>
-          {fehler && <p className="fehler">{fehler}</p>}
         </>
       )}
+      {fehler && <p className="fehler">{fehler}</p>}
     </div>
   );
 }
