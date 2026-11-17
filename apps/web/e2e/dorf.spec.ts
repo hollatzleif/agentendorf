@@ -215,3 +215,22 @@ fetch('/api/ich').then(() => s('d', 'Netz offen!'), () => s('d', 'Netz blockiert
   await expect(rahmen.locator('#d')).toHaveText('Netz blockiert');
   await expect(page.getByRole('link', { name: 'Vollbild' })).toHaveAttribute('target', '_blank');
 });
+
+test('Etappe 4: Morgenzeitung drucken, Bürgermeister wecken, Post ohne Gmail', async ({ page }) => {
+  await anmelden(page);
+  await page.goto('/gebaeude/Rathaus?reiter=morgenzeitung');
+  await page.getByRole('button', { name: /Jetzt neu erstellen/ }).click();
+  await expect(page.getByRole('heading', { name: /Morgenzeitung –/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Fristen (7 Tage)' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Wartet auf dich' })).toBeVisible();
+  await expect(page.getByText(/Erscheint jeden Morgen um 06:30/)).toBeVisible();
+
+  await page.goto('/gebaeude/Rathaus?reiter=schreibtisch');
+  await expect(page.getByText(/wacht von selbst auf/)).toBeVisible();
+  await page.getByRole('button', { name: 'Jetzt aufwachen' }).click();
+  await expect(page.getByText(/^Aufgewacht:|Aufgewacht:/).first()).toBeVisible();
+
+  await page.goto('/gebaeude/Post');
+  await expect(page.getByText(/Gmail ist noch nicht verbunden/)).toBeVisible();
+  await expect(page.getByText('dorf gmail-anmelden')).toBeVisible();
+});

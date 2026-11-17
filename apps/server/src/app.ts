@@ -27,6 +27,7 @@ import type { TelegramBot } from './telegram/bot.js';
 import type { Uni } from './uni/abgleich.js';
 import type { Postbote } from './post/postbote.js';
 import type { Morgenzeitung } from './morgenzeitung.js';
+import type { Aufwachen } from './aufwachen.js';
 import { einstellungenLaden, einstellungenSetzen } from './telegram/einstellungen.js';
 
 export const COOKIE = 'dorf_sitzung';
@@ -52,6 +53,7 @@ export interface Abhaengigkeiten {
   uni: Uni;
   postbote: Postbote;
   morgenzeitung: Morgenzeitung;
+  aufwachen: Aufwachen;
 }
 
 /** Für Agenten-HTML: Skripte ja, aber undurchsichtiger Ursprung und kein Netz. Bilder/Schriften nur eingebettet (data:). */
@@ -408,6 +410,13 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
   // ---- Morgenzeitung (Etappe 4) --------------------------------------------------------------
   app.get('/api/morgenzeitung', async () => a.morgenzeitung.uebersicht());
   app.post('/api/morgenzeitung/erstellen', async () => ({ pfad: await a.morgenzeitung.erstellen() }));
+
+  // ---- Aufwachen des Bürgermeisters (Etappe 4) -----------------------------------------------
+  app.get('/api/aufwachen', async () => {
+    const z = a.aufwachen.naechsteZeit;
+    return { naechste: z == null ? null : new Date(z).toISOString(), anlaesse: a.aufwachen.anlaesse().map((x) => x.zeile) };
+  });
+  app.post('/api/aufwachen/jetzt', async () => a.aufwachen.aufwachen());
 
   // ---- Live-Verbindung ------------------------------------------------------------------------
   app.get('/api/live', { websocket: true }, (socket, req) => {

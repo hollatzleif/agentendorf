@@ -124,7 +124,7 @@ Die JKU sperrt den Zugang für die Moodle-App. Deshalb holt das Dorf nur die **T
    ```bash
    dorf google-kalender
    ```
-   Das Skript fragt beide Adressen nacheinander ab. Enter ohne Eingabe lässt einen Kalender unverändert. Vor dem Speichern lädt es jeden Kalender einmal zur Probe.
+   Das Skript fragt drei Adressen nacheinander ab: „Moodle-Fristen (automatisch)“, „JKU Pflicht“ und deinen **Hauptkalender**. Der Hauptkalender ist für die Morgenzeitung und wird nur gelesen, nie gespeichert. Enter ohne Eingabe lässt einen Kalender unverändert. Vor dem Speichern lädt das Skript jeden Kalender einmal zur Probe.
 3. In der App: **Uni → Studium → Jetzt abgleichen**. Danach geht es automatisch alle 3 Stunden. Angezeigt wird nur, was gerade läuft oder noch kommt (Pflichttermine der nächsten 7 Tage). Erledigtes hakst du in der Liste ab, oder du setzt wie gewohnt ein ✅ vor den Titel im Google-Kalender. Für nicht Abgehaktes erinnert dich der Telegram-Bot (3 Tage, 1 Tag und 3 Stunden vorher, danach fragt er nach), mit Knopf **✅ Erledigt**.
 
 > Dein Skript schickt weiterhin eigene Erinnerungsmails (8, 4 und 2 Stunden vorher). Willst du nur noch Telegram, setz im Skript `NAG_HOURS: []`. Ein Haken im Dorf landet nicht im Google-Kalender (die geheime Adresse ist nur lesbar).
@@ -158,6 +158,14 @@ Das Skript fragt nach Client-ID und Clientschlüssel und zeigt dann eine Google-
 Danach in der App: **Post → Eingang → Jetzt abholen**. Ab dann holt das Dorf alle 10 Minuten neue Mails ab, ordnet sie mit dem `api`-Motor (kleine Stufe) ein und hält sie knapp in `Post/eingang/` fest. Telegram-Meldungen zu Mails sind aus, solange du sie nicht unter **Rathaus → Agenten-Einstellungen → Telegram** einschaltest.
 
 Meldet das Dorf irgendwann „Google-Anmeldung abgelaufen oder widerrufen“, führst du `dorf gmail-anmelden` noch einmal aus. Passiert das jede Woche, steht das Projekt noch auf „Testing“.
+
+### Morgenzeitung und Aufwachen
+
+Beides läuft ohne Einrichtung, sobald das Dorf läuft:
+- **Morgenzeitung** jeden Morgen um 06:30: im Rathaus (Reiter „Morgenzeitung“, dort auch „Jetzt neu erstellen“), in `Rathaus/morgenzeitung/` und per Telegram.
+- **Aufwachen** des Bürgermeisters um 7, 9, …, 21 Uhr. Die KI kommt nur zum Einsatz, wenn es etwas Neues gibt. Zum Ausprobieren: Rathaus → Schreibtisch → „Jetzt aufwachen“.
+
+Für die Einleitung der Zeitung und das Einordnen der Mails braucht das Dorf den API-Schlüssel (`dorf api-schluessel`).
 
 ## 10. Vault auf Mac und PCs (Syncthing + Obsidian)
 

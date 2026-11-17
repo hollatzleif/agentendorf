@@ -43,7 +43,7 @@ export class Schreibtisch {
     return this.vault.hochladen(`${SCHREIBTISCH}/anhaenge/${dateiStempel(this.uhr.jetzt())}`, dateiname, strom);
   }
 
-  async anlegen(a: { text: string; quelle: 'app' | 'telegram'; fremd?: boolean; anhaenge?: string[] }): Promise<SchreibtischAufgabe> {
+  async anlegen(a: { text: string; quelle: 'app' | 'telegram' | 'aufwachen'; fremd?: boolean; anhaenge?: string[] }): Promise<SchreibtischAufgabe> {
     const text = a.text.trim();
     const anhaenge = a.anhaenge ?? [];
     if (!text && !anhaenge.length) throw new DorfFehler(400, 'Die Aufgabe ist leer.');

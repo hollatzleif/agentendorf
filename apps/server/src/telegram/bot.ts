@@ -483,6 +483,14 @@ export class TelegramBot {
       if (k.fehler) await this.senden(`❌ <b>Fehler</b>: ${h(c.titel)}\n${h((e.fehler ?? '').slice(0, 500))}\n${link}`, {}, c.id);
       return;
     }
+    // Von selbst aufgewacht und nichts getan → keine Meldung (Leif will nur hören, wenn etwas passiert ist)
+    if (c.rolle === 'buergermeister' && c.schreibtisch_id) {
+      const quelle = (this.o.db.prepare('SELECT quelle FROM schreibtisch WHERE id = ?').get(c.schreibtisch_id) as { quelle: string } | undefined)?.quelle;
+      const getan = this.o.db
+        .prepare("SELECT 1 FROM werkzeug_log WHERE lauf_id = ? AND erlaubt = 1 AND werkzeug IN ('helfer_starten', 'plan_vorlegen', 'vault_schreiben', 'freigabe_beantragen') LIMIT 1")
+        .get(e.laufId);
+      if (quelle === 'aufwachen' && !getan) return;
+    }
     // Wartet ein Plan auf Freigabe, kommt die Plan-Nachricht mit Knöpfen – keine zweite Meldung.
     if (c.rolle === 'buergermeister' && this.o.db.prepare("SELECT 1 FROM plaene WHERE chat_id = ? AND status = 'wartet'").get(c.id)) return;
     if (e.geschrieben.length && k.entwuerfe) {

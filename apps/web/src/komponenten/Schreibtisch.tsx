@@ -15,7 +15,44 @@ export const SCHREIBTISCH_STATUS: Record<SchreibtischStatus, string> = {
   abgelehnt: 'Plan abgelehnt',
   fehler: 'Fehler',
 };
-const QUELLE = { app: '💻', telegram: '📱', vault: '📝' } as const;
+const QUELLE = { app: '💻', telegram: '📱', vault: '📝', aufwachen: '⏰' } as const;
+
+const uhrzeit = new Intl.DateTimeFormat('de-AT', { timeZone: 'Europe/Vienna', weekday: 'short', hour: '2-digit', minute: '2-digit' });
+
+/** Wann der Bürgermeister von selbst aufwacht – und Knopf zum Ausprobieren */
+function AufwachZeile() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ['aufwachen'], queryFn: () => api<{ naechste: string | null; anlaesse: string[] }>('/api/aufwachen') });
+  const [laeuft, setLaeuft] = useState(false);
+  const [meldung, setMeldung] = useState('');
+  const wecken = async () => {
+    setLaeuft(true);
+    try {
+      const r = await api<{ gestartet: number; neu: number; lagebericht: string | null }>('/api/aufwachen/jetzt', { body: {} });
+      setMeldung(
+        r.gestartet || r.lagebericht
+          ? `Aufgewacht: ${r.gestartet} neue Aufgabe(n) angegangen${r.lagebericht ? ', Lagebericht erstellt' : ''}.`
+          : 'Aufgewacht: nichts Neues – keine KI-Runde.',
+      );
+      await qc.invalidateQueries({ queryKey: ['aufwachen'] });
+      await qc.invalidateQueries({ queryKey: ['schreibtisch'] });
+    } catch (e) {
+      setMeldung(e instanceof ApiFehler ? e.message : String(e));
+    } finally {
+      setLaeuft(false);
+    }
+  };
+  return (
+    <p className="leise aufwachen">
+      ⏰ Der Bürgermeister wacht von selbst auf (alle 2 Stunden, 7–21 Uhr){q.data?.naechste ? ` – nächstes Mal ${uhrzeit.format(new Date(q.data.naechste))}` : ''}.
+      {q.data && q.data.anlaesse.length > 0 && ` Gerade ${q.data.anlaesse.length} Anlass/Anlässe.`}{' '}
+      <button className="klein" onClick={() => void wecken()} disabled={laeuft}>
+        {laeuft ? 'Weckt …' : 'Jetzt aufwachen'}
+      </button>{' '}
+      {meldung}
+    </p>
+  );
+}
 
 /** Schreibtisch des Bürgermeisters: Aufgabe hinlegen (Text + Dateien), Liste mit Status. */
 export function Schreibtisch() {
@@ -49,6 +86,7 @@ export function Schreibtisch() {
 
   return (
     <div>
+      <AufwachZeile />
       <form className="formspalte breit" onSubmit={ablegen}>
         <label>
           Neue Aufgabe für den Bürgermeister

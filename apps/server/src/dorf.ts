@@ -27,6 +27,7 @@ import { gmailKlient, type GmailKlient } from './post/gmail.js';
 import { GoogleZugang } from './post/google-oauth.js';
 import { Terminkalender } from './kalender.js';
 import { Morgenzeitung } from './morgenzeitung.js';
+import { Aufwachen } from './aufwachen.js';
 
 /** Dateien, die das Dorf zum Arbeiten braucht: fehlen sie (z. B. Vault aus einer älteren Etappe), werden sie aus der Vorlage ergänzt – nie überschrieben. */
 const PFLICHT_DATEIEN = [
@@ -146,6 +147,7 @@ export async function dorfStarten(
   });
   agenten.post = gmail;
   const kalender = new Terminkalender(opt.google ? opt.google.termine : konfig.googleTermineIcs ? kalenderQuelle(konfig.googleTermineIcs) : undefined, () => uhr.jetzt());
+  const aufwachen = new Aufwachen({ db, uhr, hub, schreibtisch, buergermeister, freigaben: agenten.freigaben, uni, postbote, log: (t) => console.warn(t) });
   const morgenzeitung = new Morgenzeitung({ db, uhr, vault, hub, ki, freigaben: agenten.freigaben, schreibtisch, uni, postbote, kalender, log: (t) => console.warn(t) });
   let telegram: TelegramBot | undefined;
   if ((konfig.telegramToken || opt.telegram) && konfig.telegramChatId) {
@@ -171,11 +173,13 @@ export async function dorfStarten(
   if (!opt.moodle && !opt.kalender && !opt.google && opt.beobachten !== false) uni.starten();
   if (!opt.gmail && opt.beobachten !== false) postbote.starten();
   if (opt.beobachten !== false) morgenzeitung.starten();
-  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung });
+  if (opt.beobachten !== false) aufwachen.starten();
+  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen });
   app.addHook('onClose', async () => {
     uni.stoppen();
     postbote.stoppen();
     morgenzeitung.stoppen();
+    aufwachen.stoppen();
     telegram?.stoppen();
     await intern.close();
     await waechter?.close();
@@ -183,5 +187,5 @@ export async function dorfStarten(
     await agenten.ruhe();
     db.close();
   });
-  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung };
+  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen };
 }

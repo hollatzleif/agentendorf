@@ -239,7 +239,7 @@ export interface SchreibtischAufgabe {
   id: string;
   pfad: string;
   titel: string;
-  quelle: 'app' | 'telegram' | 'vault';
+  quelle: 'app' | 'telegram' | 'vault' | 'aufwachen';
   status: SchreibtischStatus;
   chatId?: string;
   planId?: string;
