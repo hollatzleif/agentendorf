@@ -286,6 +286,7 @@ export interface TelegramEinstellungen {
   beendet: boolean;
   mails: boolean;
   moodle: boolean;
+  erinnerungen: boolean;
 }
 
 // ---- Etappe 3: Uni -------------------------------------------------------------------------------

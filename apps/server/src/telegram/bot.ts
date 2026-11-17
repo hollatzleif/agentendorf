@@ -9,7 +9,7 @@ import type { Schreibtisch } from '../schreibtisch.js';
 import { DorfFehler } from '../fehler.js';
 import { MAX_DATEI, type TelegramSchnittstelle } from './api.js';
 import { einstellungenLaden } from './einstellungen.js';
-import type { AbgleichErgebnis, Uni } from '../uni/abgleich.js';
+import type { AbgleichErgebnis, FaelligeErinnerung, Uni } from '../uni/abgleich.js';
 import { fristText } from '../uni/text.js';
 
 /** HTML-sicher für Telegram (parse_mode HTML) */
@@ -116,15 +116,73 @@ export class TelegramBot {
 
   // ---- Polling --------------------------------------------------------------------------------
 
+  private erinnerungsTakt?: NodeJS.Timeout;
+
   starten() {
     if (this.laeuft) return;
     this.laeuft = true;
     void this.schleife();
+    // Erinnerungen an Fristen: alle 10 Minuten nachsehen (nur Datenbank, kein Netz außer Telegram)
+    this.erinnerungsTakt = setInterval(() => void this.erinnerungenSenden().catch((e) => this.fehler(e)), 10 * 60_000);
+    this.erinnerungsTakt.unref();
   }
 
   stoppen() {
     this.laeuft = false;
     this.abbruch?.abort();
+    if (this.erinnerungsTakt) clearInterval(this.erinnerungsTakt);
+  }
+
+  // ---- Erinnerungen an Fristen ------------------------------------------------------------------
+
+  erledigtSignatur(fristId: string) {
+    return crypto.createHmac('sha256', this.signaturSchluessel).update(`erledigt:${fristId}`).digest('base64url').slice(0, 16);
+  }
+
+  private erinnerungsText(e: Pick<FaelligeErinnerung, 'titel' | 'kurs' | 'art' | 'frist' | 'stufe'>) {
+    const was = e.art === 'test' ? 'Test' : 'Abgabe';
+    const kopf =
+      e.stufe === 'danach'
+        ? `❓ <b>Frist vorbei – erledigt?</b>`
+        : `⏰ <b>${was} in ${e.stufe === '3t' ? '3 Tagen' : e.stufe === '1t' ? '1 Tag' : 'wenigen Stunden'}</b>`;
+    return `${kopf}\n${h(e.titel)}${e.kurs ? ` (${h(e.kurs)})` : ''}\nFrist: ${h(fristText(e.frist))}`;
+  }
+
+  /** Schickt fällige Erinnerungen – jede genau einmal (erst nach erfolgreichem Senden vermerkt). */
+  async erinnerungenSenden() {
+    if (!this.o.uni || !(await einstellungenLaden(this.o.vault)).erinnerungen) return 0;
+    let n = 0;
+    for (const e of this.o.uni.faelligeErinnerungen()) {
+      await this.senden(`${this.erinnerungsText(e)}\n<a href="${this.link('/gebaeude/Uni')}">Zur Uni</a>`, {
+        reply_markup: { inline_keyboard: [[{ text: '✅ Erledigt', callback_data: `e:${e.id}:${this.erledigtSignatur(e.id)}` }]] },
+      });
+      this.o.uni.erinnerungGesendet(e);
+      n++;
+    }
+    return n;
+  }
+
+  private async erledigtKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {
+    const m = /^e:((?:ical:[0-9a-f]{32})|(?:assign|event):\d{1,12}):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
+    if (!m || !this.o.uni || !crypto.timingSafeEqual(Buffer.from(m[2]!), Buffer.from(this.erledigtSignatur(m[1]!)))) {
+      this.o.log?.('Telegram: Erledigt-Knopf mit ungültiger Signatur abgelehnt.');
+      return antworten('Ungültiger Knopf.');
+    }
+    try {
+      this.o.uni.erledigtSetzen(m[1]!, true);
+    } catch {
+      return antworten('Diese Frist gibt es nicht mehr.');
+    }
+    await antworten('Abgehakt.');
+    if (q.message)
+      await this.o.api
+        .aufruf('editMessageText', {
+          chat_id: q.message.chat.id,
+          message_id: q.message.message_id,
+          text: `${(q.message.text ?? '').split('\nZur Uni')[0]}\n\n✅ Erledigt`.slice(0, 4000),
+          link_preview_options: { is_disabled: true },
+        })
+        .catch(() => undefined);
   }
 
   private async schleife() {
@@ -232,6 +290,7 @@ export class TelegramBot {
   private async knopf(q: NonNullable<TgUpdate['callback_query']>) {
     const antworten = (text: string) => this.o.api.aufruf('answerCallbackQuery', { callback_query_id: q.id, text }).catch(() => undefined);
     if (!this.istLeif(q.from.id) && !this.istLeif(q.message?.chat.id)) return antworten('Nicht erlaubt.');
+    if (q.data?.startsWith('e:')) return this.erledigtKnopf(q, antworten);
     const m = /^f:([0-9a-f-]{36}):([jn]):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
     if (!m || !crypto.timingSafeEqual(Buffer.from(m[3]!), Buffer.from(this.signatur(m[1]!, m[2] as 'j' | 'n')))) {
       this.o.log?.('Telegram: Knopf mit ungültiger Signatur abgelehnt.');

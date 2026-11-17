@@ -211,6 +211,16 @@ const MIGRATIONEN: string[] = [
     hinweise TEXT NOT NULL DEFAULT ''
   );
   `,
+  // 5 – Etappe 3: Erinnerungen an Fristen (Telegram)
+  `
+  CREATE TABLE moodle_erinnerungen (
+    frist_id TEXT NOT NULL,
+    stufe TEXT NOT NULL,              -- 3t | 1t | 3h | danach
+    frist INTEGER NOT NULL,           -- Frist zum Zeitpunkt der Erinnerung (verschoben → neue Erinnerungen)
+    gesendet INTEGER NOT NULL,
+    PRIMARY KEY (frist_id, stufe, frist)
+  );
+  `,
 ];
 
 export function dbOeffnen(datei: string): DB {

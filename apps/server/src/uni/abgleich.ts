@@ -95,6 +95,28 @@ export interface NeueFrist {
   kurs: string;
   frist: number | null;
 }
+export type ErinnerungsStufe = '3t' | '1t' | '3h' | 'danach';
+const STUNDE = 3_600_000;
+/** Wann erinnert wird (relativ zur Frist). Reihenfolge = aufsteigende Dringlichkeit. */
+export const ERINNERUNG_STUFEN: { stufe: ErinnerungsStufe; ab: number; bis: number; arten: ('abgabe' | 'test')[] }[] = [
+  { stufe: '3t', ab: -72 * STUNDE, bis: 0, arten: ['abgabe'] },
+  { stufe: '1t', ab: -24 * STUNDE, bis: 0, arten: ['abgabe', 'test'] },
+  { stufe: '3h', ab: -3 * STUNDE, bis: 0, arten: ['abgabe', 'test'] },
+  // Nachfrage: eine Stunde nach der Frist, höchstens bis 7 Tage danach
+  { stufe: 'danach', ab: STUNDE, bis: 7 * 24 * STUNDE, arten: ['abgabe'] },
+];
+const ERINNERUNG_NACHFRAGE_BIS = 7 * 24 * STUNDE;
+
+export interface FaelligeErinnerung {
+  id: string;
+  titel: string;
+  kurs: string;
+  art: 'abgabe' | 'test';
+  frist: number;
+  stufe: ErinnerungsStufe;
+  alleStufen: ErinnerungsStufe[];
+}
+
 export interface AbgleichErgebnis {
   ok: boolean;
   fehler: string | null;
@@ -267,6 +289,42 @@ export class Uni {
     const r = this.o.db.prepare('UPDATE moodle_fristen SET abgegeben = ? WHERE id = ?').run(erledigt ? 1 : 0, id);
     if (r.changes !== 1) throw new Error('Frist nicht gefunden.');
     this.o.hub.senden({ typ: 'uni.geaendert' });
+  }
+
+  // ---- Erinnerungen (Telegram) --------------------------------------------------------------------
+
+  /**
+   * Fällige Erinnerungen für nicht abgehakte Fristen. Pro Frist höchstens EINE Nachricht: Sind mehrere Stufen
+   * gleichzeitig fällig (z. B. Frist taucht erst 2 Stunden vorher auf), zählt nur die dringendste – die anderen
+   * gelten mit `erinnerungGesendet` als erledigt.
+   */
+  faelligeErinnerungen(): FaelligeErinnerung[] {
+    const jetzt = this.o.uhr.jetzt();
+    const z = this.o.db
+      .prepare(
+        `SELECT f.* FROM moodle_fristen f LEFT JOIN moodle_kurse k ON k.id = f.kurs_id
+         WHERE f.abgegeben = 0 AND f.frist IS NOT NULL AND f.art IN ('abgabe', 'test') AND (f.kurs_id IS NULL OR k.aktiv = 1)
+           AND f.frist > ? AND f.frist < ?`,
+      )
+      .all(jetzt - ERINNERUNG_NACHFRAGE_BIS, jetzt + 4 * TAG) as { id: string; titel: string; kurs: string; art: 'abgabe' | 'test'; frist: number }[];
+    const gesendet = this.o.db.prepare('SELECT 1 FROM moodle_erinnerungen WHERE frist_id = ? AND stufe = ? AND frist = ?');
+    const aus: FaelligeErinnerung[] = [];
+    for (const f of z) {
+      const faellig = ERINNERUNG_STUFEN.filter((s) => s.arten.includes(f.art) && jetzt >= f.frist + s.ab && jetzt < f.frist + s.bis);
+      const offen = faellig.filter((s) => !gesendet.get(f.id, s.stufe, f.frist));
+      if (!offen.length) continue;
+      aus.push({ id: f.id, titel: f.titel, kurs: f.kurs, art: f.art, frist: f.frist, stufe: offen.at(-1)!.stufe, alleStufen: offen.map((s) => s.stufe) });
+    }
+    return aus.sort((a, b) => a.frist - b.frist);
+  }
+
+  erinnerungGesendet(e: FaelligeErinnerung) {
+    const ein = this.o.db.prepare('INSERT OR IGNORE INTO moodle_erinnerungen (frist_id, stufe, frist, gesendet) VALUES (?, ?, ?, ?)');
+    for (const s of e.alleStufen) ein.run(e.id, s, e.frist, this.o.uhr.jetzt());
+  }
+
+  frist(id: string) {
+    return this.fristen().find((f) => f.id === id) ?? null;
   }
 
   // ---- Kurse ---------------------------------------------------------------------------------------

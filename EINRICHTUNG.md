@@ -125,7 +125,7 @@ Die JKU sperrt den Zugang für die Moodle-App. Deshalb holt das Dorf nur die **F
    dorf moodle-kalender
    ```
    Adresse einfügen (die Eingabe bleibt unsichtbar). Das Skript lädt den Kalender einmal zur Probe und zeigt die nächsten Termine. Erst dann speichert es die Adresse in `/srv/dorf/.env`.
-3. In der App: **Uni → Studium → Jetzt abgleichen**. Danach geht es automatisch alle 3 Stunden. Erledigtes hakst du in der Liste ab.
+3. In der App: **Uni → Studium → Jetzt abgleichen**. Danach geht es automatisch alle 3 Stunden. Erledigtes hakst du in der Liste ab. Für alles, was nicht abgehakt ist, erinnert dich der Telegram-Bot (3 Tage, 1 Tag und 3 Stunden vorher, danach fragt er nach) – mit Knopf **✅ Erledigt**.
 
 **Fächer:** **Uni → Studium → Fach anlegen** legt `Uni/faecher/<Fach>/` mit `folien/`, `altklausuren/` und `aufgaben/` an. Dort hinein lädst du die Dateien hoch, in der Bibliothek oder per Obsidian:
 - Übungsblätter: je Blatt ein Ordner oder direkt das PDF in `aufgaben/`. Erledigte Blätter verschiebst du nach `aufgaben/erledigt/`, dann bietet „Abgabe bearbeiten“ sie nicht mehr an.

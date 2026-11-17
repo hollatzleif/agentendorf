@@ -120,6 +120,8 @@ export function UniUebersicht() {
         </table>
       )}
 
+      <p className="leise">Was nicht abgehakt ist, erinnert dich der Telegram-Bot: 3 Tage, 1 Tag und 3 Stunden vorher, danach fragt er nach – mit Knopf „Erledigt“.</p>
+
       <h2>Fächer</h2>
       {u.faecher.length === 0 ? (
         <p className="leise">Noch keine Fächer. Leg unten eins an – dann Folien, Altklausuren und Übungsblätter hineinlegen.</p>
