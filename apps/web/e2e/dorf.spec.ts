@@ -133,16 +133,22 @@ test('Schreibtisch: Aufgabe hinlegen, Plan freigeben, Helfer arbeiten, Aufgabe e
   await expect(page.getByRole('link', { name: 'Bürgermeisters', exact: true })).toBeVisible();
 });
 
-test('Uni: Fristen aus dem Moodle-Kalender, abhaken, Fach anlegen', async ({ page }, info) => {
+test('Uni: Fristen und Pflichttermine aus Google, abhaken, Fach anlegen', async ({ page }, info) => {
   await anmelden(page);
   await page.locator('.gebaeude-karte', { hasText: 'Uni' }).click();
   // „Studium“ ist der erste Reiter der Uni
-  await expect(page.getByRole('heading', { name: 'Fristen' })).toBeVisible();
-  await expect(page.getByText('Fristen kommen aus deinem Moodle-Kalender.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Fristen und Pflichttermine' })).toBeVisible();
+  await expect(page.getByText(/Fristen aus „Moodle-Fristen \(automatisch\)“ · Pflichttermine aus „JKU Pflicht“/)).toBeVisible();
   await page.getByRole('button', { name: /Jetzt abgleichen|Abgleich läuft/ }).click();
   const fristen = page.locator('table.fristen');
   await expect(fristen).toContainText('Übung 1 ist fällig', { timeout: 20_000 });
-  await expect(fristen).toContainText('Zwischentest schließt');
+  await expect(fristen).toContainText('Zwischentest');
+  await expect(fristen).not.toContainText('Übung 0'); // vorbei
+  await expect(fristen).not.toContainText('Zahnarzt'); // privat, ohne „Pflicht:“
+  const vorlesung = fristen.locator('tr', { hasText: 'Mathe III UE' });
+  await expect(vorlesung).toHaveClass(/laeuft/);
+  await expect(vorlesung).toContainText('läuft gerade');
+  await expect(vorlesung.getByLabel('erledigt')).toHaveCount(0); // Vorlesungen hakt man nicht ab
   await expect(fristen.locator('tr.dringend', { hasText: 'Übung 1' })).toBeVisible(); // Frist in weniger als 3 Tagen
   await expect(fristen.locator('tr', { hasText: 'Übung 2' })).not.toHaveClass(/dringend/);
   await expect(page.getByText(/Letzter Abgleich: .* neue (Frist|Fristen)\./)).toBeVisible();

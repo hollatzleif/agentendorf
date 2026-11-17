@@ -68,14 +68,13 @@ describe('Fristen aus dem Kalender-Export', () => {
     expect(e.neueFristen.map((f) => f.titel)).toEqual(['Übung 1 ist fällig', 'Zwischentest schließt']); // Vergangenes nicht melden
     const f = d.uni.fristen();
     expect(f.map((x) => [x.titel, x.art, x.kurs])).toEqual([
-      ['Übung 0 ist fällig', 'abgabe', 'CDA'],
       ['Übung 1 ist fällig', 'abgabe', 'CDA'],
       ['Zwischentest schließt', 'test', 'STAT'],
     ]);
     expect(texte.at(-1)).toMatch(/🎓 <b>Neu in Moodle:<\/b> 2 Fristen\n• Übung 1 ist fällig \(CDA\) – Mi\., 18\.11\.2026, 23:59/);
 
     // Leif hakt ab – bleibt nach dem nächsten Abgleich abgehakt
-    d.uni.erledigtSetzen(f[1]!.id, true);
+    d.uni.erledigtSetzen(f[0]!.id, true);
     await d.uni.abgleichen();
     expect(d.uni.fristen().find((x) => x.titel === 'Übung 1 ist fällig')!.abgegeben).toBe(true);
     expect(texte).toHaveLength(1); // nichts Neues

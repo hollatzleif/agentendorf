@@ -25,6 +25,7 @@ export async function testDorf(
     telegram?: TelegramSchnittstelle;
     moodle?: MoodleKlient;
     kalender?: KalenderQuelle;
+    google?: { fristen?: KalenderQuelle; pflicht?: KalenderQuelle };
   } = {},
 ) {
   const daten = tempOrdner();
@@ -44,6 +45,7 @@ export async function testDorf(
     telegram: opt.telegram,
     moodle: opt.moodle,
     kalender: opt.kalender,
+    google: opt.google,
   });
   return { ...d, uhr, konfig, daten };
 }

@@ -35,6 +35,8 @@ export async function moodleAttrappe(port = 0) {
     downloads: [] as string[],
     /** Kalender-Export (iCal), abrufbar mit authtoken=e2e */
     ics: 'BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n',
+    /** Google-Kalender (geheime iCal-Adressen) */
+    google: { fristen: 'BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n', pflicht: 'BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n' },
   };
   let basis = '';
   const datei = (pfad: string, d: Datei) => {
@@ -52,6 +54,8 @@ export async function moodleAttrappe(port = 0) {
 
   const server = http.createServer((req, res) => {
     const u = new URL(req.url!, basis);
+    const g = /^\/calendar\/ical\/(fristen|pflicht)\/private-e2e\/basic\.ics$/.exec(u.pathname);
+    if (g) return void res.writeHead(200, { 'content-type': 'text/calendar; charset=utf-8' }).end(s.google[g[1] as 'fristen' | 'pflicht']);
     if (u.pathname === '/calendar/export_execute.php') {
       if (u.searchParams.get('authtoken') !== 'e2e') return void res.writeHead(403).end('Ungültig');
       return void res.writeHead(200, { 'content-type': 'text/calendar; charset=utf-8' }).end(s.ics);

@@ -22,4 +22,9 @@ const z = (sek: number) => new Date(sek * 1000).toISOString().replace(/[-:]/g, '
 const ev = (uid: string, titel: string, sek: number, kurs: string) =>
   `BEGIN:VEVENT\r\nUID:${uid}@127.0.0.1\r\nSUMMARY:${titel}\r\nCATEGORIES:${kurs}\r\nDTSTART:${z(sek)}\r\nDTEND:${z(sek)}\r\nEND:VEVENT\r\n`;
 m.s.ics = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\n${ev('1', 'Übung 1 ist fällig', jetzt + 86_400, 'CDA')}${ev('2', 'Übung 2 ist fällig', jetzt + 10 * 86_400, 'CDA')}${ev('3', 'Zwischentest schließt', jetzt + 3 * 86_400, 'STAT')}END:VCALENDAR\r\n`;
+// Google-Kalender wie aus Leifs Skript: „⏰ Kurs: …“ endet zur Frist, „📝“ = Prüfung; Pflicht-Kalender mit Privatem
+const block = (uid: string, titel: string, sek: number) => `BEGIN:VEVENT\r\nUID:${uid}\r\nSUMMARY:${titel}\r\nDTSTART:${z(sek - 1800)}\r\nDTEND:${z(sek)}\r\nEND:VEVENT\r\n`;
+const dauer = (uid: string, titel: string, von: number, bis: number) => `BEGIN:VEVENT\r\nUID:${uid}\r\nSUMMARY:${titel}\r\nDTSTART:${z(von)}\r\nDTEND:${z(bis)}\r\nEND:VEVENT\r\n`;
+m.s.google.fristen = `BEGIN:VCALENDAR\r\n${block('g1', '⏰ CDA: Übung 1 ist fällig', jetzt + 86_400)}${block('g2', '⏰ CDA: Übung 2 ist fällig', jetzt + 10 * 86_400)}${block('g0', '⏰ CDA: Übung 0 ist fällig', jetzt - 86_400)}${dauer('g3', '📝 STAT: Zwischentest', jetzt + 3 * 86_400, jetzt + 3 * 86_400 + 3600)}END:VCALENDAR\r\n`;
+m.s.google.pflicht = `BEGIN:VCALENDAR\r\n${dauer('p1', 'Pflicht: Mathe III UE', jetzt - 1800, jetzt + 3600)}${dauer('p2', 'Zahnarzt', jetzt + 7200, jetzt + 9000)}END:VCALENDAR\r\n`;
 console.log(`Moodle-Attrappe auf ${m.basis}`);

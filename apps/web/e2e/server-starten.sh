@@ -12,7 +12,8 @@ MOODLE_PORT=${E2E_MOODLE_PORT:-3998}
 MOODLE_PORT=$MOODLE_PORT npx tsx test/moodle-e2e.ts &
 MOODLE_PID=$!
 trap 'kill $MOODLE_PID 2>/dev/null || true' EXIT
-# wie an der JKU: nur der Kalender-Export (der App-Zugang ist dort gesperrt)
-export MOODLE_KALENDER_URL="http://127.0.0.1:$MOODLE_PORT/calendar/export_execute.php?userid=1&authtoken=e2e&preset_what=all&preset_time=recentupcoming"
+# wie bei Leif: Google-Kalender (Fristen aus seinem Skript + JKU Pflicht); der Moodle-App-Zugang ist an der JKU gesperrt
+export GOOGLE_FRISTEN_ICS="http://127.0.0.1:$MOODLE_PORT/calendar/ical/fristen/private-e2e/basic.ics"
+export GOOGLE_PFLICHT_ICS="http://127.0.0.1:$MOODLE_PORT/calendar/ical/pflicht/private-e2e/basic.ics"
 echo -n 'e2e-Passwort-sehr-lang-1' | npx tsx src/cli.ts passwort --stdin
 npx tsx src/start.ts

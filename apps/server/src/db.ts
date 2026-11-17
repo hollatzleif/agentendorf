@@ -221,6 +221,10 @@ const MIGRATIONEN: string[] = [
     PRIMARY KEY (frist_id, stufe, frist)
   );
   `,
+  // 6 – Etappe 3: Termine aus Google-Kalendern (Pflichtvorlesungen haben ein Ende; „läuft gerade“)
+  `
+  ALTER TABLE moodle_fristen ADD COLUMN ende INTEGER;
+  `,
 ];
 
 export function dbOeffnen(datei: string): DB {

@@ -32,6 +32,8 @@ const Schema = z.object({
   MOODLE_URL: z.string().optional(),
   MOODLE_TOKEN: z.string().optional(),
   MOODLE_KALENDER_URL: z.string().optional(),
+  GOOGLE_FRISTEN_ICS: z.string().optional(),
+  GOOGLE_PFLICHT_ICS: z.string().optional(),
   DORF_MOTOR_ATTRAPPE: z
     .string()
     .default('false')
@@ -61,6 +63,8 @@ export interface Konfig {
   moodleUrl?: string;
   moodleToken?: string;
   moodleKalenderUrl?: string;
+  googleFristenIcs?: string;
+  googlePflichtIcs?: string;
   rechenraumUrl: string;
   rechenraumGeheimnis?: string;
 }
@@ -90,6 +94,8 @@ export function konfigLaden(env: NodeJS.ProcessEnv = process.env): Konfig {
     moodleUrl: e.MOODLE_URL?.replace(/\/$/, '') || undefined,
     moodleToken: e.MOODLE_TOKEN || undefined,
     moodleKalenderUrl: e.MOODLE_KALENDER_URL || undefined,
+    googleFristenIcs: e.GOOGLE_FRISTEN_ICS || undefined,
+    googlePflichtIcs: e.GOOGLE_PFLICHT_ICS || undefined,
     rechenraumUrl: e.RECHENRAUM_URL,
     rechenraumGeheimnis: e.RECHENRAUM_GEHEIMNIS || undefined,
   };

@@ -10,7 +10,7 @@ import type { LiveHub } from '../live.js';
 import { dateinameBereinigen } from '../vault/pfade.js';
 import { MoodleFehler, ohneToken, verbindungPruefen, type MoodleKlient } from './moodle.js';
 import { fristText, htmlZuMarkdown } from './text.js';
-import { icsLesen, terminArt } from './ical.js';
+import { icsLesen, icsTermine, terminArt } from './ical.js';
 
 /** Kalender-Export von Moodle (iCal) – liefert den Text der .ics-Datei */
 export interface KalenderQuelle {
@@ -29,7 +29,7 @@ export function kalenderQuelle(url: string): KalenderQuelle {
       } catch (f) {
         throw new Error(`Kalender nicht erreichbar (${(f as Error).name})`);
       }
-      if (!r.ok) throw new Error(`Kalender-Export antwortet mit HTTP ${r.status}${r.status === 403 || r.status === 404 ? ' – Adresse ungültig oder zurückgezogen? Neu: dorf moodle-kalender' : ''}`);
+      if (!r.ok) throw new Error(`Kalender antwortet mit HTTP ${r.status}${r.status === 403 || r.status === 404 ? ' – Adresse ungültig oder zurückgesetzt? Neu eintragen: dorf google-kalender' : ''}`);
       const buf = Buffer.from(await r.arrayBuffer());
       if (buf.length > MAX_ICS_BYTES) throw new Error('Kalender-Export ist zu groß.');
       return buf.toString('utf8');
@@ -89,8 +89,11 @@ interface EreignisRoh {
   url?: string;
 }
 
+/** ✅ vor dem Titel = erledigt (wie in Leifs Skript) */
+const ERLEDIGT_TITEL = /^\s*(✅|✔|☑|erledigt\b|done\b)\s*/i;
+
 export interface NeueFrist {
-  art: 'abgabe' | 'test' | 'termin';
+  art: 'abgabe' | 'test' | 'termin' | 'pflicht';
   titel: string;
   kurs: string;
   frist: number | null;
@@ -154,6 +157,8 @@ export class Uni {
       hub: LiveHub;
       klient?: MoodleKlient;
       kalender?: KalenderQuelle;
+      /** Google-Kalender (geheime iCal-Adressen): Fristen (von Leifs Skript gefüllt) und Pflichttermine */
+      google?: { fristen?: KalenderQuelle; pflicht?: KalenderQuelle };
       /** Pause zwischen Anfragen (schont den Moodle-Server) */
       pauseMs?: number;
       log?: (t: string) => void;
@@ -161,7 +166,7 @@ export class Uni {
   ) {}
 
   get verbunden() {
-    return !!this.o.klient || !!this.o.kalender;
+    return !!this.o.klient || !!this.o.kalender || !!this.o.google?.fristen || !!this.o.google?.pflicht;
   }
 
   starten() {
@@ -207,7 +212,7 @@ export class Uni {
     hub.senden({ typ: 'uni.geaendert' });
     const e: AbgleichErgebnis = { ok: true, fehler: null, neueDateien: 0, neueFristen: [], hinweise: [] };
     const fehler: string[] = [];
-    if (!this.verbunden) fehler.push('Moodle ist nicht eingerichtet. Auf dem Server: dorf moodle-kalender');
+    if (!this.verbunden) fehler.push('Kein Kalender eingerichtet. Auf dem Server: dorf google-kalender');
     if (this.o.klient) {
       try {
         await this.appAbgleichen(start, e);
@@ -222,6 +227,15 @@ export class Uni {
         fehler.push(`Kalender: ${(f as Error).message}`);
       }
     }
+    for (const art of ['fristen', 'pflicht'] as const) {
+      try {
+        await this.googleAbgleichen(art, e);
+      } catch (f) {
+        fehler.push(`Google-Kalender ${art === 'fristen' ? 'Fristen' : 'Pflicht'}: ${(f as Error).message}`);
+      }
+    }
+    // Quellen, die nicht (mehr) eingerichtet sind, hinterlassen keine Einträge
+    if (!this.o.kalender) db.prepare("DELETE FROM moodle_fristen WHERE id LIKE 'ical:%'").run();
     if (fehler.length) {
       e.ok = false;
       e.fehler = fehler.join(' · ');
@@ -280,6 +294,57 @@ export class Uni {
     }
     // Was nicht mehr im Export steht (verschoben, gelöscht, außerhalb des Zeitraums), fällt aus der Liste
     const alle = db.prepare("SELECT id FROM moodle_fristen WHERE id LIKE 'ical:%'").all() as { id: string }[];
+    const weg = db.prepare('DELETE FROM moodle_fristen WHERE id = ?');
+    for (const z of alle) if (!gesehen.has(z.id)) weg.run(z.id);
+  }
+
+  // ---- Google-Kalender (der Weg seit E44) ------------------------------------------------------
+
+  /**
+   * fristen: Kalender „Moodle-Fristen (automatisch)“ aus Leifs Skript – „⏰ Kurs: …“ = Abgabe (Eintrag endet zur Frist),
+   *          „📝 Kurs: …“ = Prüfung/Test, „✅ …“ = erledigt.
+   * pflicht: Kalender „JKU Pflicht“ – nur Einträge „Pflicht: …“ / „Prüfung: …“; alles andere (Privates) wird nicht gespeichert.
+   */
+  private async googleAbgleichen(art: 'fristen' | 'pflicht', e: AbgleichErgebnis) {
+    const { db, uhr } = this.o;
+    const praefix = art === 'fristen' ? 'gfrist:' : 'gpfl:';
+    const quelle = this.o.google?.[art];
+    const gesehen = new Set<string>();
+    if (quelle) {
+      const jetzt = uhr.jetzt();
+      const termine = icsTermine(await quelle.laden(), jetzt - TAG, jetzt + (art === 'fristen' ? 180 : 60) * TAG, e.hinweise);
+      for (const t of termine) {
+        if (t.start == null) continue;
+        let eintrag: { art: 'abgabe' | 'test' | 'pflicht'; kurs: string; titel: string; frist: number; ende: number | null; erledigt: boolean };
+        if (art === 'fristen') {
+          const erledigt = ERLEDIGT_TITEL.test(t.titel);
+          const ohne = t.titel.replace(ERLEDIGT_TITEL, '').trim();
+          const zeichen = /^(⏰|📝)\s*/.exec(ohne)?.[1];
+          const rest = ohne.replace(/^(⏰|📝)\s*/, '');
+          const m = /^([^:]{1,60}):\s*(.+)$/.exec(rest);
+          const a = zeichen === '⏰' ? 'abgabe' : zeichen === '📝' ? 'test' : terminArt(rest) === 'test' ? 'test' : 'abgabe';
+          // Abgaben trägt das Skript als Block ein, der genau zur Frist endet
+          eintrag = { art: a, kurs: m?.[1]!.trim() ?? '', titel: m?.[2]!.trim() ?? rest, frist: a === 'abgabe' ? (t.ende ?? t.start) : t.start, ende: a === 'abgabe' ? null : t.ende, erledigt };
+        } else {
+          const m = /^\s*(pflicht|prüfung)\s*:\s*(.+)$/i.exec(t.titel);
+          if (!m) continue;
+          eintrag = { art: /^prüfung$/i.test(m[1]!) ? 'test' : 'pflicht', kurs: '', titel: m[2]!.trim(), frist: t.start, ende: t.ende, erledigt: false };
+        }
+        const id = `${praefix}${hash(t.uid).slice(0, 32)}`;
+        if (gesehen.has(id)) continue;
+        gesehen.add(id);
+        const alt = db.prepare('SELECT 1 FROM moodle_fristen WHERE id = ?').get(id);
+        db.prepare(
+          `INSERT INTO moodle_fristen (id, kurs_id, kurs, titel, art, frist, ende, url, pfad, abgegeben, gesehen) VALUES (?, NULL, ?, ?, ?, ?, ?, '', NULL, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET kurs = excluded.kurs, titel = excluded.titel, art = excluded.art, frist = excluded.frist, ende = excluded.ende,
+             abgegeben = MAX(abgegeben, excluded.abgegeben), gesehen = excluded.gesehen`,
+        ).run(id, eintrag.kurs, eintrag.titel, eintrag.art, eintrag.frist, eintrag.ende, eintrag.erledigt ? 1 : 0, jetzt);
+        // gemeldet werden neue Abgaben und Prüfungen – nicht jede einzelne Vorlesung einer Serie
+        if (!alt && eintrag.art !== 'pflicht' && !eintrag.erledigt && eintrag.frist > jetzt)
+          e.neueFristen.push({ art: eintrag.art, titel: eintrag.titel, kurs: eintrag.kurs, frist: eintrag.frist });
+      }
+    }
+    const alle = db.prepare(`SELECT id FROM moodle_fristen WHERE id LIKE '${praefix}%'`).all() as { id: string }[];
     const weg = db.prepare('DELETE FROM moodle_fristen WHERE id = ?');
     for (const z of alle) if (!gesehen.has(z.id)) weg.run(z.id);
   }
@@ -530,21 +595,28 @@ export class Uni {
     return z.map((k) => ({ ...k, aktiv: k.aktiv === 1 }));
   }
 
-  /** Fristen der aktiven Kurse: offene und die der letzten 7 Tage, sortiert (ohne Frist zuletzt) */
+  /**
+   * Was unter „Studium“ steht: nur was gerade läuft oder noch kommt. Pflichtvorlesungen nur die nächsten 7 Tage
+   * (sonst wird die Liste lang), Abgaben und Prüfungen alle.
+   */
   fristen(): UniFrist[] {
+    const jetzt = this.o.uhr.jetzt();
     const z = this.o.db
       .prepare(
         `SELECT f.* FROM moodle_fristen f LEFT JOIN moodle_kurse k ON k.id = f.kurs_id
-         WHERE (f.kurs_id IS NULL OR k.aktiv = 1) AND (f.frist IS NULL OR f.frist >= ?)
+         WHERE (f.kurs_id IS NULL OR k.aktiv = 1)
+           AND (f.frist IS NULL OR COALESCE(f.ende, f.frist) >= ?)
+           AND (f.art != 'pflicht' OR f.frist <= ?)
          ORDER BY f.frist IS NULL, f.frist, f.titel`,
       )
-      .all(this.o.uhr.jetzt() - 7 * TAG) as {
+      .all(jetzt, jetzt + 7 * TAG) as {
       id: string;
       kurs_id: number | null;
       kurs: string;
       titel: string;
       art: UniFrist['art'];
       frist: number | null;
+      ende: number | null;
       url: string;
       pfad: string | null;
       abgegeben: number;
@@ -556,6 +628,7 @@ export class Uni {
       titel: f.titel,
       art: f.art,
       frist: f.frist == null ? null : new Date(f.frist).toISOString(),
+      ende: f.ende == null ? null : new Date(f.ende).toISOString(),
       url: f.url,
       pfad: f.pfad,
       abgegeben: f.abgegeben === 1,
@@ -656,6 +729,7 @@ export class Uni {
     return {
       verbunden: this.verbunden,
       kalender: !!this.o.kalender,
+      google: { fristen: !!this.o.google?.fristen, pflicht: !!this.o.google?.pflicht },
       appZugang: !!this.o.klient,
       moodleUrl: this.o.klient?.basis ?? null,
       laeuft: this.laeuft,

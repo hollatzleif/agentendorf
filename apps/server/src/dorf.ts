@@ -50,6 +50,8 @@ export async function dorfStarten(
     moodle?: MoodleKlient;
     /** Für Tests: nachgebauter Kalender-Export */
     kalender?: KalenderQuelle;
+    /** Für Tests: nachgebaute Google-Kalender */
+    google?: { fristen?: KalenderQuelle; pflicht?: KalenderQuelle };
   } = {},
 ) {
   const uhr = opt.uhr ?? systemUhr;
@@ -100,6 +102,10 @@ export async function dorfStarten(
     hub,
     klient: opt.moodle ?? (konfig.moodleUrl && konfig.moodleToken ? moodleKlient(konfig.moodleUrl, konfig.moodleToken) : undefined),
     kalender: opt.kalender ?? (konfig.moodleKalenderUrl ? kalenderQuelle(konfig.moodleKalenderUrl) : undefined),
+    google: opt.google ?? {
+      fristen: konfig.googleFristenIcs ? kalenderQuelle(konfig.googleFristenIcs) : undefined,
+      pflicht: konfig.googlePflichtIcs ? kalenderQuelle(konfig.googlePflichtIcs) : undefined,
+    },
     pauseMs: opt.moodle ? 0 : 500,
     log: (t) => console.warn(t),
   });
@@ -122,7 +128,7 @@ export async function dorfStarten(
     if (!opt.telegram) telegram.starten();
   }
   agenten.anstossen();
-  if (!opt.moodle && !opt.kalender && opt.beobachten !== false) uni.starten();
+  if (!opt.moodle && !opt.kalender && !opt.google && opt.beobachten !== false) uni.starten();
   const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni });
   app.addHook('onClose', async () => {
     uni.stoppen();

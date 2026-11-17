@@ -9,7 +9,7 @@ import { Sitzungen } from './auth/sitzungen.js';
 import { VaultDienst } from './vault/dienst.js';
 import { moodleKlient, tokenAusLaunch, verbindungPruefen } from './uni/moodle.js';
 import { kalenderQuelle } from './uni/abgleich.js';
-import { icsLesen } from './uni/ical.js';
+import { icsLesen, icsTermine } from './uni/ical.js';
 import { fristText } from './uni/text.js';
 
 const HILFE = `Agentendorf – Verwaltung
@@ -22,6 +22,8 @@ const HILFE = `Agentendorf – Verwaltung
   moodle-token <url> <prüfwert>
                            Liest die moodlemobile://-Adresse von stdin, prüft Signatur und Verbindung,
                            gibt das Token auf stdout aus (nur für dorf moodle-anmelden)
+  google-kalender-pruefen <fristen|pflicht>
+                           Liest eine geheime Google-Kalender-Adresse von stdin, lädt sie und zeigt, was das Dorf übernimmt
   moodle-kalender-pruefen  Liest die Kalender-Adresse von stdin, lädt den Export und zeigt, was drin ist
                            (nur für dorf moodle-kalender; die Adresse selbst wird nie ausgegeben)`;
 
@@ -100,6 +102,22 @@ try {
       }
       for (const f of v.optionalFehlend) console.error(`Hinweis: ${f} ist nicht erlaubt – dieser Teil des Abgleichs fällt weg.`);
       process.stdout.write(token);
+      break;
+    }
+    case 'google-kalender-pruefen': {
+      const art = rest[0];
+      if (art !== 'fristen' && art !== 'pflicht') throw new Error('Aufruf: google-kalender-pruefen <fristen|pflicht>');
+      const url = (await stdinLesen()).trim();
+      const jetzt = Date.now();
+      const termine = icsTermine(await kalenderQuelle(url).laden(), jetzt, jetzt + 60 * 86_400_000);
+      const passend = art === 'fristen' ? termine.filter((t) => /^\s*(✅\s*)?(⏰|📝)/.test(t.titel)) : termine.filter((t) => /^\s*(pflicht|prüfung)\s*:/i.test(t.titel));
+      console.error(
+        art === 'fristen'
+          ? `Kalender gelesen: ${termine.length} kommende Einträge, davon ${passend.length} Fristen/Prüfungen (⏰/📝).`
+          : `Kalender gelesen: ${termine.length} kommende Einträge (60 Tage), davon ${passend.length} mit „Pflicht:“/„Prüfung:“ – nur die übernimmt das Dorf.`,
+      );
+      for (const t of passend.slice(0, 5)) console.error(`  ${fristText(t.start)}  ${t.titel}`);
+      if (termine.length && !passend.length) console.error('Hinweis: Kein passender Eintrag gefunden – ist es der richtige Kalender?');
       break;
     }
     case 'moodle-kalender-pruefen': {

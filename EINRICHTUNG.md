@@ -114,18 +114,20 @@ dorf telegram-einrichten
 
 Danach: Jede Textnachricht an den Bot landet als Aufgabe auf dem Schreibtisch, Freigaben kommen mit Ja/Nein-Knöpfen. Welche Meldungen kommen, stellst du unter **Rathaus → Agenten-Einstellungen → Telegram** ein.
 
-## 8. Uni: Fristen aus Moodle und deine Fächer
+## 8. Uni: Fristen, Pflichttermine und deine Fächer
 
-Die JKU sperrt den Zugang für die Moodle-App. Deshalb holt das Dorf nur die **Fristen** automatisch, und zwar über den Kalender-Export. Folien und Übungsblätter legst du selbst ab.
+Die JKU sperrt den Zugang für die Moodle-App. Deshalb holt das Dorf nur die **Termine** automatisch, und zwar aus deinen Google-Kalendern. Folien und Übungsblätter legst du selbst ab.
 
-**Fristen (einmalig):**
-1. In Moodle: **Kalender → Exportieren**. Wähl **Alle Termine** und den längsten Zeitraum und klick auf **Kalender-URL abrufen**. Dann die Adresse kopieren. Sie enthält einen persönlichen Schlüssel, also nirgends weitergeben.
+**Fristen und Pflichttermine (einmalig):** Das Dorf liest die zwei Google-Kalender, die dein Moodle-Fristen-Skript nutzt: **„Moodle-Fristen (automatisch)“** (Abgaben ⏰, Prüfungen 📝, ✅ = erledigt) und **„JKU Pflicht“**. Aus „JKU Pflicht“ nimmt es nur Einträge, die mit `Pflicht:` oder `Prüfung:` beginnen.
+1. Im Browser auf calendar.google.com: **Zahnrad → Einstellungen** → links den Kalender wählen → **Kalender integrieren** → **Geheime Adresse im iCal-Format** kopieren. Das machst du für beide Kalender. Die Adressen sind geheim, also nirgends weitergeben.
 2. Auf dem Server:
    ```bash
-   dorf moodle-kalender
+   dorf google-kalender
    ```
-   Adresse einfügen (die Eingabe bleibt unsichtbar). Das Skript lädt den Kalender einmal zur Probe und zeigt die nächsten Termine. Erst dann speichert es die Adresse in `/srv/dorf/.env`.
-3. In der App: **Uni → Studium → Jetzt abgleichen**. Danach geht es automatisch alle 3 Stunden. Erledigtes hakst du in der Liste ab. Für alles, was nicht abgehakt ist, erinnert dich der Telegram-Bot (3 Tage, 1 Tag und 3 Stunden vorher, danach fragt er nach) – mit Knopf **✅ Erledigt**.
+   Das Skript fragt beide Adressen nacheinander ab. Enter ohne Eingabe lässt einen Kalender unverändert. Vor dem Speichern lädt es jeden Kalender einmal zur Probe.
+3. In der App: **Uni → Studium → Jetzt abgleichen**. Danach geht es automatisch alle 3 Stunden. Angezeigt wird nur, was gerade läuft oder noch kommt (Pflichttermine der nächsten 7 Tage). Erledigtes hakst du in der Liste ab, oder du setzt wie gewohnt ein ✅ vor den Titel im Google-Kalender. Für nicht Abgehaktes erinnert dich der Telegram-Bot (3 Tage, 1 Tag und 3 Stunden vorher, danach fragt er nach), mit Knopf **✅ Erledigt**.
+
+> Dein Skript schickt weiterhin eigene Erinnerungsmails (8, 4 und 2 Stunden vorher). Willst du nur noch Telegram, setz im Skript `NAG_HOURS: []`. Ein Haken im Dorf landet nicht im Google-Kalender (die geheime Adresse ist nur lesbar).
 
 **Fächer:** **Uni → Studium → Fach anlegen** legt `Uni/faecher/<Fach>/` mit `folien/`, `altklausuren/` und `aufgaben/` an. Dort hinein lädst du die Dateien hoch, in der Bibliothek oder per Obsidian:
 - Übungsblätter: je Blatt ein Ordner oder direkt das PDF in `aufgaben/`. Erledigte Blätter verschiebst du nach `aufgaben/erledigt/`, dann bietet „Abgabe bearbeiten“ sie nicht mehr an.

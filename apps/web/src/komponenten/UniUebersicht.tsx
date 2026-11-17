@@ -7,7 +7,8 @@ import { bibliothekUrl, linkKlick } from '../router';
 const TAG = 86_400_000;
 const zeit = new Intl.DateTimeFormat('de-AT', { timeZone: 'Europe/Vienna', weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 const zeitText = (iso: string | null) => (iso ? zeit.format(new Date(iso)) : '–');
-const ART: Record<UniFrist['art'], string> = { abgabe: 'Abgabe', test: 'Test', termin: 'Termin' };
+const ART: Record<UniFrist['art'], string> = { abgabe: 'Abgabe', test: 'Prüfung', termin: 'Termin', pflicht: 'Pflicht' };
+const uhr = new Intl.DateTimeFormat('de-AT', { timeZone: 'Europe/Vienna', hour: '2-digit', minute: '2-digit' });
 
 function restText(iso: string | null) {
   if (!iso) return 'ohne Frist';
@@ -66,9 +67,9 @@ export function UniUebersicht() {
 
   return (
     <div className="uni">
-      <h2>Fristen</h2>
+      <h2>Fristen und Pflichttermine</h2>
       {u.fristen.length === 0 ? (
-        <p className="leise">{u.verbunden ? 'Keine Fristen in den nächsten Wochen.' : 'Noch keine Fristen – siehe „Moodle“ unten.'}</p>
+        <p className="leise">{u.verbunden ? 'Nichts Anstehendes.' : 'Noch keine Termine – siehe „Kalender“ unten.'}</p>
       ) : (
         <table className="tabelle fristen">
           <thead>
@@ -82,12 +83,15 @@ export function UniUebersicht() {
           <tbody>
             {u.fristen.map((f) => {
               const rest = f.frist ? Date.parse(f.frist) - Date.now() : Infinity;
-              const klasse = f.abgegeben || rest < 0 ? 'erledigt' : rest < 3 * TAG ? 'dringend' : '';
+              const laeuft = rest <= 0 && f.ende != null && Date.parse(f.ende) > Date.now();
+              const abhakbar = f.art === 'abgabe' || f.art === 'test';
+              const klasse = laeuft ? 'laeuft' : f.abgegeben ? 'erledigt' : abhakbar && rest < 3 * TAG ? 'dringend' : '';
               return (
                 <tr key={f.id} className={klasse}>
                   <td>
                     {zeitText(f.frist)}
-                    <div className="leise">{restText(f.frist)}</div>
+                    {f.ende && f.art !== 'abgabe' && <> – {uhr.format(new Date(f.ende))}</>}
+                    <div className="leise">{laeuft ? 'läuft gerade' : restText(f.frist)}</div>
                   </td>
                   <td>
                     <span className="abzeichen">{ART[f.art]}</span>{' '}
@@ -109,9 +113,11 @@ export function UniUebersicht() {
                   </td>
                   <td>{f.kurs}</td>
                   <td>
-                    <label className="haken">
-                      <input type="checkbox" checked={f.abgegeben} onChange={(x) => void erledigt(f.id, x.target.checked)} /> erledigt
-                    </label>
+                    {abhakbar && (
+                      <label className="haken">
+                        <input type="checkbox" checked={f.abgegeben} onChange={(x) => void erledigt(f.id, x.target.checked)} /> erledigt
+                      </label>
+                    )}
                   </td>
                 </tr>
               );
@@ -120,7 +126,10 @@ export function UniUebersicht() {
         </table>
       )}
 
-      <p className="leise">Was nicht abgehakt ist, erinnert dich der Telegram-Bot: 3 Tage, 1 Tag und 3 Stunden vorher, danach fragt er nach – mit Knopf „Erledigt“.</p>
+      <p className="leise">
+        Nur was gerade läuft oder noch kommt; Pflichttermine der nächsten 7 Tage. Nicht abgehakte Abgaben und Prüfungen erinnert dich der Telegram-Bot (3 Tage, 1 Tag, 3
+        Stunden vorher, danach Nachfrage) – mit Knopf „Erledigt“. Ein ✅ vor dem Titel im Google-Kalender zählt auch.
+      </p>
 
       <h2>Fächer</h2>
       {u.faecher.length === 0 ? (
@@ -153,16 +162,24 @@ export function UniUebersicht() {
         <code>aufgaben/erledigt/</code>). Hochladen in der Bibliothek oder per Obsidian.
       </p>
 
-      <h2>Moodle</h2>
+      <h2>Kalender</h2>
       {!u.verbunden ? (
         <p>
-          Fristen aus Moodle sind noch nicht eingerichtet. In Moodle: Kalender → Exportieren → Kalender-URL abrufen. Dann auf dem Server:{' '}
-          <code>dorf moodle-kalender</code>
+          Noch kein Kalender eingerichtet. In Google Kalender: Einstellungen → Kalender wählen → Kalender integrieren → Geheime Adresse im iCal-Format. Dann auf dem
+          Server: <code>dorf google-kalender</code>
         </p>
       ) : (
         <>
           <p>
-            {u.kalender ? 'Fristen kommen aus deinem Moodle-Kalender.' : `Verbunden mit ${u.moodleUrl}.`}{' '}
+            {[
+              u.google.fristen && 'Fristen aus „Moodle-Fristen (automatisch)“',
+              u.google.pflicht && 'Pflichttermine aus „JKU Pflicht“',
+              u.kalender && 'Fristen direkt aus dem Moodle-Kalender',
+              u.appZugang && `Moodle-App-Zugang (${u.moodleUrl})`,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+            .{' '}
             {l ? (
               <>
                 Letzter Abgleich: {zeitText(l.start)}

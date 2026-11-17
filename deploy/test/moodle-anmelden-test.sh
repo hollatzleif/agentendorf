@@ -11,6 +11,12 @@ ATTRAPPEN=$(mktemp -d)
 # docker-Attrappe: "compose exec … moodle-token <url> <prüfwert>" prüft den Prüfwert und gibt ein Token aus
 cat > "$ATTRAPPEN/docker" <<'DOCKER'
 #!/usr/bin/env bash
+if [[ " $* " == *" google-kalender-pruefen "* ]]; then
+  url=$(cat)
+  [[ "$url" == *private-aaaa* ]] || { echo "Kalender antwortet mit HTTP 404" >&2; exit 1; }
+  echo "Kalender gelesen: 5 kommende Einträge" >&2
+  exit 0
+fi
 if [[ " $* " == *" moodle-kalender-pruefen "* ]]; then
   url=$(cat)
   [[ "$url" == *authtoken=GUT* ]] || { echo "Kalender-Export antwortet mit HTTP 403" >&2; exit 1; }
@@ -58,6 +64,29 @@ for falsch in 'https://moodle.jku.at/calendar/export_execute.php?userid=1&authto
 done
 cmp -s "$BASIS/.env" "$BASIS/env.vorher" || fehler ".env nach abgelehnter Kalender-Adresse verändert"
 echo "Kalender-Adresse eintragen und prüfen: bestanden"
+
+# Google-Kalender: beide Adressen, Moodle-Kalender wird danach nicht mehr gebraucht
+G1='https://calendar.google.com/calendar/ical/abc123%40group.calendar.google.com/private-aaaa1111bbbb2222cccc3333dddd4444/basic.ics'
+G2='https://calendar.google.com/calendar/ical/leif%40gmail.com/private-aaaa5555bbbb6666cccc7777dddd8888/basic.ics'
+aus=$(printf '%s\n%s\n' "$G1" "$G2" | dorf google-kalender 2>&1) || fehler "google-kalender endet mit Fehler: $aus"
+grep -qxF "GOOGLE_FRISTEN_ICS=$G1" "$BASIS/.env" || fehler "GOOGLE_FRISTEN_ICS fehlt"
+grep -qxF "GOOGLE_PFLICHT_ICS=$G2" "$BASIS/.env" || fehler "GOOGLE_PFLICHT_ICS fehlt"
+grep -q '^MOODLE_KALENDER_URL=' "$BASIS/.env" && fehler "MOODLE_KALENDER_URL hätte entfernt werden müssen"
+grep -qF 'private-aaaa' <<<"$aus" && fehler "geheime Adresse wurde ausgegeben"
+# nur die zweite ändern (erste leer lassen)
+G3='https://calendar.google.com/calendar/ical/leif%40gmail.com/private-aaaa9999bbbb0000cccc1111dddd2222/basic.ics'
+printf '\n%s\n' "$G3" | dorf google-kalender >/dev/null 2>&1 || fehler "nur Pflicht ändern"
+grep -qxF "GOOGLE_FRISTEN_ICS=$G1" "$BASIS/.env" || fehler "Fristen-Adresse ging verloren"
+grep -qxF "GOOGLE_PFLICHT_ICS=$G3" "$BASIS/.env" || fehler "Pflicht-Adresse nicht ersetzt"
+cp "$BASIS/.env" "$BASIS/env.vorher"
+for falsch in 'https://calendar.google.com/calendar/ical/x%40gmail.com/public/basic.ics' \
+              'https://evil.example/calendar/ical/x/private-aaaa1111bbbb2222/basic.ics' \
+              'https://calendar.google.com/calendar/ical/x%40gmail.com/private-bbbb1111cccc2222dddd/basic.ics' \
+              'https://calendar.google.com/calendar/ical/x;rm/private-aaaa1111bbbb2222/basic.ics'; do
+  if printf '%s\n\n' "$falsch" | dorf google-kalender >/dev/null 2>&1; then fehler "falsche Google-Adresse angenommen: $falsch"; fi
+done
+cmp -s "$BASIS/.env" "$BASIS/env.vorher" || fehler ".env nach abgelehnter Google-Adresse verändert"
+echo "Google-Kalender eintragen, prüfen, Moodle-Kalender ablösen: bestanden"
 
 # Unerwartete Fehler werden benannt statt still zu enden (rollback ohne Versionen: ls schlägt fehl)
 if aus=$(dorf rollback 2>&1 </dev/null); then fehler "rollback ohne Versionen gelang"; fi

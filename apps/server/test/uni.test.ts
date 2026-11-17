@@ -157,13 +157,13 @@ describe('Moodle-Abgleich', () => {
 
     // Fristen sortiert; Quiz aus dem Kalender, Abgaben nicht doppelt, altes Semester nicht; ohne Frist zuletzt
     const f = d.uni.fristen();
+    // Vergangenes (Übung 0, gestern fällig) steht nicht mehr in der Liste
     expect(f.map((x) => [x.titel, x.art, x.abgegeben])).toEqual([
-      ['Übung 0', 'abgabe', true],
       ['Zwischentest', 'test', false],
       ['Übung 1', 'abgabe', false],
       ['Projekt', 'abgabe', false],
     ]);
-    expect(f[2]!.pfad).toBe(`${F}/aufgaben/Uebung 1`);
+    expect(f[1]!.pfad).toBe(`${F}/aufgaben/Uebung 1`);
 
     // Token nirgends im Vault
     for (const t of vaultTexte(d.vault.wurzel)) expect(t).not.toContain(TOKEN);
@@ -277,7 +277,7 @@ describe('Moodle-Abgleich', () => {
     await d.uni.abgleichen();
     const nach = (await d.app.inject({ url: '/api/uni', headers: h })).json();
     expect(nach.kurse.map((k: { name: string }) => k.name)).toEqual(['Computational Data Analytics', 'Statistik / UE']);
-    expect(nach.fristen).toHaveLength(4);
+    expect(nach.fristen).toHaveLength(3);
     expect(JSON.stringify(nach)).not.toContain(TOKEN);
   });
 });

@@ -337,6 +337,39 @@ cmd_moodle_anmelden() {
   gruen "Moodle verbunden. Der erste Abgleich startet in einer Minute (Uni → Übersicht → 'Jetzt abgleichen' geht sofort)."
 }
 
+# Google-Kalender (geheime iCal-Adressen): „Moodle-Fristen (automatisch)“ aus Leifs Skript und „JKU Pflicht“.
+cmd_google_kalender() {
+  local art url var geaendert=""
+  info "Google Kalender (Browser) → Zahnrad → Einstellungen → links den Kalender wählen → Kalender integrieren"
+  info "→ Geheime Adresse im iCal-Format kopieren. Leer lassen + Enter = diesen Kalender nicht ändern."
+  for art in fristen pflicht; do
+    if [ "$art" = fristen ]; then var=GOOGLE_FRISTEN_ICS; else var=GOOGLE_PFLICHT_ICS; fi
+    if [ "$art" = fristen ]; then
+      read -r -s -p "Adresse von Moodle-Fristen (automatisch) (unsichtbar): " url; echo
+    else
+      read -r -s -p "Adresse von JKU Pflicht (unsichtbar): " url; echo
+    fi
+    url=$(printf '%s' "$url" | tr -d '\r\n ')
+    if [ -z "$url" ]; then info "übersprungen"; continue; fi
+    [[ "$url" =~ ^https://calendar\.google\.com/calendar/ical/[A-Za-z0-9%._@+-]+/private-[0-9a-f]{16,64}/basic\.ics$ ]] \
+      || { rot "Das ist keine geheime Google-Kalender-Adresse (…/calendar/ical/…/private-…/basic.ics)."; return 1; }
+    if ! printf '%s' "$url" | compose exec -T dorf node dist/cli.js google-kalender-pruefen "$art"; then
+      rot "Nicht gespeichert (siehe Meldung oben)."; return 1
+    fi
+    sed -i "/^$var=/d" "$ENV_DATEI"
+    printf '%s=%s\n' "$var" "$url" >> "$ENV_DATEI"
+    geaendert=ja
+  done
+  [ -n "$geaendert" ] || { info "Nichts geändert."; return 0; }
+  # Fristen kommen jetzt über dein Skript aus Google – der direkte Moodle-Kalender würde sie doppelt liefern
+  if grep -q '^GOOGLE_FRISTEN_ICS=' "$ENV_DATEI" && grep -q '^MOODLE_KALENDER_URL=' "$ENV_DATEI"; then
+    sed -i '/^MOODLE_KALENDER_URL=/d' "$ENV_DATEI"
+    info "Direkter Moodle-Kalender entfernt (dein Skript trägt die Fristen schon in Google ein)."
+  fi
+  compose up -d --force-recreate dorf
+  gruen "Google-Kalender eingetragen. In der App: Uni → Studium → Jetzt abgleichen (sonst automatisch alle 3 Stunden)."
+}
+
 # Fristen über den Kalender-Export von Moodle (an der JKU der Weg, weil der App-Zugang gesperrt ist).
 cmd_moodle_kalender() {
   local url
@@ -384,7 +417,8 @@ Agentendorf – Befehle auf dem Server
   dorf claude-anmelden           Abo für den claude-code-Motor anmelden (Token 1 Jahr gültig)
   dorf api-schluessel            API-Schlüssel für den api-Motor eintragen
   dorf telegram-einrichten       eigenen Telegram-Bot koppeln (Token von @BotFather)
-  dorf moodle-kalender           Fristen aus Moodle: Kalender-Adresse (Moodle: Kalender-URL abrufen) eintragen
+  dorf google-kalender           Uni: Google-Kalender eintragen (Moodle-Fristen aus deinem Skript, JKU Pflicht)
+  dorf moodle-kalender           (alt) Fristen direkt aus dem Moodle-Kalender-Export
   dorf moodle-anmelden [url]     Moodle-App-Zugang (an der JKU derzeit gesperrt)
 
   dorf backup                    Sicherung jetzt (läuft sonst täglich 03:30)
@@ -422,6 +456,7 @@ case "$befehl" in
   telegram-einrichten) cmd_telegram_einrichten ;;
   moodle-anmelden) cmd_moodle_anmelden "$@" ;;
   moodle-kalender) cmd_moodle_kalender ;;
+  google-kalender) cmd_google_kalender ;;
   syncthing-geraet) cmd_syncthing_geraet "$@" ;;
   hilfe|-h|--help) cmd_hilfe ;;
   *) rot "Unbekannter Befehl: $befehl"; cmd_hilfe; exit 1 ;;

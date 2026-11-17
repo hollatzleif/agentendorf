@@ -296,8 +296,9 @@ export interface UniFrist {
   kursId: number | null;
   kurs: string;
   titel: string;
-  art: 'abgabe' | 'test' | 'termin';
-  frist: string | null; // ISO
+  art: 'abgabe' | 'test' | 'termin' | 'pflicht';
+  frist: string | null; // ISO – Frist bzw. Beginn
+  ende: string | null; // ISO – nur bei Terminen mit Dauer (z. B. Pflichtvorlesung)
   url: string;
   pfad: string | null;
   abgegeben: boolean;
@@ -333,6 +334,8 @@ export interface UniUebersicht {
   /** irgendeine Quelle eingerichtet (Kalender-Export oder App-Zugang) */
   verbunden: boolean;
   kalender: boolean;
+  /** Google-Kalender eingerichtet: Fristen (vom Skript gefüllt) bzw. Pflichttermine */
+  google: { fristen: boolean; pflicht: boolean };
   appZugang: boolean;
   moodleUrl: string | null;
   laeuft: boolean;
