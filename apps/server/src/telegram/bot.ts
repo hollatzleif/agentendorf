@@ -196,7 +196,7 @@ export class TelegramBot {
   }
 
   private async erledigtKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {
-    const m = /^e:((?:ical:[0-9a-f]{32})|(?:assign|event):\d{1,12}):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
+    const m = /^e:((?:(?:ical|gfrist|gpfl):[0-9a-f]{32})|(?:assign|event):\d{1,12}):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
     if (!m || !this.o.uni || !crypto.timingSafeEqual(Buffer.from(m[2]!), Buffer.from(this.erledigtSignatur(m[1]!)))) {
       this.o.log?.('Telegram: Erledigt-Knopf mit ungültiger Signatur abgelehnt.');
       return antworten('Ungültiger Knopf.');

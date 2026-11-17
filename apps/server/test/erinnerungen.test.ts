@@ -12,7 +12,7 @@ const ics = (termine: [string, string, number][]) =>
     })
     .join('')}END:VCALENDAR\r\n`;
 
-async function aufbau() {
+async function aufbau(weg: 'kalender' | 'google' = 'kalender') {
   const aufrufe: { m: string; p: Record<string, unknown> }[] = [];
   const api: TelegramSchnittstelle = {
     async aufruf<T>(m: string, p: Record<string, unknown> = {}) {
@@ -24,7 +24,8 @@ async function aufbau() {
     },
   };
   let text = 'BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n';
-  const d = await testDorf({ telegram: api, kalender: { laden: async () => text }, env: { TELEGRAM_CHAT_ID: '1' } });
+  const quelle = { laden: async () => text };
+  const d = await testDorf({ telegram: api, ...(weg === 'google' ? { google: { fristen: quelle } } : { kalender: quelle }), env: { TELEGRAM_CHAT_ID: '1' } });
   // Meldungen über neue Fristen ausschalten – hier geht es nur um Erinnerungen
   await einstellungenSetzen(d.vault, { ...(await einstellungenLaden(d.vault)), moodle: false });
   const bot = d.telegram!;
@@ -66,6 +67,20 @@ describe('Erinnerungen an Fristen (Telegram)', () => {
     const vorher = x.gesendet().length;
     expect(await x.bot.erinnerungenSenden()).toBe(0);
     expect(x.gesendet()).toHaveLength(vorher);
+  });
+
+  it('Erledigt-Knopf wirkt auch bei Fristen aus Leifs Google-Kalender (gfrist:) und bleibt nach dem Abgleich abgehakt', async () => {
+    const x = await aufbau('google');
+    x.setzen(ics([['g1@google.com', '⏰ CDA: Übung 5', x.t0 + 50 * STUNDE]]));
+    await x.d.uni.abgleichen();
+    expect(await x.bot.erinnerungenSenden()).toBe(1);
+    const daten = (x.gesendet()[0]!.p.reply_markup as { inline_keyboard: { callback_data: string }[][] }).inline_keyboard[0]![0]!.callback_data;
+    expect(daten).toMatch(/^e:gfrist:/);
+    expect(daten.length).toBeLessThanOrEqual(64);
+    await x.knopf(daten);
+    expect(x.aufrufe.filter((c) => c.m === 'answerCallbackQuery').map((c) => c.p.text)).toEqual(['Abgehakt.']);
+    await x.d.uni.abgleichen(); // das Skript hat den Titel (noch) nicht mit ✅ markiert
+    expect(x.d.uni.fristen().find((f) => f.titel === 'Übung 5')!.abgegeben).toBe(true);
   });
 
   it('gefälschte oder fremde Knöpfe wirken nicht', async () => {
