@@ -98,7 +98,23 @@ dorf api-schluessel
 
 Danach im Rathaus die Aktion **Frage stellen** ausprobieren. Im Chat siehst du Motor, Modell und Token, das Protokoll liegt in `Rathaus/protokolle/`.
 
-## 7. Vault auf Mac und PCs (Syncthing + Obsidian)
+## 7. Telegram-Bot (Bürgermeister unterwegs)
+
+Ein **eigener, neuer** Bot – nicht der deines Mail-Assistenten.
+
+1. In Telegram **@BotFather** suchen und öffnen → `/newbot` schicken.
+2. Namen eingeben, z. B. `Agentendorf`, dann einen Benutzernamen, der auf `bot` endet, z. B. `leifs_agentendorf_bot`.
+3. BotFather zeigt ein **Token** (`123456789:AA…`). Kopieren – und **nur** auf dem Server einfügen:
+
+```bash
+dorf telegram-einrichten
+```
+
+4. Das Skript bittet dich, dem neuen Bot `/start` zu schicken, zeigt dann deinen Namen und deine Chat-ID – mit `ja` bestätigen.
+
+Danach: Jede Textnachricht an den Bot landet als Aufgabe auf dem Schreibtisch, Freigaben kommen mit Ja/Nein-Knöpfen. Welche Meldungen kommen, stellst du unter **Rathaus → Agenten-Einstellungen → Telegram** ein.
+
+## 8. Vault auf Mac und PCs (Syncthing + Obsidian)
 
 1. Syncthing installieren: Mac `brew install --cask syncthing` (oder syncthing.net), Windows: *Syncthing Windows Setup* von syncthing.net/downloads.
 2. Geräte-ID des Servers anzeigen:
@@ -117,7 +133,7 @@ Für Windows-PC und -Laptop ebenso. Konflikte überschreibt Syncthing nie. Es le
 
 > Falls `dorf syncthing-geraet` meldet, dass ein Befehl unbekannt ist (Syncthing ändert seine Kommandozeile gelegentlich), geht es auch über die Oberfläche: `ssh -L 8384:127.0.0.1:8384 leif@dorf.deine-domain.de`, dann im Browser `http://localhost:8384`.
 
-## 8. Backup prüfen (einmal real)
+## 9. Backup prüfen (einmal real)
 
 ```bash
 dorf backup

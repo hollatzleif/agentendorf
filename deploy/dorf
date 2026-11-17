@@ -227,6 +227,38 @@ cmd_api_schluessel() {
   gruen "API-Schlüssel gespeichert, Dorf neu gestartet."
 }
 
+# Telegram-Bot koppeln: Token prüfen, dein /start abwarten, Chat-ID bestätigen, eintragen.
+cmd_telegram_einrichten() {
+  local t name upd chat id antwort letzte
+  read -r -s -p "Bot-Token von @BotFather (Eingabe unsichtbar): " t; echo
+  t=$(printf '%s' "$t" | tr -d '\r\n ')
+  [[ "$t" =~ ^[0-9]+:[A-Za-z0-9_-]{30,}$ ]] || { rot "Das sieht nicht wie ein Bot-Token aus (Zahl:Buchstaben…)."; return 1; }
+  name=$(curl -fsS "https://api.telegram.org/bot$t/getMe" | jq -r '.result.username // empty') || true
+  [ -n "$name" ] || { rot "Telegram kennt dieses Token nicht."; return 1; }
+  gruen "Bot @$name gefunden."
+  # Solange wir koppeln, darf das Dorf nicht gleichzeitig abfragen.
+  sed -i '/^TELEGRAM_BOT_TOKEN=/d;/^TELEGRAM_CHAT_ID=/d' "$ENV_DATEI"
+  compose up -d --force-recreate dorf >/dev/null 2>&1 || true
+  curl -fsS "https://api.telegram.org/bot$t/deleteWebhook" >/dev/null || true
+  info "Öffne Telegram, suche @$name und schicke ihm /start. Ich warte bis zu 2 Minuten …"
+  chat=""
+  for _ in $(seq 1 24); do
+    upd=$(curl -fsS "https://api.telegram.org/bot$t/getUpdates?timeout=5") || upd='{"result":[]}'
+    chat=$(jq -r '[.result[] | select(.message.text != null and (.message.text | startswith("/start"))) | .message.chat] | last // empty | "\(.id)|\(.first_name // "")|\(.username // "")"' <<<"$upd")
+    [ -n "$chat" ] && break
+  done
+  [ -n "$chat" ] || { rot "Kein /start angekommen. Bitte nochmal: dorf telegram-einrichten"; return 1; }
+  id=${chat%%|*}
+  read -r -p "Gefunden: $(cut -d'|' -f2 <<<"$chat") (@$(cut -d'|' -f3 <<<"$chat"), Chat-ID $id). Ist das dein Konto? [ja/nein] " antwort
+  [ "$antwort" = ja ] || { rot "Abgebrochen."; return 1; }
+  # Bisherige Nachrichten als gelesen markieren, damit /start nicht als Aufgabe ankommt
+  letzte=$(jq '[.result[].update_id] | max // 0' <<<"$upd")
+  curl -fsS "https://api.telegram.org/bot$t/getUpdates?offset=$((letzte + 1))&timeout=0" >/dev/null || true
+  printf 'TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_CHAT_ID=%s\n' "$t" "$id" >> "$ENV_DATEI"
+  compose up -d --force-recreate dorf
+  gruen "Telegram eingerichtet. Schick dem Bot eine Aufgabe – oder in der App: Rathaus → Agenten-Einstellungen → Testnachricht."
+}
+
 cmd_syncthing_id() { compose exec -T syncthing syncthing device-id 2>/dev/null || compose exec -T syncthing syncthing --device-id; }
 
 cmd_syncthing_geraet() {
@@ -254,6 +286,7 @@ Agentendorf – Befehle auf dem Server
 
   dorf claude-anmelden           Abo für den claude-code-Motor anmelden (Token 1 Jahr gültig)
   dorf api-schluessel            API-Schlüssel für den api-Motor eintragen
+  dorf telegram-einrichten       eigenen Telegram-Bot koppeln (Token von @BotFather)
 
   dorf backup                    Sicherung jetzt (läuft sonst täglich 03:30)
   dorf restore-test [stand]      Wiederherstellung in Testordner prüfen
@@ -284,6 +317,7 @@ case "$befehl" in
   syncthing-id) cmd_syncthing_id ;;
   claude-anmelden) cmd_claude_anmelden ;;
   api-schluessel) cmd_api_schluessel ;;
+  telegram-einrichten) cmd_telegram_einrichten ;;
   syncthing-geraet) cmd_syncthing_geraet "$@" ;;
   hilfe|-h|--help) cmd_hilfe ;;
   *) rot "Unbekannter Befehl: $befehl"; cmd_hilfe; exit 1 ;;
