@@ -7,6 +7,7 @@ import { systemUhr } from './uhr.js';
 import { passwortSetzen } from './auth/passwort.js';
 import { Sitzungen } from './auth/sitzungen.js';
 import { VaultDienst } from './vault/dienst.js';
+import { moodleKlient, tokenAusLaunch, verbindungPruefen } from './uni/moodle.js';
 
 const HILFE = `Agentendorf – Verwaltung
   passwort                 Passwort setzen oder ändern (beendet alle Sitzungen)
@@ -14,7 +15,10 @@ const HILFE = `Agentendorf – Verwaltung
   totp-aus                 Zweiten Faktor abschalten (Notfall, wenn das Handy weg ist)
   sitzungen-beenden        Alle Sitzungen beenden (alle Geräte abmelden)
   db-sichern <zieldatei>   Konsistente Kopie der Datenbank anlegen (für das Backup)
-  vault-ergaenzen          Fehlende Dateien aus der Vorlage ergänzen (überschreibt nie)`;
+  vault-ergaenzen          Fehlende Dateien aus der Vorlage ergänzen (überschreibt nie)
+  moodle-token <url> <prüfwert>
+                           Liest die moodlemobile://-Adresse von stdin, prüft Signatur und Verbindung,
+                           gibt das Token auf stdout aus (nur für dorf moodle-anmelden)`;
 
 async function verdecktFragen(frage: string): Promise<string> {
   let stumm = false;
@@ -76,6 +80,21 @@ try {
     case 'vault-ergaenzen': {
       const n = await new VaultDienst(konfig.vaultDir, systemUhr).ausVorlage(konfig.vorlageDir, { ergaenzen: true });
       console.log(`${n} fehlende Datei(en) aus der Vorlage ergänzt.`);
+      break;
+    }
+    case 'moodle-token': {
+      const [url, passport] = rest;
+      if (!url || !passport) throw new Error('Aufruf: moodle-token <moodle-url> <prüfwert>');
+      const { token } = tokenAusLaunch(await stdinLesen(), url, passport);
+      const v = await verbindungPruefen(moodleKlient(url, token));
+      console.error(`Verbunden mit ${v.seite} als ${v.nutzer}.`);
+      if (v.fehlend.length) {
+        console.error(`STOPP: Moodle erlaubt diese Funktionen nicht: ${v.fehlend.join(', ')}. Token wird NICHT gespeichert.`);
+        process.exitCode = 2;
+        break;
+      }
+      for (const f of v.optionalFehlend) console.error(`Hinweis: ${f} ist nicht erlaubt – dieser Teil des Abgleichs fällt weg.`);
+      process.stdout.write(token);
       break;
     }
     default:

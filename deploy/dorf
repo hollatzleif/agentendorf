@@ -259,6 +259,34 @@ cmd_telegram_einrichten() {
   gruen "Telegram eingerichtet. Schick dem Bot eine Aufgabe – oder in der App: Rathaus → Agenten-Einstellungen → Testnachricht."
 }
 
+# Moodle verbinden wie die offizielle Moodle-App: Anmeldung im Browser (JKU-SSO), Token aus der moodlemobile://-Adresse.
+cmd_moodle_anmelden() {
+  local url passport adresse token
+  url=${1:-$(sed -n 's/^MOODLE_URL=//p' "$ENV_DATEI" | tail -1)}
+  url=${url:-https://moodle.jku.at}
+  url=${url%/}
+  [[ "$url" =~ ^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._/-]*)?$ ]] || { rot "Ungültige Moodle-Adresse: $url"; return 1; }
+  passport=$(tr -dc 0-9 </dev/urandom | head -c 12)
+  info "1. Öffne am PC diese Adresse und melde dich mit deinem JKU-Konto an:"
+  echo
+  echo "   $url/admin/tool/mobile/launch.php?service=moodle_mobile_app&passport=$passport&urlscheme=moodlemobile"
+  echo
+  info "2. Am Ende will Moodle eine Adresse 'moodlemobile://token=…' öffnen. Kopiere sie vollständig:"
+  info "   Firefox: steht in der Fehlermeldung bzw. Adresszeile.  Chrome/Edge: vorher F12 → Netzwerk → 'Log beibehalten',"
+  info "   dann den Eintrag launch.php anklicken → Antwort-Header 'Location'."
+  read -r -s -p "3. Adresse hier einfügen (Eingabe unsichtbar, leer = abbrechen): " adresse; echo
+  adresse=$(printf '%s' "$adresse" | tr -d '\r\n ')
+  [ -n "$adresse" ] || { rot "Abgebrochen."; return 1; }
+  if ! token=$(printf '%s' "$adresse" | compose exec -T dorf node dist/cli.js moodle-token "$url" "$passport"); then
+    rot "Nicht gespeichert (siehe Meldung oben)."; return 1
+  fi
+  [[ "$token" =~ ^[A-Za-z0-9]{16,64}$ ]] || { rot "Unerwartete Antwort – nicht gespeichert."; return 1; }
+  sed -i '/^MOODLE_URL=/d;/^MOODLE_TOKEN=/d' "$ENV_DATEI"
+  printf 'MOODLE_URL=%s\nMOODLE_TOKEN=%s\n' "$url" "$token" >> "$ENV_DATEI"
+  compose up -d --force-recreate dorf
+  gruen "Moodle verbunden. Der erste Abgleich startet in einer Minute (Uni → Übersicht → 'Jetzt abgleichen' geht sofort)."
+}
+
 cmd_syncthing_id() { compose exec -T syncthing syncthing device-id 2>/dev/null || compose exec -T syncthing syncthing --device-id; }
 
 cmd_syncthing_geraet() {
@@ -287,6 +315,7 @@ Agentendorf – Befehle auf dem Server
   dorf claude-anmelden           Abo für den claude-code-Motor anmelden (Token 1 Jahr gültig)
   dorf api-schluessel            API-Schlüssel für den api-Motor eintragen
   dorf telegram-einrichten       eigenen Telegram-Bot koppeln (Token von @BotFather)
+  dorf moodle-anmelden [url]     Moodle verbinden (Standard: https://moodle.jku.at), Anmeldung über JKU-Login
 
   dorf backup                    Sicherung jetzt (läuft sonst täglich 03:30)
   dorf restore-test [stand]      Wiederherstellung in Testordner prüfen
@@ -318,6 +347,7 @@ case "$befehl" in
   claude-anmelden) cmd_claude_anmelden ;;
   api-schluessel) cmd_api_schluessel ;;
   telegram-einrichten) cmd_telegram_einrichten ;;
+  moodle-anmelden) cmd_moodle_anmelden "$@" ;;
   syncthing-geraet) cmd_syncthing_geraet "$@" ;;
   hilfe|-h|--help) cmd_hilfe ;;
   *) rot "Unbekannter Befehl: $befehl"; cmd_hilfe; exit 1 ;;
