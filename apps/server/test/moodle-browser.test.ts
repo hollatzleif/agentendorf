@@ -4,6 +4,7 @@ import { aktionenListe } from '../src/agenten/aktionen.js';
 import { aktionPruefen, werkzeugprofil } from '../src/agenten/leine.js';
 import type { MoodleBrowserKlient, SeitenAuszug } from '../src/agenten/moodle-browser.js';
 import { testDorf } from './hilfen.js';
+import type { TelegramSchnittstelle } from '../src/telegram/api.js';
 
 const befehl = (name: string, e: unknown) => `<<werkzeug ${name} ${JSON.stringify(e)}>>`;
 const AKTION = `---
@@ -141,6 +142,35 @@ describe('Moodle-Browser im Dorf', () => {
     expect(await ohne.agenten.moodleBrowser?.zustand()).toBeUndefined();
     const mit = await testDorf({ moodleBrowser: fakeBrowser().k });
     expect(await mit.agenten.moodleBrowser!.zustand()).toEqual({ erreichbar: true, zugang: true });
+  });
+
+  it('Telegram: /moodle <Fach> [Frage] startet „Moodle durchsehen“; ohne Fach kommt die Liste', async () => {
+    const texte: string[] = [];
+    const api: TelegramSchnittstelle = {
+      async aufruf<T>(m: string, p: Record<string, unknown> = {}) {
+        if (m === 'sendMessage') texte.push(String(p.text));
+        return { message_id: texte.length } as T;
+      },
+      async dateiLaden() {
+        return { name: 'x', inhalt: Buffer.from('') };
+      },
+    };
+    const d = await testDorf({ moodleBrowser: fakeBrowser().k, telegram: api, env: { TELEGRAM_CHAT_ID: '1' } });
+    await d.vault.schreiben('Uni/faecher/CDA/kurs.md', '# CDA');
+    await d.vault.schreiben('Uni/faecher/Mathe III/kurs.md', '# Mathe');
+    let u = 1;
+    const schreiben = (text: string) => d.telegram!.verarbeiten({ update_id: u++, message: { message_id: u, chat: { id: 1 }, date: 0, text } as never });
+    await schreiben('/moodle');
+    expect(texte.at(-1)).toMatch(/Welches Fach\?[\s\S]*\/moodle CDA[\s\S]*\/moodle Mathe III/);
+    await schreiben('/moodle mathe iii was muss ich bis Donnerstag vorbereiten?');
+    expect(texte.at(-1)).toMatch(/Ich schaue in Moodle nach: <b>Mathe III<\/b>\n<i>was muss ich bis Donnerstag vorbereiten\?<\/i>/);
+    await schreiben('/moodle cda');
+    const chats = d.db.prepare("SELECT eingaben_json FROM chats WHERE aktion = 'Uni/moodle-durchsehen' ORDER BY erstellt").all() as { eingaben_json: string }[];
+    expect(chats.map((c) => JSON.parse(c.eingaben_json))).toEqual([
+      { fach: 'Mathe III', frage: 'was muss ich bis Donnerstag vorbereiten?' },
+      { fach: 'CDA', frage: '' },
+    ]);
+    await d.agenten.leerlauf();
   });
 
   it('die Vorlage „Moodle durchsehen“ ist da und gültig', async () => {

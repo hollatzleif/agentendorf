@@ -266,6 +266,7 @@ export class TelegramBot {
     let text = (m.text ?? m.caption ?? '').trim();
     if (text.startsWith('/')) {
       const b = text.split(/\s/)[0]!.split('@')[0]!.toLowerCase();
+      if (b === '/moodle') return this.moodleBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b !== '/neu') return this.befehl(b);
       // „/neu“ beendet das laufende Gespräch; „/neu <Text>“ legt gleich eine neue Aufgabe an
       this.verlaufMerken(m.message_id, '');
@@ -334,7 +335,7 @@ export class TelegramBot {
   private async befehl(b: string) {
     if (b === '/start' || b === '/hilfe' || b === '/help')
       return this.senden(
-        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/hilfe – diese Hilfe`,
+        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/hilfe – diese Hilfe`,
       );
     if (b === '/status') {
       const aktiv = this.o.agenten.aktiveLaeufe();
@@ -352,6 +353,34 @@ export class TelegramBot {
       return;
     }
     return this.senden('Unbekannter Befehl. /hilfe zeigt, was geht.');
+  }
+
+  /** /moodle <Fach> [Frage] – „Moodle durchsehen“ direkt vom Handy starten (Leifs Auftrag → über sein Abo) */
+  private async moodleBefehl(rest: string) {
+    if (!this.o.agenten.moodleBrowser) return this.senden('🌐 Der Moodle-Browser ist noch nicht eingerichtet. Auf dem Server: <code>dorf moodle-browser-zugang</code>');
+    const faecher = this.o.uni?.faecher() ?? [];
+    if (!faecher.length) return this.senden('🎓 Noch keine Fächer – leg in der App unter Uni → Studium eins an.');
+    const klein = rest.toLowerCase();
+    // längster passender Fachname/-titel am Anfang, sonst eindeutiger Treffer des ersten Worts
+    const kandidaten = faecher.flatMap((f) => [f.name, f.titel].map((n) => ({ f, n: n.toLowerCase() })));
+    let treffer = kandidaten.filter((k) => klein === k.n || klein.startsWith(`${k.n} `)).sort((a, b) => b.n.length - a.n.length)[0];
+    let frage = treffer ? rest.slice(treffer.n.length).trim() : '';
+    if (!treffer && rest) {
+      const wort = klein.split(/\s+/)[0]!;
+      const passend = [...new Set(kandidaten.filter((k) => k.n.includes(wort)).map((k) => k.f))];
+      if (passend.length === 1) {
+        treffer = { f: passend[0]!, n: wort };
+        frage = rest.slice(wort.length).trim();
+      }
+    }
+    if (!treffer)
+      return this.senden(`🌐 Welches Fach? Zum Beispiel:\n${faecher.slice(0, 12).map((f) => `<code>/moodle ${h(f.name)}</code>`).join('\n')}\n\nDanach optional deine Frage, z. B. „was muss ich bis Donnerstag vorbereiten?“`);
+    try {
+      const r = await this.o.agenten.aktionStarten('Uni/moodle-durchsehen', { fach: treffer.f.name, frage }, 'klick');
+      return this.senden(`🌐 Ich schaue in Moodle nach: <b>${h(treffer.f.titel)}</b>${frage ? `\n<i>${h(frage.slice(0, 300))}</i>` : ''}\n<a href="${this.link(`/chats/${r.chatId}`)}">Chat öffnen</a>`, {}, r.chatId);
+    } catch (e) {
+      return this.senden(`⚠️ Konnte nicht starten: ${h((e as Error).message)}`);
+    }
   }
 
   // ---- Knöpfe ---------------------------------------------------------------------------------
