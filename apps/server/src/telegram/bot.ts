@@ -20,7 +20,7 @@ import { zeitpunktAus } from '../todo-erinnerungen.js';
 import { tagPlanen } from '../tagesplan.js';
 
 type PlanBlock = { titel: string; grund: string; start: string; ende: string };
-import type { FokusStatistik, TodoInfo } from '@dorf/shared';
+import type { FokusStatistik, Statistik, TodoInfo } from '@dorf/shared';
 import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
 import type { FreigabeInfo, PlanInhalt, TelegramStatus } from '@dorf/shared';
@@ -124,6 +124,8 @@ export class TelegramBot {
       notizen?: Notizen;
       /** E100: /woche – Fakten wie im Wochenrückblick (ohne KI) */
       woche?: { fakten(): Promise<{ abschnitte: { titel: string; zeilen: string[] }[] }> };
+      /** E104: /statistik */
+      statistik?: (tage: number) => Promise<Statistik>;
       /** Nacht 18./19.11.: /fokus – Pomodoro starten */
       kirchturm?: { ausfuehren(b: unknown): unknown; fokusStatistik?(): FokusStatistik };
       /** Nacht 18./19.11.: /termin – Termin aus Text, eingetragen erst nach Leifs Knopfdruck */
@@ -292,6 +294,7 @@ export class TelegramBot {
     { command: 'einkauf', description: 'Einkaufsliste (abhaken im Laden) – /einkauf <Text> setzt etwas drauf' },
     { command: 'termin', description: 'Termin in den Kalender: /termin morgen 14 Uhr Zahnarzt' },
     { command: 'woche', description: 'Deine Woche: Ziele, Termine, Fristen, Fälliges' },
+    { command: 'statistik', description: 'Die letzten 7 Tage: Erledigtes, Fokus, Gewohnheiten' },
     { command: 'aufraeumen', description: 'Überfällige To-dos nacheinander: heute, morgen, nächste Woche, erledigt' },
     { command: 'notiz', description: 'Gedanken festhalten: /notiz <Text> (Tagesnotiz im Rathaus)' },
     { command: 'erinner', description: 'Erinnerung: /erinner morgen 9 Uhr Mama anrufen, /erinner in 30 min Wäsche' },
@@ -464,6 +467,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       if (b === '/termin') return this.terminBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/gewohnheiten' || b === '/gewohnheit') return this.gewohnheitenSenden();
       if (b === '/woche') return this.wocheSenden();
+      if (b === '/statistik') return this.statistikSenden();
       if (b === '/aufraeumen' || b === '/aufräumen') return this.aufraeumenZeigen();
       if (b === '/notiz' || b === '/n') return this.notizBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/erinner' || b === '/erinnere' || b === '/erinnerung') return this.erinnerBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
@@ -545,7 +549,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
   private async befehl(b: string) {
     if (b === '/start' || b === '/hilfe' || b === '/help')
       return this.senden(
-        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/heute – dein Tag: Wetter, Termine, Fristen\n/fristen – Abgaben und Prüfungen der nächsten 7 Tage (mit Erledigt-Knöpfen)\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/aktion [Name] – Skill starten (ohne Name: Liste)\n/todo – To-do-Liste mit Abhak-Knöpfen (/todo &lt;Text&gt; legt eins an)\n/einkauf – Einkaufsliste (/einkauf &lt;Text&gt; setzt etwas drauf)\n/termin &lt;wann&gt; &lt;was&gt; – Termin in den Kalender (mit Bestätigung)\n/plan [morgen] – Tag planen: To-dos in freie Lücken\n/erinner &lt;wann&gt; &lt;was&gt; – To-do mit Erinnerung (läutet im Kirchturm)\n/notiz &lt;Text&gt; – schnell festhalten (Tagesnotiz)\n/aufraeumen – überfällige To-dos neu einplanen\n/woche – Ziele, Termine und Fristen der nächsten 7 Tage\n/karten [Fach] – Karteikarten wiederholen\n/gewohnheiten – heute abhaken\n/ziel [Text] – Wochenziele (ohne Text: abhaken)\n/fokus [Thema] – Pomodoro starten\n/hilfe – diese Hilfe`,
+        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/heute – dein Tag: Wetter, Termine, Fristen\n/fristen – Abgaben und Prüfungen der nächsten 7 Tage (mit Erledigt-Knöpfen)\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/aktion [Name] – Skill starten (ohne Name: Liste)\n/todo – To-do-Liste mit Abhak-Knöpfen (/todo &lt;Text&gt; legt eins an)\n/einkauf – Einkaufsliste (/einkauf &lt;Text&gt; setzt etwas drauf)\n/termin &lt;wann&gt; &lt;was&gt; – Termin in den Kalender (mit Bestätigung)\n/plan [morgen] – Tag planen: To-dos in freie Lücken\n/erinner &lt;wann&gt; &lt;was&gt; – To-do mit Erinnerung (läutet im Kirchturm)\n/notiz &lt;Text&gt; – schnell festhalten (Tagesnotiz)\n/aufraeumen – überfällige To-dos neu einplanen\n/woche – Ziele, Termine und Fristen der nächsten 7 Tage\n/statistik – die letzten 7 Tage in Zahlen\n/karten [Fach] – Karteikarten wiederholen\n/gewohnheiten – heute abhaken\n/ziel [Text] – Wochenziele (ohne Text: abhaken)\n/fokus [Thema] – Pomodoro starten\n/hilfe – diese Hilfe`,
       );
     if (b === '/status') {
       const aktiv = this.o.agenten.aktiveLaeufe();
@@ -1004,6 +1008,33 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     };
     const teile = [teil('Wochenziele', '🎯 Wochenziele'), teil('Nächste Woche', '📅 Die nächsten 7 Tage'), teil('Gewohnheiten', '🔁 Gewohnheiten (7 Tage)')].filter(Boolean);
     return this.senden(`🗓️ <b>Deine Woche</b>\n\n${teile.length ? teile.join('\n\n') : 'Nichts geplant – ein guter Moment für /ziel.'}`);
+  }
+
+  // ---- /statistik (E104) -----------------------------------------------------------------------------
+
+  /** ▁▂▃▄▅▆▇█ je Tag (0 = ·) */
+  static balken(werte: number[]) {
+    const max = Math.max(...werte, 1);
+    return werte.map((v) => (v <= 0 ? '·' : '▁▂▃▄▅▆▇█'[Math.min(7, Math.ceil((v / max) * 8) - 1)]!)).join('');
+  }
+
+  private async statistikSenden() {
+    if (!this.o.statistik) return this.senden('Die Statistik ist gerade nicht verfügbar.');
+    const s = await this.o.statistik(7);
+    const t = s.tage;
+    const wt = t.map((x) => 'SMDMDFS'[new Date(`${x.tag}T12:00:00Z`).getUTCDay()]).join('');
+    const std = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`);
+    const gwF = t.reduce((a, x) => a + x.gewohnheitenFaellig, 0);
+    const gwE = t.reduce((a, x) => a + x.gewohnheitenErledigt, 0);
+    const z = [
+      `📊 <b>Die letzten 7 Tage</b>`,
+      `<code>${wt}</code>`,
+      `<code>${TelegramBot.balken(t.map((x) => x.erledigt))}</code> ☑️ ${s.summen.erledigt} erledigt`,
+      `<code>${TelegramBot.balken(t.map((x) => x.fokusMin))}</code> 🍅 ${std(s.summen.fokusMin)} Fokus`,
+    ];
+    if (gwF) z.push(`<code>${TelegramBot.balken(t.map((x) => (x.gewohnheitenFaellig ? x.gewohnheitenErledigt / x.gewohnheitenFaellig : 0)))}</code> 🔁 ${gwE}/${gwF} Gewohnheiten`);
+    z.push(`\n${s.summen.aktiveTage}/7 aktive Tage · <a href="${this.link('/gebaeude/Rathaus?reiter=statistik')}">Statistik</a>`);
+    return this.senden(z.join('\n'));
   }
 
   // ---- Überfälliges aufräumen (E97) ------------------------------------------------------------------

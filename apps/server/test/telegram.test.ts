@@ -217,7 +217,7 @@ describe('Telegram-Bot', () => {
     expect(offsets.at(-1)).toBe(51);
     // Befehlsmenü wird beim Start angemeldet
     const menue = d.aufrufe.find((x) => x.m === 'setMyCommands')?.p.commands as { command: string }[];
-    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'woche', 'aufraeumen', 'notiz', 'erinner', 'plan', 'karten', 'fokus', 'ziel', 'gewohnheiten', 'neu', 'hilfe']);
+    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'woche', 'statistik', 'aufraeumen', 'notiz', 'erinner', 'plan', 'karten', 'fokus', 'ziel', 'gewohnheiten', 'neu', 'hilfe']);
     await d.agenten.leerlauf();
   }, 15_000);
 });
@@ -639,5 +639,18 @@ describe('Telegram Kurzformen (E103)', () => {
     await d.ruhe();
     expect((await d.todos.liste()).map((t) => t.titel)).toEqual(['Milch kaufen']);
     expect(d.schreibtisch.liste()[0]).toMatchObject({ quelle: 'telegram' });
+  });
+});
+
+describe('Telegram /statistik (E104)', () => {
+  it('Balken je Tag aus Blockzeichen, Summen', async () => {
+    const { TelegramBot } = await import('../src/telegram/bot.js');
+    expect(TelegramBot.balken([0, 1, 2, 4, 8])).toBe('·▁▂▄█');
+    const d = await dorf();
+    const a = await d.todos.anlegen({ titel: 'A' }, 'Leif');
+    await d.todos.aendern(a.pfad, { erledigt: true });
+    await d.nachricht({ text: '/statistik' });
+    const t = d.gesendet().at(-1)!;
+    expect(t).toMatch(/📊 <b>Die letzten 7 Tage<\/b>\n<code>DMDFSSM<\/code>\n<code>······█<\/code> ☑️ 1 erledigt\n<code>·······<\/code> 🍅 0 min Fokus\n\n1\/7 aktive Tage/);
   });
 });

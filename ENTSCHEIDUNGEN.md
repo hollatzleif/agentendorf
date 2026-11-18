@@ -757,3 +757,8 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 
 - `todo: …`, `notiz: …`, `ziel: …` und `einkauf: …` (Groß-/Kleinschreibung egal) wirken wie der jeweilige Befehl. Am Handy tippt sich ein Doppelpunkt schneller als ein Schrägstrich, und die Nachricht geht nicht als Auftrag an den Bürgermeister (spart KI-Läufe).
 - **Nur Leifs eigene Textnachrichten.** Weitergeleitetes ist Fremdinhalt und geht wie bisher als Aufgabe auf den Schreibtisch. So kann eine weitergeleitete Nachricht, die mit „todo:“ beginnt, nichts von selbst auf die Liste setzen.
+
+## E104 – Telegram /statistik (Nacht 18./19.11.)
+
+- **`/statistik`** zeigt die letzten 7 Tage als kleine Balken aus Blockzeichen (▁▂▃▄▅▆▇█, `·` = nichts), eine Zeile je Kennzahl: erledigte To-dos, Fokus, Anteil erledigter Gewohnheiten. Darüber stehen die Wochentage, darunter die Summen und die Zahl der aktiven Tage. Ein Link führt zur ausführlichen Statistik im Rathaus.
+- Dieselbe Berechnung wie in der App (`statistik.ts`), ohne KI.

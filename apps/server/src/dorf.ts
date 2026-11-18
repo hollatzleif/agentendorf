@@ -43,6 +43,7 @@ import { Gewohnheiten } from './gewohnheiten.js';
 import { Wochenziele } from './wochenziele.js';
 import { Notizen } from './notizen.js';
 import { Noten } from './uni/noten.js';
+import { statistik } from './statistik.js';
 import { TodoErinnerungen } from './todo-erinnerungen.js';
 import { GoogleKalender, googleKalenderKlient, type KalenderKlient } from './kalender-google.js';
 import { Bank, datum as bankDatum } from './bank.js';
@@ -380,6 +381,7 @@ export async function dorfStarten(
       erinnerungen,
       notizen,
       woche: wochenrueckblick,
+      statistik: (n) => statistik({ db, uhr, todos, gewohnheiten }, n),
       log: (t) => console.warn(t),
     });
     if (!opt.telegram) telegram.starten();
