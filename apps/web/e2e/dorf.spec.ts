@@ -1019,3 +1019,16 @@ test('Erinnerung am To-do: setzen, 🔔-Abzeichen; zur Zeit läutet der Kirchtur
   await expect(glocke).toHaveCount(0);
   await expect(page.locator('li.todo.fertig', { hasText: 'Jetzt-Erinnerung' })).toHaveCount(1);
 });
+
+test('Befehlspalette: „notiz …“ landet in der Tagesnotiz', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  await page.keyboard.press('Control+k');
+  const p = page.getByRole('dialog', { name: 'Befehlspalette' });
+  await p.getByLabel('Befehl oder Suche').fill('notiz Palette-Notiz-Test');
+  await expect(p.getByRole('option').first()).toContainText('Notiz: Palette-Notiz-Test');
+  await p.getByLabel('Befehl oder Suche').press('Enter');
+  await expect(p).toContainText('📝 Notiert.');
+  const n = await (await page.request.get('/api/notizen/heute')).json();
+  expect(n.zeilen.some((z: string) => z.endsWith('Palette-Notiz-Test'))).toBe(true);
+});

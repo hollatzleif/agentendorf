@@ -15,6 +15,7 @@ import type { Karteikasten } from '../karten.js';
 import type { Gewohnheiten } from '../gewohnheiten.js';
 import type { Wochenziele } from '../wochenziele.js';
 import type { TodoErinnerungen } from '../todo-erinnerungen.js';
+import type { Notizen } from '../notizen.js';
 import { zeitpunktAus } from '../todo-erinnerungen.js';
 import { tagPlanen } from '../tagesplan.js';
 
@@ -119,6 +120,8 @@ export class TelegramBot {
       wochenziele?: Wochenziele;
       /** E94: Erinnerungen an To-dos – Knöpfe „+1 h“, „Morgen 9:00“ */
       erinnerungen?: TodoErinnerungen;
+      /** E95: /notiz */
+      notizen?: Notizen;
       /** Nacht 18./19.11.: /fokus – Pomodoro starten */
       kirchturm?: { ausfuehren(b: unknown): unknown; fokusStatistik?(): FokusStatistik };
       /** Nacht 18./19.11.: /termin – Termin aus Text, eingetragen erst nach Leifs Knopfdruck */
@@ -222,6 +225,7 @@ export class TelegramBot {
     { command: 'todo', description: 'To-do-Liste (abhaken per Knopf) – /todo <Text> legt eins an' },
     { command: 'einkauf', description: 'Einkaufsliste (abhaken im Laden) – /einkauf <Text> setzt etwas drauf' },
     { command: 'termin', description: 'Termin in den Kalender: /termin morgen 14 Uhr Zahnarzt' },
+    { command: 'notiz', description: 'Gedanken festhalten: /notiz <Text> (Tagesnotiz im Rathaus)' },
     { command: 'erinner', description: 'Erinnerung: /erinner morgen 9 Uhr Mama anrufen, /erinner in 30 min Wäsche' },
     { command: 'plan', description: 'Tag planen: To-dos als Blöcke in freie Lücken – /plan morgen' },
     { command: 'karten', description: 'Karteikarten wiederholen: /karten [Fach]' },
@@ -388,6 +392,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       if (b === '/einkauf') return this.todoBefehl(text.slice(text.split(/\s/)[0]!.length).trim(), 'einkauf');
       if (b === '/termin') return this.terminBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/gewohnheiten' || b === '/gewohnheit') return this.gewohnheitenSenden();
+      if (b === '/notiz' || b === '/n') return this.notizBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/erinner' || b === '/erinnere' || b === '/erinnerung') return this.erinnerBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/ziel' || b === '/ziele') return this.zielBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/plan') return this.planBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
@@ -467,7 +472,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
   private async befehl(b: string) {
     if (b === '/start' || b === '/hilfe' || b === '/help')
       return this.senden(
-        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/heute – dein Tag: Wetter, Termine, Fristen\n/fristen – Abgaben und Prüfungen der nächsten 7 Tage (mit Erledigt-Knöpfen)\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/aktion [Name] – Skill starten (ohne Name: Liste)\n/todo – To-do-Liste mit Abhak-Knöpfen (/todo &lt;Text&gt; legt eins an)\n/einkauf – Einkaufsliste (/einkauf &lt;Text&gt; setzt etwas drauf)\n/termin &lt;wann&gt; &lt;was&gt; – Termin in den Kalender (mit Bestätigung)\n/plan [morgen] – Tag planen: To-dos in freie Lücken\n/erinner &lt;wann&gt; &lt;was&gt; – To-do mit Erinnerung (läutet im Kirchturm)\n/karten [Fach] – Karteikarten wiederholen\n/gewohnheiten – heute abhaken\n/ziel [Text] – Wochenziele (ohne Text: abhaken)\n/fokus [Thema] – Pomodoro starten\n/hilfe – diese Hilfe`,
+        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/heute – dein Tag: Wetter, Termine, Fristen\n/fristen – Abgaben und Prüfungen der nächsten 7 Tage (mit Erledigt-Knöpfen)\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/aktion [Name] – Skill starten (ohne Name: Liste)\n/todo – To-do-Liste mit Abhak-Knöpfen (/todo &lt;Text&gt; legt eins an)\n/einkauf – Einkaufsliste (/einkauf &lt;Text&gt; setzt etwas drauf)\n/termin &lt;wann&gt; &lt;was&gt; – Termin in den Kalender (mit Bestätigung)\n/plan [morgen] – Tag planen: To-dos in freie Lücken\n/erinner &lt;wann&gt; &lt;was&gt; – To-do mit Erinnerung (läutet im Kirchturm)\n/notiz &lt;Text&gt; – schnell festhalten (Tagesnotiz)\n/karten [Fach] – Karteikarten wiederholen\n/gewohnheiten – heute abhaken\n/ziel [Text] – Wochenziele (ohne Text: abhaken)\n/fokus [Thema] – Pomodoro starten\n/hilfe – diese Hilfe`,
       );
     if (b === '/status') {
       const aktiv = this.o.agenten.aktiveLaeufe();
@@ -906,6 +911,18 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     const ok = !!(await this.senden(z.join('\n'), { reply_markup: { inline_keyboard: t } }));
     if (ok) await this.gewohnheitenSenden(true).catch((e) => this.fehler(e));
     return ok;
+  }
+
+  // ---- Notizen (E95) ---------------------------------------------------------------------------------
+
+  private async notizBefehl(rest: string) {
+    if (!this.o.notizen) return this.senden('Notizen sind nicht eingerichtet.');
+    if (!rest) {
+      const n = await this.o.notizen.heute();
+      return this.senden(n.zeilen.length ? `📝 <b>Notizen heute</b>\n${n.zeilen.slice(-15).map((z) => h(z.replace(/^- /, ''))).join('\n')}` : '📝 Heute noch keine Notizen. <i>/notiz &lt;Text&gt;</i> hält etwas fest.');
+    }
+    const r = await this.o.notizen.hinzufuegen(rest, 'Telegram');
+    return this.senden(`📝 Notiert (${h(r.pfad)}).`);
   }
 
   // ---- Erinnerungen an To-dos (E94) ----------------------------------------------------------------

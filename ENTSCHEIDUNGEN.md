@@ -689,3 +689,13 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
   - in Telegram mit `/erinner morgen 9 Uhr Mama anrufen`, `/erinner in 30 min Wäsche` oder `/erinner Fr 14:00 Bericht`; daraus wird ein To-do mit Fälligkeit und Erinnerung
   - von Agenten über `todo_*` – laut Beschreibung nur, wenn Leif es will
 - Warum: Ein To-do ohne Zeit geht im Tag leicht unter. Eine Erinnerung zur richtigen Minute am Handy und am PC schließt diese Lücke – ohne eine zweite App.
+
+## E95 – Schnelle Notizen (Nacht 18./19.11.)
+
+- **Ein Gedanke soll in Sekunden festgehalten sein**, ohne dass Leif entscheiden muss, wohin er gehört. Dafür gibt es je Tag eine Datei `Rathaus/notizen/JJJJ-MM-TT.md` mit Zeilen „- HH:MM Text“.
+- **Wege dorthin:**
+  - Telegram `/notiz <Text>`; ohne Text zeigt der Befehl die Notizen von heute.
+  - In der Befehlspalette „notiz …“.
+  - Die API `POST /api/notiz`.
+- **Angehängt wird mit `basisVersion`**: Schreibt Obsidian gleichzeitig, versucht das Dorf es einmal neu; Leifs eigener Text bleibt stehen. Zeilenumbrüche werden zu „⏎“, damit jede Notiz eine Zeile bleibt.
+- **Unterschied zu `/todo` und zum Bürgermeister:** Eine Notiz ist weder Aufgabe noch Auftrag, nur ein Merkzettel. Der Bürgermeister kennt den Ort (Orientierung) und kann die Notizen bei Rückblicken oder auf Nachfrage lesen.

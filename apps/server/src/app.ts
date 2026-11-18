@@ -7,6 +7,7 @@ import type { Wochenrueckblick } from './wochenrueckblick.js';
 import type { Karteikasten } from './karten.js';
 import type { Gewohnheiten } from './gewohnheiten.js';
 import type { Wochenziele } from './wochenziele.js';
+import type { Notizen } from './notizen.js';
 import { statistik } from './statistik.js';
 import type { GoogleKalender } from './kalender-google.js';
 import type { Corps } from './corps.js';
@@ -85,6 +86,7 @@ export interface Abhaengigkeiten {
   karten?: Karteikasten;
   gewohnheiten?: Gewohnheiten;
   wochenziele?: Wochenziele;
+  notizen?: Notizen;
   googleKalender?: GoogleKalender;
 }
 
@@ -441,6 +443,13 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
       const q = z.object({ tage: z.coerce.number().int().min(7).max(120).default(28) }).parse(req.query);
       return statistik({ db: a.db, uhr: a.uhr, todos, gewohnheiten: a.gewohnheiten }, q.tage);
     });
+  }
+
+  // ---- Notizen (E95) ----
+  if (a.notizen) {
+    const n = a.notizen;
+    app.get('/api/notizen/heute', async () => n.heute());
+    app.post('/api/notiz', async (req) => n.hinzufuegen(z.object({ text: z.string().min(1).max(4000) }).parse(req.body).text));
   }
 
   // ---- Wochenziele (E91) ----

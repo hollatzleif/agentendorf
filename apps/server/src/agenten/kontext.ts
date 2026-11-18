@@ -95,6 +95,7 @@ Wo im Dorf was liegt (alles mit vault_lesen/vault_suchen lesbar):
 - Morgenzeitung: Rathaus/morgenzeitung/JJJJ-MM-TT.md · Wochenrückblick: Rathaus/wochenrueckblick/JJJJ-KWnn.md
 - To-dos: todo_* (⭐ = wichtig, steht oben; Uni-Fristen kommen von selbst dazu) · Einkaufsliste: todo_* mit liste „einkauf“
 - Wochenziele: Rathaus/wochenziele/JJJJ-KWnn.md (Checkliste „- [ ] Ziel“, höchstens 7 – richte deine Vorschläge daran aus)
+- Schnelle Notizen: Rathaus/notizen/JJJJ-MM-TT.md (Leifs Gedanken des Tages, „- HH:MM Text“ – gut für Rückblicke und Ideen)
 - Gewohnheiten: Marktplatz/gewohnheiten.md (was Leif regelmäßig tun will; abgehakt wird in der App/Telegram)
 - Fächer: Uni/faecher/<Fach>/ (Folien, Aufgaben, karten.md = Karteikarten „Frage :: Antwort“; Aktion „Karteikarten erstellen“ füllt sie)
 - Termine: kalender_lesen (falls freigeschaltet). Einträge legt nur Leif an – schlag ihm Zeiten vor, er trägt per „Tag planen“ (App) oder /plan (Telegram) ein.

@@ -78,7 +78,7 @@ function Palette({ schliessen }: { schliessen: () => void }) {
 
   const eintraege = useMemo((): Eintrag[] => {
     const t = q.trim();
-    const befehl = /^(todo|termin|fokus|timer|frag)\b\s*(.*)$/i.exec(t);
+    const befehl = /^(todo|termin|fokus|timer|frag|notiz)\b\s*(.*)$/i.exec(t);
     const rest = befehl?.[2]?.trim() ?? '';
     const aus: Eintrag[] = [];
     // Befehle
@@ -135,6 +135,17 @@ function Palette({ schliessen }: { schliessen: () => void }) {
           return `⏳ Timer ${tm[1]} min läuft.`;
         },
       });
+    if (befehl?.[1]?.toLowerCase() === 'notiz' && rest)
+      cmds.push({
+        id: 'cmd:notiz',
+        symbol: '📝',
+        titel: `Notiz: ${rest}`,
+        zusatz: 'in die Tagesnotiz (Rathaus/notizen)',
+        tun: async () => {
+          await api('/api/notiz', { body: { text: rest } });
+          return '📝 Notiert.';
+        },
+      });
     if (befehl?.[1]?.toLowerCase() === 'frag' && rest)
       cmds.push({
         id: 'cmd:frag',
@@ -187,7 +198,7 @@ function Palette({ schliessen }: { schliessen: () => void }) {
             setWahl(0); // sofort, nicht erst im Effekt – sonst kann ein schnelles Enter ins Leere gehen
             setBestaetigen(null);
           }}
-          placeholder="Suchen oder: todo …, termin morgen 14 Uhr …, fokus …, timer 10 …, frag …"
+          placeholder="Suchen oder: todo …, termin morgen 14 Uhr …, notiz …, fokus …, timer 10 …, frag …"
           aria-label="Befehl oder Suche"
           onKeyDown={(e) => {
             if (e.key === 'Escape') schliessen();

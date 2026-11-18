@@ -217,7 +217,7 @@ describe('Telegram-Bot', () => {
     expect(offsets.at(-1)).toBe(51);
     // Befehlsmenü wird beim Start angemeldet
     const menue = d.aufrufe.find((x) => x.m === 'setMyCommands')?.p.commands as { command: string }[];
-    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'erinner', 'plan', 'karten', 'fokus', 'ziel', 'gewohnheiten', 'neu', 'hilfe']);
+    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'notiz', 'erinner', 'plan', 'karten', 'fokus', 'ziel', 'gewohnheiten', 'neu', 'hilfe']);
     await d.agenten.leerlauf();
   }, 15_000);
 });
@@ -521,5 +521,17 @@ describe('Telegram Erinnerungen (E94)', () => {
     expect(String(d.aufrufe.filter((x) => x.m === 'editMessageText').at(-1)!.p.text)).toMatch(/heute um 14:31 wieder/);
     await d.knopf(k[0]!.callback_data);
     expect((await w()).erledigt).toBe(true);
+  });
+});
+
+describe('Telegram /notiz (E95)', () => {
+  it('hält fest und zeigt die Notizen von heute', async () => {
+    const d = await dorf();
+    await d.nachricht({ text: '/notiz' });
+    expect(d.gesendet().at(-1)).toMatch(/noch keine Notizen/);
+    await d.nachricht({ text: '/notiz Buch „Deep Work“ ausleihen' });
+    expect(d.gesendet().at(-1)).toMatch(/📝 Notiert \(Rathaus\/notizen\/2026-11-16\.md\)/);
+    await d.nachricht({ text: '/notiz' });
+    expect(d.gesendet().at(-1)).toBe('📝 <b>Notizen heute</b>\n13:00 Buch „Deep Work“ ausleihen _(Telegram)_');
   });
 });

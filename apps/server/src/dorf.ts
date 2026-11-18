@@ -41,6 +41,7 @@ import { Wochenrueckblick } from './wochenrueckblick.js';
 import { Karteikasten } from './karten.js';
 import { Gewohnheiten } from './gewohnheiten.js';
 import { Wochenziele } from './wochenziele.js';
+import { Notizen } from './notizen.js';
 import { TodoErinnerungen } from './todo-erinnerungen.js';
 import { GoogleKalender, googleKalenderKlient, type KalenderKlient } from './kalender-google.js';
 import { Bank, datum as bankDatum } from './bank.js';
@@ -344,6 +345,7 @@ export async function dorfStarten(
   const karten = new Karteikasten({ db, uhr, vault, hub });
   const gewohnheiten = new Gewohnheiten({ db, uhr, vault, hub });
   const wochenziele = new Wochenziele({ uhr, vault, hub });
+  const notizen = new Notizen({ uhr, vault });
   // E94: Erinnerungen an To-dos – läuten im Kirchturm, Telegram schickt Knöpfe
   const erinnerungen = new TodoErinnerungen({ todos, uhr, kirchturm, log: (t) => console.warn(t) });
   kirchturm.beiErinnerungSchlummern.push((pfad) => void erinnerungen.verschieben(pfad, { minuten: 10 }).catch(() => undefined));
@@ -374,6 +376,7 @@ export async function dorfStarten(
       gewohnheiten,
       wochenziele,
       erinnerungen,
+      notizen,
       log: (t) => console.warn(t),
     });
     if (!opt.telegram) telegram.starten();
@@ -413,7 +416,7 @@ export async function dorfStarten(
   const planTakt = opt.beobachten !== false ? setInterval(() => void buergermeister.faelligePlaeneAnnehmen().catch((e) => console.warn(`Pläne: ${(e as Error).message}`)), 60_000) : undefined;
   planTakt?.unref();
   const dorfplan = new Dorfplan({ db, uhr, hub, vault, uni, wetter });
-  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen, dorfplan, automatik, listen, bank, corps, boerse, saxo, kirchturm, googleKalender, wochenrueckblick, karten, gewohnheiten, wochenziele });
+  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen, dorfplan, automatik, listen, bank, corps, boerse, saxo, kirchturm, googleKalender, wochenrueckblick, karten, gewohnheiten, wochenziele, notizen });
   // Abhaken in Obsidian kommt ohne Ereignis an → zusätzlich alle 10 Minuten abgleichen
   const uniTodoTakt = opt.beobachten !== false ? setInterval(() => uniTodosAnstossen(), 600_000) : undefined;
   uniTodoTakt?.unref();
@@ -438,5 +441,5 @@ export async function dorfStarten(
     await agenten.ruhe();
     db.close();
   });
-  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan, wetter, automatik, todos, listen, bank, corps, boerse, uniTodos, saxo, kirchturm, googleKalender, wochenrueckblick, karten, gewohnheiten, wochenziele, erinnerungen };
+  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan, wetter, automatik, todos, listen, bank, corps, boerse, uniTodos, saxo, kirchturm, googleKalender, wochenrueckblick, karten, gewohnheiten, wochenziele, erinnerungen, notizen };
 }
