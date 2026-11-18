@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { BoerseUebersicht as Daten, BoerseWert } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { bibliothekUrl, linkKlick } from '../router';
+import { SaxoDepot } from './SaxoDepot';
 
 const euro = (n?: number) => (n == null ? '–' : n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }));
 const prozent = (n?: number) => (n == null ? '' : `${n > 0 ? '+' : ''}${n.toLocaleString('de-DE', { maximumFractionDigits: 1 })} %`);
@@ -40,6 +41,8 @@ export function BoerseUebersicht() {
 
   return (
     <div className="boerse">
+      <SaxoDepot />
+      <h3>Eigenes Depot (Kurse von EODHD)</h3>
       {!d.eingerichtet && (
         <p className="hinweis">
           Für automatische Kurse fehlt noch der EODHD-Schlüssel (kostenlos auf eodhd.com). Auf dem Server: <code>dorf boerse-schluessel</code>. Bis dahin siehst du Depot und
@@ -70,15 +73,15 @@ export function BoerseUebersicht() {
         <span className="leise">
           Abrufe heute: {d.abrufeHeute}/{d.abrufeMax} (kostenlose Stufe)
           {d.letzter ? ` · zuletzt ${new Date(d.letzter.zeit).toLocaleString('de-AT', { dateStyle: 'short', timeStyle: 'short' })}${d.letzter.offen ? `, ${d.letzter.offen} Werte folgen morgen` : ''}` : ''}
-          {d.dollarJeEuro ? ` · 1 € = ${d.dollarJeEuro.kurs.toLocaleString('de-DE')} $ (EZB ${d.dollarJeEuro.datum})` : ''}
+          {(d.wechselkurse ?? []).map((x) => ` · 1 € = ${x.kurs.toLocaleString('de-DE')} ${x.waehrung === 'USD' ? '$' : x.waehrung} (EZB ${x.datum})`).join('')}
         </span>
       </div>
       {(fehler || d.letzter?.fehler) && <p className="fehler">{fehler || d.letzter?.fehler}</p>}
 
-      <h3>Depot</h3>
+      <h4>Positionen</h4>
       <Tabelle werte={d.positionen} depot entfernen={(i) => void entfernen('positionen', i)} />
       <WertNeu art="positionen" fertig={neu} />
-      <h3>Watchlist</h3>
+      <h4>Watchlist</h4>
       <Tabelle werte={d.watchlist} entfernen={(i) => void entfernen('watchlist', i)} />
       <WertNeu art="watchlist" fertig={neu} />
       <p className="leise">
@@ -141,7 +144,7 @@ function WertNeu({ art, fertig }: { art: 'positionen' | 'watchlist'; fertig: () 
   const [offen, setOffen] = useState(false);
   const [name, setName] = useState('');
   const [kennung, setKennung] = useState('');
-  const [boerse, setBoerse] = useState<'XETRA' | 'US'>('XETRA');
+  const [boerse, setBoerse] = useState<'XETRA' | 'US' | 'SW'>('XETRA');
   const [stueck, setStueck] = useState('');
   const [einstand, setEinstand] = useState('');
   const [fehler, setFehler] = useState('');
@@ -194,9 +197,10 @@ function WertNeu({ art, fertig }: { art: 'positionen' | 'watchlist'; fertig: () 
         </label>
         <label>
           Börse
-          <select value={boerse} onChange={(e) => setBoerse(e.target.value as 'XETRA' | 'US')}>
+          <select value={boerse} onChange={(e) => setBoerse(e.target.value as 'XETRA' | 'US' | 'SW')}>
             <option value="XETRA">Xetra (€)</option>
             <option value="US">USA ($)</option>
+            <option value="SW">SIX Schweiz (CHF)</option>
           </select>
         </label>
       </div>

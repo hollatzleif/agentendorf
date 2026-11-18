@@ -35,9 +35,10 @@ import { Morgenzeitung } from './morgenzeitung.js';
 import { Aufwachen } from './aufwachen.js';
 import { listenAnlegen } from './todos.js';
 import { UniTodoBruecke } from './uni/todo-bruecke.js';
+import { Saxo } from './saxo.js';
 import { Bank, datum as bankDatum } from './bank.js';
 import { Corps } from './corps.js';
-import { Boerse, eodhdKlient, ezbDollarJeEuro, type BoerseKlient } from './boerse.js';
+import { Boerse, eodhdKlient, ezbKurs, type BoerseKlient, type Fremdwaehrung } from './boerse.js';
 
 /** Dateien, die das Dorf zum Arbeiten braucht: fehlen sie (z. B. Vault aus einer älteren Etappe), werden sie aus der Vorlage ergänzt – nie überschrieben. */
 const PFLICHT_DATEIEN = [
@@ -121,7 +122,9 @@ export async function dorfStarten(
     moodleBrowser?: MoodleBrowserKlient;
     /** Für Tests: nachgebauter Kurs-Anbieter und EZB-Kurs */
     boerse?: BoerseKlient;
-    boerseFx?: () => Promise<{ datum: string; kurs: number }>;
+    boerseFx?: (waehrung: Fremdwaehrung) => Promise<{ datum: string; kurs: number }>;
+    /** Tests: Saxo-Server nachgebaut */
+    saxoHolen?: typeof fetch;
     /** Für Tests: Open-Meteo-Antwort ohne Netz */
     wetter?: () => Promise<unknown>;
   } = {},
@@ -300,10 +303,20 @@ export async function dorfStarten(
     vault,
     hub,
     klient: opt.boerse ?? (konfig.eodhdSchluessel ? eodhdKlient({ url: konfig.eodhdUrl, schluessel: konfig.eodhdSchluessel, jetzt: () => uhr.jetzt() }) : undefined),
-    fx: opt.boerseFx ?? (() => ezbDollarJeEuro(konfig.ezbUrl)),
+    fx: opt.boerseFx ?? ((w) => ezbKurs(konfig.ezbUrl, w)),
     log: (t) => console.warn(t),
   });
-  const morgenzeitung = new Morgenzeitung({ db, uhr, vault, hub, ki, freigaben: agenten.freigaben, schreibtisch, uni, postbote, kalender, wetter, bank, boerse, log: (t) => console.warn(t) });
+  // E73: Saxo – Depotwert und Performance aus Leifs Konto, nur lesen
+  const saxo = new Saxo({
+    db,
+    uhr,
+    hub,
+    konfig: konfig.saxo ? { ...konfig.saxo, rueckleitung: `${konfig.origins[0] ?? ''}/api/boerse/saxo/rueckruf` } : undefined,
+    holen: opt.saxoHolen,
+    log: (t) => console.warn(t),
+  });
+  const depotZeilen = { zeitungsZeilen: async () => [...saxo.zeitungsZeilen(), ...(await boerse.zeitungsZeilen())] };
+  const morgenzeitung = new Morgenzeitung({ db, uhr, vault, hub, ki, freigaben: agenten.freigaben, schreibtisch, uni, postbote, kalender, wetter, bank, boerse: depotZeilen, log: (t) => console.warn(t) });
   let telegram: TelegramBot | undefined;
   if ((konfig.telegramToken || opt.telegram) && konfig.telegramChatId) {
     telegram = new TelegramBot({
@@ -326,6 +339,7 @@ export async function dorfStarten(
     if (!opt.telegram) telegram.starten();
     const t = telegram;
     bank.beiWarnung.push((text) => t.bankMelden(text));
+    saxo.beiMeldung.push((text) => void t.saxoMelden(text).catch(() => undefined));
   }
   agenten.anstossen();
   if (!opt.moodle && !opt.kalender && !opt.google && opt.beobachten !== false) uni.starten();
@@ -339,6 +353,12 @@ export async function dorfStarten(
     boerseTakt.unref();
     setTimeout(() => void boerse.aktualisieren().catch(() => undefined), 90_000).unref();
   }
+  // Saxo: jede Minute Sitzung erneuern (Refresh-Token lebt nur ~40 min), Stand alle 30 min
+  const saxoTakt =
+    opt.beobachten !== false && konfig.saxo
+      ? setInterval(() => void saxo.erneuern().then(() => saxo.aktualisieren()).catch((e) => console.warn(`Saxo: ${(e as Error).message}`)), 60_000)
+      : undefined;
+  saxoTakt?.unref();
   if (!opt.gmail && opt.beobachten !== false) postbote.starten();
   if (opt.beobachten !== false) morgenzeitung.starten();
   if (opt.beobachten !== false) aufwachen.starten();
@@ -347,7 +367,7 @@ export async function dorfStarten(
   const planTakt = opt.beobachten !== false ? setInterval(() => void buergermeister.faelligePlaeneAnnehmen().catch((e) => console.warn(`Pläne: ${(e as Error).message}`)), 60_000) : undefined;
   planTakt?.unref();
   const dorfplan = new Dorfplan({ db, uhr, hub, vault, uni, wetter });
-  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen, dorfplan, automatik, listen, bank, corps, boerse });
+  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen, dorfplan, automatik, listen, bank, corps, boerse, saxo });
   // Abhaken in Obsidian kommt ohne Ereignis an → zusätzlich alle 10 Minuten abgleichen
   const uniTodoTakt = opt.beobachten !== false ? setInterval(() => uniTodosAnstossen(), 600_000) : undefined;
   uniTodoTakt?.unref();
@@ -355,6 +375,7 @@ export async function dorfStarten(
   app.addHook('onClose', async () => {
     geschlossen = true;
     if (uniTodoTakt) clearInterval(uniTodoTakt);
+    if (saxoTakt) clearInterval(saxoTakt);
     if (uniTodosZeitgeber) clearTimeout(uniTodosZeitgeber);
     uni.stoppen();
     postbote.stoppen();
@@ -369,5 +390,5 @@ export async function dorfStarten(
     await agenten.ruhe();
     db.close();
   });
-  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan, wetter, automatik, todos, listen, bank, corps, boerse, uniTodos };
+  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan, wetter, automatik, todos, listen, bank, corps, boerse, uniTodos, saxo };
 }

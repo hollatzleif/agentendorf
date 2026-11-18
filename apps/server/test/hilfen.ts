@@ -35,7 +35,8 @@ export async function testDorf(
     moodleBrowser?: MoodleBrowserKlient;
     wetter?: () => Promise<unknown>;
     boerse?: BoerseKlient;
-    boerseFx?: () => Promise<{ datum: string; kurs: number }>;
+    boerseFx?: (waehrung: 'USD' | 'CHF') => Promise<{ datum: string; kurs: number }>;
+    saxoHolen?: typeof fetch;
   } = {},
 ) {
   const daten = tempOrdner();
@@ -61,8 +62,9 @@ export async function testDorf(
     moodleBrowser: opt.moodleBrowser,
     wetter: opt.wetter,
     boerse: opt.boerse,
+    saxoHolen: opt.saxoHolen,
     // nie echtes Netz in Tests
-    boerseFx: opt.boerseFx ?? (async () => ({ datum: '2026-11-13', kurs: 1.1 })),
+    boerseFx: opt.boerseFx ?? (async (w) => ({ datum: '2026-11-13', kurs: w === 'CHF' ? 0.94 : 1.1 })),
   });
   return { ...d, uhr, konfig, daten };
 }

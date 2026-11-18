@@ -371,6 +371,23 @@ cmd_boerse_schluessel() {
   gruen "Börsen-Schlüssel gespeichert, Dorf neu gestartet. Kurse kommen innerhalb der nächsten Stunde (oder: Börse → Kurse holen)."
 }
 
+# E73: Saxo (nur lesen) – App-Schlüssel und -Secret der Live-App eintragen. Anleitung: EINRICHTUNG.md (Saxo)
+cmd_saxo_einrichten() {
+  local domain k sec
+  domain=$(grep -E '^DORF_DOMAIN=' "$ENV_DATEI" | cut -d= -f2)
+  info "In der Saxo-App muss als Redirect URL stehen:  https://$domain/api/boerse/saxo/rueckruf"
+  read -r -p "App Key (developer.saxo → Apps → deine Live-App): " k
+  k=$(printf '%s' "$k" | tr -d '\r\n ')
+  [[ "$k" =~ ^[A-Za-z0-9_-]{8,100}$ ]] || { rot "Das sieht nicht wie ein App Key aus."; return 1; }
+  read -r -s -p "App Secret (Eingabe unsichtbar): " sec; echo
+  sec=$(printf '%s' "$sec" | tr -d '\r\n ')
+  [[ "$sec" =~ ^[A-Za-z0-9_-]{8,200}$ ]] || { rot "Das sieht nicht wie ein App Secret aus."; return 1; }
+  sed -i '/^#\? *SAXO_APP_KEY=/d;/^#\? *SAXO_APP_SECRET=/d' "$ENV_DATEI"
+  { echo "SAXO_APP_KEY=$k"; echo "SAXO_APP_SECRET=$sec"; } >> "$ENV_DATEI"
+  compose up -d --force-recreate dorf
+  gruen "Saxo eingetragen, Dorf neu gestartet. Jetzt in der App: Börse → Mit Saxo verbinden."
+}
+
 # Telegram-Bot koppeln: Token prüfen, dein /start abwarten, Chat-ID bestätigen, eintragen.
 cmd_telegram_einrichten() {
   local t name upd chat id antwort letzte
@@ -581,6 +598,7 @@ Agentendorf – Befehle auf dem Server
   dorf claude-anmelden           Abo für den claude-code-Motor anmelden (Token 1 Jahr gültig)
   dorf api-schluessel            API-Schlüssel für den api-Motor eintragen
   dorf boerse-schluessel         EODHD-Schlüssel für die Börsenkurse eintragen (kostenlos, eodhd.com)
+  dorf saxo-einrichten           Saxo-App (nur lesen) eintragen – danach in der App: Mit Saxo verbinden (EINRICHTUNG.md)
   dorf telegram-einrichten       eigenen Telegram-Bot koppeln (Token von @BotFather)
   dorf gmail-anmelden            Post: Gmail verbinden (nur Lesen + Entwürfe)
   dorf google-kalender           Uni: Google-Kalender eintragen (Moodle-Fristen aus deinem Skript, JKU Pflicht)
@@ -621,6 +639,7 @@ case "$befehl" in
   claude-anmelden) cmd_claude_anmelden ;;
   api-schluessel) cmd_api_schluessel ;;
   boerse-schluessel) cmd_boerse_schluessel ;;
+  saxo-einrichten) cmd_saxo_einrichten ;;
   telegram-einrichten) cmd_telegram_einrichten ;;
   moodle-anmelden) cmd_moodle_anmelden "$@" ;;
   moodle-browser-zugang) cmd_moodle_browser_zugang ;;

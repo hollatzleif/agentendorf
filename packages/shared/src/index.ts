@@ -515,6 +515,34 @@ export interface BoerseWert {
   gewinnEur?: number;
   gewinnProzent?: number;
 }
+/** E73: eine Position aus dem Saxo-Konto (Werte in Kontowährung, wenn Saxo sie liefert) */
+export interface SaxoPosition {
+  name: string;
+  symbol?: string;
+  art?: string;
+  waehrung?: string;
+  stueck?: number;
+  einstand?: number;
+  kurs?: number;
+  verzoegerungMin?: number;
+  wert?: number;
+  gewinn?: number;
+  tagProzent?: number;
+}
+
+export interface SaxoUebersicht {
+  eingerichtet: boolean;
+  verbunden: boolean;
+  verbundenSeit?: string;
+  stand?: { zeit: string; waehrung: string; gesamt: number | null; bar: number | null; positionen: SaxoPosition[] };
+  /** Kontowert je Tag (letzte 12 Monate) */
+  verlauf: { datum: string; wert: number }[];
+  /** zeitgewichtete Rendite als Anteil (0,05 = 5 %) */
+  renditeJahr: number | null;
+  rendite12Monate: number | null;
+  fehler?: string;
+}
+
 export interface BoerseUebersicht {
   eingerichtet: boolean;
   positionen: BoerseWert[];
@@ -525,6 +553,8 @@ export interface BoerseUebersicht {
   abrufeMax: number;
   letzter?: { zeit: number; abgerufen: number; offen: number; fehler: string | null };
   dollarJeEuro?: { datum: string; kurs: number };
+  /** EZB: Einheiten der Währung je Euro (Dollar, Franken) */
+  wechselkurse?: { waehrung: string; datum: string; kurs: number }[];
   fehler?: string;
 }
 

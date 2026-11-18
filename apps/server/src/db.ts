@@ -348,6 +348,11 @@ const MIGRATIONEN: string[] = [
   `
   CREATE TABLE uni_todos (frist_id TEXT PRIMARY KEY, pfad TEXT NOT NULL, frist INTEGER NOT NULL, erledigt INTEGER NOT NULL DEFAULT 0);
   `,
+  // 17: Börse (E73) – Wechselkurse je Währung (Dollar, Franken); bisherige Dollar-Kurse werden übernommen
+  `
+  CREATE TABLE boerse_wechselkurse (waehrung TEXT NOT NULL, datum TEXT NOT NULL, je_eur REAL NOT NULL, abgerufen INTEGER NOT NULL, PRIMARY KEY (waehrung, datum));
+  INSERT INTO boerse_wechselkurse (waehrung, datum, je_eur, abgerufen) SELECT 'USD', datum, usd_je_eur, abgerufen FROM boerse_fx;
+  `,
 ];
 
 export function dbOeffnen(datei: string): DB {

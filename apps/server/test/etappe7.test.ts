@@ -89,6 +89,7 @@ describe('Etappe 7e: Börse', () => {
     };
     return {
       aufrufe,
+      kurse,
       klient: {
         async eod(symbol: string) {
           aufrufe.push(`eod ${symbol}`);
@@ -104,7 +105,7 @@ describe('Etappe 7e: Börse', () => {
 
   it('Depot über die API pflegen; Kurse (ISIN einmal gesucht), Euro aus Dollar, Gewinn; höchstens einmal am Tag; Tageslimit 19', async () => {
     const a = anbieter();
-    const d = await testDorf({ boerse: a.klient, boerseFx: async () => ({ datum: '2026-11-13', kurs: 1.1 }) });
+    const d = await testDorf({ boerse: a.klient, boerseFx: async (w) => ({ datum: '2026-11-13', kurs: w === 'CHF' ? 0.8 : 1.1 }) });
     const h = await kopf(d);
     const neu = (art: string, w: unknown) => d.app.inject({ method: 'POST', url: '/api/boerse/wert', headers: h, payload: { art, neu: w } });
     expect((await neu('positionen', { name: 'Vanguard All-World', isin: 'IE00BK5BQT80', stueck: 10, einstand: 120 })).statusCode).toBe(200);
@@ -130,13 +131,23 @@ describe('Etappe 7e: Börse', () => {
     // Eintrag entfernen
     const weg = await d.app.inject({ method: 'DELETE', url: '/api/boerse/wert?art=watchlist&index=0', headers: h });
     expect(weg.json().watchlist).toEqual([]);
+    // SIX (Franken): Kürzel .SW → CHF, in Euro über den EZB-Kurs
+    a.kurse['NESN.SW'] = [{ datum: '2026-11-13', kurs: 80 }];
+    d.uhr.vor(86_400_000);
+    await d.boerse.wertAendern('positionen', { neu: { name: 'Nestlé', symbol: 'NESN.SW', stueck: 5, einstand: 90 } });
+    expect((await neu('positionen', { name: 'Novartis', isin: 'CH0012005267', boerse: 'SW' })).statusCode).toBe(200);
+    await d.boerse.aktualisieren();
+    const u2 = await d.boerse.uebersicht();
+    expect(u2.positionen.find((p) => p.name === 'Nestlé')).toMatchObject({ kurs: 80, waehrung: 'CHF', wertEur: 500, gewinnEur: 50 });
+    expect(u2.wechselkurse).toEqual(expect.arrayContaining([{ waehrung: 'CHF', datum: '2026-11-13', kurs: 0.8 }]));
+    expect(a.aufrufe).toContain('suche CH0012005267 SW');
     // Tageslimit: 30 Werte → nur bis 19 Abrufe am Tag
     d.uhr.vor(86_400_000);
     for (let i = 0; i < 30; i++) await d.boerse.wertAendern('watchlist', { neu: { name: `W${i}`, symbol: `W${i}.XETRA` } });
     a.aufrufe.length = 0;
     const r2 = await d.boerse.aktualisieren();
     expect(a.aufrufe).toHaveLength(19);
-    expect(r2.offen).toBe(32 - 19);
+    expect(r2.offen).toBe(33 - 19);
   });
 
   it('ohne Schlüssel: Übersicht sagt es, nichts wird abgerufen; Wochenbericht-Skill (Internet, ohne Fremdinhalte) fehlerfrei', async () => {
@@ -161,9 +172,13 @@ describe('Etappe 7e: Börse', () => {
         res.statusCode = 401;
         return res.end('{}');
       }
-      if (req.url!.startsWith('/ezb')) {
+      if (req.url!.startsWith('/ezb/D.USD.EUR.SP00.A')) {
         res.setHeader('Content-Type', 'text/csv');
         return res.end('KEY,FREQ,TIME_PERIOD,OBS_VALUE\nEXR.D.USD.EUR.SP00.A,D,2026-11-17,1.0989\n');
+      }
+      if (req.url!.startsWith('/ezb/D.CHF.EUR.SP00.A')) {
+        res.setHeader('Content-Type', 'text/csv');
+        return res.end('KEY,FREQ,TIME_PERIOD,OBS_VALUE\nEXR.D.CHF.EUR.SP00.A,D,2026-11-17,0.9412\n');
       }
       res.statusCode = 404;
       res.end('[]');
@@ -171,7 +186,7 @@ describe('Etappe 7e: Börse', () => {
     await new Promise<void>((r) => s.listen(0, '127.0.0.1', r));
     const port = (s.address() as { port: number }).port;
     try {
-      const { eodhdKlient, ezbDollarJeEuro } = await import('../src/boerse.js');
+      const { eodhdKlient, ezbKurs } = await import('../src/boerse.js');
       const k = eodhdKlient({ url: `http://127.0.0.1:${port}/api`, schluessel: 'GEHEIM', jetzt: () => Date.UTC(2026, 10, 18) });
       expect(await k.eod('VWCE.XETRA')).toEqual([
         { datum: '2026-11-13', kurs: 130.25 },
@@ -181,7 +196,8 @@ describe('Etappe 7e: Börse', () => {
       await expect(k.eod('BOESE.US')).rejects.toThrow(/lehnt den Schlüssel ab/);
       expect(anfragen[0]).toBe('/api/eod/VWCE.XETRA?order=d&from=2026-11-08&api_token=GEHEIM&fmt=json');
       expect(anfragen[1]).toBe('/api/search/IE00BK5BQT80?exchange=XETRA&api_token=GEHEIM&fmt=json');
-      expect(await ezbDollarJeEuro(`http://127.0.0.1:${port}/ezb`)).toEqual({ datum: '2026-11-17', kurs: 1.0989 });
+      expect(await ezbKurs(`http://127.0.0.1:${port}/ezb/D.USD.EUR.SP00.A`, 'USD')).toEqual({ datum: '2026-11-17', kurs: 1.0989 });
+      expect(await ezbKurs(`http://127.0.0.1:${port}/ezb/D.USD.EUR.SP00.A`, 'CHF')).toEqual({ datum: '2026-11-17', kurs: 0.9412 });
     } finally {
       s.close();
     }

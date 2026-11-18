@@ -199,7 +199,34 @@ Die JKU sperrt den Zugang für die Moodle-App. Deshalb holt das Dorf nur die **T
   dorf boerse-schluessel
   ```
 
-  Positionen trägst du unter Börse → Depot ein (ISIN oder Kürzel, Stück, Einstand).
+  Positionen trägst du unter Börse → Depot ein (ISIN oder Kürzel, Stück, Einstand). Schweizer Werte: Börse „SIX Schweiz (CHF)“, umgerechnet über den EZB-Kurs.
+
+### Saxo: echter Depotwert und Performance (nur lesen)
+
+Das Dorf liest Kontowert, Positionen und Performance direkt aus deinem Saxo-Konto. Handeln kann es nicht: Der Code kennt nur lesende Abfragen, und die App legst du ohne Handelsrecht an. Stand der Saxo-Doku: 18.11.2026.
+
+1. **Entwicklerkonto anlegen.** Auf <https://www.developer.saxo> ein kostenloses Simulationskonto anlegen („Sign up“). Dein normaler Saxo-Login funktioniert dort nicht.
+2. **Live-Konto verbinden.** Im Entwicklerportal: Apps → „Live apps“ → mit deinem echten Saxo-Login anmelden. Danach kannst du Apps für dein echtes Konto anlegen.
+   - Kommt „Your account is not activated for this platform“: Das Konto ist eventuell nicht ausreichend eingezahlt, oder Saxo Schweiz schaltet die API für dich nicht frei. Dann bitte bei Saxo nachfragen.
+3. **Live-App anlegen.**
+   - Name: z. B. „Agentendorf“
+   - Redirect URL: `https://<deine-dorf-adresse>/api/boerse/saxo/rueckruf` (genau so; `dorf saxo-einrichten` zeigt sie dir an)
+   - Grant Type: **Code** (Authorization Code)
+   - Handel **nicht** erlauben. Eine App ohne Handelsrecht zeigt Saxo als „NOT enabled for trading“, sie kann nur lesen.
+   - Möglicherweise ruft dich der Saxo-Kundendienst zur Bestätigung an. Laut Saxo musst du in der Zwischenzeit nichts tun.
+4. **Schlüssel ins Dorf.** App Key und App Secret der App kopieren und auf dem Server eintragen:
+
+   ```bash
+   dorf saxo-einrichten
+   ```
+
+5. **Verbinden.** In der App unter Börse → Depot auf „Mit Saxo verbinden“ klicken, bei Saxo anmelden. Danach landest du wieder im Dorf.
+
+**Im Alltag:**
+- Das Dorf hält die Verbindung selbst am Leben (Saxo-Tokens leben nur 20–40 Minuten) und holt den Stand alle 30 Minuten.
+- Die Performance-Kurve kommt einmal am Tag, die Morgenzeitung zeigt den Saxo-Depotwert.
+- Bricht die Verbindung ab, schreibt dir das Dorf einmal per Telegram. Dann einfach neu verbinden. Gründe sind z. B. ein Server, der länger als ~40 Minuten aus war, oder neue Saxo-Bedingungen.
+- **Zugriff ganz entziehen:** In SaxoTrader unter Konto → Sonstiges → Anwendungszugriff die App entfernen.
 
 ## 9. Post: Gmail verbinden (nur Lesen und Entwürfe)
 

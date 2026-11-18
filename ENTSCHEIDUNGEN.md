@@ -436,3 +436,14 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - Verschiebt sich eine Frist, zieht das Fälligkeitsdatum nach.
 - **Gelöschte To-dos kommen nicht wieder** (Leifs Entscheidung zählt).
 - Vergangenes, schon Erledigtes und Pflichtvorlesungen werden keine To-dos.
+
+## E73 – Börse: SIX/Franken und Saxo (nur lesen) (18.11.)
+
+- **SIX:** Börse `SW` (EODHD-Kürzel `.SW`), Währung CHF. Die Wechselkurse liegen jetzt je Währung in `boerse_wechselkurse` (Migration 17, Dollar-Kurse übernommen). Geholt werden sie von der EZB, nur für Währungen im Depot. Der Einstand bleibt in Euro.
+- **Saxo OpenAPI**, nach der Doku auf developer.saxo und im Saxo-Hilfe-Center (beides am 18.11. gelesen):
+  - Anmeldung über „Authorization Code Grant“: `live.logonvalidation.net/authorize` bzw. `/token`, App-Schlüssel und Secret als HTTP-Basic.
+  - Rückleitung an `/api/boerse/saxo/rueckruf`. Dieser Endpunkt ist ohne Dorf-Cookie erreichbar, weil SameSite=Strict den Cookie bei der Rückkehr von saxo nicht mitschickt. Geschützt ist er über einen einmaligen `state`, der 15 min gilt und den nur Leifs angemeldete Sitzung erzeugt.
+  - **Tokens:** Der Access-Token lebt ~20 min, der Refresh-Token ~40 min, und jedes Erneuern macht den alten Refresh-Token ungültig. Deshalb liegt die Sitzung in der DB (`dorf_stand`, nicht in `.env`) und wird jede Minute geprüft, 5 min vor Ablauf erneuert. Ist der Refresh-Token abgelaufen oder lehnt Saxo ab, ist die Sitzung weg und Leif bekommt **eine** Telegram-Meldung (Schalter `bank`). Automatisch ohne Login geht laut Saxo für Privatkunden nicht.
+  - **Leine:** `Saxo.lesen` kennt nur GET und nur vier Pfade (clients/me, balances/me, netpositions/me, performance/timeseries). Dazu kommt die Empfehlung, eine Live-App ohne Handelsrecht anzulegen (bei Saxo „NOT enabled for trading“). Getestet sind gesperrte Pfade, Pfad-Tricks und dass nur GET vorkommt.
+  - Den Stand holt das Dorf alle 30 min, die Performance (Kontowert, zeitgewichtete Rendite) einmal am Tag. Die Rendite seit Jahresbeginn wird aus der kumulierten Reihe berechnet: (1+r_jetzt)/(1+r_31.12.)−1.
+- **Offen:** Ob Saxo Schweiz die Live-API für Leifs Konto freischaltet, lässt sich nur mit seinem Login prüfen. Getestet ist gegen einen nachgebauten Server nach der Doku, die Feldnamen der Positionen stammen aus Saxos eigenem Beispielcode.

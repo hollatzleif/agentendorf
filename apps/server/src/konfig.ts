@@ -36,6 +36,11 @@ const Schema = z.object({
   EODHD_API_KEY: z.string().optional(),
   EODHD_URL: z.string().default('https://eodhd.com/api'),
   EZB_URL: z.string().default('https://data-api.ecb.europa.eu/service/data/EXR/D.USD.EUR.SP00.A'),
+  // E73: Saxo OpenAPI (nur lesen) – App-Schlüssel/-Secret nur in .env; Live-Adressen laut developer.saxo
+  SAXO_APP_KEY: z.string().optional(),
+  SAXO_APP_SECRET: z.string().optional(),
+  SAXO_AUTH_URL: z.string().default('https://live.logonvalidation.net'),
+  SAXO_API_URL: z.string().default('https://gateway.saxobank.com/openapi'),
   BROWSER_GEHEIMNIS: z.string().optional(),
   MOODLE_URL: z.string().optional(),
   MOODLE_TOKEN: z.string().optional(),
@@ -92,6 +97,7 @@ export interface Konfig {
   eodhdUrl: string;
   ezbUrl: string;
   browserGeheimnis?: string;
+  saxo?: { appKey: string; appSecret: string; authUrl: string; apiUrl: string };
 }
 
 export function konfigLaden(env: NodeJS.ProcessEnv = process.env): Konfig {
@@ -137,5 +143,9 @@ export function konfigLaden(env: NodeJS.ProcessEnv = process.env): Konfig {
     eodhdUrl: e.EODHD_URL.replace(/\/$/, ''),
     ezbUrl: e.EZB_URL,
     browserGeheimnis: e.BROWSER_GEHEIMNIS || undefined,
+    saxo:
+      e.SAXO_APP_KEY && e.SAXO_APP_SECRET
+        ? { appKey: e.SAXO_APP_KEY, appSecret: e.SAXO_APP_SECRET, authUrl: e.SAXO_AUTH_URL.replace(/\/$/, ''), apiUrl: e.SAXO_API_URL.replace(/\/$/, '') }
+        : undefined,
   };
 }

@@ -1,4 +1,5 @@
 import type { Boerse } from './boerse.js';
+import type { Saxo } from './saxo.js';
 import type { Corps } from './corps.js';
 import type { Bank } from './bank.js';
 import { programmeRouten } from './programme.js';
@@ -39,7 +40,8 @@ import { aufwachEinstellungen, type Aufwachen } from './aufwachen.js';
 import { einstellungenLaden, einstellungenSetzen } from './telegram/einstellungen.js';
 
 export const COOKIE = 'dorf_sitzung';
-const OFFEN = new Set(['/api/gesundheit', '/api/anmeldung', '/api/anmeldung/info']);
+// Saxo-Rückleitung: kommt von einer fremden Seite ohne Cookie (SameSite=Strict) – geschützt über den einmaligen state
+const OFFEN = new Set(['/api/gesundheit', '/api/anmeldung', '/api/anmeldung/info', '/api/boerse/saxo/rueckruf']);
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -68,6 +70,7 @@ export interface Abhaengigkeiten {
   bank?: Bank;
   corps?: Corps;
   boerse?: Boerse;
+  saxo?: Saxo;
 }
 
 /** Für Agenten-HTML: Skripte ja, aber undurchsichtiger Ursprung und kein Netz. Bilder/Schriften nur eingebettet (data:). */
@@ -368,6 +371,33 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
       const { art, index } = z.object({ art: z.enum(['positionen', 'watchlist']), index: z.coerce.number().int().min(0) }).parse(req.query);
       await boerse.wertAendern(art, { entfernen: index });
       return boerse.uebersicht();
+    });
+  }
+
+  // ---- E73: Saxo (nur lesen) ----
+  if (a.saxo) {
+    const saxo = a.saxo;
+    app.get('/api/boerse/saxo', async () => saxo.uebersicht());
+    app.post('/api/boerse/saxo/anmelden', async () => saxo.anmeldenStart());
+    app.post('/api/boerse/saxo/aktualisieren', async () => {
+      await saxo.aktualisieren(true);
+      return saxo.uebersicht();
+    });
+    app.post('/api/boerse/saxo/abmelden', async () => {
+      saxo.abmelden();
+      return saxo.uebersicht();
+    });
+    app.get('/api/boerse/saxo/rueckruf', async (req, reply) => {
+      const q = z.object({ code: z.string().min(1).max(2000).optional(), state: z.string().min(1).max(200).optional(), error: z.string().max(200).optional() }).parse(req.query);
+      let ziel = '/?g=Boerse&saxo=ok';
+      try {
+        if (!q.code || !q.state) throw new Error(q.error ? `Saxo meldet: ${q.error}` : 'Saxo hat keinen Code zurückgegeben.');
+        await saxo.rueckruf(q.code, q.state);
+      } catch (e) {
+        req.log.warn(`Saxo-Anmeldung: ${(e as Error).message}`);
+        ziel = `/?g=Boerse&saxo=fehler`;
+      }
+      return reply.redirect(ziel, 303);
     });
   }
 

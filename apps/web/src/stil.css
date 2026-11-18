@@ -528,3 +528,8 @@ input::file-selector-button {
 /* Börse (Etappe 7) */
 .boerse-tabelle td:first-child, .boerse-tabelle th:first-child { text-align: left; }
 .boerse form { margin-bottom: 0.6rem; }
+
+/* E73: Saxo-Depot */
+.saxo { margin-bottom: 1.2rem; }
+.saxo-verlauf { margin: 0.6rem 0; }
+.saxo-verlauf svg { width: 100%; height: 140px; color: var(--gruen, #3a8a3a); background: rgba(0, 0, 0, 0.03); border-radius: 8px; }

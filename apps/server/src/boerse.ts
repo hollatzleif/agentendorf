@@ -22,8 +22,8 @@ const Wert = z.object({
   /** ISIN (wird einmal in ein Kürzel übersetzt) oder direkt das Kürzel wie „VWCE.XETRA“ / „AAPL.US“ */
   isin: z.string().trim().regex(/^[A-Z]{2}[A-Z0-9]{9}\d$/, 'ISIN wie IE00BK5BQT80').optional(),
   symbol: z.string().trim().regex(/^[A-Z0-9.-]{1,20}\.[A-Z]{1,10}$/, 'Kürzel wie VWCE.XETRA oder AAPL.US').optional(),
-  /** Börse für die ISIN-Suche: XETRA (Standard) oder US */
-  boerse: z.enum(['XETRA', 'US', 'F']).default('XETRA'),
+  /** Börse für die ISIN-Suche: XETRA (Standard), US, F (Frankfurt) oder SW (SIX Swiss Exchange, Franken) */
+  boerse: z.enum(['XETRA', 'US', 'F', 'SW']).default('XETRA'),
   stueck: z.coerce.number().min(0).optional(),
   /** Einstandskurs je Stück in Euro */
   einstand: z.coerce.number().min(0).optional(),
@@ -63,14 +63,23 @@ export function eodhdKlient(o: { url: string; schluessel: string; jetzt: () => n
         .array(z.object({ Code: z.string(), Exchange: z.string(), Currency: z.string().optional(), ISIN: z.string().nullish(), Name: z.string().optional() }).passthrough())
         .parse(await holen(`/search/${encodeURIComponent(isin)}`, { exchange: boerse }));
       const t = roh.find((x) => x.Exchange === boerse && (!x.ISIN || x.ISIN === isin)) ?? roh.find((x) => x.Exchange === boerse);
-      return t ? { symbol: `${t.Code}.${t.Exchange}`, waehrung: t.Currency ?? (boerse === 'US' ? 'USD' : 'EUR'), name: t.Name } : null;
+      return t ? { symbol: `${t.Code}.${t.Exchange}`, waehrung: t.Currency ?? waehrungVon(`.${boerse}`), name: t.Name } : null;
     },
   };
 }
 
-/** EZB-Referenzkurs: Dollar je Euro (letzter Wert), ohne Schlüssel */
-export async function ezbDollarJeEuro(url: string): Promise<{ datum: string; kurs: number }> {
-  const r = await fetch(`${url}?lastNObservations=1&format=csvdata`, { signal: AbortSignal.timeout(20_000) });
+/** Währung eines Kürzels nach Börsen-Endung (EODHD): .US → Dollar, .SW → Franken, sonst Euro */
+export function waehrungVon(symbol: string) {
+  return symbol.endsWith('.US') ? 'USD' : symbol.endsWith('.SW') ? 'CHF' : 'EUR';
+}
+/** Fremdwährungen, die das Dorf in Euro umrechnet (EZB-Referenzkurse) */
+export const FREMDWAEHRUNGEN = ['USD', 'CHF'] as const;
+export type Fremdwaehrung = (typeof FREMDWAEHRUNGEN)[number];
+
+/** EZB-Referenzkurs: Einheiten der Währung je Euro (letzter Wert), ohne Schlüssel. url = Reihe für USD (EZB_URL). */
+export async function ezbKurs(url: string, waehrung: Fremdwaehrung): Promise<{ datum: string; kurs: number }> {
+  const reihe = url.replace('.USD.EUR.', `.${waehrung}.EUR.`);
+  const r = await fetch(`${reihe}?lastNObservations=1&format=csvdata`, { signal: AbortSignal.timeout(20_000) });
   if (!r.ok) throw new Error(`EZB antwortet mit ${r.status}`);
   const zeilen = (await r.text()).trim().split(/\r?\n/);
   const kopf = zeilen[0]!.split(',');
@@ -89,7 +98,8 @@ export class Boerse {
       vault: VaultDienst;
       hub: LiveHub;
       klient?: BoerseKlient;
-      fx?: () => Promise<{ datum: string; kurs: number }>;
+      /** Einheiten der Währung je Euro (EZB) */
+      fx?: (waehrung: Fremdwaehrung) => Promise<{ datum: string; kurs: number }>;
       log?: (t: string) => void;
     },
   ) {}
@@ -142,7 +152,7 @@ export class Boerse {
 
   /** Kürzel eines Werts (ISIN → einmalige Suche, gemerkt) */
   private async kuerzel(w: WertT): Promise<{ symbol: string; waehrung: string } | null> {
-    if (w.symbol) return { symbol: w.symbol, waehrung: w.symbol.endsWith('.US') ? 'USD' : 'EUR' };
+    if (w.symbol) return { symbol: w.symbol, waehrung: waehrungVon(w.symbol) };
     const z2 = this.o.db.prepare('SELECT symbol, waehrung FROM boerse_zuordnung WHERE isin = ? AND boerse = ?').get(w.isin, w.boerse) as { symbol: string; waehrung: string } | undefined;
     if (z2) return z2;
     if (!this.o.klient || this.abrufeHeute().n >= ABRUFE_PRO_TAG) return null;
@@ -167,13 +177,15 @@ export class Boerse {
     const heute = new Date(this.o.uhr.jetzt()).toISOString().slice(0, 10);
     let abgerufen = 0;
     let fehler: string | undefined;
-    // Wechselkurs (EZB, zählt nicht gegen EODHD)
-    if (this.o.fx && alle.some((w) => w.symbol?.endsWith('.US') || w.boerse === 'US')) {
+    // Wechselkurse (EZB, zählen nicht gegen EODHD) – nur für Währungen, die im Depot vorkommen
+    const gebraucht = new Set(alle.map((w) => (w.symbol ? waehrungVon(w.symbol) : waehrungVon(`.${w.boerse}`))));
+    for (const wae of FREMDWAEHRUNGEN) {
+      if (!this.o.fx || !gebraucht.has(wae)) continue;
       try {
-        const fx = await this.o.fx();
-        this.o.db.prepare('INSERT OR REPLACE INTO boerse_fx (datum, usd_je_eur, abgerufen) VALUES (?, ?, ?)').run(fx.datum, fx.kurs, this.o.uhr.jetzt());
+        const fx = await this.o.fx(wae);
+        this.o.db.prepare('INSERT OR REPLACE INTO boerse_wechselkurse (waehrung, datum, je_eur, abgerufen) VALUES (?, ?, ?, ?)').run(wae, fx.datum, fx.kurs, this.o.uhr.jetzt());
       } catch (e) {
-        this.o.log?.(`Börse: EZB-Kurs: ${(e as Error).message}`);
+        this.o.log?.(`Börse: EZB-Kurs ${wae}: ${(e as Error).message}`);
       }
     }
     const kandidaten: { w: WertT; symbol: string; waehrung: string; zuletzt: number }[] = [];
@@ -213,8 +225,9 @@ export class Boerse {
     return { abgerufen, offen, ...(fehler ? { fehler } : {}) };
   }
 
-  private fx() {
-    return this.o.db.prepare('SELECT datum, usd_je_eur FROM boerse_fx ORDER BY datum DESC LIMIT 1').get() as { datum: string; usd_je_eur: number } | undefined;
+  /** letzter EZB-Kurs: Einheiten der Währung je Euro */
+  private fx(waehrung: string) {
+    return this.o.db.prepare('SELECT datum, je_eur FROM boerse_wechselkurse WHERE waehrung = ? ORDER BY datum DESC LIMIT 1').get(waehrung) as { datum: string; je_eur: number } | undefined;
   }
 
   private bewerten(w: WertT, index: number): BoerseWert {
@@ -222,8 +235,11 @@ export class Boerse {
     const k = symbol
       ? (this.o.db.prepare('SELECT kurs, vorher, datum, waehrung FROM boerse_kurse WHERE symbol = ?').get(symbol) as { kurs: number; vorher: number | null; datum: string; waehrung: string } | undefined)
       : undefined;
-    const fx = this.fx();
-    const inEuro = (betrag: number, waehrung: string) => (waehrung === 'EUR' ? betrag : waehrung === 'USD' && fx ? betrag / fx.usd_je_eur : null);
+    const inEuro = (betrag: number, waehrung: string) => {
+      if (waehrung === 'EUR') return betrag;
+      const fx = this.fx(waehrung);
+      return fx ? betrag / fx.je_eur : null;
+    };
     const kursEur = k ? inEuro(k.kurs, k.waehrung) : null;
     const r = (n: number | null) => (n == null ? null : Math.round(n * 100) / 100);
     const wert = kursEur != null && w.stueck != null ? kursEur * w.stueck : null;
@@ -252,7 +268,8 @@ export class Boerse {
     const gesamt = positionen.reduce((s, p) => s + (p.wertEur ?? 0), 0);
     const einstand = d.positionen.reduce((s, p) => s + (p.einstand != null && p.stueck != null ? p.einstand * p.stueck : 0), 0);
     const letzter = this.o.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'boerse_letzter'").get() as { wert: string } | undefined;
-    const fx = this.fx();
+    const fx = this.fx('USD');
+    const wechselkurse = FREMDWAEHRUNGEN.map((w) => ({ waehrung: w, ...this.fx(w) })).filter((x): x is { waehrung: Fremdwaehrung; datum: string; je_eur: number } => x.je_eur != null);
     return {
       eingerichtet: this.eingerichtet,
       positionen,
@@ -262,7 +279,8 @@ export class Boerse {
       abrufeHeute: this.abrufeHeute().n,
       abrufeMax: ABRUFE_PRO_TAG,
       ...(letzter ? { letzter: JSON.parse(letzter.wert) as BoerseUebersicht['letzter'] } : {}),
-      ...(fx ? { dollarJeEuro: { datum: fx.datum, kurs: fx.usd_je_eur } } : {}),
+      ...(fx ? { dollarJeEuro: { datum: fx.datum, kurs: fx.je_eur } } : {}),
+      wechselkurse: wechselkurse.map((x) => ({ waehrung: x.waehrung, datum: x.datum, kurs: x.je_eur })),
       ...(d.fehler ? { fehler: d.fehler } : {}),
     };
   }
