@@ -149,3 +149,13 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - Ziehen verschiebt die Kamera, das Mausrad bzw. zwei Finger zoomen, Rechtsklick bzw. zwei Finger drehen.
 - Knöpfe gibt es für Drehen um 90° und „Zum Rathaus“.
 - Der Bau-Modus ist eine Leiste: Auswählen/Ziehen/Drehen/Ins Lager, Straße und Wasser malen, Deko setzen, Abreißen, Lager, Rückgängig (50 Schritte). Jede Geste ist ein Schritt und wird sofort gespeichert.
+
+## 2026-11-18 – Nachtarbeit (Leif schläft, Freigabe vorab)
+
+**E56 – Bürgermeister rund um die Uhr; seine Helfer laufen über Leifs Abo (ersetzt E51)** (Leif: „der ist 24/7 wach … 5 $ pro Tag, wenn der dann Aufgaben oder Chats triggert, soll er es über mein Claude-Max-Abo machen“). Einstellungen in `00_Stadtordnung/aufwachen.md`:
+- **Weckzeiten:** jede volle Stunde, Tag und Nacht. Der Code prüft wie bisher ohne KI (E50).
+- **Tagesbudget** (`tagesbudget_usd`, Standard 5 $): Summe aller api-Läufe ohne Leifs Klick (Auslöser `zeitplan`, also auch Post-Einordnung und Zeitung) seit Linzer Mitternacht. Ist das Budget erreicht, prüft er bis Mitternacht nur noch ohne KI. Die Post-Einordnung läuft weiter, sie ist klein und wichtig.
+- **Rundgang** (`eigene_aufgaben`, `rundgang_abstand_stunden` = 3): Gibt es nichts Neues und wurde nichts angefangen, legt der Code höchstens alle 3 Stunden eine Schreibtisch-Aufgabe „Rundgang HH:MM“ mit Fakten an (Fristen 7 Tage, Chats der letzten 24 h, offene Freigaben, alte erledigte Notizen, frühere Rundgänge, alles in der Fremdinhalt-Hülle). Der Bürgermeister tut höchstens eine Sache: einen Helfer zum Vorbereiten starten, Aufräumvorschläge als Notiz nach `Rathaus/aufraeumen/` schreiben (nie selbst löschen oder verschieben) oder „Nichts zu tun“. „Abgabe bearbeiten“ und „Lernen“ bleiben Plan-pflichtig.
+- **Motoren:** Der Bürgermeister selbst denkt beim Aufwachen über api (Budget). Helfer, die er startet, laufen mit dem Motor ihrer Aktion bzw. Stufe, also meist **claude-code über Leifs Abo**. Das gilt auch, wenn er von selbst aufgewacht ist. Der Notschalter `alle_auf` übersteuert weiterhin alles. Höchstens ein Helfer ohne Plan pro Aufgabe (unverändert).
+- **Nachtruhe** (`nachtruhe`, 22–7 Uhr Linz): Der Telegram-Bot sendet nachts nur Dringendes, also Erinnerungen der Stufe „in wenigen Stunden“ sowie Antworten auf Leifs eigene Nachrichten. Fertig-/Fehler-/Mail-/Moodle-Meldungen werden gesammelt, Freigaben vorgemerkt. Ab 7 Uhr kommt alles in einer Nachricht „🌙 Über Nacht“, danach die Freigaben mit Knöpfen. Die Morgenzeitung (06:30) kommt wie bestellt.
+- In der App zeigt der Schreibtisch den Tagesverbrauch. Erledigte Rundgänge und Lageberichte, die älter als 12 Stunden sind, werden ausgeblendet (auf Knopfdruck sichtbar).

@@ -1,3 +1,4 @@
+import { aufwachEinstellungen, istNacht } from '../aufwachen.js';
 import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
 import type { FreigabeInfo, PlanInhalt, TelegramStatus } from '@dorf/shared';
@@ -114,14 +115,14 @@ export class TelegramBot {
   async mailsMelden(m: PostMail[]) {
     if (!(await einstellungenLaden(this.o.vault)).mails) return;
     const zeilen = m.slice(0, 8).map((x) => `• ${h(x.von)}: <b>${h(x.betreff)}</b>${x.zusammenfassung ? `\n  ${h(x.zusammenfassung)}` : ''}`);
-    await this.senden(`📬 <b>${m.length === 1 ? 'Wichtige Mail' : `${m.length} wichtige Mails`}</b>\n${zeilen.join('\n')}\n<a href="${this.link('/gebaeude/Post')}">Zur Post</a>`);
+    await this.proaktiv(`📬 <b>${m.length === 1 ? 'Wichtige Mail' : `${m.length} wichtige Mails`}</b>\n${zeilen.join('\n')}\n<a href="${this.link('/gebaeude/Post')}">Zur Post</a>`);
   }
 
   /** Neues aus Moodle (Schalter „moodle“); ein Abgleich-Fehler wird nur gemeldet, wenn er neu ist (nicht alle 3 Stunden derselbe). */
   async moodleMelden(e: AbgleichErgebnis) {
     const k = await einstellungenLaden(this.o.vault);
     if (!e.ok) {
-      if (k.fehler && e.fehler !== this.letzterMoodleFehler) await this.senden(`❌ <b>Moodle-Abgleich fehlgeschlagen</b>\n${h((e.fehler ?? '').slice(0, 500))}`);
+      if (k.fehler && e.fehler !== this.letzterMoodleFehler) await this.proaktiv(`❌ <b>Moodle-Abgleich fehlgeschlagen</b>\n${h((e.fehler ?? '').slice(0, 500))}`);
       this.letzterMoodleFehler = e.fehler;
       return;
     }
@@ -135,7 +136,7 @@ export class TelegramBot {
       .slice(0, 8)
       .map((a) => `• ${h(a.titel)}${a.kurs ? ` (${h(a.kurs)})` : ''} – ${a.frist == null ? 'ohne Frist' : h(fristText(a.frist))}`)
       .join('\n');
-    await this.senden(`🎓 <b>Neu in Moodle:</b> ${teile.join(', ')}${abgaben ? `\n${abgaben}` : ''}\n<a href="${this.link('/gebaeude/Uni')}">Zur Uni</a>`);
+    await this.proaktiv(`🎓 <b>Neu in Moodle:</b> ${teile.join(', ')}${abgaben ? `\n${abgaben}` : ''}\n<a href="${this.link('/gebaeude/Uni')}">Zur Uni</a>`);
   }
 
   private fehler(e: unknown) {
@@ -156,7 +157,10 @@ export class TelegramBot {
     this.laeuft = true;
     void this.schleife();
     // Erinnerungen an Fristen: alle 10 Minuten nachsehen (nur Datenbank, kein Netz außer Telegram)
-    this.erinnerungsTakt = setInterval(() => void this.erinnerungenSenden().catch((e) => this.fehler(e)), 10 * 60_000);
+    this.erinnerungsTakt = setInterval(() => {
+      void this.erinnerungenSenden().catch((e) => this.fehler(e));
+      void this.nachtNachholen().catch((e) => this.fehler(e));
+    }, 10 * 60_000);
     this.erinnerungsTakt.unref();
   }
 
@@ -185,7 +189,10 @@ export class TelegramBot {
   async erinnerungenSenden() {
     if (!this.o.uni || !(await einstellungenLaden(this.o.vault)).erinnerungen) return 0;
     let n = 0;
+    const nacht = await this.nachtruhe();
     for (const e of this.o.uni.faelligeErinnerungen()) {
+      // nachts nur, was in wenigen Stunden fällig ist – der Rest kommt (als dringendste Stufe) nach 7 Uhr
+      if (nacht && e.stufe !== '3h') continue;
       await this.senden(`${this.erinnerungsText(e)}\n<a href="${this.link('/gebaeude/Uni')}">Zur Uni</a>`, {
         reply_markup: { inline_keyboard: [[{ text: '✅ Erledigt', callback_data: `e:${e.id}:${this.erledigtSignatur(e.id)}` }]] },
       });
@@ -386,6 +393,48 @@ export class TelegramBot {
 
   // ---- Meldungen ------------------------------------------------------------------------------
 
+  // ---- Nachtruhe (22–7 Uhr Linz): nur Dringendes sofort, der Rest gesammelt um 7 Uhr (E56) -------------
+
+  private async nachtruhe() {
+    return istNacht(this.o.uhr.jetzt()) && (await aufwachEinstellungen(this.o.vault)).nachtruhe;
+  }
+  private nachtListe(): { text: string; freigabe?: string }[] {
+    const w = (this.o.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'telegram_nacht'").get() as { wert: string } | undefined)?.wert;
+    return w ? (JSON.parse(w) as { text: string; freigabe?: string }[]) : [];
+  }
+  private nachtListeSetzen(l: { text: string; freigabe?: string }[]) {
+    this.o.db
+      .prepare("INSERT INTO dorf_stand (schluessel, wert) VALUES ('telegram_nacht', ?) ON CONFLICT(schluessel) DO UPDATE SET wert = excluded.wert")
+      .run(JSON.stringify(l.slice(-50)));
+  }
+
+  /** Meldung, die Leif nicht selbst angestoßen hat: nachts gesammelt statt gesendet */
+  private async proaktiv(text: string, extra: Record<string, unknown> = {}, gehoertZuChat?: string) {
+    if (await this.nachtruhe()) {
+      this.nachtListeSetzen([...this.nachtListe(), { text }]);
+      return null;
+    }
+    return this.senden(text, extra, gehoertZuChat);
+  }
+
+  /** Nach der Nachtruhe: Gesammeltes in einer Nachricht, wartende Freigaben mit Knöpfen */
+  async nachtNachholen() {
+    const l = this.nachtListe();
+    if (!l.length || (await this.nachtruhe())) return 0;
+    this.nachtListeSetzen([]);
+    const texte = l.filter((x) => !x.freigabe).map((x) => x.text.replace(/\n<a href[^\n]*$/, ''));
+    if (texte.length) {
+      let t = `🌙 <b>Über Nacht</b> (${texte.length})\n\n${texte.join('\n\n')}`;
+      if (t.length > 3900) t = `${t.slice(0, 3800)}\n…\n<a href="${this.link('/gebaeude/Rathaus?reiter=alle-chats')}">Alle Chats</a>`;
+      await this.senden(t);
+    }
+    for (const x of l.filter((y) => y.freigabe)) {
+      const f = this.o.agenten.freigaben.liste('offen').find((y) => y.id === x.freigabe);
+      if (f) await this.freigabeMelden(f, true);
+    }
+    return l.length;
+  }
+
   private link(pfad: string) {
     return `${this.o.appUrl}${pfad}`;
   }
@@ -447,6 +496,10 @@ export class TelegramBot {
   private async freigabeMelden(f: FreigabeInfo, immer = false) {
     if (!immer && !(await einstellungenLaden(this.o.vault)).freigaben) return;
     if (f.status !== 'offen') return;
+    if (!immer && (await this.nachtruhe())) {
+      this.nachtListeSetzen([...this.nachtListe(), { text: '', freigabe: f.id }]);
+      return;
+    }
     const r = await this.senden(
       `${this.freigabeText(f)}\n\n<a href="${this.link('/gebaeude/Rathaus?reiter=freigaben')}">In der App ansehen</a>`,
       { reply_markup: this.knoepfe(f.id) },
@@ -480,7 +533,7 @@ export class TelegramBot {
     const c = this.o.agenten.chatZeile(e.chatId);
     const link = `<a href="${this.link(`/chats/${c.id}`)}">Chat öffnen</a>`;
     if (e.status === 'fehler') {
-      if (k.fehler) await this.senden(`❌ <b>Fehler</b>: ${h(c.titel)}\n${h((e.fehler ?? '').slice(0, 500))}\n${link}`, {}, c.id);
+      if (k.fehler) await this.proaktiv(`❌ <b>Fehler</b>: ${h(c.titel)}\n${h((e.fehler ?? '').slice(0, 500))}\n${link}`, {}, c.id);
       return;
     }
     // Von selbst aufgewacht und nichts getan → keine Meldung (Leif will nur hören, wenn etwas passiert ist)
@@ -495,13 +548,13 @@ export class TelegramBot {
     if (c.rolle === 'buergermeister' && this.o.db.prepare("SELECT 1 FROM plaene WHERE chat_id = ? AND status = 'wartet'").get(c.id)) return;
     if (e.geschrieben.length && k.entwuerfe) {
       const dateien = e.geschrieben.slice(0, 5).map((p) => `• <code>${h(p)}</code>`).join('\n');
-      await this.senden(`📝 <b>Fertig mit Entwurf</b>: ${h(c.titel)}\n${dateien}\n${link}`, {}, c.id);
+      await this.proaktiv(`📝 <b>Fertig mit Entwurf</b>: ${h(c.titel)}\n${dateien}\n${link}`, {}, c.id);
       return;
     }
     if (k.beendet) {
       const antwort = (this.o.db.prepare("SELECT text FROM nachrichten WHERE lauf_id = ? AND rolle = 'agent' ORDER BY id DESC LIMIT 1").get(e.laufId) as { text: string } | undefined)?.text ?? '';
       const kurz = antwort.split(/^##\s*Zusammenfassung/m)[0]!.trim().slice(0, 600);
-      await this.senden(`✅ <b>Fertig</b>: ${h(c.titel)}${kurz ? `\n\n${h(kurz)}${antwort.length > 600 ? ' …' : ''}` : ''}\n${link}`, {}, c.id);
+      await this.proaktiv(`✅ <b>Fertig</b>: ${h(c.titel)}${kurz ? `\n\n${h(kurz)}${antwort.length > 600 ? ' …' : ''}` : ''}\n${link}`, {}, c.id);
     }
   }
 
@@ -513,6 +566,6 @@ export class TelegramBot {
       .filter((z) => z.startsWith('- '))
       .map((z) => h(z.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/ · \[\[[^\]]*\]\]/g, '')))
       .join('\n');
-    await this.senden(`🏁 <b>Aufgabe erledigt</b>: ${h(a.titel)}\n${zeilen}\n<a href="${this.link(`/chats/${a.chatId}`)}">Chat öffnen</a>`, {}, a.chatId);
+    await this.proaktiv(`🏁 <b>Aufgabe erledigt</b>: ${h(a.titel)}\n${zeilen}\n<a href="${this.link(`/chats/${a.chatId}`)}">Chat öffnen</a>`, {}, a.chatId);
   }
 }

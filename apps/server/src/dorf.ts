@@ -34,6 +34,7 @@ import { Aufwachen } from './aufwachen.js';
 const PFLICHT_DATEIEN = [
   'Rathaus/aktionen/buergermeister.md',
   '00_Stadtordnung/telegram.md',
+  '00_Stadtordnung/aufwachen.md',
   'Uni/aktionen/lernen.md',
   'Uni/aktionen/abgabe-bearbeiten.md',
   'Post/aktionen/antwort-entwerfen.md',
@@ -148,7 +149,7 @@ export async function dorfStarten(
   });
   agenten.post = gmail;
   const kalender = new Terminkalender(opt.google ? opt.google.termine : konfig.googleTermineIcs ? kalenderQuelle(konfig.googleTermineIcs) : undefined, () => uhr.jetzt());
-  const aufwachen = new Aufwachen({ db, uhr, hub, schreibtisch, buergermeister, freigaben: agenten.freigaben, uni, postbote, log: (t) => console.warn(t) });
+  const aufwachen = new Aufwachen({ db, uhr, hub, schreibtisch, buergermeister, freigaben: agenten.freigaben, uni, postbote, vault, log: (t) => console.warn(t) });
   const morgenzeitung = new Morgenzeitung({ db, uhr, vault, hub, ki, freigaben: agenten.freigaben, schreibtisch, uni, postbote, kalender, log: (t) => console.warn(t) });
   let telegram: TelegramBot | undefined;
   if ((konfig.telegramToken || opt.telegram) && konfig.telegramChatId) {

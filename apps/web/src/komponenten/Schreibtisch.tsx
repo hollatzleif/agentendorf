@@ -22,17 +22,24 @@ const uhrzeit = new Intl.DateTimeFormat('de-AT', { timeZone: 'Europe/Vienna', we
 /** Wann der Bürgermeister von selbst aufwacht – und Knopf zum Ausprobieren */
 function AufwachZeile() {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['aufwachen'], queryFn: () => api<{ naechste: string | null; anlaesse: string[] }>('/api/aufwachen') });
+  const q = useQuery({
+    queryKey: ['aufwachen'],
+    queryFn: () => api<{ naechste: string | null; anlaesse: string[]; verbrauchHeute: number; tagesbudget: number; eigeneAufgaben: boolean }>('/api/aufwachen'),
+  });
   const [laeuft, setLaeuft] = useState(false);
   const [meldung, setMeldung] = useState('');
   const wecken = async () => {
     setLaeuft(true);
     try {
-      const r = await api<{ gestartet: number; neu: number; lagebericht: string | null }>('/api/aufwachen/jetzt', { body: {} });
+      const r = await api<{ gestartet: number; neu: number; lagebericht: string | null; rundgang: string | null; budgetErreicht: boolean }>('/api/aufwachen/jetzt', { body: {} });
       setMeldung(
-        r.gestartet || r.lagebericht
-          ? `Aufgewacht: ${r.gestartet} neue Aufgabe(n) angegangen${r.lagebericht ? ', Lagebericht erstellt' : ''}.`
-          : 'Aufgewacht: nichts Neues – keine KI-Runde.',
+        r.budgetErreicht
+          ? 'Aufgewacht: Tagesbudget erreicht – heute nur noch Prüfen ohne KI.'
+          : r.gestartet || r.lagebericht
+            ? `Aufgewacht: ${r.gestartet} neue Aufgabe(n) angegangen${r.lagebericht ? ', Lagebericht erstellt' : ''}.`
+            : r.rundgang
+              ? 'Aufgewacht: nichts Neues – er macht einen Rundgang.'
+              : 'Aufgewacht: nichts Neues – keine KI-Runde.',
       );
       await qc.invalidateQueries({ queryKey: ['aufwachen'] });
       await qc.invalidateQueries({ queryKey: ['schreibtisch'] });
@@ -44,7 +51,8 @@ function AufwachZeile() {
   };
   return (
     <p className="leise aufwachen">
-      ⏰ Der Bürgermeister wacht von selbst auf (alle 2 Stunden, 7–21 Uhr){q.data?.naechste ? ` – nächstes Mal ${uhrzeit.format(new Date(q.data.naechste))}` : ''}.
+      ⏰ Der Bürgermeister ist rund um die Uhr wach (jede Stunde){q.data?.naechste ? ` – nächstes Mal ${uhrzeit.format(new Date(q.data.naechste))}` : ''}.
+      {q.data && ` Heute ${q.data.verbrauchHeute.toFixed(2)} $ von ${q.data.tagesbudget.toFixed(2)} $ für KI ohne deinen Klick.`}
       {q.data && q.data.anlaesse.length > 0 && ` Gerade ${q.data.anlaesse.length} Anlass/Anlässe.`}{' '}
       <button className="klein" onClick={() => void wecken()} disabled={laeuft}>
         {laeuft ? 'Weckt …' : 'Jetzt aufwachen'}
@@ -58,6 +66,12 @@ function AufwachZeile() {
 export function Schreibtisch() {
   const qc = useQueryClient();
   const liste = useQuery({ queryKey: ['schreibtisch'], queryFn: () => api<SchreibtischAufgabe[]>('/api/schreibtisch') });
+  const [alleRundgaenge, setAlleRundgaenge] = useState(false);
+  // Rundgänge/Lageberichte, die erledigt sind und älter als 12 Stunden, nur auf Wunsch zeigen
+  const altesAufwachen = (a: SchreibtischAufgabe) =>
+    a.quelle === 'aufwachen' && ['erledigt', 'beantwortet'].includes(a.status) && Date.now() - Date.parse(a.erstellt) > 12 * 3_600_000;
+  const sichtbar = liste.data?.filter((a) => alleRundgaenge || !altesAufwachen(a));
+  const versteckt = (liste.data?.length ?? 0) - (sichtbar?.length ?? 0);
   const [text, setText] = useState('');
   const [dateien, setDateien] = useState<File[]>([]);
   const [fehler, setFehler] = useState('');
@@ -111,8 +125,15 @@ export function Schreibtisch() {
 
       <h3>Auf dem Schreibtisch</h3>
       {liste.data?.length === 0 && <p className="leise">Leer. Du kannst Aufgaben auch per Telegram an den Dorf-Bot schicken.</p>}
+      {(versteckt > 0 || alleRundgaenge) && (
+        <p className="leise">
+          <button className="klein" onClick={() => setAlleRundgaenge((x) => !x)}>
+            {alleRundgaenge ? 'Alte Rundgänge ausblenden' : `${versteckt} ältere Rundgänge/Lageberichte zeigen`}
+          </button>
+        </p>
+      )}
       <ul className="chatliste">
-        {liste.data?.map((a) => (
+        {sichtbar?.map((a) => (
           <li key={a.id}>
             <span title={a.quelle}>{QUELLE[a.quelle]}</span>{' '}
             {a.chatId ? (

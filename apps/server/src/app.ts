@@ -28,7 +28,7 @@ import type { TelegramBot } from './telegram/bot.js';
 import type { Uni } from './uni/abgleich.js';
 import type { Postbote } from './post/postbote.js';
 import type { Morgenzeitung } from './morgenzeitung.js';
-import type { Aufwachen } from './aufwachen.js';
+import { aufwachEinstellungen, type Aufwachen } from './aufwachen.js';
 import { einstellungenLaden, einstellungenSetzen } from './telegram/einstellungen.js';
 
 export const COOKIE = 'dorf_sitzung';
@@ -416,7 +416,14 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
   // ---- Aufwachen des Bürgermeisters (Etappe 4) -----------------------------------------------
   app.get('/api/aufwachen', async () => {
     const z = a.aufwachen.naechsteZeit;
-    return { naechste: z == null ? null : new Date(z).toISOString(), anlaesse: a.aufwachen.anlaesse().map((x) => x.zeile) };
+    const e = await aufwachEinstellungen(vault);
+    return {
+      naechste: z == null ? null : new Date(z).toISOString(),
+      anlaesse: a.aufwachen.anlaesse().map((x) => x.zeile),
+      verbrauchHeute: a.aufwachen.verbrauchHeute(),
+      tagesbudget: e.tagesbudget_usd,
+      eigeneAufgaben: e.eigene_aufgaben,
+    };
   });
   app.post('/api/aufwachen/jetzt', async () => a.aufwachen.aufwachen());
 

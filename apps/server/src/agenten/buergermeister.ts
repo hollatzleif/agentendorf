@@ -158,10 +158,9 @@ export class Buergermeister implements RollenHandler {
     if (anzahl.n >= MAX_HELFER_OHNE_PLAN)
       return { ok: false, text: `Für diese Aufgabe läuft schon ${anzahl.n} Helfer ohne Plan. Für weitere Helfer lege mit plan_vorlegen einen Plan vor – Leif entscheidet.` };
     const geprueft = await this.teilaufgabePruefen({ ...t, titel: t.titel ?? t.auftrag.split('\n')[0]!.slice(0, 80) });
-    // Läuft der Bürgermeister gerade von selbst (Aufwachen), läuft auch sein Helfer über api – nie über Leifs Abo
-    const eigenerLauf = this.db.prepare('SELECT ausloeser FROM laeufe WHERE id = ?').get(k.laufId) as { ausloeser: string } | undefined;
-    const ausloeser = eigenerLauf?.ausloeser === 'zeitplan' ? 'zeitplan' : 'buergermeister';
-    const r = await this.teilaufgabeStarten(geprueft, { schreibtischId: chat.schreibtisch_id ?? undefined, elternChatId: k.chatId }, ausloeser);
+    // Helfer laufen mit dem Motor ihrer Aktion/Stufe (meist claude-code = Leifs Abo) – auch wenn der Bürgermeister
+    // von selbst aufgewacht ist (Leif, E56). Er selbst denkt beim Aufwachen über api (Tagesbudget). Notschalter übersteuert.
+    const r = await this.teilaufgabeStarten(geprueft, { schreibtischId: chat.schreibtisch_id ?? undefined, elternChatId: k.chatId }, 'buergermeister');
     return { ok: true, text: `Helfer gestartet (Chat ${r.chatId}) im Gebäude ${geprueft.gebaeude}${geprueft.aktion ? ` mit der Aktion ${geprueft.aktion}` : ''}. Du musst nicht warten; das Dorf meldet Leif, wenn er fertig ist.` };
   }
 
