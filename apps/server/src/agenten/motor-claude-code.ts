@@ -8,7 +8,7 @@ const VAULT = '/vault';
 /** Übersetzt die stream-json-Zeilen des claude-CLI in Lauf-Ereignisse. */
 export class CcParser {
   sitzung?: string;
-  ergebnis?: { text: string; fehler: boolean; subtype: string };
+  ergebnis?: { text: string; fehler: boolean; subtype: string; gruende: string[] };
   private texte: string[] = [];
   ende?: { code: number | null; signal: string | null; stderr: string };
 
@@ -52,7 +52,14 @@ export class CcParser {
           cacheLesen: u.cache_read_input_tokens ?? 0,
           cacheSchreiben: u.cache_creation_input_tokens ?? 0,
         });
-        this.ergebnis = { text: typeof o.result === 'string' ? o.result : this.texte.join('\n\n'), fehler: o.is_error === true || o.subtype !== 'success', subtype: String(o.subtype) };
+        // Bei Abbrüchen nennt das CLI den eigentlichen Grund in `errors` (z. B. API-Fehler) – den wollen wir sehen
+        const gruende = Array.isArray(o.errors) ? (o.errors as unknown[]).map((x) => (typeof x === 'string' ? x : JSON.stringify(x))).filter(Boolean) : [];
+        this.ergebnis = {
+          text: typeof o.result === 'string' ? o.result : this.texte.join('\n\n'),
+          fehler: o.is_error === true || o.subtype !== 'success',
+          subtype: String(o.subtype),
+          gruende,
+        };
         if (typeof o.session_id === 'string') this.sitzung = o.session_id;
         break;
       }
@@ -144,7 +151,12 @@ Der Vault liegt unter ${VAULT} und ist nur lesbar (Read, Glob, Grep). Schreiben,
       if (!parser.ergebnis) throw new Error(fehlerErklaeren(parser.ende?.stderr || `claude beendet ohne Ergebnis (Code ${parser.ende?.code ?? '?'})`));
       const text = parser.antwort();
       yield { typ: 'nachricht', rolle: 'agent', text };
-      if (parser.ergebnis.fehler) throw new Error(fehlerErklaeren(`${parser.ergebnis.subtype}: ${text}`));
+      if (parser.ergebnis.fehler) {
+        // Grund des Abbruchs: errors aus dem Ergebnis, sonst das Ende der CLI-Ausgabe (stderr); erst dann der letzte Text
+        const stderr = (parser.ende?.stderr ?? '').trim().split('\n').slice(-6).join(' | ').slice(-600);
+        const grund = parser.ergebnis.gruende.join('; ').slice(0, 800) || stderr || text;
+        throw new Error(fehlerErklaeren(`${parser.ergebnis.subtype}: ${grund}`));
+      }
     },
   };
 }

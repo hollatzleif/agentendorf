@@ -12,17 +12,21 @@ import { verbrauchAuswerten } from './verbrauch.js';
 import type { Schreibtisch } from '../schreibtisch.js';
 import type { Buergermeister } from './buergermeister.js';
 import { DorfFehler } from '../fehler.js';
+import type { Automatik } from './automatik.js';
 
 export function agentenRouten(
   app: FastifyInstance,
-  d: { agenten: AgentenDienst; vault: VaultDienst; uhr: Uhr; db: DB; hub: LiveHub; schreibtisch: Schreibtisch; buergermeister: Buergermeister },
+  d: { agenten: AgentenDienst; vault: VaultDienst; uhr: Uhr; db: DB; hub: LiveHub; schreibtisch: Schreibtisch; buergermeister: Buergermeister; automatik?: Automatik },
 ) {
   const { agenten, vault } = d;
 
   app.get('/api/aktionen', async (req): Promise<AktionInfo[]> => {
     const { gebaeude } = z.object({ gebaeude: z.string().optional() }).parse(req.query);
     // Prompt und Kopf bleiben auf dem Server
-    return (await aktionenListe(vault, gebaeude)).map(({ kopf: _k, prompt: _p, anhaenge: _a, ...info }) => info);
+    return (await aktionenListe(vault, gebaeude)).map(({ kopf: _k, prompt: _p, anhaenge: _a, ...info }) => {
+      const naechsterLauf = d.automatik?.naechster(info);
+      return naechsterLauf ? { ...info, naechsterLauf } : info;
+    });
   });
 
   app.get('/api/aktionen/quelle', async (req) => {

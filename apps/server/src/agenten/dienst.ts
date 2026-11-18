@@ -13,7 +13,8 @@ import type { GmailKlient } from '../post/gmail.js';
 import { BUERGERMEISTER_WERKZEUGE, LESE_WERKZEUGE, werkzeugprofil, type DorfWerkzeug } from './leine.js';
 import { kostenSchaetzen, motorenLaden, stufenLaden } from './modelle.js';
 import { anhaengeLaden, auftragMitAnhaengen, systemPromptBauen } from './kontext.js';
-import { WerkzeugKiste, type RollenHandler } from './werkzeuge.js';
+import { WerkzeugKiste, type KalenderEintrag, type RollenHandler } from './werkzeuge.js';
+import type { Ablage } from './automatik.js';
 import { Freigaben } from './freigaben.js';
 import { AbbruchFehler, type Anhang, type Motor, type Verlauf } from './motor.js';
 import { chatSpiegeln, protokollSchreiben } from './protokolle.js';
@@ -126,6 +127,10 @@ export class AgentenDienst {
   moodleBrowser?: MoodleBrowserKlient;
   /** Gmail (nur Lesen + Entwürfe) – nur gesetzt, wenn verbunden */
   post?: GmailKlient;
+  /** Ablage mit Archiv für Aktionen mit `ablage:` (E60), wird in dorf.ts gesetzt */
+  ablage?: Ablage;
+  /** Termine für kalender_lesen (Hauptkalender + Uni), wird in dorf.ts gesetzt */
+  kalender?: (von: number, bis: number) => Promise<KalenderEintrag[]>;
 
   constructor(
     private db: DB,
@@ -158,7 +163,10 @@ export class AgentenDienst {
     herkunft: ChatHerkunft = {},
   ): Promise<{ chatId: string; laufId: string }> {
     const a = await aktionLaden(this.vault, aktionId);
-    const { prompt, anhaenge, werte } = eingabenAnwenden(a, eingaben, this.quellen);
+    const { prompt: rohPrompt, anhaenge, werte, ablage } = eingabenAnwenden(a, eingaben, this.quellen);
+    // Ablage (E60): Entwurfsname und Hinweise vom Code; der Tausch passiert erst nach erfolgreichem Lauf
+    const abl = this.ablage?.vorbereiten(a, ablage) ?? null;
+    const prompt = abl ? `${rohPrompt}\n${abl.zusatz}` : rohPrompt;
     const profil = werkzeugprofil(a); // wirft bei Widerspruch (Web + Fremdinhalte)
     const erstesFeld = Object.values(werte).find((w) => w.trim()) ?? '';
     const titel = `${a.name}${erstesFeld ? `: ${erstesFeld.replace(/\s+/g, ' ').slice(0, 60)}` : ''}`;
@@ -177,6 +185,7 @@ export class AgentenDienst {
       herkunft,
     });
     const laufId = this.laufAnlegen(chatId, prompt, ausloeser, a.freigabeVorStart);
+    if (abl) this.ablage!.merken(laufId, abl.ziel, abl.entwurf);
     if (a.freigabeVorStart) {
       await this.freigaben.beantragen({
         art: 'lauf_starten',
@@ -401,6 +410,7 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
               : undefined,
           post: profil.dorf.includes('post_lesen') ? this.post : undefined,
           moodle: this.moodleBrowser && profil.dorf.includes('moodle_oeffnen') ? this.moodleBrowser : undefined,
+          kalender: profil.dorf.includes('kalender_lesen') ? this.kalender : undefined,
         },
         c.rolle === 'buergermeister' ? this.rollenWerkzeuge : undefined,
       );

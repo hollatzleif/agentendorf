@@ -1,5 +1,7 @@
 import { Dorfplan } from './dorfplan.js';
 import { Wetter } from './wetter.js';
+import type { KalenderEintrag } from './agenten/werkzeuge.js';
+import { Ablage, Automatik } from './agenten/automatik.js';
 import path from 'node:path';
 import type { Konfig } from './konfig.js';
 import { dbOeffnen } from './db.js';
@@ -158,6 +160,25 @@ export async function dorfStarten(
   });
   agenten.post = gmail;
   const kalender = new Terminkalender(opt.google ? opt.google.termine : konfig.googleTermineIcs ? kalenderQuelle(konfig.googleTermineIcs) : undefined, () => uhr.jetzt());
+  // Ablage mit Archiv + Zeitplaner für Aktionen (E60)
+  agenten.ablage = new Ablage({ db, uhr, vault, log: (t) => console.warn(t) });
+  agenten.beiLaufEnde.push(async (e) => {
+    const t = await agenten.ablage!.abschliessen(e);
+    if (t) await agenten.hinweisSchreiben(e.chatId, t);
+  });
+  const automatik = new Automatik({ db, uhr, vault, agenten, log: (t) => console.warn(t) });
+  // kalender_lesen für Aktionen mit werkzeuge: [kalender]: Hauptkalender + Uni-Fristen/Pflichttermine (nur lesen)
+  agenten.kalender = async (von, bis) => {
+    const aus: KalenderEintrag[] = [];
+    for (const t of await kalender.termine(von, bis).catch(() => [])) if (t.start != null) aus.push({ start: t.start, ende: t.ende, ganztags: t.ganztags, titel: t.titel, quelle: 'Kalender' });
+    const art = { abgabe: 'Abgabe', test: 'Prüfung', termin: 'Uni-Termin', pflicht: 'Pflichttermin' } as const;
+    for (const f of uni.fristen()) {
+      const s = f.frist ? Date.parse(f.frist) : NaN;
+      if (Number.isNaN(s) || s < von || s > bis) continue;
+      aus.push({ start: s, ende: f.ende ? Date.parse(f.ende) : null, ganztags: false, titel: f.kurs ? `${f.titel} (${f.kurs})` : f.titel, quelle: art[f.art], erledigt: f.abgegeben });
+    }
+    return aus;
+  };
   const aufwachen = new Aufwachen({ db, uhr, hub, schreibtisch, buergermeister, freigaben: agenten.freigaben, uni, postbote, vault, log: (t) => console.warn(t) });
   const wetter = new Wetter({ url: konfig.wetterUrl, ort: konfig.wetterOrt, uhr, laden: opt.wetter, log: (t) => console.warn(t) });
   // einmal vorab holen, damit das Wetter schon beim ersten Öffnen des Dorfs da ist (nur mit WETTER_URL)
@@ -188,13 +209,15 @@ export async function dorfStarten(
   if (!opt.gmail && opt.beobachten !== false) postbote.starten();
   if (opt.beobachten !== false) morgenzeitung.starten();
   if (opt.beobachten !== false) aufwachen.starten();
+  if (opt.beobachten !== false) automatik.starten();
   const dorfplan = new Dorfplan({ db, uhr, hub, vault, uni, wetter });
-  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen, dorfplan });
+  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen, dorfplan, automatik });
   app.addHook('onClose', async () => {
     uni.stoppen();
     postbote.stoppen();
     morgenzeitung.stoppen();
     aufwachen.stoppen();
+    automatik.stoppen();
     telegram?.stoppen();
     await intern.close();
     await waechter?.close();
@@ -202,5 +225,5 @@ export async function dorfStarten(
     await agenten.ruhe();
     db.close();
   });
-  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan, wetter };
+  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan, wetter, automatik };
 }

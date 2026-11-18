@@ -31,7 +31,8 @@ export type DorfWerkzeug =
   | 'moodle_seite'
   | 'moodle_zurueck'
   | 'moodle_bild'
-  | 'moodle_herunterladen';
+  | 'moodle_herunterladen'
+  | 'kalender_lesen';
 export const LESE_WERKZEUGE: DorfWerkzeug[] = ['vault_lesen', 'vault_liste', 'vault_suchen'];
 /** Nur Aktionen mit rolle: buergermeister bekommen diese Werkzeuge. */
 export const BUERGERMEISTER_WERKZEUGE: DorfWerkzeug[] = ['aktionen_liste', 'helfer_starten', 'plan_vorlegen'];
@@ -57,6 +58,11 @@ export const POST_WERKZEUGE: DorfWerkzeug[] = ['post_lesen', 'post_entwurf'];
  * landet nur in einem vom Code bestimmten Ordner unter Uni/.
  */
 export const MOODLE_WERKZEUGE: DorfWerkzeug[] = ['moodle_oeffnen', 'moodle_klicken', 'moodle_seite', 'moodle_zurueck', 'moodle_bild', 'moodle_herunterladen'];
+/**
+ * Nur Aktionen mit werkzeuge: [kalender] UND fremdinhalte: ja. Liest Leifs Hauptkalender und die Uni-Kalender
+ * (Fristen, Pflichttermine) – nur lesen, nichts wird gespeichert. Kalendertitel können von außen stammen (Einladungen).
+ */
+export const KALENDER_WERKZEUGE: DorfWerkzeug[] = ['kalender_lesen'];
 /** Höchstens so viele Helfer pro Plan */
 export const MAX_HELFER_PRO_PLAN = 10;
 /** So viele Helfer darf der Bürgermeister pro Aufgabe ohne Plan starten (Leifs Vorgabe: ab 2 Helfern nur mit Plan) */
@@ -73,6 +79,7 @@ export function aktionPruefen(a: { werkzeuge: AktionsWerkzeug[]; fremdinhalte: b
     return 'Web-Werkzeuge und Fremdinhalte schließen sich aus (Stadtordnung, Abschnitt 5): Sonst könnte ein präparierter Inhalt Daten über eine Web-Adresse nach außen schicken.';
   if (a.werkzeuge.includes('moodle') && !a.fremdinhalte) return 'Moodle-Werkzeuge nur mit „fremdinhalte: ja“ – Moodle-Seiten stammen von außen.';
   if (a.werkzeuge.includes('moodle') && a.werkzeuge.includes('web')) return 'Moodle-Werkzeuge und Web-Werkzeuge schließen sich aus.';
+  if (a.werkzeuge.includes('kalender') && !a.fremdinhalte) return 'Kalender nur mit „fremdinhalte: ja“ – Termintitel können von außen stammen (Einladungen).';
   return null;
 }
 
@@ -84,6 +91,7 @@ export function werkzeugprofil(a: { werkzeuge: AktionsWerkzeug[]; fremdinhalte: 
   if (a.werkzeuge.includes('rechenraum')) dorf.push(...RECHENRAUM_WERKZEUGE);
   if (a.werkzeuge.includes('post')) dorf.push(...POST_WERKZEUGE);
   if (a.werkzeuge.includes('moodle')) dorf.push(...MOODLE_WERKZEUGE);
+  if (a.werkzeuge.includes('kalender')) dorf.push(...KALENDER_WERKZEUGE);
   return { dorf, web: a.werkzeuge.includes('web') && !a.fremdinhalte };
 }
 

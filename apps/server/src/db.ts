@@ -273,6 +273,32 @@ const MIGRATIONEN: string[] = [
     geaendert INTEGER NOT NULL
   );
   `,
+  // 11 – Aktionen mit Zeitplan und Ablage, Häkchen-Stand von HTML-Seiten (E60)
+  `
+  CREATE TABLE automatik_bekannt (
+    aktion_id TEXT PRIMARY KEY,
+    zeitplan TEXT NOT NULL,
+    seit INTEGER NOT NULL           -- ab hier zählen Termine (kein Nachholen für neue/geänderte Zeitpläne)
+  );
+  CREATE TABLE automatik_termine (
+    aktion_id TEXT NOT NULL,
+    termin INTEGER NOT NULL,        -- geplanter Zeitpunkt (UTC-ms); genau einmal je Termin
+    lauf_id TEXT,
+    hinweis TEXT,
+    erstellt INTEGER NOT NULL,
+    PRIMARY KEY (aktion_id, termin)
+  );
+  CREATE TABLE ablage_laeufe (
+    lauf_id TEXT PRIMARY KEY,
+    ziel TEXT NOT NULL,             -- z. B. Bibliothek/00_Checkliste.html (wird ersetzt)
+    entwurf TEXT NOT NULL           -- hierhin schreibt der Agent
+  );
+  CREATE TABLE seiten_stand (
+    pfad TEXT PRIMARY KEY,          -- HTML-Seite im Vault
+    inhalt_json TEXT NOT NULL,      -- was die Seite speichern ließ (z. B. Häkchen)
+    geaendert INTEGER NOT NULL
+  );
+  `,
 ];
 
 export function dbOeffnen(datei: string): DB {

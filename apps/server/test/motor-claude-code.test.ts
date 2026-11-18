@@ -174,4 +174,10 @@ describe('stream-json-Parser', () => {
     expect(p.antwort()).toBe('Fertig');
     expect(fehlerErklaeren('Error: OAuth token has expired')).toMatch(/dorf claude-anmelden/);
   });
+
+  it('Abbruch (error_during_execution): der Grund aus errors bleibt erhalten', () => {
+    const p = new CcParser({ extern: () => undefined }, () => undefined);
+    p.zeile({ type: 'result', subtype: 'error_during_execution', is_error: true, errors: ['API Error: 400 prompt is too long'], usage: {} });
+    expect(p.ergebnis).toMatchObject({ fehler: true, subtype: 'error_during_execution', gruende: ['API Error: 400 prompt is too long'] });
+  });
 });

@@ -1,4 +1,6 @@
 import type { Dorfplan } from './dorfplan.js';
+import { normalisieren } from './vault/pfade.js';
+import type { Automatik } from './agenten/automatik.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
@@ -56,6 +58,7 @@ export interface Abhaengigkeiten {
   morgenzeitung: Morgenzeitung;
   aufwachen: Aufwachen;
   dorfplan: Dorfplan;
+  automatik?: Automatik;
 }
 
 /** Für Agenten-HTML: Skripte ja, aber undurchsichtiger Ursprung und kein Netz. Bilder/Schriften nur eingebettet (data:). */
@@ -314,6 +317,27 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
     return reply.send(r.strom);
   });
 
+  /**
+   * Häkchen-Brücke (E60): Eine HTML-Seite im Dorf darf über die App einen kleinen Zustand speichern (z. B. Häkchen
+   * einer Checkliste) – sie selbst hat ja weder Speicher noch Netz. Nur für bestehende .html-Dateien, höchstens 64 KB.
+   * Beim Ablösen einer Ablage wandert der Stand mit ins Archiv, und der nächste Lauf sieht ihn.
+   */
+  app.get('/api/vault/seitenstand', async (req) => {
+    const { pfad } = z.object({ pfad: z.string() }).parse(req.query);
+    const z1 = db.prepare('SELECT inhalt_json FROM seiten_stand WHERE pfad = ?').get(normalisieren(pfad)) as { inhalt_json: string } | undefined;
+    return { stand: z1 ? (JSON.parse(z1.inhalt_json) as unknown) : null };
+  });
+  app.put('/api/vault/seitenstand', async (req) => {
+    const b = z.object({ pfad: z.string(), stand: z.unknown() }).parse(req.body);
+    const pfad = normalisieren(b.pfad);
+    if (!/\.html?$/i.test(pfad)) throw new DorfFehler(400, 'Nur für .html-Seiten.');
+    if (!(await vault.existiert(pfad))) throw new DorfFehler(404, 'Diese Seite gibt es nicht.');
+    const json = JSON.stringify(b.stand ?? null);
+    if (json.length > 64_000) throw new DorfFehler(413, 'Der Stand ist zu groß (höchstens 64 KB).');
+    db.prepare('INSERT OR REPLACE INTO seiten_stand (pfad, inhalt_json, geaendert) VALUES (?, ?, ?)').run(pfad, json, uhr.jetzt());
+    return { ok: true };
+  });
+
   app.put('/api/vault/datei', async (req) => {
     const b = z
       .object({ pfad: z.string(), inhalt: z.string(), basisVersion: z.string().optional(), neu: z.boolean().optional() })
@@ -356,7 +380,7 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
   app.get('/api/gebaeude', async () => gebaeudeListe(vault));
 
   // ---- Agenten (Etappe 2a) ------------------------------------------------------------------
-  agentenRouten(app, { agenten: a.agenten, vault, uhr, db, hub, schreibtisch: a.schreibtisch, buergermeister: a.buergermeister });
+  agentenRouten(app, { agenten: a.agenten, vault, uhr, db, hub, schreibtisch: a.schreibtisch, buergermeister: a.buergermeister, automatik: a.automatik });
 
   // ---- Telegram (Etappe 2b) -----------------------------------------------------------------
   app.get('/api/telegram/status', async () => {

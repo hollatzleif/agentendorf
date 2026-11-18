@@ -7,6 +7,7 @@ import type { VaultDienst } from '../vault/dienst.js';
 import { gebaeudeListe } from '../vault/gebaeude.js';
 import { DorfFehler } from '../fehler.js';
 import { aktionPruefen } from './leine.js';
+import { zeitplanLesen } from './zeitplan.js';
 
 // „ja“/„nein“ in Obsidian-Frontmatter als Wahrheitswerte akzeptieren
 const JaNein = z.preprocess((w) => (w === 'ja' ? true : w === 'nein' ? false : w), z.boolean());
@@ -19,6 +20,8 @@ const Eingabe = z.object({
   optionen: z.array(z.coerce.string()).optional(),
   /** Auswahl vom Server: uni.faecher (Kurse), uni.abgaben (offene Abgaben) */
   quelle: z.enum(['uni.faecher', 'uni.abgaben', 'post.mails']).optional(),
+  /** Wert für automatische Läufe und Vorbelegung */
+  standard: z.coerce.string().optional(),
 });
 
 /** Liefert die erlaubten Werte einer Server-Auswahl (beim Anzeigen UND beim Start geprüft). */
@@ -33,13 +36,32 @@ export const AktionKopf = z
     stufe: z.enum(['klein', 'mittel', 'gross']).default('mittel'),
     eingaben: z.array(Eingabe).default([]),
     anhaenge: z.array(z.string()).default([]),
-    werkzeuge: z.array(z.enum(['vault_lesen', 'vault_suchen', 'vault_schreiben', 'web', 'rechenraum', 'post', 'moodle'])).default(['vault_lesen', 'vault_suchen', 'vault_schreiben']),
+    werkzeuge: z.array(z.enum(['vault_lesen', 'vault_suchen', 'vault_schreiben', 'web', 'rechenraum', 'post', 'moodle', 'kalender'])).default(['vault_lesen', 'vault_suchen', 'vault_schreiben']),
     fremdinhalte: JaNein.default(false),
     freigabe_vor_start: JaNein.default(false),
     /** Sonderrolle: buergermeister bekommt aktionen_liste, helfer_starten, plan_vorlegen */
     rolle: z.enum(['buergermeister']).optional(),
+    /** Läuft von selbst, z. B. „täglich 06:00“ (Motor der Aktion, meist Leifs Abo) */
+    zeitplan: z.string().optional(),
+    /** Ergebnis-Datei im eigenen Gebäude, die bei jedem Lauf ersetzt wird (alte Fassung → archiv/) */
+    ablage: z.string().optional(),
   })
   .superRefine((k, ctx) => {
+    if (k.zeitplan) {
+      try {
+        zeitplanLesen(k.zeitplan);
+      } catch (e) {
+        ctx.addIssue({ code: 'custom', message: (e as Error).message, path: ['zeitplan'] });
+      }
+      const ohne = k.eingaben.find((e) => e.pflicht && !e.standard);
+      if (ohne) ctx.addIssue({ code: 'custom', message: `Eingabe „${ohne.name}“ braucht einen standard-Wert, damit die Aktion von selbst laufen kann`, path: ['eingaben'] });
+    }
+    if (k.ablage && (!/\/[A-Za-z0-9_-]+\.(html|md)$/.test(k.ablage) || k.ablage.includes('..') || k.ablage.startsWith('/')))
+      ctx.addIssue({
+        code: 'custom',
+        message: 'ablage: Pfad wie „Bibliothek/00_Checkliste.html“ oder „Uni/faecher/{fach}/00_Kursuebersicht.html“ (Dateiname nur Buchstaben, Ziffern, _ und -, Endung .html oder .md)',
+        path: ['ablage'],
+      });
     const f = aktionPruefen(k);
     if (f) ctx.addIssue({ code: 'custom', message: f, path: ['werkzeuge'] });
     const typAuswahlOhne = k.eingaben.find((e) => e.typ === 'auswahl' && !e.optionen?.length && !e.quelle);
@@ -61,6 +83,8 @@ function zuInfo(gebaeude: string, datei: string, roh: string): Aktion {
     const m = matter(roh);
     const k = AktionKopf.parse(m.data);
     if (k.gebaeude && k.gebaeude !== gebaeude) throw new Error(`liegt in ${gebaeude}, nennt aber gebaeude: ${k.gebaeude}`);
+    if (k.ablage && (!k.ablage.startsWith(`${gebaeude}/`) || /^[^/]+\/(aktionen|protokolle|chats|archiv)\//.test(k.ablage)))
+      throw new Error(`ablage muss im eigenen Gebäude liegen (${gebaeude}/…), nicht in aktionen/, protokolle/, chats/ oder archiv/`);
     if (!m.content.trim()) throw new Error('Der Text unter dem Frontmatter (der Prompt) ist leer.');
     return {
       id,
@@ -75,6 +99,8 @@ function zuInfo(gebaeude: string, datei: string, roh: string): Aktion {
       fremdinhalte: k.fremdinhalte,
       freigabeVorStart: k.freigabe_vor_start,
       rolle: k.rolle,
+      zeitplan: k.zeitplan,
+      ablage: k.ablage,
       kopf: k,
       prompt: m.content.trim(),
       anhaenge: k.anhaenge,
@@ -128,7 +154,7 @@ export function eingabenAnwenden(a: Aktion, eingaben: Record<string, string>, qu
   if (a.fehler) throw new DorfFehler(400, a.fehler);
   const werte: Record<string, string> = {};
   for (const e of a.eingaben) {
-    const w = (eingaben[e.name] ?? '').toString();
+    const w = (eingaben[e.name] ?? e.standard ?? '').toString();
     if (e.pflicht && !w.trim()) throw new DorfFehler(400, `Eingabe „${e.beschriftung ?? e.name}“ fehlt.`);
     if (e.quelle) {
       if (w && !(quellen?.(e.quelle) ?? []).some((o) => o.wert === w)) throw new DorfFehler(400, `Ungültige Auswahl für „${e.beschriftung ?? e.name}“ (nicht in ${e.quelle}).`);
@@ -137,5 +163,5 @@ export function eingabenAnwenden(a: Aktion, eingaben: Record<string, string>, qu
     werte[e.name] = w;
   }
   const ersetzen = (t: string) => t.replace(/\{([a-z_][a-z0-9_]*)\}/g, (m, n: string) => (n in werte ? werte[n]! : m));
-  return { prompt: ersetzen(a.prompt), anhaenge: a.anhaenge.map(ersetzen).filter((x) => !/\{[a-z_]/.test(x)), werte };
+  return { prompt: ersetzen(a.prompt), anhaenge: a.anhaenge.map(ersetzen).filter((x) => !/\{[a-z_]/.test(x)), werte, ablage: a.ablage ? ersetzen(a.ablage) : undefined };
 }

@@ -86,8 +86,9 @@ export type Motor = 'api' | 'claude-code';
 export type Stufe = 'klein' | 'mittel' | 'gross';
 export type Aufwand = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export type LaufStatus = 'wartet_freigabe' | 'wartend' | 'laeuft' | 'fertig' | 'fehler' | 'abgebrochen';
-export type Ausloeser = 'klick' | 'zeitplan' | 'buergermeister';
-export type AktionsWerkzeug = 'vault_lesen' | 'vault_suchen' | 'vault_schreiben' | 'web' | 'rechenraum' | 'post' | 'moodle';
+/** klick = Leif; zeitplan = Bürgermeister von selbst (api, Budget); buergermeister = seine Helfer; automatik = Aktion nach eigenem Zeitplan (Motor der Aktion) */
+export type Ausloeser = 'klick' | 'zeitplan' | 'buergermeister' | 'automatik';
+export type AktionsWerkzeug = 'vault_lesen' | 'vault_suchen' | 'vault_schreiben' | 'web' | 'rechenraum' | 'post' | 'moodle' | 'kalender';
 
 export interface AktionEingabe {
   name: string;
@@ -97,6 +98,8 @@ export interface AktionEingabe {
   optionen?: string[];
   /** Auswahl, die der Server liefert (z. B. Kurse aus Moodle) */
   quelle?: AktionQuelle;
+  /** Wert für automatische Läufe (Zeitplan) und Vorbelegung im Formular */
+  standard?: string;
 }
 
 export type AktionQuelle = 'uni.faecher' | 'uni.abgaben' | 'post.mails';
@@ -118,6 +121,12 @@ export interface AktionInfo {
   fremdinhalte: boolean;
   freigabeVorStart: boolean;
   rolle?: 'buergermeister';
+  /** Läuft von selbst, z. B. „täglich 06:00“ */
+  zeitplan?: string;
+  /** nächster automatischer Lauf (ISO) */
+  naechsterLauf?: string;
+  /** Ergebnis-Datei, die bei jedem Lauf ersetzt wird (alte Fassung → archiv/) */
+  ablage?: string;
   fehler?: string;
 }
 

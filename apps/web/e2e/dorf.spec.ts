@@ -230,6 +230,32 @@ fetch('/api/ich').then(() => s('d', 'Netz offen!'), () => s('d', 'Netz blockiert
   await expect(page.getByRole('link', { name: 'Vollbild' })).toHaveAttribute('target', '_blank');
 });
 
+test('Häkchen-Brücke: eine abgeschottete Seite speichert ihren Stand im Dorf (bleibt nach dem Neuladen)', async ({ page }, info) => {
+  await anmelden(page);
+  const pfad = `Bibliothek/haekchen-${info.project.name}.html`;
+  const html = `<!doctype html><html><body>
+<label><input type="checkbox" id="k1"> Blatt abgeben</label><p id="s">lädt</p>
+<script>
+const k = document.getElementById('k1');
+window.addEventListener('message', (e) => {
+  if (e.data && e.data.dorf === 'stand') { k.checked = !!(e.data.stand && e.data.stand.k1); document.getElementById('s').textContent = 'geladen'; }
+});
+k.addEventListener('change', () => parent.postMessage({ dorf: 'stand-speichern', stand: { k1: k.checked } }, '*'));
+parent.postMessage({ dorf: 'stand-laden' }, '*');
+</script></body></html>`;
+  const origin = new URL(page.url()).origin;
+  expect((await page.request.put('/api/vault/datei', { headers: { origin }, data: { pfad, inhalt: html } })).ok()).toBe(true);
+  await page.goto(`/bibliothek?pfad=${encodeURIComponent(pfad)}`);
+  const rahmen = page.frameLocator('iframe.html-rahmen');
+  await expect(rahmen.locator('#s')).toHaveText('geladen');
+  await expect(rahmen.locator('#k1')).not.toBeChecked();
+  await rahmen.locator('#k1').check();
+  await expect.poll(async () => ((await (await page.request.get(`/api/vault/seitenstand?pfad=${encodeURIComponent(pfad)}`)).json()) as { stand: unknown }).stand).toEqual({ k1: true });
+  await page.reload();
+  await expect(rahmen.locator('#s')).toHaveText('geladen');
+  await expect(rahmen.locator('#k1')).toBeChecked();
+});
+
 test('Etappe 4: Morgenzeitung drucken, Bürgermeister wecken, Post ohne Gmail', async ({ page }) => {
   await anmelden(page);
   await page.goto('/gebaeude/Rathaus?reiter=morgenzeitung');
