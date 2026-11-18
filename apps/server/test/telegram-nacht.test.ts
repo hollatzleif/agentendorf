@@ -131,4 +131,24 @@ describe('Telegram: Nachtsammlung robust', () => {
     expect(t).not.toMatch(/&[a-z]*(?![a-z;])/);
     expect(await bot.nachtNachholen()).toBe(0);
   });
+
+  it('Links der gesammelten Meldungen bleiben als „· öffnen“ erhalten', async () => {
+    const texte: string[] = [];
+    const api: TelegramSchnittstelle = {
+      async aufruf<T>(m: string, p: Record<string, unknown> = {}) {
+        if (m === 'sendMessage') texte.push(String(p.text));
+        return { message_id: texte.length } as T;
+      },
+      async dateiLaden() {
+        return { name: 'x', inhalt: Buffer.from('') };
+      },
+    };
+    const d = await testDorf({ telegram: api, env: { TELEGRAM_CHAT_ID: '1' } });
+    const bot = d.telegram! as unknown as { proaktiv(t: string): Promise<void>; nachtNachholen(): Promise<number> };
+    d.uhr.vor(10 * STUNDE);
+    await bot.proaktiv('🏁 <b>Aufgabe erledigt</b>: Steuer\n<a href="https://dorf.example/chats/c1">Chat öffnen</a>');
+    d.uhr.vor(9 * STUNDE);
+    await bot.nachtNachholen();
+    expect(texte[0]).toContain('🏁 <b>Aufgabe erledigt</b>: Steuer · <a href="https://dorf.example/chats/c1">öffnen</a>');
+  });
 });

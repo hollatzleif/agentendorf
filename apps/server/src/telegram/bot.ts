@@ -474,7 +474,14 @@ export class TelegramBot {
   async nachtNachholen() {
     const l = this.nachtListe();
     if (!l.length || (await this.nachtruhe())) return 0;
-    const texte = l.filter((x) => !x.freigabe).map((x) => kuerzen(x.text.replace(/\n<a href[^\n]*$/, ''), 1200));
+    // der Link am Ende (Chat öffnen, Zur Uni …) bleibt als kurzes „· öffnen“ – so kommt Leif direkt hin
+    const texte = l
+      .filter((x) => !x.freigabe)
+      .map((x) => {
+        const link = /\n(<a href="[^"]*">)[^<]*<\/a>$/.exec(x.text);
+        const rumpf = kuerzen(link ? x.text.slice(0, link.index) : x.text, 1100);
+        return link ? `${rumpf} · ${link[1]}öffnen</a>` : rumpf;
+      });
     if (texte.length) {
       // ganze Meldungen, nie mitten in einem HTML-Tag abschneiden (sonst lehnt Telegram die Nachricht ab)
       const kopf = `🌙 <b>Über Nacht</b> (${texte.length})`;
