@@ -2,8 +2,8 @@ import { expect, test, type Page } from '@playwright/test';
 import { belegungBerechnen, feldSchluessel, type DorfAntwort, type DorfLayout, type DorfStatus } from '@dorf/shared';
 
 const PW = 'e2e-Passwort-sehr-lang-1';
-// 3D mit Software-Grafik ist im Testbrowser langsam
-test.describe.configure({ timeout: 90_000 });
+// Software-WebGL auf dem CI-Rechner ist langsam (der Bau-Test hält zwei 3D-Seiten offen) – großzügige Zeit, in CI ein zweiter Versuch
+test.describe.configure({ timeout: 180_000, retries: process.env.CI ? 1 : 0 });
 
 interface DorfTest {
   bildschirmPunkt(art: string, id?: string): { x: number; y: number } | null;
