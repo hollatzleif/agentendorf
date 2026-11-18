@@ -59,6 +59,7 @@ export class Wochenrueckblick {
       kalender: Terminkalender;
       fokus?: { fokusStatistik(): FokusStatistik };
       bank?: { zeitungsZeilen(): Promise<string[]> };
+      gewohnheiten?: { wochenZeile(): Promise<string | null> };
       log?: (t: string) => void;
     },
   ) {}
@@ -86,6 +87,9 @@ export class Wochenrueckblick {
       if (f.themen.length) z2.push(`Fächer/Themen: ${f.themen.map((t) => `${t.thema} ${stunden(t.min)}`).join(', ')}`);
       abschnitte.push({ titel: 'Fokus', zeilen: z2 });
     } else if (f) abschnitte.push({ titel: 'Fokus', zeilen: ['Diese Woche keine Pomodoros – nächste Woche einfach mit einem 🍅 am wichtigsten To-do anfangen.'] });
+
+    const gw = await this.o.gewohnheiten?.wochenZeile().catch(() => null);
+    if (gw) abschnitte.push({ titel: 'Gewohnheiten', zeilen: [gw] });
 
     // nächste 7 Tage: Fristen und Termine
     const bis = jetzt + 8 * TAG;

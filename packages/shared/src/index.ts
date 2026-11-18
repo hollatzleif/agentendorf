@@ -737,3 +737,15 @@ export interface KarteFaellig {
   antwort: string;
   neu: boolean;
 }
+
+/** Gewohnheiten (Nacht 18./19.11.) */
+export interface GewohnheitStand {
+  name: string;
+  symbol: string;
+  tage: 'täglich' | 'werktags' | 'wochenende' | ('so' | 'mo' | 'di' | 'mi' | 'do' | 'fr' | 'sa')[];
+  heuteFaellig: boolean;
+  heuteErledigt: boolean;
+  serie: number;
+  /** letzte 7 Tage, ältester zuerst */
+  woche: { tag: string; faellig: boolean; erledigt: boolean }[];
+}

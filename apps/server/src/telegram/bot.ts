@@ -12,6 +12,7 @@ import { aufwachEinstellungen, istNacht } from '../aufwachen.js';
 import type { Rueckblick } from '../wochenrueckblick.js';
 import { terminAusText, type TerminAusText } from '@dorf/shared';
 import type { Karteikasten } from '../karten.js';
+import type { Gewohnheiten } from '../gewohnheiten.js';
 import type { FokusStatistik, TodoInfo } from '@dorf/shared';
 import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
@@ -106,6 +107,8 @@ export class TelegramBot {
       listen?: Record<ListenName, TodoDienst>;
       /** Nacht 18./19.11.: /karten – Karteikarten wiederholen */
       karten?: Karteikasten;
+      /** Nacht 18./19.11.: Gewohnheiten abhaken (Tagesabschluss, /gewohnheiten) */
+      gewohnheiten?: Gewohnheiten;
       /** Nacht 18./19.11.: /fokus – Pomodoro starten */
       kirchturm?: { ausfuehren(b: unknown): unknown; fokusStatistik?(): FokusStatistik };
       /** Nacht 18./19.11.: /termin – Termin aus Text, eingetragen erst nach Leifs Knopfdruck */
@@ -202,6 +205,10 @@ export class TelegramBot {
     { command: 'aktion', description: 'Skill starten: /aktion <Name> (ohne Name: Liste)' },
     { command: 'todo', description: 'To-do-Liste (abhaken per Knopf) – /todo <Text> legt eins an' },
     { command: 'einkauf', description: 'Einkaufsliste (abhaken im Laden) – /einkauf <Text> setzt etwas drauf' },
+    { command: 'termin', description: 'Termin in den Kalender: /termin morgen 14 Uhr Zahnarzt' },
+    { command: 'karten', description: 'Karteikarten wiederholen: /karten [Fach]' },
+    { command: 'fokus', description: 'Pomodoro starten: /fokus [Thema]' },
+    { command: 'gewohnheiten', description: 'Gewohnheiten heute abhaken' },
     { command: 'neu', description: 'Nächste Nachricht wird eine neue Aufgabe' },
     { command: 'hilfe', description: 'Was der Bot kann' },
   ];
@@ -361,6 +368,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       if (b === '/todo') return this.todoBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/einkauf') return this.todoBefehl(text.slice(text.split(/\s/)[0]!.length).trim(), 'einkauf');
       if (b === '/termin') return this.terminBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
+      if (b === '/gewohnheiten' || b === '/gewohnheit') return this.gewohnheitenSenden();
       if (b === '/karten') return this.kartenBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/fokus') return this.fokusBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b !== '/neu') return this.befehl(b);
@@ -437,7 +445,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
   private async befehl(b: string) {
     if (b === '/start' || b === '/hilfe' || b === '/help')
       return this.senden(
-        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/heute – dein Tag: Wetter, Termine, Fristen\n/fristen – Abgaben und Prüfungen der nächsten 7 Tage (mit Erledigt-Knöpfen)\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/aktion [Name] – Skill starten (ohne Name: Liste)\n/todo – To-do-Liste mit Abhak-Knöpfen (/todo &lt;Text&gt; legt eins an)\n/einkauf – Einkaufsliste (/einkauf &lt;Text&gt; setzt etwas drauf)\n/termin &lt;wann&gt; &lt;was&gt; – Termin in den Kalender (mit Bestätigung)\n/karten [Fach] – Karteikarten wiederholen\n/fokus [Thema] – Pomodoro starten\n/hilfe – diese Hilfe`,
+        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/heute – dein Tag: Wetter, Termine, Fristen\n/fristen – Abgaben und Prüfungen der nächsten 7 Tage (mit Erledigt-Knöpfen)\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/aktion [Name] – Skill starten (ohne Name: Liste)\n/todo – To-do-Liste mit Abhak-Knöpfen (/todo &lt;Text&gt; legt eins an)\n/einkauf – Einkaufsliste (/einkauf &lt;Text&gt; setzt etwas drauf)\n/termin &lt;wann&gt; &lt;was&gt; – Termin in den Kalender (mit Bestätigung)\n/karten [Fach] – Karteikarten wiederholen\n/gewohnheiten – heute abhaken\n/fokus [Thema] – Pomodoro starten\n/hilfe – diese Hilfe`,
       );
     if (b === '/status') {
       const aktiv = this.o.agenten.aktiveLaeufe();
@@ -550,6 +558,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (q.data?.startsWith('k:')) return this.terminKnopf(q, antworten);
     if (q.data?.startsWith('kk:')) return this.karteKnopf(q, antworten);
     if (q.data?.startsWith('st:')) return this.sternKnopf(q, antworten);
+    if (q.data?.startsWith('gw:')) return this.gewohnheitKnopf(q, antworten);
     const m = /^f:([0-9a-f-]{36}):([jn]):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
     if (!m || !crypto.timingSafeEqual(Buffer.from(m[3]!), Buffer.from(this.signatur(m[1]!, m[2] as 'j' | 'n')))) {
       this.o.log?.('Telegram: Knopf mit ungültiger Signatur abgelehnt.');
@@ -789,7 +798,51 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (fristen.length) z.push(`⏰ Morgen fällig: ${fristen.map((f) => h(f.titel)).join(', ')}`);
     z.push('\n⭐ <b>Was ist morgen wichtig?</b> Tipp an, was oben auf deiner Liste stehen soll:');
     const t = this.sternAuswahl(alle, morgen);
-    return !!(await this.senden(z.join('\n'), { reply_markup: { inline_keyboard: t } }));
+    const ok = !!(await this.senden(z.join('\n'), { reply_markup: { inline_keyboard: t } }));
+    if (ok) await this.gewohnheitenSenden(true).catch((e) => this.fehler(e));
+    return ok;
+  }
+
+  // ---- Gewohnheiten (Nacht 18./19.11.) ------------------------------------------------------------
+
+  private gewohnheitKennung(name: string) {
+    return crypto.createHash('sha256').update(name).digest('hex').slice(0, 12);
+  }
+  private gewohnheitSignatur(k: string) {
+    return crypto.createHmac('sha256', this.signaturSchluessel).update(`gewohnheit:${k}`).digest('base64url').slice(0, 16);
+  }
+  private async gewohnheitKnoepfe() {
+    const s = await this.o.gewohnheiten!.stand();
+    return s.gewohnheiten
+      .filter((g) => g.heuteFaellig)
+      .map((g) => {
+        const k = this.gewohnheitKennung(g.name);
+        return [{ text: `${g.heuteErledigt ? '✅' : '⬜'} ${g.symbol} ${g.name}${g.serie > 1 ? ` · 🔥 ${g.serie}` : ''}`.slice(0, 60), callback_data: `gw:${k}:${this.gewohnheitSignatur(k)}` }];
+      });
+  }
+
+  /** Heute fällige Gewohnheiten mit Abhak-Knöpfen. still = nichts senden, wenn es keine gibt (Tagesabschluss). */
+  async gewohnheitenSenden(still = false) {
+    if (!this.o.gewohnheiten) return still ? undefined : this.senden('Gewohnheiten sind nicht eingerichtet.');
+    const k = await this.gewohnheitKnoepfe();
+    if (!k.length) return still ? undefined : this.senden(`🔁 Heute ist keine Gewohnheit dran. Anlegen kannst du sie in der App unter <a href="${this.link('/heute')}">Mein Tag</a>.`);
+    return this.senden('🔁 <b>Gewohnheiten heute</b> – antippen zum Abhaken:', { reply_markup: { inline_keyboard: k } });
+  }
+
+  private async gewohnheitKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {
+    const m = /^gw:([0-9a-f]{12}):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
+    if (!m || !this.o.gewohnheiten || !crypto.timingSafeEqual(Buffer.from(m[2]!), Buffer.from(this.gewohnheitSignatur(m[1]!)))) {
+      this.o.log?.('Telegram: Gewohnheits-Knopf mit ungültiger Signatur abgelehnt.');
+      return antworten('Ungültiger Knopf.');
+    }
+    const g = (await this.o.gewohnheiten.stand()).gewohnheiten.find((x) => this.gewohnheitKennung(x.name) === m[1]);
+    if (!g) return antworten('Diese Gewohnheit gibt es nicht mehr.');
+    await this.o.gewohnheiten.haken(g.name, !g.heuteErledigt);
+    await antworten(g.heuteErledigt ? 'Wieder offen.' : `${g.symbol} Erledigt!`);
+    if (q.message)
+      await this.o.api
+        .aufruf('editMessageReplyMarkup', { chat_id: q.message.chat.id, message_id: q.message.message_id, reply_markup: { inline_keyboard: await this.gewohnheitKnoepfe() } })
+        .catch(() => undefined);
   }
 
   private sternSignatur(k: string) {

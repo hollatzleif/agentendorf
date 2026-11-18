@@ -363,6 +363,10 @@ const MIGRATIONEN: string[] = [
   CREATE TABLE karten_stand (id TEXT PRIMARY KEY, fach TEXT NOT NULL, faellig INTEGER NOT NULL, intervall REAL NOT NULL, leichtigkeit REAL NOT NULL, wiederholungen INTEGER NOT NULL, zuletzt INTEGER NOT NULL, erstes TEXT NOT NULL);
   CREATE INDEX karten_stand_fach ON karten_stand (fach, faellig);
   `,
+  // 20: Gewohnheiten (Nacht 18./19.11.) – je Gewohnheit und Tag ein Häkchen (die Liste selbst steht in Marktplatz/gewohnheiten.md)
+  `
+  CREATE TABLE gewohnheit_log (name TEXT NOT NULL, tag TEXT NOT NULL, PRIMARY KEY (name, tag));
+  `,
 ];
 
 export function dbOeffnen(datei: string): DB {

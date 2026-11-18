@@ -907,3 +907,27 @@ test('„Heute“ als Startseite: nach dem Haken öffnet „/“ direkt „Heute
   await page.goto('/');
   await expect(page).toHaveURL(/\/$/);
 });
+
+test('Gewohnheiten auf „Heute“: anlegen, abhaken (Serie 🔥 1), entfernen', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  await page.goto('/heute');
+  const k = page.getByRole('region', { name: 'Gewohnheiten' });
+  await k.getByRole('button', { name: /Anlegen|Bearbeiten/ }).click();
+  const f = k.getByRole('form', { name: 'Neue Gewohnheit' });
+  await f.getByLabel('Symbol').fill('📖');
+  await f.getByLabel('Name der Gewohnheit').fill('Lesen-Test');
+  await f.getByRole('button', { name: 'Gewohnheit anlegen' }).click();
+  await k.getByRole('button', { name: 'Fertig' }).click();
+  const haken = k.getByLabel('Lesen-Test heute erledigt');
+  await expect(haken).not.toBeChecked();
+  await haken.check();
+  await expect(haken).toBeChecked();
+  await expect(k.locator('.gewohnheit', { hasText: 'Lesen-Test' })).toContainText('🔥 1');
+  await page.reload();
+  await expect(k.getByLabel('Lesen-Test heute erledigt')).toBeChecked();
+  await k.getByRole('button', { name: 'Bearbeiten' }).click();
+  page.once('dialog', (d) => void d.accept());
+  await k.getByRole('button', { name: 'Lesen-Test entfernen' }).click();
+  await expect(k.getByText('Lesen-Test')).toHaveCount(0);
+});

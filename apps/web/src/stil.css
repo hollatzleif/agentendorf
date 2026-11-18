@@ -795,3 +795,21 @@ input.kurz { width: 5em; }
 .karten-leicht { border-color: #3a8a5a !important; }
 .karten-ende { max-width: 720px; margin: 0 auto; text-align: center; }
 .heute-start { font-size: 0.8rem; display: inline-flex; gap: 0.2rem; align-items: center; margin-top: 0.2rem; }
+
+/* Gewohnheiten (Nacht 18./19.11.) */
+.gewohnheiten { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+.gewohnheit { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.5rem; border: 2px solid var(--rand); border-radius: 12px; background: #fff; }
+.gewohnheit.erledigt { background: var(--gruen-hell); border-color: #1f5a1d; }
+.gewohnheit.frei { opacity: 0.7; }
+.gewohnheit-haken { flex: 1; min-width: 0; display: flex; flex-direction: row; align-items: center; gap: 0.45rem; cursor: pointer; font-weight: 700; }
+.gewohnheit-haken input { width: 1.2rem; height: 1.2rem; margin: 0; }
+.gewohnheit.erledigt .gewohnheit-name { text-decoration: line-through; text-decoration-thickness: 2px; color: var(--gruen); }
+.gewohnheit-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gewohnheit-woche { display: flex; gap: 3px; }
+.gewohnheit-woche .punkt { width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--rand); background: #fff; }
+.gewohnheit-woche .punkt.an { background: var(--gruen); border-color: var(--gruen); }
+.gewohnheit-woche .punkt.frei { border-style: dotted; opacity: 0.45; }
+.gewohnheit-serie { font-size: 0.85rem; font-weight: 800; white-space: nowrap; }
+.gewohnheit-neu { display: flex; gap: 0.4rem; margin-top: 0.5rem; flex-wrap: wrap; }
+.gewohnheit-neu > input:not(.gewohnheit-neu-symbol) { flex: 1; min-width: 8rem; }
+.gewohnheit-neu-symbol { width: 3.2rem; text-align: center; }

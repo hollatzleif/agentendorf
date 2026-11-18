@@ -5,6 +5,7 @@ import { terminAusText, type FachStand } from '@dorf/shared';
 import { tagPlanen } from './tagesplan.js';
 import type { Wochenrueckblick } from './wochenrueckblick.js';
 import type { Karteikasten } from './karten.js';
+import type { Gewohnheiten } from './gewohnheiten.js';
 import type { GoogleKalender } from './kalender-google.js';
 import type { Corps } from './corps.js';
 import type { Bank } from './bank.js';
@@ -80,6 +81,7 @@ export interface Abhaengigkeiten {
   kirchturm?: Kirchturm;
   wochenrueckblick?: Wochenrueckblick;
   karten?: Karteikasten;
+  gewohnheiten?: Gewohnheiten;
   googleKalender?: GoogleKalender;
 }
 
@@ -426,6 +428,25 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
       const q = z.object({ kalenderId: z.string().min(1), id: z.string().min(1), serie: z.enum(['ja', 'nein']).optional() }).parse(req.query);
       await k.loeschen(q.kalenderId, q.id, { serie: q.serie === 'ja' });
       return { ok: true };
+    });
+  }
+
+  // ---- Gewohnheiten ----
+  if (a.gewohnheiten) {
+    const g = a.gewohnheiten;
+    app.get('/api/gewohnheiten', async () => g.stand());
+    app.post('/api/gewohnheiten', async (req) => {
+      await g.anlegen(req.body);
+      return g.stand();
+    });
+    app.delete('/api/gewohnheiten', async (req) => {
+      await g.entfernen(z.object({ name: z.string().min(1).max(60) }).parse(req.query).name);
+      return g.stand();
+    });
+    app.post('/api/gewohnheiten/haken', async (req) => {
+      const b = z.object({ name: z.string().min(1).max(60), erledigt: z.boolean(), tag: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }).parse(req.body);
+      await g.haken(b.name, b.erledigt, b.tag);
+      return g.stand();
     });
   }
 

@@ -620,3 +620,15 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - Telegram schickt einmal am Abend (21:00–21:59 Linz, Schalter `abend`, Standard an) einen kurzen **Tagesabschluss**: was heute erledigt wurde, die Fokusminuten (mit Serie), wie viele Karteikarten noch dran sind und was morgen fällig ist.
 - Darunter: **„⭐ Was ist morgen wichtig?“** mit Knöpfen für die nächsten offenen To-dos. Antippen setzt bzw. entfernt den Stern, die Knöpfe aktualisieren sich (HMAC-signiert). So steht morgen früh das Wichtige oben auf „Heute“ und in der Morgenzeitung.
 - Warum: Der Abend ist der beste Moment, den nächsten Tag festzulegen. Morgens fängt man dann ohne Nachdenken mit dem Richtigen an.
+
+## E89 – Gewohnheiten mit Serien (Nacht 18./19.11.)
+
+- **Liste im Vault:** `Marktplatz/gewohnheiten.md`, Frontmatter `gewohnheiten:` mit `name`, `symbol` und `tage`. `tage` ist `täglich`, `werktags`, `wochenende` oder eine Liste wie `[mo, mi, fr]`. Die Datei lässt sich in Obsidian oder in der App pflegen. Ist sie fehlerhaft, wird der Fehler angezeigt; Anlegen ist dann gesperrt, damit nichts überschrieben wird.
+- **Häkchen in der DB** (Migration 20, `gewohnheit_log`), je Gewohnheit und Tag eines. Abhaken geht für heute und nachträglich, nie für die Zukunft.
+- **Serie:** zählt fällige Tage in Folge. Tage, an denen die Gewohnheit nicht dran ist, unterbrechen die Serie nicht. Ist heute noch offen, zählt die Serie bis gestern, damit sie nicht schon morgens „reißt“.
+- **Wo sie auftaucht:**
+  - **Heute:** eine Karte mit Haken, 🔥 Serie und sieben Punkten für die letzte Woche; Anlegen und Entfernen gehen dort auch.
+  - **Telegram:** `/gewohnheiten`, und der Tagesabschluss schickt die offenen Gewohnheiten des Tages gleich mit, mit HMAC-signierten Abhak-Knöpfen.
+  - **Wochenrückblick:** ein Abschnitt „Gewohnheiten“, z. B. „Sport 2/3 · Lesen 6/7 (🔥 12)“.
+- Das Telegram-Befehlsmenü kennt jetzt auch `/termin`, `/karten`, `/fokus` und `/gewohnheiten`.
+- Warum: Produktiv sein heißt nicht nur To-dos abarbeiten, sondern auch kleine Dinge regelmäßig tun (Sport, Lesen, Vokabeln). Die Serie motiviert, und der Abend in Telegram ist der natürliche Moment zum Abhaken.

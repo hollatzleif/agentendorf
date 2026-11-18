@@ -6,6 +6,7 @@ import { linkKlick } from '../router';
 import { FARBEN, ort, tagPlus } from '../komponenten/MarktKalender';
 import { dauerText, useKirchturm } from '../komponenten/KirchturmUhr';
 import { TagPlanen } from '../komponenten/TagPlanen';
+import { GewohnheitenKarte } from '../komponenten/GewohnheitenKarte';
 
 /**
  * „Mein Tag“ (E77): der eine Blick am Morgen und zwischendurch – Termine heute/morgen, fällige To-dos zum Abhaken,
@@ -259,6 +260,7 @@ export function Heute() {
           </section>
 
           <Fokus k={k} laedt={kirchturm.isPending} fehler={kirchturm.isError ? kirchturm.error.message : ''} jetzt={jetzt} />
+          <GewohnheitenKarte />
         </div>
 
         <div className="heute-spalte">

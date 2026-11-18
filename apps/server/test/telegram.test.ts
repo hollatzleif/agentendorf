@@ -217,7 +217,7 @@ describe('Telegram-Bot', () => {
     expect(offsets.at(-1)).toBe(51);
     // Befehlsmenü wird beim Start angemeldet
     const menue = d.aufrufe.find((x) => x.m === 'setMyCommands')?.p.commands as { command: string }[];
-    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'neu', 'hilfe']);
+    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'karten', 'fokus', 'gewohnheiten', 'neu', 'hilfe']);
     await d.agenten.leerlauf();
   }, 15_000);
 });
@@ -385,5 +385,29 @@ describe('Telegram Tagesabschluss 21:00 (Nacht 18./19.11.)', () => {
     expect((await d.todos.holen(b.pfad)).wichtig).toBe(true);
     const neu = d.aufrufe.filter((x) => x.m === 'editMessageReplyMarkup').at(-1)!.p;
     expect((neu.reply_markup as { inline_keyboard: { text: string }[][] }).inline_keyboard[0]![0]!.text).toBe('⭐ Bewerbung schreiben');
+  });
+});
+
+describe('Telegram Gewohnheiten (Nacht 18./19.11.)', () => {
+  it('/gewohnheiten zeigt nur heute fällige, Knopf hakt ab (Signatur geprüft), Tagesabschluss schickt sie mit', async () => {
+    const d = await dorf();
+    await d.nachricht({ text: '/gewohnheiten' });
+    expect(d.gesendet().at(-1)).toMatch(/keine Gewohnheit dran/);
+    // TestUhr: Montag 16.11.
+    await d.gewohnheiten.anlegen({ name: 'Sport', symbol: '🏃', tage: ['mo', 'mi'] });
+    await d.gewohnheiten.anlegen({ name: 'Wochenende', tage: 'wochenende' });
+    await d.nachricht({ text: '/gewohnheiten' });
+    const m = d.aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p;
+    const k = (m.reply_markup as { inline_keyboard: { text: string; callback_data: string }[][] }).inline_keyboard;
+    expect(k.map((z) => z[0]!.text)).toEqual(['⬜ 🏃 Sport']);
+    await d.knopf(k[0]![0]!.callback_data.replace(/:[^:]+$/, ':AAAAAAAAAAAAAAAA'));
+    expect((await d.gewohnheiten.stand()).gewohnheiten[0]!.heuteErledigt).toBe(false);
+    await d.knopf(k[0]![0]!.callback_data);
+    expect((await d.gewohnheiten.stand()).gewohnheiten[0]!.heuteErledigt).toBe(true);
+    const neu = d.aufrufe.filter((x) => x.m === 'editMessageReplyMarkup').at(-1)!.p;
+    expect((neu.reply_markup as { inline_keyboard: { text: string }[][] }).inline_keyboard[0]![0]!.text).toBe('✅ 🏃 Sport');
+    d.uhr.vor(8 * 3_600_000 + 5 * 60_000); // 21:05 Linz
+    expect(await d.bot.abendSenden()).toBe(true);
+    expect(d.gesendet().at(-1)).toMatch(/🔁 <b>Gewohnheiten heute<\/b>/);
   });
 });
