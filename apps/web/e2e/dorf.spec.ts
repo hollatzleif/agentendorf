@@ -1157,3 +1157,19 @@ test('Wochenziele: sonntags die nächste Woche planen', async ({ page }, info) =
   await k.getByRole('button', { name: 'Ziel für nächste Woche hinzufügen' }).click();
   await expect(k.locator('.wochenziele-naechste')).toContainText('☐ Vorgeplant-Test');
 });
+
+test('Heute: Erste Schritte haken sich selbst ab und lassen sich ausblenden', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  await page.goto('/heute');
+  const k = page.getByRole('region', { name: 'Erste Schritte' });
+  await expect(k).toBeVisible();
+  await expect(k.locator('li')).toHaveCount(5);
+  await page.request.post('/api/wochenziele', { headers: { origin: ORIGIN }, data: { text: 'Erste-Schritte-Ziel' } });
+  await page.reload();
+  await expect(k.locator('li.fertig', { hasText: 'Wochenziele' })).toHaveCount(1);
+  await k.getByRole('button', { name: 'Ausblenden' }).click();
+  await expect(k).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('region', { name: 'Erste Schritte' })).toHaveCount(0);
+});

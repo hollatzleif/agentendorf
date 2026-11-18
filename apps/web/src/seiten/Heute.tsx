@@ -9,6 +9,7 @@ import { TagPlanen } from '../komponenten/TagPlanen';
 import { GewohnheitenKarte } from '../komponenten/GewohnheitenKarte';
 import { WochenzieleKarte } from '../komponenten/WochenzieleKarte';
 import { StimmungZeile } from '../komponenten/StimmungZeile';
+import { ErsteSchritte } from '../komponenten/ErsteSchritte';
 
 /**
  * „Mein Tag“ (E77): der eine Blick am Morgen und zwischendurch – Termine heute/morgen, fällige To-dos zum Abhaken,
@@ -278,6 +279,7 @@ export function Heute() {
         </div>
 
         <div className="heute-spalte">
+          <ErsteSchritte />
           <WochenzieleKarte />
           <section className="karte heute-karte" aria-label="To-dos">
             <div className="heute-karte-kopf">
