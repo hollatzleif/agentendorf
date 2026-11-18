@@ -524,3 +524,7 @@ input::file-selector-button {
 .bank-betrag { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .bank-buchungen select { width: auto; max-width: 11rem; padding: 0.2rem 0.4rem; font-size: 0.85rem; }
 @media (max-width: 760px) { .bank-kacheln { grid-template-columns: 1fr 1fr 1fr; gap: 0.35rem; } .bank-kachel strong { font-size: 0.95rem; } .bank-balken li { grid-template-columns: 6rem 1fr auto; } }
+
+/* Börse (Etappe 7) */
+.boerse-tabelle td:first-child, .boerse-tabelle th:first-child { text-align: left; }
+.boerse form { margin-bottom: 0.6rem; }

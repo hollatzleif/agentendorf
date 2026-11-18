@@ -1,10 +1,11 @@
 import { useState } from 'react';
 
 /** Bei jeder neuen Ausgabe den Schlüssel ändern – dann erscheint die Karte einmal pro Gerät */
-const AUSGABE = '2026-11-18k';
+const AUSGABE = '2026-11-18l';
 const SCHLUESSEL = 'dorf-neuigkeiten-gesehen';
 
 const PUNKTE: [string, string][] = [
+  ['📈', 'Börse ist offen: Depot und Watchlist mit Kursen (nach „dorf boerse-schluessel“), sonntags ein Wochenbericht – gehandelt wird nie.'],
   ['🛡️', 'Corpshaus: Corps-Termine, Corps-Mails, Ämter & Aufgaben; Skills für Veranstaltungen und Übergaben. Absender und Stichworte in Corpshaus/einstellungen.md.'],
   ['🏦', 'Bank ist offen: Kontoauszug (CSV oder PDF) hochladen → Monatsübersicht, Kategorien, Abos, Budget und Sparziele. Rechnungen aus Mails landen als To-do.'],
   ['🛒', 'Einkaufsladen ist offen: Einkaufsliste (auch /einkauf), Wunschliste mit Preisvergleich, sonntags ein Essensplan, der die Zutaten gleich auf die Liste setzt.'],

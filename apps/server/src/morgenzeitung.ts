@@ -54,6 +54,7 @@ export class Morgenzeitung {
       wetter?: Wetter;
       /** Etappe 7: Budget-Stand (nur Kategorien ab 80 %) und offene Rechnungen */
       bank?: { zeitungsZeilen(): Promise<string[]> };
+      boerse?: { zeitungsZeilen(): Promise<string[]> };
       log?: (t: string) => void;
     },
   ) {}
@@ -201,6 +202,8 @@ export class Morgenzeitung {
     abschnitte.push({ titel: 'Wartet auf dich', zeilen: warten });
     const geld = await this.o.bank?.zeitungsZeilen().catch(() => [] as string[]);
     if (geld?.length) abschnitte.push({ titel: 'Budget', zeilen: geld });
+    const depot = await this.o.boerse?.zeitungsZeilen().catch(() => [] as string[]);
+    if (depot?.length) abschnitte.push({ titel: 'Depot', zeilen: depot });
 
     return { datum, einleitung: null, abschnitte };
   }

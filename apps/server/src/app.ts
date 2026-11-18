@@ -1,3 +1,4 @@
+import type { Boerse } from './boerse.js';
 import type { Corps } from './corps.js';
 import type { Bank } from './bank.js';
 import { programmeRouten } from './programme.js';
@@ -66,6 +67,7 @@ export interface Abhaengigkeiten {
   listen?: Record<ListenName, TodoDienst>;
   bank?: Bank;
   corps?: Corps;
+  boerse?: Boerse;
 }
 
 /** Für Agenten-HTML: Skripte ja, aber undurchsichtiger Ursprung und kein Netz. Bilder/Schriften nur eingebettet (data:). */
@@ -351,6 +353,22 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
   if (a.corps) {
     const corps = a.corps;
     app.get('/api/corps', async () => corps.uebersicht());
+  }
+
+  if (a.boerse) {
+    const boerse = a.boerse;
+    app.get('/api/boerse', async () => boerse.uebersicht());
+    app.post('/api/boerse/aktualisieren', async () => boerse.aktualisieren());
+    app.post('/api/boerse/wert', async (req) => {
+      const { art, neu } = z.object({ art: z.enum(['positionen', 'watchlist']), neu: z.unknown() }).parse(req.body);
+      await boerse.wertAendern(art, { neu });
+      return boerse.uebersicht();
+    });
+    app.delete('/api/boerse/wert', async (req) => {
+      const { art, index } = z.object({ art: z.enum(['positionen', 'watchlist']), index: z.coerce.number().int().min(0) }).parse(req.query);
+      await boerse.wertAendern(art, { entfernen: index });
+      return boerse.uebersicht();
+    });
   }
 
   // ---- Etappe 6: Programme für Mac und Windows ----

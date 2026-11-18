@@ -78,6 +78,7 @@ export type LiveEreignis =
   | { typ: 'dorf.geaendert'; version: number }
   | { typ: 'todos.geaendert'; liste?: string }
   | { typ: 'bank.geaendert' }
+  | { typ: 'boerse.geaendert' }
   | AgentenEreignis;
 
 /** To-do auf dem Marktplatz (E65): eine Datei in Marktplatz/todos/ */
@@ -495,6 +496,35 @@ export interface CorpsUebersicht {
   stichworte: string[];
   absender: string[];
   kalenderEingerichtet: boolean;
+  fehler?: string;
+}
+
+// ---- Etappe 7: Börse ----------------------------------------------------------------------------
+export interface BoerseWert {
+  index: number;
+  name: string;
+  isin?: string;
+  symbol?: string;
+  stueck?: number;
+  einstand?: number; // je Stück, Euro
+  kurs?: number; // in der Handelswährung
+  waehrung?: string;
+  datum?: string; // Tag des Schlusskurses
+  veraenderungProzent?: number; // zum Handelstag davor
+  wertEur?: number;
+  gewinnEur?: number;
+  gewinnProzent?: number;
+}
+export interface BoerseUebersicht {
+  eingerichtet: boolean;
+  positionen: BoerseWert[];
+  watchlist: BoerseWert[];
+  gesamtEur: number;
+  einstandEur: number;
+  abrufeHeute: number;
+  abrufeMax: number;
+  letzter?: { zeit: number; abgerufen: number; offen: number; fehler: string | null };
+  dollarJeEuro?: { datum: string; kurs: number };
   fehler?: string;
 }
 

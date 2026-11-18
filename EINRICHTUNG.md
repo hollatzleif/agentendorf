@@ -186,6 +186,21 @@ Die JKU sperrt den Zugang für die Moodle-App. Deshalb holt das Dorf nur die **T
   - Eintragen: GitHub → Repo → Settings → Secrets and variables → Actions → New repository secret, den Inhalt der Datei einfügen.
   - Danach die Datei im Passwortmanager sichern und sonst löschen.
 
+### Etappe 7: Einkaufsladen, Bank, Corpshaus, Börse
+
+- **Einkaufsladen:** Einkaufsliste (auch `/einkauf` in Telegram) und Wunschliste mit „🔎 Preise“. Sonntags kommt der Essensplan; Vorgaben stehen in `Einkaufsladen/einstellungen.md`.
+- **Bank:** Exportiere die Umsätze aus dem Online-Banking als CSV und lade sie unter Bank → Konto hoch. PDF-Auszüge gehen auch, die liest ein Agent.
+  - Kennt das Dorf das Format nicht, ordnest du die Spalten einmal zu.
+  - Budget und Sparziele stellst du in `Bank/einstellungen.md` ein.
+- **Corpshaus:** Trag in `Corpshaus/einstellungen.md` die Absender deines Corps (z. B. `@mein-corps.de`) und Stichworte für Kalendertermine ein.
+- **Börse:** Leg dir kostenlos ein Konto auf eodhd.com an und kopier den API-Schlüssel aus dem Dashboard. Dann auf dem Server ausführen:
+
+  ```bash
+  dorf boerse-schluessel
+  ```
+
+  Positionen trägst du unter Börse → Depot ein (ISIN oder Kürzel, Stück, Einstand).
+
 ## 9. Post: Gmail verbinden (nur Lesen und Entwürfe)
 
 Das Dorf liest dein Gmail und legt höchstens **Entwürfe** an. Senden kann es nicht, weil die Anmeldung das gar nicht erlaubt.

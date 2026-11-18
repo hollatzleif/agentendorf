@@ -351,6 +351,26 @@ cmd_api_schluessel() {
   gruen "API-Schlüssel gespeichert, Dorf neu gestartet."
 }
 
+# Börse (Etappe 7): EODHD-Schlüssel eintragen (Eingabe unsichtbar), mit einem Abruf prüfen, Dorf neu starten.
+cmd_boerse_schluessel() {
+  local k code von
+  read -r -s -p "EODHD-API-Schlüssel (eodhd.com → Dashboard, Eingabe unsichtbar): " k; echo
+  k=$(printf '%s' "$k" | tr -d '\r\n ')
+  [[ "$k" =~ ^[A-Za-z0-9.]{8,80}$ ]] || { rot "Das sieht nicht wie ein EODHD-Schlüssel aus."; return 1; }
+  von=$(date -u -d '10 days ago' +%Y-%m-%d 2>/dev/null || date -u +%Y-%m-%d)
+  # ein Abruf (zählt gegen die 20 am Tag): Apple-Schlusskurse – prüft nur, ob der Schlüssel gilt
+  code=$(curl -s -o /dev/null -w '%{http_code}' "https://eodhd.com/api/eod/AAPL.US?api_token=$k&fmt=json&order=d&from=$von" || echo 000)
+  case "$code" in
+    200) gruen "Schlüssel funktioniert." ;;
+    401|403) rot "EODHD lehnt den Schlüssel ab (HTTP $code)."; return 1 ;;
+    *) info "EODHD antwortet mit HTTP $code – ich trage den Schlüssel trotzdem ein; die Börse zeigt Fehler an, falls etwas nicht stimmt." ;;
+  esac
+  sed -i '/^#\? *EODHD_API_KEY=/d' "$ENV_DATEI"
+  echo "EODHD_API_KEY=$k" >> "$ENV_DATEI"
+  compose up -d --force-recreate dorf
+  gruen "Börsen-Schlüssel gespeichert, Dorf neu gestartet. Kurse kommen innerhalb der nächsten Stunde (oder: Börse → Kurse holen)."
+}
+
 # Telegram-Bot koppeln: Token prüfen, dein /start abwarten, Chat-ID bestätigen, eintragen.
 cmd_telegram_einrichten() {
   local t name upd chat id antwort letzte
@@ -560,6 +580,7 @@ Agentendorf – Befehle auf dem Server
 
   dorf claude-anmelden           Abo für den claude-code-Motor anmelden (Token 1 Jahr gültig)
   dorf api-schluessel            API-Schlüssel für den api-Motor eintragen
+  dorf boerse-schluessel         EODHD-Schlüssel für die Börsenkurse eintragen (kostenlos, eodhd.com)
   dorf telegram-einrichten       eigenen Telegram-Bot koppeln (Token von @BotFather)
   dorf gmail-anmelden            Post: Gmail verbinden (nur Lesen + Entwürfe)
   dorf google-kalender           Uni: Google-Kalender eintragen (Moodle-Fristen aus deinem Skript, JKU Pflicht)
@@ -599,6 +620,7 @@ case "$befehl" in
   syncthing-id) cmd_syncthing_id ;;
   claude-anmelden) cmd_claude_anmelden ;;
   api-schluessel) cmd_api_schluessel ;;
+  boerse-schluessel) cmd_boerse_schluessel ;;
   telegram-einrichten) cmd_telegram_einrichten ;;
   moodle-anmelden) cmd_moodle_anmelden "$@" ;;
   moodle-browser-zugang) cmd_moodle_browser_zugang ;;

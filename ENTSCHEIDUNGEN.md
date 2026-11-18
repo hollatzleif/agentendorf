@@ -405,3 +405,22 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - **Ämter & Aufgaben:** Liste `corps` (Corpshaus/aufgaben), das Amt steht als Gruppe. Das Bearbeiten-Formular aller Listen hat jetzt das Feld „Gruppe“.
 - **Skills** „Veranstaltung planen“ (Checkliste rückwärts vom Datum als Aufgaben mit Fälligkeit, Planungsdokument) und „Übergabe-Notiz“ (je Amt, aus Aufgaben, Notizen und Corps-Mails).
 
+**E70 – Etappe 7 (Teil 4): Börse** (18.11.; Leifs Wahl: Depot & Watchlist, Wochenbericht, Kurse automatisch über EODHD kostenlos)
+- **Anbieter:** Recherchiert wurden EODHD, Twelve Data, Alpha Vantage, FMP, Finnhub, Marketstack, Tiingo, Polygon/Massive, Yahoo und Börse-Daten.
+  - Kostenlos deckt nur **EODHD** sicher Xetra **und** US ab: 20 Abrufe am Tag, Kürzel `VWCE.XETRA` bzw. `AAPL.US`, ISIN-Suche `/search/{ISIN}`, Schlusskurse `/eod/{SYM}`.
+  - Twelve Data gibt Xetra erst ab 29 $ im Monat. Yahoo verbietet automatischen Zugriff (ToS).
+  - Euro/Dollar kommt von der **EZB** (Referenzkurs, ohne Schlüssel).
+- **Depot und Watchlist** stehen in `Boerse/depot.md` (Frontmatter: name, isin oder symbol, boerse, stueck, einstand je Stück in €). Gepflegt wird in der App (Börse → Depot) oder in Obsidian.
+- **Kurse:**
+  - Stündlich prüft der Code, abgerufen wird je Wert höchstens einmal am Tag (Schlusskurse). Das Tageslimit liegt bei 19 Abrufen (DB `boerse_abrufe`), einer bleibt Reserve.
+  - Wer am längsten keinen Kurs hatte, kommt zuerst dran; der Rest folgt am nächsten Tag.
+  - Eine ISIN wird einmal gesucht und das Ergebnis gemerkt.
+  - Bewertung in Euro (US über EZB): Wert, Gewinn absolut und in %, Veränderung zum Vortag.
+  - Morgenzeitung, Abschnitt „Depot“: Gesamtwert plus Werte, die sich um mindestens 3 % bewegt haben.
+- **Schlüssel:** `EODHD_API_KEY` nur in `/srv/dorf/.env`. `dorf boerse-schluessel` fragt ihn unsichtbar ab, prüft ihn mit einem Abruf und startet das Dorf neu.
+  - Ohne Schlüssel zeigt die Börse Depot und Einstand mit einem Hinweis.
+  - **Gegen das echte EODHD noch nicht geprüft.** Getestet ist gegen einen nachgebauten Server nach der offiziellen Doku; die Abnahme kommt mit Leifs Schlüssel.
+- **Wochenbericht** (Skill, sonntags 18:00, Internet ohne Fremdinhalte, Ablage `Boerse/00_Wochenbericht.md`): Woche je Wert, Märkte, Termine, höchstens zwei sachliche Denkanstöße, **keine Kauf- oder Verkaufsempfehlung**.
+- Gehandelt wird nie. Dafür gibt es weder Schnittstelle noch Werkzeug.
+- **Etappe 7 damit fertig:** Alle Vorlage-Gebäude sind eröffnet.
+

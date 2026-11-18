@@ -32,6 +32,10 @@ const Schema = z.object({
   BROWSER_URL: z.string().default('http://browser:4200'),
   WETTER_URL: z.string().optional(),
   WETTER_ORT: z.string().default('Konstanz'),
+  // Etappe 7: Börse – Kurse von EODHD (Leifs Schlüssel, nur .env), Wechselkurs von der EZB (ohne Schlüssel)
+  EODHD_API_KEY: z.string().optional(),
+  EODHD_URL: z.string().default('https://eodhd.com/api'),
+  EZB_URL: z.string().default('https://data-api.ecb.europa.eu/service/data/EXR/D.USD.EUR.SP00.A'),
   BROWSER_GEHEIMNIS: z.string().optional(),
   MOODLE_URL: z.string().optional(),
   MOODLE_TOKEN: z.string().optional(),
@@ -84,6 +88,9 @@ export interface Konfig {
   browserUrl: string;
   wetterUrl?: string;
   wetterOrt: string;
+  eodhdSchluessel?: string;
+  eodhdUrl: string;
+  ezbUrl: string;
   browserGeheimnis?: string;
 }
 
@@ -126,6 +133,9 @@ export function konfigLaden(env: NodeJS.ProcessEnv = process.env): Konfig {
     browserUrl: e.BROWSER_URL,
     wetterUrl: e.WETTER_URL || undefined,
     wetterOrt: e.WETTER_ORT,
+    eodhdSchluessel: e.EODHD_API_KEY || undefined,
+    eodhdUrl: e.EODHD_URL.replace(/\/$/, ''),
+    ezbUrl: e.EZB_URL,
     browserGeheimnis: e.BROWSER_GEHEIMNIS || undefined,
   };
 }

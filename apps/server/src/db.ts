@@ -337,6 +337,13 @@ const MIGRATIONEN: string[] = [
   CREATE TABLE bank_warnungen (monat TEXT NOT NULL, kategorie TEXT NOT NULL, stufe INTEGER NOT NULL, zeit INTEGER NOT NULL, PRIMARY KEY (monat, kategorie, stufe));
   ALTER TABLE post_mails ADD COLUMN rechnung_todo TEXT;
   `,
+  // 15: Börse (Etappe 7) – Kurse (EODHD), ISIN → Kürzel, Euro/Dollar (EZB), Abrufe je Tag (kostenlose Stufe: 20)
+  `
+  CREATE TABLE boerse_kurse (symbol TEXT PRIMARY KEY, kurs REAL NOT NULL, vorher REAL, datum TEXT NOT NULL, waehrung TEXT NOT NULL, abgerufen INTEGER NOT NULL);
+  CREATE TABLE boerse_zuordnung (isin TEXT NOT NULL, boerse TEXT NOT NULL, symbol TEXT NOT NULL, waehrung TEXT NOT NULL, PRIMARY KEY (isin, boerse));
+  CREATE TABLE boerse_fx (datum TEXT PRIMARY KEY, usd_je_eur REAL NOT NULL, abgerufen INTEGER NOT NULL);
+  CREATE TABLE boerse_abrufe (tag TEXT PRIMARY KEY, anzahl INTEGER NOT NULL);
+  `,
 ];
 
 export function dbOeffnen(datei: string): DB {

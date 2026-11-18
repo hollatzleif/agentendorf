@@ -36,6 +36,7 @@ import { Aufwachen } from './aufwachen.js';
 import { listenAnlegen } from './todos.js';
 import { Bank, datum as bankDatum } from './bank.js';
 import { Corps } from './corps.js';
+import { Boerse, eodhdKlient, ezbDollarJeEuro, type BoerseKlient } from './boerse.js';
 
 /** Dateien, die das Dorf zum Arbeiten braucht: fehlen sie (z. B. Vault aus einer älteren Etappe), werden sie aus der Vorlage ergänzt – nie überschrieben. */
 const PFLICHT_DATEIEN = [
@@ -61,6 +62,8 @@ const PFLICHT_DATEIEN = [
   'Corpshaus/aktionen/termine-aus-mails.md',
   'Corpshaus/aktionen/veranstaltung-planen.md',
   'Corpshaus/aktionen/uebergabe.md',
+  'Boerse/depot.md',
+  'Boerse/aktionen/wochenbericht.md',
 ];
 
 /**
@@ -88,6 +91,7 @@ const VORLAGE_FRUEHERE_FASSUNGEN: Record<string, string[]> = {
     'd7caf198ce646fe65d2fafa29e6ddd63bae6f21ccdd527b1a9dec63ec517aba9', // Etappe 3 bis E60
     'ff3beab8cf394168ff1cfc9e3d4e91fb9c6f9eced1152b31f2db5373547043e3', // E61–E64
   ],
+  'Boerse/gebaeude.md': ['15a5f5dae8854563d65c806e7b84b429d733826e38e1d35dc9a68a92b8779948'], // geschlossen bis Etappe 7
   'Corpshaus/gebaeude.md': ['b7604d37957b279a6581562ed10640efb0993ca228cbdd47fb191e599a753427'], // leer bis Etappe 7
   'Bank/gebaeude.md': ['c2349ea31d50afc797ea1c70c9bc3d43ef0f7f605bb5a6f7d5e43555cb482b37'], // geschlossen bis Etappe 7
   'Einkaufsladen/gebaeude.md': ['b334b038336be925930e612231f6129a7f25a723f111d08af9568117fe45e87f'], // geschlossen bis Etappe 7
@@ -114,6 +118,9 @@ export async function dorfStarten(
     google?: { fristen?: KalenderQuelle; pflicht?: KalenderQuelle; termine?: KalenderQuelle };
     /** Für Tests: nachgebauter Moodle-Browser */
     moodleBrowser?: MoodleBrowserKlient;
+    /** Für Tests: nachgebauter Kurs-Anbieter und EZB-Kurs */
+    boerse?: BoerseKlient;
+    boerseFx?: () => Promise<{ datum: string; kurs: number }>;
     /** Für Tests: Open-Meteo-Antwort ohne Netz */
     wetter?: () => Promise<unknown>;
   } = {},
@@ -267,7 +274,17 @@ export async function dorfStarten(
     }, 20_000);
     pdfZeitgeber.unref();
   };
-  const morgenzeitung = new Morgenzeitung({ db, uhr, vault, hub, ki, freigaben: agenten.freigaben, schreibtisch, uni, postbote, kalender, wetter, bank, log: (t) => console.warn(t) });
+  // Etappe 7: Börse – Depot-Datei, Kurse von EODHD (Leifs Schlüssel), Euro/Dollar von der EZB; gehandelt wird nie
+  const boerse = new Boerse({
+    db,
+    uhr,
+    vault,
+    hub,
+    klient: opt.boerse ?? (konfig.eodhdSchluessel ? eodhdKlient({ url: konfig.eodhdUrl, schluessel: konfig.eodhdSchluessel, jetzt: () => uhr.jetzt() }) : undefined),
+    fx: opt.boerseFx ?? (() => ezbDollarJeEuro(konfig.ezbUrl)),
+    log: (t) => console.warn(t),
+  });
+  const morgenzeitung = new Morgenzeitung({ db, uhr, vault, hub, ki, freigaben: agenten.freigaben, schreibtisch, uni, postbote, kalender, wetter, bank, boerse, log: (t) => console.warn(t) });
   let telegram: TelegramBot | undefined;
   if ((konfig.telegramToken || opt.telegram) && konfig.telegramChatId) {
     telegram = new TelegramBot({
@@ -298,6 +315,10 @@ export async function dorfStarten(
     void bank.einlesen().catch((e) => console.warn(`Bank: ${(e as Error).message}`));
     const bankTakt = setInterval(() => void bank.budgetPruefen().catch(() => undefined), 6 * 3_600_000);
     bankTakt.unref();
+    // Kurse: stündlich nachsehen, abgerufen wird je Wert höchstens einmal am Tag (kostenlose Stufe: 20 Abrufe)
+    const boerseTakt = setInterval(() => void boerse.aktualisieren().catch((e) => console.warn(`Börse: ${(e as Error).message}`)), 3_600_000);
+    boerseTakt.unref();
+    setTimeout(() => void boerse.aktualisieren().catch(() => undefined), 90_000).unref();
   }
   if (!opt.gmail && opt.beobachten !== false) postbote.starten();
   if (opt.beobachten !== false) morgenzeitung.starten();
@@ -307,7 +328,7 @@ export async function dorfStarten(
   const planTakt = opt.beobachten !== false ? setInterval(() => void buergermeister.faelligePlaeneAnnehmen().catch((e) => console.warn(`Pläne: ${(e as Error).message}`)), 60_000) : undefined;
   planTakt?.unref();
   const dorfplan = new Dorfplan({ db, uhr, hub, vault, uni, wetter });
-  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen, dorfplan, automatik, listen, bank, corps });
+  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen, dorfplan, automatik, listen, bank, corps, boerse });
   app.addHook('onClose', async () => {
     uni.stoppen();
     postbote.stoppen();
@@ -322,5 +343,5 @@ export async function dorfStarten(
     await agenten.ruhe();
     db.close();
   });
-  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan, wetter, automatik, todos, listen, bank, corps };
+  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan, wetter, automatik, todos, listen, bank, corps, boerse };
 }

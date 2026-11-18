@@ -415,3 +415,29 @@ test('Corpshaus: Termine, Ämter & Aufgaben (Gruppe = Amt), Corps-Mails', async 
   await page.getByRole('button', { name: 'Corps-Mails', exact: true }).click();
   await expect(page.getByText(/Gmail ist noch nicht verbunden|Keine Mails/)).toBeVisible();
 });
+
+test('Börse: ohne Schlüssel Hinweis; Position und Watchlist anlegen und entfernen', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  await page.goto('/gebaeude/Boerse');
+  await expect(page.getByRole('button', { name: 'Depot', exact: true })).toHaveClass(/aktiv/);
+  await expect(page.getByText(/dorf boerse-schluessel/)).toBeVisible();
+  await page.getByRole('button', { name: '+ Position' }).click();
+  const f = page.getByRole('form', { name: 'Neue Position' });
+  await f.getByLabel('Name').fill('Vanguard All-World');
+  await f.getByLabel('ISIN oder Kürzel').fill('IE00BK5BQT80');
+  await f.getByLabel('Stück', { exact: true }).fill('10');
+  await f.getByLabel('Einstand je Stück (€)').fill('120,5');
+  await f.getByRole('button', { name: 'Hinzufügen' }).click();
+  await expect(page.locator('.boerse-tabelle', { hasText: 'Vanguard All-World' })).toContainText('IE00BK5BQT80 · 10 Stück');
+  await expect(page.locator('.bank-kachel', { hasText: 'Eingesetzt' })).toContainText('1.205,00');
+  await page.getByRole('button', { name: '+ Beobachten' }).click();
+  const w = page.getByRole('form', { name: 'Neuer Watchlist-Wert' });
+  await w.getByLabel('Name').fill('Apple');
+  await w.getByLabel('ISIN oder Kürzel').fill('aapl');
+  await w.getByLabel('Börse').selectOption('US');
+  await w.getByRole('button', { name: 'Hinzufügen' }).click();
+  await expect(page.getByText('AAPL.US')).toBeVisible();
+  await page.getByRole('button', { name: 'Apple entfernen' }).click();
+  await expect(page.getByText('AAPL.US')).toHaveCount(0);
+});

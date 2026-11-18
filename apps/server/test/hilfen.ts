@@ -1,3 +1,4 @@
+import type { BoerseKlient } from '../src/boerse.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -33,6 +34,8 @@ export async function testDorf(
     ki?: () => ModellKlient;
     moodleBrowser?: MoodleBrowserKlient;
     wetter?: () => Promise<unknown>;
+    boerse?: BoerseKlient;
+    boerseFx?: () => Promise<{ datum: string; kurs: number }>;
   } = {},
 ) {
   const daten = tempOrdner();
@@ -57,6 +60,9 @@ export async function testDorf(
     ki: opt.ki,
     moodleBrowser: opt.moodleBrowser,
     wetter: opt.wetter,
+    boerse: opt.boerse,
+    // nie echtes Netz in Tests
+    boerseFx: opt.boerseFx ?? (async () => ({ datum: '2026-11-13', kurs: 1.1 })),
   });
   return { ...d, uhr, konfig, daten };
 }
