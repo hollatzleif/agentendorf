@@ -938,3 +938,11 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
   - Ohne eine einzige Schätzung erscheint die Zeile nicht, damit sie nicht stört.
 - **Tag planen (E84)** nimmt die Schätzung als Blocklänge, sonst wie bisher 90 bzw. 45 min.
 - **Wiederkehrende To-dos:** Der Nachfolger übernimmt die Schätzung.
+
+## E121 – Wochenplan (Nacht 18./19.11.)
+
+- Neuer Reiter **Marktplatz → Wochenplan** mit den Spalten Mo–So und links dem Eingang (ohne Datum sowie Überfälliges aus früheren Wochen). Mit ‹ › wechselt man die Woche.
+- **Verschieben setzt nur `faellig`**, mit `basisVersion` und sofort angezeigt. Am PC zieht man die Karte, am Handy (und als Ausweichweg) wählt man den Tag in der Karte aus. „ohne Datum“ legt sie zurück in den Eingang.
+- **Auslastung je Tag:** Die Leiste zeigt Termine (blau) und geschätzte To-dos (grün, rot wenn zu viel) gegen die Tageszeit 8–22 Uhr, dazu die Zahlen und Ganztägiges. Die Termine kommen aus derselben Kalenderquelle wie „Heute“, einschließlich ausgeblendeter Kalender. Das ist die Grundlage fürs Planen am Sonntag: Man sieht, welcher Tag schon voll ist.
+- Oben stehen die Wochenziele dieser Woche, damit die Planung an ihnen ausgerichtet ist.
+- **Bewusst ohne Uhrzeiten:** Zeitblöcke im Kalender macht weiterhin „Tag planen“ (E84) bzw. „Lernzeit einplanen“ (E79). Der Wochenplan verteilt nur auf Tage.
