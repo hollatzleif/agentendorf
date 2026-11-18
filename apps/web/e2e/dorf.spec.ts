@@ -1135,3 +1135,12 @@ test('Rathaus → Notizen: festhalten und die letzten Tage sehen', async ({ page
   await expect(n.locator('.notizen-tag').first()).toContainText('Notiz-Ansicht-Test');
   await expect(n.getByRole('textbox', { name: 'Neue Notiz' })).toHaveValue('');
 });
+
+test('Heute: Countdown zur nächsten Prüfung', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  const in5 = new Date(Date.now() + 5 * 86_400_000).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+  await page.request.post('/api/todos', { headers: { origin: ORIGIN }, data: { titel: 'Prüfung: Countdown-Fach', faellig: in5 } });
+  await page.goto('/heute');
+  await expect(page.locator('.heute-zahlen')).toContainText('📝 Countdown-Fach in 5 Tagen');
+});

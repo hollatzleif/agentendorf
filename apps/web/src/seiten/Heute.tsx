@@ -94,6 +94,12 @@ export function Heute() {
   const jetzt = useJetzt(etwasLaeuft);
   const jetztIso = new Date(jetzt).toISOString();
   const stunde = Math.floor(ort(jetztIso).min / 60);
+  // nächste Prüfung (To-do „Prüfung: …“, z. B. aus den Uni-Fristen) als Countdown
+  const naechstePruefung = (todos.data ?? [])
+    .filter((t) => !t.erledigt && t.faellig && t.faellig >= heute && /^Prüfung:\s*/i.test(t.titel))
+    .sort((a, b) => a.faellig!.localeCompare(b.faellig!))
+    .slice(0, 1)
+    .map((t) => ({ name: t.titel.replace(/^Prüfung:\s*/i, ''), faellig: t.faellig!, tage: Math.round((Date.parse(`${t.faellig}T12:00:00Z`) - Date.parse(`${heute}T12:00:00Z`)) / 86_400_000) }))[0];
 
   // ---- Termine ----
   const aus = (() => {
@@ -191,6 +197,11 @@ export function Heute() {
           {todos.data && <span className="heute-zahl">☑️ {faelligHeute.length} heute fällig</span>}
           {erledigtHeute > 0 && <span className="heute-zahl gruen">✓ {erledigtHeute} erledigt</span>}
           {(fokus.data?.heuteMin ?? 0) > 0 && <span className="heute-zahl">🍅 {fokus.data!.heuteMin} min Fokus</span>}
+          {naechstePruefung && (
+            <span className={`heute-zahl${naechstePruefung.tage <= 3 ? ' rot' : ''}`} title={`Prüfung am ${naechstePruefung.faellig}`}>
+              📝 {naechstePruefung.name} {naechstePruefung.tage === 0 ? 'heute' : naechstePruefung.tage === 1 ? 'morgen' : `in ${naechstePruefung.tage} Tagen`}
+            </span>
+          )}
           {kartenDran > 0 && (
             <a className="heute-zahl" href="/gebaeude/Uni?reiter=karten" onClick={linkKlick}>
               🃏 {kartenDran} Karten dran
