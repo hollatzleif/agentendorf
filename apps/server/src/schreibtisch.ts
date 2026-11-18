@@ -51,9 +51,11 @@ export class Schreibtisch {
     const titel = (text.split('\n')[0] || (anhaenge[0] ? `Datei ${anhaenge[0].split('/').pop()}` : 'Aufgabe')).slice(0, 80);
     const jetzt = this.uhr.jetzt();
     const id = crypto.randomUUID();
-    let pfad = `${SCHREIBTISCH}/${dateiStempel(jetzt)}_${kurztitel(titel)}.md`;
+    // Rundgänge und Lageberichte (von selbst) in einen Unterordner – Leifs Schreibtisch in Obsidian bleibt übersichtlich
+    const ordner = a.quelle === 'aufwachen' ? `${SCHREIBTISCH}/aufwachen` : SCHREIBTISCH;
+    let pfad = `${ordner}/${dateiStempel(jetzt)}_${kurztitel(titel)}.md`;
     for (let i = 2; (await this.vault.existiert(pfad)) || this.db.prepare('SELECT 1 FROM schreibtisch WHERE pfad = ?').get(pfad); i++)
-      pfad = `${SCHREIBTISCH}/${dateiStempel(jetzt)}_${kurztitel(titel)}-${i}.md`;
+      pfad = `${ordner}/${dateiStempel(jetzt)}_${kurztitel(titel)}-${i}.md`;
     // Erst die Zeile, dann die Datei – der Dateiwächter erkennt die Notiz so als schon bekannt.
     this.db
       .prepare('INSERT INTO schreibtisch (id, pfad, titel, quelle, status, erstellt, geaendert) VALUES (?, ?, ?, ?, ?, ?, ?)')

@@ -103,6 +103,7 @@ describe('Aufwachen des Bürgermeisters', () => {
     await d.agenten.leerlauf();
     const a = d.schreibtisch.holen(r.rundgang!);
     expect(a.titel).toMatch(/^Rundgang \d\d:\d\d/);
+    expect(a.pfad).toMatch(/^Rathaus\/schreibtisch\/aufwachen\//);
     const notiz = (await d.vault.lesen(a.pfad)).inhalt;
     expect(notiz).toContain('<fremdinhalt quelle="rundgang">');
     expect(notiz).toContain('höchstens EINEN Helfer');
