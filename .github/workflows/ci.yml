@@ -114,11 +114,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Mac vorerst nicht (Leifs Wunsch, 18.11.: Mac-Minuten zählen zehnfach). Wieder einschalten:
+        #   - name: Mac
+        #     os: macos-latest
+        #     buendel: app,dmg
+        #     ziel: aarch64-apple-darwin
+        # und unten bei „vollständig“ programme-Mac wieder mitprüfen.
         include:
-          - name: Mac
-            os: macos-latest
-            buendel: app,dmg
-            ziel: aarch64-apple-darwin
           - name: Windows
             os: windows-latest
             buendel: nsis
@@ -309,8 +311,8 @@ jobs:
           fi
           if [ -d programme-dl ] && [ -n "$(ls programme-dl 2>/dev/null)" ]; then
             bash deploy/programme-manifest.sh programme-dl buendel/programme
-            # nur vollständig (Mac + Windows) gilt die Kennung – sonst baut der nächste Lauf beide neu
-            if [ -d programme-dl/programme-Mac ] && [ -d programme-dl/programme-Windows ]; then
+            # nur vollständig (derzeit nur Windows) gilt die Kennung – sonst baut der nächste Lauf beide neu
+            if [ -d programme-dl/programme-Windows ]; then
               echo "${{ needs.programme-pruefen.outputs.kennung }}" > buendel/PROGRAMME_KENNUNG
             else
               echo "::warning::Nicht alle Programme gebaut – ausgeliefert wird, was da ist."
