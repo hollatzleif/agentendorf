@@ -38,6 +38,14 @@ function Rahmen() {
   const n = konflikte.data?.length ?? 0;
   const freigaben = useQuery({ queryKey: ['freigaben', 'offen'], queryFn: () => api<FreigabeInfo[]>('/api/freigaben?status=offen') });
   const nf = freigaben.data?.length ?? 0;
+  // Plakette am App-Symbol (installierte PWA am Handy/PC): offene Freigaben auf einen Blick; Titel im Browser-Reiter
+  useEffect(() => {
+    if (!freigaben.data) return;
+    const n = navigator as Navigator & { setAppBadge?: (n?: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
+    if (nf > 0) void n.setAppBadge?.(nf).catch(() => undefined);
+    else void n.clearAppBadge?.().catch(() => undefined);
+    document.title = nf > 0 ? `(${nf}) Agentendorf` : 'Agentendorf';
+  }, [nf, freigaben.data]);
 
   let seite: React.ReactNode;
   if (pfad === '/') seite = <Dorfplatz />;

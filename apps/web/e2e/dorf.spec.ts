@@ -108,7 +108,8 @@ test('Aktion starten, Chat live, fortsetzen, Freigabe annehmen, Verbrauch', asyn
   await page.getByRole('button', { name: 'Senden' }).click();
   await expect(page.getByText(/Lauf 2: fertig/)).toBeVisible({ timeout: 15_000 });
 
-  // Freigabe im Kopf und im Rathaus
+  // Freigabe im Kopf, im Fenstertitel (und als Plakette am App-Symbol) und im Rathaus
+  await expect(page).toHaveTitle(/^\(\d+\) Agentendorf$/);
   await page.locator('.abzeichen.brief').click();
   await expect(page.getByRole('heading', { name: `${ziel} löschen` })).toBeVisible();
   await page.locator('.freigabe', { hasText: `${ziel} löschen` }).getByRole('button', { name: 'Ja, ausführen' }).click();
