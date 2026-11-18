@@ -22,6 +22,13 @@ export default defineConfig({
           { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
           { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
+        // Langes Drücken auf das App-Symbol (Android/Desktop): direkt dorthin
+        shortcuts: [
+          { name: 'Heute', short_name: 'Heute', url: '/heute', icons: [{ src: '/icon-192.png', sizes: '192x192' }] },
+          { name: 'To-dos', short_name: 'To-dos', url: '/gebaeude/Marktplatz?reiter=todo', icons: [{ src: '/icon-192.png', sizes: '192x192' }] },
+          { name: 'Kalender', short_name: 'Kalender', url: '/gebaeude/Marktplatz?reiter=kalender', icons: [{ src: '/icon-192.png', sizes: '192x192' }] },
+          { name: 'Notizen', short_name: 'Notizen', url: '/gebaeude/Rathaus?reiter=notizen', icons: [{ src: '/icon-192.png', sizes: '192x192' }] },
+        ],
       },
       workbox: {
         navigateFallback: '/index.html',
