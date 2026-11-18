@@ -41,7 +41,10 @@ export function GewohnheitenKarte() {
   return (
     <section className="karte heute-karte" aria-label="Gewohnheiten">
       <div className="heute-karte-kopf">
-        <h2>🔁 Gewohnheiten{heute.length ? ` ${fertig}/${heute.length}` : ''}</h2>
+        <h2>
+          🔁 Gewohnheiten
+          {heute.length > 0 && <span className="wochenziele-stand"> {fertig}/{heute.length}</span>}
+        </h2>
         <button type="button" className="klein" onClick={() => setBearbeiten(!bearbeiten)} aria-expanded={bearbeiten}>
           {bearbeiten ? 'Fertig' : alle.length ? 'Bearbeiten' : '+ Anlegen'}
         </button>

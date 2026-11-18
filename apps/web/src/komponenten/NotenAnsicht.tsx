@@ -80,21 +80,21 @@ export function NotenAnsicht() {
             </div>
           )}
           <div className="statistik-tabelle">
-            <table>
-              <thead>
-                <tr>
-                  <th>Fach</th>
-                  <th>ECTS</th>
-                  <th>Note</th>
-                  <th>Semester</th>
-                  <th />
+            <table role="table">
+              <thead role="rowgroup">
+                <tr role="row">
+                  <th role="columnheader">Fach</th>
+                  <th role="columnheader">ECTS</th>
+                  <th role="columnheader">Note</th>
+                  <th role="columnheader">Semester</th>
+                  <td role="cell" />
                 </tr>
               </thead>
-              <tbody>
+              <tbody role="rowgroup">
                 {s.faecher.map((f) => (
-                  <tr key={f.fach}>
-                    <td>{f.fach}</td>
-                    <td>
+                  <tr key={f.fach} role="row">
+                    <td role="cell" className="noten-fach">{f.fach}</td>
+                    <td role="cell" data-titel="ECTS">
                       <input
                         type="number"
                         min={0}
@@ -106,7 +106,7 @@ export function NotenAnsicht() {
                         onBlur={(e) => Number(e.target.value) !== f.ects && void setzen({ ...f, ects: Number(e.target.value) })}
                       />
                     </td>
-                    <td>
+                    <td role="cell" data-titel="Note">
                       <select value={f.note == null ? '' : String(f.note)} onChange={(e) => void setzen({ ...f, note: alsNote(e.target.value) })} aria-label={`Note ${f.fach}`}>
                         {NOTEN.map(([w, t]) => (
                           <option key={w} value={w}>
@@ -115,7 +115,7 @@ export function NotenAnsicht() {
                         ))}
                       </select>
                     </td>
-                    <td>
+                    <td role="cell" data-titel="Semester">
                       <input
                         defaultValue={f.semester ?? ''}
                         placeholder="WS 2026"
@@ -125,7 +125,7 @@ export function NotenAnsicht() {
                         onBlur={(e) => e.target.value !== (f.semester ?? '') && void setzen({ ...f, semester: e.target.value || undefined })}
                       />
                     </td>
-                    <td>
+                    <td role="cell" className="noten-weg">
                       <button type="button" className="klein" aria-label={`${f.fach} entfernen`} onClick={() => void aufruf(() => api<NotenStand>(`/api/uni/noten?fach=${encodeURIComponent(f.fach)}`, { methode: 'DELETE' }))}>
                         ✕
                       </button>

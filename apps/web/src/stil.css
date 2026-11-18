@@ -885,3 +885,180 @@ input.kurz { width: 5em; }
 .anschluesse li.ok .anschluss-stand { color: var(--gruen); }
 .anschluesse li.fehlt .anschluss-stand { color: var(--rot); }
 .anschluss-befehl { margin-top: 0.3rem; font-size: 0.85rem; }
+/* Feinschliff Produktivität (Fable) */
+/* -- Kartenköpfe: eine Zeile, Titel darf umbrechen, Knopf/Link bleibt rechts -- */
+.heute-karte-kopf { align-items: center; min-height: 2rem; margin-bottom: 0.6rem; }
+.heute-karte-kopf h2 { min-width: 0; font-size: 1.1rem; line-height: 1.3; overflow-wrap: anywhere; }
+.heute-karte-kopf button.klein { margin-left: 0; flex: none; padding: 0.2rem 0.65rem; }
+.heute-mehr { flex: none; display: inline-flex; align-items: center; min-height: 2rem; }
+.wochenziele-stand { display: inline-block; margin-left: 0.35rem; padding: 0 0.5rem; font-size: 0.78rem; font-weight: 800; line-height: 1.5; vertical-align: 0.1em; color: var(--text); background: var(--rand); border-radius: 99px; font-variant-numeric: tabular-nums; }
+.heute-leer { margin: 0.2rem 0 0; font-size: 0.9rem; }
+.heute-gruppe { margin-top: 0.8rem; }
+.heute-gruppe-titel { margin-bottom: 0.4rem; }
+.heute-start { margin-top: 0.35rem; }
+.heute-naechstes { line-height: 1.4; }
+
+/* -- Termine: Zeitspalte breit genug für „ganztags“, Zeilen ruhiger und niedriger -- */
+.heute-termine, .heute-todos { gap: 0.4rem; }
+.heute-termin { grid-template-columns: 4.3rem minmax(0, 1fr); gap: 0.6rem; padding: 0.35rem 0.7rem 0.35rem 0.6rem; min-height: 2.75rem; }
+.heute-termin-zeit { font-size: 0.9rem; white-space: nowrap; }
+.heute-termin-titel { line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.heute-termin-ort { line-height: 1.35; }
+.heute-termin-ort > span { overflow-wrap: anywhere; }
+
+/* -- To-dos: langer Titel bekommt die Zeile, Datum/Knöpfe rutschen rechtsbündig darunter -- */
+.heute .heute-gruppe.stern, .heute .heute-gruppe.stern:hover { padding: 0; font-size: inherit; line-height: inherit; color: inherit; cursor: auto; transform: none; }
+.heute-todo { flex-wrap: wrap; justify-content: flex-end; gap: 0.1rem 0.5rem; padding: 0.1rem 0.5rem 0.1rem 0; }
+.heute-todo label { flex: 1 1 11rem; padding: 0.45rem 0 0.45rem 0.65rem; line-height: 1.35; min-height: 2.6rem; }
+.heute-todo-titel { min-width: 0; }
+@media (min-width: 761px) { .heute-gruppe.rot .heute-todo label { flex-basis: 17rem; } }
+.heute-todo .fehler { flex-basis: 100%; padding: 0 0.2rem 0.3rem 0.65rem; font-size: 0.85rem; }
+.heute-verschieben { gap: 0.35rem; }
+.heute-verschieben button.klein { padding: 0.15rem 0.55rem; white-space: nowrap; }
+.heute button.stern { min-width: 2rem; min-height: 2rem; display: inline-flex; align-items: center; justify-content: center; }
+.heute-neu button { min-width: 2.75rem; }
+.heute-neu-heute { min-height: 2.5rem; }
+
+/* -- Fokus: flach, Text und Knopf in einer Zeile -- */
+.heute-fokus-zeile { gap: 0.6rem 1rem; }
+.heute-fokus-text { font-size: 0.92rem; line-height: 1.4; flex-basis: 12rem; }
+.heute-fokus-ring { width: 2.8rem; height: 2.8rem; }
+.heute-fokus-zeit { font-size: 1.6rem; }
+.heute-fokus-knoepfe { margin-left: auto; }
+.heute-uhren { margin-top: 0.7rem; gap: 0.25rem; }
+.heute-uhren li > span { min-width: 0; overflow-wrap: anywhere; }
+.heute-uhren strong { white-space: nowrap; }
+
+/* -- Gewohnheiten: Name bricht um, Punkte größer und eindeutig (voll = erledigt, Ring = offen, klein = kein Tag) -- */
+.gewohnheiten { gap: 0.4rem; }
+.gewohnheit { flex-wrap: wrap; justify-content: flex-end; gap: 0.2rem 0.6rem; padding: 0.3rem 0.6rem; min-height: 2.75rem; }
+.gewohnheit-haken { flex: 1 1 9rem; gap: 0.5rem; padding: 0.2rem 0; line-height: 1.3; }
+.gewohnheit-haken input { width: 1.35rem; height: 1.35rem; flex: none; }
+.gewohnheit-symbol { flex: none; }
+.gewohnheit-name { min-width: 0; white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+.gewohnheit-woche { gap: 4px; align-items: center; flex: none; }
+.gewohnheit-woche .punkt { width: 12px; height: 12px; border: 2px solid #aab6c8; background: #fff; }
+.gewohnheit-woche .punkt.an { background: var(--gruen); border-color: #1f5a1d; }
+.gewohnheit-woche .punkt.frei { width: 6px; height: 6px; margin: 0 3px; border: none; background: var(--rand); opacity: 1; }
+.gewohnheit-woche .punkt:last-child { outline: 1.5px solid var(--leise); outline-offset: 2px; margin-left: 3px; }
+.gewohnheit-woche .punkt.frei:last-child { outline: none; }
+.gewohnheit-serie { flex: none; min-width: 2.4rem; text-align: right; font-variant-numeric: tabular-nums; }
+.gewohnheit > button.klein { margin-left: 0; flex: none; }
+.gewohnheit-neu { margin-top: 0.6rem; flex-wrap: wrap; align-items: stretch; }
+.gewohnheit-neu > input.gewohnheit-neu-symbol { flex: 0 0 3.2rem; padding-left: 0.3rem; padding-right: 0.3rem; }
+.gewohnheit-neu > input:not(.gewohnheit-neu-symbol) { flex: 1 1 8rem; }
+.gewohnheit-neu > select { flex: 1 1 8.5rem; width: auto; min-width: 0; }
+.gewohnheit-neu > button { flex: none; min-width: 2.75rem; font-size: 1.2rem; padding: 0.15rem 0.9rem; }
+
+/* -- Wochenziele: deutlicher Balken, Häkchen oben am mehrzeiligen Text -- */
+.wochenziele-balken { height: 12px; margin-bottom: 0.6rem; background: #eef1f6; }
+.wochenziele-balken span { border-radius: 99px; }
+.wochenziele { gap: 0.1rem; margin-bottom: 0.6rem; }
+.wochenziele li { gap: 0.5rem; align-items: flex-start; }
+.wochenziele label { min-width: 0; align-items: flex-start; gap: 0.6rem; padding: 0.4rem 0; line-height: 1.35; font-size: 1rem; }
+.wochenziele input { width: 1.35rem; height: 1.35rem; flex: none; }
+.wochenziele label span { min-width: 0; overflow-wrap: anywhere; }
+.wochenziele li > button.klein { margin: 0.3rem 0 0; flex: none; }
+
+/* -- Statistik: Kacheln in festem Raster, Filter als ruhige Knopfreihe -- */
+.statistik { gap: 1rem; }
+.statistik-filter { gap: 0.5rem; }
+.statistik-filter button.klein { margin-left: 0; padding: 0.2rem 0.7rem; }
+.statistik .statistik-kacheln { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.noten .statistik-kacheln { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.statistik-kachel { gap: 0.15rem; min-width: 0; }
+.statistik-kachel-titel { font-size: 0.74rem; letter-spacing: 0.06em; font-weight: 900; }
+.statistik-kachel-wert { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.statistik-kachel-unter { line-height: 1.35; }
+.statistik-diagramm { padding: 0.7rem 0.8rem 0.35rem; }
+.statistik-diagramm figcaption { align-items: baseline; margin-bottom: 0.45rem; line-height: 1.3; }
+.statistik-diagramm figcaption > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.statistik-tabelle th { font-size: 0.74rem; font-weight: 900; letter-spacing: 0.06em; text-transform: uppercase; color: var(--leise); border-bottom-width: 2px; }
+.statistik-tabelle td { padding: 0.4rem 0.5rem; }
+.statistik-tabelle tbody tr:last-child td { border-bottom: none; }
+
+/* -- Noten -- */
+.noten { gap: 0.9rem; }
+.noten .wochenziele-balken { margin-bottom: 0; }
+.noten-fach { font-weight: 700; overflow-wrap: anywhere; }
+.noten .statistik-tabelle select { min-width: 8rem; }
+.noten-weg { width: 1%; text-align: right; }
+.noten-weg button.klein { margin-left: 0; }
+.noten-ziel { flex-wrap: wrap; }
+
+/* -- Lernzeit: Kopf als Zeile, Auswahlfelder nur so breit wie nötig -- */
+.lernzeit { padding: 0.8rem 0.9rem; }
+.lernzeit .zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.7rem; margin-bottom: 0.5rem; }
+.lernzeit .zeile > button[aria-label='Lernzeit schließen'] { margin-left: auto; }
+.lernzeit button.klein { margin-left: 0; }
+.lernzeit-modus { gap: 0.4rem; }
+.lernzeit-modus button.klein { padding: 0.2rem 0.65rem; }
+.lernzeit select { width: auto; min-width: 6.5rem; padding-top: 0.35rem; padding-bottom: 0.35rem; }
+.lernzeit-feld { gap: 0.45rem; white-space: nowrap; }
+.lernzeit-liste { margin: 0.5rem 0; gap: 0; font-variant-numeric: tabular-nums; }
+.lernzeit-liste li { padding: 0.35rem 0; border-bottom: 1px solid var(--rand); min-height: 2.5rem; font-weight: 600; }
+.lernzeit-liste li:last-child { border-bottom: none; }
+.lernzeit-wahl { flex: 1; gap: 0.6rem; cursor: pointer; white-space: nowrap; }
+.lernzeit-liste li > span:first-child { white-space: nowrap; }
+.lernzeit-wahl input { width: 1.3rem; height: 1.3rem; flex: none; }
+.lernzeit .hinweis { margin: 0.5rem 0; font-size: 0.9rem; }
+.lernzeit > p { margin: 0.4rem 0; }
+
+/* -- Handy: Trefferflächen ≥ 40 px, zweispaltige Kacheln, Noten als Stapel -- */
+@media (max-width: 760px), (pointer: coarse) {
+  .heute-karte-kopf button.klein, .heute-planen, .heute-verschieben button.klein, .gewohnheit > button.klein, .wochenziele li > button.klein,
+  .statistik-filter button.klein, .noten-weg button.klein, .lernzeit button.klein { min-height: 2.5rem; min-width: 2.5rem; font-size: 0.85rem; }
+  .heute-mehr { min-height: 2.5rem; }
+  .heute button.stern { min-width: 2.5rem; min-height: 2.5rem; }
+  .heute-neu button, .gewohnheit-neu > button { min-height: 2.75rem; }
+  .heute-todo label, .gewohnheit-haken, .wochenziele label { min-height: 2.5rem; }
+  .wochenziele label { padding: 0.55rem 0; }
+  .wochenziele li > button.klein { margin-top: 0; }
+  .heute-start { min-height: 2.5rem; }
+  .heute-start input { width: 1.25rem; height: 1.25rem; }
+  .lernzeit-liste li { min-height: 2.75rem; }
+  .lernzeit .haupt { min-height: 2.5rem; }
+}
+@media (max-width: 760px) {
+  .heute-kopf-zeile { gap: 0.6rem; }
+  .heute-wetter { padding: 0.35rem 0.7rem 0.35rem 0.55rem; }
+  .heute-wetter-symbol { font-size: 1.6rem; }
+  .heute-naechstes { gap: 0.3rem 0.6rem; padding: 0.55rem 0.75rem; }
+  .heute-zahlen { gap: 0.35rem; align-items: center; }
+  .heute-planen { margin-left: 0; }
+  .heute-termin { grid-template-columns: 3.9rem minmax(0, 1fr); padding-right: 0.55rem; }
+  .heute-fokus-knoepfe { margin-left: 0; flex: 1 1 100%; }
+  .heute-fokus-knoepfe button { flex: 1; min-height: 2.6rem; }
+  .heute-fokus-lauf { flex: 1 1 100%; }
+  .gewohnheit { padding-left: 0.5rem; padding-right: 0.5rem; gap: 0.2rem 0.45rem; }
+  .gewohnheit-haken { flex-basis: 8rem; }
+  .gewohnheit-neu > input:not(.gewohnheit-neu-symbol) { flex-basis: calc(100% - 4rem); }
+  .lernzeit-modus { order: 3; flex: 1 1 100%; }
+  /* beim Bearbeiten (✕ sichtbar) bekommt der Name die ganze Zeile */
+  .gewohnheit:has(> button.klein) .gewohnheit-haken { flex-basis: 100%; }
+  .lernzeit-modus button.klein { flex: 1 1 auto; white-space: nowrap; padding-left: 0.4rem; padding-right: 0.4rem; }
+
+  .statistik .statistik-kacheln, .noten .statistik-kacheln { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
+  .noten .statistik-kachel:last-child { grid-column: 1 / -1; }
+  .statistik-kachel { padding: 0.55rem 0.65rem; }
+  .statistik-kachel-wert { font-size: 1.35rem; }
+  .statistik-kachel-unter { font-size: 0.74rem; }
+  .statistik-diagramm { padding: 0.6rem 0.6rem 0.3rem; }
+  .statistik-diagramm svg { height: 92px; }
+  .statistik-hover { font-size: 0.8rem; }
+  .statistik-tabelle { font-size: 0.9rem; }
+  .statistik-tabelle th, .statistik-tabelle td { padding-left: 0.3rem; padding-right: 0.3rem; }
+
+  /* Noten: je Fach eine Karte – Name + Entfernen oben, darunter ECTS · Note · Semester mit kleiner Beschriftung */
+  .noten .statistik-tabelle { overflow-x: visible; }
+  .noten .statistik-tabelle table { display: block; }
+  .noten .statistik-tabelle thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .noten .statistik-tabelle tbody { display: grid; gap: 0.55rem; }
+  .noten .statistik-tabelle tbody tr { display: grid; grid-template-columns: 4.4rem minmax(0, 1fr) 6.2rem; gap: 0.4rem 0.45rem; align-items: end; padding: 0.55rem 0.65rem 0.65rem; background: #fff; border: 2px solid var(--rand); border-radius: 14px; }
+  .noten .statistik-tabelle td { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; padding: 0; border: none; }
+  .noten .statistik-tabelle td[data-titel]::before { content: attr(data-titel); font-size: 0.68rem; font-weight: 900; letter-spacing: 0.06em; text-transform: uppercase; color: var(--leise); }
+  .noten .statistik-tabelle td.noten-fach { grid-column: 1 / 3; grid-row: 1; align-self: center; line-height: 1.3; }
+  .noten .statistik-tabelle td.noten-weg { grid-column: 3; grid-row: 1; width: auto; align-items: flex-end; align-self: start; }
+  .noten .statistik-tabelle input, .noten .statistik-tabelle select { width: 100%; min-width: 0; height: 2.6rem; padding: 0.3rem 0.5rem; }
+  .noten-neu > input.noten-zahl { flex-basis: 4.4rem; }
+}
