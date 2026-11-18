@@ -351,7 +351,7 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - **CI:**
   - `programm-selbsttest` (Linux) prüft das Programm.
   - `programme-pruefen` bildet einen Hash über das Programm und fragt den Server mit `hat-programme <16 Hex>` (neuer erzwungener SSH-Befehl).
-  - Nur wenn neu, baut `programme` auf macos-14 (`app,dmg`) und windows-latest (`nsis`). Die Version ist `0.1.<Laufnummer>`, für beide gleich.
+  - Nur wenn neu, baut `programme` auf macos-latest (`--target aarch64-apple-darwin`, `app,dmg`) und windows-latest (`nsis`); `macos-14` bietet GitHub nicht mehr an. Die Version ist `0.1.<Laufnummer>`, für beide gleich.
   - `ausliefern` legt sie mit `deploy/programme-manifest.sh` ins Bündel; `dorf empfangen` ersetzt `daten/programme/` als Ganzes.
   - Scheitert der Programmbau, wird das Dorf trotzdem ausgeliefert.
 - **Caddy:** Die CSP erlaubt zusätzlich `ipc: http://ipc.localhost` bei `connect-src`. Das ist der schnelle IPC-Weg; ohne ihn weicht Tauri auf postMessage aus.
