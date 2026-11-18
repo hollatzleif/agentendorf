@@ -217,7 +217,7 @@ describe('Telegram-Bot', () => {
     expect(offsets.at(-1)).toBe(51);
     // Befehlsmenü wird beim Start angemeldet
     const menue = d.aufrufe.find((x) => x.m === 'setMyCommands')?.p.commands as { command: string }[];
-    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'aufraeumen', 'notiz', 'erinner', 'plan', 'karten', 'fokus', 'ziel', 'gewohnheiten', 'neu', 'hilfe']);
+    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'woche', 'aufraeumen', 'notiz', 'erinner', 'plan', 'karten', 'fokus', 'ziel', 'gewohnheiten', 'neu', 'hilfe']);
     await d.agenten.leerlauf();
   }, 15_000);
 });
@@ -577,5 +577,19 @@ describe('Fokus geschafft → Erledigt? (E99)', () => {
     expect(String(m.text)).toBe('🍅 <b>Fokus geschafft</b>: Blatt 7 rechnen\nIst das To-do damit erledigt?');
     await d.knopf((m.reply_markup as { inline_keyboard: { callback_data: string }[][] }).inline_keyboard[0]![0]!.callback_data);
     expect((await d.todos.holen(t.pfad)).erledigt).toBe(true);
+  });
+});
+
+describe('Telegram /woche (E100)', () => {
+  it('zeigt Wochenziele und die nächsten 7 Tage', async () => {
+    const d = await dorf();
+    await d.nachricht({ text: '/woche' });
+    expect(d.gesendet().at(-1)).toMatch(/🗓️ <b>Deine Woche<\/b>/);
+    await d.wochenziele.hinzufuegen('Blatt 7 abgeben');
+    await d.todos.anlegen({ titel: 'Bewerbung', faellig: '2026-11-18' }, 'Leif');
+    await d.nachricht({ text: '/woche' });
+    const t = d.gesendet().at(-1)!;
+    expect(t).toMatch(/<b>🎯 Wochenziele<\/b>\n• <b>0\/1<\/b> erreicht\n• ☐ Blatt 7 abgeben/);
+    expect(t).toMatch(/<b>📅 Die nächsten 7 Tage<\/b>\n[\s\S]*2026-11-18: Bewerbung/);
   });
 });

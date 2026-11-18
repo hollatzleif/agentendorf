@@ -379,6 +379,7 @@ export async function dorfStarten(
       wochenziele,
       erinnerungen,
       notizen,
+      woche: wochenrueckblick,
       log: (t) => console.warn(t),
     });
     if (!opt.telegram) telegram.starten();

@@ -731,3 +731,9 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - Läuft ein Pomodoro für ein To-do (🍅 am To-do), trägt das Klingeln nach jeder Arbeitsrunde den Bezug zum To-do (`todo: { pfad, titel }`). Der Kirchturm-Hinweis bietet dann neben „Aus“ auch **„✓ To-do erledigt“** an.
 - Ist die ganze Pomodoro-Folge vorbei (`sitzungEnde`), fragt **Telegram** einmal: „🍅 Fokus geschafft: … – erledigt?“, mit einem Knopf zum Abhaken (HMAC-signiert, derselbe Weg wie bei Erinnerungen). Nach einzelnen Runden fragt Telegram nicht, das wäre zu viel.
 - Warum: Der Moment nach der Fokusrunde ist der natürliche Zeitpunkt zum Abhaken. Wer es dann vergisst, hat ein erledigtes To-do, das weiter auf „Heute“ steht.
+
+## E100 – Telegram /woche (Nacht 18./19.11.)
+
+- **`/woche`** zeigt jederzeit die Woche auf einen Blick: Wochenziele (offen ☐ / erreicht ✓), die nächsten 7 Tage (Fristen, Termine, fällige To-dos) und die Gewohnheiten-Bilanz.
+- Die Fakten kommen aus derselben Funktion wie der Wochenrückblick, aber ohne KI und ohne etwas zu speichern.
+- Warum: `/heute` beantwortet „Was jetzt?“, `/woche` beantwortet „Was kommt?“. Das ist die Frage am Sonntagabend oder vor dem Planen.
