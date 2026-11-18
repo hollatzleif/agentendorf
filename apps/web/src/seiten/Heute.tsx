@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { WETTER_TEXT, type DorfStatus, type FokusStatistik, type FreigabeInfo, type KartenFach, type KalenderAntwort, type KalenderTermin, type KirchturmZustand, type MorgenzeitungUebersicht, type TodoInfo } from '@dorf/shared';
+import { WETTER_TEXT, type DorfStatus, type FokusStatistik, type FreigabeInfo, type KartenFach, type KalenderAntwort, type KalenderTermin, type KirchturmZustand, type MorgenzeitungUebersicht, type PostUebersicht, type TodoInfo } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { linkKlick } from '../router';
 import { FARBEN, ort, tagPlus } from '../komponenten/MarktKalender';
@@ -88,6 +88,9 @@ export function Heute() {
   const kirchturm = useKirchturm();
   const status = useQuery({ queryKey: ['dorf-status'], queryFn: () => api<DorfStatus>('/api/dorf/status'), refetchInterval: 60_000 });
   const zeitung = useQuery({ queryKey: ['morgenzeitung'], queryFn: () => api<MorgenzeitungUebersicht>('/api/morgenzeitung') });
+  const post = useQuery({ queryKey: ['post'], queryFn: () => api<PostUebersicht>('/api/post') });
+  // Mails der letzten 3 Tage, bei denen die Einordnung „Antwort nötig“ sagt
+  const antworten = (post.data?.mails ?? []).filter((m) => m.antwortNoetig && Date.parse(m.datum) > Date.now() - 3 * 86_400_000).length;
   const freigaben = useQuery({ queryKey: ['freigaben', 'offen'], queryFn: () => api<FreigabeInfo[]>('/api/freigaben?status=offen') });
 
   const k = kirchturm.data;
@@ -202,6 +205,11 @@ export function Heute() {
             <span className={`heute-zahl${naechstePruefung.tage <= 3 ? ' rot' : ''}`} title={`Prüfung am ${naechstePruefung.faellig}`}>
               📝 {naechstePruefung.name} {naechstePruefung.tage === 0 ? 'heute' : naechstePruefung.tage === 1 ? 'morgen' : `in ${naechstePruefung.tage} Tagen`}
             </span>
+          )}
+          {antworten > 0 && (
+            <a className="heute-zahl" href="/gebaeude/Post" onClick={linkKlick} title="Mails der letzten 3 Tage, die eine Antwort brauchen">
+              ✉️ {antworten} {antworten === 1 ? 'Mail wartet' : 'Mails warten'} auf Antwort
+            </a>
           )}
           {kartenDran > 0 && (
             <a className="heute-zahl" href="/gebaeude/Uni?reiter=karten" onClick={linkKlick}>

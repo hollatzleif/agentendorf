@@ -1215,3 +1215,12 @@ test('Anleitung: erreichbar über Befehlspalette, Links führen weiter', async (
   await page.getByRole('link', { name: 'Vollbild' }).click();
   await expect(page).toHaveURL(/\/fokus$/);
 });
+
+test('Heute: Mails, die eine Antwort brauchen, als Hinweis', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  const mail = (id: string, antwortNoetig: boolean) => ({ id, threadId: id, von: 'Prof. X', betreff: `Betreff ${id}`, datum: new Date().toISOString(), kategorie: 'Uni', wichtig: true, antwortNoetig, zusammenfassung: null, frist: null, eingeordnet: true });
+  await page.route('**/api/post', (r) => r.fulfill({ json: { verbunden: true, einordnungMoeglich: true, laeuft: false, letzter: null, mails: [mail('a', true), mail('b', true), mail('c', false)] } }));
+  await anmelden(page);
+  await page.goto('/heute');
+  await expect(page.locator('.heute-zahlen')).toContainText('✉️ 2 Mails warten auf Antwort');
+});
