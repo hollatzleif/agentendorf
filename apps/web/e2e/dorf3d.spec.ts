@@ -129,6 +129,15 @@ test('Bau-Modus: verschieben (live auf zweitem Gerät), Straße malen, rückgän
   await a.getByRole('button', { name: /Rückgängig/ }).click();
   await expect.poll(async () => (await dorf(a)).layout.strassen.length).toBe(l1.strassen.length);
 
+  // Deko über die runden Knöpfe setzen
+  const dekoVorher = (await dorf(a)).layout.deko.length;
+  await a.getByRole('button', { name: 'Laubbaum' }).click();
+  const p1 = await a.evaluate(([x, z]) => window.__dorf!.feldPunkt(x, z), reihe![1]!);
+  await a.mouse.click(p1.x, p1.y);
+  await expect.poll(async () => (await dorf(a)).layout.deko.length).toBe(dekoVorher + 1);
+  await a.getByRole('button', { name: /Rückgängig/ }).click();
+  await expect.poll(async () => (await dorf(a)).layout.deko.length).toBe(dekoVorher);
+
   // Ins Lager und wieder hinstellen
   await a.getByRole('button', { name: /Auswählen/ }).click();
   const bankPt = await a.evaluate(([x, z]) => window.__dorf!.feldPunkt(x, z), [tx + 1, tz + 2] as const);

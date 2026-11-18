@@ -398,19 +398,19 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
                 {t}
               </button>
             ))}
-            <select
-              aria-label="Deko setzen"
-              value={werkzeug.art === 'deko' ? werkzeug.deko : ''}
-              onChange={(e) => e.target.value && werkzeugWaehlen({ art: 'deko', deko: e.target.value as (typeof DEKO_ARTEN)[number] })}
-              className={werkzeug.art === 'deko' ? 'aktiv' : ''}
-            >
-              <option value="">🌳 Deko …</option>
-              {DEKO_ARTEN.map((d) => (
-                <option key={d} value={d}>
-                  {DEKO_NAMEN[d]}
-                </option>
-              ))}
-            </select>
+          </div>
+          <div className="bau-gruppe deko-reihe" role="group" aria-label="Deko setzen">
+            {DEKO_ARTEN.map((d) => (
+              <button
+                key={d}
+                className={`deko-knopf ${werkzeug.art === 'deko' && werkzeug.deko === d ? 'aktiv' : ''}`}
+                onClick={() => werkzeugWaehlen({ art: 'deko', deko: d })}
+                title={DEKO_NAMEN[d]}
+                aria-label={DEKO_NAMEN[d]}
+              >
+                <span aria-hidden>{DEKO_SYMBOL[d]}</span>
+              </button>
+            ))}
           </div>
           {auswahl && (
             <div className="bau-gruppe">
@@ -451,6 +451,18 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
     </div>
   );
 }
+
+const DEKO_SYMBOL: Record<(typeof DEKO_ARTEN)[number], string> = {
+  baum: '🌳',
+  tanne: '🌲',
+  busch: '🌿',
+  blumen: '🌷',
+  laterne: '🏮',
+  bank: '🪑',
+  brunnen: '⛲',
+  felsen: '🪨',
+  hecke: '🟩',
+};
 
 const WERKZEUG_TEXT: Record<string, string> = {
   vault_lesen: '📖 liest',
