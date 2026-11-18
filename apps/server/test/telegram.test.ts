@@ -656,7 +656,7 @@ describe('Telegram /statistik (E104)', () => {
     await d.todos.aendern(a.pfad, { erledigt: true });
     await d.nachricht({ text: '/statistik' });
     const t = d.gesendet().at(-1)!;
-    expect(t).toMatch(/📊 <b>Die letzten 7 Tage<\/b>\n<code>DMDFSSM<\/code>\n<code>······█<\/code> ☑️ 1 erledigt\n<code>·······<\/code> 🍅 0 min Fokus\n\n1\/7 aktive Tage/);
+    expect(t).toMatch(/📊 <b>Die letzten 7 Tage<\/b>\n<code>DMDFSSM<\/code>\n<code>······█<\/code> ☑️ 1 erledigt\n<code>·······<\/code> 🍅 0 min Fokus\n\n1\/7 aktive Tage · Dein Dorf: 🌱 ruhig/);
   });
 });
 

@@ -19,6 +19,7 @@ import type { Notizen } from '../notizen.js';
 import { zeitpunktAus } from '../todo-erinnerungen.js';
 import { tagPlanen } from '../tagesplan.js';
 import { STIMMUNGEN, stimmungSetzen } from '../statistik.js';
+import { bluete, STUFE_TEXT } from '../bluete.js';
 import { ortszeitZuUtc } from '../uni/ical.js';
 
 type PlanBlock = { titel: string; grund: string; start: string; ende: string };
@@ -1166,7 +1167,8 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     ];
     if (gwF) z.push(`<code>${TelegramBot.balken(t.map((x) => (x.gewohnheitenFaellig ? x.gewohnheitenErledigt / x.gewohnheitenFaellig : 0)))}</code> 🔁 ${gwE}/${gwF} Gewohnheiten`);
     if (s.summen.stimmungSchnitt != null) z.push(`<code>${TelegramBot.balken(t.map((x) => x.stimmung ?? 0))}</code> 💭 Stimmung Ø ${String(s.summen.stimmungSchnitt).replace('.', ',')}`);
-    z.push(`\n${s.summen.aktiveTage}/7 aktive Tage · <a href="${this.link('/gebaeude/Rathaus?reiter=statistik')}">Statistik</a>`);
+    const b = bluete(s, await this.o.wochenziele?.lesen().catch(() => undefined));
+    z.push(`\n${s.summen.aktiveTage}/7 aktive Tage · Dein Dorf: ${STUFE_TEXT[b.stufe]}${b.fahne ? ' 🚩' : ''} · <a href="${this.link('/gebaeude/Rathaus?reiter=statistik')}">Statistik</a>`);
     return this.senden(z.join('\n'));
   }
 
