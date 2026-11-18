@@ -1,4 +1,4 @@
-import { GRUNDSTUECK, RASTER_GRENZE, belegungBerechnen, feldSchluessel, grundstueckFelder, type DekoArt, type DorfLayout, type Drehung } from '@dorf/shared';
+import { GRUNDSTUECK, RASTER_GRENZE, belegungBerechnen, dekoFelder, feldSchluessel, grundstueckFelder, type DekoArt, type DorfLayout, type Drehung } from '@dorf/shared';
 import type { BauHandler, DorfSzene, SzeneTreffer } from './szene';
 
 export type Werkzeug = { art: 'auswahl' } | { art: 'strasse' } | { art: 'wasser' } | { art: 'deko'; deko: DekoArt } | { art: 'abreissen' } | { art: 'platzieren'; id: string };
@@ -15,7 +15,7 @@ const imRaster = (x: number, z: number) => Math.abs(x) <= RASTER_GRENZE && Math.
 export class BauSteuerung implements BauHandler {
   werkzeug: Werkzeug = { art: 'auswahl' };
   auswahl: Auswahl = null;
-  private zug: { art: 'gebaeude'; id: string; dx: number; dz: number; ziel: [number, number] | null; ok: boolean } | { art: 'deko'; index: number; ziel: [number, number] | null; ok: boolean } | { art: 'malen'; entwurf: DorfLayout; geaendert: boolean } | null = null;
+  private zug: { art: 'gebaeude'; id: string; dx: number; dz: number; ziel: [number, number] | null; ok: boolean } | { art: 'deko'; index: number; dx: number; dz: number; ziel: [number, number] | null; ok: boolean } | { art: 'malen'; entwurf: DorfLayout; geaendert: boolean } | null = null;
 
   constructor(
     private szene: DorfSzene,
@@ -56,7 +56,7 @@ export class BauSteuerung implements BauHandler {
     const l = this.o.layout();
     const a = this.auswahl;
     if (a?.art === 'gebaeude' && l.gebaeude[a.id]) this.szene.markieren(grundstueckFelder(l.gebaeude[a.id]!.x, l.gebaeude[a.id]!.z), 'auswahl');
-    else if (a?.art === 'deko' && l.deko[a.index]) this.szene.markieren([[l.deko[a.index]!.x, l.deko[a.index]!.z]], 'auswahl');
+    else if (a?.art === 'deko' && l.deko[a.index]) this.szene.markieren(dekoFelder(l.deko[a.index]!), 'auswahl');
     else this.szene.markieren([], null);
   }
 
@@ -65,8 +65,11 @@ export class BauSteuerung implements BauHandler {
     const a = this.auswahl;
     const l = kopie(this.o.layout());
     if (a?.art === 'gebaeude' && l.gebaeude[a.id]) l.gebaeude[a.id]!.dreh = ((l.gebaeude[a.id]!.dreh + 1) % 4) as Drehung;
-    else if (a?.art === 'deko' && l.deko[a.index]) l.deko[a.index]!.dreh = ((l.deko[a.index]!.dreh + 1) % 4) as Drehung;
-    else return;
+    else if (a?.art === 'deko' && l.deko[a.index]) {
+      const d = l.deko[a.index]!;
+      d.dreh = ((d.dreh + 1) % 4) as Drehung;
+      delete d.auto; // angefasst → gehört jetzt Leif (weicht keinem neuen Gebäude mehr)
+    } else return;
     this.o.aendern(l);
   }
 
@@ -99,9 +102,10 @@ export class BauSteuerung implements BauHandler {
         this.zug = { art: 'gebaeude', id, dx: feld[0] - g.x, dz: feld[1] - g.z, ziel: null, ok: true };
         return true;
       }
-      if (b?.art === 'deko') {
+      if (b?.art === 'deko' && l.deko[b.index]) {
+        const d = l.deko[b.index]!;
         this.waehlen({ art: 'deko', index: b.index });
-        this.zug = { art: 'deko', index: b.index, ziel: null, ok: true };
+        this.zug = { art: 'deko', index: b.index, dx: feld[0] - d.x, dz: feld[1] - d.z, ziel: null, ok: true };
         return true;
       }
       this.waehlen(null);
@@ -125,17 +129,17 @@ export class BauSteuerung implements BauHandler {
       const vorher = l.strassen.length + l.wasser.length + l.deko.length;
       l.strassen = l.strassen.filter((f) => feldSchluessel(...f) !== k);
       l.wasser = l.wasser.filter((f) => feldSchluessel(...f) !== k);
-      l.deko = l.deko.filter((d) => feldSchluessel(d.x, d.z) !== k);
+      l.deko = l.deko.filter((d) => !dekoFelder(d).some((f) => feldSchluessel(...f) === k));
       if (l.strassen.length + l.wasser.length + l.deko.length !== vorher) z.geaendert = true;
       else if (belegungBerechnen(l).belegung.get(k)?.art === 'gebaeude') this.o.hinweis('Gebäude kommen über „Auswählen“ → „Ins Lager“ aus dem Dorf.');
-    } else if (this.frei(l, [feld])) {
+    } else if (this.frei(l, w.art === 'deko' ? dekoFelder({ art: w.deko, x, z: zz }) : [feld])) {
       if (w.art === 'strasse') l.strassen.push([x, zz]);
       else if (w.art === 'wasser') l.wasser.push([x, zz]);
       else if (w.art === 'deko') l.deko.push({ art: w.deko, x, z: zz, dreh: (Math.abs(x * 7 + zz * 3) % 4) as Drehung });
       else return;
       z.geaendert = true;
     } else return;
-    this.szene.markieren([feld], w.art === 'abreissen' ? 'nein' : 'ok');
+    this.szene.markieren(w.art === 'deko' ? dekoFelder({ art: w.deko, x, z: zz }) : [feld], w.art === 'abreissen' ? 'nein' : 'ok');
     this.o.aendern(kopie(l), true);
   }
 
@@ -149,7 +153,10 @@ export class BauSteuerung implements BauHandler {
       if (w.art === 'platzieren') {
         const f = grundstueckFelder(feld[0], feld[1]);
         this.szene.markieren(f, this.frei(l, f) ? 'ok' : 'nein');
-      } else if (w.art === 'strasse' || w.art === 'wasser' || w.art === 'deko') this.szene.markieren([feld], this.frei(l, [feld]) ? 'ok' : 'nein');
+      } else if (w.art === 'deko') {
+        const f = dekoFelder({ art: w.deko, x: feld[0], z: feld[1] });
+        this.szene.markieren(f, this.frei(l, f) ? 'ok' : 'nein');
+      } else if (w.art === 'strasse' || w.art === 'wasser') this.szene.markieren([feld], this.frei(l, [feld]) ? 'ok' : 'nein');
       else if (w.art === 'abreissen') this.szene.markieren([feld], 'nein');
       return;
     }
@@ -164,9 +171,13 @@ export class BauSteuerung implements BauHandler {
       this.szene.markieren(f, z.ok ? 'ok' : 'nein');
       this.szene.vorschau(z.id, ziel[0], ziel[1], g.dreh);
     } else if (z.art === 'deko') {
-      z.ziel = feld;
-      z.ok = this.frei(l, [feld], { deko: z.index });
-      this.szene.markieren([feld], z.ok ? 'ok' : 'nein');
+      const d = l.deko[z.index];
+      if (!d) return;
+      const ziel: [number, number] = [feld[0] - z.dx, feld[1] - z.dz];
+      z.ziel = ziel;
+      const f = dekoFelder({ art: d.art, x: ziel[0], z: ziel[1] });
+      z.ok = this.frei(l, f, { deko: z.index });
+      this.szene.markieren(f, z.ok ? 'ok' : 'nein');
     }
   }
 
@@ -203,10 +214,11 @@ export class BauSteuerung implements BauHandler {
         if (z.ziel && !z.ok) this.o.hinweis('Dort ist kein Platz.');
       }
     } else if (z.art === 'deko') {
-      const d = l.deko[z.index]!;
-      if (z.ziel && z.ok && (z.ziel[0] !== d.x || z.ziel[1] !== d.z)) {
+      const d = l.deko[z.index];
+      if (d && z.ziel && z.ok && (z.ziel[0] !== d.x || z.ziel[1] !== d.z)) {
         d.x = z.ziel[0];
         d.z = z.ziel[1];
+        delete d.auto; // verschoben → gehört jetzt Leif
         this.o.aendern(l);
       }
     }

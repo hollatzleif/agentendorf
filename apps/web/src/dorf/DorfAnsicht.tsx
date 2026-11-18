@@ -572,6 +572,7 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
 }
 
 const DEKO_SYMBOL: Record<(typeof DEKO_ARTEN)[number], string> = {
+  haeuschen: '🏡',
   baum: '🌳',
   tanne: '🌲',
   busch: '🌿',
@@ -581,6 +582,17 @@ const DEKO_SYMBOL: Record<(typeof DEKO_ARTEN)[number], string> = {
   brunnen: '⛲',
   felsen: '🪨',
   hecke: '🟩',
+  schuppen: '🛖',
+  zaun: '🪜',
+  mauer: '🧱',
+  briefkasten: '📫',
+  kuebel: '🪴',
+  holzstapel: '🪵',
+  wegweiser: '🪧',
+  bienenstock: '🐝',
+  teich: '🪷',
+  pilze: '🍄',
+  heuballen: '🌾',
 };
 
 const WERKZEUG_TEXT: Record<string, string> = {

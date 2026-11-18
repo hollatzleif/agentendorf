@@ -437,6 +437,32 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - **Gelöschte To-dos kommen nicht wieder** (Leifs Entscheidung zählt).
 - Vergangenes, schon Erledigtes und Pflichtvorlesungen werden keine To-dos.
 
+## E72 – Häuschen, mehr Deko, Kirchturm-Modell (18.11.)
+
+- **Was:** Leif wollte „kleinere Häuser zwischendrin und mehr Deko“, automatisch verstreut. Dazu ein eigenes Modell für das Gebäude „Kirchturm“ mit Turmuhr.
+- **Häuschen belegen 2 × 2 Felder** (`DEKO_GROESSE` in `packages/shared/src/dorf.ts`). Auf einem Feld (1,25) wären sie neben den Figuren Puppenhäuser.
+  - Belegung, Prüfung (`layoutPruefen`) und Bau-Modus rechnen über `dekoFelder()`. Server und Oberfläche nutzen dieselben Regeln.
+  - Aussehen fest aus der Position: Wand-/Dachfarbe, Dachform (trauf-, giebelständig, Zeltdach), Schornstein, Fensterläden, Blumenkästen, Fachwerk.
+  - Fenster leuchten nachts über das bestehende Glas-Material. Keine eigenen Lichter.
+- **Neue Deko (1 Feld):** Gartenhütte, Gartenzaun, Steinmauer, Briefkasten, Blumenkübel, Holzstapel, Wegweiser, Bienenstock, Seerosenteich, Pilze, Heuballen.
+  - Alles aus Grundformen im Bausatz, mit der übrigen Deko zu wenigen Meshes zusammengefasst (Handy).
+- **Verstreuen einmalig, Markierung im Layout selbst:** `verstreut` (Stand `VERSTREUT_STAND`) im gespeicherten Layout-JSON.
+  - Keine DB-Migration: die Markierung gehört zum Layout und wandert mit Version/409.
+  - Ein Gerät mit altem Stand kann sie nicht zurücksetzen; der Server übernimmt beim Speichern den höheren Wert.
+  - Leifs Abriss bleibt also. Neue Dörfer bekommen es gleich im Standardlayout. Bestehende beim nächsten Laden (Version +1, Live-Ereignis).
+- **Wohin:** Häuschen nur mit Straße an einer Seite, Eingang zur Straße, ein Feld Luft zueinander, lieber nahe der Dorfmitte. Daneben Briefkasten und ein, zwei Gartendinge; sonstige Deko bis zwei Felder neben Straßen, nie zwei direkt nebeneinander.
+  - Nie auf Straßen, Wasser, Grundstücke oder den Ring direkt um ein Grundstück (Eingänge, Gehsteig der Figuren).
+  - Figuren und Autos laufen nur über Straßen – Deko blockiert keinen Weg.
+  - Deterministisch (fester Seed, feste Reihenfolge).
+- **Verstreute Deko weicht neuen Gebäuden:** Sie trägt `auto: true`. `freienBlockFinden` zählt sie als frei, `fehlendePlatzieren` räumt Block und Straßenring.
+  - Sonst würden die Häuschen die Blöcke neben dem Dorf belegen und ein neues Gebäude (z. B. der Kirchturm) landete weit draußen oder im Lager.
+  - Was Leif im Bau-Modus verschiebt oder dreht, verliert `auto` und gehört ihm. Seine eigene Deko wird nie geräumt.
+- **Kirchturm:** schlanker Turm (Gebäude-ID „Kirchturm“ → `modellArt` „kirchturm“), Zifferblatt auf allen vier Seiten, offene Glockenstube mit Glocke, Ziergiebel, Helm mit Kugel und Kreuz.
+  - Zeiger sind eigene Objekte (`Modell.zeiger`). `szene.ts` stellt sie auf die Wiener Zeit (`?uhr=` gilt auch).
+  - Der Minutenzeiger springt wie bei echten Turmuhren jede Minute: höchstens ein neues Bild pro Minute statt Daueranimation (Akku, Software-Grafik).
+  - Kein Ton, sonst keine Animation. Die Vorlage `Kirchturm/gebaeude.md` kommt aus dem Hauptstrang.
+- **Nachtrag beim Zusammenführen:** Hohe Gebäude (`HOHE_GEBAEUDE`, derzeit der Kirchturm) kommen auf einen Block, hinter dem (kleineres z) kein Gebäude steht. Sonst stand der Turm direkt vor der Uni und verdeckte sie aus der Startansicht.
+
 ## E73 – Börse: SIX/Franken und Saxo (nur lesen) (18.11.)
 
 - **SIX:** Börse `SW` (EODHD-Kürzel `.SW`), Währung CHF. Die Wechselkurse liegen jetzt je Währung in `boerse_wechselkurse` (Migration 17, Dollar-Kurse übernommen). Geholt werden sie von der EZB, nur für Währungen im Depot. Der Einstand bleibt in Euro.

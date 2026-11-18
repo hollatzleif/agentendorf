@@ -430,7 +430,9 @@ button.schliessen:active { box-shadow: 0 1px 0 #8f1f1b; }
 @media (max-width: 760px), (pointer: coarse) {
   .bau-leiste { gap: 0.35rem 0.6rem; }
   .bau-gruppe button { padding: 0.25rem 0.5rem; }
-  .deko-knopf { width: 2rem; height: 2rem; font-size: 1rem; padding: 0; }
+  .deko-knopf { width: 2rem; height: 2rem; font-size: 1rem; padding: 0; flex: none; }
+  /* viele Deko-Arten (E72): am Handy eine Reihe zum Wischen statt drei Zeilen */
+  .deko-reihe { flex: 1 1 100%; min-width: 0; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
 }
 
 /* „Neu im Dorf“ – einmal nach einem Update */
