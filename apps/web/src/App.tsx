@@ -15,6 +15,7 @@ import { Schnelleingabe } from './programm/Schnelleingabe';
 import { ProgrammMeldungen } from './programm/Meldungen';
 import { KirchturmGlocke } from './programm/KirchturmGlocke';
 import { Befehlspalette } from './komponenten/Befehlspalette';
+import { FokusVollbild } from './seiten/FokusVollbild';
 
 export function App() {
   const qc = useQueryClient();
@@ -81,6 +82,7 @@ function Rahmen() {
   if (pfad === '/') seite = <Dorfplatz />;
   else if (pfad.startsWith('/gebaeude/')) seite = <GebaeudeSeite id={decodeURIComponent(pfad.slice('/gebaeude/'.length))} />;
   else if (pfad === '/heute') seite = <Heute />;
+  else if (pfad === '/fokus') seite = <FokusVollbild />;
   else if (pfad === '/bibliothek') seite = <Bibliothek />;
   else if (pfad === '/einstellungen') seite = <Einstellungen />;
   else if (pfad.startsWith('/chats/')) seite = <ChatSeite key={pfad} id={decodeURIComponent(pfad.slice('/chats/'.length))} />;

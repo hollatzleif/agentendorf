@@ -1173,3 +1173,19 @@ test('Heute: Erste Schritte haken sich selbst ab und lassen sich ausblenden', as
   await page.reload();
   await expect(page.getByRole('region', { name: 'Erste Schritte' })).toHaveCount(0);
 });
+
+test('Fokus-Vollbild: starten, Zeit läuft, Pause, Stopp; Esc führt zurück', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  await page.goto('/fokus');
+  const f = page.getByRole('region', { name: 'Fokus' });
+  await f.getByRole('button', { name: '🍅 Fokus starten' }).click();
+  await expect(f.locator('.fokus-phase')).toHaveText('🍅 Fokus');
+  await expect(f.getByRole('timer')).toHaveText(/^2[45]:\d{2}$/);
+  await f.getByRole('button', { name: '⏸ Pause' }).click();
+  await expect(f.getByRole('button', { name: '▶ Weiter' })).toBeVisible();
+  await f.getByRole('button', { name: '⏹ Stopp' }).click();
+  await expect(f.locator('.fokus-phase')).toHaveText('Bereit');
+  await page.keyboard.press('Escape');
+  await expect(page).toHaveURL(/\/heute$/);
+});

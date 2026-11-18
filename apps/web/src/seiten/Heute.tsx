@@ -520,9 +520,14 @@ function Fokus({ k, laedt, fehler: ladeFehler, jetzt }: { k: (KirchturmZustand &
     <section className={`karte heute-karte heute-fokus${p && p.phase !== 'aus' ? ` phase-${p.phase}` : ''}`} aria-label="Fokus">
       <div className="heute-karte-kopf">
         <h2>🍅 Fokus</h2>
-        <a href={KIRCHTURM_URL} onClick={linkKlick} className="heute-mehr">
-          Kirchturm →
-        </a>
+        <span className="heute-fokus-links">
+          <a href="/fokus" onClick={linkKlick} className="heute-mehr" title="Nur die Uhr – ohne Ablenkung">
+            ⛶ Vollbild
+          </a>{' '}
+          <a href={KIRCHTURM_URL} onClick={linkKlick} className="heute-mehr">
+            Kirchturm →
+          </a>
+        </span>
       </div>
       {laedt && <p className="leise">Lade …</p>}
       {ladeFehler && <p className="fehler">Kirchturm nicht erreichbar: {ladeFehler}</p>}

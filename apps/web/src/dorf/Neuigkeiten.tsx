@@ -1,10 +1,13 @@
 import { useState } from 'react';
 
 /** Bei jeder neuen Ausgabe den Schlüssel ändern – dann erscheint die Karte einmal pro Gerät */
-const AUSGABE = '2026-11-19l';
+const AUSGABE = '2026-11-19m';
 const SCHLUESSEL = 'dorf-neuigkeiten-gesehen';
 
 const PUNKTE: [string, string][] = [
+  ['🚀', '„Heute“ zeigt „Erste Schritte“ – fünf Dinge zum Ausprobieren, die sich von selbst abhaken.'],
+  ['⛶', 'Fokus-Vollbild (/fokus oder „⛶ Vollbild“ auf Heute): nur Uhr, Thema und Knöpfe.'],
+  ['📝', 'Rathaus → Notizen, Countdown zur nächsten Prüfung auf „Heute“, Stimmung als Diagramm, sonntags die nächste Woche planen.'],
   ['🔌', 'Einstellungen → Anschlüsse: was verbunden ist und was fehlt – mit dem Befehl für den Server.'],
   ['📚', 'Prüfungs-Wächter: steht eine Prüfung an und noch keine Lernzeit im Kalender, fragt Telegram – zwei Tipps und der Lernplan ist eingetragen.'],
   ['💭', 'Abends fragt Telegram „Wie war dein Tag?“ – die Stimmung steht in /statistik und im Wochenrückblick.'],
