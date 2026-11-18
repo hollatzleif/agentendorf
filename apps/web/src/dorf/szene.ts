@@ -754,11 +754,13 @@ export class DorfSzene {
     const tagFarbe = new THREE.Color('#bfe2f3');
     const abend = new THREE.Color('#f0a97c');
     const trueb = TRUEBUNG[this.wetterArt];
+    // nachts wirkt die Trübung aufs Licht nur schwach – das Dorf muss lesbar bleiben (Spiel vor Realismus)
+    const truebLicht = trueb * (0.25 + 0.75 * tag);
     const himmel = nachtFarbe.clone().lerp(tagFarbe, tag).lerp(abend, daemmerung * 0.55 * (1 - trueb)).lerp(new THREE.Color('#8e99a6').multiplyScalar(0.25 + 0.75 * tag), trueb * 0.85);
     (this.scene.background as THREE.Color).copy(himmel);
     (this.scene.fog as THREE.Fog).color.copy(himmel).lerp(new THREE.Color('#ffffff'), tag * 0.12);
-    this.himmel.intensity = (0.38 + 0.97 * tag) * (1 + trueb * 0.45);
-    this.himmel.color.set('#3c4f80').lerp(new THREE.Color('#d8f0ff'), tag).lerp(new THREE.Color('#c3cad3').multiplyScalar(0.3 + 0.7 * tag), trueb);
+    this.himmel.intensity = (0.62 + 0.73 * tag) * (1 + trueb * 0.45);
+    this.himmel.color.set('#5065a0').lerp(new THREE.Color('#d8f0ff'), tag).lerp(new THREE.Color('#c3cad3'), truebLicht * tag);
     this.himmel.groundColor.set('#1c2a1a').lerp(new THREE.Color('#5d8a3a'), tag);
     // Sonne zieht über den Himmel; nachts ein bläulicher Mond aus fester Richtung
     const fortschritt = THREE.MathUtils.clamp((h - auf) / (unter - auf), 0, 1);
@@ -767,8 +769,8 @@ export class DorfSzene {
     if (tag < 0.05) this.sonnenRichtung.set(0.5, 1, 0.3);
     this.sonne.color.set(tag < 0.05 ? '#9fb4ff' : '#fff0d0').lerp(new THREE.Color('#ffb070'), daemmerung * 0.6);
     // bei bedecktem Himmel: kaum Sonne, weiche Schatten
-    this.sonne.intensity = (tag < 0.05 ? 0.45 : 0.45 + 2.15 * tag) * Math.max(0.1, 1 - trueb * 1.65);
-    this.renderer.toneMappingExposure = (0.92 + 0.13 * tag) * (1 - trueb * 0.22);
+    this.sonne.intensity = (tag < 0.05 ? 0.65 : 0.65 + 1.95 * tag) * Math.max(0.1, 1 - truebLicht * 1.65);
+    this.renderer.toneMappingExposure = (0.92 + 0.13 * tag) * (1 - truebLicht * 0.22);
     (this.sterne.material as THREE.PointsMaterial).opacity = THREE.MathUtils.clamp(1 - tag * 2.2, 0, 1) * 0.9 * (1 - trueb);
     // Fenster und Laternen leuchten, wenn es dunkel wird
     const dunkel = 1 - tag;
