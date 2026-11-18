@@ -376,3 +376,22 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
   - Skill „Preisvergleich“ (Internet, ohne Fremdinhalte) schreibt `preisvergleiche/` und ergänzt die Wunschliste.
   - Bestellt und bezahlt wird nie.
 
+**E68 – Etappe 7 (Teil 2): Bank** (18.11.; Leifs Wahl: Kontoauszüge, Rechnungen aus Mails, Budget & Sparziele)
+- **Nur lesen und auswerten.** Es gibt kein Werkzeug zum Bezahlen. Kontodaten bleiben im Vault (`Bank/auszuege/`) und in der DB (Migration 14).
+- **Kontoauszüge:**
+  - Leif lädt CSV-Exporte hoch (Konto-Reiter oder Bibliothek). Der Code erkennt Kodierung (UTF-8 oder Latin-1), Trennzeichen, Vorspann vor der Kopfzeile und die Spalten (deutsche und englische Kopfnamen, Betrag oder Soll/Haben), dazu Zahlen- und Datumsformate.
+  - Unbekanntes Format: Leif ordnet die Spalten einmal zu. Das wird je Kopfzeile gemerkt, also je Bank.
+  - Doppelte Buchungen aus überlappenden Exporten zählen nur einmal (Kennung aus Inhalt plus laufender Nummer).
+  - PDF-Auszüge: Landet ein PDF in `Bank/auszuege/`, startet von selbst der Skill „Kontoauszug (PDF) einlesen“ (claude-code, Fremdinhalt). Er schreibt eine CSV im festen Format mit `# Quelle:`-Zeile und prüft die Salden.
+- **Kategorien** (17 feste):
+  - Reihenfolge: Leifs Umstellung je Gegenseite (gilt für alle, auch künftige) → eigene Regeln in `Bank/einstellungen.md` → eingebaute Regeln (REWE, Spotify, DB …) → Eingänge = Einkommen → KI → „Sonstiges“.
+  - Die KI ist abschaltbar (`ki_kategorien`). Sie bekommt als Fremdinhalt nur Gegenseite, Zweck-Anfang und Betrag, ohne IBAN, und läuft als SystemAufruf auf Stufe klein. Das Ergebnis wird je Gegenseite gemerkt.
+  - „Sparen & Umbuchung“ zählt weder als Einnahme noch als Ausgabe.
+- **Abos:** gleiche Gegenseite, Betrag ±15 %. Monatlich bei mindestens 3 Buchungen im Abstand von 20–40 Tagen, jährlich bei einem Abstand um 365 Tage. Verschwunden, wenn seit 1,5 Rhythmen nichts kam.
+- **Budget und Sparziele** stehen im Frontmatter von `Bank/einstellungen.md`. Sparziele: `bisher` plus erkannte Überweisungen aufs Sparkonto (`muster`, `seit`).
+  - Warnungen ab 80 % und 100 % gibt es je Monat, Kategorie und Stufe genau einmal: per Telegram (Schalter `bank`, nachts gesammelt) und als Abschnitt „Budget“ in der Morgenzeitung.
+- **Rechnungen aus Mails:**
+  - Die Einordnung des Postboten liefert zusätzlich `rechnung_betrag`, `rechnung_faellig` und `rechnung_empfaenger`, aber nur für offene Rechnungen oder Zahlungsaufforderungen.
+  - Daraus wird je Mail genau einmal ein To-do „Rechnung: … – Betrag“ mit Fälligkeit und Gebäude Bank, markiert als aus der Mail (`fremd`).
+  - Die Bank zeigt offene Rechnungen. Abgehakt wird auf dem Marktplatz, bezahlen tut Leif.
+

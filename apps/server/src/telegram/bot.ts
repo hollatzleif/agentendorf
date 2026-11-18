@@ -610,6 +610,14 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     }
   }
 
+  // ---- Bank (Etappe 7) --------------------------------------------------------------------------
+
+  /** Budget-Warnung (schaltbar: bank); nachts gesammelt */
+  async bankMelden(text: string) {
+    if (!(await einstellungenLaden(this.o.vault)).bank) return;
+    await this.proaktiv(`${h(text)}\n<a href="${this.link('/?g=Bank')}">Zur Bank</a>`);
+  }
+
   // ---- Ablehnen mit Begründung (E64) ----------------------------------------------------------
 
   private grundFrage() {

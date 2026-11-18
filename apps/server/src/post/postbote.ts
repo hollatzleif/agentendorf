@@ -24,6 +24,10 @@ const Ergebnis = z.object({
       antwort_noetig: z.boolean(),
       zusammenfassung: z.string(),
       frist: z.string(),
+      // Etappe 7: Rechnung/Zahlungsaufforderung erkannt? (sonst leer)
+      rechnung_betrag: z.string().default(''),
+      rechnung_faellig: z.string().default(''),
+      rechnung_empfaenger: z.string().default(''),
     }),
   ),
 });
@@ -43,8 +47,11 @@ const SCHEMA = {
           antwort_noetig: { type: 'boolean' },
           zusammenfassung: { type: 'string' },
           frist: { type: 'string' },
+          rechnung_betrag: { type: 'string' },
+          rechnung_faellig: { type: 'string' },
+          rechnung_empfaenger: { type: 'string' },
         },
-        required: ['id', 'kategorie', 'wichtig', 'antwort_noetig', 'zusammenfassung', 'frist'],
+        required: ['id', 'kategorie', 'wichtig', 'antwort_noetig', 'zusammenfassung', 'frist', 'rechnung_betrag', 'rechnung_faellig', 'rechnung_empfaenger'],
         additionalProperties: false,
       },
     },
@@ -62,7 +69,8 @@ Für jede Mail (Feld "id" unverändert übernehmen):
 - wichtig: true nur, wenn Leif die Mail bald selbst lesen sollte (persönlich an ihn, Frist, Geld, Uni-Pflichten, Probleme). Newsletter/Werbung fast nie.
 - antwort_noetig: true, wenn eine persönliche Antwort von Leif erwartet wird.
 - zusammenfassung: ein kurzer deutscher Satz, worum es geht (keine Links, keine Telefonnummern, keine Codes).
-- frist: erkennbare Frist/Termin als „TT.MM.JJJJ“ oder „TT.MM.JJJJ HH:MM“, sonst "".`;
+- frist: erkennbare Frist/Termin als „TT.MM.JJJJ“ oder „TT.MM.JJJJ HH:MM“, sonst "".
+- rechnung_betrag / rechnung_faellig / rechnung_empfaenger: NUR wenn die Mail eine Rechnung oder Zahlungsaufforderung an Leif ist, die er noch bezahlen muss (nicht: Zahlungsbestätigung, Lastschrift-Ankündigung, Werbung): Betrag wie „49,99 €“, Fälligkeit „TT.MM.JJJJ“ (falls genannt) und an wen. Sonst jeweils "".`;
 
 /** Fremdtext für eine einzelne Zeile im Vault entschärfen (keine Links, kein HTML, keine Zeilenumbrüche) */
 function zeile(t: string, max = 200) {
@@ -76,6 +84,14 @@ function zeile(t: string, max = 200) {
     .slice(0, max);
 }
 
+/** Etappe 7: aus einer Mail erkannte Rechnung (Texte stammen aus der Mail – Fremdinhalt) */
+export interface PostRechnung {
+  mail: PostMail;
+  betrag: string;
+  faellig: string;
+  empfaenger: string;
+}
+
 const tagFormat = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Vienna', year: 'numeric', month: '2-digit', day: '2-digit' });
 const uhrFormat = new Intl.DateTimeFormat('de-AT', { timeZone: 'Europe/Vienna', hour: '2-digit', minute: '2-digit' });
 
@@ -85,6 +101,8 @@ const uhrFormat = new Intl.DateTimeFormat('de-AT', { timeZone: 'Europe/Vienna', 
  */
 export class Postbote {
   readonly beiNeu: ((wichtige: PostMail[]) => Promise<void> | void)[] = [];
+  /** Etappe 7: erkannte Rechnungen (→ To-do in der Bank) */
+  readonly beiRechnung: ((r: PostRechnung) => void | Promise<void>)[] = [];
   private laufend?: Promise<unknown>;
   private zeitgeber?: NodeJS.Timeout;
 
@@ -164,6 +182,7 @@ export class Postbote {
       // 3. Einordnen (in Stapeln), Ergebnis speichern
       let eingeordnet = 0;
       const wichtigeNeue: PostMail[] = [];
+      const rechnungen: PostRechnung[] = [];
       if (this.o.ki.verfuegbar) {
         for (let i = 0; i < mails.length; i += STAPEL) {
           const stapel = mails.slice(i, i + STAPEL);
@@ -183,6 +202,8 @@ export class Postbote {
             ).run(x.kategorie, x.wichtig ? 1 : 0, x.antwort_noetig ? 1 : 0, zeile(x.zusammenfassung, 300), zeile(x.frist, 40), uhr.jetzt(), x.id);
             eingeordnet++;
             if (x.wichtig && neueIds.includes(x.id)) wichtigeNeue.push(this.mail(x.id)!);
+            if (x.rechnung_betrag.trim() && x.kategorie !== 'Werbung' && x.kategorie !== 'Newsletter')
+              rechnungen.push({ mail: this.mail(x.id)!, betrag: zeile(x.rechnung_betrag, 30), faellig: zeile(x.rechnung_faellig, 20), empfaenger: zeile(x.rechnung_empfaenger, 80) });
           }
           for (const m of stapel) db.prepare('UPDATE post_mails SET versuche = versuche + 1 WHERE id = ? AND eingeordnet IS NULL').run(m.id);
         }
@@ -195,6 +216,7 @@ export class Postbote {
       this.standSetzen('letzter', JSON.stringify({ zeit: uhr.jetzt(), ok: true, fehler: null, neu: neueIds.length, eingeordnet }));
       hub.senden({ typ: 'post.geaendert' });
       if (wichtigeNeue.length) for (const fn of this.beiNeu) await Promise.resolve(fn(wichtigeNeue)).catch(() => undefined);
+      for (const r of rechnungen) for (const fn of this.beiRechnung) await Promise.resolve(fn(r)).catch((e) => this.o.log?.(`Post: Rechnung: ${(e as Error).message}`));
       return { neu: neueIds.length, eingeordnet };
     } catch (e) {
       const fehler = (e as Error).message;

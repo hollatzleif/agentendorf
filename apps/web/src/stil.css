@@ -504,3 +504,23 @@ input::file-selector-button {
 .schnell-ziele button.aktiv { background: linear-gradient(#8ee06b, #3fa63a); color: #fff; border-color: #1f5a1d; box-shadow: 0 3px 0 #1f5a1d; text-shadow: 0 1px 0 #1f5a1d; }
 .schnell-fuss { display: flex; align-items: center; gap: 0.5rem; justify-content: space-between; }
 .programme-knoepfe { display: flex; gap: 0.6rem; flex-wrap: wrap; margin: 0.4rem 0 0.6rem; }
+
+/* Bank (Etappe 7) */
+.bank-kopf { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; margin-bottom: 0.8rem; }
+.bank-kopf select { width: auto; }
+.bank-kacheln { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; margin-bottom: 1rem; }
+.bank-kachel { display: flex; flex-direction: column; gap: 0.1rem; padding: 0.6rem 0.8rem; background: #fff; border: 2px solid var(--navy); border-radius: 14px; box-shadow: 0 3px 0 var(--navy); }
+.bank-kachel strong { font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+.plus { color: var(--gruen); }
+.minus { color: var(--rot); }
+.bank-balken { list-style: none; margin: 0 0 0.6rem; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.bank-balken li { display: grid; grid-template-columns: minmax(7rem, 9rem) 1fr auto; gap: 0.6rem; align-items: center; font-size: 0.9rem; }
+.bank-kategorie { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bank-leiste { height: 0.8rem; background: rgb(43 58 85 / 0.08); border-radius: 99px; overflow: hidden; border: 2px solid rgb(43 58 85 / 0.15); }
+.bank-leiste > span { display: block; height: 100%; background: #8f9aab; border-radius: 99px; }
+.bank-leiste > span.gut { background: #3fa63a; }
+.bank-leiste > span.knapp { background: #f2b51e; }
+.bank-leiste > span.voll { background: #e0402f; }
+.bank-betrag { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bank-buchungen select { width: auto; max-width: 11rem; padding: 0.2rem 0.4rem; font-size: 0.85rem; }
+@media (max-width: 760px) { .bank-kacheln { grid-template-columns: 1fr 1fr 1fr; gap: 0.35rem; } .bank-kachel strong { font-size: 0.95rem; } .bank-balken li { grid-template-columns: 6rem 1fr auto; } }

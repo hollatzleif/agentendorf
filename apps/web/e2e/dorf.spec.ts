@@ -384,3 +384,17 @@ test('Etappe 7: neues Gebäude bauen, Einkaufsliste nach Abteilung, Wunschliste 
   await expect(page).toHaveURL(/\/chats\//);
   await expect(page.getByText(`Preisvergleich: ${wunsch}`).first()).toBeVisible();
 });
+
+test('Bank: Kontoauszug hochladen → Monat mit Kategorien; Kategorie umstellen gilt für die Gegenseite', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht – beide Projekte teilen sich den Server');
+  await anmelden(page);
+  await page.goto('/gebaeude/Bank');
+  await expect(page.getByRole('button', { name: 'Konto', exact: true })).toHaveClass(/aktiv/);
+  await page.locator('.bank input[type=file]').setInputFiles(new URL('./auszug-beispiel.csv', import.meta.url).pathname);
+  await expect(page.getByText(/Hochgeladen – 4 neue Buchungen/)).toBeVisible();
+  await expect(page.locator('.bank-kachel', { hasText: 'Einnahmen' })).toContainText('1.250,00');
+  await expect(page.locator('.bank-balken li', { hasText: 'Wohnen' })).toContainText('420,00');
+  await page.getByText(/^Buchungen im/).click();
+  await page.getByLabel('Kategorie Kiosk am Eck').selectOption('Freizeit');
+  await expect(page.locator('.bank-balken li', { hasText: 'Freizeit' })).toContainText('3,50');
+});

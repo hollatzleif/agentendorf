@@ -34,6 +34,7 @@ import { Terminkalender } from './kalender.js';
 import { Morgenzeitung } from './morgenzeitung.js';
 import { Aufwachen } from './aufwachen.js';
 import { listenAnlegen } from './todos.js';
+import { Bank, datum as bankDatum } from './bank.js';
 
 /** Dateien, die das Dorf zum Arbeiten braucht: fehlen sie (z. B. Vault aus einer älteren Etappe), werden sie aus der Vorlage ergänzt – nie überschrieben. */
 const PFLICHT_DATEIEN = [
@@ -53,6 +54,8 @@ const PFLICHT_DATEIEN = [
   'Einkaufsladen/einstellungen.md',
   'Einkaufsladen/aktionen/essensplan.md',
   'Einkaufsladen/aktionen/preisvergleich.md',
+  'Bank/einstellungen.md',
+  'Bank/aktionen/kontoauszug-pdf.md',
 ];
 
 /**
@@ -80,6 +83,7 @@ const VORLAGE_FRUEHERE_FASSUNGEN: Record<string, string[]> = {
     'd7caf198ce646fe65d2fafa29e6ddd63bae6f21ccdd527b1a9dec63ec517aba9', // Etappe 3 bis E60
     'ff3beab8cf394168ff1cfc9e3d4e91fb9c6f9eced1152b31f2db5373547043e3', // E61–E64
   ],
+  'Bank/gebaeude.md': ['c2349ea31d50afc797ea1c70c9bc3d43ef0f7f605bb5a6f7d5e43555cb482b37'], // geschlossen bis Etappe 7
   'Einkaufsladen/gebaeude.md': ['b334b038336be925930e612231f6129a7f25a723f111d08af9568117fe45e87f'], // geschlossen bis Etappe 7
   'Marktplatz/gebaeude.md': ['b7332c301634c2889f157d87138f392c3f2a49500a7fb31cc30a9d2d41157358'], // bis E64
 };
@@ -127,6 +131,7 @@ export async function dorfStarten(
   const hub = new LiveHub();
 
   const schreibtischRef: { aktuell?: Schreibtisch } = {};
+  const bankRef: { aktuell?: Bank; zeitgeber?: NodeJS.Timeout; pdfStart?: () => void } = {};
   const aenderung = (rel: string, art: 'angelegt' | 'geaendert' | 'geloescht') => {
     if (art === 'geloescht') suche.entfernen(rel);
     else if (istText(rel)) void suche.aktualisieren(rel).catch(() => undefined);
@@ -136,6 +141,14 @@ export async function dorfStarten(
     if (/^[^/]+\/aktionen\//.test(rel)) hub.gebuendelt({ typ: 'aktionen.geaendert' });
     if (rel.startsWith('00_Stadtordnung/')) hub.gebuendelt({ typ: 'konfig.geaendert' });
     if (art === 'angelegt' && Schreibtisch.istAufgabe(rel)) void schreibtischRef.aktuell?.vaultAufnehmen(rel).catch(() => undefined);
+    // neues Kontoauszug-PDF → Skill „Kontoauszug (PDF) einlesen“ (gebündelt, Motor der Aktion)
+    if (art === 'angelegt' && /^Bank\/auszuege\/[^/]+\.pdf$/i.test(rel) && bankRef.pdfStart) bankRef.pdfStart();
+    // neuer/geänderter Kontoauszug → gebündelt einlesen
+    if (art !== 'geloescht' && Bank.istAuszug(rel) && bankRef.aktuell) {
+      if (bankRef.zeitgeber) clearTimeout(bankRef.zeitgeber);
+      bankRef.zeitgeber = setTimeout(() => void bankRef.aktuell?.einlesen().catch((e) => console.warn(`Bank: ${(e as Error).message}`)), 1500);
+      bankRef.zeitgeber.unref();
+    }
   };
   vault.beobachten(aenderung);
   const waechter = opt.beobachten === false ? null : vaultBeobachten(vault.wurzel, aenderung);
@@ -196,6 +209,22 @@ export async function dorfStarten(
   const listen = listenAnlegen({ vault, uhr }, (liste) => hub.senden({ typ: 'todos.geaendert', liste }));
   const todos = listen.todo;
   agenten.listen = listen;
+  postbote.beiRechnung.push(async (r) => {
+    const schon = db.prepare('SELECT rechnung_todo FROM post_mails WHERE id = ?').get(r.mail.id) as { rechnung_todo: string | null } | undefined;
+    if (schon?.rechnung_todo) return;
+    const faellig = r.faellig ? (bankDatum(r.faellig.split(' ')[0]!) ?? undefined) : undefined;
+    const t = await listen.todo.anlegen(
+      {
+        titel: `Rechnung: ${r.empfaenger || r.mail.von} – ${r.betrag}`.slice(0, 200),
+        ...(faellig ? { faellig } : {}),
+        gebaeude: 'Bank',
+        notiz: `Aus der Mail „${r.mail.betreff}“ von ${r.mail.von}. Bezahlen tust du selbst – danach abhaken.`,
+      },
+      'Postbote',
+      { fremd: true },
+    );
+    db.prepare('UPDATE post_mails SET rechnung_todo = ? WHERE id = ?').run(t.pfad, r.mail.id);
+  });
   const automatik = new Automatik({ db, uhr, vault, agenten, log: (t) => console.warn(t) });
   // kalender_lesen für Aktionen mit werkzeuge: [kalender]: Hauptkalender + Uni-Fristen/Pflichttermine (nur lesen)
   agenten.kalender = async (von, bis) => {
@@ -213,7 +242,21 @@ export async function dorfStarten(
   const wetter = new Wetter({ url: konfig.wetterUrl, ort: konfig.wetterOrt, uhr, laden: opt.wetter, log: (t) => console.warn(t) });
   // einmal vorab holen, damit das Wetter schon beim ersten Öffnen des Dorfs da ist (nur mit WETTER_URL)
   if (konfig.wetterUrl) void wetter.holen();
-  const morgenzeitung = new Morgenzeitung({ db, uhr, vault, hub, ki, freigaben: agenten.freigaben, schreibtisch, uni, postbote, kalender, wetter, log: (t) => console.warn(t) });
+  // Etappe 7: Bank – Kontoauszüge aus Bank/auszuege/ (nur lesen und auswerten, nie bezahlen)
+  const bank = new Bank({ db, uhr, vault, hub, ki, log: (t) => console.warn(t) });
+  bankRef.aktuell = bank;
+  let pdfZeitgeber: NodeJS.Timeout | undefined;
+  bankRef.pdfStart = () => {
+    if (pdfZeitgeber) clearTimeout(pdfZeitgeber);
+    pdfZeitgeber = setTimeout(() => {
+      const laeuft = db
+        .prepare("SELECT 1 FROM laeufe l JOIN chats c ON c.id = l.chat_id WHERE c.aktion = 'Bank/kontoauszug-pdf' AND l.status IN ('wartend', 'laeuft', 'wartet_freigabe')")
+        .get();
+      if (!laeuft) void agenten.aktionStarten('Bank/kontoauszug-pdf', {}, 'automatik').catch((e) => console.warn(`Bank: PDF-Skill: ${(e as Error).message}`));
+    }, 20_000);
+    pdfZeitgeber.unref();
+  };
+  const morgenzeitung = new Morgenzeitung({ db, uhr, vault, hub, ki, freigaben: agenten.freigaben, schreibtisch, uni, postbote, kalender, wetter, bank, log: (t) => console.warn(t) });
   let telegram: TelegramBot | undefined;
   if ((konfig.telegramToken || opt.telegram) && konfig.telegramChatId) {
     telegram = new TelegramBot({
@@ -234,9 +277,17 @@ export async function dorfStarten(
       log: (t) => console.warn(t),
     });
     if (!opt.telegram) telegram.starten();
+    const t = telegram;
+    bank.beiWarnung.push((text) => t.bankMelden(text));
   }
   agenten.anstossen();
   if (!opt.moodle && !opt.kalender && !opt.google && opt.beobachten !== false) uni.starten();
+  // Kontoauszüge, die während einer Pause dazukamen; Budget einmal am Tag prüfen (Monatswechsel, neue Einstellungen)
+  if (opt.beobachten !== false) {
+    void bank.einlesen().catch((e) => console.warn(`Bank: ${(e as Error).message}`));
+    const bankTakt = setInterval(() => void bank.budgetPruefen().catch(() => undefined), 6 * 3_600_000);
+    bankTakt.unref();
+  }
   if (!opt.gmail && opt.beobachten !== false) postbote.starten();
   if (opt.beobachten !== false) morgenzeitung.starten();
   if (opt.beobachten !== false) aufwachen.starten();
@@ -245,7 +296,7 @@ export async function dorfStarten(
   const planTakt = opt.beobachten !== false ? setInterval(() => void buergermeister.faelligePlaeneAnnehmen().catch((e) => console.warn(`Pläne: ${(e as Error).message}`)), 60_000) : undefined;
   planTakt?.unref();
   const dorfplan = new Dorfplan({ db, uhr, hub, vault, uni, wetter });
-  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen, dorfplan, automatik, listen });
+  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen, dorfplan, automatik, listen, bank });
   app.addHook('onClose', async () => {
     uni.stoppen();
     postbote.stoppen();
@@ -260,5 +311,5 @@ export async function dorfStarten(
     await agenten.ruhe();
     db.close();
   });
-  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan, wetter, automatik, todos, listen };
+  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan, wetter, automatik, todos, listen, bank };
 }

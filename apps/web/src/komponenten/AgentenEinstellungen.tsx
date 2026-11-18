@@ -97,6 +97,7 @@ const SCHALTER: [keyof TelegramEinstellungen, string][] = [
   ['morgenzeitung', 'Morgenzeitung (06:30)'],
   ['moodle', 'Neue Fristen aus Moodle'],
   ['erinnerungen', 'Erinnerungen an Abgaben und Tests (3 Tage, 1 Tag, 3 Stunden vorher; Nachfrage danach)'],
+  ['bank', 'Bank: Warnung, wenn ein Budget zu 80 % bzw. ganz aufgebraucht ist'],
   ['mails', 'Mail-Meldungen (ab Etappe 4)'],
 ];
 

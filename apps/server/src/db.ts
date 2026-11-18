@@ -307,6 +307,36 @@ const MIGRATIONEN: string[] = [
   `
   ALTER TABLE freigaben ADD COLUMN grund TEXT;
   `,
+  // 14: Bank (Etappe 7) – Buchungen aus Kontoauszügen, Importe, gemerkte Spaltenzuordnungen und Kategorien, Warnungen;
+  //     Rechnungen aus Mails (welches To-do wurde für welche Mail angelegt)
+  `
+  CREATE TABLE bank_buchungen (
+    id TEXT PRIMARY KEY,
+    datum TEXT NOT NULL,
+    betrag REAL NOT NULL,
+    waehrung TEXT NOT NULL DEFAULT 'EUR',
+    gegenseite TEXT NOT NULL DEFAULT '',
+    zweck TEXT NOT NULL DEFAULT '',
+    kategorie TEXT NOT NULL DEFAULT 'Sonstiges',
+    kategorie_quelle TEXT NOT NULL DEFAULT 'offen',
+    datei TEXT NOT NULL,
+    importiert INTEGER NOT NULL
+  );
+  CREATE INDEX bank_buchungen_datum ON bank_buchungen (datum);
+  CREATE TABLE bank_importe (
+    datei TEXT PRIMARY KEY,
+    version TEXT NOT NULL,
+    anzahl INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL,
+    kopf TEXT,
+    fehler TEXT,
+    zeit INTEGER NOT NULL
+  );
+  CREATE TABLE bank_zuordnung (kopf TEXT PRIMARY KEY, zuordnung_json TEXT NOT NULL);
+  CREATE TABLE bank_kategorie_merk (schluessel TEXT PRIMARY KEY, kategorie TEXT NOT NULL, quelle TEXT NOT NULL);
+  CREATE TABLE bank_warnungen (monat TEXT NOT NULL, kategorie TEXT NOT NULL, stufe INTEGER NOT NULL, zeit INTEGER NOT NULL, PRIMARY KEY (monat, kategorie, stufe));
+  ALTER TABLE post_mails ADD COLUMN rechnung_todo TEXT;
+  `,
 ];
 
 export function dbOeffnen(datei: string): DB {

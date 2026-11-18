@@ -1,10 +1,11 @@
 import { useState } from 'react';
 
 /** Bei jeder neuen Ausgabe den Schlüssel ändern – dann erscheint die Karte einmal pro Gerät */
-const AUSGABE = '2026-11-18i';
+const AUSGABE = '2026-11-18j';
 const SCHLUESSEL = 'dorf-neuigkeiten-gesehen';
 
 const PUNKTE: [string, string][] = [
+  ['🏦', 'Bank ist offen: Kontoauszug (CSV oder PDF) hochladen → Monatsübersicht, Kategorien, Abos, Budget und Sparziele. Rechnungen aus Mails landen als To-do.'],
   ['🛒', 'Einkaufsladen ist offen: Einkaufsliste (auch /einkauf), Wunschliste mit Preisvergleich, sonntags ein Essensplan, der die Zutaten gleich auf die Liste setzt.'],
   ['🏗️', 'Neue Gebäude baust du jetzt selbst (Liste oder Bau-Modus), geschlossene eröffnest du per Knopf.'],
   ['💻', 'Programme für Mac und Windows: Einstellungen → Programme. Eigenes Fenster, Meldungen, Symbol in der Leiste, Schnelleingabe (Strg/⌘+Umschalt+Leertaste), Autostart.'],

@@ -77,6 +77,7 @@ export type LiveEreignis =
   | { typ: 'sitzung.beendet' }
   | { typ: 'dorf.geaendert'; version: number }
   | { typ: 'todos.geaendert'; liste?: string }
+  | { typ: 'bank.geaendert' }
   | AgentenEreignis;
 
 /** To-do auf dem Marktplatz (E65): eine Datei in Marktplatz/todos/ */
@@ -327,6 +328,8 @@ export interface TelegramEinstellungen {
   moodle: boolean;
   erinnerungen: boolean;
   morgenzeitung: boolean;
+  /** Etappe 7: Budget-Warnungen der Bank */
+  bank: boolean;
 }
 
 // ---- Etappe 3: Uni -------------------------------------------------------------------------------
@@ -433,3 +436,56 @@ export interface ProgrammeInfo {
   mac?: { datei: string; url: string };
   windows?: { datei: string; url: string };
 }
+
+// ---- Etappe 7: Bank -----------------------------------------------------------------------------
+export interface BankBuchung {
+  id: string;
+  datum: string; // JJJJ-MM-TT
+  betrag: number; // negativ = Ausgabe
+  waehrung: string;
+  gegenseite: string;
+  zweck: string;
+  kategorie: string;
+  vonLeif: boolean;
+}
+export interface BankAbo {
+  gegenseite: string;
+  betrag: number;
+  rhythmus: 'monatlich' | 'jährlich';
+  letzte: string;
+  naechste: string;
+  anzahl: number;
+  kategorie: string;
+  proMonat: number;
+}
+export interface BankSparziel {
+  name: string;
+  ziel: number;
+  gespart: number;
+  prozent: number;
+  bis?: string;
+}
+export interface BankDatei {
+  datei: string;
+  anzahl: number;
+  status: 'ok' | 'zuordnung';
+  fehler?: string;
+  zeit: string;
+  /** nur bei status „zuordnung“: Kopfzeile und Beispielzeilen zum Zuordnen */
+  spalten?: { kennung: string; kopf: string[]; beispiel: string[][] };
+}
+export interface BankMonat {
+  monat: string;
+  monate: string[];
+  einnahmen: number;
+  ausgaben: number;
+  saldo: number;
+  kategorien: { kategorie: string; betrag: number; budget?: number }[];
+  buchungen: BankBuchung[];
+  abos: BankAbo[];
+  sparziele: BankSparziel[];
+  dateien: BankDatei[];
+  kategorienListe: string[];
+  fehler?: string;
+}
+

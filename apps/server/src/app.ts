@@ -1,3 +1,4 @@
+import type { Bank } from './bank.js';
 import { programmeRouten } from './programme.js';
 import { LISTEN_NAMEN, type ListenName, type TodoDienst } from './todos.js';
 import type { Dorfplan } from './dorfplan.js';
@@ -62,6 +63,7 @@ export interface Abhaengigkeiten {
   dorfplan: Dorfplan;
   automatik?: Automatik;
   listen?: Record<ListenName, TodoDienst>;
+  bank?: Bank;
 }
 
 /** Für Agenten-HTML: Skripte ja, aber undurchsichtiger Ursprung und kein Netz. Bilder/Schriften nur eingebettet (data:). */
@@ -325,6 +327,25 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
    * einer Checkliste) – sie selbst hat ja weder Speicher noch Netz. Nur für bestehende .html-Dateien, höchstens 64 KB.
    * Beim Ablösen einer Ablage wandert der Stand mit ins Archiv, und der nächste Lauf sieht ihn.
    */
+  // ---- Etappe 7: Bank (nur lesen und auswerten) ----
+  if (a.bank) {
+    const bank = a.bank;
+    app.get('/api/bank/monat', async (req) => {
+      const { monat } = z.object({ monat: z.string().optional() }).parse(req.query);
+      return bank.monat(monat ?? bank.monate()[0] ?? new Date(uhr.jetzt()).toISOString().slice(0, 7));
+    });
+    app.post('/api/bank/einlesen', async () => bank.einlesen());
+    app.post('/api/bank/zuordnung', async (req) => {
+      const { kennung, zuordnung } = z.object({ kennung: z.string().regex(/^[0-9a-f]{16}$/), zuordnung: z.unknown() }).parse(req.body);
+      return bank.zuordnungSetzen(kennung, zuordnung);
+    });
+    app.patch('/api/bank/buchung/:id', async (req) => {
+      const { id } = z.object({ id: z.string() }).parse(req.params);
+      const { kategorie } = z.object({ kategorie: z.string().min(1).max(40) }).parse(req.body);
+      return { geaendert: bank.kategorieSetzen(id, kategorie) };
+    });
+  }
+
   // ---- Etappe 6: Programme für Mac und Windows ----
   programmeRouten(app, { ordner: path.join(konfig.datenDir, 'programme'), ursprung: konfig.origins[0] ?? '' });
 
@@ -426,7 +447,7 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
     return { tokenGesetzt: !!konfig.telegramToken, chatGekoppelt: !!konfig.telegramChatId, laeuft: false, einstellungen: e };
   });
   app.put('/api/telegram/einstellungen', async (req) => {
-    const b = z.object({ freigaben: z.boolean(), entwuerfe: z.boolean(), fehler: z.boolean(), beendet: z.boolean(), mails: z.boolean(), moodle: z.boolean().default(true), erinnerungen: z.boolean().default(true), morgenzeitung: z.boolean().default(true) }).parse(req.body);
+    const b = z.object({ freigaben: z.boolean(), entwuerfe: z.boolean(), fehler: z.boolean(), beendet: z.boolean(), mails: z.boolean(), moodle: z.boolean().default(true), erinnerungen: z.boolean().default(true), morgenzeitung: z.boolean().default(true), bank: z.boolean().default(true) }).parse(req.body);
     return einstellungenSetzen(vault, b);
   });
   app.post('/api/telegram/test', async () => {

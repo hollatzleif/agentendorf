@@ -52,6 +52,8 @@ export class Morgenzeitung {
       postbote: Postbote;
       kalender: Terminkalender;
       wetter?: Wetter;
+      /** Etappe 7: Budget-Stand (nur Kategorien ab 80 %) und offene Rechnungen */
+      bank?: { zeitungsZeilen(): Promise<string[]> };
       log?: (t: string) => void;
     },
   ) {}
@@ -197,6 +199,8 @@ export class Morgenzeitung {
     const offen = this.o.schreibtisch.liste().filter((a) => ['neu', 'in_arbeit', 'plan_wartet', 'helfer_laufen'].includes(a.status));
     if (offen.length) warten.push(`🗂️ ${offen.length} auf dem Schreibtisch: ${offen.slice(0, 5).map((a) => einzeilig(a.titel, 60)).join('; ')}`);
     abschnitte.push({ titel: 'Wartet auf dich', zeilen: warten });
+    const geld = await this.o.bank?.zeitungsZeilen().catch(() => [] as string[]);
+    if (geld?.length) abschnitte.push({ titel: 'Budget', zeilen: geld });
 
     return { datum, einleitung: null, abschnitte };
   }
