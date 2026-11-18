@@ -510,6 +510,11 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
       await g.anlegen(req.body);
       return g.stand();
     });
+    app.patch('/api/gewohnheiten', async (req) => {
+      const b = z.object({ name: z.string().min(1).max(60) }).passthrough().parse(req.body);
+      await g.aendern(b.name, req.body);
+      return g.stand();
+    });
     app.delete('/api/gewohnheiten', async (req) => {
       await g.entfernen(z.object({ name: z.string().min(1).max(60) }).parse(req.query).name);
       return g.stand();

@@ -1224,3 +1224,18 @@ test('Heute: Mails, die eine Antwort brauchen, als Hinweis', async ({ page }, in
   await page.goto('/heute');
   await expect(page.locator('.heute-zahlen')).toContainText('✉️ 2 Mails warten auf Antwort');
 });
+
+test('Gewohnheit bearbeiten: Tage und Uhrzeit ändern', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  await page.request.post('/api/gewohnheiten', { headers: { origin: ORIGIN }, data: { name: 'Bearbeiten-Test' } });
+  await page.goto('/heute');
+  const k = page.getByRole('region', { name: 'Gewohnheiten' });
+  await k.getByRole('button', { name: 'Bearbeiten' }).click();
+  await k.getByLabel('Wann: Bearbeiten-Test').selectOption('3x pro woche');
+  await k.getByLabel('Uhrzeit: Bearbeiten-Test').fill('06:45');
+  await k.getByLabel('Uhrzeit: Bearbeiten-Test').blur();
+  await k.getByRole('button', { name: 'Fertig' }).click();
+  await expect(k.locator('.gewohnheit', { hasText: 'Bearbeiten-Test' })).toContainText('06:45');
+  await expect(k.locator('.gewohnheit', { hasText: 'Bearbeiten-Test' })).toContainText('diese Woche');
+});

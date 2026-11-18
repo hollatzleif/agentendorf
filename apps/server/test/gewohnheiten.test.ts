@@ -121,3 +121,20 @@ describe('Gewohnheiten „Nx pro Woche“ (E110)', () => {
     await expect(d.gewohnheiten.anlegen({ name: 'X', tage: '9x pro woche' })).rejects.toThrow();
   });
 });
+
+describe('Gewohnheit bearbeiten', () => {
+  it('Tage und Uhrzeit ändern, eigene Felder und Häkchen bleiben; Uhrzeit leer entfernt sie', async () => {
+    const d = await testDorf();
+    const h = await kopf(d);
+    await d.vault.schreiben('Marktplatz/gewohnheiten.md', '---\ngewohnheiten:\n  - name: Sport\n    notiz: Laufen\n---\n');
+    await d.gewohnheiten.haken('Sport', true);
+    let r = await d.app.inject({ method: 'PATCH', url: '/api/gewohnheiten', headers: h, payload: { name: 'Sport', tage: '3x pro woche', uhrzeit: '18:00' } });
+    expect(r.json().gewohnheiten[0]).toMatchObject({ name: 'Sport', tage: '3x pro woche', uhrzeit: '18:00', heuteErledigt: true });
+    expect((await d.vault.lesen('Marktplatz/gewohnheiten.md')).inhalt).toContain('notiz: Laufen');
+    r = await d.app.inject({ method: 'PATCH', url: '/api/gewohnheiten', headers: h, payload: { name: 'Sport', uhrzeit: '' } });
+    expect(r.json().gewohnheiten[0].uhrzeit).toBeUndefined();
+    expect(r.json().gewohnheiten[0].tage).toBe('3x pro woche'); // nur die Uhrzeit geändert – Tage bleiben
+    expect((await d.app.inject({ method: 'PATCH', url: '/api/gewohnheiten', headers: h, payload: { name: 'Sport', uhrzeit: '25:00' } })).statusCode).toBe(400);
+    expect((await d.app.inject({ method: 'PATCH', url: '/api/gewohnheiten', headers: h, payload: { name: 'Gibtsnicht', tage: 'täglich' } })).statusCode).toBe(404);
+  });
+});

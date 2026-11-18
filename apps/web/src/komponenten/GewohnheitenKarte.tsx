@@ -108,6 +108,30 @@ export function GewohnheitenKarte() {
                 </span>
               )}
               {bearbeiten && (
+                <span className="gewohnheit-bearbeiten">
+                  <select
+                    value={Array.isArray(g.tage) ? g.tage.join(',') : g.tage}
+                    onChange={(e) => {
+                      const w = e.target.value;
+                      void aufruf(() => api<Antwort>('/api/gewohnheiten', { methode: 'PATCH', body: { name: g.name, tage: w.includes(',') ? w.split(',') : w } }));
+                    }}
+                    aria-label={`Wann: ${g.name}`}
+                  >
+                    {[...TAGE, ...(TAGE.some(([w]) => w === (Array.isArray(g.tage) ? g.tage.join(',') : g.tage)) ? [] : [[Array.isArray(g.tage) ? g.tage.join(',') : g.tage, tageText(g.tage)] as const])].map(([w, t]) => (
+                      <option key={w} value={w}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="time"
+                    defaultValue={g.uhrzeit ?? ''}
+                    aria-label={`Uhrzeit: ${g.name}`}
+                    onBlur={(e) => e.target.value !== (g.uhrzeit ?? '') && void aufruf(() => api<Antwort>('/api/gewohnheiten', { methode: 'PATCH', body: { name: g.name, uhrzeit: e.target.value } }))}
+                  />
+                </span>
+              )}
+              {bearbeiten && (
                 <button
                   type="button"
                   className="klein"

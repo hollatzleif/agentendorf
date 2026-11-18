@@ -866,3 +866,9 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **Foto/Datei mit „notiz: …“:** Ein Foto oder eine Datei in Telegram mit der Bildunterschrift „notiz: …“ (z. B. Tafelbild, Buchseite) landet in der Tagesnotiz: Das Bild liegt unter `Rathaus/notizen/anhaenge/`, in der Notiz steht es als `![[…]]` (Obsidian zeigt es an). Das wird keine Aufgabe für den Bürgermeister. Weitergeleitetes ist Fremdinhalt und bleibt ausgenommen.
 - **„Heute“** zeigt „✉️ N Mails warten auf Antwort“ – Mails der letzten 3 Tage, die die Einordnung als „Antwort nötig“ markiert hat.
 - **`/anleitung`:** „So nutzt du das Dorf“ – der Tages- und Wochenrhythmus mit allen Bausteinen auf einer Seite. Verlinkt ist sie aus „Erste Schritte“, den Einstellungen und der Befehlspalette.
+
+## E116 – Gewohnheiten bearbeiten, Schreiben nacheinander (Nacht 18./19.11.)
+
+- **Gewohnheiten bearbeiten:** Unter „Bearbeiten“ lassen sich Tage (auch „N× pro Woche“) und die Uhrzeit ändern (`PATCH /api/gewohnheiten`). Die Häkchen hängen am Namen und bleiben erhalten, ebenso eigene Felder aus Obsidian.
+- **Behobener Fehler:** Wer nur die Uhrzeit änderte, setzte die Tage still auf „täglich“ zurück. Der Standardwert des Schemas griff auch beim Ändern; jetzt gilt er nur beim Anlegen.
+- **Schreiben nacheinander:** `gewohnheiten.md`, die Wochenziele-Dateien und `noten.md` werden je Dienst in einer Warteschlange geschrieben. Zwei schnelle Änderungen hintereinander, etwa Tage und gleich danach die Uhrzeit, führten sonst zu einem Konflikt: Die zweite überschrieb die erste oder hinterließ eine Konfliktkopie.

@@ -1120,3 +1120,7 @@ input.kurz { width: 5em; }
 .anleitung { max-width: 46rem; margin: 0 auto; line-height: 1.55; }
 .anleitung h2 { margin-top: 1.3rem; }
 .anleitung li { margin: 0.3rem 0; }
+
+.gewohnheit-bearbeiten { display: inline-flex; gap: 0.3rem; flex-wrap: wrap; }
+.gewohnheit-bearbeiten select { max-width: 9.5rem; }
+.gewohnheit-bearbeiten input[type="time"] { width: 6.5rem; }
