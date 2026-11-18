@@ -98,7 +98,7 @@ if (process.argv[1] && /runner\.(js|ts)$/.test(process.argv[1])) {
     hosts: (k.BROWSER_HOSTS || 'jku.at').split(/[\s,]+/).filter(Boolean),
     benutzer: k.MOODLE_BENUTZER || undefined,
     passwort: k.MOODLE_PASSWORT || undefined,
-    // nur hier wird das Passwort eingetragen (Standard: Moodle-Host unter /login/ und shibboleth.im.jku.at)
+    // nur hier wird das Passwort eingetragen (Standard: Moodle-Host unter /login/, shibboleth.im.jku.at, access.jku.at)
     anmeldeHosts: k.BROWSER_ANMELDE_HOSTS ? k.BROWSER_ANMELDE_HOSTS.split(/[\s,]+/).filter(Boolean) : undefined,
     log: (t) => console.log(t),
   });

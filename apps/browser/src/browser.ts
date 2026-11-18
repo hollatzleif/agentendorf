@@ -12,7 +12,7 @@ export interface BrowserOptionen {
   log?: (t: string) => void;
   /**
    * Nur auf diesen Hosts (exakt) wird das Passwort eingetragen: Moodle selbst (nur unter /login/) und der
-   * Identitätsanbieter. Standard: Moodle-Host und shibboleth.im.jku.at (dorthin leitet die JKU-Anmeldung, gesehen in der CI).
+   * Identitätsanbieter. Standard: Moodle-Host, shibboleth.im.jku.at und access.jku.at („JKU Login Service“, dort steht das Anmeldeformular – gesehen bei Leifs erster Anmeldung).
    */
   anmeldeHosts?: string[];
 }
@@ -150,7 +150,7 @@ export class MoodleBrowser {
   }
 
   private get anmeldeHosts() {
-    return (this.o.anmeldeHosts ?? [new URL(this.o.moodleUrl).hostname, 'shibboleth.im.jku.at']).map((h) => h.toLowerCase());
+    return (this.o.anmeldeHosts ?? [new URL(this.o.moodleUrl).hostname, 'shibboleth.im.jku.at', 'access.jku.at']).map((h) => h.toLowerCase());
   }
 
   /** Darf auf dieser Adresse das Passwort eingetragen werden? (Moodle nur unter /login/, sonst nur der Identitätsanbieter) */
