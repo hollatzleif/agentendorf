@@ -604,3 +604,12 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
   - kommen beim „Tag planen“ direkt nach Überfälligem dran,
   - erscheinen in der Morgenzeitung als erster Abschnitt „⭐ Heute wichtig“ und in Telegram `/todo` mit ⭐.
 - Warum: Die „1–3 wichtigsten Dinge des Tages“ zu benennen ist die einfachste Produktivitäts-Regel. Das Dorf sorgt dafür, dass sie nicht in der langen Liste untergehen.
+
+## E87 – Karteikarten (Nacht 18./19.11.)
+
+- **Karten liegen als Markdown im Fach-Ordner** (`Uni/faecher/<Fach>/karten.md`), damit Leif sie in Obsidian lesen und bearbeiten kann. Zwei Schreibweisen: `Frage :: Antwort` oder `### Frage` mit der Antwort darunter. `##`-Überschriften gliedern nur und sind keine Karten.
+- **Lernstand in der DB** (Migration 19, `karten_stand`). Der Schlüssel ist Fach + Frage, also darf sich die Antwort ändern, ohne dass der Fortschritt verloren geht.
+  - Wiederholung in wachsenden Abständen (vereinfachtes SM-2): **Nochmal** kommt nach 10 min wieder, **Gut** nach 1 → 3 → 7,5 → … Tagen, **Leicht** ab 4 Tagen. Höchstens 15 neue Karten je Fach und Tag.
+- **Uni → Karteikarten:** Übersicht je Fach (heute dran, neu, sitzt) und eine Lernansicht mit Tastatur (Leertaste = Antwort zeigen, 1–4 = bewerten). Die Fach-Karten und „Heute“ zeigen, wie viele Karten dran sind.
+- **Aktion „Karteikarten erstellen“** (claude-code, mittel): Der Agent liest die Unterlagen des Fachs und ergänzt `karten.md` um 30–60 Karten, ohne bestehende zu ändern. Er schreibt nur im Uni-Gebäude, ohne Internet; die Unterlagen gelten als Fremdinhalt.
+- Warum: Lernen mit Wiederholung in Abständen ist die wirksamste Prüfungsvorbereitung, und das Dorf hat die Unterlagen schon. Aus Folien werden so mit einem Klick abfragbare Karten.

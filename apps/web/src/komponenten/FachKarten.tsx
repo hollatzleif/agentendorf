@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { FachStand } from '@dorf/shared';
+import type { FachStand, KartenFach } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { bibliothekUrl, linkKlick, navigieren } from '../router';
 
@@ -15,6 +15,7 @@ const stunden = (min: number) => (min >= 60 ? `${Math.floor(min / 60)} h ${min %
 export function FachKarten() {
   // hängt an ['uni', …] und wird mit uni.geaendert frisch geholt; Fokuszeit kommt beim nächsten Laden dazu
   const q = useQuery({ queryKey: ['uni', 'faecher-stand'], queryFn: () => api<FachStand[]>('/api/uni/faecher-stand') });
+  const karten = useQuery({ queryKey: ['uni', 'karten'], queryFn: () => api<KartenFach[]>('/api/karten') });
   const [meldung, setMeldung] = useState('');
   if (!q.data?.length) return null;
   const fokus = async (f: FachStand) => {
@@ -52,6 +53,14 @@ export function FachKarten() {
               <div className="fach-zahlen">
                 <span title="Offene Übungsblätter in aufgaben/">📄 {f.offeneAbgaben} offen</span>
                 <span title="Pomodoro-Fokuszeit der letzten 7 Tage">🍅 {stunden(f.fokus7Tage)}</span>
+                {(() => {
+                  const k = karten.data?.find((x) => x.fach === f.name);
+                  return k ? (
+                    <a href={`/gebaeude/Uni?reiter=karten&fach=${encodeURIComponent(f.name)}`} onClick={linkKlick} title="Karteikarten, die heute dran sind">
+                      🃏 {k.faellig} dran
+                    </a>
+                  ) : null;
+                })()}
               </div>
               <div className="zeile">
                 <button type="button" className="klein" onClick={() => void fokus(f)} aria-label={`Fokus starten: ${f.titel}`}>

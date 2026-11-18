@@ -870,3 +870,28 @@ test('⭐ wichtig: am To-do markieren, auf „Heute“ ganz oben', async ({ page
   await page.goto('/heute');
   await expect(page.locator('.heute-gruppe.stern')).toContainText('Stern-Test');
 });
+
+test('Karteikarten: Fach mit karten.md, lernen mit Leertaste und 1–4', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  const o = { origin: 'http://127.0.0.1:3999' };
+  expect((await page.request.post('/api/uni/fach', { headers: o, data: { name: 'Karten-Fach' } })).ok()).toBe(true);
+  const r = await page.request.put('/api/vault/datei', { headers: o, data: { pfad: 'Uni/faecher/Karten-Fach/karten.md', inhalt: 'Hauptstadt von Österreich :: Wien\n\n### Was ist ein Eigenwert?\nEin λ mit Av = λv.\n' } });
+  expect(r.ok()).toBe(true);
+  await page.goto('/gebaeude/Uni');
+  await page.getByRole('button', { name: 'Karteikarten', exact: true }).click();
+  const k = page.getByRole('region', { name: 'Karten Karten-Fach' });
+  await expect(k).toContainText('2 heute dran');
+  await k.getByRole('button', { name: 'Lernen' }).click();
+  const karte = page.getByLabel('Karteikarte');
+  await expect(karte).toContainText('Hauptstadt von Österreich');
+  await page.keyboard.press(' ');
+  await expect(karte).toContainText('Wien');
+  await page.keyboard.press('3');
+  await expect(karte).toContainText('Was ist ein Eigenwert?');
+  await karte.getByRole('button', { name: /Antwort zeigen/ }).click();
+  await karte.getByRole('button', { name: /Leicht/ }).click();
+  await expect(page.getByText('Fertig für heute – 2 Karten.')).toBeVisible();
+  await page.getByRole('button', { name: '← Fächer' }).click();
+  await expect(k).toContainText('0 heute dran');
+});

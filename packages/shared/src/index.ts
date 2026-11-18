@@ -717,3 +717,21 @@ export interface FachStand {
   naechsteFrist: { titel: string; frist: string; art: 'abgabe' | 'test' } | null;
   fokus7Tage: number;
 }
+
+/** Karteikarten (Nacht 18./19.11.) */
+export interface KartenFach {
+  fach: string;
+  gesamt: number;
+  /** heute dran: fällige Wiederholungen + neue bis zum Tageslimit */
+  faellig: number;
+  neu: number;
+  /** sitzt (Abstand ≥ 21 Tage) */
+  gelernt: number;
+}
+export interface KarteFaellig {
+  id: string;
+  fach: string;
+  frage: string;
+  antwort: string;
+  neu: boolean;
+}

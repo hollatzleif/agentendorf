@@ -20,6 +20,7 @@ import { BankUebersicht } from '../komponenten/BankUebersicht';
 import { CorpsUebersicht } from '../komponenten/CorpsUebersicht';
 import { BoerseUebersicht } from '../komponenten/BoerseUebersicht';
 import { KirchturmUhr } from '../komponenten/KirchturmUhr';
+import { KartenLernen } from '../komponenten/KartenLernen';
 import { WochenrueckblickAnsicht } from '../komponenten/WochenrueckblickAnsicht';
 import { MarktKalender } from '../komponenten/MarktKalender';
 
@@ -35,7 +36,10 @@ const RATHAUS_VORNE = [
   ['woche', 'Wochenrückblick'],
   ['plaene', 'Pläne'],
 ] as const;
-const UNI_VORNE = [['studium', 'Studium']] as const;
+const UNI_VORNE = [
+  ['studium', 'Studium'],
+  ['karten', 'Karteikarten'],
+] as const;
 const POST_VORNE = [['eingang', 'Eingang']] as const;
 const MARKT_VORNE = [
   ['todo', 'To-do'],
@@ -133,6 +137,7 @@ export function GebaeudeInhalt({ id, reiter, reiterWaehlen, kompakt }: { id: str
         {reiter === 'termine' && <CorpsUebersicht />}
         {reiter === 'depot' && <BoerseUebersicht />}
         {reiter === 'uhr' && <KirchturmUhr />}
+        {reiter === 'karten' && <KartenLernen />}
         {reiter === 'kalender' && <MarktKalender />}
         {reiter === 'aemter' && <TodoBrett liste="corps" platzhalter="Neue Aufgabe – das Amt trägst du beim Bearbeiten als Gruppe ein" gruppiert />}
         {reiter === 'corpspost' && <PostEingang fest="Corps" />}

@@ -358,6 +358,11 @@ const MIGRATIONEN: string[] = [
   CREATE TABLE fokus_sitzungen (id INTEGER PRIMARY KEY, start INTEGER NOT NULL, ende INTEGER NOT NULL, minuten REAL NOT NULL, thema TEXT, gruppe TEXT, todo TEXT, vollstaendig INTEGER NOT NULL);
   CREATE INDEX fokus_sitzungen_ende ON fokus_sitzungen (ende);
   `,
+  // 19: Karteikarten (Nacht 18./19.11.) – Lernstand je Karte (Karten selbst liegen als Markdown im Fach-Ordner)
+  `
+  CREATE TABLE karten_stand (id TEXT PRIMARY KEY, fach TEXT NOT NULL, faellig INTEGER NOT NULL, intervall REAL NOT NULL, leichtigkeit REAL NOT NULL, wiederholungen INTEGER NOT NULL, zuletzt INTEGER NOT NULL, erstes TEXT NOT NULL);
+  CREATE INDEX karten_stand_fach ON karten_stand (fach, faellig);
+  `,
 ];
 
 export function dbOeffnen(datei: string): DB {

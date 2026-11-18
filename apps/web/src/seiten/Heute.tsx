@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { WETTER_TEXT, type DorfStatus, type FokusStatistik, type FreigabeInfo, type KalenderAntwort, type KalenderTermin, type KirchturmZustand, type MorgenzeitungUebersicht, type TodoInfo } from '@dorf/shared';
+import { WETTER_TEXT, type DorfStatus, type FokusStatistik, type FreigabeInfo, type KartenFach, type KalenderAntwort, type KalenderTermin, type KirchturmZustand, type MorgenzeitungUebersicht, type TodoInfo } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { linkKlick } from '../router';
 import { FARBEN, ort, tagPlus } from '../komponenten/MarktKalender';
@@ -77,6 +77,8 @@ export function Heute() {
   const bis = new Date(Date.parse(`${tagPlus(morgen, 1)}T00:00:00Z`) + 3 * 3600_000).toISOString();
   const fokus = useQuery({ queryKey: ['kirchturm', 'fokus'], queryFn: () => api<FokusStatistik>('/api/kirchturm/fokus') });
   const [planen, setPlanen] = useState(false);
+  const karten = useQuery({ queryKey: ['uni', 'karten'], queryFn: () => api<KartenFach[]>('/api/karten') });
+  const kartenDran = (karten.data ?? []).reduce((s2, f) => s2 + f.faellig, 0);
   const kalender = useQuery({ queryKey: ['kalender', von, bis], queryFn: () => api<KalenderAntwort>(`/api/kalender?von=${von}&bis=${bis}`), placeholderData: (alt) => alt });
   const todos = useQuery({ queryKey: ['liste', 'todo'], queryFn: () => api<TodoInfo[]>('/api/todos') });
   const kirchturm = useKirchturm();
@@ -185,6 +187,11 @@ export function Heute() {
           {todos.data && <span className="heute-zahl">☑️ {faelligHeute.length} heute fällig</span>}
           {erledigtHeute > 0 && <span className="heute-zahl gruen">✓ {erledigtHeute} erledigt</span>}
           {(fokus.data?.heuteMin ?? 0) > 0 && <span className="heute-zahl">🍅 {fokus.data!.heuteMin} min Fokus</span>}
+          {kartenDran > 0 && (
+            <a className="heute-zahl" href="/gebaeude/Uni?reiter=karten" onClick={linkKlick}>
+              🃏 {kartenDran} Karten dran
+            </a>
+          )}
           {kalender.data?.modus === 'google' && (
             <button type="button" className="klein heute-planen" onClick={() => setPlanen(true)}>
               🧭 Tag planen

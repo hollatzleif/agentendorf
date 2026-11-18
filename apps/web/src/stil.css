@@ -784,3 +784,13 @@ input.kurz { width: 5em; }
 .stern { background: none; border: none; box-shadow: none; padding: 0 0.2rem; min-height: 0; font-size: 1.15rem; line-height: 1; color: #b9a98a; cursor: pointer; }
 .stern.an { color: #e0a800; }
 .stern:hover { color: #e0a800; transform: scale(1.15); }
+
+/* Karteikarten */
+.karten-lernen .zeile { margin-bottom: 0.6rem; }
+.karteikarte { max-width: 720px; margin: 0 auto; padding: 1.4rem; min-height: 12rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.karten-frage { font-size: 1.2rem; font-weight: 600; }
+.karten-antwort { font-size: 1.05rem; }
+.karten-knoepfe button { flex: 1; }
+.karten-nochmal { border-color: #b8402f !important; }
+.karten-leicht { border-color: #3a8a5a !important; }
+.karten-ende { max-width: 720px; margin: 0 auto; text-align: center; }

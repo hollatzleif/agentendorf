@@ -4,6 +4,7 @@ import type { Kirchturm } from './kirchturm.js';
 import { terminAusText, type FachStand } from '@dorf/shared';
 import { tagPlanen } from './tagesplan.js';
 import type { Wochenrueckblick } from './wochenrueckblick.js';
+import type { Karteikasten } from './karten.js';
 import type { GoogleKalender } from './kalender-google.js';
 import type { Corps } from './corps.js';
 import type { Bank } from './bank.js';
@@ -78,6 +79,7 @@ export interface Abhaengigkeiten {
   saxo?: Saxo;
   kirchturm?: Kirchturm;
   wochenrueckblick?: Wochenrueckblick;
+  karten?: Karteikasten;
   googleKalender?: GoogleKalender;
 }
 
@@ -424,6 +426,20 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
       const q = z.object({ kalenderId: z.string().min(1), id: z.string().min(1), serie: z.enum(['ja', 'nein']).optional() }).parse(req.query);
       await k.loeschen(q.kalenderId, q.id, { serie: q.serie === 'ja' });
       return { ok: true };
+    });
+  }
+
+  // ---- Karteikarten ----
+  if (a.karten) {
+    const k = a.karten;
+    app.get('/api/karten', async () => k.uebersicht());
+    app.get('/api/karten/faellig', async (req) => {
+      const q = z.object({ fach: z.string().min(1).max(100) }).parse(req.query);
+      return k.faellig(q.fach);
+    });
+    app.post('/api/karten/antwort', async (req) => {
+      const b = z.object({ fach: z.string().min(1).max(100), id: z.string().regex(/^[0-9a-f]{20}$/), bewertung: z.enum(['nochmal', 'schwer', 'gut', 'leicht']) }).parse(req.body);
+      return k.antworten(b.fach, b.id, b.bewertung);
     });
   }
 
