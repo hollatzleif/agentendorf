@@ -156,10 +156,28 @@ export class Morgenzeitung {
     const erledigt = this.o.db
       .prepare(
         `SELECT c.titel, MAX(l.ende) AS ende FROM laeufe l JOIN chats c ON c.id = l.chat_id
-         WHERE l.status = 'fertig' AND l.ende >= ? AND (c.rolle IS NULL OR c.rolle != 'system') GROUP BY c.id ORDER BY ende DESC LIMIT 10`,
+         WHERE l.status = 'fertig' AND l.ende >= ? AND (c.rolle IS NULL OR c.rolle != 'system')
+           AND NOT EXISTS (SELECT 1 FROM schreibtisch s WHERE s.id = c.schreibtisch_id AND s.quelle = 'aufwachen')
+         GROUP BY c.id ORDER BY ende DESC LIMIT 10`,
       )
       .all(seit) as { titel: string }[];
     abschnitte.push({ titel: 'Seit gestern erledigt', zeilen: erledigt.map((x) => einzeilig(x.titel, 120)) });
+
+    // Was der Bürgermeister von selbst getan hat (Rundgänge, Lageberichte) – Ruhiges nur als Zahl
+    const nacht = this.o.db
+      .prepare(
+        `SELECT s.titel,
+                (SELECT l.zusammenfassung FROM laeufe l WHERE l.chat_id = s.chat_id ORDER BY l.nummer DESC LIMIT 1) AS zf,
+                (SELECT COUNT(*) FROM werkzeug_log w WHERE w.chat_id = s.chat_id AND w.erlaubt = 1
+                   AND w.werkzeug IN ('helfer_starten', 'plan_vorlegen', 'vault_schreiben', 'freigabe_beantragen')) AS taten
+         FROM schreibtisch s WHERE s.quelle = 'aufwachen' AND s.erstellt >= ? AND s.chat_id IS NOT NULL ORDER BY s.erstellt`,
+      )
+      .all(seit) as { titel: string; zf: string | null; taten: number }[];
+    const getan = nacht.filter((n) => n.taten > 0);
+    const ruhig = nacht.length - getan.length;
+    const bm = getan.slice(0, 8).map((n) => `${einzeilig(n.titel, 40)}: ${einzeilig((n.zf ?? '').replace(/^#+\s*\w+\s*/gm, ''), 200) || 'siehe Chat'}`);
+    if (ruhig) bm.push(`Dazu ${ruhig} ${ruhig === 1 ? 'ruhiger Rundgang' : 'ruhige Rundgänge'} ohne Anlass.`);
+    if (bm.length) abschnitte.push({ titel: 'Der Bürgermeister seit gestern', zeilen: bm });
 
     // Wartet auf Leif
     const warten: string[] = [];

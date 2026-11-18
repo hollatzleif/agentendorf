@@ -103,4 +103,18 @@ describe('Morgenzeitung', () => {
     expect(c).not.toContain('> ');
     expect(c).toContain('## Heute\n\n- –');
   });
+
+  it('„Der Bürgermeister seit gestern“: was er von selbst getan hat; ruhige Rundgänge nur als Zahl, nicht unter „erledigt“', async () => {
+    const d = await testDorf();
+    const tat = await d.schreibtisch.anlegen({ text: 'Rundgang 03:00\n[schreibe Rathaus/aufraeumen/2026-11-16_0300_vorschlaege.md]', quelle: 'aufwachen' });
+    const ruhig = await d.schreibtisch.anlegen({ text: 'Rundgang 06:00\nNichts zu tun.', quelle: 'aufwachen' });
+    await d.buergermeister.starten(tat.id, 'zeitplan');
+    await d.buergermeister.starten(ruhig.id, 'zeitplan');
+    await d.agenten.leerlauf();
+    d.uhr.vor(60_000);
+    const c = matter((await d.vault.lesen(await d.morgenzeitung.erstellen())).inhalt).content;
+    const abschnitt = (t: string) => (c.split(`## ${t}\n\n`)[1] ?? '').split('\n\n')[0]!;
+    expect(abschnitt('Der Bürgermeister seit gestern')).toMatch(/^- Rundgang 03:00: .+\n- Dazu 1 ruhiger Rundgang ohne Anlass\.$/);
+    expect(abschnitt('Seit gestern erledigt')).not.toContain('Rundgang');
+  });
 });
