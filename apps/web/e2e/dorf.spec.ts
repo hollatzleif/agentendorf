@@ -825,3 +825,35 @@ test('Mein Tag (/heute): Termine aus dem Kalender, To-do anlegen und abhaken, Fo
   await expect(page).toHaveURL(/\/gebaeude\/Marktplatz\?reiter=kalender$/);
   await expect(page.getByRole('button', { name: 'Kalender', exact: true })).toHaveClass(/aktiv/);
 });
+
+test('Befehlspalette (Strg+K): To-do anlegen, Termin mit Bestätigung, Gebäude öffnen', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  let termin: unknown = null;
+  await page.route('**/api/kalender/schnell', (r) => {
+    termin = r.request().postDataJSON();
+    return r.fulfill({ json: { ok: true } });
+  });
+  await anmelden(page);
+  await page.keyboard.press('Control+k');
+  const p = page.getByRole('dialog', { name: 'Befehlspalette' });
+  const feld = p.getByLabel('Befehl oder Suche');
+  await feld.fill('todo Palette-Test');
+  await expect(p.getByRole('option').first()).toContainText('To-do anlegen: Palette-Test');
+  await feld.press('Enter');
+  await expect(p).toContainText('To-do angelegt: Palette-Test');
+  await feld.fill('termin morgen 14 Uhr Zahnarzt');
+  await expect(p.getByRole('option').first()).toContainText('Termin eintragen: Zahnarzt');
+  await feld.press('Enter');
+  await expect(p).toContainText('Eintragen?');
+  expect(termin).toBeNull();
+  await feld.press('Enter');
+  await expect(p).toContainText('📅 Eingetragen');
+  expect(termin).toEqual({ text: 'morgen 14 Uhr Zahnarzt' });
+  await feld.fill('kirchturm');
+  await expect(p.getByRole('option').first()).toContainText('Kirchturm');
+  await feld.press('Enter');
+  await expect(page).toHaveURL(/\/gebaeude\/Kirchturm/);
+  await expect(p).toHaveCount(0);
+  await page.goto('/gebaeude/Marktplatz');
+  await expect(page.getByRole('button', { name: 'Palette-Test', exact: true }).first()).toBeVisible();
+});

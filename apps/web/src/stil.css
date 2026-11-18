@@ -778,3 +778,4 @@ input.kurz { width: 5em; }
   .heute .karte { padding: 0.85rem 0.9rem; }
   .heute-spalten, .heute-hinweise { gap: 0.9rem; margin-top: 0.9rem; }
 }
+.heute-planen { margin-left: auto; }

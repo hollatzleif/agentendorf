@@ -584,3 +584,15 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - **Aufbau:** am PC zwei Spalten (Termine + Fokus | To-dos), am Handy eine Spalte in der Reihenfolge Termine, To-dos, Fokus. Die Kopfleiste ist am Handy etwas enger gesetzt, damit vier Reiter und das Brief-Abzeichen Platz haben.
 - **Bewusst nicht:** kein eigener Endpunkt, der alles bündelt (sechs kleine Abfragen sind schnell genug und bleiben live), und die Startseite bleibt das Dorf.
 - Getestet mit Playwright (Desktop und Handy): Termine aus nachgebautem Kalender, To-do anlegen und abhaken, Fokus starten und stoppen, Sprung in den Kalender.
+
+## E85 – Befehlspalette (Nacht 18./19.11.)
+
+- **Strg/⌘+K** öffnet überall ein Feld für alles. Es sucht Seiten, Gebäude, offene To-dos und Aktionen (Name, Gebäude, Beschreibung), ab 3 Zeichen auch den Volltext der Bibliothek.
+- **Befehle:**
+  - `todo …` legt ein To-do an.
+  - `termin morgen 14 Uhr …`: Das erste Enter zeigt die Vorschau, das zweite trägt ein (Hauptkalender, keine Einladungen).
+  - `fokus [Thema]` startet einen Pomodoro, `timer 10 [Name]` einen Timer.
+  - `frag …` legt eine Aufgabe auf den Schreibtisch des Bürgermeisters.
+  - Ohne Befehlswort werden passende Befehle unter den Treffern angeboten.
+- Zusätzlich auf „Heute“: Fokusminuten von heute und „🧭 Tag planen“.
+- Warum: Weniger Klicks für das, was man zehnmal am Tag macht. Die Palette ist der schnellste Weg vom Gedanken zum Eintrag.
