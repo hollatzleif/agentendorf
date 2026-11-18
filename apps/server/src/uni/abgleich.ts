@@ -350,11 +350,16 @@ export class Uni {
   }
 
   /** Leif hakt eine Frist ab (oder wieder auf) */
-  erledigtSetzen(id: string, erledigt: boolean) {
+  erledigtSetzen(id: string, erledigt: boolean, opt: { still?: boolean } = {}) {
     const r = this.o.db.prepare('UPDATE moodle_fristen SET abgegeben = ? WHERE id = ?').run(erledigt ? 1 : 0, id);
     if (r.changes !== 1) throw new Error('Frist nicht gefunden.');
     this.o.hub.senden({ typ: 'uni.geaendert' });
+    // still: kommt von der To-do-Brücke selbst – kein Rückruf
+    if (!opt.still) for (const fn of this.beiErledigt) fn(id, erledigt);
   }
+
+  /** E71: z. B. die To-do-Brücke – erfährt, wenn Leif eine Frist in der Uni abhakt */
+  readonly beiErledigt: ((id: string, erledigt: boolean) => void)[] = [];
 
   // ---- Erinnerungen (Telegram) --------------------------------------------------------------------
 

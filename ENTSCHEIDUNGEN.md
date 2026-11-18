@@ -424,3 +424,15 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - Gehandelt wird nie. Dafür gibt es weder Schnittstelle noch Werkzeug.
 - **Etappe 7 damit fertig:** Alle Vorlage-Gebäude sind eröffnet.
 
+
+## E71 – Uni-Fristen als To-dos (18.11.)
+
+- **Was:** Jede künftige, offene Abgabe oder Prüfung aus „Studium“ wird **genau einmal** ein To-do auf dem Marktplatz.
+  - Titel „Abgabe: …“ oder „Prüfung: …“, fällig am Tag der Frist (Linzer Zeit).
+  - Kurs als Gruppe, Gebäude „Uni“, Quelle „Uni“.
+  - Markiert als `fremd`, weil die Titel aus Moodle bzw. dem Kalender stammen.
+- **Abhaken in beide Richtungen:** `uni_todos` (Migration 16) merkt sich den zuletzt abgeglichenen Stand. Wer sich seitdem bewegt hat – To-do oder Frist –, gewinnt.
+  - Abgeglichen wird nach jedem Uni-Abgleich, nach Änderungen am To-do-Brett (1,5 s gebündelt), nach dem Abhaken in der Uni und zusätzlich alle 10 min (Abhaken in Obsidian kommt ohne Ereignis an).
+- Verschiebt sich eine Frist, zieht das Fälligkeitsdatum nach.
+- **Gelöschte To-dos kommen nicht wieder** (Leifs Entscheidung zählt).
+- Vergangenes, schon Erledigtes und Pflichtvorlesungen werden keine To-dos.

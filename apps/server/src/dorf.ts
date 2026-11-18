@@ -34,6 +34,7 @@ import { Terminkalender } from './kalender.js';
 import { Morgenzeitung } from './morgenzeitung.js';
 import { Aufwachen } from './aufwachen.js';
 import { listenAnlegen } from './todos.js';
+import { UniTodoBruecke } from './uni/todo-bruecke.js';
 import { Bank, datum as bankDatum } from './bank.js';
 import { Corps } from './corps.js';
 import { Boerse, eodhdKlient, ezbDollarJeEuro, type BoerseKlient } from './boerse.js';
@@ -224,8 +225,26 @@ export async function dorfStarten(
   });
   // E65: To-do-Brett auf dem Marktplatz (App, Telegram, alle Agenten)
   // Etappe 7: weitere Listen (Einkauf, Wunsch, Corps) mit derselben Technik
-  const listen = listenAnlegen({ vault, uhr }, (liste) => hub.senden({ typ: 'todos.geaendert', liste }));
+  let uniTodosAnstossen = () => undefined as void;
+  const listen = listenAnlegen({ vault, uhr }, (liste) => {
+    hub.senden({ typ: 'todos.geaendert', liste });
+    if (liste === 'todo') uniTodosAnstossen();
+  });
   const todos = listen.todo;
+  // E71: Uni-Fristen → To-dos, Abhaken in beide Richtungen
+  const uniTodos = new UniTodoBruecke({ db, uhr, uni, todos, log: (t) => console.warn(t) });
+  let geschlossen = false;
+  let uniTodosZeitgeber: NodeJS.Timeout | undefined;
+  uniTodosAnstossen = () => {
+    if (uniTodosZeitgeber || geschlossen) return;
+    uniTodosZeitgeber = setTimeout(() => {
+      uniTodosZeitgeber = undefined;
+      if (!geschlossen) void uniTodos.abgleichen();
+    }, 1500);
+    uniTodosZeitgeber.unref();
+  };
+  uni.beiAbgleich.push(() => (geschlossen ? undefined : uniTodos.abgleichen()));
+  uni.beiErledigt.push(() => uniTodosAnstossen());
   agenten.listen = listen;
   postbote.beiRechnung.push(async (r) => {
     const schon = db.prepare('SELECT rechnung_todo FROM post_mails WHERE id = ?').get(r.mail.id) as { rechnung_todo: string | null } | undefined;
@@ -329,7 +348,14 @@ export async function dorfStarten(
   planTakt?.unref();
   const dorfplan = new Dorfplan({ db, uhr, hub, vault, uni, wetter });
   const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen, dorfplan, automatik, listen, bank, corps, boerse });
+  // Abhaken in Obsidian kommt ohne Ereignis an → zusätzlich alle 10 Minuten abgleichen
+  const uniTodoTakt = opt.beobachten !== false ? setInterval(() => uniTodosAnstossen(), 600_000) : undefined;
+  uniTodoTakt?.unref();
+  if (opt.beobachten !== false) uniTodosAnstossen();
   app.addHook('onClose', async () => {
+    geschlossen = true;
+    if (uniTodoTakt) clearInterval(uniTodoTakt);
+    if (uniTodosZeitgeber) clearTimeout(uniTodosZeitgeber);
     uni.stoppen();
     postbote.stoppen();
     morgenzeitung.stoppen();
@@ -343,5 +369,5 @@ export async function dorfStarten(
     await agenten.ruhe();
     db.close();
   });
-  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan, wetter, automatik, todos, listen, bank, corps, boerse };
+  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan, wetter, automatik, todos, listen, bank, corps, boerse, uniTodos };
 }

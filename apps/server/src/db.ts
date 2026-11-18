@@ -344,6 +344,10 @@ const MIGRATIONEN: string[] = [
   CREATE TABLE boerse_fx (datum TEXT PRIMARY KEY, usd_je_eur REAL NOT NULL, abgerufen INTEGER NOT NULL);
   CREATE TABLE boerse_abrufe (tag TEXT PRIMARY KEY, anzahl INTEGER NOT NULL);
   `,
+  // 16: Uni-Fristen → To-dos (E71) – welche Frist welches To-do hat, mit dem zuletzt abgeglichenen Stand
+  `
+  CREATE TABLE uni_todos (frist_id TEXT PRIMARY KEY, pfad TEXT NOT NULL, frist INTEGER NOT NULL, erledigt INTEGER NOT NULL DEFAULT 0);
+  `,
 ];
 
 export function dbOeffnen(datei: string): DB {
