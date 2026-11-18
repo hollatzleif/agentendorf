@@ -115,7 +115,7 @@ class Himmel {
       const fluegel: THREE.Mesh[] = [];
       for (const s of [-1, 1]) {
         const f = new THREE.Mesh(new THREE.PlaneGeometry(0.32, 0.1), vogelMat);
-        f.geometry.translate(s * 0.22, 0, 0);
+        f.geometry.translate(s * 0.16, 0, 0);
         g.add(f);
         fluegel.push(f);
       }
