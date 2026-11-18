@@ -1037,6 +1037,12 @@ export class DorfSzene {
     const e = this.gebaeude.get(id);
     return e ? { rot: e.rot, blasen: e.blasenSchluessel, rauch: e.rauch.length } : null;
   }
+  private gedrosselt = false;
+  /** Weniger Bilder pro Sekunde, solange ein Menü das Dorf größtenteils verdeckt (Akku) */
+  drosseln(an: boolean) {
+    this.gedrosselt = an;
+  }
+
   /** Figuren um so viele Sekunden weiterbewegen – unabhängig von der Bildrate (Tests) */
   vorspulen(sekunden: number) {
     for (let t = 0; t < sekunden; t += 0.1) this.figuren.tick(0.1);
@@ -1093,8 +1099,10 @@ export class DorfSzene {
     if (!this.laeuft) return;
     this.raf = requestAnimationFrame(this.schleife);
     if (document.hidden) return;
-    // Handy: höchstens ~30 Bilder pro Sekunde (Akku), außer gerade wird gezogen/gezoomt
-    if (this.o.handy && !this.schmutzig && zeit - this.letztesBild < 31) return;
+    // Handy: höchstens ~30 Bilder pro Sekunde (Akku), außer gerade wird gezogen/gezoomt;
+    // ist das Gebäude-Menü offen (das Dorf nur am Rand zu sehen): ~8 Bilder pro Sekunde
+    const abstand = this.gedrosselt ? 125 : this.o.handy ? 31 : 0;
+    if (abstand && !this.schmutzig && zeit - this.letztesBild < abstand) return;
     this.letztesBild = zeit;
     const dt = Math.min(this.uhr.getDelta(), 0.1);
     let animiert = false;

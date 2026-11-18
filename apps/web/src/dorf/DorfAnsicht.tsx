@@ -269,6 +269,7 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
 
   const panelOffen = !!gewaehlt && !bauen;
   const feiern = useCallback((id: string) => szene.current?.feiern(id), []);
+  useEffect(() => szene.current?.drosseln(panelOffen), [panelOffen]);
   const knopf = useMemo(
     () => (titel: string, inhalt: React.ReactNode, f: () => void, extra = '') => (
       <button className={`dorf-knopf ${extra}`} onClick={f} title={titel} aria-label={titel}>
