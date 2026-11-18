@@ -32,6 +32,50 @@ export const LISTEN_NAMEN = Object.keys(LISTEN) as ListenName[];
 const ERLEDIGT_TAGE = 14;
 const DATUM = /^\d{4}-\d{2}-\d{2}$/;
 
+/** Wiederkehrend (E92): täglich, werktags, wöchentlich, monatlich, jährlich oder „alle N tage/wochen/monate“ */
+export const WIEDERHOLEN = /^(täglich|werktags|wöchentlich|monatlich|jährlich|alle ([1-9]\d{0,2}) (tage|wochen|monate))$/;
+const Wiederholen = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(WIEDERHOLEN, 'wiederholen: täglich, werktags, wöchentlich, monatlich, jährlich oder „alle N tage/wochen/monate“');
+
+/** Nächstes Datum nach einer Regel – immer nach „heute“ (Erledigtes von gestern springt nicht in die Vergangenheit) */
+export function naechstesDatum(regel: string, ab: string, heute: string) {
+  const m = WIEDERHOLEN.exec(regel);
+  if (!m) return undefined;
+  const plusTage = (t: string, n: number) => {
+    const d = new Date(`${t}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+  };
+  const plusMonate = (t: string, n: number, tag: number) => {
+    const [j, mo] = t.split('-').map(Number) as [number, number];
+    const ziel = new Date(Date.UTC(j, mo - 1 + n, 1, 12));
+    const letzter = new Date(Date.UTC(ziel.getUTCFullYear(), ziel.getUTCMonth() + 1, 0, 12)).getUTCDate();
+    ziel.setUTCDate(Math.min(tag, letzter));
+    return ziel.toISOString().slice(0, 10);
+  };
+  const tagImMonat = Number(ab.slice(8, 10));
+  const schritt = (t: string): string => {
+    if (m[1] === 'täglich') return plusTage(t, 1);
+    if (m[1] === 'werktags') {
+      let n = plusTage(t, 1);
+      while ([0, 6].includes(new Date(`${n}T12:00:00Z`).getUTCDay())) n = plusTage(n, 1);
+      return n;
+    }
+    if (m[1] === 'wöchentlich') return plusTage(t, 7);
+    if (m[1] === 'monatlich') return plusMonate(t, 1, tagImMonat);
+    if (m[1] === 'jährlich') return plusMonate(t, 12, tagImMonat);
+    const n = Number(m[2]);
+    return m[3] === 'tage' ? plusTage(t, n) : m[3] === 'wochen' ? plusTage(t, 7 * n) : plusMonate(t, n, tagImMonat);
+  };
+  let n = schritt(ab);
+  for (let i = 0; n <= heute && i < 5000; i++) n = schritt(n);
+  return n;
+}
+
+
 export const TodoNeu = z.object({
   titel: z.string().trim().min(1, 'Titel fehlt').max(200),
   faellig: z.string().regex(DATUM, 'faellig als JJJJ-MM-TT').optional(),
@@ -40,6 +84,7 @@ export const TodoNeu = z.object({
   gruppe: z.string().trim().max(60).optional(),
   notiz: z.string().max(5000).optional(),
   wichtig: z.boolean().optional(),
+  wiederholen: Wiederholen.optional(),
 });
 export const TodoAenderung = z.object({
   titel: z.string().trim().min(1).max(200).optional(),
@@ -49,7 +94,25 @@ export const TodoAenderung = z.object({
   gruppe: z.union([z.string().trim().max(60), z.literal('')]).optional(),
   notiz: z.string().max(5000).optional(),
   wichtig: z.boolean().optional(),
+  wiederholen: z.union([Wiederholen, z.literal('')]).optional(),
 });
+
+/** Telegram/Schnelleingabe: „Wäsche jeden Montag“ → Titel, Regel und erstes Datum (E92) */
+export function wiederholungAusText(text: string, heute: string): { titel: string; wiederholen?: string; faellig?: string } {
+  const TAGE = ['sonntag', 'montag', 'dienstag', 'mittwoch', 'donnerstag', 'freitag', 'samstag'];
+  const m = /^(.*?)\s+(?:🔁\s*)?(täglich|jeden tag|werktags|jeden werktag|wöchentlich|jede woche|monatlich|jeden monat|jährlich|jedes jahr|alle [1-9]\d{0,2} (?:tage|wochen|monate)|jeden (?:sonntag|montag|dienstag|mittwoch|donnerstag|freitag|samstag))$/i.exec(text.trim());
+  if (!m || !m[1]!.trim()) return { titel: text.trim() };
+  const w = m[2]!.toLowerCase();
+  const titel = m[1]!.trim();
+  const tag = TAGE.findIndex((t) => w === `jeden ${t}`);
+  if (tag >= 0) {
+    const d = new Date(`${heute}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + ((tag - d.getUTCDay() + 7) % 7));
+    return { titel, wiederholen: 'wöchentlich', faellig: d.toISOString().slice(0, 10) };
+  }
+  const regel: Record<string, string> = { 'jeden tag': 'täglich', 'jeden werktag': 'werktags', 'jede woche': 'wöchentlich', 'jeden monat': 'monatlich', 'jedes jahr': 'jährlich' };
+  return { titel, wiederholen: regel[w] ?? w, faellig: heute };
+}
 
 const datumText = (v: unknown) => (v instanceof Date ? v.toISOString().slice(0, 10) : typeof v === 'string' && DATUM.test(v) ? v : undefined);
 
@@ -91,6 +154,7 @@ export class TodoDienst {
       gruppe: typeof k.gruppe === 'string' && k.gruppe ? k.gruppe : undefined,
       ...(k.fremd === true ? { fremd: true } : {}),
       ...(k.wichtig === true ? { wichtig: true } : {}),
+      ...(typeof k.wiederholen === 'string' && WIEDERHOLEN.test(k.wiederholen) ? { wiederholen: k.wiederholen } : {}),
       quelle: typeof k.quelle === 'string' ? k.quelle : undefined,
       erstellt: typeof k.erstellt === 'string' ? k.erstellt : k.erstellt instanceof Date ? k.erstellt.toISOString() : undefined,
       erledigtAm: typeof k.erledigt_am === 'string' ? k.erledigt_am : k.erledigt_am instanceof Date ? k.erledigt_am.toISOString() : undefined,
@@ -131,6 +195,7 @@ export class TodoDienst {
     if (e.gebaeude) daten.gebaeude = e.gebaeude;
     if (e.gruppe) daten.gruppe = e.gruppe;
     if (e.wichtig) daten.wichtig = true;
+    if (e.wiederholen) daten.wiederholen = e.wiederholen;
     daten.quelle = quelle;
     if (opt.fremd) daten.fremd = true;
     daten.erstellt = new Date(jetzt).toISOString();
@@ -171,11 +236,36 @@ export class TodoDienst {
       if (a.wichtig) k.wichtig = true;
       else delete k.wichtig;
     }
+    if (a.wiederholen !== undefined) {
+      if (a.wiederholen) k.wiederholen = a.wiederholen;
+      else delete k.wiederholen;
+    }
+    // E92: Wiederkehrendes zum ersten Mal abgehakt → nächstes anlegen (Vermerk „wiederholt“ verhindert Doppelte beim Hin- und Herklicken)
+    const regel = typeof k.wiederholen === 'string' && WIEDERHOLEN.test(k.wiederholen) ? k.wiederholen : undefined;
+    const naechstes = a.erledigt === true && regel && !k.wiederholt;
     // Inhalt von einem Fremdinhalt-Lauf geändert → ab jetzt „fremd“ (nur Abhaken ändert keinen Inhalt)
     if (opt.fremd && (a.titel !== undefined || a.notiz !== undefined || a.gruppe !== undefined || a.gebaeude !== undefined)) k.fremd = true;
     const inhalt = a.notiz !== undefined ? (a.notiz.trim() ? `${a.notiz.trim()}\n` : '') : m.content;
     const r = await this.o.vault.schreiben(pfad, matter.stringify(inhalt, k), { basisVersion: d.version });
     if (r.konflikt) throw new DorfFehler(409, 'Das To-do wurde gerade woanders geändert – bitte neu laden.');
+    if (naechstes) {
+      const heute = new Date(this.o.uhr.jetzt()).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+      const neu = await this.anlegen(
+        {
+          titel: k.titel ?? (await this.lesenEines(pfad))!.titel,
+          faellig: naechstesDatum(regel, datumText(k.faellig) ?? heute, heute),
+          ...(typeof k.gebaeude === 'string' && k.gebaeude ? { gebaeude: k.gebaeude } : {}),
+          ...(typeof k.gruppe === 'string' && k.gruppe ? { gruppe: k.gruppe } : {}),
+          ...(inhalt.trim() ? { notiz: inhalt.trim().slice(0, 5000) } : {}),
+          wiederholen: regel,
+        },
+        typeof k.quelle === 'string' ? k.quelle : 'Leif',
+        { fremd: k.fremd === true },
+      );
+      const jetzt = await this.o.vault.lesen(pfad);
+      const m2 = matter(jetzt.inhalt);
+      await this.o.vault.schreiben(pfad, matter.stringify(m2.content, { ...(m2.data as object), wiederholt: neu.pfad }), { basisVersion: jetzt.version });
+    }
     this.beiAenderung();
     return (await this.lesenEines(pfad))!;
   }
@@ -192,7 +282,7 @@ export class TodoDienst {
 
 /** Kurzer Text für Agenten und Telegram */
 export function todoZeile(t: TodoInfo) {
-  return `${t.erledigt ? '[x]' : '[ ]'} ${t.wichtig ? '⭐ ' : ''}${t.titel}${t.faellig ? ` (fällig ${t.faellig})` : ''}${t.gruppe ? ` [${t.gruppe}]` : ''}${t.gebaeude ? ` #${t.gebaeude}` : ''} – ${t.pfad}`;
+  return `${t.erledigt ? '[x]' : '[ ]'} ${t.wichtig ? '⭐ ' : ''}${t.titel}${t.faellig ? ` (fällig ${t.faellig})` : ''}${t.wiederholen ? ` 🔁 ${t.wiederholen}` : ''}${t.gruppe ? ` [${t.gruppe}]` : ''}${t.gebaeude ? ` #${t.gebaeude}` : ''} – ${t.pfad}`;
 }
 
 /** Alle Listen (E65 + Etappe 7) – eine Instanz je Ordner */

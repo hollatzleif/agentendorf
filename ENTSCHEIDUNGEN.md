@@ -652,3 +652,17 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
   - im Wochenrückblick als Bilanz (✓/✗)
 - Der Bürgermeister kennt den Ort (Orientierung im Systemprompt) und kann seine Vorschläge daran ausrichten. Schreiben kann er dort nicht: Die Datei liegt im Rathaus, nicht in seinem Schreibbereich, und die Ziele setzt Leif.
 - Warum: To-dos sagen, was ansteht; Wochenziele sagen, was zählt. Der Sonntag (Rückblick) und der Montag (Zeitung) bilden zusammen den kleinsten sinnvollen Wochenrhythmus.
+
+## E92 – Wiederkehrende To-dos (Nacht 18./19.11.)
+
+- **Neues Feld `wiederholen`** im Frontmatter eines To-dos. Erlaubt sind `täglich`, `werktags`, `wöchentlich`, `monatlich`, `jährlich` oder `alle N tage/wochen/monate`. Andere Werte werden abgelehnt (Zod), damit nichts stillschweigend falsch wiederholt wird.
+- **Abhaken legt das Nächste an:** gleicher Titel, gleiche Gruppe, gleiches Gebäude, gleiche Notiz, gleiche Regel. Der Stern wird nicht übernommen, er gilt nur für den Tag.
+  - Das neue Datum wird von der alten Fälligkeit aus weitergezählt und liegt immer nach heute. Ein überfälliges „täglich“ springt also nicht in die Vergangenheit.
+  - Monatlich bleibt beim Tag: Ein To-do vom 31. landet im Februar auf dem 28., im März wieder auf dem 31.
+- **Genau einmal:** Das erledigte To-do bekommt den Vermerk `wiederholt: <Pfad>`. Wer das Häkchen hin- und herklickt, erzeugt deshalb keine Doppelten.
+- **Wo es geht:**
+  - In der App unter „Bearbeiten“ → „Wiederholen“; in der Liste zeigt ein Abzeichen „🔁 wöchentlich“.
+  - In Obsidian direkt im Frontmatter.
+  - In Telegram mit `/todo Wäsche jeden Montag` (ebenso `täglich`, `werktags`, `jede Woche`, `jeden Monat`, `alle 3 Tage` …). Das erste Datum ist der nächste passende Tag.
+  - Agenten über `todo_anlegen`/`todo_bearbeiten` – laut Werkzeugbeschreibung nur, wenn Leif es so will.
+- Warum: Viele Pflichten kommen regelmäßig wieder (Wäsche, Miete, Vokabeln, Corps-Abend). Ohne Wiederholung müsste Leif sie jedes Mal neu anlegen oder sie fehlen auf „Heute“ und im Tagesplan.

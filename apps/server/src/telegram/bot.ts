@@ -1,4 +1,4 @@
-import { LISTEN, type ListenName, type TodoDienst } from '../todos.js';
+import { LISTEN, wiederholungAusText, type ListenName, type TodoDienst } from '../todos.js';
 
 /** Telegram-Darstellung der Listen; Kurzzeichen für Knöpfe (64 Byte Grenze) */
 const LISTEN_KURZ: Record<ListenName, string> = { todo: 't', einkauf: 'e', wunsch: 'w', corps: 'c' };
@@ -627,8 +627,10 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (!this.o.listen) return this.senden('Die Listen sind nicht eingerichtet.');
     if (rest) {
       try {
-        const t = await this.o.listen[liste].anlegen({ titel: rest.slice(0, 200) }, 'Telegram');
-        return this.senden(`${LISTEN_ANZEIGE[liste].symbol} Auf die ${LISTEN[liste].titel}: <b>${h(t.titel)}</b>`);
+        const heute = new Date(this.o.uhr.jetzt()).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+        const w = wiederholungAusText(rest.slice(0, 200), heute);
+        const t = await this.o.listen[liste].anlegen(w, 'Telegram');
+        return this.senden(`${LISTEN_ANZEIGE[liste].symbol} Auf die ${LISTEN[liste].titel}: <b>${h(t.titel)}</b>${t.wiederholen ? ` · 🔁 ${h(t.wiederholen)}${t.faellig ? ` ab ${h(t.faellig)}` : ''}` : ''}`);
       } catch (e) {
         return this.senden(`⚠️ ${h((e as Error).message)}`);
       }

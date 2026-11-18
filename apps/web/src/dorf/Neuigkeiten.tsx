@@ -1,10 +1,11 @@
 import { useState } from 'react';
 
 /** Bei jeder neuen Ausgabe den Schlüssel ändern – dann erscheint die Karte einmal pro Gerät */
-const AUSGABE = '2026-11-19d';
+const AUSGABE = '2026-11-19e';
 const SCHLUESSEL = 'dorf-neuigkeiten-gesehen';
 
 const PUNKTE: [string, string][] = [
+  ['🔁', 'Neu: wiederkehrende To-dos – beim Bearbeiten „Wiederholen“ wählen oder in Telegram „/todo Wäsche jeden Montag“. Abhaken legt das nächste an.'],
   ['🎯', 'Neu: Wochenziele auf „Heute“ (oder /ziel in Telegram) – 3 Dinge, die diese Woche fertig werden sollen. Stehen in der Morgenzeitung, Bilanz im Wochenrückblick, als Checkliste auch in Obsidian.'],
   ['🧭', 'Telegram /plan (oder /plan morgen): Tagesplan als Knöpfe – antippen trägt den Block in deinen Kalender ein.'],
   ['🔁', 'Neu: Gewohnheiten auf „Heute“ – Sport, Lesen, Vokabeln … mit 🔥 Serie. Abhaken auch abends in Telegram (/gewohnheiten), Bilanz im Wochenrückblick.'],

@@ -488,3 +488,12 @@ describe('Telegram /ziel (E91)', () => {
     expect(d.gesendet().at(-1)).toMatch(/steht schon drauf/);
   });
 });
+
+describe('Telegram /todo wiederkehrend (E92)', () => {
+  it('„/todo Wäsche jeden Montag“ legt ein wöchentliches To-do ab dem nächsten Montag an', async () => {
+    const d = await dorf();
+    await d.nachricht({ text: '/todo Wäsche jeden Montag' });
+    expect(d.gesendet().at(-1)).toMatch(/<b>Wäsche<\/b> · 🔁 wöchentlich ab 2026-11-16/);
+    expect((await d.todos.liste())[0]).toMatchObject({ titel: 'Wäsche', wiederholen: 'wöchentlich', faellig: '2026-11-16' });
+  });
+});

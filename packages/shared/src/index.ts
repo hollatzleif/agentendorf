@@ -196,6 +196,8 @@ export interface TodoInfo {
   fremd?: boolean;
   /** ⭐ eines der wichtigsten Dinge (oben auf „Heute“, zuerst beim Tag planen) */
   wichtig?: boolean;
+  /** E92: wiederkehrend – täglich, werktags, wöchentlich, monatlich, jährlich, „alle N tage/wochen/monate“ */
+  wiederholen?: string;
   quelle?: string; // „Leif“, „Telegram“ oder der Agent/die Aktion
   erstellt?: string;
   erledigtAm?: string;

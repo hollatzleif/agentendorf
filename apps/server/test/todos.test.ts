@@ -165,3 +165,54 @@ describe('⭐ wichtig (Nacht 18./19.11.)', () => {
     expect((await d.todos.holen(w.pfad)).wichtig).toBeUndefined();
   });
 });
+
+describe('Wiederkehrende To-dos (E92)', () => {
+  it('nächstes Datum: täglich, werktags (über das Wochenende), wöchentlich, monatlich (Monatsende), alle N; nie in der Vergangenheit', async () => {
+    const { naechstesDatum } = await import('../src/todos.js');
+    expect(naechstesDatum('täglich', '2026-11-16', '2026-11-16')).toBe('2026-11-17');
+    expect(naechstesDatum('täglich', '2026-11-10', '2026-11-16')).toBe('2026-11-17'); // überfällig → morgen, nicht gestern
+    expect(naechstesDatum('werktags', '2026-11-20', '2026-11-20')).toBe('2026-11-23');
+    expect(naechstesDatum('wöchentlich', '2026-11-16', '2026-11-18')).toBe('2026-11-23');
+    expect(naechstesDatum('wöchentlich', '2026-11-20', '2026-11-18')).toBe('2026-11-27'); // früher erledigt
+    expect(naechstesDatum('monatlich', '2026-01-31', '2026-01-31')).toBe('2026-02-28');
+    expect(naechstesDatum('monatlich', '2026-01-31', '2026-03-01')).toBe('2026-03-31'); // Tag 31 bleibt das Ziel
+    expect(naechstesDatum('jährlich', '2026-11-16', '2026-11-16')).toBe('2027-11-16');
+    expect(naechstesDatum('alle 2 wochen', '2026-11-16', '2026-11-16')).toBe('2026-11-30');
+    expect(naechstesDatum('alle 3 tage', '2026-11-16', '2026-11-16')).toBe('2026-11-19');
+    expect(naechstesDatum('alle 2 monate', '2026-11-16', '2026-11-16')).toBe('2027-01-16');
+    expect(naechstesDatum('jeden tag', '2026-11-16', '2026-11-16')).toBeUndefined();
+  });
+
+  it('Abhaken legt das nächste an (Titel, Gruppe, Notiz, Regel), genau einmal – auch beim Hin- und Herklicken; ungültige Regel abgelehnt', async () => {
+    const d = await testDorf();
+    const h = await kopf(d);
+    expect((await d.app.inject({ method: 'POST', url: '/api/todos', headers: h, payload: { titel: 'X', wiederholen: 'jeden tag' } })).statusCode).toBe(400);
+    const neu = (await d.app.inject({ method: 'POST', url: '/api/todos', headers: h, payload: { titel: 'Wäsche', faellig: '2026-11-16', wiederholen: 'Wöchentlich', notiz: 'Weiß und bunt' } })).json();
+    expect(neu).toMatchObject({ wiederholen: 'wöchentlich' });
+    for (const erledigt of [true, false, true])
+      await d.app.inject({ method: 'PATCH', url: '/api/todos', headers: h, payload: { pfad: neu.pfad, erledigt } });
+    const l = (await d.app.inject({ url: '/api/todos', headers: h })).json() as { titel: string; erledigt: boolean; faellig?: string; wiederholen?: string; notiz?: string; pfad: string }[];
+    const offen = l.filter((t) => !t.erledigt);
+    expect(offen).toEqual([expect.objectContaining({ titel: 'Wäsche', faellig: '2026-11-23', wiederholen: 'wöchentlich', notiz: 'Weiß und bunt' })]);
+    expect(l.filter((t) => t.erledigt)).toHaveLength(1);
+    expect((await d.vault.lesen(neu.pfad)).inhalt).toContain(`wiederholt: ${offen[0]!.pfad}`);
+    // Regel entfernen: das nächste wiederholt sich nicht mehr
+    await d.app.inject({ method: 'PATCH', url: '/api/todos', headers: h, payload: { pfad: offen[0]!.pfad, wiederholen: '' } });
+    await d.app.inject({ method: 'PATCH', url: '/api/todos', headers: h, payload: { pfad: offen[0]!.pfad, erledigt: true } });
+    expect(((await d.app.inject({ url: '/api/todos', headers: h })).json() as { erledigt: boolean }[]).filter((t) => !t.erledigt)).toHaveLength(0);
+  });
+});
+
+describe('Wiederholung aus Text (E92, Telegram /todo)', () => {
+  it('erkennt Regeln am Ende, sonst bleibt der Text Titel', async () => {
+    const { wiederholungAusText } = await import('../src/todos.js');
+    // 18.11.2026 = Mittwoch
+    expect(wiederholungAusText('Wäsche jeden Montag', '2026-11-18')).toEqual({ titel: 'Wäsche', wiederholen: 'wöchentlich', faellig: '2026-11-23' });
+    expect(wiederholungAusText('Müll raus jeden Mittwoch', '2026-11-18')).toEqual({ titel: 'Müll raus', wiederholen: 'wöchentlich', faellig: '2026-11-18' });
+    expect(wiederholungAusText('Vokabeln täglich', '2026-11-18')).toEqual({ titel: 'Vokabeln', wiederholen: 'täglich', faellig: '2026-11-18' });
+    expect(wiederholungAusText('Miete zahlen 🔁 jeden Monat', '2026-11-18')).toEqual({ titel: 'Miete zahlen', wiederholen: 'monatlich', faellig: '2026-11-18' });
+    expect(wiederholungAusText('Pflanzen gießen alle 3 Tage', '2026-11-18')).toEqual({ titel: 'Pflanzen gießen', wiederholen: 'alle 3 tage', faellig: '2026-11-18' });
+    expect(wiederholungAusText('Täglich', '2026-11-18')).toEqual({ titel: 'Täglich' });
+    expect(wiederholungAusText('Bericht über tägliche Arbeit', '2026-11-18')).toEqual({ titel: 'Bericht über tägliche Arbeit' });
+  });
+});
