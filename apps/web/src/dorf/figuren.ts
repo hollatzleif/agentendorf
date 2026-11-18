@@ -119,6 +119,14 @@ export class Figuren {
   private agenten = new Map<string, Agent>();
   private bm: (Teile & { arbeitet: THREE.Object3D | null; t: number; pos: THREE.Vector3 | null; blick: number; laeuft: DorfFigur | null; winken: number }) | null = null;
   private erst = true;
+  private nachts = false;
+
+  /** Nachts schläft der Bürgermeister, wenn er nichts zu tun hat */
+  nachtSetzen(nachts: boolean) {
+    if (this.nachts === nachts) return;
+    this.nachts = nachts;
+    if (this.bm) this.buergermeisterSetzen(this.bm.laeuft);
+  }
 
   constructor(
     private welt: FigurenWelt,
@@ -221,7 +229,9 @@ export class Figuren {
       this.bm.obj.rotation.y = r.blick;
     }
     this.bm.laeuft = lauf;
-    this.blaseSetzen(this.bm, lauf ? (lauf.status === 'laeuft' ? 'denken' : lauf.status === 'wartet_freigabe' ? 'brief' : 'sanduhr') : null);
+    this.blaseSetzen(this.bm, lauf ? (lauf.status === 'laeuft' ? 'denken' : lauf.status === 'wartet_freigabe' ? 'brief' : 'sanduhr') : this.nachts ? 'schlafen' : null);
+    // schlafend leicht zur Seite geneigt
+    this.bm.koerper.rotation.z = !lauf && this.nachts ? 0.12 : 0;
   }
 
   private blaseSetzen(t: Teile, art: BlasenArt | null) {

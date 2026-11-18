@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { canvasTextur } from './bausatz';
 
-export type BlasenArt = 'brief' | 'baustelle' | 'uhr' | 'fehler' | 'denken' | 'sanduhr';
+export type BlasenArt = 'brief' | 'baustelle' | 'uhr' | 'fehler' | 'denken' | 'sanduhr' | 'schlafen';
 
 const DUNKEL = '#2b3a55';
 const ZEICHNER: Record<BlasenArt, (x: CanvasRenderingContext2D) => void> = {
@@ -86,6 +86,17 @@ const ZEICHNER: Record<BlasenArt, (x: CanvasRenderingContext2D) => void> = {
       x.arc(128 + dx, 120, 17, 0, 7);
       x.fill();
     }
+  },
+  schlafen: (x) => {
+    x.fillStyle = '#5b6fa8';
+    x.font = '900 70px system-ui, sans-serif';
+    x.textAlign = 'center';
+    x.textBaseline = 'middle';
+    x.fillText('Z', 92, 148);
+    x.font = '900 54px system-ui, sans-serif';
+    x.fillText('z', 140, 112);
+    x.font = '900 40px system-ui, sans-serif';
+    x.fillText('z', 176, 80);
   },
   sanduhr: (x) => {
     x.fillStyle = '#f2c14e';

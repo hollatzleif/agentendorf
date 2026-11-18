@@ -678,6 +678,7 @@ export class DorfSzene {
     }
     for (const m of leuchtMaterialien()) m.emissiveIntensity = 0.75 + dunkel * 1.6;
     this.himmelsGruppe?.nacht(dunkel);
+    this.figuren.nachtSetzen(dunkel > 0.6);
     if (this.lichtMat) this.lichtMat.opacity = Math.max(0, dunkel - 0.35) * 1.1;
     this.schattenAnpassen();
     this.schmutzig = true;
