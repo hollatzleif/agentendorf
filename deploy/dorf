@@ -398,7 +398,7 @@ cmd_moodle_browser_zugang() {
   read -r -p "Benutzername (z. B. k12345678): " benutzer
   benutzer=$(printf '%s' "$benutzer" | tr -d '\r\n ')
   [[ "$benutzer" =~ ^[A-Za-z0-9._@-]{2,80}$ ]] || { rot "Ungültiger Benutzername."; return 1; }
-  read -r -s -p "Passwort (unsichtbar): " passwort; echo
+  IFS= read -r -s -p "Passwort (unsichtbar): " passwort; echo
   [ -n "$passwort" ] || { rot "Abgebrochen."; return 1; }
   case "$passwort" in *$'\n'*|*$'\r'*) rot "Passwort mit Zeilenumbruch geht nicht."; return 1 ;; esac
   hosts=$(sed -n 's/^BROWSER_HOSTS=//p' "$datei" | tail -1)
