@@ -29,7 +29,7 @@ async function imDorf(page: Page) {
   await page.goto('/');
   await page.getByLabel('Passwort').fill(PW);
   await page.getByRole('button', { name: 'Ins Dorf' }).click();
-  await expect(page.getByTestId('dorf-leinwand')).toBeVisible();
+  await expect(page.getByTestId('dorf-leinwand')).toBeVisible({ timeout: 20_000 }); // Software-Grafik: der erste Aufbau dauert
   await page.waitForFunction(() => !!window.__dorf?.bildschirmPunkt('gebaeude', 'Rathaus'), null, { timeout: 20_000 });
 }
 
