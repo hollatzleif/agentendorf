@@ -20,6 +20,8 @@ const SEITEN: [string, string, string][] = [
   ['🧺', 'To-do-Brett', '/gebaeude/Marktplatz?reiter=todo'],
   ['🔔', 'Kirchturm (Uhr, Pomodoro)', '/gebaeude/Kirchturm'],
   ['🗓️', 'Wochenrückblick', '/gebaeude/Rathaus?reiter=woche'],
+  ['📊', 'Statistik', '/gebaeude/Rathaus?reiter=statistik'],
+  ['📋', 'Heute (Mein Tag)', '/heute'],
   ['☀️', 'Morgenzeitung', '/gebaeude/Rathaus?reiter=morgenzeitung'],
   ['✉️', 'Freigaben', '/gebaeude/Rathaus?reiter=freigaben'],
 ];

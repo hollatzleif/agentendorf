@@ -7,6 +7,7 @@ import type { Wochenrueckblick } from './wochenrueckblick.js';
 import type { Karteikasten } from './karten.js';
 import type { Gewohnheiten } from './gewohnheiten.js';
 import type { Wochenziele } from './wochenziele.js';
+import { statistik } from './statistik.js';
 import type { GoogleKalender } from './kalender-google.js';
 import type { Corps } from './corps.js';
 import type { Bank } from './bank.js';
@@ -430,6 +431,15 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
       const q = z.object({ kalenderId: z.string().min(1), id: z.string().min(1), serie: z.enum(['ja', 'nein']).optional() }).parse(req.query);
       await k.loeschen(q.kalenderId, q.id, { serie: q.serie === 'ja' });
       return { ok: true };
+    });
+  }
+
+  // ---- Statistik (E93) ----
+  if (a.listen) {
+    const todos = a.listen.todo;
+    app.get('/api/statistik', async (req) => {
+      const q = z.object({ tage: z.coerce.number().int().min(7).max(120).default(28) }).parse(req.query);
+      return statistik({ db: a.db, uhr: a.uhr, todos, gewohnheiten: a.gewohnheiten }, q.tage);
     });
   }
 

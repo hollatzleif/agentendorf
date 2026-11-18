@@ -106,6 +106,19 @@ export class Gewohnheiten {
     return { gewohnheiten: aus, ...(l.fehler ? { fehler: l.fehler } : {}) };
   }
 
+  /** Statistik: je Tag fällige und erledigte Gewohnheiten (nach der heutigen Liste) */
+  async jeTag(tage: string[]) {
+    const l = await this.liste();
+    const log = new Set((this.o.db.prepare('SELECT name, tag FROM gewohnheit_log WHERE tag >= ?').all(tage[0] ?? '0000') as { name: string; tag: string }[]).map((x) => `${x.name}\n${x.tag}`));
+    // eine Gewohnheit zählt erst ab ihrem ersten Häkchen (vorher gab es sie meist noch nicht)
+    const heute = tagIn(this.o.uhr.jetzt());
+    const start = new Map(l.gewohnheiten.map((g) => [g.name, (this.o.db.prepare('SELECT MIN(tag) AS t FROM gewohnheit_log WHERE name = ?').get(g.name) as { t: string | null }).t ?? heute]));
+    return tage.map((tag) => {
+      const f = l.gewohnheiten.filter((g) => tag >= start.get(g.name)! && faelligAm(g, tag));
+      return { faellig: f.length, erledigt: f.filter((g) => log.has(`${g.name}\n${tag}`)).length };
+    });
+  }
+
   /** Morgenzeitung: was heute dran ist */
   async heuteZeilen(): Promise<string[]> {
     const s = await this.stand();

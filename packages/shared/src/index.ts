@@ -761,3 +761,9 @@ export interface Wochenziele {
 export interface WochenzieleStand extends Wochenziele {
   letzte: { woche: string; ziele: { text: string; erledigt: boolean }[] };
 }
+
+/** Statistik (E93) */
+export interface Statistik {
+  tage: { tag: string; erledigt: number; fokusMin: number; gewohnheitenFaellig: number; gewohnheitenErledigt: number }[];
+  summen: { erledigt: number; erledigtWoche: number; fokusMin: number; fokusMinWoche: number; gewohnheitenQuote: number | null; aktiveTage: number };
+}

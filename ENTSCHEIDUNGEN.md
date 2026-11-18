@@ -666,3 +666,13 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
   - In Telegram mit `/todo Wäsche jeden Montag` (ebenso `täglich`, `werktags`, `jede Woche`, `jeden Monat`, `alle 3 Tage` …). Das erste Datum ist der nächste passende Tag.
   - Agenten über `todo_anlegen`/`todo_bearbeiten` – laut Werkzeugbeschreibung nur, wenn Leif es so will.
 - Warum: Viele Pflichten kommen regelmäßig wieder (Wäsche, Miete, Vokabeln, Corps-Abend). Ohne Wiederholung müsste Leif sie jedes Mal neu anlegen oder sie fehlen auf „Heute“ und im Tagesplan.
+
+## E93 – Statistik im Rathaus (Nacht 18./19.11.)
+
+- **Neuer Rathaus-Reiter „Statistik“** (auch in der Befehlspalette). Er zeigt vier Kennzahlen: erledigte To-dos der letzten 7 Tage, Fokus, Gewohnheiten (Anteil der fälligen, die erledigt sind) und aktive Tage.
+- **Darunter je Kennzahl ein eigenes Balkendiagramm**, also kleine Vielfache statt eines Diagramms mit zwei Achsen. Es gibt nur eine Reihe je Diagramm, deshalb keine Legende; der Titel sagt, was gezeigt wird.
+  - Darstellung: dünne Balken mit 2 px Abstand und zurückhaltendem Gitter. Hover oder Tippen zeigt den Wert; die Trefferfläche ist breiter als der Balken.
+  - Eine „Tabelle“ zeigt alle Zahlen, wählbar sind 4 Wochen oder 3 Monate.
+- **Datenquellen:** nur vorhandene Daten (`erledigt_am` der To-dos, `fokus_sitzungen`, `gewohnheit_log`), keine KI, kein neuer Speicher.
+- Eine Gewohnheit zählt erst ab ihrem ersten Häkchen. So drückt eine heute angelegte Gewohnheit die Quote der letzten Wochen nicht.
+- Warum: Was man sieht, verbessert man. Und Leif kann prüfen, ob das Dorf ihn tatsächlich produktiver macht – oder ob es nur gut aussieht.

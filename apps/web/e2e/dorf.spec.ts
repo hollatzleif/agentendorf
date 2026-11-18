@@ -971,3 +971,25 @@ test('Wiederkehrendes To-do: 🔁 wöchentlich, abhaken legt das nächste an', a
   await expect(offen).toContainText('🔁 wöchentlich');
   await expect(page.locator('li.todo.fertig', { hasText: 'Wäsche-Test' })).toHaveCount(1);
 });
+
+test('Statistik im Rathaus: Kacheln, Balken mit Hover, Tabelle', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  const o = { origin: 'http://127.0.0.1:3999' };
+  for (const t of ['Stat-A', 'Stat-B']) {
+    const n = await (await page.request.post('/api/todos', { headers: o, data: { titel: t } })).json();
+    await page.request.patch('/api/todos', { headers: o, data: { pfad: n.pfad, erledigt: true } });
+  }
+  await page.goto('/gebaeude/Rathaus?reiter=statistik');
+  const s = page.getByRole('region', { name: 'Statistik' });
+  await expect(s.locator('.statistik-kachel').first()).toContainText(/To-dos erledigt\s*\d+/);
+  const d = s.getByRole('figure', { name: '☑️ Erledigte To-dos je Tag' });
+  await expect(d.locator('.statistik-balken')).not.toHaveCount(0);
+  await d.locator('.statistik-treffer').last().hover();
+  await expect(d.locator('.statistik-hover')).toContainText('erledigt');
+  if (process.env.SCREENSHOT) await page.screenshot({ path: process.env.SCREENSHOT, fullPage: true });
+  await s.getByRole('button', { name: 'Tabelle' }).click();
+  await expect(s.getByRole('table')).toBeVisible();
+  await s.getByRole('button', { name: '3 Monate' }).click();
+  await expect(s.getByRole('row')).toHaveCount(91);
+});
