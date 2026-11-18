@@ -395,3 +395,13 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
   - Daraus wird je Mail genau einmal ein To-do „Rechnung: … – Betrag“ mit Fälligkeit und Gebäude Bank, markiert als aus der Mail (`fremd`).
   - Die Bank zeigt offene Rechnungen. Abgehakt wird auf dem Marktplatz, bezahlen tut Leif.
 
+**E69 – Etappe 7 (Teil 3): Corpshaus** (18.11.; Leifs Wahl: Termine aus Mails und Hauptkalender, Corps-Mails per KI und Absenderliste, Ämter & Aufgaben)
+- **Einstellungen** stehen in `Corpshaus/einstellungen.md`: `absender` (Adresse oder Teil wie „@mein-corps.de“) und `stichworte` für Kalendertitel.
+- **Corps-Mails:** Die KI-Kategorie „Corps“ gab es schon. Neu ist die Absenderliste, die die KI überstimmt (Postbote: `kategorieFest`). Der Reiter „Corps-Mails“ zeigt den Posteingang gefiltert, mit denselben Antwort-Entwürfen wie bei der Post.
+- **Termine:**
+  - Corps-Termine aus dem Hauptkalender, erkannt an den Stichworten (nächste 6 Wochen), nur lesen.
+  - Skill „Termine aus Mails“ (montags und donnerstags 07:00): `post_suchen` jetzt mit `kategorie`, dazu Kalender-Abgleich. Ergebnis ist `Corpshaus/00_Termine.md` (Ablage mit Archiv), markiert ist, was im Kalender fehlt.
+  - Anmeldefristen und Ähnliches werden Aufgaben. Kalendereinträge legt nur Leif an.
+- **Ämter & Aufgaben:** Liste `corps` (Corpshaus/aufgaben), das Amt steht als Gruppe. Das Bearbeiten-Formular aller Listen hat jetzt das Feld „Gruppe“.
+- **Skills** „Veranstaltung planen“ (Checkliste rückwärts vom Datum als Aufgaben mit Fälligkeit, Planungsdokument) und „Übergabe-Notiz“ (je Amt, aus Aufgaben, Notizen und Corps-Mails).
+

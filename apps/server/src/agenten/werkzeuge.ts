@@ -278,6 +278,7 @@ export const WERKZEUG_DEFINITIONEN: Record<DorfWerkzeug, WerkzeugDefinition> = {
       properties: {
         suche: { type: 'string', description: 'z. B. „Statistical Learning“ oder „Pawan Assignment“; leer = neueste Mails' },
         tage: { type: 'integer', minimum: 1, maximum: 120, description: 'Wie weit zurück (Standard 30)' },
+        kategorie: { type: 'string', enum: ['Uni', 'Corps', 'Finanzen', 'Persönlich', 'Termine', 'Newsletter', 'Werbung', 'Sonstiges'], description: 'nur Mails dieser Kategorie (optional)' },
       },
       required: [],
       additionalProperties: false,
@@ -574,11 +575,13 @@ export class WerkzeugKiste {
         case 'todo_loeschen':
           return await this.todo(name as 'todo_liste' | 'todo_anlegen' | 'todo_bearbeiten' | 'todo_loeschen', eingabe);
         case 'post_suchen': {
-          const e = z.object({ suche: z.string().max(200).default(''), tage: z.number().int().min(1).max(120).default(30) }).parse(eingabe ?? {});
+          const e = z.object({ suche: z.string().max(200).default(''), tage: z.number().int().min(1).max(120).default(30), kategorie: z.string().max(30).optional() }).parse(eingabe ?? {});
           const ab = this.uhr.jetzt() - e.tage * 86_400_000;
           const woerter = e.suche.toLowerCase().split(/\s+/).filter(Boolean);
           const zeilen = (
-            this.db.prepare('SELECT id, von, betreff, datum, zusammenfassung FROM post_mails WHERE datum >= ? ORDER BY datum DESC LIMIT 2000').all(ab) as {
+            (e.kategorie
+              ? this.db.prepare('SELECT id, von, betreff, datum, zusammenfassung FROM post_mails WHERE datum >= ? AND kategorie = ? ORDER BY datum DESC LIMIT 2000').all(ab, e.kategorie)
+              : this.db.prepare('SELECT id, von, betreff, datum, zusammenfassung FROM post_mails WHERE datum >= ? ORDER BY datum DESC LIMIT 2000').all(ab)) as {
               id: string; von: string; betreff: string; datum: number; zusammenfassung: string | null;
             }[]
           )

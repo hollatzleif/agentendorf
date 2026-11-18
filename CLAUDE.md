@@ -31,6 +31,7 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
                           Plan-Ausführung durch den CODE nach Freigabe, Abschluss genau einmal, Status der Schreibtisch-Aufgabe
   src/bank.ts     Etappe 7 (E68): Kontoauszüge (CSV-Erkennung, Zuordnung je Format, PDF per Skill), Kategorien (Regeln, Leif, KI),
                   Abos, Budget/Sparziele aus Bank/einstellungen.md, Warnungen; Rechnungen aus Mails → To-do (dorf.ts)
+  src/corps.ts    Etappe 7 (E69): Corps-Termine (Hauptkalender per Stichwort), Absenderliste für den Postboten (Corpshaus/einstellungen.md)
   src/todos.ts    To-do-Brett (E65): eine Datei je To-do in Marktplatz/todos/, Version/409, Löschen = Papierkorb; App, Telegram /todo, todo_* für alle Agenten
   src/schreibtisch.ts  Aufgaben = Notizen in Rathaus/schreibtisch/ (DB führt Status, Frontmatter spiegelt ihn); App/Telegram starten
                        den Bürgermeister sofort, Notizen aus Obsidian/von Agenten werden nur aufgenommen

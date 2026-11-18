@@ -7,10 +7,12 @@ const KATEGORIEN = ['Uni', 'Corps', 'Finanzen', 'Persönlich', 'Termine', 'Newsl
 const zeit = new Intl.DateTimeFormat('de-AT', { timeZone: 'Europe/Vienna', weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 /** Post: eingeordnete Mails (nur Kurzfassungen – die Mails selbst bleiben in Gmail) */
-export function PostEingang() {
+/** fest: nur diese Kategorie zeigen (z. B. „Corps“ im Corpshaus) – ohne Auswahl */
+export function PostEingang({ fest }: { fest?: string } = {}) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['post'], queryFn: () => api<PostUebersicht>('/api/post'), refetchInterval: (x) => (x.state.data?.laeuft ? 3000 : 60_000) });
-  const [kategorie, setKategorie] = useState('');
+  const [kategorieWahl, setKategorie] = useState('');
+  const kategorie = fest ?? kategorieWahl;
   const [nurWichtig, setNurWichtig] = useState(false);
   const [fehler, setFehler] = useState('');
   if (!q.data) return <p className="leise">Lade …</p>;
@@ -51,12 +53,14 @@ export function PostEingang() {
       {!p.einordnungMoeglich && <p className="fehler">Ohne API-Schlüssel werden Mails nur abgeholt, nicht eingeordnet (dorf api-schluessel).</p>}
       {fehler && <p className="fehler">{fehler}</p>}
       <div className="zeile">
-        <select value={kategorie} onChange={(e) => setKategorie(e.target.value)} aria-label="Kategorie">
-          <option value="">Alle Kategorien</option>
-          {KATEGORIEN.map((k) => (
-            <option key={k}>{k}</option>
-          ))}
-        </select>
+        {!fest && (
+          <select value={kategorie} onChange={(e) => setKategorie(e.target.value)} aria-label="Kategorie">
+            <option value="">Alle Kategorien</option>
+            {KATEGORIEN.map((k) => (
+              <option key={k}>{k}</option>
+            ))}
+          </select>
+        )}
         <label className="haken">
           <input type="checkbox" checked={nurWichtig} onChange={(e) => setNurWichtig(e.target.checked)} /> nur wichtige
         </label>

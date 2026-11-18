@@ -161,7 +161,12 @@ describe('Bank: Rechnungen aus Mails', () => {
     const d = await testDorf({ gmail, ki: () => klient });
     g.mailNeu({ labels: ['INBOX'], von: 'Handy <rechnung@handy.example>', betreff: 'Ihre Rechnung November', text: 'Bitte zahlen', datum: d.uhr.jetzt() - 3600_000 });
     g.mailNeu({ labels: ['INBOX'], von: 'Bank <info@bank.example>', betreff: 'Kontoauszug bereit', text: 'x', datum: d.uhr.jetzt() - 3500_000 });
+    // Corpshaus: Absenderliste schlägt die KI-Einordnung (hier „Finanzen“)
+    await d.vault.schreiben('Corpshaus/einstellungen.md', '---\nabsender: ["@mein-corps.example"]\n---\n');
+    g.mailNeu({ labels: ['INBOX'], von: 'Kassier <kasse@mein-corps.example>', betreff: 'Semesterbeitrag', text: 'x', datum: d.uhr.jetzt() - 3400_000 });
     await d.postbote.abholen();
+    expect((d.db.prepare("SELECT kategorie FROM post_mails WHERE betreff = 'Semesterbeitrag'").get() as { kategorie: string }).kategorie).toBe('Corps');
+    expect((d.db.prepare("SELECT kategorie FROM post_mails WHERE betreff = 'Kontoauszug bereit'").get() as { kategorie: string }).kategorie).toBe('Finanzen');
     let t = await d.listen.todo.liste();
     expect(t).toMatchObject([{ titel: 'Rechnung: Handyanbieter – 49,99 €', faellig: '2026-11-30', gebaeude: 'Bank', quelle: 'Postbote', fremd: true }]);
     await d.postbote.abholen();

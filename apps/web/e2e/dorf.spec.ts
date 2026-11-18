@@ -398,3 +398,20 @@ test('Bank: Kontoauszug hochladen → Monat mit Kategorien; Kategorie umstellen 
   await page.getByLabel('Kategorie Kiosk am Eck').selectOption('Freizeit');
   await expect(page.locator('.bank-balken li', { hasText: 'Freizeit' })).toContainText('3,50');
 });
+
+test('Corpshaus: Termine, Ämter & Aufgaben (Gruppe = Amt), Corps-Mails', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  await page.goto('/gebaeude/Corpshaus');
+  await expect(page.getByRole('button', { name: 'Termine', exact: true })).toHaveClass(/aktiv/);
+  await expect(page.getByRole('heading', { name: 'Termine aus deinem Kalender' })).toBeVisible();
+  await page.getByRole('button', { name: 'Ämter & Aufgaben', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Neues To-do' }).fill('Kassenbuch abschließen');
+  await page.getByRole('form', { name: 'Neues To-do' }).getByRole('button', { name: '+' }).click();
+  await page.locator('.todo').getByRole('button', { name: 'Kassenbuch abschließen' }).click();
+  await page.locator('.todo.bearbeiten').getByLabel('Gruppe').fill('Kassier');
+  await page.locator('.todo.bearbeiten').getByRole('button', { name: 'Speichern' }).click();
+  await expect(page.locator('.todo', { hasText: 'Kassenbuch abschließen' })).toContainText('Kassier');
+  await page.getByRole('button', { name: 'Corps-Mails', exact: true }).click();
+  await expect(page.getByText(/Gmail ist noch nicht verbunden|Keine Mails/)).toBeVisible();
+});

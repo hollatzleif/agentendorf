@@ -1,3 +1,4 @@
+import type { Corps } from './corps.js';
 import type { Bank } from './bank.js';
 import { programmeRouten } from './programme.js';
 import { LISTEN_NAMEN, type ListenName, type TodoDienst } from './todos.js';
@@ -64,6 +65,7 @@ export interface Abhaengigkeiten {
   automatik?: Automatik;
   listen?: Record<ListenName, TodoDienst>;
   bank?: Bank;
+  corps?: Corps;
 }
 
 /** Für Agenten-HTML: Skripte ja, aber undurchsichtiger Ursprung und kein Netz. Bilder/Schriften nur eingebettet (data:). */
@@ -344,6 +346,11 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
       const { kategorie } = z.object({ kategorie: z.string().min(1).max(40) }).parse(req.body);
       return { geaendert: bank.kategorieSetzen(id, kategorie) };
     });
+  }
+
+  if (a.corps) {
+    const corps = a.corps;
+    app.get('/api/corps', async () => corps.uebersicht());
   }
 
   // ---- Etappe 6: Programme für Mac und Windows ----

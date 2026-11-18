@@ -52,3 +52,24 @@ describe('Etappe 7b: Einkaufsladen', () => {
     expect(await d.vault.existiert('Einkaufsladen/einstellungen.md')).toBe(true);
   });
 });
+
+describe('Etappe 7d: Corpshaus', () => {
+  it('Termine aus dem Hauptkalender per Stichwort; Absenderliste; Skills fehlerfrei', async () => {
+    const ics = (titel: string, start: string) => `BEGIN:VEVENT\r\nUID:${titel}\r\nDTSTART:${start}\r\nDTEND:${start}\r\nSUMMARY:${titel}\r\nEND:VEVENT\r\n`;
+    const d = await testDorf({
+      google: { termine: { laden: async () => `BEGIN:VCALENDAR\r\n${ics('Kneipe im Haus', '20261120T190000Z')}${ics('Zahnarzt', '20261121T080000Z')}${ics('Corps-Convent', '20261125T180000Z')}END:VCALENDAR\r\n` } },
+    });
+    const h = await kopf(d);
+    const u = (await d.app.inject({ url: '/api/corps', headers: h })).json();
+    expect(u.termine.map((t: { titel: string }) => t.titel)).toEqual(['Kneipe im Haus', 'Corps-Convent']);
+    expect(u.absender).toEqual([]);
+    await d.vault.schreiben('Corpshaus/einstellungen.md', '---\nabsender: ["@mein-corps.example"]\nstichworte: [Kneipe]\n---\n');
+    expect(await d.corps.istCorpsAbsender('Senior <senior@mein-corps.example>')).toBe(true);
+    expect(await d.corps.istCorpsAbsender('prof@jku.at')).toBe(false);
+    const { aktionenListe } = await import('../src/agenten/aktionen.js');
+    const a = (await aktionenListe(d.vault)).filter((x) => x.gebaeude === 'Corpshaus');
+    expect(a.map((x) => x.id).sort()).toEqual(['Corpshaus/termine-aus-mails', 'Corpshaus/uebergabe', 'Corpshaus/veranstaltung-planen']);
+    expect(a.every((x) => !x.fehler)).toBe(true);
+    expect(a.find((x) => x.id === 'Corpshaus/termine-aus-mails')).toMatchObject({ zeitplan: 'mo, do 07:00', ablage: 'Corpshaus/00_Termine.md' });
+  });
+});

@@ -86,6 +86,7 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: (f: () =
   const [titel, setTitel] = useState(t.titel);
   const [faellig, setFaellig] = useState(t.faellig ?? '');
   const [notiz, setNotiz] = useState(t.notiz ?? '');
+  const [gruppe, setGruppe] = useState(t.gruppe ?? '');
   // Häkchen sofort zeigen; die Zeile wird mit der neuen Version vom Server ohnehin neu aufgebaut
   const [haken, setHaken] = useState(t.erledigt);
   const aendern = (a: Record<string, unknown>) => ausfuehren(() => api(basis, { methode: 'PATCH', body: { pfad: t.pfad, basisVersion: t.version, ...a } }));
@@ -99,11 +100,12 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: (f: () =
           className="formspalte"
           onSubmit={(e) => {
             e.preventDefault();
-            void aendern({ titel, faellig, notiz }).then(() => setBearbeiten(false));
+            void aendern({ titel, faellig, notiz, gruppe }).then(() => setBearbeiten(false));
           }}
         >
           <input value={titel} onChange={(e) => setTitel(e.target.value)} maxLength={200} aria-label="Titel" />
           <input type="date" value={faellig} onChange={(e) => setFaellig(e.target.value)} aria-label="Fällig am" />
+          <input value={gruppe} onChange={(e) => setGruppe(e.target.value)} maxLength={60} placeholder="Gruppe (Abteilung, Amt …)" aria-label="Gruppe" />
           <textarea rows={3} value={notiz} onChange={(e) => setNotiz(e.target.value)} placeholder="Notiz" aria-label="Notiz" />
           <div className="zeile">
             <button type="submit" className="haupt">

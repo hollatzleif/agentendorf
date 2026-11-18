@@ -107,7 +107,17 @@ export class Postbote {
   private zeitgeber?: NodeJS.Timeout;
 
   constructor(
-    private o: { db: DB; uhr: Uhr; vault: VaultDienst; hub: LiveHub; gmail?: GmailKlient; ki: SystemAufrufe; log?: (t: string) => void },
+    private o: {
+      db: DB;
+      uhr: Uhr;
+      vault: VaultDienst;
+      hub: LiveHub;
+      gmail?: GmailKlient;
+      ki: SystemAufrufe;
+      /** Etappe 7: Absender, deren Mails immer eine bestimmte Kategorie haben (Corps-Absenderliste) */
+      kategorieFest?: (von: string) => Promise<(typeof KATEGORIEN)[number] | null>;
+      log?: (t: string) => void;
+    },
   ) {}
 
   get verbunden() {
@@ -197,6 +207,9 @@ export class Postbote {
           const ids = new Set(stapel.map((m) => m.id));
           for (const x of erg.ergebnisse) {
             if (!ids.has(x.id)) continue; // nur ids aus diesem Stapel
+            const von = stapel.find((m) => m.id === x.id)?.von ?? '';
+            const fest = this.o.kategorieFest ? await this.o.kategorieFest(von).catch(() => null) : null;
+            if (fest) x.kategorie = fest;
             db.prepare(
               'UPDATE post_mails SET kategorie = ?, wichtig = ?, antwort_noetig = ?, zusammenfassung = ?, frist = ?, eingeordnet = ? WHERE id = ?',
             ).run(x.kategorie, x.wichtig ? 1 : 0, x.antwort_noetig ? 1 : 0, zeile(x.zusammenfassung, 300), zeile(x.frist, 40), uhr.jetzt(), x.id);

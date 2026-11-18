@@ -489,3 +489,12 @@ export interface BankMonat {
   fehler?: string;
 }
 
+// ---- Etappe 7: Corpshaus ------------------------------------------------------------------------
+export interface CorpsUebersicht {
+  termine: { start: string; ende?: string; ganztags: boolean; titel: string }[];
+  stichworte: string[];
+  absender: string[];
+  kalenderEingerichtet: boolean;
+  fehler?: string;
+}
+
