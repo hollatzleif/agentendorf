@@ -19,7 +19,14 @@ const Gewohnheit = z.object({
   name: z.string().trim().min(1).max(60),
   symbol: z.string().trim().max(8).default('✅'),
   /** täglich | werktags | wochenende | Liste wie [mo, mi, fr] */
-  tage: z.union([z.enum(['täglich', 'werktags', 'wochenende']), z.array(z.enum(TAGE)).min(1)]).default('täglich'),
+  tage: z
+    .union([
+      z.enum(['täglich', 'werktags', 'wochenende']),
+      z.array(z.enum(TAGE)).min(1),
+      // E110: „3x pro woche“ – an beliebigen Tagen, bis das Wochenziel erreicht ist
+      z.string().trim().toLowerCase().regex(/^[1-6]x pro woche$/, 'z. B. „3x pro woche“'),
+    ])
+    .default('täglich'),
   /** E106: Uhrzeit (Wien) – dann läutet der Kirchturm und Telegram erinnert, falls noch nicht abgehakt */
   uhrzeit: z
     .string()
@@ -37,9 +44,15 @@ const tagPlus = (tag: string, n: number) => {
   return d.toISOString().slice(0, 10);
 };
 
+/** E110: Wochenziel einer „Nx pro woche“-Gewohnheit, sonst null */
+export function proWoche(g: Pick<GewohnheitT, 'tage'>) {
+  return typeof g.tage === 'string' && /^[1-6]x pro woche$/.test(g.tage) ? Number(g.tage[0]) : null;
+}
+const montagVon = (tag: string) => tagPlus(tag, -((wochentag(tag) + 6) % 7));
+
 export function faelligAm(g: Pick<GewohnheitT, 'tage'>, tag: string) {
   const wt = wochentag(tag);
-  if (g.tage === 'täglich') return true;
+  if (g.tage === 'täglich' || proWoche(g) != null) return true;
   if (g.tage === 'werktags') return wt >= 1 && wt <= 5;
   if (g.tage === 'wochenende') return wt === 0 || wt === 6;
   return g.tage.includes(TAGE[wt]!);
@@ -94,6 +107,24 @@ export class Gewohnheiten {
     const aus: GewohnheitStand[] = [];
     for (const g of l.gewohnheiten) {
       const tage = new Set((this.o.db.prepare('SELECT tag FROM gewohnheit_log WHERE name = ? AND tag > ?').all(g.name, tagPlus(heute, -400)) as { tag: string }[]).map((x) => x.tag));
+      const ziel = proWoche(g);
+      const woche = Array.from({ length: 7 }, (_, i) => {
+        const t = tagPlus(heute, i - 6);
+        return { tag: t, faellig: faelligAm(g, t), erledigt: tage.has(t) };
+      });
+      if (ziel != null) {
+        // E110: Wochenziel – heute dran, solange es diese Woche noch nicht erreicht ist; Serie in Wochen
+        const inWoche = (mo: string) => Array.from({ length: 7 }, (_, i) => tagPlus(mo, i)).filter((t) => t <= heute && tage.has(t)).length;
+        const mo = montagVon(heute);
+        const diese = inWoche(mo);
+        let serie = 0;
+        for (let w = diese >= ziel ? 0 : 1; w < 60; w++) {
+          if (inWoche(tagPlus(mo, -7 * w)) < ziel) break;
+          serie++;
+        }
+        aus.push({ name: g.name, symbol: g.symbol, tage: g.tage, ...(g.uhrzeit ? { uhrzeit: g.uhrzeit } : {}), heuteFaellig: tage.has(heute) || diese < ziel, heuteErledigt: tage.has(heute), serie, serieEinheit: 'wochen', wocheStand: { erledigt: diese, ziel }, woche });
+        continue;
+      }
       let serie = 0;
       // heute zählt mit, wenn erledigt – sonst ab gestern
       for (let i = tage.has(heute) ? 0 : 1, n = 0; n < 400; i++, n++) {
@@ -102,10 +133,6 @@ export class Gewohnheiten {
         if (!tage.has(t)) break;
         serie++;
       }
-      const woche = Array.from({ length: 7 }, (_, i) => {
-        const t = tagPlus(heute, i - 6);
-        return { tag: t, faellig: faelligAm(g, t), erledigt: tage.has(t) };
-      });
       aus.push({ name: g.name, symbol: g.symbol, tage: g.tage, ...(g.uhrzeit ? { uhrzeit: g.uhrzeit } : {}), heuteFaellig: faelligAm(g, heute), heuteErledigt: tage.has(heute), serie, woche });
     }
     return { gewohnheiten: aus, ...(l.fehler ? { fehler: l.fehler } : {}) };
@@ -142,7 +169,8 @@ export class Gewohnheiten {
     const heute = tagIn(this.o.uhr.jetzt());
     const start = new Map(l.gewohnheiten.map((g) => [g.name, (this.o.db.prepare('SELECT MIN(tag) AS t FROM gewohnheit_log WHERE name = ?').get(g.name) as { t: string | null }).t ?? heute]));
     return tage.map((tag) => {
-      const f = l.gewohnheiten.filter((g) => tag >= start.get(g.name)! && faelligAm(g, tag));
+      // „Nx pro Woche“ hat keinen festen Tag – zählt in der Tagesquote nicht mit
+      const f = l.gewohnheiten.filter((g) => proWoche(g) == null && tag >= start.get(g.name)! && faelligAm(g, tag));
       return { faellig: f.length, erledigt: f.filter((g) => log.has(`${g.name}\n${tag}`)).length };
     });
   }
@@ -160,6 +188,7 @@ export class Gewohnheiten {
     if (!s.gewohnheiten.length) return null;
     return s.gewohnheiten
       .map((g) => {
+        if (g.wocheStand) return `${g.symbol} ${g.name} ${g.wocheStand.erledigt}/${g.wocheStand.ziel}${g.serie > 1 ? ` (🔥 ${g.serie} Wochen)` : ''}`;
         const f = g.woche.filter((t) => t.faellig);
         return `${g.symbol} ${g.name} ${f.filter((t) => t.erledigt).length}/${f.length}${g.serie > 2 ? ` (🔥 ${g.serie})` : ''}`;
       })

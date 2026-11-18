@@ -799,3 +799,11 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - **Zwischenstände** werden als „teilweise“ markiert, mit konkretem Hinweis. Beispiel Kalender: nur die iCal-Adresse, also lesen ohne API, dazu der Hinweis „Calendar API aktivieren, dann `dorf gmail-anmelden`“. Beispiel Saxo: App-Schlüssel da, aber noch nicht angemeldet.
 - **Sicherheit:** `GET /api/anschluesse` liefert nur Ja/Nein und feste Texte, nie Geheimnisse oder Teile davon (getestet). Ohne Anmeldung gibt es 401.
 - Warum: Einige Funktionen der Nacht (Tag planen, Lernplan, Prüfungs-Wächter, Saxo) hängen an Anschlüssen, die noch fehlen. So sieht Leif auf einen Blick, was zu tun ist.
+
+## E110 – Gewohnheiten „N× pro Woche“ (Nacht 18./19.11.)
+
+- **`tage: 3x pro woche`** (1–6): Die Gewohnheit hat keinen festen Tag. Sie ist jeden Tag „dran“, bis das Wochenziel (Montag bis Sonntag) erreicht ist; danach nicht mehr, außer sie wurde heute schon abgehakt.
+- **Serie in Wochen:** Gezählt werden die aufeinanderfolgenden Wochen, in denen das Ziel erreicht wurde. Die laufende Woche zählt erst mit, wenn das Ziel geschafft ist, deshalb reißt die Serie montags nicht.
+- **Anzeige:** Telegram zeigt „2/3 diese Woche“, der Wochenrückblick „Sport 3/3 (🔥 2 Wochen)“.
+- In der Tagesquote der Statistik zählen solche Gewohnheiten nicht mit, weil kein Tag „fällig“ ist. Sonst sähe ein freier Tag wie ein verpasster aus.
+- Warum: Viele Vorsätze lauten „dreimal die Woche“, nicht „jeden Montag, Mittwoch, Freitag“. Ohne diese Form wäre die Serie bei Sport ständig gerissen.

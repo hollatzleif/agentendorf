@@ -752,7 +752,10 @@ export interface KarteFaellig {
 export interface GewohnheitStand {
   name: string;
   symbol: string;
-  tage: 'täglich' | 'werktags' | 'wochenende' | ('so' | 'mo' | 'di' | 'mi' | 'do' | 'fr' | 'sa')[];
+  tage: 'täglich' | 'werktags' | 'wochenende' | ('so' | 'mo' | 'di' | 'mi' | 'do' | 'fr' | 'sa')[] | string;
+  /** E110: bei „Nx pro woche“ – Serie zählt Wochen, Stand dieser Woche */
+  serieEinheit?: 'wochen';
+  wocheStand?: { erledigt: number; ziel: number };
   /** E106: Erinnerung zur Uhrzeit (HH:MM, Wien) */
   uhrzeit?: string;
   heuteFaellig: boolean;

@@ -1378,7 +1378,8 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       .filter((g) => g.heuteFaellig)
       .map((g) => {
         const k = this.gewohnheitKennung(g.name);
-        return [{ text: `${g.heuteErledigt ? '✅' : '⬜'} ${g.symbol} ${g.name}${g.serie > 1 ? ` · 🔥 ${g.serie}` : ''}`.slice(0, 60), callback_data: `gw:${k}:${this.gewohnheitSignatur(k)}` }];
+        const zusatz = g.wocheStand ? ` · ${g.wocheStand.erledigt}/${g.wocheStand.ziel} diese Woche` : g.serie > 1 ? ` · 🔥 ${g.serie}` : '';
+        return [{ text: `${g.heuteErledigt ? '✅' : '⬜'} ${g.symbol} ${g.name}${zusatz}`.slice(0, 60), callback_data: `gw:${k}:${this.gewohnheitSignatur(k)}` }];
       });
   }
 

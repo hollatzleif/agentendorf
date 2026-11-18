@@ -97,3 +97,27 @@ describe('Gewohnheiten mit Uhrzeit (E106)', () => {
     expect(await d.erinnerungen.pruefen()).toBe(1);
   });
 });
+
+describe('Gewohnheiten „Nx pro Woche“ (E110)', () => {
+  it('dran, bis das Wochenziel erreicht ist; Serie in Wochen; Telegram zeigt den Wochenstand', async () => {
+    const d = await testDorf();
+    const TAG = 86_400_000;
+    // TestUhr: Mo 16.11. – Vorwoche (9.–15.11.) 3x erledigt → Serie 1 Woche
+    await d.gewohnheiten.anlegen({ name: 'Sport', symbol: '🏃', tage: '3x pro Woche' });
+    expect((await d.vault.lesen('Marktplatz/gewohnheiten.md')).inhalt).toContain('tage: 3x pro woche');
+    for (const t of ['2026-11-10', '2026-11-12', '2026-11-14']) await d.gewohnheiten.haken('Sport', true, t);
+    let g = (await d.gewohnheiten.stand()).gewohnheiten[0]!;
+    expect(g).toMatchObject({ heuteFaellig: true, serie: 1, serieEinheit: 'wochen', wocheStand: { erledigt: 0, ziel: 3 } });
+    // diese Woche Mo, Di, Mi → Ziel erreicht, Do nicht mehr dran, Serie 2
+    for (let i = 0; i < 3; i++) {
+      await d.gewohnheiten.haken('Sport', true);
+      d.uhr.vor(TAG);
+    }
+    g = (await d.gewohnheiten.stand()).gewohnheiten[0]!;
+    expect(g).toMatchObject({ heuteFaellig: false, serie: 2, wocheStand: { erledigt: 3, ziel: 3 } });
+    expect(await d.gewohnheiten.wochenZeile()).toBe('🏃 Sport 3/3 (🔥 2 Wochen)');
+    // fehlt das Feld „tage“ für die Tagesquote der Statistik: zählt nicht als fällig
+    expect((await d.gewohnheiten.jeTag(['2026-11-19']))[0]).toEqual({ faellig: 0, erledigt: 0 });
+    await expect(d.gewohnheiten.anlegen({ name: 'X', tage: '9x pro woche' })).rejects.toThrow();
+  });
+});
