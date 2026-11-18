@@ -26,3 +26,10 @@ export function bluete(s: Statistik, wochenziele?: { ziele: { erledigt: boolean 
     gruende,
   };
 }
+
+export const STUFE_TEXT: Record<DorfBluete['stufe'], string> = { karg: '🌱 ruhig', gruen: '🌿 grün', bluehend: '🌸 blühend', praechtig: '🌺 prächtig' };
+
+/** Eine Zeile für Morgenzeitung/Wochenrückblick */
+export function blueteZeile(b: DorfBluete) {
+  return `${STUFE_TEXT[b.stufe]} – ${b.gruende.join(', ')}${b.fahne ? ' · 🚩 alle Wochenziele erreicht' : ''}`;
+}

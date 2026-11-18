@@ -222,7 +222,7 @@ describe('Telegram-Bot', () => {
     expect(offsets.at(-1)).toBe(51);
     // Befehlsmenü wird beim Start angemeldet
     const menue = d.aufrufe.find((x) => x.m === 'setMyCommands')?.p.commands as { command: string }[];
-    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'woche', 'suche', 'statistik', 'aufraeumen', 'notiz', 'erinner', 'plan', 'karten', 'fokus', 'ziel', 'gewohnheiten', 'neu', 'hilfe']);
+    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'woche', 'noten', 'suche', 'statistik', 'aufraeumen', 'notiz', 'erinner', 'plan', 'karten', 'fokus', 'ziel', 'gewohnheiten', 'neu', 'hilfe']);
     await d.agenten.leerlauf();
   }, 15_000);
 });
@@ -793,5 +793,20 @@ describe('Gewohnheits-Knopf mit Datum (Review)', () => {
     // gefälschter Tag (Signatur passt nicht) → nichts
     await d.knopf(daten.replace(':20261116:', ':20261117:'));
     expect(d.db.prepare('SELECT COUNT(*) AS n FROM gewohnheit_log').get()).toEqual({ n: 1 });
+  });
+});
+
+describe('Telegram /noten (E113) und Blüte in der Zeitung (E112)', () => {
+  it('/noten zeigt Schnitt, ECTS und Fächer; Morgenzeitung und Rückblick haben „Dein Dorf“', async () => {
+    const d = await dorf();
+    await d.nachricht({ text: '/noten' });
+    expect(d.gesendet().at(-1)).toMatch(/Noch keine Noten/);
+    await d.noten.setzen({ fach: 'Mathe', ects: 6, note: 1 });
+    await d.noten.setzen({ fach: 'Recht', ects: 3 });
+    await d.noten.zielSetzen(180);
+    await d.nachricht({ text: '/noten' });
+    expect(d.gesendet().at(-1)).toBe('🎓 <b>Noten &amp; ECTS</b>\nSchnitt: <b>1</b> · 6 ECTS bestanden von 180 (3 %) · 3 offen\n\n• Mathe – Note 1 (6 ECTS)\n• Recht – offen (3 ECTS)'.replace('&amp;', '&'));
+    expect((await d.morgenzeitung.fakten()).abschnitte.find((a) => a.titel === 'Dein Dorf')?.zeilen[0]).toMatch(/^🌱 ruhig – 0 von 7 Tagen aktiv/);
+    expect((await d.wochenrueckblick.fakten()).abschnitte.some((a) => a.titel === 'Dein Dorf')).toBe(true);
   });
 });

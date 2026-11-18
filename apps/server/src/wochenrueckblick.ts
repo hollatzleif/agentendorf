@@ -12,6 +12,8 @@ import type { FokusStatistik } from '@dorf/shared';
 import { fremdinhaltHuelle } from './agenten/leine.js';
 import { naechsterTermin } from './agenten/zeitplan.js';
 import { einzeilig } from './uni/text.js';
+import type { DorfBluete } from '@dorf/shared';
+import { blueteZeile } from './bluete.js';
 
 /**
  * Wochenrückblick (Nacht 18./19.11.): sonntags 18:30 (Linz) – die Woche in Zahlen (vom Code, ohne KI) und eine kurze
@@ -61,6 +63,7 @@ export class Wochenrueckblick {
       bank?: { zeitungsZeilen(): Promise<string[]> };
       gewohnheiten?: { wochenZeile(): Promise<string | null> };
       wochenziele?: { rueckblickZeilen(): Promise<string[]> };
+      bluete?: () => Promise<DorfBluete>;
       log?: (t: string) => void;
     },
   ) {}
@@ -89,6 +92,8 @@ export class Wochenrueckblick {
       abschnitte.push({ titel: 'Fokus', zeilen: z2 });
     } else if (f) abschnitte.push({ titel: 'Fokus', zeilen: ['Diese Woche keine Pomodoros – nächste Woche einfach mit einem 🍅 am wichtigsten To-do anfangen.'] });
 
+    const b = await this.o.bluete?.().catch(() => undefined);
+    if (b) abschnitte.push({ titel: 'Dein Dorf', zeilen: [blueteZeile(b)] });
     const ziele = await this.o.wochenziele?.rueckblickZeilen().catch(() => [] as string[]);
     if (ziele?.length) abschnitte.push({ titel: 'Wochenziele', zeilen: ziele });
     const gw = await this.o.gewohnheiten?.wochenZeile().catch(() => null);

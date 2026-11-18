@@ -839,3 +839,8 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **Fahne am Rathaus,** wenn alle Wochenziele erreicht sind; **Feuerwerk** an Tagen mit ≥ 5 erledigten To-dos.
 - **Wirkung im 3D-Dorf:** mehr Blumen, Laub, Licht und Leben je Stufe – wie die Wetter-Darstellung, aber aus Leifs eigenen Zahlen.
 - **Absicht:** motivieren, nicht bestrafen. Schon ein paar aktive Tage machen das Dorf grün; nichts geht kaputt, wenn eine Woche schlecht war. Ohne KI, nur aus vorhandenen Zahlen. Ein Fehler in der Berechnung verhindert den Dorfstatus nie.
+
+## E113 – Blüte in Zeitung und Rückblick, Telegram /noten (Nacht 18./19.11.)
+
+- Morgenzeitung und Wochenrückblick haben einen Abschnitt **„Dein Dorf“**, z. B. „🌸 blühend – 5 von 7 Tagen aktiv, Gewohnheiten 80 %, 150 min Fokus · 🚩 alle Wochenziele erreicht“. Berechnet wird er genauso wie im Dorfstatus (E112).
+- **`/noten`** in Telegram zeigt Schnitt, bestandene, offene und Ziel-ECTS sowie die Fächer mit Note (E98).

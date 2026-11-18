@@ -44,6 +44,7 @@ import { Wochenziele } from './wochenziele.js';
 import { Notizen } from './notizen.js';
 import { Noten } from './uni/noten.js';
 import { statistik } from './statistik.js';
+import { bluete } from './bluete.js';
 import { TodoErinnerungen } from './todo-erinnerungen.js';
 import { GoogleKalender, googleKalenderKlient, type KalenderKlient } from './kalender-google.js';
 import { Bank, datum as bankDatum } from './bank.js';
@@ -348,6 +349,8 @@ export async function dorfStarten(
   const gewohnheiten = new Gewohnheiten({ db, uhr, vault, hub });
   const wochenziele = new Wochenziele({ uhr, vault, hub });
   const notizen = new Notizen({ uhr, vault });
+  // E112: Blüte für Morgenzeitung und Wochenrückblick (wie im Dorfstatus)
+  const blueteBerechnen = async () => bluete(await statistik({ db, uhr, todos, gewohnheiten }, 7), await wochenziele.lesen().catch(() => undefined));
   const noten = new Noten({ vault, hub, faecher: () => uni.faecher() });
   // E94: Erinnerungen an To-dos – läuten im Kirchturm, Telegram schickt Knöpfe
   const erinnerungen = new TodoErinnerungen({ todos, weitereListen: Object.values(listen), uhr, kirchturm, gewohnheiten, log: (t) => console.warn(t) });
@@ -356,8 +359,8 @@ export async function dorfStarten(
   });
   if (opt.beobachten !== false) erinnerungen.starten();
   // Nacht 18./19.11.: Wochenrückblick sonntags 18:30
-  const wochenrueckblick = new Wochenrueckblick({ db, uhr, vault, hub, ki, todos, uni, kalender, fokus: kirchturm, bank, gewohnheiten, wochenziele, log: (t) => console.warn(t) });
-  const morgenzeitung = new Morgenzeitung({ db, uhr, vault, hub, ki, freigaben: agenten.freigaben, schreibtisch, uni, postbote, kalender, wetter, bank, boerse: depotZeilen, fokus: kirchturm, gewohnheiten, wochenziele, wichtig: async () => (await todos.liste()).filter((t) => !t.erledigt && t.wichtig).slice(0, 5).map((t) => `**${t.titel}**${t.faellig ? ` (fällig ${t.faellig})` : ''}`), log: (t) => console.warn(t) });
+  const wochenrueckblick = new Wochenrueckblick({ db, uhr, vault, hub, ki, todos, uni, kalender, fokus: kirchturm, bank, gewohnheiten, wochenziele, bluete: () => blueteBerechnen(), log: (t) => console.warn(t) });
+  const morgenzeitung = new Morgenzeitung({ db, uhr, vault, hub, ki, freigaben: agenten.freigaben, schreibtisch, uni, postbote, kalender, wetter, bank, boerse: depotZeilen, fokus: kirchturm, gewohnheiten, wochenziele, bluete: () => blueteBerechnen(), wichtig: async () => (await todos.liste()).filter((t) => !t.erledigt && t.wichtig).slice(0, 5).map((t) => `**${t.titel}**${t.faellig ? ` (fällig ${t.faellig})` : ''}`), log: (t) => console.warn(t) });
   let telegram: TelegramBot | undefined;
   if ((konfig.telegramToken || opt.telegram) && konfig.telegramChatId) {
     telegram = new TelegramBot({
@@ -384,6 +387,7 @@ export async function dorfStarten(
       notizen,
       woche: wochenrueckblick,
       suche,
+      noten,
       statistik: (n) => statistik({ db, uhr, todos, gewohnheiten }, n),
       log: (t) => console.warn(t),
     });

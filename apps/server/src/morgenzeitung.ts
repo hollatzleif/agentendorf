@@ -15,6 +15,8 @@ import type { Wetter } from './wetter.js';
 import { ortszeitZuUtc } from './uni/ical.js';
 import { einzeilig } from './uni/text.js';
 import { fremdinhaltHuelle } from './agenten/leine.js';
+import type { DorfBluete } from '@dorf/shared';
+import { blueteZeile } from './bluete.js';
 
 export const ORDNER = 'Rathaus/morgenzeitung';
 /** Erscheint um 06:30 Linzer Zeit */
@@ -63,6 +65,8 @@ export class Morgenzeitung {
       gewohnheiten?: { heuteZeilen(): Promise<string[]> };
       /** E91: Wochenziele */
       wochenziele?: { zeitungsZeilen(): Promise<string[]> };
+      /** E112: wie es dem Dorf geht */
+      bluete?: () => Promise<DorfBluete>;
       log?: (t: string) => void;
     },
   ) {}
@@ -218,6 +222,8 @@ export class Morgenzeitung {
     if (depot?.length) abschnitte.push({ titel: 'Depot', zeilen: depot });
     const fokus = this.o.fokus?.zeitungsZeilen() ?? [];
     if (fokus.length) abschnitte.push({ titel: 'Fokus', zeilen: fokus });
+    const b = await this.o.bluete?.().catch(() => undefined);
+    if (b) abschnitte.push({ titel: 'Dein Dorf', zeilen: [blueteZeile(b)] });
     const gw = await this.o.gewohnheiten?.heuteZeilen().catch(() => [] as string[]);
     if (gw?.length) abschnitte.push({ titel: 'Gewohnheiten heute', zeilen: gw });
 
