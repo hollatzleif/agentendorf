@@ -207,7 +207,7 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 
 **E59 – Wetter wie in Linz, Jahreszeiten, Zeitungs-Knopf** (Nachtarbeit, eigene Empfehlung)
 - **Wetter:** Der Server holt das Linzer Wetter von **Open-Meteo**. Die Schnittstelle ist frei, braucht keinen Schlüssel und kein Konto; am 18.11. ist sie geprüft. Hinaus geht nur die feste Ortsangabe (48,31 / 14,29), keine Daten über Leif.
-  - Geholt wird nur bei Bedarf (Dorf-Ansicht, Morgenzeitung) und höchstens alle 30 Minuten. Bei Fehlern bleibt der letzte Stand, ein neuer Versuch kommt nach 5 Minuten.
+  - Geholt wird nur bei Bedarf (Dorf-Ansicht, Morgenzeitung) und höchstens alle 30 Minuten. Bei Fehlern bleibt der letzte Stand (höchstens 6 Stunden alt, danach lieber gar kein Wetter), ein neuer Versuch kommt nach 5 Minuten.
   - Eingeschaltet über `WETTER_URL` in `deploy/compose.yml`; ohne diese Variable ist das Wetter aus, so gehen Tests und Entwicklung nie ins Netz.
   - Im Dorf: Regen als Streifen, Schnee als Flocken, bei Bewölkung kaum Sonne und weiche Schatten, Nebel rückt näher, bei Gewitter ab und zu ein Blitz. Oben rechts steht ein kleines Schild „🌧️ 7°“.
   - In der Morgenzeitung steht unter „Heute“ die erste Zeile, z. B. „🌧️ Wetter in Linz: Regen, 6–14 °C, Regen 93 % – Schirm mitnehmen“. Der Schirm-Hinweis kommt ab 60 %.
@@ -219,3 +219,8 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - **Rundgang sichtbar:** Weckt sich der Bürgermeister selbst (Auslöser `zeitplan`), läuft er von Gebäude zu Gebäude und zwischendurch zum Rathaus. Ist der Lauf vorbei, geht er heim.
 - **Plakette am App-Symbol:** Bei installierter PWA zeigt das App-Symbol die Zahl offener Freigaben, der Fenstertitel lautet „(n) Agentendorf“.
 - **Telegram:** `/heute` zeigt den Tagesüberblick wie in der Morgenzeitung: Wetter, Termine, Pflichttermine, Fristen und was wartet. Es ist jederzeit abrufbar, ohne KI und ohne Speichern. `/fristen` zeigt die offenen Abgaben und Prüfungen der nächsten 7 Tage zu jeder einen „✅ Erledigt“-Knopf (signiert wie bei den Erinnerungen). Beim Start meldet der Bot sein Befehlsmenü an (`setMyCommands`), damit die Befehle in Telegram unter „/“ erscheinen.
+- **Schnellknöpfe** am angetippten Gebäude für die wichtigsten Aktionen (Uni: Moodle, Lernen · Post: Antworten · Rathaus: Frage). Sie öffnen die Aktion gleich ausgewählt (`?aktion=…`).
+- **„Neu im Dorf“:** eine kleine Karte, einmal pro Gerät und Ausgabe nach einem Update. Sie blockiert nichts und ist im Testbrowser aus.
+- **Bürgermeister-Karte** im Ruhezustand: zuletzt wach (mit Link zur Runde), nächste Runde, Budget heute.
+- **Akku:** Bei offenem Gebäude-Menü zeichnet das Dorf nur ~8 Bilder pro Sekunde.
+- **Zweite unabhängige Prüfung** (3D/Web): keine Abstürze, zehn kleinere Befunde behoben. Dazu gehörten Umwege des Bürgermeisters beim Nachdenken, nicht freigegebene Autos, Himmel und Lampenlicht, Figuren nach dem Drehen eines Gebäudes und ungesichertes `localStorage`.
