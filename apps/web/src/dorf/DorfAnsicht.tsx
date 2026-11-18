@@ -7,6 +7,7 @@ import { GebaeudeInhalt, standardReiter } from '../seiten/Gebaeude';
 import { DorfSzene, type KameraStand, type SzeneTreffer } from './szene';
 import { BauSteuerung, type Auswahl, type Werkzeug } from './bauen';
 import { GebaeudeKnoepfe } from './Knoepfe';
+import { useLiveEreignis, useLiveText } from '../live';
 import { DorfTicker } from './Ticker';
 
 const KAMERA_SCHLUESSEL = 'dorf-kamera';
@@ -35,6 +36,11 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
   const buehne = useRef<HTMLDivElement>(null);
   const szene = useRef<DorfSzene | null>(null);
   const [figur, setFigur] = useState<string | null>(null); // laufId oder 'buergermeister'
+  // Was die Agenten gerade tun (letztes Werkzeug je Lauf) – kommt live über den WebSocket
+  const [gerade, setGerade] = useState<Record<string, string>>({});
+  useLiveEreignis((e) => {
+    if (e.typ === 'lauf.werkzeug') setGerade((g) => ({ ...g, [e.laufId]: `${WERKZEUG_TEXT[e.name] ?? e.name}${e.kurz ? `: ${e.kurz}` : ''}${e.erlaubt ? '' : ' (verweigert)'}` }));
+  });
   const [, tick] = useState(0);
 
   // ---- Bau-Modus ----
@@ -304,6 +310,7 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
               )}
               <p className="figur-titel">{figurDaten.titel}</p>
               <p className="figur-auftrag">{figurDaten.auftrag}</p>
+              <GeradeZeile laufId={figurDaten.laufId} gerade={gerade[figurDaten.laufId]} />
               <dl>
                 <dt>Status</dt>
                 <dd>{STATUS_TEXT[figurDaten.status] ?? figurDaten.status}</dd>
@@ -441,6 +448,43 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
           {hinweis}
         </p>
       )}
+    </div>
+  );
+}
+
+const WERKZEUG_TEXT: Record<string, string> = {
+  vault_lesen: '📖 liest',
+  vault_liste: '📂 schaut nach',
+  vault_suchen: '🔎 sucht',
+  vault_schreiben: '✍️ schreibt',
+  freigabe_beantragen: '✉️ bittet um Freigabe',
+  helfer_starten: '🧭 schickt einen Helfer los',
+  plan_vorlegen: '📋 legt einen Plan vor',
+  aktionen_liste: '📋 schaut sich die Aktionen an',
+  rechenraum_befehl: '🧮 rechnet',
+  rechenraum_schreiben: '🧮 schreibt im Rechenraum',
+  rechenraum_ablegen: '📄 legt ein PDF ab',
+  rechenraum_seite_ansehen: '👀 prüft eine Seite',
+  rechenraum_vault_kopieren: '🧮 holt eine Datei',
+  post_lesen: '📬 liest eine Mail',
+  post_entwurf: '📝 entwirft eine Antwort',
+  moodle_oeffnen: '🌐 öffnet Moodle',
+  moodle_klicken: '🌐 klickt in Moodle',
+  moodle_seite: '🌐 liest in Moodle',
+  moodle_zurueck: '🌐 geht zurück',
+  moodle_bild: '🌐 schaut genau hin',
+  moodle_herunterladen: '⬇️ lädt herunter',
+};
+
+/** „Gerade:“ – letztes Werkzeug und die letzten Worte der laufenden Antwort */
+function GeradeZeile({ laufId, gerade }: { laufId: string; gerade?: string }) {
+  const text = useLiveText(laufId);
+  const ende = text.trim().split(/\s+/).slice(-18).join(' ');
+  if (!gerade && !ende) return null;
+  return (
+    <div className="figur-gerade">
+      {gerade && <p>Gerade: {gerade}</p>}
+      {ende && <p className="leise">… {ende}</p>}
     </div>
   );
 }

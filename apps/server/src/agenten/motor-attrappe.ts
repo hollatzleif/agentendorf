@@ -11,6 +11,7 @@ import { AbbruchFehler } from './motor.js';
  *   [helfer Gebäude|Auftrag]              → Bürgermeister: helfer_starten (freier Helfer; {warte ms} im Auftrag → [warte ms])
  *   [plan Gebäude|Titel; Gebäude|Titel]   → Bürgermeister: plan_vorlegen
  *   <<werkzeug name {json}>>              → beliebiges Werkzeug mit JSON-Eingabe
+ *   [pause ms]                            → nach den Werkzeugen warten (abbrechbar)
  */
 export function attrappe(name: 'api' | 'claude-code'): Motor {
   return {
@@ -55,6 +56,17 @@ export function attrappe(name: 'api' | 'claude-code'): Motor {
       for (const [, name, json] of m.matchAll(/<<werkzeug (\w+) (\{.*?\})>>/g)) {
         const r = await a.werkzeuge.aufrufen(name!, JSON.parse(json!));
         yield { typ: 'nachricht', rolle: 'werkzeug', text: `${name}: ${r.ok ? '' : '(verweigert) '}${r.text}` };
+      }
+      // [pause ms]: wie [warte], aber NACH den Werkzeugen (z. B. um „gerade tut er …“ zu sehen)
+      const pause = /\[pause (\d+)\]/.exec(m);
+      if (pause) {
+        await new Promise<void>((res, rej) => {
+          const t = setTimeout(res, Number(pause[1]));
+          a.signal.addEventListener('abort', () => {
+            clearTimeout(t);
+            rej(new AbbruchFehler());
+          });
+        });
       }
       const teile = ['Erledigt. ', `(${name}, ${a.modell}, ${a.anhaenge.length} Anhänge, Verlauf: ${a.verlauf.apiNachrichten.length})`];
       for (const t of teile) yield { typ: 'text', text: t };

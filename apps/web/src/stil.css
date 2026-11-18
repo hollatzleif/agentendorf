@@ -373,3 +373,5 @@ button.schliessen { position: absolute; top: 0.5rem; right: 0.5rem; width: 2rem;
 @keyframes ticker-rein { from { transform: translateX(-12px); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (max-width: 760px), (pointer: coarse) { .dorf-ticker { top: 3.9rem; max-width: calc(100% - 1.4rem); } }
 @media (prefers-reduced-motion: reduce) { .dorf-ticker button { animation: none; } }
+.figur-gerade { background: var(--gruen-hell); border-radius: 10px; padding: 0.35rem 0.6rem; margin: 0 0 0.6rem; font-size: 0.85rem; }
+.figur-gerade p { margin: 0.1rem 0; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }

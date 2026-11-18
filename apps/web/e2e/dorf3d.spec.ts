@@ -154,7 +154,7 @@ test('Bau-Modus: verschieben (live auf zweitem Gerät), Straße malen, rückgän
 test('Figuren: arbeitender Agent mit Infokarte und Abbrechen; Bürgermeister', async ({ page }) => {
   await imDorf(page);
   const origin = new URL(page.url()).origin;
-  const r = await page.request.post('/api/aktionen/starten', { headers: { origin }, data: { id: 'Bibliothek/notizen-zusammenfassen', eingaben: { thema: '[warte 60000]' } } });
+  const r = await page.request.post('/api/aktionen/starten', { headers: { origin }, data: { id: 'Bibliothek/notizen-zusammenfassen', eingaben: { thema: '<<werkzeug vault_suchen {"anfrage":"Folien"}>> [pause 60000]' } } });
   const { laufId } = (await r.json()) as { laufId: string };
   await page.waitForFunction(() => window.__dorf!.figurenAnzahl() >= 1, null, { timeout: 15_000 });
   await expect.poll(() => page.evaluate(() => window.__dorf!.zustand('Bibliothek')?.rauch ?? 0)).toBeGreaterThan(0);
@@ -166,6 +166,7 @@ test('Figuren: arbeitender Agent mit Infokarte und Abbrechen; Bürgermeister', a
   await expect(karte.getByText('Agent in Bibliothek')).toBeVisible();
   await expect(karte.getByText(/Notizen zusammenfassen/)).toBeVisible();
   await expect(karte.getByText('claude-code', { exact: true })).toBeVisible();
+  await expect(karte.getByText(/Gerade: 🔎 sucht/)).toBeVisible();
   await expect(karte.getByRole('link', { name: 'Zum Chat' })).toBeVisible();
   page.once('dialog', (d) => void d.accept());
   await karte.getByRole('button', { name: 'Abbrechen' }).click();
