@@ -187,6 +187,20 @@ programme_installieren() {
   [[ "$kennung" =~ ^[a-f0-9]{16}$ ]] || { rot "Ungültige PROGRAMME_KENNUNG – Programme nicht übernommen."; return 0; }
   neu="$daten/programme.neu"
   rm -rf "$neu" && cp -r "$quelle" "$neu" && echo "$kennung" > "$neu/KENNUNG" || { rot "Programme konnten nicht kopiert werden."; return 0; }
+  # Fiel ein Bau aus (z. B. kein Mac bei GitHub), bleibt die bisherige Fassung dieser Plattform zum Herunterladen –
+  # mit ihrer alten Versionsnummer, damit der Updater sie nicht als „neu“ anbietet.
+  local alt="$daten/programme/programme.json" p datei
+  if [ -f "$alt" ] && [ -f "$neu/programme.json" ]; then
+    for p in mac windows; do
+      if jq -e ".$p == null" "$neu/programme.json" >/dev/null && jq -e ".$p != null" "$alt" >/dev/null; then
+        for datei in $(jq -r ".$p.installer, .$p.update | select(. != null and . != \"\")" "$alt" | sort -u); do
+          [[ "$datei" =~ ^[A-Za-z0-9][A-Za-z0-9._\ -]{0,150}$ ]] && [ -f "$daten/programme/$datei" ] && cp "$daten/programme/$datei" "$neu/"
+        done
+        jq --arg p "$p" --slurpfile a "$alt" '.[$p] = ($a[0][$p] + {version: ($a[0][$p].version // $a[0].version)})' "$neu/programme.json" > "$neu/programme.json.neu" \
+          && mv "$neu/programme.json.neu" "$neu/programme.json" && info "Programm $p: Bau fehlt – bisherige Fassung bleibt."
+      fi
+    done
+  fi
   chown -R "$(stat -c %u:%g "$daten")" "$neu"
   rm -rf "$daten/programme.alt"
   [ ! -d "$daten/programme" ] || mv "$daten/programme" "$daten/programme.alt"

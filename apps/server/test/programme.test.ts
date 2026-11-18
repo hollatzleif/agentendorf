@@ -52,3 +52,24 @@ describe('Programme für Mac und Windows (Etappe 6)', () => {
     for (const n of ['programme.json', '..%2Fdorf.db', '.versteckt', '%2E%2E%2Fdorf.db']) expect((await d.app.inject({ url: `/programme/datei/${n}` })).statusCode).toBe(404);
   });
 });
+
+describe('Teil-Bau (Mac fiel aus)', () => {
+  it('die alte Mac-Fassung bleibt zum Herunterladen, wird aber nicht als Update angeboten', async () => {
+    const fs = await import('node:fs');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const { updateDatei, programmeInfo } = await import('../src/programme.js');
+    const o = fs.mkdtempSync(path.join(os.tmpdir(), 'programme-'));
+    for (const f of ['Agentendorf_0.1.9_aarch64.dmg', 'Agentendorf.app.tar.gz', 'Agentendorf_0.2.0_x64-setup.exe']) fs.writeFileSync(path.join(o, f), 'x');
+    fs.writeFileSync(
+      path.join(o, 'programme.json'),
+      JSON.stringify({
+        version: '0.2.0',
+        mac: { installer: 'Agentendorf_0.1.9_aarch64.dmg', update: 'Agentendorf.app.tar.gz', signatur: 'alt', version: '0.1.9' },
+        windows: { installer: 'Agentendorf_0.2.0_x64-setup.exe', update: 'Agentendorf_0.2.0_x64-setup.exe', signatur: 'neu' },
+      }),
+    );
+    expect(Object.keys(updateDatei(o, 'https://dorf.test')!.platforms)).toEqual(['windows-x86_64']);
+    expect(programmeInfo(o)).toMatchObject({ mac: { datei: 'Agentendorf_0.1.9_aarch64.dmg' }, windows: { datei: 'Agentendorf_0.2.0_x64-setup.exe' } });
+  });
+});

@@ -18,9 +18,12 @@ const Manifest = z.object({
   version: z.string().regex(/^\d+\.\d+\.\d+$/),
   kennung: z.string().optional(),
   erstellt: z.string().optional(),
-  mac: z.object({ installer: z.string(), update: z.string().default(''), signatur: z.string().default('') }).optional(),
-  windows: z.object({ installer: z.string(), update: z.string().default(''), signatur: z.string().default('') }).optional(),
+  // version je Plattform nur, wenn sie älter ist (ein Bau fiel aus, die alte Fassung bleibt zum Herunterladen)
+  mac: z.object({ installer: z.string(), update: z.string().default(''), signatur: z.string().default(''), version: z.string().optional() }).optional(),
+  windows: z.object({ installer: z.string(), update: z.string().default(''), signatur: z.string().default(''), version: z.string().optional() }).optional(),
 });
+/** Gehört dieser Eintrag zur aktuellen Version? (Sonst kein Update-Angebot – das Programm würde dieselbe alte Fassung immer wieder installieren.) */
+const aktuell = (m: ProgrammeManifest, e?: { version?: string }) => !!e && (!e.version || e.version === m.version);
 export type ProgrammeManifest = z.infer<typeof Manifest>;
 
 /** Nur einfache Dateinamen direkt im Ordner (kein Pfad, keine versteckten Dateien) */
@@ -54,8 +57,8 @@ export function updateDatei(ordner: string, ursprung: string) {
   const plattformen: Record<string, { signature: string; url: string }> = {};
   const url = (n: string) => `${ursprung}/programme/datei/${encodeURIComponent(n)}`;
   // ohne Signatur (Schlüssel fehlte beim Bauen) kein Update-Eintrag – der Updater würde es ohnehin ablehnen
-  if (m.mac?.signatur && fs.existsSync(path.join(ordner, m.mac.update))) plattformen['darwin-aarch64'] = { signature: m.mac.signatur, url: url(m.mac.update) };
-  if (m.windows?.signatur && fs.existsSync(path.join(ordner, m.windows.update))) plattformen['windows-x86_64'] = { signature: m.windows.signatur, url: url(m.windows.update) };
+  if (aktuell(m, m.mac) && m.mac?.signatur && fs.existsSync(path.join(ordner, m.mac.update))) plattformen['darwin-aarch64'] = { signature: m.mac.signatur, url: url(m.mac.update) };
+  if (aktuell(m, m.windows) && m.windows?.signatur && fs.existsSync(path.join(ordner, m.windows.update))) plattformen['windows-x86_64'] = { signature: m.windows.signatur, url: url(m.windows.update) };
   if (!Object.keys(plattformen).length) return null;
   return { version: m.version, notes: 'Neue Version des Agentendorf-Programms', pub_date: m.erstellt ?? new Date(0).toISOString(), platforms: plattformen };
 }

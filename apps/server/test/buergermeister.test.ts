@@ -149,7 +149,9 @@ describe('Schreibtisch und Bürgermeister', () => {
       `--${grenze}\r\nContent-Disposition: form-data; name="text"\r\n\r\nBitte die Folie zusammenfassen\r\n` +
       `--${grenze}\r\nContent-Disposition: form-data; name="datei"; filename="folie.txt"\r\nContent-Type: text/plain\r\n\r\nInhalt der Folie\r\n--${grenze}--\r\n`;
     const a = (await d.app.inject({ method: 'POST', url: '/api/schreibtisch', headers: { ...h, 'content-type': `multipart/form-data; boundary=${grenze}` }, payload: body })).json();
-    expect(a).toMatchObject({ quelle: 'app', status: 'in_arbeit' });
+    expect(a).toMatchObject({ quelle: 'app' });
+    // die Attrappe ist manchmal schon fertig, bevor die Antwort rausgeht (CI) – beides ist richtig
+    expect(['in_arbeit', 'beantwortet']).toContain(a.status);
     await d.agenten.leerlauf();
     const notiz = (await d.vault.lesen(a.pfad)).inhalt;
     expect(notiz).toMatch(/\[\[Rathaus\/schreibtisch\/anhaenge\/[^/]+\/folie\.txt\]\]/);

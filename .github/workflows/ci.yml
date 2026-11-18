@@ -265,8 +265,9 @@ jobs:
           for i in $(seq 1 30); do curl -fs http://localhost:4000/gesundheit && break; sleep 1; done
           curl -fs http://localhost:4000/gesundheit
           docker run --rm --entrypoint claude agentendorf-werkstatt:ci --version
-      - name: Programme holen (nur wenn neu gebaut)
-        if: needs.programme.result == 'success'
+      - name: Programme holen (nur wenn neu gebaut – auch wenn nur eine Plattform fertig wurde)
+        if: needs.programme.result == 'success' || needs.programme.result == 'failure' || needs.programme.result == 'cancelled'
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           pattern: programme-*
@@ -308,7 +309,13 @@ jobs:
           fi
           if [ -d programme-dl ] && [ -n "$(ls programme-dl 2>/dev/null)" ]; then
             bash deploy/programme-manifest.sh programme-dl buendel/programme
-            echo "${{ needs.programme-pruefen.outputs.kennung }}" > buendel/PROGRAMME_KENNUNG
+            # nur vollständig (Mac + Windows) gilt die Kennung – sonst baut der nächste Lauf beide neu
+            if [ -d programme-dl/programme-Mac ] && [ -d programme-dl/programme-Windows ]; then
+              echo "${{ needs.programme-pruefen.outputs.kennung }}" > buendel/PROGRAMME_KENNUNG
+            else
+              echo "::warning::Nicht alle Programme gebaut – ausgeliefert wird, was da ist."
+              echo 0000000000000000 > buendel/PROGRAMME_KENNUNG
+            fi
             DATEIEN="$DATEIEN programme PROGRAMME_KENNUNG"
           fi
           # shellcheck disable=SC2086

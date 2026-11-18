@@ -503,3 +503,9 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
   - Einladungen gehen nie raus (`sendUpdates=none` bei jedem Schreiben). Teilnehmer werden nur angezeigt.
   - Kalender, die Leif nur lesen darf (z. B. Feiertage), sind gesperrt. Wiederholungsregeln prüft der Server gegen ein festes Muster.
 - Kein Zwischenspeicher der Termine auf dem Server; nur die Kalenderliste wird 10 min im Speicher gehalten.
+
+## E76 – Programme: Teil-Bau ausliefern (18.11.)
+
+- **Anlass:** GitHub hat zweimal keinen Mac-Rechner zugeteilt („not acquired by Runner … even after multiple attempts“, nach 15 min abgebrochen). Damit blieb auch das fertige Windows-Programm liegen.
+- **Jetzt:** Was gebaut ist, wird ausgeliefert. Fehlt eine Plattform, behält der Server deren bisherige Fassung zum Herunterladen, mit ihrer alten Versionsnummer in `programme.json`. Die Update-Datei bietet sie dann nicht an, sonst würde das Programm dieselbe alte Fassung immer wieder installieren.
+- Ein Teil-Bau bekommt die Kennung `0000000000000000`, deshalb baut der nächste Lauf beide Plattformen neu. Getestet in `empfangen-test.sh` und `programme.test.ts`.

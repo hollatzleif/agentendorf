@@ -37,7 +37,13 @@ buendel() { # version [rechenraum-kennung [mit-image]]   (BROWSER=kennung[:mit] 
   echo "$1" > "$d/VERSION"; cp -r "$HIER/.." "$d/deploy"
   echo "image" | gzip > "$d/image.tar.gz"
   if [ -n "${PROGRAMME:-}" ]; then
-    mkdir -p "$d/programme"; echo '{"version":"0.1.9"}' > "$d/programme/programme.json"; echo DMG > "$d/programme/Agentendorf_0.1.9_aarch64.dmg"
+    mkdir -p "$d/programme"
+    if [ -n "${NUR_WINDOWS:-}" ]; then
+      echo '{"version":"0.2.0","windows":{"installer":"Agentendorf_0.2.0_x64-setup.exe","update":"Agentendorf_0.2.0_x64-setup.exe","signatur":"s"}}' > "$d/programme/programme.json"
+      echo EXE > "$d/programme/Agentendorf_0.2.0_x64-setup.exe"
+    else
+      echo '{"version":"0.1.9","mac":{"installer":"Agentendorf_0.1.9_aarch64.dmg","update":"","signatur":""}}' > "$d/programme/programme.json"; echo DMG > "$d/programme/Agentendorf_0.1.9_aarch64.dmg"
+    fi
     echo "$PROGRAMME" > "$d/PROGRAMME_KENNUNG"; dateien+=(programme PROGRAMME_KENNUNG)
   fi
   if [ -n "${2:-}" ]; then
@@ -118,7 +124,14 @@ PROGRAMME=$PK cmd_empfangen < "$(PROGRAMME=$PK BROWSER="$BA" buendel v16 $RC)" >
 BROWSER="$BA" cmd_empfangen < "$(BROWSER="$BA" buendel v17 $RC)" >/dev/null || fehler "v17 ohne Programme"
 [ -f "$DORF_BASIS/daten/programme/programme.json" ] || fehler "Programme dürfen ohne neues Bündel nicht verschwinden"
 ( SSH_ORIGINAL_COMMAND="hat-programme $PK; rm -rf /" cmd_ci ) >/dev/null 2>&1 && fehler "hat-programme mit Anhang erlaubt"
-echo "Programme mitliefern, hat-programme: bestanden"
+# Nur Windows gebaut (Mac-Bau fiel aus): die alte Mac-Fassung bleibt, mit ihrer alten Version
+NUR_WINDOWS=1 PROGRAMME=0000000000000000 BROWSER="$BA" cmd_empfangen < "$(NUR_WINDOWS=1 PROGRAMME=0000000000000000 BROWSER="$BA" buendel v18 $RC)" >/dev/null || fehler "v18 nur Windows"
+P="$DORF_BASIS/daten/programme"
+[ -f "$P/Agentendorf_0.2.0_x64-setup.exe" ] || fehler "Windows-Programm nicht übernommen"
+[ -f "$P/Agentendorf_0.1.9_aarch64.dmg" ] || fehler "alte Mac-Fassung verschwunden"
+[ "$(jq -r '.version + " " + .mac.version + " " + .windows.installer' "$P/programme.json")" = "0.2.0 0.1.9 Agentendorf_0.2.0_x64-setup.exe" ] || fehler "programme.json nicht zusammengeführt: $(cat "$P/programme.json")"
+[ "$(SSH_ORIGINAL_COMMAND="hat-programme $PK" cmd_ci)" = nein ] || fehler "unvollständige Programme dürfen nicht als fertig gelten"
+echo "Programme mitliefern, hat-programme, Teil-Bau: bestanden"
 # Compose bekommt das Profil „browser“ genau dann, wenn die Version eine BROWSER_VERSION hat
 # echte compose()-Funktion aus dem Skript wiederherstellen (oben durch eine Attrappe ersetzt)
 # shellcheck disable=SC1090
