@@ -101,7 +101,7 @@ test('Aktion starten, Chat live, fortsetzen, Freigabe annehmen, Verbrauch', asyn
   await page.getByRole('button', { name: 'Starten' }).click();
   await expect(page).toHaveURL(/\/chats\//);
   // in der CI teilt sich der Testserver die Maschine mit dem Browser – großzügig warten
-  await expect(page.getByText(/Erledigt\. \(claude-code, claude-opus-5-5/)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/Erledigt\. \(claude-code, claude-opus-5-5/)).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText(/Lauf 1: fertig/)).toBeVisible({ timeout: 15_000 });
 
   await page.getByPlaceholder('Weiter im Gespräch …').fill('Und noch etwas?');
@@ -239,7 +239,7 @@ test('Etappe 4: Morgenzeitung drucken, Bürgermeister wecken, Post ohne Gmail', 
   await expect(page.getByText(/Erscheint jeden Morgen um 06:30/)).toBeVisible();
 
   await page.goto('/gebaeude/Rathaus?reiter=schreibtisch');
-  await expect(page.getByText(/wacht von selbst auf/)).toBeVisible();
+  await expect(page.getByText(/rund um die Uhr wach/)).toBeVisible();
   await page.getByRole('button', { name: 'Jetzt aufwachen' }).click();
   await expect(page.getByText(/^Aufgewacht:|Aufgewacht:/).first()).toBeVisible();
 
