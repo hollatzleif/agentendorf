@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { KalenderAntwort, KalenderInfo, KalenderTermin } from '@dorf/shared';
+import { terminAusText, type KalenderAntwort, type KalenderInfo, type KalenderTermin, type TerminAusText } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 
 /**
@@ -120,7 +120,7 @@ export function MarktKalender() {
   const [ansicht, setAnsicht] = useState<Ansicht>(() => (localStorage.getItem('kalender-ansicht') as Ansicht) ?? (window.innerWidth < 700 ? 'liste' : 'monat'));
   const [anker, setAnker] = useState(heuteTag());
   const [aus, setAus] = useState<string[]>(() => JSON.parse(localStorage.getItem('kalender-aus') ?? '[]') as string[]);
-  const [offen, setOffen] = useState<{ termin?: KalenderTermin; neu?: { tag: string; min?: number; ganztags?: boolean } } | null>(null);
+  const [offen, setOffen] = useState<{ termin?: KalenderTermin; neu?: Neu } | null>(null);
   useEffect(() => localStorage.setItem('kalender-ansicht', ansicht), [ansicht]);
   useEffect(() => localStorage.setItem('kalender-aus', JSON.stringify(aus)), [aus]);
 
@@ -191,6 +191,21 @@ export function MarktKalender() {
               </button>
             ))}
           </div>
+          {darfSchreiben && (
+            <form
+              className="kalender-schnell"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const feld = (e.currentTarget.elements.namedItem('schnell') as HTMLInputElement | null)!;
+                const v = terminAusText(feld.value, Date.now());
+                if (!v) return;
+                setOffen({ neu: { tag: v.start.slice(0, 10), vorlage: v } });
+                feld.value = '';
+              }}
+            >
+              <input name="schnell" placeholder="morgen 14 Uhr Zahnarzt …" aria-label="Termin schnell eingeben" maxLength={200} />
+            </form>
+          )}
           {darfSchreiben && (
             <button type="button" className="haupt" onClick={() => neu(ansicht === 'monat' && anker.slice(0, 7) !== heuteTag().slice(0, 7) ? anker : heuteTag(), 9 * 60)}>
               + Termin
@@ -547,7 +562,10 @@ function regelBauen(art: Wdh, starttag: string, ende: 'nie' | 'datum' | 'anzahl'
   return `RRULE:${basis}${schluss}`;
 }
 
-function TerminFenster({ antwort, termin, neu, schliessen }: { antwort: KalenderAntwort; termin?: KalenderTermin; neu?: { tag: string; min?: number; ganztags?: boolean }; schliessen: () => void }) {
+type Neu = { tag: string; min?: number; ganztags?: boolean; vorlage?: TerminAusText };
+
+function TerminFenster({ antwort, termin, neu, schliessen }: { antwort: KalenderAntwort; termin?: KalenderTermin; neu?: Neu; schliessen: () => void }) {
+  const v = neu?.vorlage;
   const qc = useQueryClient();
   const schreibbar = antwort.kalender.filter((k) => k.schreibbar);
   const nurLesen = !!termin && (!termin.schreibbar || termin.quelle !== 'google');
@@ -558,14 +576,14 @@ function TerminFenster({ antwort, termin, neu, schliessen }: { antwort: Kalender
       : ort(termin.ende)
     : { tag: neu!.tag, zeit: `${String(Math.min(23, Math.floor((neu!.min ?? 540) / 60) + 1)).padStart(2, '0')}:${String((neu!.min ?? 540) % 60).padStart(2, '0')}` };
   const [f, setF] = useState({
-    titel: termin?.titel ?? '',
+    titel: termin?.titel ?? v?.titel ?? '',
     kalenderId: termin?.kalenderId ?? schreibbar.find((k) => k.primaer)?.id ?? schreibbar[0]?.id ?? '',
-    ganztags: termin?.ganztags ?? !!neu?.ganztags,
-    starttag: startOrt.tag,
-    startzeit: 'zeit' in startOrt ? startOrt.zeit : '09:00',
-    endtag: endeOrt.tag,
-    endzeit: 'zeit' in endeOrt ? endeOrt.zeit : '10:00',
-    ort: termin?.ort ?? '',
+    ganztags: termin?.ganztags ?? v?.ganztags ?? !!neu?.ganztags,
+    starttag: v ? v.start.slice(0, 10) : startOrt.tag,
+    startzeit: v && !v.ganztags ? v.start.slice(11, 16) : startOrt.zeit,
+    endtag: v ? (v.ganztags ? tagPlus(v.ende, -1) : v.ende.slice(0, 10)) : endeOrt.tag,
+    endzeit: v && !v.ganztags ? v.ende.slice(11, 16) : endeOrt.zeit,
+    ort: termin?.ort ?? v?.ort ?? '',
     beschreibung: termin?.beschreibung ?? '',
     farbe: termin?.farbe ?? '',
     erinnerungen: termin?.erinnerungen === undefined ? null : termin.erinnerungen,

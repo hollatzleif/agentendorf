@@ -355,6 +355,7 @@ export async function dorfStarten(
       postbote,
       morgenzeitung,
       listen,
+      kalender: googleKalender,
       log: (t) => console.warn(t),
     });
     if (!opt.telegram) telegram.starten();

@@ -703,3 +703,4 @@ export interface KalenderAntwort {
   kalender: KalenderInfo[];
   termine: KalenderTermin[];
 }
+export * from './termintext.js';

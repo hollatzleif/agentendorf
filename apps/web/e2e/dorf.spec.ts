@@ -707,3 +707,27 @@ test('Post: Mail per Klick als To-do', async ({ page }, info) => {
   await expect(page.getByText('✅ auf dem To-do-Brett')).toBeVisible();
   expect(gesendet).toEqual({ id: 'm1' });
 });
+
+test('Kalender-Schnelleingabe: „morgen 14 Uhr Zahnarzt @Konstanz“ füllt das Formular', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  const morgen = new Date(Date.now() + 86_400_000).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+  let neu: unknown = null;
+  await page.route('**/api/kalender**', (r) => {
+    if (r.request().method() === 'POST') {
+      neu = r.request().postDataJSON();
+      return r.fulfill({ json: { ok: true } });
+    }
+    return r.fulfill({ json: { modus: 'google', kalender: [{ id: 'leif', name: 'Leif', farbe: '#9fe1e7', primaer: true, schreibbar: true }], termine: [] } });
+  });
+  await anmelden(page);
+  await page.goto('/gebaeude/Marktplatz');
+  await page.getByRole('button', { name: 'Kalender', exact: true }).click();
+  await page.getByLabel('Termin schnell eingeben').fill('morgen 14 Uhr Zahnarzt @Konstanz');
+  await page.getByLabel('Termin schnell eingeben').press('Enter');
+  const f = page.getByRole('dialog', { name: 'Neuer Termin' });
+  await expect(f.getByLabel('Titel')).toHaveValue('Zahnarzt');
+  await expect(f.getByLabel('Beginn Uhrzeit')).toHaveValue('14:00');
+  await expect(f.getByLabel('Ort')).toHaveValue('Konstanz');
+  await f.getByRole('button', { name: 'Speichern' }).click();
+  await expect.poll(() => neu).toMatchObject({ titel: 'Zahnarzt', start: `${morgen}T14:00`, ende: `${morgen}T15:00`, ort: 'Konstanz' });
+});

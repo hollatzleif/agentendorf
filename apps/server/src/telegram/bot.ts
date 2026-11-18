@@ -10,6 +10,7 @@ const LISTEN_ANZEIGE: Record<ListenName, { symbol: string; titel: string; befehl
 };
 import { aufwachEinstellungen, istNacht } from '../aufwachen.js';
 import type { Rueckblick } from '../wochenrueckblick.js';
+import { terminAusText, type TerminAusText } from '@dorf/shared';
 import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
 import type { FreigabeInfo, PlanInhalt, TelegramStatus } from '@dorf/shared';
@@ -101,6 +102,8 @@ export class TelegramBot {
       postbote?: Postbote;
       morgenzeitung?: Morgenzeitung;
       listen?: Record<ListenName, TodoDienst>;
+      /** Nacht 18./19.11.: /termin – Termin aus Text, eingetragen erst nach Leifs Knopfdruck */
+      kalender?: { verbunden: boolean; inHauptkalender(t: TerminAusText): Promise<{ titel: string }> };
       log?: (t: string) => void;
     },
   ) {
@@ -350,6 +353,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       if (b === '/aktion') return this.aktionBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/todo') return this.todoBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/einkauf') return this.todoBefehl(text.slice(text.split(/\s/)[0]!.length).trim(), 'einkauf');
+      if (b === '/termin') return this.terminBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b !== '/neu') return this.befehl(b);
       // „/neu“ beendet das laufende Gespräch; „/neu <Text>“ legt gleich eine neue Aufgabe an
       this.verlaufMerken(m.message_id, '');
@@ -424,7 +428,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
   private async befehl(b: string) {
     if (b === '/start' || b === '/hilfe' || b === '/help')
       return this.senden(
-        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/heute – dein Tag: Wetter, Termine, Fristen\n/fristen – Abgaben und Prüfungen der nächsten 7 Tage (mit Erledigt-Knöpfen)\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/aktion [Name] – Skill starten (ohne Name: Liste)\n/todo – To-do-Liste mit Abhak-Knöpfen (/todo &lt;Text&gt; legt eins an)\n/einkauf – Einkaufsliste (/einkauf &lt;Text&gt; setzt etwas drauf)\n/hilfe – diese Hilfe`,
+        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/heute – dein Tag: Wetter, Termine, Fristen\n/fristen – Abgaben und Prüfungen der nächsten 7 Tage (mit Erledigt-Knöpfen)\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/aktion [Name] – Skill starten (ohne Name: Liste)\n/todo – To-do-Liste mit Abhak-Knöpfen (/todo &lt;Text&gt; legt eins an)\n/einkauf – Einkaufsliste (/einkauf &lt;Text&gt; setzt etwas drauf)\n/termin &lt;wann&gt; &lt;was&gt; – Termin in den Kalender (mit Bestätigung)\n/hilfe – diese Hilfe`,
       );
     if (b === '/status') {
       const aktiv = this.o.agenten.aktiveLaeufe();
@@ -534,6 +538,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (q.data?.startsWith('e:')) return this.erledigtKnopf(q, antworten);
     if (q.data?.startsWith('v:')) return this.vorbereitenKnopf(q, antworten);
     if (q.data?.startsWith('t:') || q.data?.startsWith('l:')) return this.todoKnopf(q, antworten);
+    if (q.data?.startsWith('k:')) return this.terminKnopf(q, antworten);
     const m = /^f:([0-9a-f-]{36}):([jn]):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
     if (!m || !crypto.timingSafeEqual(Buffer.from(m[3]!), Buffer.from(this.signatur(m[1]!, m[2] as 'j' | 'n')))) {
       this.o.log?.('Telegram: Knopf mit ungültiger Signatur abgelehnt.');
@@ -622,6 +627,65 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
         })
         .catch(() => undefined);
     }
+  }
+
+  // ---- /termin (Nacht 18./19.11.) ---------------------------------------------------------------
+
+  private terminSignatur(id: string) {
+    return crypto.createHmac('sha256', this.signaturSchluessel).update(`termin:${id}`).digest('base64url').slice(0, 16);
+  }
+  private terminWartend(): Record<string, { termin: TerminAusText; zeit: number }> {
+    const w = (this.o.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'telegram_termine'").get() as { wert: string } | undefined)?.wert;
+    return w ? JSON.parse(w) : {};
+  }
+  private terminWartendSetzen(x: Record<string, { termin: TerminAusText; zeit: number }>) {
+    // höchstens 20, älter als ein Tag fällt weg
+    const jetzt = this.o.uhr.jetzt();
+    const rest = Object.entries(x)
+      .filter(([, v]) => jetzt - v.zeit < 86_400_000)
+      .slice(-20);
+    this.o.db.prepare("INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES ('telegram_termine', ?)").run(JSON.stringify(Object.fromEntries(rest)));
+  }
+  static terminText(t: TerminAusText) {
+    const tag = (d: string) => new Date(`${d.slice(0, 10)}T12:00:00Z`).toLocaleDateString('de-AT', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
+    const wann = t.ganztags ? `${tag(t.start)} (ganztags)` : `${tag(t.start)}, ${t.start.slice(11)}–${t.ende.slice(11)}`;
+    return `<b>${h(t.titel)}</b>\n${wann}${t.ort ? `\n📍 ${h(t.ort)}` : ''}`;
+  }
+
+  private async terminBefehl(rest: string) {
+    if (!rest)
+      return this.senden('📅 <b>/termin</b> &lt;wann&gt; &lt;was&gt;\nz. B. <i>/termin morgen 14 Uhr Zahnarzt</i>, <i>/termin Fr 9-11 Lernen Mathe</i>, <i>/termin 20.11. 18:30 Kneipe @Corpshaus</i>');
+    if (!this.o.kalender?.verbunden) return this.senden('📅 Der Google-Kalender ist noch nicht verbunden (auf dem Server: dorf gmail-anmelden, mit Kalender).');
+    const t = terminAusText(rest, this.o.uhr.jetzt());
+    if (!t) return this.senden('📅 Das habe ich nicht verstanden – z. B. <i>/termin morgen 14 Uhr Zahnarzt</i>.');
+    const id = crypto.randomBytes(6).toString('hex');
+    this.terminWartendSetzen({ ...this.terminWartend(), [id]: { termin: t, zeit: this.o.uhr.jetzt() } });
+    return this.senden(`📅 So eintragen?\n${TelegramBot.terminText(t)}`, {
+      reply_markup: { inline_keyboard: [[{ text: '✅ Eintragen', callback_data: `k:${id}:${this.terminSignatur(id)}` }]] },
+    });
+  }
+
+  private async terminKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {
+    const m = /^k:([0-9a-f]{12}):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
+    if (!m || !crypto.timingSafeEqual(Buffer.from(m[2]!), Buffer.from(this.terminSignatur(m[1]!)))) {
+      this.o.log?.('Telegram: Termin-Knopf mit ungültiger Signatur abgelehnt.');
+      return antworten('Ungültiger Knopf.');
+    }
+    const alle = this.terminWartend();
+    const w = alle[m[1]!];
+    if (!w || !this.o.kalender) return antworten('Schon eingetragen oder abgelaufen.');
+    delete alle[m[1]!];
+    this.terminWartendSetzen(alle);
+    try {
+      await this.o.kalender.inHauptkalender(w.termin);
+    } catch (e) {
+      return antworten(`Fehler: ${(e as Error).message}`.slice(0, 190));
+    }
+    await antworten('Eingetragen.');
+    if (q.message)
+      await this.o.api
+        .aufruf('editMessageText', { chat_id: q.message.chat.id, message_id: q.message.message_id, text: `📅 Eingetragen:\n${TelegramBot.terminText(w.termin)}`, parse_mode: 'HTML' })
+        .catch(() => undefined);
   }
 
   // ---- Bank (Etappe 7) --------------------------------------------------------------------------

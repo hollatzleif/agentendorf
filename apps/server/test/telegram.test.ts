@@ -293,3 +293,50 @@ describe('Telegram: Gesprächszusammenhang', () => {
     await d.ruhe();
   });
 });
+
+describe('Telegram /termin (Nacht 18./19.11.)', () => {
+  it('versteht den Text, zeigt eine Vorschau mit Knopf und trägt erst nach dem Klick ein; gefälschter Knopf nicht', async () => {
+    const n = nachbau();
+    const angelegt: { kal: string; body: Record<string, unknown> }[] = [];
+    const klient = {
+      async kalender() {
+        return [{ id: 'leif', name: 'Leif', farbe: '#000', primaer: true, schreibbar: true }];
+      },
+      async termine() {
+        return [];
+      },
+      async holen() {
+        throw new Error('-');
+      },
+      async anlegen(kal: string, body: unknown) {
+        angelegt.push({ kal, body: body as Record<string, unknown> });
+        return { id: 'neu', summary: (body as { summary: string }).summary, start: { dateTime: '2026-11-17T14:00:00+01:00' }, end: { dateTime: '2026-11-17T15:00:00+01:00' } };
+      },
+      async aendern() {
+        throw new Error('-');
+      },
+      async loeschen() {},
+      async verschieben() {
+        throw new Error('-');
+      },
+    };
+    const d = await testDorf({ env: { TELEGRAM_CHAT_ID: LEIF, ORIGIN: 'https://dorf.test' }, telegram: n.api, kalenderKlient: klient as never });
+    const bot = d.telegram!;
+    await bot.verarbeiten({ update_id: 1, message: { message_id: 1, chat: { id: Number(LEIF) }, text: '/termin morgen 14 Uhr Zahnarzt @Konstanz' } });
+    const vorschau = n.aufrufe.filter((a) => a.m === 'sendMessage').at(-1)!.p;
+    expect(String(vorschau.text)).toMatch(/So eintragen\?\n<b>Zahnarzt<\/b>\nDi\.?, 17\.11\.2026, 14:00–15:00\n📍 Konstanz/);
+    expect(angelegt).toEqual([]);
+    const daten = (vorschau.reply_markup as { inline_keyboard: { callback_data: string }[][] }).inline_keyboard[0]![0]!.callback_data;
+    // gefälscht
+    await bot.verarbeiten({ update_id: 2, callback_query: { id: 'x', data: daten.replace(/:[^:]+$/, ':AAAAAAAAAAAAAAAA'), from: { id: Number(LEIF) }, message: { message_id: 2, chat: { id: Number(LEIF) } } } });
+    expect(angelegt).toEqual([]);
+    await bot.verarbeiten({ update_id: 3, callback_query: { id: 'y', data: daten, from: { id: Number(LEIF) }, message: { message_id: 2, chat: { id: Number(LEIF) } } } });
+    expect(angelegt).toEqual([{ kal: 'leif', body: expect.objectContaining({ summary: 'Zahnarzt', location: 'Konstanz', start: { dateTime: '2026-11-17T14:00:00', timeZone: 'Europe/Vienna' } }) }]);
+    // zweiter Klick: nichts doppelt
+    await bot.verarbeiten({ update_id: 4, callback_query: { id: 'z', data: daten, from: { id: Number(LEIF) }, message: { message_id: 2, chat: { id: Number(LEIF) } } } });
+    expect(angelegt).toHaveLength(1);
+    // Unsinn und Hilfe
+    await bot.verarbeiten({ update_id: 5, message: { message_id: 3, chat: { id: Number(LEIF) }, text: '/termin morgen 14 Uhr' } });
+    expect(String(n.aufrufe.filter((a) => a.m === 'sendMessage').at(-1)!.p.text)).toMatch(/nicht verstanden/);
+  });
+});

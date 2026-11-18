@@ -543,3 +543,13 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 
 - Im Post-Eingang hat jede Mail **„✓ Als To-do“**. Das To-do bekommt den Betreff („Antworten: …“, wenn eine Antwort nötig ist), die Frist der Mail als Fälligkeit (wenn es ein Datum ist), Absender, Zusammenfassung und einen Link zurück in Gmail. Gebäude: Post.
 - Der Server baut das To-do selbst aus der gespeicherten Mail (`/api/post/todo`, nur Mail-ID) und markiert es als **fremd**: Agenten mit Internet sehen es nicht, wie bei Rechnungen aus Mails.
+
+## E82 – Termin aus Text (Nacht 18./19.11.)
+
+- `terminAusText` (packages/shared, **ohne KI**, damit es sofort und verlässlich geht) versteht:
+  - Datum: heute, morgen, übermorgen, Wochentage (auch „nächsten …“), „20.11.“ (ohne Jahr: ist das Datum schon vorbei, nächstes Jahr), „in 3 Tagen“
+  - Zeit: Uhrzeiten und Bereiche wie „9-11“, „von 9 bis 11:30“
+  - Dauer („für 2h“, „90 min“, „1,5 Stunden“, sonst 1 h) und Ort mit „@…“
+  - Ohne Uhrzeit wird der Termin ganztägig; nur eine Uhrzeit heißt heute, oder morgen, wenn die Zeit schon vorbei ist.
+- **App:** Feld „morgen 14 Uhr Zahnarzt …“ im Marktplatz-Kalender. Es füllt nur das Formular, Leif speichert selbst.
+- **Telegram:** `/termin <Text>` zeigt eine Vorschau mit „✅ Eintragen“ (HMAC-signiert, höchstens 20 Vorschläge, 24 h gültig, kein Doppel-Eintrag). Eingetragen wird erst mit dem Klick, in den Hauptkalender, ohne Einladungen.

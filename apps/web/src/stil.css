@@ -649,3 +649,4 @@ input.kurz { width: 5em; }
 .lernzeit { margin-top: 0.4rem; }
 .lernzeit-liste { list-style: none; padding: 0; margin: 0.4rem 0 0; display: grid; gap: 0.25rem; }
 .lernzeit-liste li { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; }
+.kalender-schnell input { min-width: 13rem; }

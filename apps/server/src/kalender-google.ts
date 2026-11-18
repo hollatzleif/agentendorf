@@ -351,6 +351,13 @@ export class GoogleKalender {
     return aus;
   }
 
+  /** Termin aus Text (Telegram /termin, nach Leifs Bestätigung) in den Hauptkalender */
+  async inHauptkalender(t: { titel: string; ganztags: boolean; start: string; ende: string; ort?: string }) {
+    const k = (await this.liste()).find((x) => x.primaer && x.schreibbar) ?? (await this.liste()).find((x) => x.schreibbar);
+    if (!k) throw new DorfFehler(409, 'Kein Kalender, in den du schreiben darfst.');
+    return this.anlegen({ kalenderId: k.id, ...t });
+  }
+
   /** Gewählten Vorschlag in den Hauptkalender eintragen (Leifs Klick): „📚 <Titel>“, Erinnerung 10 min vorher */
   async lernzeitEintragen(roh: unknown) {
     const b = z.object({ titel: z.string().trim().min(1).max(200), start: z.string().datetime(), ende: z.string().datetime(), notiz: z.string().max(2000).optional() }).parse(roh);
