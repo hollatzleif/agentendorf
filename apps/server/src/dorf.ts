@@ -383,6 +383,7 @@ export async function dorfStarten(
       erinnerungen,
       notizen,
       woche: wochenrueckblick,
+      suche,
       statistik: (n) => statistik({ db, uhr, todos, gewohnheiten }, n),
       log: (t) => console.warn(t),
     });

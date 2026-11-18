@@ -22,7 +22,7 @@ import { STIMMUNGEN, stimmungSetzen } from '../statistik.js';
 import { ortszeitZuUtc } from '../uni/ical.js';
 
 type PlanBlock = { titel: string; grund: string; start: string; ende: string };
-import type { FokusStatistik, Statistik, TodoInfo } from '@dorf/shared';
+import type { FokusStatistik, Statistik, Suchtreffer, TodoInfo } from '@dorf/shared';
 import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
 import type { FreigabeInfo, PlanInhalt, TelegramStatus } from '@dorf/shared';
@@ -128,6 +128,8 @@ export class TelegramBot {
       woche?: { fakten(): Promise<{ abschnitte: { titel: string; zeilen: string[] }[] }> };
       /** E104: /statistik */
       statistik?: (tage: number) => Promise<Statistik>;
+      /** E108: /suche im Vault */
+      suche?: { suchen(q: string, grenze?: number): Suchtreffer[] };
       /** Nacht 18./19.11.: /fokus – Pomodoro starten */
       kirchturm?: { ausfuehren(b: unknown): unknown; fokusStatistik?(): FokusStatistik };
       /** Nacht 18./19.11.: /termin – Termin aus Text, eingetragen erst nach Leifs Knopfdruck */
@@ -299,6 +301,7 @@ export class TelegramBot {
     { command: 'einkauf', description: 'Einkaufsliste (abhaken im Laden) – /einkauf <Text> setzt etwas drauf' },
     { command: 'termin', description: 'Termin in den Kalender: /termin morgen 14 Uhr Zahnarzt' },
     { command: 'woche', description: 'Deine Woche: Ziele, Termine, Fristen, Fälliges' },
+    { command: 'suche', description: 'Im Vault suchen: /suche <Begriff>' },
     { command: 'statistik', description: 'Die letzten 7 Tage: Erledigtes, Fokus, Gewohnheiten' },
     { command: 'aufraeumen', description: 'Überfällige To-dos nacheinander: heute, morgen, nächste Woche, erledigt' },
     { command: 'notiz', description: 'Gedanken festhalten: /notiz <Text> (Tagesnotiz im Rathaus)' },
@@ -474,6 +477,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       if (b === '/gewohnheiten' || b === '/gewohnheit') return this.gewohnheitenSenden();
       if (b === '/woche') return this.wocheSenden();
       if (b === '/statistik') return this.statistikSenden();
+      if (b === '/suche' || b === '/s') return this.sucheSenden(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/aufraeumen' || b === '/aufräumen') return this.aufraeumenZeigen();
       if (b === '/notiz' || b === '/n') return this.notizBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/erinner' || b === '/erinnere' || b === '/erinnerung') return this.erinnerBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
@@ -555,7 +559,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
   private async befehl(b: string) {
     if (b === '/start' || b === '/hilfe' || b === '/help')
       return this.senden(
-        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/heute – dein Tag: Wetter, Termine, Fristen\n/fristen – Abgaben und Prüfungen der nächsten 7 Tage (mit Erledigt-Knöpfen)\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/aktion [Name] – Skill starten (ohne Name: Liste)\n/todo – To-do-Liste mit Abhak-Knöpfen (/todo &lt;Text&gt; legt eins an)\n/einkauf – Einkaufsliste (/einkauf &lt;Text&gt; setzt etwas drauf)\n/termin &lt;wann&gt; &lt;was&gt; – Termin in den Kalender (mit Bestätigung)\n/plan [morgen] – Tag planen: To-dos in freie Lücken\n/erinner &lt;wann&gt; &lt;was&gt; – To-do mit Erinnerung (läutet im Kirchturm)\n/notiz &lt;Text&gt; – schnell festhalten (Tagesnotiz)\n/aufraeumen – überfällige To-dos neu einplanen\n/woche – Ziele, Termine und Fristen der nächsten 7 Tage\n/statistik – die letzten 7 Tage in Zahlen\n/karten [Fach] – Karteikarten wiederholen\n/gewohnheiten – heute abhaken\n/ziel [Text] – Wochenziele (ohne Text: abhaken)\n/fokus [Thema] – Pomodoro starten\n/hilfe – diese Hilfe`,
+        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/heute – dein Tag: Wetter, Termine, Fristen\n/fristen – Abgaben und Prüfungen der nächsten 7 Tage (mit Erledigt-Knöpfen)\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/aktion [Name] – Skill starten (ohne Name: Liste)\n/todo – To-do-Liste mit Abhak-Knöpfen (/todo &lt;Text&gt; legt eins an)\n/einkauf – Einkaufsliste (/einkauf &lt;Text&gt; setzt etwas drauf)\n/termin &lt;wann&gt; &lt;was&gt; – Termin in den Kalender (mit Bestätigung)\n/plan [morgen] – Tag planen: To-dos in freie Lücken\n/erinner &lt;wann&gt; &lt;was&gt; – To-do mit Erinnerung (läutet im Kirchturm)\n/notiz &lt;Text&gt; – schnell festhalten (Tagesnotiz)\n/aufraeumen – überfällige To-dos neu einplanen\n/woche – Ziele, Termine und Fristen der nächsten 7 Tage\n/statistik – die letzten 7 Tage in Zahlen\n/suche &lt;Begriff&gt; – im ganzen Vault suchen\n/karten [Fach] – Karteikarten wiederholen\n/gewohnheiten – heute abhaken\n/ziel [Text] – Wochenziele (ohne Text: abhaken)\n/fokus [Thema] – Pomodoro starten\n/hilfe – diese Hilfe`,
       );
     if (b === '/status') {
       const aktiv = this.o.agenten.aktiveLaeufe();
@@ -1103,6 +1107,18 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       await this.o.api
         .aufruf('editMessageText', { chat_id: q.message.chat.id, message_id: q.message.message_id, text: `💭 Dein Tag: ${STIMMUNGEN[Number(m[2]) - 1]}`, parse_mode: 'HTML' })
         .catch(() => undefined);
+  }
+
+  // ---- /suche (E108) ----------------------------------------------------------------------------------
+
+  private async sucheSenden(q: string) {
+    if (!this.o.suche) return this.senden('Die Suche ist gerade nicht verfügbar.');
+    if (!q) return this.senden('🔎 <b>/suche</b> &lt;Begriff&gt; – z. B. <i>/suche Eigenwert</i>');
+    const t = this.o.suche.suchen(q.slice(0, 200), 8);
+    if (!t.length) return this.senden(`🔎 Nichts gefunden für „${h(q)}“.`);
+    // Ausschnitte stammen aus Vault-Dateien (auch Fremdinhalt) – nur als Text, ohne Formatierung
+    const z = t.map((x) => `• <a href="${h(this.link(`/bibliothek?pfad=${encodeURIComponent(x.pfad)}&q=${encodeURIComponent(q)}`))}">${h(x.titel)}</a>\n  <i>${h(x.pfad)}</i>`);
+    return this.senden(`🔎 <b>${h(q)}</b> – ${t.length} ${t.length === 1 ? 'Treffer' : 'Treffer'}\n${z.join('\n')}`);
   }
 
   // ---- /statistik (E104) -----------------------------------------------------------------------------

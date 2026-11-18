@@ -217,7 +217,7 @@ describe('Telegram-Bot', () => {
     expect(offsets.at(-1)).toBe(51);
     // Befehlsmenü wird beim Start angemeldet
     const menue = d.aufrufe.find((x) => x.m === 'setMyCommands')?.p.commands as { command: string }[];
-    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'woche', 'statistik', 'aufraeumen', 'notiz', 'erinner', 'plan', 'karten', 'fokus', 'ziel', 'gewohnheiten', 'neu', 'hilfe']);
+    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'woche', 'suche', 'statistik', 'aufraeumen', 'notiz', 'erinner', 'plan', 'karten', 'fokus', 'ziel', 'gewohnheiten', 'neu', 'hilfe']);
     await d.agenten.leerlauf();
   }, 15_000);
 });
@@ -745,5 +745,19 @@ describe('Stimmung im Tagesabschluss (E107)', () => {
     expect(d.gesendet().at(-1)).toMatch(/<code>······█<\/code> 💭 Stimmung Ø 4/);
     const r = await d.wochenrueckblick.fakten();
     expect(r.abschnitte.find((a) => a.titel === 'Stimmung')?.zeilen).toEqual(['Ø 4,0 · 🙂']);
+  });
+});
+
+describe('Telegram /suche (E108)', () => {
+  it('findet Vault-Dateien und verlinkt in die Bibliothek', async () => {
+    const d = await dorf();
+    await d.vault.schreiben('Uni/eigenwerte.md', '# Eigenwerte\n\nEin Eigenwert λ erfüllt Av = λv.\n');
+    await d.suche.aktualisieren('Uni/eigenwerte.md');
+    await d.nachricht({ text: '/suche Eigenwert' });
+    const t = d.gesendet().at(-1)!;
+    expect(t).toMatch(/🔎 <b>Eigenwert<\/b> – \d+ Treffer/);
+    expect(t).toContain('https://dorf.test/bibliothek?pfad=Uni%2Feigenwerte.md&amp;q=Eigenwert');
+    await d.nachricht({ text: '/suche Zebrastreifenwurst' });
+    expect(d.gesendet().at(-1)).toMatch(/Nichts gefunden/);
   });
 });

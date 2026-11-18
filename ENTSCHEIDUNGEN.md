@@ -787,3 +787,8 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
   - `/statistik` in Telegram zeigt eine Stimmungszeile.
   - Der Wochenrückblick hat einen Abschnitt „Stimmung: Ø 3,8 · 🙂 😐 😄 …“.
 - Warum: Produktivität ohne Befinden ist die halbe Wahrheit. Neben Fokus, Gewohnheiten und Erledigtem zeigt die Stimmung über Wochen, was guttut und was nicht. Ein Tipp am Abend kostet nichts.
+
+## E108 – Telegram /suche (Nacht 18./19.11.)
+
+- **`/suche <Begriff>`** (oder `/s`) durchsucht den ganzen Vault über den vorhandenen Volltextindex (FTS5): Notizen, Uni-Unterlagen, To-dos, Protokolle. Bis zu 8 Treffer kommen mit Titel und Pfad, jeder als Link in die Bibliothek mit hervorgehobenem Begriff.
+- Die Ausschnitte aus den Dateien werden absichtlich nicht mitgeschickt. Vault-Dateien können Fremdinhalt sein, und Telegram zeigt nur Titel und Pfad (HTML-escaped).
