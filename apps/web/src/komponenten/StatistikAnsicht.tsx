@@ -22,6 +22,7 @@ const stunden = (min: number) =>
   min >= 60
     ? `${Math.floor(min / 60)} h ${min % 60 ? `${min % 60} min` : ""}`.trim()
     : `${min} min`;
+const STIMMUNG = ['😞', '😕', '😐', '🙂', '😄'];
 const quote = (t: Tag) =>
   t.gewohnheitenFaellig
     ? Math.round((t.gewohnheitenErledigt / t.gewohnheitenFaellig) * 100)
@@ -130,6 +131,17 @@ export function StatistikAnsicht() {
                       : `${t.gewohnheitenErledigt}/${t.gewohnheitenFaellig} (${quote(t)} %)`
                   }
                   einheit={(v) => `${v} %`}
+                />
+              )}
+              {s.summen.stimmungSchnitt != null && (
+                <Balken
+                  titel="💭 Stimmung (1–5)"
+                  tage={s.tage}
+                  wert={(t) => t.stimmung ?? 0}
+                  leer={(t) => t.stimmung == null}
+                  max={5}
+                  text={(t) => (t.stimmung == null ? 'nicht angegeben' : `${STIMMUNG[t.stimmung - 1]} ${t.stimmung}/5`)}
+                  einheit={(v) => `${v}/5`}
                 />
               )}
             </>

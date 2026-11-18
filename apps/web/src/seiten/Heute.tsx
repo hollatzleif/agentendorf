@@ -8,6 +8,7 @@ import { dauerText, useKirchturm } from '../komponenten/KirchturmUhr';
 import { TagPlanen } from '../komponenten/TagPlanen';
 import { GewohnheitenKarte } from '../komponenten/GewohnheitenKarte';
 import { WochenzieleKarte } from '../komponenten/WochenzieleKarte';
+import { StimmungZeile } from '../komponenten/StimmungZeile';
 
 /**
  * „Mein Tag“ (E77): der eine Blick am Morgen und zwischendurch – Termine heute/morgen, fällige To-dos zum Abhaken,
@@ -262,6 +263,7 @@ export function Heute() {
 
           <Fokus k={k} laedt={kirchturm.isPending} fehler={kirchturm.isError ? kirchturm.error.message : ''} jetzt={jetzt} />
           <GewohnheitenKarte />
+          {stunde >= 17 && <StimmungZeile />}
         </div>
 
         <div className="heute-spalte">

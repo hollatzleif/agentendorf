@@ -1065,3 +1065,9 @@ input.kurz { width: 5em; }
 
 /* Gewohnheiten: Uhrzeit im Formular (E106/E110) */
 .gewohnheit-neu-zeit { width: 7rem; }
+
+/* Stimmung (E107) */
+.stimmung-zeile { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; padding: 0.55rem 0.8rem; border: 2px solid var(--rand); border-radius: 14px; background: var(--karte); }
+.stimmung-frage { font-weight: 800; margin-right: auto; }
+.stimmung-knopf { font-size: 1.35rem; min-width: 2.6rem; min-height: 2.6rem; padding: 0.1rem; border-radius: 12px; background: #fff; }
+.stimmung-knopf.an { background: var(--gruen-hell); border-color: var(--gruen); box-shadow: 0 2px 0 var(--gruen); }

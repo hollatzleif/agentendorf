@@ -1113,3 +1113,14 @@ test('Gewohnheit „3× pro Woche“ mit Uhrzeit: Wochenstand auf „Heute“', 
   await z.getByLabel('Wochen-Sport heute erledigt').check();
   await expect(z).toContainText('1/3 diese Woche');
 });
+
+test('Statistik: Stimmung als eigenes Diagramm, sobald eine gesetzt ist', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  expect((await page.request.post('/api/stimmung', { headers: { origin: ORIGIN }, data: { wert: 4 } })).ok()).toBe(true);
+  await page.goto('/gebaeude/Rathaus?reiter=statistik');
+  const d = page.getByRole('figure', { name: '💭 Stimmung (1–5)' });
+  await expect(d).toBeVisible();
+  await d.locator('.statistik-treffer').last().hover();
+  await expect(d.locator('.statistik-hover')).toContainText('🙂 4/5');
+});
