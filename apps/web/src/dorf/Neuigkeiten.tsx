@@ -1,10 +1,11 @@
 import { useState } from 'react';
 
 /** Bei jeder neuen Ausgabe den Schlüssel ändern – dann erscheint die Karte einmal pro Gerät */
-const AUSGABE = '2026-11-18d';
+const AUSGABE = '2026-11-18e';
 const SCHLUESSEL = 'dorf-neuigkeiten-gesehen';
 
 const PUNKTE: [string, string][] = [
+  ['🎨', 'Neuer Look: Fenster, Reiter, Knöpfe und Seiten sehen jetzt aus wie die Spielknöpfe im Dorf.'],
   ['⏱️', 'Pläne des Bürgermeisters starten nach 10 Minuten von selbst, wenn du nicht antwortest (einstellbar). Senden, Löschen, Abgeben warten weiter immer auf dich.'],
   ['🧠', 'Der Bürgermeister lernt: Er führt ein Gedächtnis (Rathaus/memory.md) und hat eine Persönlichkeit (Rathaus/personality.md) – Änderungen daran nur mit deinem Ja.'],
   ['🔁', 'Nach deinem Ja zu einer Freigabe und wenn seine Helfer fertig sind, macht er von selbst weiter.'],

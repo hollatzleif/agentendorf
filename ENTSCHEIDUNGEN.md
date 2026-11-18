@@ -281,3 +281,9 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - **Nur Pläne.** Ein Plan startet Helfer im Vault. Senden, Löschen, Abgeben, Überschreiben, Skills und Persönlichkeit bleiben eigene Freigaben und warten immer auf Leifs Klick.
 - Die Einstellung gilt für Pläne, die nach einer Änderung vorgelegt werden. Ältere behalten ihren Zeitpunkt.
 
+**E63 – Spiel-Look für alle Fenster und Seiten** (18.11., Leif: „die ganzen Fenster … sollten auch in diesem Look sein und nicht so plain“)
+- Kopfleiste, Gebäude-Fenster, Karten, Reiter, Knöpfe, Eingabefelder, Chat-Nachrichten und Tabellen sehen jetzt aus wie die Knöpfe im Dorf: heller Grund, dunkelblauer Rand, runde Ecken und ein „Boden“-Schatten, der beim Drücken einsinkt.
+- Der aktive Reiter und Hauptknöpfe sind grün, Gefahr-Knöpfe rot, Schließen ist ein roter Kreis. Die Fensterköpfe sind dunkelblau wie das Gebäude-Banner.
+- Das Aussehen ist immer hell, auch wenn das Gerät auf dunkel steht. Das Dorf ist hell, ein dunkles Fenster daneben passte nicht.
+- Umgesetzt nur in `stil.css`, ohne neue Abhängigkeiten oder Schriften von außen.
+
