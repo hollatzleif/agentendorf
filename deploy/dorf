@@ -402,10 +402,15 @@ cmd_moodle_browser_zugang() {
   [ -n "$passwort" ] || { rot "Abgebrochen."; return 1; }
   case "$passwort" in *$'\n'*|*$'\r'*) rot "Passwort mit Zeilenumbruch geht nicht."; return 1 ;; esac
   hosts=$(sed -n 's/^BROWSER_HOSTS=//p' "$datei" | tail -1)
-  read -r -p "Erlaubte Domains [${hosts:-jku.at}] (Enter = so lassen): " neu
+  read -r -p "Erlaubte Domains [${hosts:-jku.at}] (Enter = so lassen – fast immer richtig): " neu
   neu=$(printf '%s' "${neu:-}" | tr -d '\r ')
   [ -z "$neu" ] || hosts=$neu
   [[ "${hosts:-jku.at}" =~ ^[a-z0-9.,-]+$ ]] || { rot "Ungültige Domains (nur z. B. jku.at,login.example.org)."; return 1; }
+  # Moodle selbst muss immer erlaubt bleiben – sonst sperrt sich der Browser aus (passiert, wenn man nur einen Login-Host einträgt)
+  case ",${hosts:-jku.at}," in
+    *,jku.at,*|*,moodle.jku.at,*) ;;
+    *) info "jku.at fehlte in der Liste – ergänzt (sonst wäre moodle.jku.at selbst gesperrt)."; hosts="jku.at,${hosts}" ;;
+  esac
   # Zeilen ersetzen, ohne das Passwort durch sed zu schicken
   grep -vE '^(MOODLE_BENUTZER|MOODLE_PASSWORT|BROWSER_HOSTS)=' "$datei" > "$datei.neu" || true
   { printf 'MOODLE_BENUTZER=%s\n' "$benutzer"; printf 'MOODLE_PASSWORT=%s\n' "$passwort"; printf 'BROWSER_HOSTS=%s\n' "${hosts:-jku.at}"; } >> "$datei.neu"
