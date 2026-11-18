@@ -1273,6 +1273,25 @@ test('Offline: gleichzeitiges Senden schickt nichts doppelt, Neues bleibt in der
   await expect(page.locator('li.todo', { hasText: 'Schlange-A' })).toHaveCount(1);
 });
 
+test('Zeitschätzung: Dauer am To-do, „Heute“ warnt, wenn der Tag nicht reicht (E120)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+  const o = { origin: ORIGIN };
+  await page.request.post('/api/todos', { headers: o, data: { titel: 'Riesenprojekt', faellig: heute, dauer: 600 } });
+  await page.request.post('/api/todos', { headers: o, data: { titel: 'Dauer-Test', faellig: heute } });
+  await page.goto('/gebaeude/Marktplatz?reiter=todo');
+  await page.getByRole('button', { name: 'Dauer-Test', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Geschätzte Dauer' }).selectOption('90');
+  await page.getByRole('button', { name: 'Speichern' }).click();
+  await expect(page.locator('li.todo', { hasText: 'Dauer-Test' })).toContainText('⏱ 1 h 30');
+  await page.goto('/heute');
+  const b = page.getByRole('status', { name: 'Zeitbudget heute' });
+  await expect(b).toContainText('11 h 30 min');
+  await expect(b).toContainText('mehr, als in den Tag passt');
+  await expect(page.locator('li', { hasText: 'Dauer-Test' }).getByText('⏱ 1 h 30 min')).toBeVisible();
+});
+
 test('Seite lässt sich nicht laden (nach Deploy): einmal neu laden, dann „Neu laden“ statt weißer Seite (Review)', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'einmal reicht');
   await anmelden(page);

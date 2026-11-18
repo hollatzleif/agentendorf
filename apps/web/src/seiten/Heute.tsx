@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { WETTER_TEXT, type DorfStatus, type FokusStatistik, type FreigabeInfo, type KartenFach, type KalenderAntwort, type KalenderTermin, type KirchturmZustand, type MorgenzeitungUebersicht, type PostUebersicht, type TodoInfo } from '@dorf/shared';
 import { api, ApiFehler, offlineGemerkt } from '../api';
+import { minutenText, tagesBudget } from '../tagesbudget';
 import { linkKlick } from '../router';
 import { FARBEN, ort, tagPlus } from '../komponenten/MarktKalender';
 import { dauerText, useKirchturm } from '../komponenten/KirchturmUhr';
@@ -132,6 +133,8 @@ export function Heute() {
   const ohneDatumAlle = offen.filter((t) => !t.wichtig && !t.faellig).sort((a, b) => (b.erstellt ?? '').localeCompare(a.erstellt ?? ''));
   const ohneDatum = ohneDatumAlle.slice(0, OHNE_DATUM_ZEIGEN);
   const gezeigt = wichtig.length + ueberfaellig.length + faelligHeute.length + bald.length + ohneDatum.length;
+  // E120: passt der Tag? (Termine von heute, die noch kommen, sind schon eingerechnet)
+  const budget = tagesBudget({ todos: todos.data ?? [], termine: termineHeute, jetzt, jetztMin: ort(jetztIso).min, heute });
   const erledigtHeute = (todos.data ?? []).filter((t) => t.erledigt && t.erledigtAm && ort(t.erledigtAm).tag === heute).length;
 
   // ---- Womit fange ich an? ----
@@ -297,6 +300,13 @@ export function Heute() {
               </a>
             </div>
             <TodoNeu heute={heute} fertig={() => qc.invalidateQueries({ queryKey: ['liste', 'todo'] })} />
+            {budget.geschaetztMin > 0 && (
+              <p className={`heute-budget${budget.zuViel ? ' warnung' : ''}`} role="status" aria-label="Zeitbudget heute">
+                ⏱ Heute ≈ <b>{minutenText(budget.geschaetztMin)}</b> geschätzt
+                {budget.ohneSchaetzung > 0 && <span className="leise"> (+{budget.ohneSchaetzung} ohne Schätzung)</span>} · frei bis 22 Uhr ≈ {minutenText(budget.freiMin)}
+                {budget.zuViel && <> – mehr, als in den Tag passt. Etwas auf morgen schieben?</>}
+              </p>
+            )}
             {todos.isPending && <p className="leise">Lade …</p>}
             {todos.isError && <p className="fehler">To-dos nicht erreichbar: {todos.error.message}</p>}
             {todos.data && gezeigt === 0 && <p className="leise heute-leer">{offen.length ? 'Nichts in den nächsten 7 Tagen fällig. 🎉' : 'Nichts offen. 🎉'}</p>}
@@ -489,6 +499,7 @@ function TodoZeile({ t, heute }: { t: TodoInfo; heute: string }) {
           🔁
         </span>
       )}
+      {t.dauer && <span className="heute-todo-datum" title="geschätzte Dauer">⏱ {minutenText(t.dauer)}</span>}
       {t.schritte && t.schritte.length > 0 && (
         // E119: der nächste offene Schritt – die eine Sache, mit der man anfängt
         <span className="heute-todo-datum heute-schritt" title={t.schritte.find((x) => !x.erledigt)?.text ?? 'alle Schritte erledigt'}>

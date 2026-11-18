@@ -38,6 +38,9 @@ export function Anleitung() {
           Gedanken sofort festhalten: <b>„notiz: …“</b> in Telegram oder Strg/⌘+K → „notiz …“. Aufgaben: <b>„todo: …“</b>, auch „… jeden Montag“.
         </li>
         <li>
+          Realistisch planen: am To-do <b>⏱ Dauer</b> schätzen (Telegram: „/todo Referat üben 45 min“) – „Heute“ warnt, wenn die geplanten To-dos nicht bis 22 Uhr passen.
+        </li>
+        <li>
           Großes To-do, kein Anfang? <b>☑ +</b> am To-do → Teilschritte eintragen oder <b>✂️ Vorschlagen</b> lassen. „Heute“ zeigt dann nur den nächsten Schritt. Notizen werden unter Rathaus → Notizen mit <b>→ To-do</b> zur Aufgabe.
         </li>
         <li>

@@ -501,6 +501,20 @@ describe('Telegram /todo wiederkehrend (E92)', () => {
     expect(d.gesendet().at(-1)).toMatch(/<b>Wäsche<\/b> · 🔁 wöchentlich ab 2026-11-16/);
     expect((await d.todos.liste())[0]).toMatchObject({ titel: 'Wäsche', wiederholen: 'wöchentlich', faellig: '2026-11-16' });
   });
+
+  it('„/todo … 30 min jeden Montag“ und „… jeden Montag 1,5 h“: Dauer und Wiederholung (E120)', async () => {
+    const d = await dorf();
+    await d.nachricht({ text: '/todo Bad putzen 30 min jeden Montag' });
+    expect(d.gesendet().at(-1)).toMatch(/<b>Bad putzen<\/b> · 🔁 wöchentlich ab 2026-11-16 · ⏱ 30 min/);
+    await d.nachricht({ text: '/todo Statistik üben jeden Montag 1,5 h' });
+    const l = await d.todos.liste();
+    expect(l.find((t) => t.titel === 'Statistik üben')).toMatchObject({ wiederholen: 'wöchentlich', dauer: 90 });
+    await d.nachricht({ text: '/todo' });
+    expect(d.gesendet().at(-1)).toContain('Bad putzen <i>(bis 2026-11-16)</i> <i>⏱ 30 min</i>');
+    // Einkaufsliste: keine Dauer
+    await d.nachricht({ text: '/einkauf Milch 2 h' });
+    expect((await d.listen.einkauf.liste())[0]!.titel).toBe('Milch 2 h');
+  });
 });
 
 describe('Telegram Erinnerungen (E94)', () => {

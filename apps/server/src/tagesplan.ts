@@ -3,7 +3,7 @@ import type { TodoInfo } from '@dorf/shared';
 /**
  * Tag planen (Nacht 18./19.11.): verteilt die wichtigsten offenen To-dos als Zeitblöcke auf die freien Lücken eines
  * Tages – ohne KI, nachvollziehbar. Reihenfolge: überfällig → heute fällig → bald fällig (Uni-Abgaben/Prüfungen
- * zuerst) → Rest nach Datum. Dauer: Abgabe/Prüfung 90 min, sonst 45 min. Zwischen Blöcken 15 min Pause.
+ * zuerst) → Rest nach Datum. Dauer: Leifs Schätzung (E120), sonst Abgabe/Prüfung 90 min, Rest 45 min. Zwischen Blöcken 15 min Pause.
  * Das Ergebnis ist nur ein Vorschlag – eingetragen wird, was Leif anhakt.
  */
 export interface Block {
@@ -40,7 +40,8 @@ export function tagPlanen(o: { todos: TodoInfo[]; heute: string; frei: [number, 
   const aus: Block[] = [];
   for (const { t, grund } of reihe) {
     if (aus.length >= (o.hoechstens ?? 5)) break;
-    const dauer = (/^(Abgabe|Prüfung):/i.test(t.titel) ? 90 : 45) * MIN;
+    // E120: Leifs Schätzung zählt; sonst Abgabe/Prüfung 90 min, Rest 45 min
+    const dauer = (t.dauer ?? (/^(Abgabe|Prüfung):/i.test(t.titel) ? 90 : 45)) * MIN;
     const l = luecken.find(([a, b]) => b - a >= dauer);
     if (!l) continue;
     aus.push({ titel: t.titel.replace(/^(Abgabe|Prüfung): /i, ''), todoPfad: t.pfad, start: l[0], ende: l[0] + dauer, grund });

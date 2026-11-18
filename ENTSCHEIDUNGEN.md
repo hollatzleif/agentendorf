@@ -922,3 +922,19 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
   - Einträge aus Mails oder Moodle (`fremd`) gehen nur in der Fremdinhalt-Hülle an das Modell.
   - Ohne API-Schlüssel antwortet der Server mit 503 und einem Hinweis.
 - **Notiz → To-do:** In Rathaus → Notizen hat jede Zeile den Knopf „→ To-do“. Der Titel ist der Text der Notiz, ohne Bild und ohne Quelle. Die Notiz des neuen To-dos verweist auf den Tag; Bilder werden mitgenommen. So bleibt das Erfassen schnell, und entschieden wird später.
+
+## E120 – Zeitschätzung für To-dos (Nacht 18./19.11.)
+
+- **Feld `dauer`:** Gemeint ist die geschätzte Dauer in Minuten (5–600) im Frontmatter des To-dos.
+  - App: beim Bearbeiten (15 min bis 4 h).
+  - Telegram: „/todo Referat üben 45 min“ oder „… 1,5 h“, auch zusammen mit „jeden Montag“.
+  - Agenten: `todo_anlegen`/`todo_bearbeiten`.
+  - Erkannt wird nur am Ende des Textes und nur mit Einheit (min/h/Std.). „Laufen 10 m“ oder „Kapitel 3“ bleiben Titel.
+  - Bei Einkaufs-, Wunsch- und Corps-Liste wird keine Dauer erkannt.
+- **„Heute“ prüft den Tag:** Es zeigt „⏱ Heute ≈ 2 h 15 min geschätzt · frei bis 22 Uhr ≈ 3 h 40 min“.
+  - Gezählt werden überfällige und heute fällige To-dos.
+  - Frei ist die Zeit bis 22 Uhr Ortszeit abzüglich der restlichen Termine von heute.
+  - Reicht sie nicht, kommt der Hinweis „mehr, als in den Tag passt. Etwas auf morgen schieben?“. Die Knöpfe „→ morgen“ gibt es schon (E97).
+  - Ohne eine einzige Schätzung erscheint die Zeile nicht, damit sie nicht stört.
+- **Tag planen (E84)** nimmt die Schätzung als Blocklänge, sonst wie bisher 90 bzw. 45 min.
+- **Wiederkehrende To-dos:** Der Nachfolger übernimmt die Schätzung.

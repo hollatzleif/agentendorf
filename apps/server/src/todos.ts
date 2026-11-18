@@ -91,6 +91,8 @@ export const TodoNeu = z.object({
   /** Monatstag der ersten Fälligkeit (wiederkehrend monatlich/jährlich) – intern weitergereicht */
   wiederholen_tag: z.number().int().min(1).max(31).optional(),
   erinnerung: z.string().regex(ZEITPUNKT, 'erinnerung als JJJJ-MM-TTTHH:MM').optional(),
+  /** E120: geschätzte Dauer in Minuten */
+  dauer: z.number().int().min(5, 'dauer: mindestens 5 Minuten').max(600, 'dauer: höchstens 600 Minuten').optional(),
 });
 export const TodoAenderung = z.object({
   titel: z.string().trim().min(1).max(200).optional(),
@@ -102,7 +104,19 @@ export const TodoAenderung = z.object({
   wichtig: z.boolean().optional(),
   wiederholen: z.union([Wiederholen, z.literal('')]).optional(),
   erinnerung: z.union([z.string().regex(ZEITPUNKT, 'erinnerung als JJJJ-MM-TTTHH:MM'), z.literal('')]).optional(),
+  /** E120: Minuten; 0 = Schätzung entfernen */
+  dauer: z.union([z.number().int().min(5).max(600), z.literal(0)]).optional(),
 });
+
+/** E120: „Referat üben 30 min“, „… 2h“, „… 1,5 Std.“ → Titel und Dauer (nur am Ende, nur mit Einheit) */
+export function dauerAusText(text: string): { titel: string; dauer?: number } {
+  const m = /^(.*\S)\s+(?:⏱\s*)?(\d{1,3}(?:[.,]\d)?)\s*(min\.?|minuten|h|std\.?|stunden?)$/i.exec(text.trim());
+  if (!m) return { titel: text.trim() };
+  const zahl = Number(m[2]!.replace(',', '.'));
+  const min = Math.round(/^m/i.test(m[3]!) ? zahl : zahl * 60);
+  if (!Number.isFinite(min) || min < 5 || min > 600) return { titel: text.trim() };
+  return { titel: m[1]!.trim(), dauer: min };
+}
 
 /** Telegram/Schnelleingabe: „Wäsche jeden Montag“ → Titel, Regel und erstes Datum (E92) */
 export function wiederholungAusText(text: string, heute: string): { titel: string; wiederholen?: string; faellig?: string } {
@@ -178,6 +192,7 @@ export class TodoDienst {
       ...(typeof k.wiederholen === 'string' && WIEDERHOLEN.test(k.wiederholen) ? { wiederholen: k.wiederholen } : {}),
       ...(typeof k.erinnerung === 'string' && ZEITPUNKT.test(k.erinnerung) ? { erinnerung: k.erinnerung } : {}),
       ...(typeof k.erinnert === 'string' ? { erinnert: k.erinnert } : {}),
+      ...(typeof k.dauer === 'number' && Number.isInteger(k.dauer) && k.dauer >= 5 && k.dauer <= 600 ? { dauer: k.dauer } : {}),
       quelle: typeof k.quelle === 'string' ? k.quelle : undefined,
       erstellt: typeof k.erstellt === 'string' ? k.erstellt : k.erstellt instanceof Date ? k.erstellt.toISOString() : undefined,
       erledigtAm: typeof k.erledigt_am === 'string' ? k.erledigt_am : k.erledigt_am instanceof Date ? k.erledigt_am.toISOString() : undefined,
@@ -279,6 +294,7 @@ export class TodoDienst {
     if (e.wiederholen) daten.wiederholen = e.wiederholen;
     if (e.wiederholen && e.wiederholen_tag) daten.wiederholen_tag = e.wiederholen_tag;
     if (e.erinnerung) daten.erinnerung = e.erinnerung;
+    if (e.dauer) daten.dauer = e.dauer;
     daten.quelle = quelle;
     if (opt.fremd) daten.fremd = true;
     daten.erstellt = new Date(jetzt).toISOString();
@@ -323,6 +339,10 @@ export class TodoDienst {
       if (a.wiederholen) k.wiederholen = a.wiederholen;
       else delete k.wiederholen;
     }
+    if (a.dauer !== undefined) {
+      if (a.dauer) k.dauer = a.dauer;
+      else delete k.dauer;
+    }
     if (a.erinnerung !== undefined && a.erinnerung !== k.erinnerung) {
       if (a.erinnerung) k.erinnerung = a.erinnerung;
       else delete k.erinnerung;
@@ -349,6 +369,7 @@ export class TodoDienst {
         ...(inhalt.trim() ? { notiz: schritteZuruecksetzen(inhalt.trim()).slice(0, 5000) } : {}),
         wiederholen: regel,
         ...(monatlich ? { wiederholen_tag: urTag } : {}),
+        ...(typeof k.dauer === 'number' && k.dauer >= 5 && k.dauer <= 600 ? { dauer: k.dauer } : {}),
         ...(typeof k.erinnerung === 'string' && ZEITPUNKT.test(k.erinnerung)
           ? { erinnerung: `${datumText(k.faellig) ? naechstesDatum(regel, ab, heute, urTag) : naechstesDatum(regel, k.erinnerung.slice(0, 10), heute)}${k.erinnerung.slice(10)}` }
           : {}),
@@ -393,7 +414,7 @@ export class TodoDienst {
 
 /** Kurzer Text für Agenten und Telegram */
 export function todoZeile(t: TodoInfo) {
-  return `${t.erledigt ? '[x]' : '[ ]'} ${t.wichtig ? '⭐ ' : ''}${t.titel}${t.schritte?.length ? ` (${t.schritte.filter((s) => s.erledigt).length}/${t.schritte.length} Schritte)` : ''}${t.faellig ? ` (fällig ${t.faellig})` : ''}${t.wiederholen ? ` 🔁 ${t.wiederholen}` : ''}${t.gruppe ? ` [${t.gruppe}]` : ''}${t.gebaeude ? ` #${t.gebaeude}` : ''} – ${t.pfad}`;
+  return `${t.erledigt ? '[x]' : '[ ]'} ${t.wichtig ? '⭐ ' : ''}${t.titel}${t.schritte?.length ? ` (${t.schritte.filter((s) => s.erledigt).length}/${t.schritte.length} Schritte)` : ''}${t.faellig ? ` (fällig ${t.faellig})` : ''}${t.wiederholen ? ` 🔁 ${t.wiederholen}` : ''}${t.dauer ? ` ⏱ ${t.dauer} min` : ''}${t.gruppe ? ` [${t.gruppe}]` : ''}${t.gebaeude ? ` #${t.gebaeude}` : ''} – ${t.pfad}`;
 }
 
 /** Alle Listen (E65 + Etappe 7) – eine Instanz je Ordner */

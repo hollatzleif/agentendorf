@@ -208,6 +208,8 @@ export interface TodoInfo {
   erinnert?: string;
   /** E119: Teilschritte – Obsidian-Checkliste im Text („- [ ] Schritt“) */
   schritte?: { text: string; erledigt: boolean }[];
+  /** E120: geschätzte Dauer in Minuten */
+  dauer?: number;
   quelle?: string; // „Leif“, „Telegram“ oder der Agent/die Aktion
   erstellt?: string;
   erledigtAm?: string;

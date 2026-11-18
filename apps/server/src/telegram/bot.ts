@@ -1,4 +1,4 @@
-import { LISTEN, wiederholungAusText, type ListenName, type TodoDienst } from '../todos.js';
+import { dauerAusText, LISTEN, wiederholungAusText, type ListenName, type TodoDienst } from '../todos.js';
 
 /** Telegram-Darstellung der Listen; Kurzzeichen für Knöpfe (64 Byte Grenze) */
 const LISTEN_KURZ: Record<ListenName, string> = { todo: 't', einkauf: 'e', wunsch: 'w', corps: 'c' };
@@ -747,7 +747,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     const a = LISTEN_ANZEIGE[liste];
     const offen = (await this.o.listen![liste].liste()).filter((t) => !t.erledigt);
     if (!offen.length) return { text: `${a.symbol} <b>${a.titel}</b>\nNichts offen. 🎉\n<i>${a.befehl} &lt;Text&gt; legt einen Eintrag an.</i>`, knoepfe: [] as { text: string; callback_data: string }[][] };
-    const zeilen = offen.slice(0, 25).map((t) => `• ${t.wichtig ? '⭐ ' : ''}${h(t.titel)}${t.gruppe ? ` <i>[${h(t.gruppe)}]</i>` : ''}${t.faellig ? ` <i>(bis ${h(t.faellig)})</i>` : ''}${TelegramBot.schrittText(t)}`);
+    const zeilen = offen.slice(0, 25).map((t) => `• ${t.wichtig ? '⭐ ' : ''}${h(t.titel)}${t.gruppe ? ` <i>[${h(t.gruppe)}]</i>` : ''}${t.faellig ? ` <i>(bis ${h(t.faellig)})</i>` : ''}${t.dauer ? ` <i>⏱ ${t.dauer} min</i>` : ''}${TelegramBot.schrittText(t)}`);
     const knoepfe = offen.slice(0, 12).map((t) => [{ text: knopfText(`✅ ${t.titel}`), callback_data: this.knopfDaten(liste, this.todoKennung(t.pfad)) }]);
     return {
       text: `${a.symbol} <b>${a.titel}</b> (${offen.length} offen)\n${zeilen.join('\n')}${offen.length > 25 ? '\n…' : ''}\n<a href="${this.link(`/?g=${encodeURIComponent(LISTEN[liste].gebaeude)}`)}">Öffnen</a>`,
@@ -760,9 +760,13 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (rest) {
       try {
         const heute = new Date(this.o.uhr.jetzt()).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
-        const w = wiederholungAusText(rest.slice(0, 200), heute);
-        const t = await this.o.listen[liste].anlegen(w, 'Telegram');
-        return this.senden(`${LISTEN_ANZEIGE[liste].symbol} Auf die ${LISTEN[liste].titel}: <b>${h(t.titel)}</b>${t.wiederholen ? ` · 🔁 ${h(t.wiederholen)}${t.faellig ? ` ab ${h(t.faellig)}` : ''}` : ''}`);
+        // „… 30 min jeden Montag“ und „… jeden Montag 30 min“ (E120)
+        const d1 = liste === 'todo' ? dauerAusText(rest.slice(0, 200)) : { titel: rest.slice(0, 200) };
+        const w = wiederholungAusText(d1.titel, heute);
+        const d2 = liste === 'todo' && !('dauer' in d1 && d1.dauer) ? dauerAusText(w.titel) : { titel: w.titel };
+        const dauer = ('dauer' in d1 && d1.dauer) || ('dauer' in d2 && d2.dauer) || undefined;
+        const t = await this.o.listen[liste].anlegen({ ...w, titel: d2.titel, ...(dauer ? { dauer } : {}) }, 'Telegram');
+        return this.senden(`${LISTEN_ANZEIGE[liste].symbol} Auf die ${LISTEN[liste].titel}: <b>${h(t.titel)}</b>${t.wiederholen ? ` · 🔁 ${h(t.wiederholen)}${t.faellig ? ` ab ${h(t.faellig)}` : ''}` : ''}${t.dauer ? ` · ⏱ ${t.dauer} min` : ''}`);
       } catch (e) {
         return this.senden(`⚠️ ${h((e as Error).message)}`);
       }

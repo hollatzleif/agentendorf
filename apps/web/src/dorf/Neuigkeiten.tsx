@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { navigieren } from '../router';
 
 /** Bei jeder neuen Ausgabe den Schlüssel ändern – dann erscheint die Karte einmal pro Gerät */
-const AUSGABE = '2026-11-19p';
+const AUSGABE = '2026-11-19q';
 const SCHLUESSEL = 'dorf-neuigkeiten-gesehen';
 
 const PUNKTE: [string, string][] = [
+  ['⏱', 'Zeitschätzung am To-do („… 30 min“ in Telegram) – „Heute“ zeigt, ob der Tag reicht, „Tag planen“ nimmt die Schätzung als Blocklänge.'],
   ['☑', 'To-dos in Teilschritte zerlegen – selbst oder per „✂️ Vorschlagen“ (KI); „Heute“ zeigt den nächsten Schritt. Notizen werden mit einem Klick zum To-do.'],
   ['🔔', 'Börse: Kursalarm – Grenze unter/über setzen, Telegram meldet sich einmal, wenn ein Schlusskurs sie überschreitet.'],
   ['📷', 'Foto mit „notiz: …“ in Telegram landet samt Bild in der Tagesnotiz. Gewohnheiten lassen sich jetzt bearbeiten (Tage, Uhrzeit).'],

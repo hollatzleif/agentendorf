@@ -1148,3 +1148,7 @@ input.kurz { width: 5em; }
 .notizen-tag li { display: flex; gap: 0.4rem; align-items: baseline; }
 .notizen-text { flex: 1; overflow-wrap: anywhere; }
 .notizen-todo { flex-shrink: 0; }
+
+/* E120: Zeitbudget heute */
+.heute-budget { margin: 0.3rem 0 0.4rem; font-size: 0.9rem; }
+.heute-budget.warnung { color: #9a3b1d; font-weight: 600; }

@@ -100,6 +100,19 @@ function erinnerungText(z: string) {
   return `${wann} ${z.slice(11, 16)}`;
 }
 
+/** E120: geschätzte Dauer – „Tag planen“ und „Heute“ rechnen damit */
+const DAUER_WAHL = [
+  ['', 'Dauer: keine Schätzung'],
+  ['15', '⏱ 15 min'],
+  ['30', '⏱ 30 min'],
+  ['45', '⏱ 45 min'],
+  ['60', '⏱ 1 h'],
+  ['90', '⏱ 1,5 h'],
+  ['120', '⏱ 2 h'],
+  ['180', '⏱ 3 h'],
+  ['240', '⏱ 4 h'],
+] as const;
+
 /** E92: Auswahl für wiederkehrende To-dos (Obsidian: Feld „wiederholen“, auch „alle 3 tage“ usw.) */
 const WIEDERHOLEN_WAHL = [
   ['', 'Nicht wiederholen'],
@@ -121,6 +134,7 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: (f: () =
   const [gruppe, setGruppe] = useState(t.gruppe ?? '');
   const [wiederholen, setWiederholen] = useState(t.wiederholen ?? '');
   const [erinnerung, setErinnerung] = useState(t.erinnerung ?? '');
+  const [dauer, setDauer] = useState(t.dauer ? String(t.dauer) : '');
   // Häkchen sofort zeigen; die Zeile wird mit der neuen Version vom Server ohnehin neu aufgebaut
   const [haken, setHaken] = useState(t.erledigt);
   const [planen, setPlanen] = useState(false);
@@ -145,7 +159,7 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: (f: () =
           className="formspalte"
           onSubmit={(e) => {
             e.preventDefault();
-            void aendern({ titel, faellig, notiz, gruppe, ...(wiederholen !== (t.wiederholen ?? '') ? { wiederholen } : {}), ...(erinnerung !== (t.erinnerung ?? '') ? { erinnerung: erinnerung.slice(0, 16) } : {}) }).then(() => setBearbeiten(false));
+            void aendern({ titel, faellig, notiz, gruppe, ...(wiederholen !== (t.wiederholen ?? '') ? { wiederholen } : {}), ...(erinnerung !== (t.erinnerung ?? '') ? { erinnerung: erinnerung.slice(0, 16) } : {}), ...(dauer !== (t.dauer ? String(t.dauer) : '') ? { dauer: Number(dauer) || 0 } : {}) }).then(() => setBearbeiten(false));
           }}
         >
           <input value={titel} onChange={(e) => setTitel(e.target.value)} maxLength={200} aria-label="Titel" />
@@ -155,6 +169,13 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: (f: () =
             🔔 Erinnerung
             <input type="datetime-local" value={erinnerung} onChange={(e) => setErinnerung(e.target.value)} aria-label="Erinnerung" />
           </label>
+          <select value={dauer} onChange={(e) => setDauer(e.target.value)} aria-label="Geschätzte Dauer">
+            {[...DAUER_WAHL, ...(dauer && !DAUER_WAHL.some(([w]) => w === dauer) ? [[dauer, `⏱ ${dauer} min`] as const] : [])].map(([w, text]) => (
+              <option key={w} value={w}>
+                {text}
+              </option>
+            ))}
+          </select>
           <select value={wiederholen} onChange={(e) => setWiederholen(e.target.value)} aria-label="Wiederholen">
             {[...WIEDERHOLEN_WAHL, ...(wiederholen && !WIEDERHOLEN_WAHL.some(([w]) => w === wiederholen) ? [[wiederholen, `🔁 ${wiederholen}`] as const] : [])].map(([w, text]) => (
               <option key={w} value={w}>
@@ -200,6 +221,11 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: (f: () =
           {t.erinnerung && !t.erledigt && (
             <span className="abzeichen" title="Läutet im Kirchturm und schickt eine Telegram-Nachricht">
               🔔 {erinnerungText(t.erinnerung)}
+            </span>
+          )}
+          {t.dauer && !t.erledigt && (
+            <span className="abzeichen" title="Geschätzte Dauer">
+              ⏱ {t.dauer >= 60 ? `${Math.floor(t.dauer / 60)} h${t.dauer % 60 ? ` ${t.dauer % 60}` : ''}` : `${t.dauer} min`}
             </span>
           )}
           {t.wiederholen && (
