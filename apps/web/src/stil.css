@@ -1078,3 +1078,6 @@ input.kurz { width: 5em; }
 .notizen-tag ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.2rem; }
 .notizen-tag li { overflow-wrap: anywhere; }
 .notizen-zeit { font-variant-numeric: tabular-nums; color: var(--leise); font-weight: 700; margin-right: 0.3rem; }
+
+.wochenziele-naechste { margin-top: 0.7rem; padding-top: 0.6rem; border-top: 2px dashed var(--rand); }
+.wochenziele-naechste h3 { margin: 0 0 0.35rem; font-size: 0.95rem; }

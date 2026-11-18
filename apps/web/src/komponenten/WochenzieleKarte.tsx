@@ -99,6 +99,42 @@ export function WochenzieleKarte() {
           </button>
         </form>
       )}
+      {s && istSonntag() && <NaechsteWoche s={s} aufruf={aufruf} />}
     </section>
+  );
+}
+
+const istSonntag = () => new Date().toLocaleDateString('en-GB', { timeZone: 'Europe/Vienna', weekday: 'short' }) === 'Sun';
+
+/** Sonntags: Ziele für die kommende Woche festlegen (landen in deren Datei) */
+function NaechsteWoche({ s, aufruf }: { s: WochenzieleStand; aufruf: (f: () => Promise<WochenzieleStand>) => Promise<boolean> }) {
+  const [text, setText] = useState('');
+  return (
+    <div className="wochenziele-naechste">
+      <h3>📆 Nächste Woche · KW {Number(s.naechste.woche.slice(-2))}</h3>
+      {s.naechste.ziele.length > 0 && (
+        <ul className="wochenziele">
+          {s.naechste.ziele.map((z, i) => (
+            <li key={`${i}-${z.text}`}>☐ {z.text}</li>
+          ))}
+        </ul>
+      )}
+      {s.naechste.ziele.length < 7 && (
+        <form
+          className="heute-neu"
+          aria-label="Ziel für nächste Woche"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!text.trim()) return;
+            void aufruf(() => api<WochenzieleStand>('/api/wochenziele', { body: { text: text.trim(), naechsteWoche: true } })).then((ok) => ok && setText(''));
+          }}
+        >
+          <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Ziel für nächste Woche …" maxLength={200} aria-label="Ziel für nächste Woche" />
+          <button type="submit" className="haupt" aria-label="Ziel für nächste Woche hinzufügen">
+            +
+          </button>
+        </form>
+      )}
+    </div>
   );
 }

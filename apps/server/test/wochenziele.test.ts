@@ -43,6 +43,9 @@ describe('Wochenziele (E91)', () => {
     const s = (await d.app.inject({ url: '/api/wochenziele', headers: h })).json();
     expect(s).toMatchObject({ woche: '2026-KW48', ziele: [], letzte: { woche: '2026-KW47' } });
     expect(s.letzte.ziele).toHaveLength(7);
+    // am Sonntag für nächste Woche planen
+    r = await d.app.inject({ method: 'POST', url: '/api/wochenziele', headers: h, payload: { text: 'Vorgeplant', naechsteWoche: true } });
+    expect(r.json()).toMatchObject({ woche: '2026-KW48', naechste: { woche: '2026-KW49', ziele: [{ text: 'Vorgeplant', erledigt: false }] } });
     // Montag ohne Ziele: Anstoß in der Morgenzeitung
     expect((await d.morgenzeitung.fakten()).abschnitte[0]).toMatchObject({ titel: '🎯 Wochenziele', zeilen: [expect.stringMatching(/Noch keine Wochenziele/)] });
   });

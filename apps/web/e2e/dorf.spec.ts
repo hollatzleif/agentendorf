@@ -1144,3 +1144,15 @@ test('Heute: Countdown zur nächsten Prüfung', async ({ page }, info) => {
   await page.goto('/heute');
   await expect(page.locator('.heute-zahlen')).toContainText('📝 Countdown-Fach in 5 Tagen');
 });
+
+test('Wochenziele: sonntags die nächste Woche planen', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  await page.clock.setFixedTime(new Date('2026-11-22T17:00:00Z')); // Sonntag in Wien (nur im Browser)
+  await page.goto('/heute');
+  const k = page.getByRole('region', { name: 'Wochenziele' });
+  await expect(k.getByRole('heading', { name: /Nächste Woche · KW \d+/ })).toBeVisible();
+  await k.getByRole('textbox', { name: 'Ziel für nächste Woche' }).fill('Vorgeplant-Test');
+  await k.getByRole('button', { name: 'Ziel für nächste Woche hinzufügen' }).click();
+  await expect(k.locator('.wochenziele-naechste')).toContainText('☐ Vorgeplant-Test');
+});

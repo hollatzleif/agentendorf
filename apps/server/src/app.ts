@@ -487,7 +487,10 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
     const w = a.wochenziele;
     const nr = z.object({ nr: z.number().int().min(0).max(50) });
     app.get('/api/wochenziele', async () => w.stand());
-    app.post('/api/wochenziele', async (req) => w.hinzufuegen(z.object({ text: z.string().min(1).max(200) }).parse(req.body).text));
+    app.post('/api/wochenziele', async (req) => {
+      const b = z.object({ text: z.string().min(1).max(200), naechsteWoche: z.boolean().optional() }).parse(req.body);
+      return w.hinzufuegen(b.text, b.naechsteWoche ? 1 : 0);
+    });
     app.post('/api/wochenziele/haken', async (req) => {
       const b = nr.extend({ erledigt: z.boolean() }).parse(req.body);
       return w.haken(b.nr, b.erledigt);

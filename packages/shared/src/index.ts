@@ -773,6 +773,8 @@ export interface Wochenziele {
 }
 export interface WochenzieleStand extends Wochenziele {
   letzte: { woche: string; ziele: { text: string; erledigt: boolean }[] };
+  /** für die Planung am Sonntag */
+  naechste: { woche: string; ziele: { text: string; erledigt: boolean }[] };
 }
 
 /** Statistik (E93) */

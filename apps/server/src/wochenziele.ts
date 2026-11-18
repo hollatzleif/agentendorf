@@ -43,7 +43,8 @@ export class Wochenziele {
   async stand() {
     const jetzt = await this.lesen();
     const letzte = await this.lesen(this.woche(-1));
-    return { woche: jetzt.woche, pfad: jetzt.pfad, ziele: jetzt.ziele, letzte: { woche: letzte.woche, ziele: letzte.ziele } };
+    const naechste = await this.lesen(this.woche(1));
+    return { woche: jetzt.woche, pfad: jetzt.pfad, ziele: jetzt.ziele, letzte: { woche: letzte.woche, ziele: letzte.ziele }, naechste: { woche: naechste.woche, ziele: naechste.ziele } };
   }
 
   private async aendern(f: (zeilen: string[], ziele: ReturnType<typeof zieleLesen>) => void, woche = this.woche()) {

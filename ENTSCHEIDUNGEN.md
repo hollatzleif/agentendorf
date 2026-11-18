@@ -650,6 +650,7 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
   - in Telegram mit `/ziel <Text>` (setzt eines) bzw. `/ziel` (zeigt sie mit Abhak-Knöpfen). Ein Knopf trägt Woche, Nummer und den Hash des Zieltexts in sich und ist HMAC-signiert; hat sich die Liste inzwischen geändert, wird nichts falsch abgehakt.
   - in der Morgenzeitung oben, mit den offenen Zielen; montags ohne Ziele kommt ein Anstoß
   - im Wochenrückblick als Bilanz (✓/✗)
+- **Sonntags** zeigt die Karte zusätzlich „📆 Nächste Woche“: Ziele für die kommende Woche lassen sich dann schon festlegen (API `naechsteWoche: true`).
 - Der Bürgermeister kennt den Ort (Orientierung im Systemprompt) und kann seine Vorschläge daran ausrichten. Schreiben kann er dort nicht: Die Datei liegt im Rathaus, nicht in seinem Schreibbereich, und die Ziele setzt Leif.
 - Warum: To-dos sagen, was ansteht; Wochenziele sagen, was zählt. Der Sonntag (Rückblick) und der Montag (Zeitung) bilden zusammen den kleinsten sinnvollen Wochenrhythmus.
 
