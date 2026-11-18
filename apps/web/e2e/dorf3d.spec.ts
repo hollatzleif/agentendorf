@@ -295,3 +295,22 @@ test('Agent fertig: Ticker meldet ✅ und über dem Gebäude regnet Konfetti', a
   await expect(ticker.getByText(/Fertig in Bibliothek/)).toBeVisible({ timeout: 30_000 });
   expect(await page.evaluate(() => (window.__dorf as unknown as { konfetti: unknown[] }).konfetti.length)).toBeGreaterThan(0);
 });
+
+test('Wetter: Schild oben rechts, Tipp zeigt die Wetterkarte; Regen im Dorf ohne Fehler', async ({ page }) => {
+  const fehler: string[] = [];
+  page.on('pageerror', (e) => fehler.push(e.message));
+  await page.route('**/api/dorf/status', async (route) => {
+    const echt = (await (await route.fetch()).json()) as DorfStatus;
+    await route.fulfill({ json: { ...echt, wetter: { art: 'regen', temperatur: 7.2, tag: { art: 'regen', min: 6, max: 14, regen: 93 }, stand: '2026-11-18T08:00' } } });
+  });
+  await imDorf(page);
+  const schild = page.getByRole('button', { name: /Wetter in Linz: Regen, 7 Grad/ });
+  await expect(schild).toBeVisible();
+  await schild.click();
+  const karte = page.getByRole('dialog', { name: 'Wetter in Linz' });
+  await expect(karte).toContainText('6–14 °C · Regen 93 %');
+  await expect(karte).toContainText('Schirm mitnehmen');
+  await schild.click();
+  await expect(karte).toBeHidden();
+  expect(fehler).toEqual([]);
+});

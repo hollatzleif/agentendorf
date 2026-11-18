@@ -46,6 +46,7 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
   }, [gewaehlt, reiter, neueste, gelesen]);
   const zeitungNeu = !!neueste && neueste !== gelesen;
 
+  const [wetterOffen, setWetterOffen] = useState(false);
   const buehne = useRef<HTMLDivElement>(null);
   const szene = useRef<DorfSzene | null>(null);
   const [figur, setFigur] = useState<string | null>(null); // laufId oder 'buergermeister'
@@ -300,12 +301,9 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
       )}
       <div className="dorf-werkzeuge oben-rechts">
         {!bauen && status.data?.wetter && (
-          <span
-            className="dorf-wetter"
-            title={`Linz: ${WETTER_TEXT[status.data.wetter.art].text}, heute ${status.data.wetter.tag.min}–${status.data.wetter.tag.max} °C${status.data.wetter.tag.regen != null ? `, Regen ${status.data.wetter.tag.regen} %` : ''}`}
-          >
+          <button className="dorf-wetter" onClick={() => setWetterOffen((x) => !x)} aria-expanded={wetterOffen} aria-label={`Wetter in Linz: ${WETTER_TEXT[status.data.wetter.art].text}, ${Math.round(status.data.wetter.temperatur)} Grad`}>
             {WETTER_TEXT[status.data.wetter.art].symbol} {Math.round(status.data.wetter.temperatur)}°
-          </span>
+          </button>
         )}
         {!bauen &&
           knopf(
@@ -318,6 +316,20 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
         {!bauen && knopf('Als Liste anzeigen', '☰ Liste', zurListe, 'text')}
         {knopf(bauen ? 'Bau-Modus beenden' : 'Bauen', bauen ? '✓ Fertig' : '🔨 Bauen', () => bauModus(!bauen), `text ${bauen ? 'haupt' : ''}`)}
       </div>
+      {wetterOffen && status.data?.wetter && !bauen && (
+        <div className="dorf-wetterkarte" role="dialog" aria-label="Wetter in Linz">
+          <strong>
+            {WETTER_TEXT[status.data.wetter.tag.art].symbol} Linz heute: {WETTER_TEXT[status.data.wetter.tag.art].text}
+          </strong>
+          <span>
+            {status.data.wetter.tag.min}–{status.data.wetter.tag.max} °C{status.data.wetter.tag.regen != null ? ` · Regen ${status.data.wetter.tag.regen} %` : ''}
+          </span>
+          <span className="leise">
+            Jetzt {String(status.data.wetter.temperatur).replace('.', ',')} °C, {WETTER_TEXT[status.data.wetter.art].text}
+            {status.data.wetter.tag.regen != null && status.data.wetter.tag.regen >= 60 ? ' – Schirm mitnehmen!' : ''}
+          </span>
+        </div>
+      )}
       <div className="dorf-werkzeuge unten-rechts">
         {knopf('Nach links drehen', '⟲', () => szene.current?.drehen(-1))}
         {knopf('Nach rechts drehen', '⟳', () => szene.current?.drehen(1))}
