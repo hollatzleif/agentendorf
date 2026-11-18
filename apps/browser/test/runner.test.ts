@@ -39,10 +39,15 @@ function fakeMoodle() {
         return html('JKU Login', '<form method="post" action="/auth/sso.php?execution=e1s2"><input type="text" name="j_username"><input type="password" name="j_password"><button type="submit">Login</button></form>');
       if (u.pathname === '/auth/sso.php' && req.method === 'POST') {
         const f = new URLSearchParams(body);
+        // wie Shibboleth: die Bestätigung (SAML) geht per Skript-Formular an Moodle – etwas verzögert
         if (f.get('j_username') === 'k12345678' && f.get('j_password') === 'sehr-geheim')
-          return weiter('/my/', { 'set-cookie': 'sitzung=ok; Path=/' });
+          return html(
+            'Weiterleitung',
+            '<form method="post" action="/auth/shibboleth/acs"><input type="hidden" name="SAMLResponse" value="ok"></form><script>setTimeout(() => document.forms[0].submit(), 700)</script>',
+          );
         return html('JKU Login', '<div class="alert-danger">Benutzername oder Passwort falsch</div><form method="post" action="/auth/sso.php"><input type="text" name="j_username"><input type="password" name="j_password"></form>');
       }
+      if (u.pathname === '/auth/shibboleth/acs' && req.method === 'POST' && body.includes('SAMLResponse=ok')) return weiter('/my/', { 'set-cookie': 'sitzung=ok; Path=/' });
       if (u.pathname === '/lib/ajax/service.php') {
         for (const x of JSON.parse(body) as { methodname: string }[]) ajax.push(x.methodname);
         res.writeHead(200, { 'content-type': 'application/json' });
@@ -119,6 +124,7 @@ describe('Moodle-Browser gegen ein nachgebautes Moodle', () => {
     // Gast-Dashboard → Login-Seite → Shibboleth (Skript-Formular) → Anmeldeformular
     expect(m.aufrufe).toContain('GET /login/index.php');
     expect(m.aufrufe.filter((x) => x === 'POST /auth/sso.php')).toHaveLength(2);
+    expect(m.aufrufe).toContain('POST /auth/shibboleth/acs');
     expect(JSON.stringify(r)).not.toContain('sehr-geheim');
   });
 

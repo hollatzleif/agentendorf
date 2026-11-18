@@ -152,6 +152,10 @@ export class MoodleBrowser {
         await this.warten(page);
         if (!(await this.istAnmeldeseite(page))) break;
       }
+      // Nach dem Absenden folgen oft noch per Skript abgeschickte Formulare (SAML-Antwort von Shibboleth an Moodle),
+      // manchmal mit Verzögerung – die gehören noch zur Anmeldung.
+      await page.waitForTimeout(1500);
+      await this.warten(page);
     } finally {
       this.anmeldung = false;
     }
