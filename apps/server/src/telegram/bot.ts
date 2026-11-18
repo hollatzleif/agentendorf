@@ -451,6 +451,9 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       return;
     }
     let text = (m.text ?? m.caption ?? '').trim();
+    // E103: „todo: …“, „notiz: …“, „ziel: …“, „einkauf: …“ wie der Befehl – nur Leifs eigene Textnachricht, nie Weitergeleitetes
+    const kurz = /^(todo|notiz|ziel|einkauf)\s*:\s*(\S[\s\S]*)$/i.exec(text);
+    if (kurz && m.text && !(m.forward_origin || m.forward_from || m.forward_from_chat || m.forward_date)) text = `/${kurz[1]!.toLowerCase()} ${kurz[2]!}`;
     if (text.startsWith('/')) {
       this.grundFrageSetzen(null); // ein Befehl beendet die Frage nach dem Grund
       const b = text.split(/\s/)[0]!.split('@')[0]!.toLowerCase();

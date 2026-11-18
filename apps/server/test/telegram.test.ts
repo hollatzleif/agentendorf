@@ -627,3 +627,17 @@ describe('Wochenrückblick: Vorschläge als Wochenziel (E102)', () => {
     expect((await d.wochenziele.lesen('2026-KW47')).ziele).toEqual([]);
   });
 });
+
+describe('Telegram Kurzformen (E103)', () => {
+  it('„Todo: …“ und „notiz: …“ wirken wie der Befehl; Weitergeleitetes geht weiter an den Bürgermeister', async () => {
+    const d = await dorf();
+    await d.nachricht({ text: 'Todo: Milch kaufen' });
+    expect((await d.todos.liste()).map((t) => t.titel)).toEqual(['Milch kaufen']);
+    await d.nachricht({ text: 'notiz:Idee für das Referat' });
+    expect((await d.notizen.heute()).zeilen).toHaveLength(1);
+    await d.nachricht({ text: 'todo: Fremdes', forward_date: 1 });
+    await d.ruhe();
+    expect((await d.todos.liste()).map((t) => t.titel)).toEqual(['Milch kaufen']);
+    expect(d.schreibtisch.liste()[0]).toMatchObject({ quelle: 'telegram' });
+  });
+});

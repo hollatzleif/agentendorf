@@ -752,3 +752,8 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - Der Wochenrückblick in Telegram (sonntags 18:30) hängt an jeden KI-Vorschlag für die nächste Woche einen Knopf **„🎯 …“** (höchstens drei). Ein Tipp schreibt den Vorschlag als Checkbox-Ziel in die Wochenziele-Datei. Sonntags ist das die Datei der neuen Woche (`JJJJ-KWnn+1`), ab Montag die der laufenden Woche.
 - Die Vorschläge werden für 8 Tage in `dorf_stand` gemerkt, die Knöpfe sind HMAC-signiert. Für Wochenziele gilt weiter die Obergrenze von 7.
 - Warum: Aus dem Rückblick wird so ohne Umweg der Plan für die nächste Woche. Die KI schlägt nur vor, entscheiden tut Leif mit einem Tipp.
+
+## E103 – Telegram-Kurzformen ohne Schrägstrich (Nacht 18./19.11.)
+
+- `todo: …`, `notiz: …`, `ziel: …` und `einkauf: …` (Groß-/Kleinschreibung egal) wirken wie der jeweilige Befehl. Am Handy tippt sich ein Doppelpunkt schneller als ein Schrägstrich, und die Nachricht geht nicht als Auftrag an den Bürgermeister (spart KI-Läufe).
+- **Nur Leifs eigene Textnachrichten.** Weitergeleitetes ist Fremdinhalt und geht wie bisher als Aufgabe auf den Schreibtisch. So kann eine weitergeleitete Nachricht, die mit „todo:“ beginnt, nichts von selbst auf die Liste setzen.
