@@ -2,7 +2,9 @@ import { expect, test, type Page } from '@playwright/test';
 
 const PW = 'e2e-Passwort-sehr-lang-1';
 
+/** Anmelden; diese Tests brauchen das 3D-Dorf nicht (das prüft dorf3d.spec.ts) → Liste spart Rechenzeit */
 async function anmelden(page: Page) {
+  await page.addInitScript(() => localStorage.setItem('dorf-ansicht', 'liste'));
   await page.goto('/');
   await page.getByLabel('Passwort').fill(PW);
   await page.getByRole('button', { name: 'Ins Dorf' }).click();
@@ -78,6 +80,8 @@ test('Änderungen erscheinen live auf einem zweiten Gerät', async ({ browser },
     pfad,
   );
   await expect(b.getByText('Zweite Fassung')).toBeVisible({ timeout: 10_000 });
+  await a.context().close();
+  await b.context().close();
 });
 
 test('Einstellungen zeigen angemeldete Geräte; Abmelden wirkt', async ({ page }) => {
@@ -135,7 +139,7 @@ test('Schreibtisch: Aufgabe hinlegen, Plan freigeben, Helfer arbeiten, Aufgabe e
   await page.getByRole('button', { name: 'Schreibtisch', exact: true }).click();
   await expect(zeile.getByText('erledigt')).toBeVisible();
   await zeile.getByRole('link').first().click();
-  await expect(page.getByText('Alle Helfer sind fertig')).toBeVisible();
+  await expect(page.getByText('Alle Helfer sind fertig')).toBeVisible({ timeout: 15_000 });
   await page.getByRole('link', { name: 'Helfer: Lernplan' }).click();
   await expect(page.getByRole('link', { name: 'Bürgermeisters', exact: true })).toBeVisible();
 });

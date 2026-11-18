@@ -140,6 +140,8 @@ test('Bau-Modus: verschieben (live auf zweitem Gerät), Straße malen, rückgän
   await a.request.put('/api/dorf/layout', { data: { basisVersion: zurueck.version, layout: zurueck.layout }, headers: { origin: new URL(a.url()).origin } });
   await a.getByRole('button', { name: 'Bau-Modus beenden' }).click();
   await expect(a.getByRole('toolbar', { name: 'Bau-Werkzeuge' })).toBeHidden();
+  await a.context().close();
+  await b.context().close();
 });
 
 test('Figuren: arbeitender Agent mit Infokarte und Abbrechen; Bürgermeister', async ({ page }) => {

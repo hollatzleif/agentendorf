@@ -469,7 +469,7 @@ export class DorfSzene {
     const ziel = new THREE.Vector3((this.grenzen.minX + this.grenzen.maxX) / 2, 0, (this.grenzen.minZ + this.grenzen.maxZ) / 2);
     const breite = Math.max(this.grenzen.maxX - this.grenzen.minX, this.grenzen.maxZ - this.grenzen.minZ);
     const hochkant = this.kamera.aspect < 1;
-    const abstand = THREE.MathUtils.clamp(breite * (hochkant ? 1.9 : 1.35), 20, 85);
+    const abstand = THREE.MathUtils.clamp(breite * (hochkant ? 2.5 : 1.35), 20, 95);
     // Hochformat: steiler von oben, damit das Dorf die Höhe nutzt
     const richtung = (hochkant ? new THREE.Vector3(0.36, 1.3, 0.74) : new THREE.Vector3(0.42, 0.78, 0.86)).normalize();
     this.steuerung.target.copy(ziel);
@@ -762,6 +762,9 @@ export class DorfSzene {
     for (const [id, e] of this.gebaeude) this.gebaeudeEntfernen(id, e);
     if (this.statisch) entsorgen(this.statisch.gruppe);
     this.gelaende?.g.entsorgen();
+    // WebGL-Kontext sofort freigeben: Browser erlauben nur ~16 gleichzeitig, sonst bleibt das Dorf nach
+    // häufigem Hin- und Herwechseln irgendwann leer
+    this.renderer.forceContextLoss();
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }
