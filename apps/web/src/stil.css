@@ -289,3 +289,76 @@ button.schliessen { position: absolute; top: 0.5rem; right: 0.5rem; width: 2rem;
   .bau-gruppe button, .bau-gruppe select { font-size: 0.85rem; }
   .dorf-karte { left: 0.4rem; }
 }
+
+/* ---- Spiel-Auswahl: runde Knöpfe unter dem angetippten Gebäude (eigene Gestaltung) ---- */
+.spiel-auswahl {
+  position: absolute; left: 50%; bottom: max(0.9rem, env(safe-area-inset-bottom)); transform: translateX(-50%);
+  z-index: 4; display: flex; flex-direction: column; align-items: center; gap: 0.55rem; max-width: calc(100% - 5rem);
+  pointer-events: none;
+}
+.spiel-auswahl > * { pointer-events: auto; }
+.spiel-banner {
+  position: relative; display: flex; flex-direction: column; align-items: center; padding: 0.35rem 2.4rem 0.4rem 1.1rem;
+  background: linear-gradient(#3d5a8a, #2b3a55); color: #fff; border: 3px solid #1b2538; border-radius: 14px;
+  box-shadow: 0 4px 0 #141c2b, 0 8px 18px rgb(0 0 0 / 0.3); animation: spiel-plopp 0.22s ease-out both; max-width: 100%;
+}
+.spiel-name { font-size: 1.15rem; font-weight: 900; letter-spacing: 0.02em; text-shadow: 0 2px 0 #141c2b, 0 0 2px #141c2b; white-space: nowrap; }
+.spiel-zeile { font-size: 0.78rem; font-weight: 600; opacity: 0.9; max-width: 34rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.spiel-zu {
+  position: absolute; top: 50%; right: 0.35rem; transform: translateY(-50%); width: 1.7rem; height: 1.7rem; padding: 0; border-radius: 50%;
+  background: #e8413c; color: #fff; border: 2px solid #8f1f1b; font-weight: 900; line-height: 1; box-shadow: 0 2px 0 #8f1f1b;
+}
+.spiel-knoepfe { display: flex; gap: 0.55rem; overflow-x: auto; max-width: 100%; padding: 0.2rem 0.3rem 0.5rem; scrollbar-width: none; }
+.spiel-knoepfe::-webkit-scrollbar { display: none; }
+.spiel-knopf {
+  display: flex; flex-direction: column; align-items: center; gap: 0.15rem; padding: 0; border: 0; background: none; cursor: pointer;
+  animation: spiel-plopp 0.28s cubic-bezier(0.3, 1.6, 0.5, 1) both; flex: 0 0 auto;
+}
+.spiel-kreis {
+  --a: #5aa8ff; --b: #2d6fd6; --r: #173f80;
+  position: relative; width: 3.6rem; height: 3.6rem; border-radius: 50%; display: grid; place-items: center;
+  background: radial-gradient(circle at 50% 28%, rgb(255 255 255 / 0.55) 0 18%, transparent 19%), linear-gradient(var(--a), var(--b));
+  border: 3px solid var(--r); box-shadow: inset 0 -5px 0 rgb(0 0 0 / 0.18), 0 4px 0 var(--r), 0 7px 12px rgb(0 0 0 / 0.3);
+  transition: transform 0.08s;
+}
+.spiel-symbol { font-size: 1.55rem; filter: drop-shadow(0 2px 0 rgb(0 0 0 / 0.35)); }
+.spiel-text {
+  font-size: 0.78rem; font-weight: 900; color: #fff; white-space: nowrap;
+  text-shadow: -1.5px -1.5px 0 #1b2538, 1.5px -1.5px 0 #1b2538, -1.5px 1.5px 0 #1b2538, 1.5px 1.5px 0 #1b2538, 0 2px 0 #1b2538;
+}
+.spiel-knopf:hover .spiel-kreis { transform: translateY(-2px) scale(1.05); }
+.spiel-knopf:active .spiel-kreis { transform: translateY(3px); box-shadow: inset 0 -3px 0 rgb(0 0 0 / 0.18), 0 1px 0 var(--r); }
+.spiel-knopf:focus-visible { outline: none; }
+.spiel-knopf:focus-visible .spiel-kreis { outline: 3px solid #fff; outline-offset: 2px; }
+.spiel-abzeichen {
+  position: absolute; top: -0.35rem; right: -0.35rem; min-width: 1.35rem; height: 1.35rem; padding: 0 0.3rem; border-radius: 99px;
+  background: #e8413c; color: #fff; font-size: 0.75rem; font-weight: 900; display: grid; place-items: center; border: 2px solid #fff;
+  box-shadow: 0 2px 0 #8f1f1b;
+}
+.spiel-knopf.gelb .spiel-kreis { --a: #ffe066; --b: #f2b51e; --r: #8a5c00; }
+.spiel-knopf.gruen .spiel-kreis { --a: #8ee06b; --b: #3fa63a; --r: #1f5a1d; }
+.spiel-knopf.rot .spiel-kreis { --a: #ff8a7a; --b: #e0402f; --r: #7a1a12; }
+.spiel-knopf.lila .spiel-kreis { --a: #c39bff; --b: #7a4fd6; --r: #3d2178; }
+.spiel-knopf.tuerkis .spiel-kreis { --a: #7fe3df; --b: #26a8a0; --r: #0f5a55; }
+.spiel-knopf.braun .spiel-kreis { --a: #e0b080; --b: #a8693c; --r: #5a3415; }
+.spiel-knopf.grau .spiel-kreis { --a: #d9dee6; --b: #8f9aab; --r: #485366; }
+.spiel-knopf.orange .spiel-kreis { --a: #ffc07a; --b: #f2801e; --r: #7a3a00; }
+@keyframes spiel-plopp { from { transform: scale(0.4); opacity: 0; } 70% { transform: scale(1.08); opacity: 1; } to { transform: scale(1); } }
+.spiel-banner { animation-name: spiel-banner-plopp; }
+@keyframes spiel-banner-plopp { from { transform: translateY(8px) scale(0.85); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .spiel-knopf, .spiel-banner { animation: none; } }
+
+/* Dorf-Knöpfe oben/unten im gleichen Spielstil */
+.dorf-knopf {
+  background: linear-gradient(#ffffff, #e6ebf2); color: #2b3a55; border: 3px solid #2b3a55; border-radius: 14px; font-weight: 900;
+  box-shadow: inset 0 -4px 0 rgb(0 0 0 / 0.1), 0 4px 0 #2b3a55, 0 7px 14px rgb(20 40 70 / 0.25);
+}
+.dorf-knopf.haupt { background: linear-gradient(#8ee06b, #3fa63a); color: #fff; border-color: #1f5a1d; box-shadow: inset 0 -4px 0 rgb(0 0 0 / 0.15), 0 4px 0 #1f5a1d, 0 7px 14px rgb(20 40 70 / 0.25); text-shadow: 0 2px 0 #1f5a1d; }
+.dorf-knopf:active { transform: translateY(3px); box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.1), 0 1px 0 #2b3a55; }
+
+@media (max-width: 760px), (pointer: coarse) {
+  .spiel-auswahl { max-width: calc(100% - 4.4rem); left: calc(50% - 1.8rem); }
+  .spiel-kreis { width: 3.2rem; height: 3.2rem; }
+  .spiel-symbol { font-size: 1.35rem; }
+  .spiel-zeile { max-width: 16rem; }
+}

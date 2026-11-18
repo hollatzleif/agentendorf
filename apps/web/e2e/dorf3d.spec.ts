@@ -56,13 +56,19 @@ test('Dorf: Gebäude anklicken öffnet das Menü; Statusanzeigen folgen dem Serv
   await imDorf(page);
   const pt = (await page.evaluate(() => window.__dorf!.bildschirmPunkt('gebaeude', 'Uni')))!;
   await page.mouse.click(pt.x, pt.y);
-  await expect(page).toHaveURL(/\?g=Uni/);
+  // Antippen: Namensbanner und runde Knöpfe erscheinen, das Gebäude ist hervorgehoben
+  const knoepfe = page.getByRole('group', { name: 'Gebäude Uni' });
+  await expect(knoepfe).toBeVisible();
+  await expect(knoepfe.getByRole('button', { name: 'Studium' })).toBeVisible();
+  await knoepfe.getByRole('button', { name: 'Info' }).click();
+  await expect(page).toHaveURL(/\?g=Uni&reiter=uebersicht/);
   const menue = page.getByRole('complementary', { name: /Gebäude Uni/ });
-  await expect(menue.getByRole('heading', { name: /Uni/ })).toBeVisible();
-  await menue.getByRole('button', { name: 'Übersicht' }).click();
   await expect(menue.getByRole('heading', { name: /Uni – Arbeitsanweisung/ })).toBeVisible();
   await menue.getByRole('button', { name: 'Menü schließen' }).click();
   await expect(menue).toBeHidden();
+  // zurück bei den Knöpfen; Auswahl aufheben
+  await knoepfe.getByRole('button', { name: 'Auswahl aufheben' }).click();
+  await expect(knoepfe).toBeHidden();
 
   // rotes Dach + Uhr genau dann, wenn der Server eine Frist < 3 Tage meldet
   const s = (await (await page.request.get('/api/dorf/status')).json()) as DorfStatus;

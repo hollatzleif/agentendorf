@@ -151,6 +151,8 @@ export class DorfSzene {
   private bauZieht = false;
   private kameraAnimation: { von: number; nach: number; t: number } | null = null;
   bau: BauHandler | null = null;
+  /** angetipptes Gebäude: goldener Rahmen + kurzer Hüpfer */
+  private auswahl: { id: string; rahmen: THREE.Group; t: number } | null = null;
   /** Software-Grafik (z. B. Testbrowser, sehr alte Geräte): nur bei Änderungen zeichnen, keine Daueranimation */
   readonly sparsam: boolean;
   private voll = false;
@@ -363,6 +365,43 @@ export class DorfSzene {
     const vorn = new THREE.Vector3(0, 0, PLATZ / 2 + 0.1).applyAxisAngle(new THREE.Vector3(0, 1, 0), DREH(dreh));
     e.schild.position.copy(mitte).add(vorn).setY(0.55);
     e.blasen.position.copy(mitte).setY(e.modell.hoehe);
+  }
+
+  /** Gebäude hervorheben (Spiel-Auswahl) – null hebt auf */
+  waehlen(id: string | null) {
+    if (this.auswahl?.id === id) return;
+    if (this.auswahl) {
+      this.scene.remove(this.auswahl.rahmen);
+      this.auswahl.rahmen.traverse((o) => {
+        if (o instanceof THREE.Mesh) (o.material as THREE.Material).dispose();
+      });
+      const alt = this.gebaeude.get(this.auswahl.id);
+      if (alt) alt.modell.gruppe.scale.set(1, 1, 1);
+      this.auswahl = null;
+    }
+    const e = id ? this.gebaeude.get(id) : undefined;
+    if (id && e) {
+      const rahmen = new THREE.Group();
+      const mat = new THREE.MeshBasicMaterial({ color: '#ffd84a', transparent: true, opacity: 0.9, depthWrite: false });
+      const s2 = PLATZ / 2 + 0.06;
+      for (const [x, z, w, d] of [[0, s2, PLATZ + 0.24, 0.12], [0, -s2, PLATZ + 0.24, 0.12], [s2, 0, 0.12, PLATZ + 0.24], [-s2, 0, 0.12, PLATZ + 0.24]] as const) {
+        const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.05, d), mat);
+        m.position.set(x, 0.2, z);
+        rahmen.add(m);
+      }
+      // Eckpfeiler wie Markierungen
+      for (const [x, z] of [[s2, s2], [-s2, s2], [s2, -s2], [-s2, -s2]] as const) {
+        const m = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.35, 10), mat);
+        m.position.set(x, 0.3, z);
+        rahmen.add(m);
+      }
+      rahmen.position.copy(e.huelle.position);
+      rahmen.rotation.y = e.huelle.rotation.y;
+      rahmen.renderOrder = 6;
+      this.scene.add(rahmen);
+      this.auswahl = { id, rahmen, t: 0 };
+    }
+    this.schmutzig = true;
   }
 
   /** Vorschau beim Verschieben (ohne Layout zu ändern) */
@@ -746,6 +785,20 @@ export class DorfSzene {
         animiert = true;
       }
       if (this.gebaeude.size) animiert = true; // Blasen schweben
+    }
+    if (this.auswahl) {
+      const ausw = this.auswahl;
+      ausw.t += dt;
+      const e = this.gebaeude.get(ausw.id);
+      if (e) {
+        // kurzer Hüpfer (0,35 s), danach ruhig; Rahmen pulsiert sanft
+        const h = ausw.t < 0.35 && !this.o.reduziert ? Math.sin((ausw.t / 0.35) * Math.PI) * 0.08 : 0;
+        e.modell.gruppe.scale.set(1 - h * 0.4, 1 + h, 1 - h * 0.4);
+        const m = (ausw.rahmen.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial;
+        m.opacity = this.o.reduziert || this.sparsam ? 0.9 : 0.65 + Math.sin(ausw.t * 4) * 0.25;
+        ausw.rahmen.position.copy(e.huelle.position);
+        if (ausw.t < 0.4 || !this.sparsam) animiert = true;
+      }
     }
     if (this.figuren.tick(dt)) animiert = true;
     if (!animiert && !this.schmutzig) return;

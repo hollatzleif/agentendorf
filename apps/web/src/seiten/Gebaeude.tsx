@@ -35,6 +35,11 @@ const RATHAUS_REITER = [
   ['agenten', 'Agenten-Einstellungen'],
 ] as const;
 
+/** Alle Reiter eines Gebäudes (Schlüssel, Titel) – auch für die Knöpfe im Dorf */
+export function reiterFuer(id: string): readonly (readonly [string, string])[] {
+  return id === 'Rathaus' ? [...RATHAUS_VORNE, ...REITER, ...RATHAUS_REITER] : id === 'Uni' ? [...UNI_VORNE, ...REITER] : id === 'Post' ? [...POST_VORNE, ...REITER] : REITER;
+}
+
 export function standardReiter(id: string) {
   return id === 'Rathaus' ? 'schreibtisch' : id === 'Uni' ? 'studium' : id === 'Post' ? 'eingang' : 'aktionen';
 }
@@ -64,7 +69,7 @@ export function GebaeudeInhalt({ id, reiter, reiterWaehlen, kompakt }: { id: str
 
   if (liste.isPending) return <p>Lade …</p>;
   if (!g) return <p className="karte">Gebäude „{id}“ gibt es nicht (mehr).</p>;
-  const alle = id === 'Rathaus' ? [...RATHAUS_VORNE, ...REITER, ...RATHAUS_REITER] : id === 'Uni' ? [...UNI_VORNE, ...REITER] : id === 'Post' ? [...POST_VORNE, ...REITER] : REITER;
+  const alle = reiterFuer(id);
 
   return (
     <>

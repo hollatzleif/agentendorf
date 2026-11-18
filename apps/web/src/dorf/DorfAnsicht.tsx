@@ -6,6 +6,7 @@ import { linkKlick, navigieren, useOrt } from '../router';
 import { GebaeudeInhalt, standardReiter } from '../seiten/Gebaeude';
 import { DorfSzene, type KameraStand, type SzeneTreffer } from './szene';
 import { BauSteuerung, type Auswahl, type Werkzeug } from './bauen';
+import { GebaeudeKnoepfe } from './Knoepfe';
 
 const KAMERA_SCHLUESSEL = 'dorf-kamera';
 const handy = () => window.matchMedia('(max-width: 760px), (pointer: coarse)').matches;
@@ -77,15 +78,30 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
     };
   }, []);
 
+  // Angetipptes Gebäude (Spiel-Auswahl mit runden Knöpfen); ein offenes Menü (?g=) zählt auch als Auswahl
+  const [angetippt, setAngetippt] = useState<string | null>(gewaehlt);
+  useEffect(() => {
+    if (gewaehlt) setAngetippt(gewaehlt);
+  }, [gewaehlt]);
+  useEffect(() => {
+    szene.current?.waehlen(bauen ? null : angetippt);
+  }, [angetippt, bauen, layout]);
+
   const klickRef = useRef<(t: SzeneTreffer) => void>(() => undefined);
   klickRef.current = (t) => {
     if (bauen) return;
     if (t.art === 'gebaeude') {
       setFigur(null);
-      navigieren(`/?g=${encodeURIComponent(t.id)}`);
-    } else if (t.art === 'figur') setFigur(t.laufId);
-    else if (t.art === 'buergermeister') setFigur('buergermeister');
-    else setFigur(null);
+      if (gewaehlt) navigieren('/');
+      setAngetippt(t.id);
+    } else if (t.art === 'figur' || t.art === 'buergermeister') {
+      setAngetippt(null);
+      if (gewaehlt) navigieren('/');
+      setFigur(t.art === 'figur' ? t.laufId : 'buergermeister');
+    } else {
+      setFigur(null);
+      setAngetippt(null);
+    }
   };
 
   // Daten → Szene
@@ -308,6 +324,21 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
         </div>
       ) : null}
 
+      {!panelOffen && !bauen && angetippt && gebaeude.data?.find((g) => g.id === angetippt) && layout?.gebaeude[angetippt] && (
+        <GebaeudeKnoepfe
+          g={gebaeude.data.find((g) => g.id === angetippt)!}
+          status={status.data?.gebaeude[angetippt]}
+          freigaben={status.data?.gebaeude[angetippt]?.freigaben ?? 0}
+          figuren={status.data?.figuren.filter((f) => f.gebaeude === angetippt).length ?? 0}
+          oeffnen={(k) => navigieren(`/?g=${encodeURIComponent(angetippt)}&reiter=${k}`)}
+          bauen={() => {
+            const id = angetippt;
+            bauModus(true);
+            setTimeout(() => steuerung.current?.waehlen({ art: 'gebaeude', id }), 0);
+          }}
+          schliessen={() => setAngetippt(null)}
+        />
+      )}
       {panelOffen && (
         <aside className="dorf-panel" aria-label={`Gebäude ${gName(gewaehlt)}`}>
           <div className="dorf-panel-kopf">
