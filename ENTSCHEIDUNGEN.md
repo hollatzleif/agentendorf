@@ -173,3 +173,25 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - **Aktion „Moodle durchsehen“** (Uni, claude-code, Stufe mittel): Kurs finden, Aufgaben mit Frist und Abgabestatus erfassen, Fehlendes herunterladen, Übersicht als Notiz schreiben.
 - **Nichts erfunden:** Wie die JKU-Anmeldung genau aussieht (Moodle-Formular, SSO-Knopf, ein- oder zweistufig), ist ungeprüft. Der Runner versucht die üblichen Formen. Klappt es nicht, meldet `dorf moodle-browser-zugang` die Seite, auf der es hängt. Landet die Anmeldung auf einer fremden Domain, nennt die Leine sie, und Leif kann sie ausdrücklich erlauben.
 - **Auslieferung:** Das Image wird über einen Inhalts-Hash nur bei Änderung geschickt (`hat-browser`, wie beim Rechenraum). Der Dienst läuft im Compose-Profil `browser` und startet erst, wenn die Version eine `BROWSER_VERSION` hat. Damit funktioniert auch der erste Deploy, den noch das alte Skript annimmt. Ein fehlgeschlagener Browser-Bau in der CI blockiert den übrigen Deploy nicht.
+
+**E58 – Dorf wie ein Aufbauspiel: Spielknöpfe, Helfer-Figuren, Tag/Nacht, Ticker** (Leif: „Knöpfe wie bei Clash of Clans … Subagents als kleine Figur zur Uni laufen“). Eigene Gestaltung im Genre-Stil; keine Grafiken, Symbole oder Layouts eines bestimmten Spiels.
+- **Gebäude antippen:**
+  - Das Gebäude hüpft kurz und bekommt einen goldenen Rahmen.
+  - Unten erscheinen ein Namensbanner mit Statuszeile und eine Reihe runder Knöpfe mit Symbol und Beschriftung, einer je Reiter, dazu „Versetzen“ (öffnet den Bau-Modus mit dem Gebäude ausgewählt).
+  - Ein Knopf öffnet das Menü direkt im passenden Reiter, × hebt die Auswahl auf.
+  - Die Dorf-Knöpfe oben und unten haben denselben Stil.
+- **Helfer des Bürgermeisters:**
+  - Helfer (Auslöser `buergermeister`) tragen einen Rucksack mit goldenem Wimpel und laufen vom Rathaus über die Straßen zum Ziel.
+  - Der Bürgermeister winkt ihnen nach.
+  - Die Infokarte nennt sie „Helfer des Bürgermeisters in …“.
+  - Agenten stehen auf dem Gehsteig vor dem Grundstück, nicht in der Deko.
+- **Tag und Nacht** nach Linzer Uhrzeit:
+  - Sonnenauf- und -untergang werden je Jahreszeit für 48° N berechnet, mit Sommerzeit.
+  - Der Himmel geht über Abendrot in die Nacht über, nachts gibt es einen bläulichen Mond und Sterne.
+  - Fenster und Laternen leuchten nachts.
+  - Ziehende Wolken am Rand und kreisende Vögel gibt es nur tagsüber.
+  - Zum Ausprobieren: `/?uhr=22`.
+- **Dorf-Ticker** oben links:
+  - Meldungen entstehen aus dem Vergleich zweier Status-Stände: „Helfer läuft zur Uni“, „Zurück aus …“, „Freigabe wartet“, „Frist bald“, „Bürgermeister denkt nach“.
+  - Sie verschwinden nach 9 Sekunden, ein Klick schwenkt die Kamera dorthin.
+- **Klicks und Bildschirmpunkte** rechnen mit aktuellen Kameramatrizen, auch wenn seit der letzten Bewegung noch kein Bild gezeichnet wurde. Der Fehler zeigte sich bei langsamer Software-Grafik in den Tests.
