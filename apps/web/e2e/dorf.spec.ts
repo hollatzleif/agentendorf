@@ -1139,10 +1139,11 @@ test('Rathaus → Notizen: festhalten und die letzten Tage sehen', async ({ page
 test('Heute: Countdown zur nächsten Prüfung', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'einmal reicht');
   await anmelden(page);
-  const in5 = new Date(Date.now() + 5 * 86_400_000).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
-  await page.request.post('/api/todos', { headers: { origin: ORIGIN }, data: { titel: 'Prüfung: Countdown-Fach', faellig: in5 } });
+  // morgen – früher als die Uni-Prüfungen aus dem nachgebauten Kalender
+  const morgen = new Date(Date.now() + 86_400_000).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+  await page.request.post('/api/todos', { headers: { origin: ORIGIN }, data: { titel: 'Prüfung: Countdown-Fach', faellig: morgen } });
   await page.goto('/heute');
-  await expect(page.locator('.heute-zahlen')).toContainText('📝 Countdown-Fach in 5 Tagen');
+  await expect(page.locator('.heute-zahlen')).toContainText('📝 Countdown-Fach morgen');
 });
 
 test('Wochenziele: sonntags die nächste Woche planen', async ({ page }, info) => {
