@@ -293,6 +293,11 @@ export class Postbote {
     if (!r.konflikt) this.standSetzen(`datei:${pfad}`, r.version);
   }
 
+  /** öffentlich für „Mail → To-do“ (Nacht 18./19.11.) */
+  mailHolen(id: string): PostMail | null {
+    return this.mail(id);
+  }
+
   private mail(id: string): PostMail | null {
     const z = this.o.db.prepare('SELECT * FROM post_mails WHERE id = ?').get(id) as PostZeile | undefined;
     return z ? zuMail(z) : null;

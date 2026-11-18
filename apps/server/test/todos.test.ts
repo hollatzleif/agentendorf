@@ -121,3 +121,21 @@ describe('Leine für die Listen: Internet nie mit Fremdinhalten', () => {
     expect((await d.listen.wunsch.holen(kopfhoerer.pfad)).fremd).toBe(true);
   });
 });
+
+describe('Mail → To-do (Nacht 18./19.11.)', () => {
+  it('legt ein To-do aus einer Mail an: Betreff, Absender, Zusammenfassung, Link, Frist – als Fremdinhalt', async () => {
+    const { testDorf, ORIGIN, cookieAus } = await import('./hilfen.js');
+    const { passwortSetzen } = await import('../src/auth/passwort.js');
+    const d = await testDorf();
+    await passwortSetzen(d.db, d.uhr, 'ein-langes-test-passwort-1');
+    const r = await d.app.inject({ method: 'POST', url: '/api/anmeldung', headers: { origin: ORIGIN }, payload: { passwort: 'ein-langes-test-passwort-1' } });
+    const h = { origin: ORIGIN, cookie: cookieAus(r.headers['set-cookie']) };
+    d.db
+      .prepare("INSERT INTO post_mails (id, thread_id, von, betreff, datum, kategorie, wichtig, antwort_noetig, zusammenfassung, frist, eingeordnet) VALUES ('m1', 't1', 'Prof ‹p@jku.at›', 'Termin Nachklausur', ?, 'Uni', 1, 1, 'Bitte bis Freitag zusagen.', '2026-11-20', ?)")
+      .run(d.uhr.jetzt(), d.uhr.jetzt());
+    const t = (await d.app.inject({ method: 'POST', url: '/api/post/todo', headers: h, payload: { id: 'm1' } })).json();
+    expect(t).toMatchObject({ titel: 'Antworten: Termin Nachklausur', faellig: '2026-11-20', gebaeude: 'Post', quelle: 'Post', fremd: true });
+    expect(t.notiz).toMatch(/Von: Prof ‹p@jku.at›\n\nBitte bis Freitag zusagen\.\n\n\[In Gmail öffnen\]\(https:\/\/mail\.google\.com\/mail\/u\/0\/#all\/t1\)/);
+    expect((await d.app.inject({ method: 'POST', url: '/api/post/todo', headers: h, payload: { id: 'gibts-nicht' } })).statusCode).toBe(404);
+  });
+});

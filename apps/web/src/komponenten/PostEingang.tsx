@@ -80,13 +80,44 @@ export function PostEingang({ fest }: { fest?: string } = {}) {
                 <strong>{m.betreff}</strong> <span className="leise">– {m.von}</span>
               </div>
               {m.zusammenfassung && <div>{m.zusammenfassung}</div>}
-              <a href={`https://mail.google.com/mail/u/0/#all/${encodeURIComponent(m.threadId)}`} target="_blank" rel="noopener noreferrer">
-                In Gmail öffnen
-              </a>
+              <div className="zeile">
+                <a href={`https://mail.google.com/mail/u/0/#all/${encodeURIComponent(m.threadId)}`} target="_blank" rel="noopener noreferrer">
+                  In Gmail öffnen
+                </a>
+                <AlsTodo id={m.id} betreff={m.betreff} />
+              </div>
             </li>
           ))}
         </ul>
       )}
     </div>
+  );
+}
+
+/** Mail → To-do (Nacht 18./19.11.): landet auf dem Marktplatz, mit Link zurück zur Mail */
+function AlsTodo({ id, betreff }: { id: string; betreff: string }) {
+  const [stand, setStand] = useState<'' | 'laeuft' | 'ok' | string>('');
+  if (stand === 'ok') return <span className="plus">✅ auf dem To-do-Brett</span>;
+  return (
+    <>
+      <button
+        type="button"
+        className="klein"
+        disabled={stand === 'laeuft'}
+        aria-label={`Als To-do: ${betreff}`}
+        onClick={async () => {
+          setStand('laeuft');
+          try {
+            await api('/api/post/todo', { body: { id } });
+            setStand('ok');
+          } catch (e) {
+            setStand(e instanceof ApiFehler ? e.message : String(e));
+          }
+        }}
+      >
+        ✓ Als To-do
+      </button>
+      {stand && stand !== 'laeuft' && <span className="fehler">{stand}</span>}
+    </>
   );
 }

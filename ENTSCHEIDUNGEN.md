@@ -538,3 +538,8 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
   - Von der **KI** (klein, ohne Werkzeuge, Fakten als Fremdinhalt): 2–3 Sätze Einschätzung und 2–3 kleine Vorschläge für die nächste Woche, als Checkliste in der Datei.
 - In der App unter Rathaus → Wochenrückblick (auch „Jetzt erstellen“) und per Telegram; der Schalter ist derselbe wie bei der Morgenzeitung.
 - Warum: Ein wöchentlicher Rückblick (wie das „Weekly Review“) hält die Listen sauber und lenkt den Blick auf die kommende Woche – das Dorf erledigt das Zusammentragen.
+
+## E81 – Mail → To-do (Nacht 18./19.11.)
+
+- Im Post-Eingang hat jede Mail **„✓ Als To-do“**. Das To-do bekommt den Betreff („Antworten: …“, wenn eine Antwort nötig ist), die Frist der Mail als Fälligkeit (wenn es ein Datum ist), Absender, Zusammenfassung und einen Link zurück in Gmail. Gebäude: Post.
+- Der Server baut das To-do selbst aus der gespeicherten Mail (`/api/post/todo`, nur Mail-ID) und markiert es als **fremd**: Agenten mit Internet sehen es nicht, wie bei Rechnungen aus Mails.

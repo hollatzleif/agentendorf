@@ -682,3 +682,28 @@ test('Wochenrückblick: im Rathaus erstellen und lesen', async ({ page }, info) 
   await expect(page.getByRole('heading', { name: /Wochenrückblick \d{4} · KW \d{2}/ })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Nächste Woche' })).toBeVisible();
 });
+
+test('Post: Mail per Klick als To-do', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  let gesendet: unknown = null;
+  await page.route('**/api/post', (r) =>
+    r.fulfill({
+      json: {
+        verbunden: true,
+        einordnungMoeglich: true,
+        laeuft: false,
+        letzter: null,
+        mails: [{ id: 'm1', threadId: 't1', von: 'Prof', betreff: 'Nachklausur', datum: new Date().toISOString(), kategorie: 'Uni', wichtig: true, antwortNoetig: true, zusammenfassung: 'Bitte zusagen', frist: null, eingeordnet: true }],
+      },
+    }),
+  );
+  await page.route('**/api/post/todo', (r) => {
+    gesendet = r.request().postDataJSON();
+    return r.fulfill({ json: { pfad: 'Marktplatz/todos/x.md' } });
+  });
+  await anmelden(page);
+  await page.goto('/gebaeude/Post');
+  await page.getByRole('button', { name: 'Als To-do: Nachklausur' }).click();
+  await expect(page.getByText('✅ auf dem To-do-Brett')).toBeVisible();
+  expect(gesendet).toEqual({ id: 'm1' });
+});

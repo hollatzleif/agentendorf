@@ -604,6 +604,17 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
     return { gestartet: true };
   });
 
+  // Mail → To-do (Leifs Klick): Betreff/Absender/Zusammenfassung stammen aus der Mail → als Fremdinhalt markiert
+  app.post('/api/post/todo', async (req) => {
+    const b = z.object({ id: z.string().min(1).max(100) }).parse(req.body);
+    const m = a.postbote.mailHolen(b.id);
+    if (!m) throw new DorfFehler(404, 'Diese Mail kenne ich nicht (mehr).');
+    if (!a.listen) throw new DorfFehler(409, 'Keine To-do-Liste.');
+    const faellig = m.frist && /^\d{4}-\d{2}-\d{2}/.test(m.frist) ? m.frist.slice(0, 10) : undefined;
+    const notiz = [`Von: ${m.von}`, m.zusammenfassung ?? '', `[In Gmail öffnen](https://mail.google.com/mail/u/0/#all/${encodeURIComponent(m.threadId)})`].filter(Boolean).join('\n\n');
+    return a.listen.todo.anlegen({ titel: `${m.antwortNoetig ? 'Antworten: ' : ''}${m.betreff || '(ohne Betreff)'}`.slice(0, 200), notiz, gebaeude: 'Post', ...(faellig ? { faellig } : {}) }, 'Post', { fremd: true });
+  });
+
   // ---- Morgenzeitung (Etappe 4) --------------------------------------------------------------
   app.get('/api/morgenzeitung', async () => a.morgenzeitung.uebersicht());
   app.post('/api/morgenzeitung/erstellen', async () => ({ pfad: await a.morgenzeitung.erstellen() }));
