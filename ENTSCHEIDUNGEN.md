@@ -707,3 +707,10 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - **Nur ein Vorschlag:** Leif kann einzelne Blöcke abwählen. Eingetragen wird erst mit seinem Klick, über denselben Weg wie „Tag planen“: Hauptkalender, „📚 Lernen: …“, Erinnerung 10 min vorher, nie Einladungen.
 - **Technik:** API `GET /api/kalender/lernplan?bisTag=JJJJ-MM-TT&stunden=…&dauer=…`. Die Verteilung `gleichmaessigVerteilen` ist eine reine Funktion und getestet.
 - Warum: Verteiltes Lernen schlägt Pauken am Vorabend. Mit diesem Modus wird aus „Prüfung am 23.“ in einem Klick ein Plan im Kalender.
+
+## E97 – Überfälliges aufräumen (Nacht 18./19.11.)
+
+- **Telegram `/aufraeumen`:** Die überfälligen To-dos kommen eines nach dem anderen in derselben Nachricht, mit Angabe „seit N Tagen überfällig“. Knöpfe: 📌 Heute, ➡️ Morgen, 📆 Nächste Woche (kommender Montag), ✅ Erledigt, ➖ Ohne Datum, 🗑 Löschen (Papierkorb). Alle sind HMAC-signiert. Nach jedem Tipp kommt das nächste, am Ende „Nichts überfällig 🎉“.
+- **Tagesabschluss** zeigt „⚠️ N überfällig – /aufraeumen …“, sobald etwas liegen geblieben ist.
+- **„Heute“:** Überfällige To-dos haben „→ heute“ und „→ morgen“ direkt in der Zeile.
+- Warum: Ein Stapel Überfälliges macht jede Liste unbrauchbar und demotiviert. Eine Minute Aufräumen am Abend hält „Heute“ ehrlich: Dort steht, was wirklich heute dran ist.

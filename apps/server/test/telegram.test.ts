@@ -217,7 +217,7 @@ describe('Telegram-Bot', () => {
     expect(offsets.at(-1)).toBe(51);
     // Befehlsmenü wird beim Start angemeldet
     const menue = d.aufrufe.find((x) => x.m === 'setMyCommands')?.p.commands as { command: string }[];
-    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'notiz', 'erinner', 'plan', 'karten', 'fokus', 'ziel', 'gewohnheiten', 'neu', 'hilfe']);
+    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'aufraeumen', 'notiz', 'erinner', 'plan', 'karten', 'fokus', 'ziel', 'gewohnheiten', 'neu', 'hilfe']);
     await d.agenten.leerlauf();
   }, 15_000);
 });
@@ -533,5 +533,32 @@ describe('Telegram /notiz (E95)', () => {
     expect(d.gesendet().at(-1)).toMatch(/📝 Notiert \(Rathaus\/notizen\/2026-11-16\.md\)/);
     await d.nachricht({ text: '/notiz' });
     expect(d.gesendet().at(-1)).toBe('📝 <b>Notizen heute</b>\n13:00 Buch „Deep Work“ ausleihen _(Telegram)_');
+  });
+});
+
+describe('Telegram /aufraeumen (E97)', () => {
+  it('zeigt Überfälliges nacheinander; Knöpfe planen neu, haken ab oder löschen; gefälscht nicht; Tagesabschluss weist hin', async () => {
+    const d = await dorf();
+    // TestUhr: Mo 16.11.
+    const a = await d.todos.anlegen({ titel: 'Steuer', faellig: '2026-11-10' }, 'Leif');
+    const b = await d.todos.anlegen({ titel: 'Bericht', faellig: '2026-11-15' }, 'Leif');
+    await d.todos.anlegen({ titel: 'Zukunft', faellig: '2026-11-20' }, 'Leif');
+    await d.nachricht({ text: '/aufraeumen' });
+    const letzte = () => d.aufrufe.filter((x) => x.m === 'sendMessage' || x.m === 'editMessageText').at(-1)!.p;
+    expect(String(letzte().text)).toBe('🧹 <b>Aufräumen</b> · noch 2\n\n<b>Steuer</b>\n<i>seit 6 Tagen überfällig (2026-11-10)</i>');
+    const knopf = (i: number, j: number) => (letzte().reply_markup as { inline_keyboard: { callback_data: string }[][] }).inline_keyboard[i]![j]!.callback_data;
+    const naechsteWoche = knopf(0, 2);
+    await d.knopf(naechsteWoche.replace(/:[^:]+$/, ':AAAAAAAAAAAAAAAA'));
+    expect((await d.todos.holen(a.pfad)).faellig).toBe('2026-11-10');
+    await d.knopf(naechsteWoche);
+    expect((await d.todos.holen(a.pfad)).faellig).toBe('2026-11-23');
+    expect(String(letzte().text)).toMatch(/noch 1\n\n<b>Bericht<\/b>\n<i>seit 1 Tag überfällig/);
+    const erledigt = knopf(1, 0);
+    d.uhr.vor(8 * 3_600_000 + 5 * 60_000); // 21:05 – Tagesabschluss weist hin
+    await d.bot.abendSenden();
+    expect(d.gesendet().find((t) => t.startsWith('🌙'))).toMatch(/⚠️ 1 überfällig – \/aufraeumen/);
+    await d.knopf(erledigt);
+    expect((await d.todos.holen(b.pfad)).erledigt).toBe(true);
+    expect(String(d.aufrufe.filter((x) => x.m === 'editMessageText').at(-1)!.p.text)).toMatch(/Nichts überfällig/);
   });
 });

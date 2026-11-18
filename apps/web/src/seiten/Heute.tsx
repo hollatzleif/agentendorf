@@ -425,6 +425,16 @@ function TodoZeile({ t, heute }: { t: TodoInfo; heute: string }) {
     await qc.invalidateQueries({ queryKey: ['liste', 'todo'] });
   };
   const ueberfaellig = !!t.faellig && t.faellig < heute;
+  // E97: Überfälliges mit einem Tipp neu einplanen
+  const verschieben = async (faellig: string) => {
+    setFehler('');
+    try {
+      await api('/api/todos', { methode: 'PATCH', body: { pfad: t.pfad, basisVersion: t.version, faellig } });
+    } catch (e) {
+      setFehler(e instanceof ApiFehler ? e.message : String(e));
+    }
+    await qc.invalidateQueries({ queryKey: ['liste', 'todo'] });
+  };
   const datum = t.faellig && t.faellig !== heute ? (t.faellig === tagPlus(heute, 1) ? 'morgen' : t.faellig === tagPlus(heute, -1) ? 'gestern' : tagText(t.faellig, { weekday: 'short', day: 'numeric', month: 'numeric' })) : '';
   return (
     <li className={`heute-todo${haken ? ' fertig' : ''}`}>
@@ -433,6 +443,16 @@ function TodoZeile({ t, heute }: { t: TodoInfo; heute: string }) {
         <span className="heute-todo-titel">{t.titel}</span>
       </label>
       {datum && <span className={`heute-todo-datum${ueberfaellig ? ' rot' : ''}`}>{datum}</span>}
+      {ueberfaellig && !haken && (
+        <span className="heute-verschieben">
+          <button type="button" className="klein" onClick={() => void verschieben(heute)} aria-label={`${t.titel} auf heute`}>
+            → heute
+          </button>
+          <button type="button" className="klein" onClick={() => void verschieben(tagPlus(heute, 1))} aria-label={`${t.titel} auf morgen`}>
+            → morgen
+          </button>
+        </span>
+      )}
       <Stern t={t} />
       {t.gebaeude && <span className="heute-todo-datum">{t.gebaeude}</span>}
       {t.erinnerung && t.erinnerung.slice(0, 10) === heute && (

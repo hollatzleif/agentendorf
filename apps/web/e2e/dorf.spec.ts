@@ -1047,3 +1047,14 @@ test('Befehlspalette: „notiz …“ landet in der Tagesnotiz', async ({ page }
   const n = await (await page.request.get('/api/notizen/heute')).json();
   expect(n.zeilen.some((z: string) => z.endsWith('Palette-Notiz-Test'))).toBe(true);
 });
+
+test('Heute: überfälliges To-do mit „→ morgen“ neu einplanen', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  const o = { origin: 'http://127.0.0.1:3999' };
+  await page.request.post('/api/todos', { headers: o, data: { titel: 'Alt-Überfällig', faellig: '2026-01-02' } });
+  await page.goto('/heute');
+  await page.getByRole('button', { name: 'Alt-Überfällig auf morgen' }).click();
+  await expect(page.locator('.heute-gruppe.rot', { hasText: 'Alt-Überfällig' })).toHaveCount(0);
+  await expect(page.locator('.heute-todo', { hasText: 'Alt-Überfällig' })).toContainText('morgen');
+});

@@ -225,6 +225,7 @@ export class TelegramBot {
     { command: 'todo', description: 'To-do-Liste (abhaken per Knopf) – /todo <Text> legt eins an' },
     { command: 'einkauf', description: 'Einkaufsliste (abhaken im Laden) – /einkauf <Text> setzt etwas drauf' },
     { command: 'termin', description: 'Termin in den Kalender: /termin morgen 14 Uhr Zahnarzt' },
+    { command: 'aufraeumen', description: 'Überfällige To-dos nacheinander: heute, morgen, nächste Woche, erledigt' },
     { command: 'notiz', description: 'Gedanken festhalten: /notiz <Text> (Tagesnotiz im Rathaus)' },
     { command: 'erinner', description: 'Erinnerung: /erinner morgen 9 Uhr Mama anrufen, /erinner in 30 min Wäsche' },
     { command: 'plan', description: 'Tag planen: To-dos als Blöcke in freie Lücken – /plan morgen' },
@@ -392,6 +393,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       if (b === '/einkauf') return this.todoBefehl(text.slice(text.split(/\s/)[0]!.length).trim(), 'einkauf');
       if (b === '/termin') return this.terminBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/gewohnheiten' || b === '/gewohnheit') return this.gewohnheitenSenden();
+      if (b === '/aufraeumen' || b === '/aufräumen') return this.aufraeumenZeigen();
       if (b === '/notiz' || b === '/n') return this.notizBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/erinner' || b === '/erinnere' || b === '/erinnerung') return this.erinnerBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/ziel' || b === '/ziele') return this.zielBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
@@ -472,7 +474,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
   private async befehl(b: string) {
     if (b === '/start' || b === '/hilfe' || b === '/help')
       return this.senden(
-        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/heute – dein Tag: Wetter, Termine, Fristen\n/fristen – Abgaben und Prüfungen der nächsten 7 Tage (mit Erledigt-Knöpfen)\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/aktion [Name] – Skill starten (ohne Name: Liste)\n/todo – To-do-Liste mit Abhak-Knöpfen (/todo &lt;Text&gt; legt eins an)\n/einkauf – Einkaufsliste (/einkauf &lt;Text&gt; setzt etwas drauf)\n/termin &lt;wann&gt; &lt;was&gt; – Termin in den Kalender (mit Bestätigung)\n/plan [morgen] – Tag planen: To-dos in freie Lücken\n/erinner &lt;wann&gt; &lt;was&gt; – To-do mit Erinnerung (läutet im Kirchturm)\n/notiz &lt;Text&gt; – schnell festhalten (Tagesnotiz)\n/karten [Fach] – Karteikarten wiederholen\n/gewohnheiten – heute abhaken\n/ziel [Text] – Wochenziele (ohne Text: abhaken)\n/fokus [Thema] – Pomodoro starten\n/hilfe – diese Hilfe`,
+        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/heute – dein Tag: Wetter, Termine, Fristen\n/fristen – Abgaben und Prüfungen der nächsten 7 Tage (mit Erledigt-Knöpfen)\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/aktion [Name] – Skill starten (ohne Name: Liste)\n/todo – To-do-Liste mit Abhak-Knöpfen (/todo &lt;Text&gt; legt eins an)\n/einkauf – Einkaufsliste (/einkauf &lt;Text&gt; setzt etwas drauf)\n/termin &lt;wann&gt; &lt;was&gt; – Termin in den Kalender (mit Bestätigung)\n/plan [morgen] – Tag planen: To-dos in freie Lücken\n/erinner &lt;wann&gt; &lt;was&gt; – To-do mit Erinnerung (läutet im Kirchturm)\n/notiz &lt;Text&gt; – schnell festhalten (Tagesnotiz)\n/aufraeumen – überfällige To-dos neu einplanen\n/karten [Fach] – Karteikarten wiederholen\n/gewohnheiten – heute abhaken\n/ziel [Text] – Wochenziele (ohne Text: abhaken)\n/fokus [Thema] – Pomodoro starten\n/hilfe – diese Hilfe`,
       );
     if (b === '/status') {
       const aktiv = this.o.agenten.aktiveLaeufe();
@@ -589,6 +591,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (q.data?.startsWith('gw:')) return this.gewohnheitKnopf(q, antworten);
     if (q.data?.startsWith('zl:')) return this.zielKnopf(q, antworten);
     if (q.data?.startsWith('er:')) return this.erinnerKnopf(q, antworten);
+    if (q.data?.startsWith('ar:')) return this.aufraeumenKnopf(q, antworten);
     const m = /^f:([0-9a-f-]{36}):([jn]):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
     if (!m || !crypto.timingSafeEqual(Buffer.from(m[3]!), Buffer.from(this.signatur(m[1]!, m[2] as 'j' | 'n')))) {
       this.o.log?.('Telegram: Knopf mit ungültiger Signatur abgelehnt.');
@@ -905,12 +908,81 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     z.push(erledigt.length ? `✓ <b>${erledigt.length}</b> erledigt: ${erledigt.slice(0, 6).map((t) => h(t.titel)).join(', ')}` : '✓ Heute nichts abgehakt – morgen ist ein neuer Tag.');
     if (fokus?.heuteMin) z.push(`🍅 ${fokus.heuteMin} min Fokus${fokus.serie > 1 ? ` · ${fokus.serie} Tage in Folge 🔥` : ''}`);
     if (karten) z.push(`🃏 ${karten} Karteikarten noch dran – /karten`);
+    const ueberfaellig = alle.filter((t) => !t.erledigt && t.faellig && t.faellig < tag).length;
+    if (ueberfaellig) z.push(`⚠️ ${ueberfaellig} überfällig – /aufraeumen plant sie in einer Minute neu`);
     if (fristen.length) z.push(`⏰ Morgen fällig: ${fristen.map((f) => h(f.titel)).join(', ')}`);
     z.push('\n⭐ <b>Was ist morgen wichtig?</b> Tipp an, was oben auf deiner Liste stehen soll:');
     const t = this.sternAuswahl(alle, morgen);
     const ok = !!(await this.senden(z.join('\n'), { reply_markup: { inline_keyboard: t } }));
     if (ok) await this.gewohnheitenSenden(true).catch((e) => this.fehler(e));
     return ok;
+  }
+
+  // ---- Überfälliges aufräumen (E97) ------------------------------------------------------------------
+
+  private aufraeumenDaten(k: string, a: string) {
+    return `ar:${k}:${a}:${crypto.createHmac('sha256', this.signaturSchluessel).update(`aufraeumen:${k}:${a}`).digest('base64url').slice(0, 16)}`;
+  }
+  private heuteTag(plusTage = 0) {
+    return new Date(this.o.uhr.jetzt() + plusTage * 86_400_000).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+  }
+  private async aufraeumenText(): Promise<{ text: string; extra: Record<string, unknown> }> {
+    const heute = this.heuteTag();
+    const offen = (await this.o.listen!.todo.liste()).filter((t) => !t.erledigt && t.faellig && t.faellig < heute);
+    const t = offen[0];
+    if (!t) return { text: '🧹 Nichts überfällig – alles im Plan. 🎉', extra: {} };
+    const k = this.todoKennung(t.pfad);
+    const tage = Math.round((Date.parse(`${heute}T12:00:00Z`) - Date.parse(`${t.faellig}T12:00:00Z`)) / 86_400_000);
+    return {
+      text: `🧹 <b>Aufräumen</b> · noch ${offen.length}\n\n<b>${h(t.titel)}</b>\n<i>seit ${tage} ${tage === 1 ? 'Tag' : 'Tagen'} überfällig (${h(t.faellig!)})</i>`,
+      extra: {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: '📌 Heute', callback_data: this.aufraeumenDaten(k, 'h') },
+              { text: '➡️ Morgen', callback_data: this.aufraeumenDaten(k, 'm') },
+              { text: '📆 Nächste Woche', callback_data: this.aufraeumenDaten(k, 'w') },
+            ],
+            [
+              { text: '✅ Erledigt', callback_data: this.aufraeumenDaten(k, 'e') },
+              { text: '➖ Ohne Datum', callback_data: this.aufraeumenDaten(k, 'o') },
+              { text: '🗑 Löschen', callback_data: this.aufraeumenDaten(k, 'l') },
+            ],
+          ],
+        },
+      },
+    };
+  }
+
+  private async aufraeumenZeigen() {
+    if (!this.o.listen) return this.senden('Die Listen sind nicht eingerichtet.');
+    const a = await this.aufraeumenText();
+    return this.senden(a.text, a.extra);
+  }
+
+  private async aufraeumenKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {
+    const m = /^ar:([0-9a-f]{12}):([hmweol]):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
+    const soll = m ? this.aufraeumenDaten(m[1]!, m[2]!).split(':')[3]! : '';
+    if (!m || !this.o.listen || !crypto.timingSafeEqual(Buffer.from(m[3]!), Buffer.from(soll))) {
+      this.o.log?.('Telegram: Aufräumen-Knopf mit ungültiger Signatur abgelehnt.');
+      return antworten('Ungültiger Knopf.');
+    }
+    const dienst = this.o.listen.todo;
+    const t = (await dienst.liste()).find((x) => this.todoKennung(x.pfad) === m[1]);
+    if (t && !t.erledigt) {
+      // nächste Woche = kommender Montag
+      const wt = new Date(`${this.heuteTag()}T12:00:00Z`).getUTCDay();
+      const montag = this.heuteTag(((8 - wt) % 7) || 7);
+      const a = m[2]!;
+      if (a === 'l') await dienst.loeschen(t.pfad);
+      else
+        await dienst.aendern(t.pfad, a === 'e' ? { erledigt: true } : a === 'o' ? { faellig: '' } : { faellig: a === 'h' ? this.heuteTag() : a === 'm' ? this.heuteTag(1) : montag });
+      await antworten({ h: 'Für heute.', m: 'Auf morgen.', w: `Auf ${montag}.`, e: 'Erledigt.', o: 'Ohne Datum.', l: 'Gelöscht (Papierkorb).' }[a]!);
+    } else await antworten('Schon erledigt.');
+    if (q.message) {
+      const n = await this.aufraeumenText();
+      await this.o.api.aufruf('editMessageText', { chat_id: q.message.chat.id, message_id: q.message.message_id, text: n.text, parse_mode: 'HTML', ...n.extra }).catch(() => undefined);
+    }
   }
 
   // ---- Notizen (E95) ---------------------------------------------------------------------------------

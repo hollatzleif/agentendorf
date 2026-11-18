@@ -859,3 +859,7 @@ input.kurz { width: 5em; }
 .lernzeit-modus button.an { background: var(--navy); color: #fff; }
 .lernzeit-feld { display: flex; flex-direction: row; align-items: center; gap: 0.35rem; font-weight: 700; }
 .lernzeit-wahl { display: flex; flex-direction: row; align-items: center; gap: 0.45rem; font-weight: 600; }
+
+/* Überfälliges neu einplanen (E97) */
+.heute-verschieben { display: inline-flex; gap: 0.25rem; }
+.heute-verschieben button.klein { margin-left: 0; }
