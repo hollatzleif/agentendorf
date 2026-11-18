@@ -228,6 +228,12 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: (f: () =
               ⏱ {t.dauer >= 60 ? `${Math.floor(t.dauer / 60)} h${t.dauer % 60 ? ` ${t.dauer % 60}` : ''}` : `${t.dauer} min`}
             </span>
           )}
+          {t.fokusMin ? (
+            // E122: tatsächliche Fokuszeit – rot, wenn schon mehr als geschätzt
+            <span className={`abzeichen${t.dauer && t.fokusMin > t.dauer ? ' warnung' : ''}`} title={t.dauer ? `Fokus bisher: ${t.fokusMin} von ${t.dauer} min geschätzt` : `Fokus bisher: ${t.fokusMin} min`}>
+              🍅 {t.fokusMin} min
+            </span>
+          ) : null}
           {t.wiederholen && (
             <span className="abzeichen" title={`Wiederkehrend: ${t.wiederholen} – beim Abhaken kommt das nächste`}>
               🔁 {t.wiederholen}

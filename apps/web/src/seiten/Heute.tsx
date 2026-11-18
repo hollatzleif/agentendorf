@@ -499,7 +499,12 @@ function TodoZeile({ t, heute }: { t: TodoInfo; heute: string }) {
           🔁
         </span>
       )}
-      {t.dauer && <span className="heute-todo-datum" title="geschätzte Dauer">⏱ {minutenText(t.dauer)}</span>}
+      {t.dauer && (
+        <span className="heute-todo-datum" title={t.fokusMin ? `Fokus bisher ${t.fokusMin} von ${t.dauer} min` : 'geschätzte Dauer'}>
+          ⏱ {t.fokusMin ? `${minutenText(t.fokusMin)} / ` : ''}
+          {minutenText(t.dauer)}
+        </span>
+      )}
       {t.schritte && t.schritte.length > 0 && (
         // E119: der nächste offene Schritt – die eine Sache, mit der man anfängt
         <span className="heute-todo-datum heute-schritt" title={t.schritte.find((x) => !x.erledigt)?.text ?? 'alle Schritte erledigt'}>

@@ -1306,8 +1306,11 @@ test('Wochenplan: Eingang und Tage, Verschieben per Ziehen und Auswahl, Auslastu
   const montag = await wahl.locator('option').nth(1).getAttribute('value');
   const sonntag = await wahl.locator('option').last().getAttribute('value');
   if (info.project.name === 'desktop') {
-    // in die Montags-Spalte ziehen
-    await eingang.locator('.wplan-karte', { hasText: titel }).dragTo(plan.locator('.wplan-spalte').nth(1), { sourcePosition: { x: 12, y: 8 } });
+    // per Auswahl auf Dienstag, dann in die Montags-Spalte daneben ziehen (oben in den Spalten – kein Scrollen beim Ziehen)
+    await wahl.selectOption((await wahl.locator('option').nth(2).getAttribute('value'))!);
+    const karteDi = plan.locator('.wplan-spalte').nth(2).locator('.wplan-karte', { hasText: titel });
+    await expect(karteDi).toBeVisible();
+    await karteDi.dragTo(plan.locator('.wplan-spalte').nth(1).locator('h3'), { sourcePosition: { x: 12, y: 8 } });
     await expect(plan.locator('.wplan-spalte').nth(1).locator('.wplan-karte', { hasText: titel })).toBeVisible();
     await expect.poll(faellig).toBe(montag);
   }

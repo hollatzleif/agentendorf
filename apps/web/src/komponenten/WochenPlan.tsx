@@ -109,7 +109,7 @@ export function WochenPlan() {
         {t.titel}
       </span>
       <span className="wplan-meta">
-        {t.dauer && <span>⏱ {minutenText(t.dauer)}</span>}
+        {t.dauer && <span>⏱ {t.fokusMin ? `${minutenText(t.fokusMin)} / ` : ''}{minutenText(t.dauer)}</span>}
         {t.schritte?.length ? (
           <span>
             ☑ {t.schritte.filter((s) => s.erledigt).length}/{t.schritte.length}
