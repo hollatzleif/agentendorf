@@ -479,6 +479,18 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
   }
 
   // ---- Notizen (E95) ----
+  // E124: Idempotenz für die Offline-Schlange – gleiche Eintrags-ID (Header x-dorf-id) → gespeicherte Antwort, nichts doppelt
+  const einmalig = async (req: { headers: Record<string, unknown> }, f: () => Promise<unknown>) => {
+    const id = req.headers['x-dorf-id'];
+    if (typeof id !== 'string' || !/^[A-Za-z0-9._-]{8,80}$/.test(id)) return f();
+    const alt = db.prepare('SELECT antwort FROM idempotenz WHERE id = ?').get(id) as { antwort: string } | undefined;
+    if (alt) return JSON.parse(alt.antwort) as unknown;
+    const r = await f();
+    db.prepare('INSERT OR REPLACE INTO idempotenz (id, antwort, zeit) VALUES (?, ?, ?)').run(id, JSON.stringify(r ?? null), uhr.jetzt());
+    db.prepare('DELETE FROM idempotenz WHERE zeit < ?').run(uhr.jetzt() - 7 * 86_400_000);
+    return r;
+  };
+
   if (a.notizen) {
     const n = a.notizen;
     app.get('/api/notizen/heute', async () => n.heute());
@@ -486,7 +498,7 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
     app.post('/api/notiz', async (req) => {
       // zeit: ursprünglicher Zeitpunkt aus der Offline-Warteschlange der App
       const b = z.object({ text: z.string().min(1).max(4000), zeit: z.number().int().positive().optional() }).parse(req.body);
-      return n.hinzufuegen(b.text, undefined, b.zeit);
+      return einmalig(req, () => n.hinzufuegen(b.text, undefined, b.zeit));
     });
   }
 
@@ -605,7 +617,7 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
         const fokus = new Map((db.prepare('SELECT todo, SUM(minuten) AS m FROM fokus_sitzungen WHERE todo IS NOT NULL GROUP BY todo').all() as { todo: string; m: number }[]).map((x) => [x.todo, Math.round(x.m)]));
         return liste.map((t) => (fokus.get(t.pfad) ? { ...t, fokusMin: fokus.get(t.pfad) } : t));
       });
-      app.post(basis, async (req) => l.anlegen(req.body, 'Leif'));
+      app.post(basis, async (req) => einmalig(req, () => l.anlegen(req.body, 'Leif')));
       app.patch(basis, async (req) => {
         const { pfad, basisVersion, ...rest } = z.object({ pfad: z.string(), basisVersion: z.string().optional() }).passthrough().parse(req.body);
         return l.aendern(pfad, rest, basisVersion);

@@ -33,7 +33,10 @@ export function FokusVollbild() {
     document.title = p && p.phase !== 'aus' ? `${dauerText(rest)} · ${PHASE[p.phase]}` : 'Fokus';
   });
   // beim Verlassen den Reiter-Titel zurückgeben (sonst bleibt „12:34 · Fokus“ stehen, Review)
-  useEffect(() => () => void (document.title = 'Agentendorf'), []);
+  // beim Verlassen den Titel von vorher zurück (mit Freigabe-Zähler „(2) Agentendorf“), nicht eine Konstante (Review);
+  // beim ersten Rendern gemerkt – vor dem Effekt, der den Titel auf die Restzeit setzt
+  const [vorher] = useState(() => document.title);
+  useEffect(() => () => void (document.title = vorher), [vorher]);
   const befehl = async (b: Record<string, unknown>) => {
     setFehler('');
     try {

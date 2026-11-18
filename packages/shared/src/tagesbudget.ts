@@ -2,24 +2,42 @@ import type { KalenderTermin, TodoInfo } from './index.js';
 
 /**
  * E120: Passt der Tag? Summe der Schätzungen der heute dran stehenden To-dos (überfällig, heute fällig, ⭐ mit Datum
- * bis heute) gegen die freie Zeit bis zum Feierabend (22 Uhr Ortszeit) abzüglich der restlichen Termine.
+ * bis heute) gegen die freie Zeit ab jetzt (frühestens 8 Uhr) bis zum Feierabend (22 Uhr Ortszeit) abzüglich der restlichen Termine.
  * jetztMin: Minute des Tages in Ortszeit (Wien).
  */
 export const FEIERABEND_MIN = 22 * 60;
+/** Der Arbeitstag beginnt um 8 Uhr – nachts zählt nicht als „frei“ (Review: um 0:07 stand „frei ≈ 21 h“) */
+export const TAGESBEGINN_MIN = 8 * 60;
+/** Vor 6 Uhr schlägt „Jetzt dran“ nichts vor (Nacht) */
+export const NACHT_BIS_MIN = 6 * 60;
+
+/**
+ * Belegte Zeit in [von, bis): Intervalle zusammengeführt – überlappende Termine (Block „Uni 13–18“ mit „Tutorium 14–16“
+ * darin, derselbe Termin in zwei Kalendern) zählen nur einmal (Review). Zeiten in ms.
+ */
+export function belegtMs(intervalle: [number, number][], von: number, bis: number) {
+  const teile = intervalle
+    .map(([a, b]) => [Math.max(a, von), Math.min(b, bis)] as [number, number])
+    .filter(([a, b]) => b > a)
+    .sort((x, y) => x[0] - y[0]);
+  let summe = 0;
+  let ende = -Infinity;
+  for (const [a, b] of teile) {
+    if (b <= ende) continue;
+    summe += b - Math.max(a, ende);
+    ende = b;
+  }
+  return summe;
+}
 
 export function tagesBudget(o: { todos: TodoInfo[]; termine: KalenderTermin[]; jetzt: number; jetztMin: number; heute: string }) {
   const dran = o.todos.filter((t) => !t.erledigt && t.faellig && t.faellig <= o.heute);
   const geschaetzt = dran.filter((t) => t.dauer);
   const geschaetztMin = geschaetzt.reduce((s, t) => s + t.dauer!, 0);
+  const beginn = o.jetzt + Math.max(0, TAGESBEGINN_MIN - o.jetztMin) * 60_000;
   const ende = o.jetzt + Math.max(0, FEIERABEND_MIN - o.jetztMin) * 60_000;
-  let belegt = 0;
-  for (const t of o.termine) {
-    if (t.ganztags) continue;
-    const a = Math.max(Date.parse(t.start), o.jetzt);
-    const b = Math.min(Date.parse(t.ende), ende);
-    if (b > a) belegt += b - a;
-  }
-  const freiMin = Math.max(0, Math.round((ende - o.jetzt - belegt) / 60_000));
+  const belegt = belegtMs(o.termine.filter((t) => !t.ganztags).map((t) => [Date.parse(t.start), Date.parse(t.ende)]), beginn, ende);
+  const freiMin = Math.max(0, Math.round((ende - beginn - belegt) / 60_000));
   return { anzahl: dran.length, geschaetztMin, ohneSchaetzung: dran.length - geschaetzt.length, freiMin, zuViel: geschaetzt.length > 0 && geschaetztMin > freiMin };
 }
 
@@ -35,6 +53,7 @@ export function jetztDran(o: { todos: TodoInfo[]; termine: KalenderTermin[]; jet
   const zeitig = o.termine.filter((t) => !t.ganztags);
   if (zeitig.some((t) => Date.parse(t.start) <= o.jetzt && o.jetzt < Date.parse(t.ende))) return null;
   const naechster = zeitig.filter((t) => Date.parse(t.start) > o.jetzt).sort((a, b) => a.start.localeCompare(b.start))[0];
+  if (o.jetztMin < NACHT_BIS_MIN) return null;
   const bisFeierabend = Math.max(0, FEIERABEND_MIN - o.jetztMin);
   const luecke = Math.min(bisFeierabend, naechster ? Math.floor((Date.parse(naechster.start) - o.jetzt) / 60_000) : Infinity);
   if (luecke < 10) return null;

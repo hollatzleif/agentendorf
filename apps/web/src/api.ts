@@ -18,13 +18,18 @@ export async function api<T>(url: string, opt: { methode?: string; body?: unknow
     body = JSON.stringify(opt.body);
   }
   const methode = opt.methode ?? (body ? 'POST' : 'GET');
+  // E124: Anlegen, das offline nachgeholt werden kann, trägt von Anfang an eine ID – kam die Anfrage an, aber die
+  // Antwort nicht, legt der Server beim erneuten Senden nichts doppelt an
+  const merkbar = methode === 'POST' && !opt.formular && offlineErlaubt(url);
+  const id = merkbar ? neueId() : undefined;
+  if (id) headers['x-dorf-id'] = id;
   let r: Response;
   try {
     r = await fetch(url, { method: methode, headers, body, credentials: 'same-origin' });
   } catch (e) {
     // Offline: Neues (To-do, Listeneintrag, Notiz) merken und später senden – nichts geht verloren
-    if (methode === 'POST' && !opt.formular && offlineErlaubt(url)) {
-      offlineMerken(url, opt.body);
+    if (merkbar && id) {
+      offlineMerken(url, opt.body, id);
       throw new ApiFehler(0, 'Keine Verbindung – gemerkt, wird gesendet, sobald du wieder online bist.', { offline: true });
     }
     throw e;
@@ -61,8 +66,8 @@ function schlangeSchreiben(s: OfflineEintrag[]) {
   localStorage.setItem(SCHLANGE, JSON.stringify(s));
   window.dispatchEvent(new Event('dorf:offline-schlange'));
 }
-function offlineMerken(url: string, body: unknown) {
-  const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+const neueId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+function offlineMerken(url: string, body: unknown, id: string) {
   schlangeSchreiben([...offlineSchlange(), { id, url, body, zeit: Date.now() }].slice(-50));
 }
 /** 4xx, bei denen ein erneuter Versuch nichts ändert (ungültig, gibt es nicht, Konflikt, zu groß) */
@@ -84,7 +89,7 @@ export function offlineSenden(): Promise<number> {
       try {
         // Notizen: ursprüngliche Uhrzeit mitgeben (sonst landet 23:50 als 07:00 im nächsten Tag)
         const body = e.url === '/api/notiz' && e.body && typeof e.body === 'object' ? { ...(e.body as object), zeit: e.zeit } : e.body;
-        const r = await fetch(e.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), credentials: 'same-origin' });
+        const r = await fetch(e.url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(e.id.startsWith('alt-') ? {} : { 'x-dorf-id': e.id }) }, body: JSON.stringify(body), credentials: 'same-origin' });
         if (r.ok) {
           n++;
           fertig.add(e.id);

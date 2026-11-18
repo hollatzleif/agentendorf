@@ -222,7 +222,7 @@ describe('Telegram-Bot', () => {
     expect(offsets.at(-1)).toBe(51);
     // Befehlsmenü wird beim Start angemeldet
     const menue = d.aufrufe.find((x) => x.m === 'setMyCommands')?.p.commands as { command: string }[];
-    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'woche', 'noten', 'suche', 'statistik', 'aufraeumen', 'notiz', 'erinner', 'plan', 'karten', 'fokus', 'ziel', 'gewohnheiten', 'neu', 'hilfe']);
+    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'woche', 'noten', 'suche', 'statistik', 'aufraeumen', 'notiz', 'erinner', 'plan', 'karten', 'jetzt', 'fokus', 'ziel', 'gewohnheiten', 'neu', 'hilfe']);
     await d.agenten.leerlauf();
   }, 15_000);
 });

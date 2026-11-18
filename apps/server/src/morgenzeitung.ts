@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { belegtMs, minutenText } from '@dorf/shared';
 import matter from 'gray-matter';
 import { WETTER_TEXT, type MorgenzeitungInfo, type MorgenzeitungUebersicht } from '@dorf/shared';
 import type { DB } from './db.js';
@@ -136,12 +137,12 @@ export class Morgenzeitung {
 
     // Heute: Hauptkalender + Pflichttermine/Prüfungen der Uni
     const heute: { zeit: number; zeile: string }[] = [];
-    let belegtMin = 0; // Termine zwischen 8 und 22 Uhr (E120)
+    const belegt: [number, number][] = []; // Termine zwischen 8 und 22 Uhr (E120), Überlappungen zählen einmal
     const tagVon = tagBeginn + 8 * 3600_000;
     const tagBis = tagBeginn + 22 * 3600_000;
     try {
       for (const k of await this.o.kalender.termine(tagBeginn, tagEnde)) {
-        if (!k.ganztags && k.start != null && k.ende != null) belegtMin += Math.max(0, Math.min(k.ende, tagBis) - Math.max(k.start, tagVon)) / 60_000;
+        if (!k.ganztags && k.start != null && k.ende != null) belegt.push([k.start, k.ende]);
         const zeit = k.ganztags ? 'ganztägig' : `${uhr.format(new Date(k.start!))}${k.ende ? `–${uhr.format(new Date(k.ende))}` : ''}`;
         heute.push({ zeit: k.ganztags ? tagBeginn : k.start!, zeile: `${zeit} ${einzeilig(k.titel, 120)}` });
       }
@@ -169,7 +170,7 @@ export class Morgenzeitung {
     const dran = await this.o.todosHeute?.().catch(() => []);
     if (dran?.length) {
       const geschaetzt = dran.reduce((s2, t2) => s2 + (t2.dauer ?? 0), 0);
-      const frei = Math.max(0, Math.round(14 * 60 - belegtMin));
+      const frei = Math.max(0, Math.round(14 * 60 - belegtMs(belegt, tagVon, tagBis) / 60_000));
       const ohne = dran.filter((t2) => !t2.dauer).length;
       heuteZeilen.push(
         `☑️ ${dran.length} To-do${dran.length === 1 ? '' : 's'} dran${geschaetzt ? ` (≈ ${minutenText(geschaetzt)} geschätzt${ohne ? `, ${ohne} ohne Schätzung` : ''})` : ''} · frei 8–22 Uhr ≈ ${minutenText(frei)}${geschaetzt > frei ? ' – mehr, als in den Tag passt: etwas verschieben?' : ''}`,
@@ -309,4 +310,3 @@ export class Morgenzeitung {
   }
 }
 
-const minutenText = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}` : `${m} min`);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { KalenderTermin, TodoInfo } from '@dorf/shared';
-import { jetztDran, tagesBudget } from '@dorf/shared';
+import { belegtMs, jetztDran, tagesBudget } from '@dorf/shared';
 
 const todo = (titel: string, o: Partial<TodoInfo> = {}): TodoInfo => ({ pfad: `Marktplatz/todos/${titel}.md`, version: 'v', titel, erledigt: false, ...o });
 const termin = (titel: string, start: string, ende: string): KalenderTermin => ({ id: titel, kalenderId: 'k', titel, start, ende, ganztags: false, quelle: 'google', schreibbar: false }) as KalenderTermin;
@@ -12,6 +12,16 @@ describe('Tagesbudget und „Jetzt dran“ (E120/E123)', () => {
   it('Budget: Schätzungen gegen freie Zeit bis 22 Uhr minus Termine', () => {
     const b = tagesBudget({ ...basis, todos: [todo('a', { faellig: '2026-11-18', dauer: 120 }), todo('b', { faellig: '2026-11-17' }), todo('c', { faellig: '2026-11-19', dauer: 600 })], termine: [termin('V', '2026-11-18T10:00:00Z', '2026-11-18T12:00:00Z')] });
     expect(b).toEqual({ anzahl: 2, geschaetztMin: 120, ohneSchaetzung: 1, freiMin: 600, zuViel: false });
+  });
+
+  it('Überlappende Termine zählen einmal; nachts beginnt der freie Tag um 8 Uhr (Review)', () => {
+    expect(belegtMs([[13, 18], [14, 16], [17, 20], [21, 22]], 0, 100)).toBe(8);
+    expect(belegtMs([[0, 5], [3, 4]], 2, 4)).toBe(2);
+    const doppelt = [termin('Uni', '2026-11-18T12:00:00Z', '2026-11-18T17:00:00Z'), termin('Tutorium', '2026-11-18T13:00:00Z', '2026-11-18T15:00:00Z')];
+    expect(tagesBudget({ ...basis, todos: [], termine: doppelt }).freiMin).toBe(7 * 60);
+    // 0:07 Uhr: frei sind 8–22 Uhr = 14 h, nicht 21 h 53
+    expect(tagesBudget({ ...basis, jetzt: Date.parse('2026-11-17T23:07:00Z'), jetztMin: 7, todos: [], termine: [] }).freiMin).toBe(14 * 60);
+    expect(jetztDran({ ...basis, jetztMin: 7, todos: [todo('x', { faellig: '2026-11-17' })], termine: [] })).toBeNull();
   });
 
   it('Jetzt dran: das erste To-do, das in die Lücke bis zum nächsten Termin passt, mit nächstem Schritt', () => {

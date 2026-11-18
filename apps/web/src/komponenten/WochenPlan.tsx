@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { KalenderAntwort, KalenderTermin, TodoInfo, WochenzieleStand } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { ort, tagPlus } from './MarktKalender';
-import { minutenText } from '@dorf/shared';
+import { belegtMs, minutenText } from '@dorf/shared';
 
 /**
  * E121: Wochenplan – die To-dos der Woche als Spalten Mo–So, links der Eingang (ohne Datum, Überfälliges).
@@ -15,18 +15,16 @@ const wochentag = (tag: string) => (new Date(`${tag}T12:00:00Z`).getUTCDay() + 6
 const tagKurz = (tag: string) => new Date(`${tag}T12:00:00Z`).toLocaleDateString('de-AT', { weekday: 'short', day: 'numeric', month: 'numeric', timeZone: 'UTC' });
 
 function terminMinuten(termine: KalenderTermin[], tag: string) {
-  // nur Termine mit Uhrzeit, auf 8–22 Uhr des Tages begrenzt
-  let summe = 0;
+  // nur Termine mit Uhrzeit, auf 8–22 Uhr des Tages begrenzt; überlappende zählen einmal (Review)
+  const iv: [number, number][] = [];
   for (const t of termine) {
     if (t.ganztags) continue;
     const a = ort(t.start);
     const b = ort(t.ende);
     if (a.tag > tag || b.tag < tag) continue;
-    const von = Math.max(a.tag < tag ? 0 : a.min, 8 * 60);
-    const bis = Math.min(b.tag > tag ? 24 * 60 : b.min, 22 * 60);
-    if (bis > von) summe += bis - von;
+    iv.push([a.tag < tag ? 0 : a.min, b.tag > tag ? 24 * 60 : b.min]);
   }
-  return summe;
+  return belegtMs(iv, 8 * 60, 22 * 60);
 }
 
 export function WochenPlan() {
@@ -61,6 +59,8 @@ export function WochenPlan() {
   const verschieben = async (pfad: string, faellig: string) => {
     const t = offen.find((x) => x.pfad === pfad);
     if (!t || (t.faellig ?? '') === faellig) return;
+    // schon im Eingang (z. B. Überfälliges) und dort wieder losgelassen: nichts ändern – sonst wäre die Frist still weg (Review)
+    if (!faellig && eingang.some((x) => x.pfad === pfad)) return;
     setFehler('');
     // sofort zeigen, der Server bestätigt gleich
     qc.setQueryData<TodoInfo[]>(['liste', 'todo'], (l) => l?.map((x) => (x.pfad === pfad ? { ...x, faellig: faellig || undefined } : x)));

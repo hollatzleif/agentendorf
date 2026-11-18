@@ -371,6 +371,10 @@ const MIGRATIONEN: string[] = [
   `
   CREATE TABLE stimmung (tag TEXT PRIMARY KEY, wert INTEGER NOT NULL CHECK (wert BETWEEN 1 AND 5), zeit INTEGER NOT NULL);
   `,
+  // 22: Idempotenz für die Offline-Schlange der App (E124) – Eintrags-ID → gespeicherte Antwort, 7 Tage
+  `
+  CREATE TABLE idempotenz (id TEXT PRIMARY KEY, antwort TEXT NOT NULL, zeit INTEGER NOT NULL);
+  `,
 ];
 
 export function dbOeffnen(datei: string): DB {

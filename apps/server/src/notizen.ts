@@ -37,7 +37,8 @@ export class Notizen {
       // die Konfliktkopie enthielte nur dieselbe Notiz doppelt – weg damit (Papierkorb), dann neu anhängen (Review)
       if (r?.konfliktPfad) await this.o.vault.loeschen(r.konfliktPfad).catch(() => undefined);
     }
-    throw new DorfFehler(409, 'Die Notiz konnte nicht gespeichert werden – bitte noch einmal.');
+    // 503 statt 409: „gleich nochmal“ – die Offline-Schlange der App behält den Eintrag (Review)
+    throw new DorfFehler(503, 'Die Notiz konnte nicht gespeichert werden – bitte noch einmal.');
   }
 
   /** Die letzten N Tage (neueste zuerst), nur Tage mit Notizen */

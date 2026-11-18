@@ -38,14 +38,25 @@ export function tagPlanen(o: { todos: TodoInfo[]; heute: string; frei: [number, 
   const reihe = rangfolge(o.todos, o.heute).filter((x) => x.s <= 3 || o.todos.length <= 8);
   const luecken = o.frei.map(([a, b]) => [a, b] as [number, number]).sort((x, y) => x[0] - y[0]);
   const aus: Block[] = [];
-  for (const { t, grund } of reihe) {
+  for (const { t, grund: g } of reihe) {
+    let grund = g;
     if (aus.length >= (o.hoechstens ?? 5)) break;
     // E120: Leifs Schätzung zählt; sonst Abgabe/Prüfung 90 min, Rest 45 min
     const dauer = (t.dauer ?? (/^(Abgabe|Prüfung):/i.test(t.titel) ? 90 : 45)) * MIN;
-    const l = luecken.find(([a, b]) => b - a >= dauer);
+    let l = luecken.find(([a, b]) => b - a >= dauer);
+    let laenge = dauer;
+    if (!l && t.dauer) {
+      // Große Schätzung passt in keine Lücke: lieber ein Teilblock in der größten Lücke (ab 30 min) als gar nichts (Review)
+      const groesste = [...luecken].sort((x, y) => y[1] - y[0] - (x[1] - x[0]))[0];
+      if (groesste && groesste[1] - groesste[0] >= 30 * MIN) {
+        l = groesste;
+        laenge = groesste[1] - groesste[0];
+        grund = `${grund} · Teil von ⏱ ${t.dauer >= 60 ? `${Math.round((t.dauer / 60) * 10) / 10} h`.replace('.', ',') : `${t.dauer} min`}`;
+      }
+    }
     if (!l) continue;
-    aus.push({ titel: t.titel.replace(/^(Abgabe|Prüfung): /i, ''), todoPfad: t.pfad, start: l[0], ende: l[0] + dauer, grund });
-    l[0] += dauer + PAUSE;
+    aus.push({ titel: t.titel.replace(/^(Abgabe|Prüfung): /i, ''), todoPfad: t.pfad, start: l[0], ende: l[0] + laenge, grund });
+    l[0] += laenge + PAUSE;
   }
   return aus.sort((a, b) => a.start - b.start);
 }

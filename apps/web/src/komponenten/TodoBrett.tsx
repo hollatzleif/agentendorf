@@ -21,16 +21,18 @@ export function TodoBrett({ liste: name = 'todo', platzhalter = 'Neues To-do …
   const [faellig, setFaellig] = useState('');
   const [fehler, setFehler] = useState('');
   const neu = () => qc.invalidateQueries({ queryKey: ['liste', name] });
-  const ausfuehren = async (f: () => Promise<unknown>) => {
+  /** 'ok' | 'offline' (gemerkt, kommt später an) | 'fehler' – Felder leeren/Vorschläge verwerfen nur bei Erfolg (Review) */
+  const ausfuehren: Ausfuehren = async (f) => {
     setFehler('');
     try {
       await f();
     } catch (e) {
       setFehler(e instanceof ApiFehler ? e.message : String(e));
-      if (offlineGemerkt(e)) return true;
+      await neu();
+      return offlineGemerkt(e) ? 'offline' : 'fehler';
     }
     await neu();
-    return false;
+    return 'ok';
   };
 
   const anlegen = (e: React.FormEvent) => {
@@ -40,9 +42,9 @@ export function TodoBrett({ liste: name = 'todo', platzhalter = 'Neues To-do …
       await api(basis, { body: { titel: titel.trim(), ...(faellig ? { faellig } : {}) } });
       setTitel('');
       setFaellig('');
-    }).then((offline) => {
+    }).then((r) => {
       // offline gemerkt: Feld leeren, sonst tippt man es nochmal und es kommt doppelt an
-      if (offline) {
+      if (r === 'offline') {
         setTitel('');
         setFaellig('');
       }
@@ -126,7 +128,9 @@ const WIEDERHOLEN_WAHL = [
 
 const OFFENE_SCHRITTE = new Set<string>();
 
-function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: (f: () => Promise<unknown>) => Promise<unknown>; basis: string }) {
+type Ausfuehren = (f: () => Promise<unknown>) => Promise<'ok' | 'offline' | 'fehler'>;
+
+function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehren; basis: string }) {
   const [bearbeiten, setBearbeiten] = useState(false);
   const [titel, setTitel] = useState(t.titel);
   const [faellig, setFaellig] = useState(t.faellig ?? '');
@@ -310,11 +314,18 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: (f: () =
  * E119: Teilschritte – die Obsidian-Checkliste im Text des To-dos. Abhaken, ergänzen, entfernen; bei der To-do-Liste
  * schlägt die KI auf Wunsch Schritte vor (es wird erst geschrieben, wenn Leif „Übernehmen“ klickt).
  */
-function Schritte({ t, basis, ausfuehren }: { t: TodoInfo; basis: string; ausfuehren: (f: () => Promise<unknown>) => Promise<unknown> }) {
+function Schritte({ t, basis, ausfuehren }: { t: TodoInfo; basis: string; ausfuehren: Ausfuehren }) {
   const sch = t.schritte ?? [];
+  const qc = useQueryClient();
   const [neu, setNeu] = useState('');
-  const [vorschlag, setVorschlag] = useState<{ text: string; an: boolean }[] | null>(null);
-  const [laedt, setLaedt] = useState(false);
+  // Vorschläge und „denkt …“ im Query-Cache je To-do: die Zeile wird bei jeder neuen Version neu aufgebaut (Review)
+  type Vorschlag = { text: string; an: boolean }[] | null;
+  const vKey = ['schritte-vorschlag', t.pfad];
+  const lKey = ['schritte-vorschlag-laedt', t.pfad];
+  const vorschlag = useQuery<Vorschlag>({ queryKey: vKey, queryFn: async () => null, enabled: false, staleTime: Infinity, gcTime: 30 * 60_000 }).data ?? null;
+  const laedt = useQuery<boolean>({ queryKey: lKey, queryFn: async () => false, enabled: false, staleTime: Infinity }).data ?? false;
+  const setVorschlag = (v: Vorschlag) => qc.setQueryData(vKey, v);
+  const setLaedt = (x: boolean) => qc.setQueryData(lKey, x);
   const [fehler, setFehler] = useState('');
   // Häkchen sofort zeigen; mit der neuen Version vom Server wird die Zeile ohnehin neu aufgebaut
   const [lokal, setLokal] = useState<Record<number, boolean>>({});
@@ -338,7 +349,10 @@ function Schritte({ t, basis, ausfuehren }: { t: TodoInfo; basis: string; ausfue
                   onChange={(e) => {
                     const an = e.target.checked;
                     setLokal((l) => ({ ...l, [i]: an }));
-                    void ausfuehren(() => api(`${basis}/schritt`, { body: { pfad: t.pfad, nr: i, erledigt: an, text: x.text } }));
+                    void ausfuehren(() => api(`${basis}/schritt`, { body: { pfad: t.pfad, nr: i, erledigt: an, text: x.text } })).then((r) => {
+                      // abgelehnt: das Häkchen wieder so zeigen wie auf dem Server
+                      if (r !== 'ok') setLokal((l) => ({ ...l, [i]: x.erledigt }));
+                    });
                   }}
                   aria-label={`Schritt erledigt: ${x.text}`}
                 />
@@ -357,7 +371,7 @@ function Schritte({ t, basis, ausfuehren }: { t: TodoInfo; basis: string; ausfue
           onSubmit={(e) => {
             e.preventDefault();
             if (!neu.trim()) return;
-            void hinzufuegen([neu.trim()]).then(() => setNeu(''));
+            void hinzufuegen([neu.trim()]).then((r) => r === 'ok' && setNeu(''));
           }}
         >
           <input value={neu} onChange={(e) => setNeu(e.target.value)} placeholder="Nächster Schritt …" maxLength={200} aria-label="Neuer Schritt" />
@@ -403,7 +417,7 @@ function Schritte({ t, basis, ausfuehren }: { t: TodoInfo; basis: string; ausfue
               type="button"
               className="haupt klein"
               disabled={!vorschlag.some((v) => v.an)}
-              onClick={() => void hinzufuegen(vorschlag.filter((v) => v.an).map((v) => v.text)).then(() => setVorschlag(null))}
+              onClick={() => void hinzufuegen(vorschlag.filter((v) => v.an).map((v) => v.text)).then((r) => r === 'ok' && setVorschlag(null))}
             >
               Übernehmen ({vorschlag.filter((v) => v.an).length})
             </button>

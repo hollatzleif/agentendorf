@@ -511,12 +511,14 @@ test('Marktplatz-Kalender: Monat/Woche/Liste, Termin anlegen, Serie bearbeiten, 
   test.skip(info.project.name !== 'desktop', 'einmal reicht');
   const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
   const zeit = (h: number) => new Date(`${heute}T${String(h).padStart(2, '0')}:00:00`).toISOString();
+  // Wochentag der Serie = heute (sonst hängt der Test vom Wochentag ab)
+  const kuerzel = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][new Date(`${heute}T12:00:00Z`).getUTCDay()]!;
   const gesendet: { methode: string; url: string; body: unknown }[] = [];
   await page.route('**/api/kalender**', async (route) => {
     const r = route.request();
     if (r.method() !== 'GET' || r.url().includes('/serie')) {
       gesendet.push({ methode: r.method(), url: r.url(), body: r.postDataJSON() as unknown });
-      return route.fulfill({ json: r.url().includes('/serie') ? { wiederholung: 'RRULE:FREQ=WEEKLY;BYDAY=WE', start: null } : { ok: true } });
+      return route.fulfill({ json: r.url().includes('/serie') ? { wiederholung: `RRULE:FREQ=WEEKLY;BYDAY=${kuerzel}`, start: null } : { ok: true } });
     }
     return route.fulfill({
       json: {
@@ -576,7 +578,7 @@ test('Marktplatz-Kalender: Monat/Woche/Liste, Termin anlegen, Serie bearbeiten, 
   await b.getByLabel('Titel').fill('Training (neu)');
   await b.getByRole('button', { name: 'Speichern' }).click();
   await expect(b).toHaveCount(0);
-  expect(gesendet.find((g) => g.methode === 'PATCH')!.body).toMatchObject({ id: 's_1', serie: true, vonKalender: 'leif', termin: { titel: 'Training (neu)', wiederholung: 'RRULE:FREQ=WEEKLY;BYDAY=WE' } });
+  expect(gesendet.find((g) => g.methode === 'PATCH')!.body).toMatchObject({ id: 's_1', serie: true, vonKalender: 'leif', termin: { titel: 'Training (neu)', wiederholung: `RRULE:FREQ=WEEKLY;BYDAY=${kuerzel}` } });
 
   // Liste: Uni-Frist nur ansehen; Zahnarzt löschen
   await page.getByRole('tab', { name: 'Liste' }).click();
@@ -1279,6 +1281,7 @@ test('Zeitschätzung: Dauer am To-do, „Heute“ warnt, wenn der Tag nicht reic
   const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
   const o = { origin: ORIGIN };
   await page.request.post('/api/todos', { headers: o, data: { titel: 'Riesenprojekt', faellig: heute, dauer: 600 } });
+  await page.request.post('/api/todos', { headers: o, data: { titel: 'Riesenprojekt 2', faellig: heute, dauer: 600 } });
   await page.request.post('/api/todos', { headers: o, data: { titel: 'Dauer-Test', faellig: heute } });
   await page.goto('/gebaeude/Marktplatz?reiter=todo');
   await page.getByRole('button', { name: 'Dauer-Test', exact: true }).click();
@@ -1287,7 +1290,7 @@ test('Zeitschätzung: Dauer am To-do, „Heute“ warnt, wenn der Tag nicht reic
   await expect(page.locator('li.todo', { hasText: 'Dauer-Test' })).toContainText('⏱ 1 h 30');
   await page.goto('/heute');
   const b = page.getByRole('status', { name: 'Zeitbudget heute' });
-  await expect(b).toContainText('11 h 30 min');
+  await expect(b).toContainText('21 h 30 min');
   await expect(b).toContainText('mehr, als in den Tag passt');
   await expect(page.locator('li', { hasText: 'Dauer-Test' }).getByText('⏱ 1 h 30 min')).toBeVisible();
 });

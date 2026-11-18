@@ -961,3 +961,21 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **Kein Vorschlag:** während eines Termins, bei weniger als 10 min Lücke, nach 22 Uhr und während ein Pomodoro läuft.
 - **Telegram /jetzt** liefert dasselbe mit dem signierten Knopf „🍅 Los“ (`jl:`). Termine kommen aus dem Google-Kalender, wenn er verbunden ist. Die Logik liegt in `packages/shared` und wird von App und Server gemeinsam genutzt.
 - Rein im Code und nachvollziehbar, ohne KI. Getestet wird mit Server-Vitest (`test/tagesbudget.test.ts`), die Logik liegt in `packages/shared/src/tagesbudget.ts` und einem Browser-Test mit fester Uhrzeit.
+
+## E124 – Drittes Review: Wochenplan, Offline, Teilschritte, Zeitrechnung (Nacht 18./19.11.)
+
+- **Wochenplan:** Eine überfällige Karte, die man im Eingang wieder loslässt, verliert ihr Fälligkeitsdatum nicht mehr. Vorher ging ein PATCH mit `faellig: ''` raus.
+- **Offline-Schlange idempotent:** Jede Anfrage, die offline gemerkt werden kann, trägt schon beim ersten Versuch eine Eintrags-ID (`x-dorf-id`).
+  - Der Server merkt sich ID und Antwort 7 Tage lang (Tabelle `idempotenz`, Migration 22) und gibt bei Wiederholung dieselbe Antwort zurück.
+  - So entsteht nichts doppelt, wenn die Anfrage ankam, die Antwort aber im Funkloch verloren ging.
+  - Eine Notiz, die zweimal mit einem Schreibkonflikt scheitert, liefert jetzt 503 (vorher 409). Die Schlange behält sie also, statt sie zu verwerfen.
+- **Teilschritte:**
+  - Eingabefeld leeren und Vorschläge verwerfen nur bei Erfolg.
+  - Ein abgelehntes Häkchen springt zurück.
+  - KI-Vorschläge und „denkt …“ liegen im Query-Cache je To-do und überleben das Neuaufbauen der Zeile, wenn eine neue Version vom Server kommt.
+- **Zeitrechnung:**
+  - Überlappende Termine zählen einmal (`belegtMs` in `packages/shared`). Das gilt für Heute, die Morgenzeitung und den Wochenplan; vorher meldete etwa „Uni 13–18“ mit „Tutorium 14–16“ darin fälschlich „zu viel“.
+  - Freie Zeit zählt erst ab 8 Uhr: Um 0:07 Uhr stand vorher „frei ≈ 21 h“.
+  - Vor 6 Uhr schlägt „Jetzt dran“ nichts vor.
+- **Tag planen:** Ein To-do mit großer Schätzung, das in keine Lücke passt, bekommt einen Teilblock in der größten Lücke (ab 30 min, „Teil von ⏱ 4 h“), statt still zu fehlen.
+- **Fokus-Vollbild** stellt beim Verlassen den vorherigen Reitertitel wieder her, einschließlich Freigabe-Zähler.
