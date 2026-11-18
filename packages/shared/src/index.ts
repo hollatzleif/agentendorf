@@ -434,6 +434,8 @@ export interface TelegramEinstellungen {
   morgenzeitung: boolean;
   /** Etappe 7: Budget-Warnungen der Bank */
   bank: boolean;
+  /** Nacht 18./19.11.: Tagesabschluss um 21 Uhr (erledigt, Fokus, ⭐ für morgen) */
+  abend: boolean;
 }
 
 // ---- Etappe 3: Uni -------------------------------------------------------------------------------

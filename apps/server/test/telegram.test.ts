@@ -363,3 +363,27 @@ describe('Telegram /karten und /fokus (Nacht 18./19.11.)', () => {
     expect(d.gesendet().at(-1)).toMatch(/🍅 Fokus läuft: <b>Blatt 6<\/b>/);
   });
 });
+
+describe('Telegram Tagesabschluss 21:00 (Nacht 18./19.11.)', () => {
+  it('kommt einmal zwischen 21 und 22 Uhr: erledigt, Fokus, Fristen morgen; ⭐-Knöpfe setzen „wichtig“', async () => {
+    const d = await dorf();
+    const a = await d.todos.anlegen({ titel: 'Folien lesen' }, 'Leif');
+    await d.todos.aendern(a.pfad, { erledigt: true });
+    const b = await d.todos.anlegen({ titel: 'Bewerbung schreiben' }, 'Leif');
+    // TestUhr: 13:00 Linz → noch nichts
+    expect(await d.bot.abendSenden()).toBe(false);
+    d.uhr.vor(8 * 3_600_000 + 5 * 60_000); // 21:05 Linz
+    expect(await d.bot.abendSenden()).toBe(true);
+    expect(await d.bot.abendSenden()).toBe(false); // nur einmal am Tag
+    const m = d.aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p;
+    expect(String(m.text)).toMatch(/🌙 <b>Tagesabschluss<\/b>\n✓ <b>1<\/b> erledigt: Folien lesen/);
+    const knoepfe = (m.reply_markup as { inline_keyboard: { text: string; callback_data: string }[][] }).inline_keyboard;
+    expect(knoepfe.map((z) => z[0]!.text)).toEqual(['☆ Bewerbung schreiben']);
+    await d.knopf(knoepfe[0]![0]!.callback_data.replace(/:[^:]+$/, ':AAAAAAAAAAAAAAAA'));
+    expect((await d.todos.holen(b.pfad)).wichtig).toBeUndefined();
+    await d.knopf(knoepfe[0]![0]!.callback_data);
+    expect((await d.todos.holen(b.pfad)).wichtig).toBe(true);
+    const neu = d.aufrufe.filter((x) => x.m === 'editMessageReplyMarkup').at(-1)!.p;
+    expect((neu.reply_markup as { inline_keyboard: { text: string }[][] }).inline_keyboard[0]![0]!.text).toBe('⭐ Bewerbung schreiben');
+  });
+});

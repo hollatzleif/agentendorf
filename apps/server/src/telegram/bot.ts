@@ -12,6 +12,7 @@ import { aufwachEinstellungen, istNacht } from '../aufwachen.js';
 import type { Rueckblick } from '../wochenrueckblick.js';
 import { terminAusText, type TerminAusText } from '@dorf/shared';
 import type { Karteikasten } from '../karten.js';
+import type { FokusStatistik, TodoInfo } from '@dorf/shared';
 import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
 import type { FreigabeInfo, PlanInhalt, TelegramStatus } from '@dorf/shared';
@@ -106,7 +107,7 @@ export class TelegramBot {
       /** Nacht 18./19.11.: /karten – Karteikarten wiederholen */
       karten?: Karteikasten;
       /** Nacht 18./19.11.: /fokus – Pomodoro starten */
-      kirchturm?: { ausfuehren(b: unknown): unknown };
+      kirchturm?: { ausfuehren(b: unknown): unknown; fokusStatistik?(): FokusStatistik };
       /** Nacht 18./19.11.: /termin – Termin aus Text, eingetragen erst nach Leifs Knopfdruck */
       kalender?: { verbunden: boolean; inHauptkalender(t: TerminAusText): Promise<{ titel: string }> };
       log?: (t: string) => void;
@@ -214,6 +215,7 @@ export class TelegramBot {
     this.erinnerungsTakt = setInterval(() => {
       void this.erinnerungenSenden().catch((e) => this.fehler(e));
       void this.nachtNachholen().catch((e) => this.fehler(e));
+      void this.abendSenden().catch((e) => this.fehler(e));
     }, 10 * 60_000);
     this.erinnerungsTakt.unref();
   }
@@ -547,6 +549,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (q.data?.startsWith('t:') || q.data?.startsWith('l:')) return this.todoKnopf(q, antworten);
     if (q.data?.startsWith('k:')) return this.terminKnopf(q, antworten);
     if (q.data?.startsWith('kk:')) return this.karteKnopf(q, antworten);
+    if (q.data?.startsWith('st:')) return this.sternKnopf(q, antworten);
     const m = /^f:([0-9a-f-]{36}):([jn]):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
     if (!m || !crypto.timingSafeEqual(Buffer.from(m[3]!), Buffer.from(this.signatur(m[1]!, m[2] as 'j' | 'n')))) {
       this.o.log?.('Telegram: Knopf mit ungültiger Signatur abgelehnt.');
@@ -760,6 +763,64 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     await this.o.karten.antworten(fach, karte.id, b);
     await antworten(b === 'nochmal' ? 'Kommt gleich wieder.' : 'Weiter!');
     await this.karteZeigen(nr, fach, ziel);
+  }
+
+  // ---- Tagesabschluss 21:00 (Nacht 18./19.11.) ----------------------------------------------------
+
+  /** 21:00–21:59 Linz, einmal am Tag (Schalter „abend“) – wird vom 10-min-Takt aufgerufen */
+  async abendSenden(erzwingen = false) {
+    if (!this.o.listen || !(await einstellungenLaden(this.o.vault)).abend) return false;
+    const jetzt = this.o.uhr.jetzt();
+    const tag = new Date(jetzt).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+    const stunde = Number(new Date(jetzt).toLocaleString('en-GB', { timeZone: 'Europe/Vienna', hour: '2-digit', hour12: false }));
+    const schon = (this.o.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'telegram_abend'").get() as { wert: string } | undefined)?.wert;
+    if (!erzwingen && (stunde !== 21 || schon === tag)) return false;
+    this.o.db.prepare("INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES ('telegram_abend', ?)").run(tag);
+    const alle = await this.o.listen.todo.liste();
+    const erledigt = alle.filter((t) => t.erledigt && t.erledigtAm && new Date(t.erledigtAm).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' }) === tag);
+    const fokus = this.o.kirchturm?.fokusStatistik?.();
+    const karten = this.o.karten ? (await this.o.karten.uebersicht()).reduce((s2, f) => s2 + f.faellig, 0) : 0;
+    const morgen = new Date(jetzt + 86_400_000).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+    const fristen = (this.o.uni?.fristen() ?? []).filter((f) => (f.art === 'abgabe' || f.art === 'test') && !f.abgegeben && f.frist && new Date(f.frist).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' }) === morgen);
+    const z = [`🌙 <b>Tagesabschluss</b>`];
+    z.push(erledigt.length ? `✓ <b>${erledigt.length}</b> erledigt: ${erledigt.slice(0, 6).map((t) => h(t.titel)).join(', ')}` : '✓ Heute nichts abgehakt – morgen ist ein neuer Tag.');
+    if (fokus?.heuteMin) z.push(`🍅 ${fokus.heuteMin} min Fokus${fokus.serie > 1 ? ` · ${fokus.serie} Tage in Folge 🔥` : ''}`);
+    if (karten) z.push(`🃏 ${karten} Karteikarten noch dran – /karten`);
+    if (fristen.length) z.push(`⏰ Morgen fällig: ${fristen.map((f) => h(f.titel)).join(', ')}`);
+    z.push('\n⭐ <b>Was ist morgen wichtig?</b> Tipp an, was oben auf deiner Liste stehen soll:');
+    const t = this.sternAuswahl(alle, morgen);
+    return !!(await this.senden(z.join('\n'), { reply_markup: { inline_keyboard: t } }));
+  }
+
+  private sternSignatur(k: string) {
+    return crypto.createHmac('sha256', this.signaturSchluessel).update(`stern:${k}`).digest('base64url').slice(0, 16);
+  }
+  private sternAuswahl(alle: TodoInfo[], morgen: string) {
+    const offen = alle.filter((t) => !t.erledigt).sort((a, b) => Number(!!b.wichtig) - Number(!!a.wichtig) || (a.faellig ?? '9999').localeCompare(b.faellig ?? '9999'));
+    return offen.slice(0, 8).map((t) => {
+      const k = this.todoKennung(t.pfad);
+      return [{ text: `${t.wichtig ? '⭐' : '☆'} ${t.titel}${t.faellig && t.faellig <= morgen ? ` (${t.faellig === morgen ? 'morgen' : 'fällig'})` : ''}`.slice(0, 60), callback_data: `st:${k}:${this.sternSignatur(k)}` }];
+    });
+  }
+
+  private async sternKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {
+    const m = /^st:([0-9a-f]{12}):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
+    if (!m || !this.o.listen || !crypto.timingSafeEqual(Buffer.from(m[2]!), Buffer.from(this.sternSignatur(m[1]!)))) {
+      this.o.log?.('Telegram: Stern-Knopf mit ungültiger Signatur abgelehnt.');
+      return antworten('Ungültiger Knopf.');
+    }
+    const alle = await this.o.listen.todo.liste();
+    const t = alle.find((x) => this.todoKennung(x.pfad) === m[1]);
+    if (!t) return antworten('Dieses To-do gibt es nicht mehr.');
+    await this.o.listen.todo.aendern(t.pfad, { wichtig: !t.wichtig });
+    await antworten(t.wichtig ? 'Nicht mehr wichtig.' : '⭐ Wichtig für morgen.');
+    if (q.message) {
+      const neu = await this.o.listen.todo.liste();
+      const morgen = new Date(this.o.uhr.jetzt() + 86_400_000).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+      await this.o.api
+        .aufruf('editMessageReplyMarkup', { chat_id: q.message.chat.id, message_id: q.message.message_id, reply_markup: { inline_keyboard: this.sternAuswahl(neu, morgen) } })
+        .catch(() => undefined);
+    }
   }
 
   private async fokusBefehl(rest: string) {

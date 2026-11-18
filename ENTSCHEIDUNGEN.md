@@ -614,3 +614,9 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - **Aktion „Karteikarten erstellen“** (claude-code, mittel): Der Agent liest die Unterlagen des Fachs und ergänzt `karten.md` um 30–60 Karten, ohne bestehende zu ändern. Er schreibt nur im Uni-Gebäude, ohne Internet; die Unterlagen gelten als Fremdinhalt.
 - Warum: Lernen mit Wiederholung in Abständen ist die wirksamste Prüfungsvorbereitung, und das Dorf hat die Unterlagen schon. Aus Folien werden so mit einem Klick abfragbare Karten.
 - **Nachtrag Telegram:** `/karten [Fach]` zeigt die nächste fällige Karte. „Antwort zeigen“ deckt sie auf, danach bewertest du mit Nochmal/Schwer/Gut/Leicht, und die nächste Karte kommt in dieselbe Nachricht. Die Knöpfe sind HMAC-signiert. `/fokus [Thema]` startet einen Pomodoro, mit Nicht stören wie in der App.
+
+## E88 – Tagesabschluss um 21 Uhr (Nacht 18./19.11.)
+
+- Telegram schickt einmal am Abend (21:00–21:59 Linz, Schalter `abend`, Standard an) einen kurzen **Tagesabschluss**: was heute erledigt wurde, die Fokusminuten (mit Serie), wie viele Karteikarten noch dran sind und was morgen fällig ist.
+- Darunter: **„⭐ Was ist morgen wichtig?“** mit Knöpfen für die nächsten offenen To-dos. Antippen setzt bzw. entfernt den Stern, die Knöpfe aktualisieren sich (HMAC-signiert). So steht morgen früh das Wichtige oben auf „Heute“ und in der Morgenzeitung.
+- Warum: Der Abend ist der beste Moment, den nächsten Tag festzulegen. Morgens fängt man dann ohne Nachdenken mit dem Richtigen an.

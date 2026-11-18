@@ -586,7 +586,7 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
     return { tokenGesetzt: !!konfig.telegramToken, chatGekoppelt: !!konfig.telegramChatId, laeuft: false, einstellungen: e };
   });
   app.put('/api/telegram/einstellungen', async (req) => {
-    const b = z.object({ freigaben: z.boolean(), entwuerfe: z.boolean(), fehler: z.boolean(), beendet: z.boolean(), mails: z.boolean(), moodle: z.boolean().default(true), erinnerungen: z.boolean().default(true), morgenzeitung: z.boolean().default(true), bank: z.boolean().default(true) }).parse(req.body);
+    const b = z.object({ freigaben: z.boolean(), entwuerfe: z.boolean(), fehler: z.boolean(), beendet: z.boolean(), mails: z.boolean(), moodle: z.boolean().default(true), erinnerungen: z.boolean().default(true), morgenzeitung: z.boolean().default(true), bank: z.boolean().default(true), abend: z.boolean().default(true) }).parse(req.body);
     return einstellungenSetzen(vault, b);
   });
   app.post('/api/telegram/test', async () => {
