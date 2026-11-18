@@ -136,12 +136,16 @@ Die JKU sperrt den Zugang für die Moodle-App. Deshalb holt das Dorf nur die **T
 > `dorf moodle-anmelden` (der App-Weg) bleibt im Dorf, falls die JKU den App-Zugang je freischaltet.
 
 **Moodle-Browser (Agent, der Moodle selbst durchsieht):** Ein eigener Container mit Chromium meldet sich mit deinem JKU-Login an und darf **nur lesen**. Abgeben, Formulare senden, „als erledigt markieren“ und Abmelden sind technisch gesperrt, ebenso jede Seite außerhalb von jku.at.
-1. Auf dem Server (erst möglich, wenn `dorf status` einen Dienst `browser` zeigt; das passiert nach dem übernächsten Deploy automatisch):
+1. Auf dem Server (der Dienst `browser` läuft seit dem Deploy vom 18.11.; `dorf status` zeigt ihn):
    ```bash
    dorf moodle-browser-zugang
    ```
    Das Skript fragt Benutzername (k-Nummer) und Passwort, die Eingabe ist unsichtbar. Gespeichert wird nur in `/srv/dorf/browser.env`, die bekommt allein der Browser-Container. Danach meldet es sich zur Probe an und sagt „angemeldet“ oder warum nicht.
-2. Führt die JKU-Anmeldung auf eine Domain außerhalb von jku.at (die Meldung nennt sie), gibst du sie beim nächsten Aufruf bei „Erlaubte Domains“ zusätzlich an, z. B. `jku.at,login.beispiel.org`. Nur eintragen, wenn es wirklich die JKU-Anmeldung ist.
+2. Was bei der Probe passieren kann:
+   - **„Angemeldet – Dashboard …“**: fertig.
+   - **„Anmeldung fehlgeschlagen auf shibboleth.im.jku.at/… – <Meldung der JKU>“**: Benutzername oder Passwort stimmen nicht. Führ den Befehl einfach noch einmal aus.
+   - **„… zeigt weiterhin die Gast-Ansicht (Anmeldung endete auf <Seite>)“**: Die JKU hat eine Zwischenseite gezeigt, die der Browser nicht kennt, z. B. eine Einwilligung zur Datenweitergabe. Melde dich einmal normal im Browser bei moodle.jku.at an und bestätige sie dort. Klappt es danach immer noch nicht, schick mir die Meldung.
+   - Das Passwort wird nur auf Moodles Login-Seite und bei `shibboleth.im.jku.at` eingetragen. Zieht die JKU ihre Anmeldung auf einen anderen Host um, trägst du ihn in `/srv/dorf/browser.env` als `BROWSER_ANMELDE_HOSTS=moodle.jku.at,<neuer-host>` ein. Liegt er außerhalb von jku.at, gehört er beim nächsten `dorf moodle-browser-zugang` auch unter „Erlaubte Domains“. Bitte nur für die echte JKU-Anmeldung.
 3. In der App: **Uni → Aktionen → Moodle durchsehen**. Das Fach wählen und optional eine Frage stellen („Was muss ich bis Donnerstag vorbereiten?“). Der Agent holt neue Folien und Blätter nach `Uni/faecher/<Fach>/moodle/` und schreibt eine Übersicht: was ansteht, was schon abgegeben ist, was du vorbereiten solltest.
 4. Unterwegs per Telegram: `/moodle CDA was muss ich bis Donnerstag vorbereiten?` startet dasselbe. Nur `/moodle` zeigt deine Fächer.
 5. Auch der Bürgermeister kann das bei seinen Rundgängen als Helfer losschicken (über dein Abo).
