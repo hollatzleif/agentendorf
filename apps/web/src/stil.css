@@ -662,3 +662,16 @@ input.kurz { width: 5em; }
 .plan-liste { list-style: none; padding: 0; margin: 0.5rem 0; display: grid; gap: 0.35rem; }
 .plan-liste label { display: flex; gap: 0.5rem; align-items: baseline; cursor: pointer; }
 .plan-zeit { font-variant-numeric: tabular-nums; min-width: 6.5rem; }
+
+/* Befehlspalette (Strg/⌘+K) */
+.palette-hintergrund { align-items: start; padding-top: 12vh; }
+.palette { width: min(640px, 100%); padding: 0.6rem; }
+.palette input { width: 100%; font-size: 1.05rem; padding: 0.6rem 0.7rem; box-sizing: border-box; }
+.palette-liste { list-style: none; padding: 0; margin: 0.4rem 0 0; max-height: 55vh; overflow: auto; }
+.palette-liste li { display: flex; gap: 0.6rem; align-items: center; padding: 0.4rem 0.5rem; border-radius: 8px; cursor: pointer; }
+.palette-liste li.gewaehlt { background: rgba(200, 85, 61, 0.14); }
+.palette-symbol { width: 1.5rem; text-align: center; }
+.palette-titel { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette-zusatz { font-size: 0.8rem; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette-meldung { margin: 0.4rem 0 0; }
+.palette-hilfe { font-size: 0.75rem; margin: 0.4rem 0 0; text-align: right; }

@@ -1,7 +1,7 @@
 import type { Boerse } from './boerse.js';
 import type { Saxo } from './saxo.js';
 import type { Kirchturm } from './kirchturm.js';
-import type { FachStand } from '@dorf/shared';
+import { terminAusText, type FachStand } from '@dorf/shared';
 import { tagPlanen } from './tagesplan.js';
 import type { Wochenrueckblick } from './wochenrueckblick.js';
 import type { GoogleKalender } from './kalender-google.js';
@@ -395,6 +395,13 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
     });
     app.post('/api/kalender/termin', async (req) => k.anlegen(req.body));
     app.post('/api/kalender/lernzeit', async (req) => k.lernzeitEintragen(req.body));
+    // Befehlspalette: „termin morgen 14 Uhr Zahnarzt“ – Leif hat die Vorschau gesehen und bestätigt
+    app.post('/api/kalender/schnell', async (req) => {
+      const { text } = z.object({ text: z.string().trim().min(1).max(300) }).parse(req.body);
+      const t = terminAusText(text, uhr.jetzt());
+      if (!t) throw new DorfFehler(400, 'Das habe ich nicht verstanden – z. B. „morgen 14 Uhr Zahnarzt“.');
+      return k.inHauptkalender(t);
+    });
     // Tag planen: Vorschlag aus To-dos + freien Lücken; eintragen erst mit Leifs Auswahl
     app.get('/api/tag/planen', async (req) => {
       const q = z.object({ tag: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).parse(req.query);

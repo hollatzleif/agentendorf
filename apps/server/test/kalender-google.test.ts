@@ -234,6 +234,10 @@ describe('Kalender auf dem Marktplatz (E75)', () => {
         ['Blatt 5', '2026-11-17T09:15:00.000Z', '2026-11-17T10:45:00.000Z', 'heute fällig'],
         ['Lesen', '2026-11-17T11:00:00.000Z', '2026-11-17T11:45:00.000Z', 'ohne Datum'],
       ]);
+      // Befehlspalette: Termin aus Text
+      const sch = await d.app.inject({ method: 'POST', url: '/api/kalender/schnell', headers: h, payload: { text: 'morgen 14 Uhr Zahnarzt' } });
+      expect(sch.json()).toMatchObject({ titel: 'Zahnarzt', kalenderId: 'leif@gmail.com' });
+      expect((await d.app.inject({ method: 'POST', url: '/api/kalender/schnell', headers: h, payload: { text: 'morgen 14 Uhr' } })).statusCode).toBe(400);
       const vorher = g.anfragen.length;
       const r = await d.app.inject({ method: 'POST', url: '/api/tag/eintragen', headers: h, payload: { bloecke: p.slice(0, 2).map((b: { titel: string; start: string; ende: string }) => ({ titel: b.titel, start: b.start, ende: b.ende })) } });
       expect(r.statusCode).toBe(200);
