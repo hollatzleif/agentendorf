@@ -153,6 +153,9 @@ describe('Telegram-Bot', () => {
     expect(d.schreibtisch.liste()[0]!.titel).toBe('Nach dem Ausfall');
     const offsets = d.aufrufe.filter((x) => x.m === 'getUpdates').map((x) => x.p.offset);
     expect(offsets.at(-1)).toBe(51);
+    // Befehlsmenü wird beim Start angemeldet
+    const menue = d.aufrufe.find((x) => x.m === 'setMyCommands')?.p.commands as { command: string }[];
+    expect(menue.map((c) => c.command)).toEqual(['status', 'fristen', 'freigaben', 'moodle', 'neu', 'hilfe']);
     await d.agenten.leerlauf();
   }, 15_000);
 });

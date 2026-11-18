@@ -124,3 +124,27 @@ describe('Erinnerungen an Fristen (Telegram)', () => {
     expect(await x.bot.erinnerungenSenden()).toBe(0);
   });
 });
+
+describe('/fristen in Telegram', () => {
+  it('listet offene Abgaben/Prüfungen der nächsten 7 Tage mit Erledigt-Knöpfen; abgehakt verschwindet', async () => {
+    const x = await aufbau();
+    x.setzen(ics([['a', 'Übung 1 ist fällig', x.t0 + 50 * STUNDE], ['t', 'Zwischentest schließt', x.t0 + 5 * STUNDE], ['f', 'Übung 9 ist fällig', x.t0 + 20 * 24 * STUNDE]]));
+    await x.d.uni.abgleichen();
+    let u = 100;
+    const befehl = (text: string) => x.bot.verarbeiten({ update_id: u++, message: { message_id: u, chat: { id: 1 }, from: { id: 1 }, text } });
+    await befehl('/fristen');
+    const m = x.gesendet().at(-1)!;
+    expect(String(m.p.text)).toMatch(/^⏰ <b>Fristen \(7 Tage\)<\/b>\n• <b>.+<\/b> · (Prüfung|Abgabe) · /);
+    expect(String(m.p.text)).not.toContain('Übung 9'); // erst in 20 Tagen
+    const knoepfe = (m.p.reply_markup as { inline_keyboard: { text: string; callback_data: string }[][] }).inline_keyboard.map((r) => r[0]!);
+    expect(knoepfe).toHaveLength(2);
+    expect(knoepfe.every((k) => k.callback_data.length <= 64)).toBe(true);
+    await x.knopf(knoepfe.find((k) => k.text.includes('Übung 1'))!.callback_data);
+    await befehl('/fristen');
+    expect(String(x.gesendet().at(-1)!.p.text)).not.toContain('Übung 1');
+    // alles erledigt
+    await x.knopf(knoepfe.find((k) => !k.text.includes('Übung 1'))!.callback_data);
+    await befehl('/fristen');
+    expect(String(x.gesendet().at(-1)!.p.text)).toMatch(/Keine offenen Abgaben/);
+  });
+});

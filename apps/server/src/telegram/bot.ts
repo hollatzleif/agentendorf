@@ -152,9 +152,20 @@ export class TelegramBot {
 
   private erinnerungsTakt?: NodeJS.Timeout;
 
+  /** Befehlsmenü („/“ in Telegram) – reine Anzeige, Fehler sind egal */
+  static readonly BEFEHLE = [
+    { command: 'status', description: 'Was läuft gerade' },
+    { command: 'fristen', description: 'Abgaben und Prüfungen der nächsten 7 Tage' },
+    { command: 'freigaben', description: 'Offene Freigaben' },
+    { command: 'moodle', description: 'In Moodle nachschauen lassen: /moodle <Fach> [Frage]' },
+    { command: 'neu', description: 'Nächste Nachricht wird eine neue Aufgabe' },
+    { command: 'hilfe', description: 'Was der Bot kann' },
+  ];
+
   starten() {
     if (this.laeuft) return;
     this.laeuft = true;
+    void this.o.api.aufruf('setMyCommands', { commands: TelegramBot.BEFEHLE }).catch(() => undefined);
     void this.schleife();
     // Erinnerungen an Fristen: alle 10 Minuten nachsehen (nur Datenbank, kein Netz außer Telegram)
     this.erinnerungsTakt = setInterval(() => {
@@ -335,7 +346,7 @@ export class TelegramBot {
   private async befehl(b: string) {
     if (b === '/start' || b === '/hilfe' || b === '/help')
       return this.senden(
-        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/hilfe – diese Hilfe`,
+        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/fristen – Abgaben und Prüfungen der nächsten 7 Tage (mit Erledigt-Knöpfen)\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/hilfe – diese Hilfe`,
       );
     if (b === '/status') {
       const aktiv = this.o.agenten.aktiveLaeufe();
@@ -345,6 +356,19 @@ export class TelegramBot {
         return `• ${h(c.titel)} – ${l.status === 'laeuft' ? 'läuft' : l.status === 'wartend' ? 'wartet' : 'wartet auf Freigabe'}`;
       });
       return this.senden(`📊 <b>Status</b>\n${zeilen.length ? zeilen.join('\n') : 'Gerade arbeitet niemand.'}\n\n✉️ Offene Freigaben: ${offen}`);
+    }
+    if (b === '/fristen') {
+      const jetzt = this.o.uhr.jetzt();
+      const liste = (this.o.uni?.fristen() ?? [])
+        .filter((f) => (f.art === 'abgabe' || f.art === 'test') && !f.abgegeben && f.frist && Date.parse(f.frist) > jetzt - 86_400_000 && Date.parse(f.frist) < jetzt + 7 * 86_400_000)
+        .slice(0, 10);
+      if (!liste.length) return this.senden('🎉 Keine offenen Abgaben oder Prüfungen in den nächsten 7 Tagen.');
+      const zeilen = liste.map((f) => `• ${Date.parse(f.frist!) < jetzt ? '⚠️ ' : ''}<b>${h(fristText(Date.parse(f.frist!)))}</b> · ${f.art === 'test' ? 'Prüfung' : 'Abgabe'} · ${h(f.titel)}${f.kurs ? ` (${h(f.kurs)})` : ''}`);
+      return this.senden(`⏰ <b>Fristen (7 Tage)</b>\n${zeilen.join('\n')}\n<a href="${this.link('/gebaeude/Uni')}">Zur Uni</a>`, {
+        reply_markup: {
+          inline_keyboard: liste.map((f) => [{ text: `✅ ${f.titel.slice(0, 40)}`, callback_data: `e:${f.id}:${this.erledigtSignatur(f.id)}` }]),
+        },
+      });
     }
     if (b === '/freigaben') {
       const offen = this.o.agenten.freigaben.liste('offen');
