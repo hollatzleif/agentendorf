@@ -13,6 +13,7 @@ import type { GmailKlient } from '../post/gmail.js';
 import { BUERGERMEISTER_WERKZEUGE, LESE_WERKZEUGE, werkzeugprofil, type DorfWerkzeug } from './leine.js';
 import { kostenSchaetzen, motorenLaden, stufenLaden } from './modelle.js';
 import { anhaengeLaden, auftragMitAnhaengen, systemPromptBauen } from './kontext.js';
+import { wissenLaden } from './gedaechtnis.js';
 import { WerkzeugKiste, type KalenderEintrag, type RollenHandler } from './werkzeuge.js';
 import type { Ablage } from './automatik.js';
 import { Freigaben } from './freigaben.js';
@@ -393,6 +394,8 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
       const motor = this.motoren[l.motor];
       const werkzeugListe = JSON.parse(c.werkzeuge_json) as string[];
       const profil = { dorf: werkzeugListe.filter((w) => w !== 'web') as DorfWerkzeug[], web: werkzeugListe.includes('web') };
+      // Bürgermeister (E61): Gedächtnis und Persönlichkeit einmal lesen – für den Prompt und als bekannte Fassung
+      const wissen = c.rolle === 'buergermeister' ? await wissenLaden(this.vault) : null;
       const kiste = new WerkzeugKiste(
         this.db,
         this.uhr,
@@ -411,13 +414,14 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
           post: profil.dorf.includes('post_lesen') ? this.post : undefined,
           moodle: this.moodleBrowser && profil.dorf.includes('moodle_oeffnen') ? this.moodleBrowser : undefined,
           kalender: profil.dorf.includes('kalender_lesen') ? this.kalender : undefined,
+          wissen: wissen ? { gedaechtnisVersion: wissen.gedaechtnisVersion } : undefined,
         },
         c.rolle === 'buergermeister' ? this.rollenWerkzeuge : undefined,
       );
       kiste.beiAufruf = (name, erlaubt, kurz) => this.hub.senden({ typ: 'lauf.werkzeug', laufId, chatId: c.id, name, erlaubt, kurz });
 
       const aktionName = c.aktion ? c.aktion.split('/')[1]! : c.eltern_chat_id ? 'Helfer des Bürgermeisters' : 'Chat';
-      const system = await systemPromptBauen(this.vault, { gebaeude: c.gebaeude, aktionName, profil, jetzt: this.uhr.jetzt(), motor: l.motor, stufe: c.stufe });
+      const system = await systemPromptBauen(this.vault, { gebaeude: c.gebaeude, aktionName, profil, jetzt: this.uhr.jetzt(), motor: l.motor, stufe: c.stufe, wissen });
       let anhaenge: Anhang[] = [];
       let nachricht = l.auftrag;
       const muster = JSON.parse(c.anhaenge_json) as string[];

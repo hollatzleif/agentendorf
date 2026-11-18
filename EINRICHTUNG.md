@@ -160,6 +160,12 @@ Die JKU sperrt den Zugang für die Moodle-App. Deshalb holt das Dorf nur die **T
   - **Checkliste** (Bibliothek): täglich 06:00 nach `Bibliothek/00_Checkliste.html`, ältere Fassungen in `Bibliothek/archiv/00_Checkliste/`. Deine Häkchen werden im Dorf gespeichert und beim nächsten Lauf berücksichtigt.
   - **Kursübersicht** (Uni): pro Kurs alle Folien laden und `Uni/faecher/<Kurs>/00_Kursuebersicht.html` schreiben.
 
+### Gedächtnis und Persönlichkeit des Bürgermeisters
+
+- `Rathaus/memory.md`: Hier hält er fest, was er gelernt hat. Du kannst mitschreiben, und alte Fassungen liegen in `Rathaus/archiv/memory/`.
+- `Rathaus/personality.md`: So tritt er auf. Änderungen schlägt er nur als Freigabe vor, du kannst sie aber jederzeit selbst bearbeiten.
+- Nach deinem Ja zu einer seiner Freigaben und wenn seine Helfer fertig sind, arbeitet er im selben Chat von selbst weiter.
+
 ## 9. Post: Gmail verbinden (nur Lesen und Entwürfe)
 
 Das Dorf liest dein Gmail und legt höchstens **Entwürfe** an. Senden kann es nicht, weil die Anmeldung das gar nicht erlaubt.

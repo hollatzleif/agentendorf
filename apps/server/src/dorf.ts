@@ -47,6 +47,8 @@ const PFLICHT_DATEIEN = [
   'Bibliothek/aktionen/checkliste.md',
   'Bibliothek/vorlagen/checkliste-vorlage.html',
   'Uni/aktionen/kursuebersicht.md',
+  'Rathaus/memory.md',
+  'Rathaus/personality.md',
 ];
 
 /**
@@ -61,6 +63,15 @@ const VORLAGE_FRUEHERE_FASSUNGEN: Record<string, string[]> = {
   'Uni/aktionen/abgabe-bearbeiten.md': ['28289a20e8f718a2b45d16b34ab2a578350078df696a855dccd52e6857259b11'],
   'Uni/aktionen/lernen.md': ['fe2283fc7e878ffd5f7f6a01ec776f50e49b6f96446c28db7cfcec36f48f1dd1'],
   'Post/gebaeude.md': ['313622cda22bc8ff13c0a644fab2c49f1bdf84c57eb2702231a70f2ac1e9a076'], // bis Etappe 3
+  // E61: Gedächtnis/Persönlichkeit des Bürgermeisters
+  'Rathaus/aktionen/buergermeister.md': ['653aace36ae47d42bc847eda934c819312ceb446d1d624ba92f8ff528eb37084'],
+  'Rathaus/gebaeude.md': ['7dd8c996765e716a804cafdaa4734c16aa4f97afb94e20ae69a6b0cda615b130'],
+  '00_Stadtordnung/stadtordnung.md': [
+    'b25ae8f9443f9001f0d9fe78ede22016e41ff8839e073540172b22768507c95e', // Etappe 1
+    '7dcba59a9ae908f2caaa02362b46cb0e8c4995b9350a764812dfe9f61d4f9bf1', // Etappe 2a
+    '495a9ae689adcec68c4878b0fddf28b5c5909de8893b72aed438da2ad66b3bc6', // Etappe 2b
+    'd7caf198ce646fe65d2fafa29e6ddd63bae6f21ccdd527b1a9dec63ec517aba9', // Etappe 3 bis E60
+  ],
 };
 
 /** Baut das ganze Dorf zusammen (für Start und Integrationstests). */

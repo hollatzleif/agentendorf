@@ -55,6 +55,7 @@ const ARTEN: Record<string, string> = {
   lauf_starten: 'Aktion starten',
   plan_ausfuehren: 'Plan ausführen',
   aktion_anlegen: '🧩 Neuer Skill',
+  persoenlichkeit_aendern: '🎭 Persönlichkeit',
 };
 
 /**
@@ -591,8 +592,8 @@ export class TelegramBot {
       const teile = p.teilaufgaben.map((t, i) => `${i + 1}. ${h(t.titel)} – ${h(t.gebaeude)} (${t.aktion ? h(t.aktion) : 'freier Helfer'}, ${t.stufe})`);
       return `📋 <b>Plan des Bürgermeisters</b>\n${h(p.zusammenfassung)}\n\n${teile.join('\n')}\n\n${h(p.hinweis)}${p.begruendung ? `\n\n<i>${h(p.begruendung.slice(0, 600))}</i>` : ''}`;
     }
-    const i = f.inhalt as { pfad?: string; beschreibung?: string };
-    return `✉️ <b>Freigabe: ${h(f.titel)}</b>\n${ARTEN[f.art] ?? h(f.art)} · ${h(f.gebaeude)}${i.pfad ? `\nDatei: <code>${h(i.pfad)}</code>` : ''}${i.beschreibung ? `\n${h(i.beschreibung)}` : ''}${f.begruendung ? `\n\n<i>${h(f.begruendung.slice(0, 600))}</i>` : ''}`;
+    const i = f.inhalt as { pfad?: string; beschreibung?: string; inhalt?: string };
+    return `✉️ <b>Freigabe: ${h(f.titel)}</b>\n${ARTEN[f.art] ?? h(f.art)} · ${h(f.gebaeude)}${i.pfad ? `\nDatei: <code>${h(i.pfad)}</code>` : ''}${i.beschreibung ? `\n${h(i.beschreibung)}` : ''}${f.begruendung ? `\n\n<i>${h(f.begruendung.slice(0, 600))}</i>` : ''}${f.art === 'persoenlichkeit_aendern' && i.inhalt ? `\n\n<pre>${h(i.inhalt.replace(/^---[\s\S]*?---\s*/, '').slice(0, 1500))}</pre>` : ''}`;
   }
 
   private async freigabeMelden(f: FreigabeInfo, immer = false) {

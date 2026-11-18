@@ -11,12 +11,17 @@ import type { Schreibtisch } from '../schreibtisch.js';
 import type { AgentenDienst, LaufEnde } from './dienst.js';
 import { aktionenListe, aktionLaden, eingabenAnwenden } from './aktionen.js';
 import { skillAnlegen, skillPruefen } from './skills.js';
-import { MAX_HELFER_OHNE_PLAN, MAX_HELFER_PRO_PLAN } from './leine.js';
+import { fremdinhaltHuelle, MAX_HELFER_OHNE_PLAN, MAX_HELFER_PRO_PLAN } from './leine.js';
 import { kostenSchaetzen, stufenLaden } from './modelle.js';
 import type { LaufKontext, RollenHandler, WerkzeugAufrufErgebnis } from './werkzeuge.js';
 import { dateiStempel, kurztitel, lokaleZeit } from './hilfen.js';
+import { ersetzen } from './gedaechtnis.js';
 
 export const BUERGERMEISTER_AKTION = 'Rathaus/buergermeister';
+/** Kennung der Läufe, mit denen das Dorf den Bürgermeister nach einem Ereignis weiterarbeiten lässt (E61) */
+const DORF_NACHRICHT = '[Nachricht vom Dorf]';
+/** So oft lässt das Dorf einen Bürgermeister-Chat höchstens von selbst weiterlaufen – Schutz vor Endlosschleifen */
+export const MAX_FORTSETZUNGEN = 8;
 
 /** Grobe Annahmen für die Kostenschätzung eines Helfers (Token pro Lauf) */
 const ANNAHMEN: Record<Stufe, { ein: number; aus: number }> = {
@@ -73,6 +78,11 @@ export class Buergermeister implements RollenHandler {
     agenten.freigaben.registrieren('plan_ausfuehren', async ({ planId }) => this.planAusfuehren(String(planId)));
     // Skill-Vorschlag: erst nach Leifs Klick wird die Aktionsdatei angelegt (und dabei noch einmal geprüft)
     agenten.freigaben.registrieren('aktion_anlegen', async ({ entwurf }) => `Neuer Skill angelegt: ${(await skillAnlegen(this.vault, entwurf)).pfad}`);
+    // Neue Persönlichkeit (E61): nur nach Leifs Ja, nur wenn personality.md seit dem Vorschlag unverändert ist
+    agenten.freigaben.registrieren('persoenlichkeit_aendern', async ({ pfad, inhalt, basisVersion }) => {
+      const r = await ersetzen(this.vault, this.uhr, pfad, inhalt, basisVersion);
+      return `${pfad} aktualisiert${r.archiv ? ` – bisherige Fassung: ${r.archiv}` : ''}.`;
+    });
     agenten.freigaben.beiEntscheidung.push((f) => this.entschieden(f));
   }
 
@@ -154,7 +164,8 @@ export class Buergermeister implements RollenHandler {
       const a = await aktionLaden(this.vault, `${t.gebaeude}/${t.aktion}`);
       if (a.fehler) throw new DorfFehler(400, a.fehler);
       if (a.rolle === 'buergermeister') throw new DorfFehler(400, 'Der Bürgermeister kann sich nicht selbst als Helfer starten.');
-      eingabenAnwenden(a, t.eingaben ?? {}); // wirft bei fehlenden/ungültigen Eingaben
+      // wirft bei fehlenden/ungültigen Eingaben – Auswahl-Quellen (z. B. uni.faecher = Ordner in Uni/faecher/) wie beim Start
+      eingabenAnwenden(a, t.eingaben ?? {}, this.agenten.quellen);
       motor = a.motor;
       stufe = a.stufe; // Aktionen behalten ihre eigene Stufe
     }
@@ -270,7 +281,8 @@ export class Buergermeister implements RollenHandler {
   }
 
   private async entschieden(f: FreigabeInfo) {
-    if (f.art !== 'plan_ausfuehren' || f.status !== 'abgelehnt') return;
+    if (f.art !== 'plan_ausfuehren') return this.weitermachen(f);
+    if (f.status !== 'abgelehnt') return;
     const planId = (f.inhalt as { planId: string }).planId;
     const r = this.db.prepare("UPDATE plaene SET status = 'abgelehnt', geaendert = ? WHERE id = ? AND status = 'wartet'").run(this.uhr.jetzt(), planId);
     if (r.changes !== 1) return;
@@ -279,6 +291,52 @@ export class Buergermeister implements RollenHandler {
     await this.agenten.hinweisSchreiben(p.chat_id, '❌ Plan abgelehnt – es wurde nichts gestartet. Schreib dem Bürgermeister hier, was er anders machen soll.');
     await this.planSpiegeln(planId);
     this.hub.senden({ typ: 'plaene.geaendert' });
+  }
+
+  /**
+   * Eine Freigabe aus dem Chat des Bürgermeisters ist entschieden (E61): Er erfährt es in seinem Chat.
+   * Angenommen → er arbeitet weiter (z. B. den neuen Skill als Helfer starten), über den Motor seines Chats.
+   * Abgelehnt → nur ein Hinweis, kein neuer Lauf (die Rückschau beim Rundgang greift es auf).
+   */
+  private async weitermachen(f: FreigabeInfo) {
+    if (!f.chatId || f.art === 'lauf_starten') return;
+    let c: ReturnType<AgentenDienst['chatZeile']>;
+    try {
+      c = this.agenten.chatZeile(f.chatId);
+    } catch {
+      return;
+    }
+    if (c.rolle !== 'buergermeister') return;
+    const erg = (this.db.prepare('SELECT ergebnis FROM freigaben WHERE id = ?').get(f.id) as { ergebnis: string | null } | undefined)?.ergebnis ?? '';
+    if (f.status === 'abgelehnt') {
+      await this.agenten.hinweisSchreiben(c.id, `❌ Freigabe abgelehnt: ${f.titel}`);
+      return;
+    }
+    const text = `${DORF_NACHRICHT} Leif hat deine Freigabe „${f.titel}“ angenommen. Ergebnis: ${f.status === 'ausgefuehrt' ? erg || 'ausgeführt' : `FEHLGESCHLAGEN – ${erg}`}
+
+Mach jetzt mit der ursprünglichen Aufgabe weiter, falls dafür noch etwas fehlt – z. B. einen neuen Skill gleich als Helfer starten (aktionen_liste, helfer_starten) oder den nächsten Schritt als Plan vorlegen. Ist nichts mehr zu tun, sag es kurz. Halte fest, was du daraus lernst (gedaechtnis_schreiben).`;
+    await this.fortsetzen(c.id, text, `✅ Freigabe angenommen: ${f.titel} – ${erg}`);
+  }
+
+  /**
+   * Lässt den Bürgermeister in seinem Chat weiterarbeiten (Ereignis: Freigabe entschieden, Helfer fertig).
+   * Gleicher Motor wie der Chat, gleicher Auslöser wie sein erster Lauf (Aufwachen bleibt im Tagesbudget).
+   * Höchstens MAX_FORTSETZUNGEN Mal je Chat; ist der Chat beschäftigt oder die Grenze erreicht → nur ein Hinweis.
+   */
+  private async fortsetzen(chatId: string, text: string, hinweis: string) {
+    const bisher = (this.db.prepare('SELECT COUNT(*) AS n FROM laeufe WHERE chat_id = ? AND auftrag LIKE ?').get(chatId, `${DORF_NACHRICHT}%`) as { n: number }).n;
+    const erster = (this.db.prepare('SELECT ausloeser FROM laeufe WHERE chat_id = ? ORDER BY nummer LIMIT 1').get(chatId) as { ausloeser: string } | undefined)?.ausloeser;
+    if (bisher >= MAX_FORTSETZUNGEN) {
+      await this.agenten.hinweisSchreiben(chatId, `${hinweis}
+
+(Der Bürgermeister wurde in diesem Chat schon ${bisher}× von selbst geweckt – schreib ihm, wenn es weitergehen soll.)`);
+      return;
+    }
+    try {
+      this.agenten.nachrichtSenden(chatId, text, erster === 'zeitplan' ? 'zeitplan' : 'klick');
+    } catch {
+      await this.agenten.hinweisSchreiben(chatId, hinweis);
+    }
   }
 
   private letzterStatus(chatId: string) {
@@ -337,6 +395,25 @@ export class Buergermeister implements RollenHandler {
     if (g.schreibtischId) await this.schreibtisch.statusSetzen(g.schreibtischId, 'erledigt');
     const eltern = this.agenten.chatZeile(g.elternChatId);
     for (const fn of this.beiAbschluss) await Promise.resolve(fn({ chatId: eltern.id, titel: eltern.titel, text })).catch(() => undefined);
+    // E61: Bürgermeister weiterarbeiten lassen – mit den Ergebnissen seiner Helfer (können Fremdes enthalten → Hülle)
+    if (eltern.rolle === 'buergermeister') {
+      const ergebnisse = gruppe.map((h) => {
+        const l = this.db.prepare('SELECT status, fehler, zusammenfassung FROM laeufe WHERE chat_id = ? ORDER BY nummer DESC LIMIT 1').get(h.id) as
+          | { status: string; fehler: string | null; zusammenfassung: string | null }
+          | undefined;
+        const kern = l?.status === 'fertig' ? (l.zusammenfassung ?? '(keine Zusammenfassung)').slice(0, 1500) : `${l?.status ?? '?'}: ${(l?.fehler ?? '').slice(0, 400)}`;
+        return `### ${h.titel} (${l?.status ?? '?'})\n${kern}`;
+      });
+      await this.fortsetzen(
+        eltern.id,
+        `${DORF_NACHRICHT} Deine Helfer sind fertig${g.planId ? ' (Plan abgeschlossen)' : ''}. Ergebnisse:
+
+${fremdinhaltHuelle('helfer-ergebnisse', ergebnisse.join('\n\n'))}
+
+Prüfe, ob Leifs ursprüngliche Aufgabe damit erledigt ist. Wenn nicht, mach den nächsten Schritt (z. B. jetzt den Plan für die nächsten Teilaufgaben vorlegen). Ist alles erledigt, sag Leif kurz, was herausgekommen ist. Halte fest, was du daraus lernst (gedaechtnis_schreiben).`,
+        text,
+      );
+    }
   }
 
   // ---- Pläne lesen ----------------------------------------------------------------------------

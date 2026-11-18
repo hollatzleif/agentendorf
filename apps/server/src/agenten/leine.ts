@@ -34,10 +34,20 @@ export type DorfWerkzeug =
   | 'moodle_bild'
   | 'moodle_herunterladen'
   | 'kalender_lesen'
-  | 'aktion_vorschlagen';
+  | 'aktion_vorschlagen'
+  | 'gedaechtnis_schreiben'
+  | 'persoenlichkeit_vorschlagen';
 export const LESE_WERKZEUGE: DorfWerkzeug[] = ['vault_lesen', 'vault_liste', 'vault_suchen'];
 /** Nur Aktionen mit rolle: buergermeister bekommen diese Werkzeuge. */
-export const BUERGERMEISTER_WERKZEUGE: DorfWerkzeug[] = ['aktionen_liste', 'helfer_starten', 'plan_vorlegen', 'aktion_vorschlagen'];
+export const BUERGERMEISTER_WERKZEUGE: DorfWerkzeug[] = [
+  'aktionen_liste',
+  'helfer_starten',
+  'plan_vorlegen',
+  'aktion_vorschlagen',
+  // E61: eigenes Gedächtnis (Rathaus/memory.md) frei, Persönlichkeit (Rathaus/personality.md) nur per Freigabe
+  'gedaechtnis_schreiben',
+  'persoenlichkeit_vorschlagen',
+];
 /**
  * Nur Aktionen mit werkzeuge: [rechenraum]. Der Rechenraum hat weder Internet noch Vault – darum ist er auch
  * mit Fremdinhalten erlaubt. Heraus kommt nur, was rechenraum_ablegen in den vom Code bestimmten Ordner legt.
@@ -101,7 +111,7 @@ export function werkzeugprofil(a: { werkzeuge: AktionsWerkzeug[]; fremdinhalte: 
 export const AGENTEN_DATEINAME = /^\d{4}-\d{2}-\d{2}_\d{4}_[a-z0-9]+(?:-[a-z0-9]+)*\.(md|txt|csv|json|html)$/;
 
 /** Bereiche eines Gebäudes, die nur das Dorf selbst (bzw. Leif) schreibt – nie ein Agent. */
-const GESCHUETZT_IM_GEBAEUDE = ['gebaeude.md', 'aktionen', 'protokolle', 'chats'];
+const GESCHUETZT_IM_GEBAEUDE = ['gebaeude.md', 'aktionen', 'protokolle', 'chats', 'archiv'];
 
 export interface SchreibPruefung {
   gebaeude: string;
@@ -128,7 +138,7 @@ export function schreibenPruefen(p: SchreibPruefung): string | null {
   if (!imGebaeude && !aufSchreibtisch)
     return `Schreiben ist nur im eigenen Gebäude (${p.gebaeude}/…) und auf dem Schreibtisch des Bürgermeisters (Rathaus/schreibtisch/) erlaubt.`;
   if (imGebaeude && GESCHUETZT_IM_GEBAEUDE.includes(teile[1]!))
-    return `${p.gebaeude}/${teile[1]} wird nur vom Dorf bzw. von Leif geschrieben (Arbeitsanweisung, Aktionen, Protokolle, Chats).`;
+    return `${p.gebaeude}/${teile[1]} wird nur vom Dorf bzw. von Leif geschrieben (Arbeitsanweisung, Aktionen, Protokolle, Chats, Archiv).`;
   if (!AGENTEN_DATEINAME.test(name))
     return `Dateiname „${name}“ passt nicht zum Schema JJJJ-MM-TT_HHMM_kurztitel.md (nur Kleinbuchstaben, Ziffern, Bindestriche).`;
   if (path.posix.extname(name) === '') return 'Dateiendung fehlt.';

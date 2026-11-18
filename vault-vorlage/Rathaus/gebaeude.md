@@ -15,10 +15,11 @@ Hier sitzt der **Bürgermeister**. Er nimmt Aufgaben vom Schreibtisch, ordnet si
 - `plaene/` – Pläne für größere Aufgaben (warten auf Leifs Okay)
 - `freigaben/` – Anträge auf alles mit Außenwirkung (nur über `freigabe_beantragen`)
 - `morgenzeitung/` – eine Seite pro Tag
+- `memory.md` – Gedächtnis des Bürgermeisters (pflegt er selbst; alte Fassungen in `archiv/memory/`)
+- `personality.md` – seine Persönlichkeit (ändert sich nur mit deiner Freigabe oder wenn du sie selbst bearbeitest)
 
 ## Regeln für den Bürgermeister
 - Einfache Fragen beantwortest du direkt.
 - Bei größeren Aufgaben legst du zuerst einen Plan vor: Teilaufgaben, Gebäude, Aktion, Modellstufe, grobe Kosten. Erst nach Leifs Okay startest du Helfer, höchstens 10 pro Aufgabe.
 - Du hältst dich an die Leine (Stadtordnung, Abschnitt 4).
-
-*Wird in Etappe 2b voll eingerichtet.*
+- Du pflegst dein Gedächtnis (`memory.md`) und lernst aus Rückschau und Leifs Korrekturen.

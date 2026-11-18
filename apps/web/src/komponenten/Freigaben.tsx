@@ -87,8 +87,8 @@ function FreigabeKarte({ f }: { f: FreigabeInfo }) {
         </details>
       )}
       {inhalt.inhalt !== undefined && (
-        <details>
-          <summary>Neuer Inhalt ansehen</summary>
+        <details open={f.art === 'persoenlichkeit_aendern'}>
+          <summary>{f.art === 'persoenlichkeit_aendern' ? 'So soll der Bürgermeister künftig auftreten' : 'Neuer Inhalt ansehen'}</summary>
           <pre className="rohtext">{inhalt.inhalt}</pre>
         </details>
       )}

@@ -250,3 +250,27 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
   - „Kursübersicht“ (Uni): Folien eines Kurses holen und `Uni/faecher/<Kurs>/00_Kursuebersicht.html` schreiben, mit ECTS-Anforderungen, Stand und Anstehendem.
 - **Fehlerbild des claude-CLI:** Bei `error_during_execution` zeigt der Chat jetzt den Grund (`errors` aus dem Ergebnis bzw. das Ende von stderr) statt des letzten Satzes.
 
+**E61 – Gedächtnis und Persönlichkeit des Bürgermeisters; er macht nach Ereignissen selbst weiter** (18.11., Leif: „Der Bürgermeister soll eine memory.md und eine personality.md haben, die er pflegt, und lernen, wie er effektiv arbeitet und Aufgaben formuliert.“)
+- **`Rathaus/memory.md`** enthält sein Arbeitswissen in den Abschnitten Über Leif · So arbeite ich in der Bibliothek · Aufträge, die funktionieren · Fehler und Lehren · Offen.
+  - Er pflegt die Datei selbst mit `gedaechtnis_schreiben` und ersetzt dabei immer die ganze Datei. Die alte Fassung legt der Code vorher nach `Rathaus/archiv/memory/`.
+  - Die Datei hat höchstens 15.000 Zeichen, also muss er verdichten. `<fremdinhalt>` wird abgelehnt.
+  - Hat Leif die Datei während des Laufs geändert, wird abgelehnt (Version), statt seine Änderung zu überschreiben.
+- **`Rathaus/personality.md`** beschreibt, wie er auftritt. Ändern geht nur über `persoenlichkeit_vorschlagen` und eine Freigabe (Leifs Wahl). Ausgeführt wird nur, wenn die Datei seit dem Vorschlag unverändert ist.
+- Beide Dateien stehen in **jedem** Bürgermeister-Lauf im Systemprompt, egal ob Schreibtisch, Aufwachen oder Rundgang. Die Stadtordnung geht vor. Leif kann beide jederzeit in Obsidian bearbeiten.
+- **Lernen aus Fakten:** Beim Aufwachen (Lagebericht oder Rundgang) stellt der Code eine **Rückschau** seit dem letzten Mal zusammen und legt sie in die Fremdinhalt-Hülle, weil Fehlertexte von außen stammen können:
+  - Helfer mit Aktion, Stufe, Ergebnis/Fehler, Dauer und Leinen-Ablehnungen
+  - eigene gescheiterte Läufe
+  - abgelehnte Pläne und Freigaben
+  - gescheiterte Ausführungen
+
+  Daraus schreibt er Lehren ins Gedächtnis.
+- **Weitermachen nach Ereignissen** (Lücke, die der Bürgermeister selbst benannt hat: Ein angenommener Skill-Vorschlag startete nichts, niemand weckte ihn):
+  - Wird eine Freigabe aus seinem Chat **angenommen**, setzt das Dorf diesen Chat mit dem Ergebnis fort. Er kann dann z. B. den neuen Skill gleich als Helfer starten.
+  - **Abgelehnt** erzeugt nur einen Hinweis.
+  - Sind **alle seine Helfer fertig**, setzt das Dorf seinen Chat mit ihren Zusammenfassungen fort (Fremdinhalt-Hülle). So kann er den nächsten Schritt gehen, z. B. erst Kursordner anlegen lassen, dann den Plan für die Kursübersichten vorlegen.
+  - Der Lauf geht über den Motor des Chats. Der Auslöser ist der des ersten Laufs, damit Aufwachen-Chats im Tagesbudget bleiben.
+  - Höchstens 8 solcher Fortsetzungen je Chat (Schutz vor Schleifen), danach nur ein Hinweis.
+- **Leine unverändert:** Er schreibt weiter nur im Rathaus. Neu geschützt ist `<Gebäude>/archiv/`, das schreibt nur das Dorf.
+- **Startwissen in der Vorlage** enthält die Vault-Karte, die Dateinamen-Regel, Rezepte für Helfer-Aufträge und die Lehre aus der gescheiterten Folien-Aufgabe.
+- **Vorlagen:** `stadtordnung.md`, `Rathaus/gebaeude.md` und `Rathaus/aktionen/buergermeister.md` werden aktualisiert, falls sie byte-gleich einer früheren Vorlagenfassung sind.
+- **Fehler behoben:** Beim Prüfen von Plänen und `helfer_starten` fehlten die Auswahl-Quellen. Deshalb war jede Auswahl-Eingabe ungültig, etwa `fach` aus `uni.faecher`, obwohl die Ordner in `Uni/faecher/` existierten. Der Plan „Kursübersicht je Kurs“ wurde so abgelehnt. Jetzt prüft der Code gegen dieselben Quellen wie beim Start.
