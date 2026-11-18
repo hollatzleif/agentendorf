@@ -132,6 +132,7 @@ export function UniUebersicht() {
       </p>
 
       <h2>Fächer</h2>
+      <MoodleBrowserZeile />
       {u.faecher.length === 0 ? (
         <p className="leise">Noch keine Fächer. Leg unten eins an – dann Folien, Altklausuren und Übungsblätter hineinlegen.</p>
       ) : (
@@ -212,5 +213,31 @@ export function UniUebersicht() {
       )}
       {fehler && <p className="fehler">{fehler}</p>}
     </div>
+  );
+}
+
+const BROWSER_TEXT: Record<string, string> = {
+  bereit: '🌐 Moodle-Browser bereit – der Agent kann Moodle selbst durchsehen (nur lesen).',
+  ohne_zugang: '🌐 Moodle-Browser läuft, aber ohne Zugang – auf dem Server: dorf moodle-browser-zugang',
+  nicht_erreichbar: '🌐 Moodle-Browser startet gerade oder ist nicht erreichbar (dorf status).',
+  aus: '🌐 Moodle-Browser ist auf diesem Server noch nicht eingerichtet.',
+};
+
+/** Zustand des Moodle-Browsers (E57) und Weg zur Aktion „Moodle durchsehen“ */
+function MoodleBrowserZeile() {
+  const q = useQuery({ queryKey: ['uni', 'moodle-browser'], queryFn: () => api<{ status: string }>('/api/uni/moodle-browser'), staleTime: 60_000 });
+  if (!q.data) return null;
+  return (
+    <p className="leise">
+      {BROWSER_TEXT[q.data.status] ?? q.data.status}
+      {q.data.status === 'bereit' && (
+        <>
+          {' '}
+          <a href="/gebaeude/Uni?reiter=aktionen" onClick={linkKlick}>
+            Moodle durchsehen →
+          </a>
+        </>
+      )}
+    </p>
   );
 }

@@ -14,7 +14,7 @@ export function runnerStarten(o: { port: number; geheimnis: string; browser: Moo
       res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify(daten));
     };
-    if (req.method === 'GET' && req.url === '/gesundheit') return senden(200, { ok: true });
+    if (req.method === 'GET' && req.url === '/gesundheit') return senden(200, { ok: true, zugang: o.browser.hatZugang() });
     const auth = Buffer.from(req.headers.authorization ?? '');
     if (auth.length !== erwartet.length || !crypto.timingSafeEqual(auth, erwartet)) return senden(401, { ok: false, fehler: 'Nicht erlaubt.' });
     if (req.method !== 'POST') return senden(405, { ok: false, fehler: 'Nur POST.' });

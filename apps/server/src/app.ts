@@ -376,6 +376,13 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
 
   // ---- Uni (Etappe 3) ------------------------------------------------------------------------
   app.get('/api/uni', async () => a.uni.uebersicht());
+  // Moodle-Browser (E57): aus = nicht eingerichtet; sonst ob der Container läuft und Zugangsdaten hat
+  app.get('/api/uni/moodle-browser', async () => {
+    const b = a.agenten.moodleBrowser;
+    if (!b) return { status: 'aus' };
+    const z = await b.zustand();
+    return { status: !z.erreichbar ? 'nicht_erreichbar' : z.zugang ? 'bereit' : 'ohne_zugang' };
+  });
   app.post('/api/uni/fristen/erledigt', async (req) => {
     const b = z.object({ id: z.string().min(1).max(100), erledigt: z.boolean() }).parse(req.body);
     try {

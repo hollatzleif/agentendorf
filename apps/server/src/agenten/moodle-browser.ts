@@ -21,6 +21,8 @@ export interface MoodleBrowserKlient {
   herunterladen(sitzung: string, nr: number): Promise<{ name: string; mime: string; daten: Buffer }>;
   schliessen(sitzung: string): Promise<void>;
   anmeldungPruefen(): Promise<{ ok: boolean; url: string; meldung: string }>;
+  /** Läuft der Container, sind Zugangsdaten hinterlegt? */
+  zustand(): Promise<{ erreichbar: boolean; zugang: boolean }>;
 }
 
 export function moodleBrowserKlient(url: string, geheimnis: string): MoodleBrowserKlient {
@@ -56,6 +58,15 @@ export function moodleBrowserKlient(url: string, geheimnis: string): MoodleBrows
     },
     async schliessen(sitzung) {
       await post('/schliessen', { sitzung }, 10_000).catch(() => undefined);
+    },
+    async zustand() {
+      try {
+        const r = await fetch(`${basis}/gesundheit`, { signal: AbortSignal.timeout(3000) });
+        const j = (await r.json()) as { ok?: boolean; zugang?: boolean };
+        return { erreichbar: r.ok && !!j.ok, zugang: !!j.zugang };
+      } catch {
+        return { erreichbar: false, zugang: false };
+      }
     },
     async anmeldungPruefen() {
       const r = await fetch(`${basis}/anmeldung-pruefen`, { method: 'POST', headers: { authorization: `Bearer ${geheimnis}` }, signal: AbortSignal.timeout(120_000) }).catch((e: Error) => {

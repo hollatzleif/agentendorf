@@ -49,6 +49,11 @@ export class MoodleBrowser {
     this.aufraeumer.unref();
   }
 
+  /** Sind Zugangsdaten hinterlegt? (ohne sie preiszugeben) */
+  hatZugang() {
+    return !!this.o.benutzer && !!this.o.passwort;
+  }
+
   private async kontextHolen(): Promise<BrowserContext> {
     if (this.kontext) return this.kontext;
     this.start ??= (async () => {

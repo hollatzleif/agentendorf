@@ -60,6 +60,9 @@ function fakeBrowser() {
     async anmeldungPruefen() {
       return { ok: true, url: '', meldung: 'ok' };
     },
+    async zustand() {
+      return { erreichbar: true, zugang: true };
+    },
   };
   return { k, aufrufe };
 }
@@ -130,6 +133,14 @@ describe('Moodle-Browser im Dorf', () => {
     await d.agenten.leerlauf();
     const l = d.db.prepare("SELECT erlaubt, ergebnis FROM werkzeug_log WHERE chat_id = ? AND werkzeug = 'moodle_oeffnen'").get(chatId) as { erlaubt: number; ergebnis: string };
     expect(l).toMatchObject({ erlaubt: 0, ergebnis: expect.stringMatching(/dorf moodle-browser-zugang/) });
+  });
+
+  it('Zustand für die Uni-Übersicht: aus / bereit', async () => {
+    const ohne = await testDorf();
+    expect(await ohne.app.inject({ url: '/api/uni/moodle-browser' }).then((r) => r.statusCode)).toBe(401);
+    expect(await ohne.agenten.moodleBrowser?.zustand()).toBeUndefined();
+    const mit = await testDorf({ moodleBrowser: fakeBrowser().k });
+    expect(await mit.agenten.moodleBrowser!.zustand()).toEqual({ erreichbar: true, zugang: true });
   });
 
   it('die Vorlage „Moodle durchsehen“ ist da und gültig', async () => {

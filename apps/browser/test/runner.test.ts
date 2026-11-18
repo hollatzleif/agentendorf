@@ -164,7 +164,7 @@ describe('Moodle-Browser gegen ein nachgebautes Moodle', () => {
     const server = runnerStarten({ port: 0, host: '127.0.0.1', geheimnis: 'g'.repeat(40), browser: b });
     await new Promise((r) => server.once('listening', r));
     const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-    expect((await fetch(`${url}/gesundheit`)).status).toBe(200);
+    expect(await (await fetch(`${url}/gesundheit`)).json()).toEqual({ ok: true, zugang: true });
     expect((await fetch(`${url}/oeffnen`, { method: 'POST', body: '{}' })).status).toBe(401);
     const h = { authorization: `Bearer ${'g'.repeat(40)}`, 'content-type': 'application/json' };
     const r = (await (await fetch(`${url}/oeffnen`, { method: 'POST', headers: h, body: JSON.stringify({ sitzung: 'r', url: '/course/view.php?id=7' }) })).json()) as { ok: boolean; titel: string };
