@@ -44,6 +44,8 @@ const F = {
 
 export interface Modell {
   gruppe: THREE.Group;
+  /** Lampen (lokal) für den nächtlichen Lichtschein */
+  lichter: { pos: THREE.Vector3; groesse: number }[];
   /** Austrittspunkte für Rauch (lokal) */
   rauch: THREE.Vector3[];
   /** Höhe für Statusblasen */
@@ -153,6 +155,7 @@ function tuer(b: Bausatz, x: number, z: number, ry: number, farbe: string, o: Tu
       for (const s of [-1, 1]) {
         b.teil(quader(0.04, 0.04, 0.12), F.dunkel, s * (w / 2 + 0.2), h * 0.78, 0.06);
         b.teil(kasten(0.1, 0.14, 0.1, 0.02), '#ffe39a', s * (w / 2 + 0.2), h * 0.78, 0.13, { leuchten: '#ffcc55' });
+        b.licht(s * (w / 2 + 0.2), h * 0.78, 0.2, 1.2);
         b.teil(pyramide(0.14, 0.06), F.dunkel, s * (w / 2 + 0.2), h * 0.78 + 0.1, 0.13);
       }
   });
@@ -281,6 +284,7 @@ export function laterne(b: Bausatz, x: number, z: number, y0 = BODEN) {
     b.teil(zylinder(0.07, 0.09, 0.12, 8), F.dunkel, 0, 0.06, 0);
     b.teil(zylinder(0.03, 0.04, 1.15, 8), F.dunkel, 0, 0.6, 0);
     b.teil(kasten(0.16, 0.2, 0.16, 0.03), '#ffe39a', 0, 1.25, 0, { leuchten: '#ffcc55' });
+    b.licht(0, 1.25, 0);
     b.teil(pyramide(0.24, 0.12), F.dunkel, 0, 1.41, 0);
     b.teil(kugel(0.025, 6, 4), F.dunkel, 0, 1.48, 0);
   });
@@ -817,7 +821,8 @@ export function gebaeudeModell(g: Gebaeude): Modell {
   const art = modellArt(g);
   const bauer = art === 'baustelle' ? baustelle : (BAUER[art] ?? haus);
   const { rauch, hoehe } = bauer(b, g, zufallAus(g.id));
-  return { gruppe: b.fertig(), rauch, hoehe };
+  const lichter = [...b.lichter];
+  return { gruppe: b.fertig(), rauch, hoehe, lichter };
 }
 
 // ---- Deko-Felder ----------------------------------------------------------------------------------

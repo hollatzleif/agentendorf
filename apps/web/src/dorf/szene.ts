@@ -69,7 +69,23 @@ class Rauch {
   }
 }
 
-/** Ziehende Wolken (werfen Schatten) und ein paar kreisende Vögel */
+/** Weicher, runder Lichtschein (für Laternen) */
+function lichtTextur() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const k = c.getContext('2d')!;
+  const g = k.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.25, 'rgba(255,240,200,0.55)');
+  g.addColorStop(1, 'rgba(255,220,150,0)');
+  k.fillStyle = g;
+  k.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+/** Ziehende Wolken am Rand und ein paar kreisende Vögel */
 class Himmel {
   readonly gruppe = new THREE.Group();
   private wolken: { obj: THREE.Group; v: number }[] = [];
@@ -206,6 +222,9 @@ export class DorfSzene {
   private gelaende: { schluessel: string; g: Gelaende } | null = null;
   private autos: Autos | null = null;
   private himmelsGruppe: Himmel | null = null;
+  /** Lichtschein der Laternen (nachts sichtbar) */
+  private lichter = new THREE.Group();
+  private lichtMat: THREE.SpriteMaterial | null = null;
   private figuren: Figuren;
   private raster: THREE.LineSegments | null = null;
   private markierung: THREE.InstancedMesh;
@@ -274,7 +293,7 @@ export class DorfSzene {
       this.sterne.renderOrder = -1;
       this.scene.add(this.sterne);
     }
-    this.scene.add(this.stadt, this.blasenEbene);
+    this.scene.add(this.stadt, this.blasenEbene, this.lichter);
 
     this.kamera = new THREE.PerspectiveCamera(o.handy ? 38 : 30, 1, 0.3, 400);
     this.zeigerEinrichten();
@@ -376,9 +395,13 @@ export class DorfSzene {
         const m = feldMitte(k.x, k.z);
         dekoBauen(b, k.art, m.x, m.z, k.dreh, rnd);
       }
+      const lichterDerDeko = [...b.lichter];
       const gruppe = b.fertig();
       this.stadt.add(gruppe);
       this.statisch = { schluessel: sk, gruppe };
+      // Lichtschein für jede Laterne der Deko (Positionen hat der Bausatz mitgeschrieben)
+      this.lichter.clear();
+      for (const l of lichterDerDeko) this.lichter.add(this.lichtSprite(l.pos, l.groesse));
       this.strassenSet = new Set(d.layout.strassen.map(([x, z]) => feldSchluessel(x, z)));
       if (this.autos) this.scene.remove(this.autos.gruppe);
       this.autos = null;
@@ -425,6 +448,7 @@ export class DorfSzene {
     const modell = gebaeudeModell(g);
     const huelle = new THREE.Group();
     huelle.add(modell.gruppe);
+    for (const l of modell.lichter) modell.gruppe.add(this.lichtSprite(l.pos, l.groesse));
     const pick = new THREE.Mesh(new THREE.BoxGeometry(PLATZ, modell.hoehe, PLATZ), new THREE.MeshBasicMaterial({ visible: false }));
     pick.position.y = modell.hoehe / 2;
     pick.userData = { gebaeude: g.id };
@@ -457,6 +481,15 @@ export class DorfSzene {
     const vorn = new THREE.Vector3(0, 0, PLATZ / 2 + 0.1).applyAxisAngle(new THREE.Vector3(0, 1, 0), DREH(dreh));
     e.schild.position.copy(mitte).add(vorn).setY(0.55);
     e.blasen.position.copy(mitte).setY(e.modell.hoehe);
+  }
+
+  private lichtSprite(pos: THREE.Vector3, groesse: number) {
+    this.lichtMat ??= new THREE.SpriteMaterial({ map: lichtTextur(), color: '#ffd27a', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
+    const sp = new THREE.Sprite(this.lichtMat);
+    sp.position.copy(pos);
+    sp.scale.setScalar(groesse);
+    sp.raycast = () => undefined; // nicht anklickbar
+    return sp;
   }
 
   /** Gebäude hervorheben (Spiel-Auswahl) – null hebt auf */
@@ -645,6 +678,7 @@ export class DorfSzene {
     }
     for (const m of leuchtMaterialien()) m.emissiveIntensity = 0.75 + dunkel * 1.6;
     this.himmelsGruppe?.nacht(dunkel);
+    if (this.lichtMat) this.lichtMat.opacity = Math.max(0, dunkel - 0.35) * 1.1;
     this.schattenAnpassen();
     this.schmutzig = true;
   }
@@ -925,10 +959,15 @@ export class DorfSzene {
     this.schmutzig = true;
   };
 
-  private schleife = () => {
+  private letztesBild = 0;
+
+  private schleife = (zeit = performance.now()) => {
     if (!this.laeuft) return;
     this.raf = requestAnimationFrame(this.schleife);
     if (document.hidden) return;
+    // Handy: höchstens ~30 Bilder pro Sekunde (Akku), außer gerade wird gezogen/gezoomt
+    if (this.o.handy && !this.schmutzig && zeit - this.letztesBild < 31) return;
+    this.letztesBild = zeit;
     const dt = Math.min(this.uhr.getDelta(), 0.1);
     let animiert = false;
     if (this.kameraAnimation) {

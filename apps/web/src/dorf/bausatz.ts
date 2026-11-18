@@ -110,6 +110,13 @@ export class Bausatz {
   private teile = new Map<string, { mat: THREE.Material; geos: THREE.BufferGeometry[]; name?: string; schatten: boolean }>();
   private stapel: THREE.Matrix4[] = [new THREE.Matrix4()];
   private hilf = new THREE.Object3D();
+  /** Positionen von Lampen (für den nächtlichen Lichtschein), im Koordinatensystem des fertigen Modells */
+  readonly lichter: { pos: THREE.Vector3; groesse: number }[] = [];
+
+  /** Lampe an (x, y, z) im aktuellen Koordinatensystem merken */
+  licht(x: number, y: number, z: number, groesse = 2.2) {
+    this.lichter.push({ pos: new THREE.Vector3(x, y, z).applyMatrix4(this.stapel[this.stapel.length - 1]!), groesse });
+  }
 
   /** Lokales Koordinatensystem (verschoben/gedreht) für alles, was in fn gebaut wird */
   mit(x: number, y: number, z: number, ry: number, fn: () => void, s = 1) {
