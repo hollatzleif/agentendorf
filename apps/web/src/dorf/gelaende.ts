@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { feldSchluessel } from '@dorf/shared';
 import { Bausatz, canvasTextur, kasten, kugel, quader, scheibe, zufallAus, zylinder } from './bausatz';
 import { FELD } from './modelle';
+import { bodenFarbe, jahreszeit, laubFarben, nadelFarben } from './jahreszeit';
 
 /** Rechteck des bebauten Dorfs in Welt-Einheiten */
 export interface Grenzen {
@@ -127,13 +128,18 @@ export class Gelaende {
     const pos = geo.attributes.position!;
     const farben: number[] = [];
     const c = new THREE.Color();
+    const jz = jahreszeit();
+    const schneeFarbe = new THREE.Color('#f4f8fb');
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
       const z = pos.getZ(i);
       const h = this.hoehe(x, z);
       pos.setY(i, h);
       const n = Math.sin(x * 0.7) * Math.cos(z * 0.9) * 0.5 + Math.sin(x * 0.21 + z * 0.33) * 0.5;
-      c.set(h < -0.15 ? '#cdbb86' : '#86c552').offsetHSL(n * 0.015, n * 0.05, n * 0.035 + Math.min(Math.max(h, 0), 5) * 0.01);
+      const bf = bodenFarbe(jz, h);
+      c.set(h < -0.15 ? '#cdbb86' : bf.farbe).offsetHSL(n * 0.015, n * 0.05, n * 0.035 + Math.min(Math.max(h, 0), 5) * 0.01);
+      // Schnee überall außer am Seeufer (die Rasenflächen der Grundstücke sind eigene Teile und bleiben grün)
+      if (bf.schnee && h >= -0.15) c.lerp(schneeFarbe, Math.min(1, bf.schnee + n * 0.04));
       farben.push(c.r, c.g, c.b);
     }
     geo.setAttribute('color', new THREE.Float32BufferAttribute(farben, 3));
@@ -187,9 +193,10 @@ export class Gelaende {
       this.gruppe.add(m);
     };
     inst(new THREE.CylinderGeometry(0.08, 0.11, 0.5, 6), ['#7a4a28'], [...laub, ...nadel], 0.25, false);
-    inst(new THREE.IcosahedronGeometry(0.5, 1), ['#4caf50', '#3f9f45', '#5cbf4a', '#6aaa3a', '#4caf50', '#e0a030'], laub, 0.85);
-    inst(new THREE.ConeGeometry(0.45, 1.3, 7), ['#2e8b57', '#2a7a4d', '#3a9a5f'], nadel, 0.95);
-    inst(new THREE.ConeGeometry(0.33, 0.9, 7), ['#2e8b57', '#3a9a5f', '#2a7a4d'], nadel, 1.45);
+    const nf = nadelFarben();
+    inst(new THREE.IcosahedronGeometry(0.5, 1), laubFarben(), laub, 0.85);
+    inst(new THREE.ConeGeometry(0.45, 1.3, 7), nf.unten, nadel, 0.95);
+    inst(new THREE.ConeGeometry(0.33, 0.9, 7), nf.oben, nadel, 1.45);
   }
 
   entsorgen() {

@@ -17,6 +17,11 @@ import {
   zufallAus,
   zylinder,
 } from './bausatz';
+import { laubFarben, nadelFarben } from './jahreszeit';
+
+// Laub und Nadeln je Jahreszeit (beim Laden der Seite bestimmt)
+const LAUB = laubFarben();
+const NADEL = nadelFarben();
 
 /** Kantenlänge eines Feldes in Welt-Einheiten */
 export const FELD = 1.25;
@@ -38,7 +43,6 @@ const F = {
   gehweg: '#dcd8cf',
   bordstein: '#b9b3a8',
   erde: '#8b6340',
-  laub: ['#4caf50', '#3f9f45', '#5cbf4a', '#6aaa3a'],
   blumen: ['#ff6b8a', '#ffd23d', '#ffffff', '#b07cff', '#ff8c42'],
 };
 
@@ -262,13 +266,15 @@ export function baum(b: Bausatz, x: number, z: number, s = 1, rnd = Math.random,
   b.mit(x, y0, z, rnd() * 6, () => {
     b.teil(zylinder(0.07, 0.11, 0.6, 7), '#7a4a28', 0, 0.3, 0);
     const kronen: [number, number, number, number][] = [[0, 0.85, 0, 0.42], [0.2, 0.72, 0.08, 0.3], [-0.18, 0.76, -0.07, 0.32], [0.02, 1.12, 0.02, 0.28], [-0.05, 0.7, 0.2, 0.26]];
-    for (const [dx, dy, dz, r] of kronen) b.teil(ikosaeder(r, 1), F.laub[Math.floor(rnd() * F.laub.length)]!, dx, dy, dz, { flach: true });
+    for (const [dx, dy, dz, r] of kronen) b.teil(ikosaeder(r, 1), LAUB[Math.floor(rnd() * LAUB.length)]!, dx, dy, dz, { flach: true });
   }, s);
 }
 export function tanne(b: Bausatz, x: number, z: number, s = 1, y0 = BODEN) {
   b.mit(x, y0, z, 0, () => {
     b.teil(zylinder(0.07, 0.09, 0.35, 7), '#7a4a28', 0, 0.17, 0);
-    [[0.46, 0.5], [0.37, 0.85], [0.26, 1.15], [0.15, 1.38]].forEach(([r, y], i) => b.teil(kegel(r!, 0.5, 8), i % 2 ? '#2e8b57' : '#2a7a4d', 0, y!, 0, { flach: true }));
+    [[0.46, 0.5], [0.37, 0.85], [0.26, 1.15], [0.15, 1.38]].forEach(([r, y], i) =>
+      b.teil(kegel(r!, 0.5, 8), i >= 2 ? NADEL.oben[i % NADEL.oben.length]! : NADEL.unten[i % NADEL.unten.length]!, 0, y!, 0, { flach: true }),
+    );
   }, s);
 }
 export function busch(b: Bausatz, x: number, z: number, s = 1, rnd = Math.random, y0 = BODEN) {
