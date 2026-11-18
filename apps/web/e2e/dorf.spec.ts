@@ -126,6 +126,7 @@ test('Aktion starten, Chat live, fortsetzen, Freigabe annehmen, Verbrauch', asyn
 });
 
 test('Schreibtisch: Aufgabe hinlegen, Plan freigeben, Helfer arbeiten, Aufgabe erledigt', async ({ page }, info) => {
+  test.setTimeout(120_000); // Helfer laufen im Hintergrund – die CI ist langsamer
   await anmelden(page);
   await page.goto('/gebaeude/Rathaus');
   await expect(page.getByRole('button', { name: 'Schreibtisch', exact: true })).toHaveClass(/aktiv/);
@@ -142,9 +143,9 @@ test('Schreibtisch: Aufgabe hinlegen, Plan freigeben, Helfer arbeiten, Aufgabe e
 
   await page.getByRole('button', { name: 'Pläne', exact: true }).click();
   // Helfer laufen im Hintergrund (Attrappe) – auf der langsameren CI kann das ein paar Sekunden dauern
-  await expect(page.locator('.karte.innen', { hasText: 'Testplan' }).first().getByText('fertig').first()).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator('.karte.innen', { hasText: 'Testplan' }).first().getByText('fertig').first()).toBeVisible({ timeout: 45_000 });
   await page.getByRole('button', { name: 'Schreibtisch', exact: true }).click();
-  await expect(zeile.getByText('erledigt')).toBeVisible({ timeout: 20_000 });
+  await expect(zeile.getByText('erledigt')).toBeVisible({ timeout: 45_000 });
   await zeile.getByRole('link').first().click();
   await expect(page.getByText('Alle Helfer sind fertig')).toBeVisible({ timeout: 15_000 });
   await page.getByRole('link', { name: 'Helfer: Lernplan' }).click();
