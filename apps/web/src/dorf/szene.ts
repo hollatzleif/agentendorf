@@ -69,6 +69,70 @@ class Rauch {
   }
 }
 
+/** Ziehende Wolken (werfen Schatten) und ein paar kreisende Vögel */
+class Himmel {
+  readonly gruppe = new THREE.Group();
+  private wolken: { obj: THREE.Group; v: number }[] = [];
+  private voegel: { obj: THREE.Group; r: number; v: number; phase: number; hoehe: number; fluegel: THREE.Mesh[] }[] = [];
+  private wolkenMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1, flatShading: true, transparent: true, opacity: 0.92 });
+  constructor(private mitte: THREE.Vector3) {
+    const rnd = zufallAus('himmel');
+    for (let i = 0; i < 7; i++) {
+      const g = new THREE.Group();
+      const n = 4 + Math.floor(rnd() * 4);
+      for (let k = 0; k < n; k++) {
+        const m = new THREE.Mesh(ikosaeder(1, 1), this.wolkenMat);
+        m.position.set((k - n / 2) * 1.3 + rnd(), rnd() * 0.6, (rnd() - 0.5) * 1.6);
+        m.scale.set(1.2 + rnd() * 1.1, 0.8 + rnd() * 0.5, 1 + rnd() * 0.8);
+        g.add(m);
+      }
+      // am Rand des Dorfs, nicht über den Häusern (verdecken nichts)
+      const winkel = (i / 7) * Math.PI * 2 + rnd() * 0.5;
+      const abstand = 30 + rnd() * 18;
+      g.position.set(mitte.x + Math.cos(winkel) * abstand, 9 + rnd() * 5, mitte.z + Math.sin(winkel) * abstand);
+      this.gruppe.add(g);
+      this.wolken.push({ obj: g, v: 0.5 + rnd() * 0.6 });
+    }
+    const vogelMat = new THREE.MeshBasicMaterial({ color: '#2b3a55', side: THREE.DoubleSide });
+    for (let i = 0; i < 4; i++) {
+      const g = new THREE.Group();
+      const fluegel: THREE.Mesh[] = [];
+      for (const s of [-1, 1]) {
+        const f = new THREE.Mesh(new THREE.PlaneGeometry(0.45, 0.14), vogelMat);
+        f.geometry.translate(s * 0.22, 0, 0);
+        g.add(f);
+        fluegel.push(f);
+      }
+      this.gruppe.add(g);
+      this.voegel.push({ obj: g, r: 8 + rnd() * 14, v: 0.18 + rnd() * 0.12, phase: rnd() * 6, hoehe: 9 + rnd() * 4, fluegel });
+    }
+    this.tick(0);
+  }
+  tick(dt: number, t = 0) {
+    for (const w of this.wolken) {
+      // langsam um das Dorf herum treiben
+      const dx = w.obj.position.x - this.mitte.x;
+      const dz = w.obj.position.z - this.mitte.z;
+      const r = Math.hypot(dx, dz);
+      const a = Math.atan2(dz, dx) + (w.v * dt) / r;
+      w.obj.position.x = this.mitte.x + Math.cos(a) * r;
+      w.obj.position.z = this.mitte.z + Math.sin(a) * r;
+    }
+    for (const v of this.voegel) {
+      v.phase += v.v * dt;
+      v.obj.position.set(this.mitte.x + Math.cos(v.phase) * v.r, v.hoehe + Math.sin(v.phase * 3) * 0.4, this.mitte.z + Math.sin(v.phase) * v.r);
+      v.obj.rotation.y = -v.phase;
+      const schlag = Math.sin(t * 9 + v.r) * 0.6;
+      v.fluegel[0]!.rotation.z = schlag;
+      v.fluegel[1]!.rotation.z = -schlag;
+    }
+  }
+  nacht(dunkel: number) {
+    this.wolkenMat.color.set('#ffffff').lerp(new THREE.Color('#3a4560'), dunkel * 0.8);
+    for (const v of this.voegel) v.obj.visible = dunkel < 0.5;
+  }
+}
+
 class Autos {
   readonly gruppe = new THREE.Group();
   private liste: { obj: THREE.Group; von: [number, number]; nach: [number, number]; vor: [number, number] | null; t: number; v: number }[] = [];
@@ -141,6 +205,7 @@ export class DorfSzene {
   private statisch: { schluessel: string; gruppe: THREE.Group } | null = null;
   private gelaende: { schluessel: string; g: Gelaende } | null = null;
   private autos: Autos | null = null;
+  private himmelsGruppe: Himmel | null = null;
   private figuren: Figuren;
   private raster: THREE.LineSegments | null = null;
   private markierung: THREE.InstancedMesh;
@@ -276,6 +341,9 @@ export class DorfSzene {
       const g = new Gelaende(this.grenzen, { baeume: this.sparsam && !this.voll ? 500 : this.o.handy ? 1500 : 3200 });
       this.scene.add(g.gruppe);
       this.gelaende = { schluessel: gk, g };
+      if (this.himmelsGruppe) this.scene.remove(this.himmelsGruppe.gruppe);
+      this.himmelsGruppe = new Himmel(new THREE.Vector3((this.grenzen.minX + this.grenzen.maxX) / 2, 0, (this.grenzen.minZ + this.grenzen.maxZ) / 2));
+      this.scene.add(this.himmelsGruppe.gruppe);
     }
 
     // Gebäude (Modelle werden nur bei geänderter Art neu gebaut)
@@ -576,6 +644,7 @@ export class DorfSzene {
       m.emissiveIntensity = dunkel * 0.85;
     }
     for (const m of leuchtMaterialien()) m.emissiveIntensity = 0.75 + dunkel * 1.6;
+    this.himmelsGruppe?.nacht(dunkel);
     this.schattenAnpassen();
     this.schmutzig = true;
   }
@@ -883,6 +952,10 @@ export class DorfSzene {
       }
       if (this.autos) {
         this.autos.tick(dt);
+        animiert = true;
+      }
+      if (this.himmelsGruppe) {
+        this.himmelsGruppe.tick(dt, this.uhr.elapsedTime);
         animiert = true;
       }
       if (this.gebaeude.size) animiert = true; // Blasen schweben
