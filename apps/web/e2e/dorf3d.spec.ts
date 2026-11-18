@@ -265,7 +265,7 @@ test('Rundgang: der von selbst geweckte Bürgermeister läuft durchs Dorf und ke
   await page.waitForFunction(() => !!window.__dorf?.bildschirmPunkt('gebaeude', 'Rathaus'), null, { timeout: 20_000 });
   type Intern = { figuren: { position(id: string): { x: number; z: number } | null }; daten: { status?: DorfStatus }; setzen(d: unknown): void };
   const wo = () => page.evaluate(() => (window.__dorf as unknown as Intern).figuren.position('buergermeister'));
-  const start = (await wo())!;
+  let start = (await wo())!;
   const weg = async () => {
     const p = (await wo())!;
     return Math.hypot(p.x - start.x, p.z - start.z);
@@ -284,6 +284,11 @@ test('Rundgang: der von selbst geweckte Bürgermeister läuft durchs Dorf und ke
       s.setzen({ ...s.daten, status: { ...(s.daten.status ?? { jetzt: new Date().toISOString(), gebaeude: {} }), figuren: f } });
     }, figuren);
   };
+  // Ausgangslage: Bürgermeister zu Hause (ein echter Lauf aus einem früheren Test – z. B. seine Fortsetzung nach
+  // dem Ende seiner Helfer – kann ihn gerade noch unterwegs zeigen)
+  await setzeFiguren([]);
+  await page.evaluate((x) => window.__dorf!.vorspulen(x), 90);
+  start = (await wo())!;
   await setzeFiguren([
     { laufId: 'rundgang', chatId: 'c', gebaeude: 'Rathaus', titel: 'Rundgang', auftrag: '', motor: 'api', modell: 'm', stufe: 'mittel', status: 'laeuft', ausloeser: 'zeitplan', buergermeister: true, erstellt: new Date().toISOString(), token: 0, kostenUsd: 0 },
   ]);
