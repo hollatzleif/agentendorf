@@ -1,10 +1,18 @@
 import { useState } from 'react';
 
 /** Bei jeder neuen Ausgabe den Schlüssel ändern – dann erscheint die Karte einmal pro Gerät */
-const AUSGABE = '2026-11-19a';
+const AUSGABE = '2026-11-19b';
 const SCHLUESSEL = 'dorf-neuigkeiten-gesehen';
 
 const PUNKTE: [string, string][] = [
+  ['⌨️', 'Strg/⌘+K: Befehlspalette – suchen, „todo …“, „termin morgen 14 Uhr …“, „fokus …“, „timer 10“, „frag …“.'],
+  ['⭐', 'Stern an To-dos: das Wichtigste steht oben auf „Heute“, kommt beim Tagesplanen zuerst und in die Morgenzeitung. Abends um 21 Uhr fragt Telegram, was morgen wichtig ist.'],
+  ['🧭', 'Tag planen (Kalender oder „Heute“): deine dringendsten To-dos als Blöcke in freie Lücken – du wählst, was eingetragen wird.'],
+  ['📅', 'Kalender: Termine ziehen und verlängern, „morgen 14 Uhr Zahnarzt“ als Schnelleingabe, /termin in Telegram, 📅 am To-do sucht Lernzeit bis zur Frist.'],
+  ['🃏', 'Karteikarten je Fach (Uni → Karteikarten, /karten in Telegram); „Karteikarten erstellen“ macht sie aus deinen Folien.'],
+  ['🍅', 'Fokus: 🍅 an jedem To-do, Fokuszeit je Fach im Kirchturm, Nicht stören hält Telegram während der Arbeit zurück.'],
+  ['🎓', 'Uni: Karten je Fach mit nächster Frist, offenen Blättern, Fokuszeit – und Mails mit „✓ Als To-do“ in der Post.'],
+  ['🗓️', 'Sonntags 18:30: Wochenrückblick im Rathaus (und in Telegram).'],
   ['📋', 'Neu: „Heute“ – dein Tag auf einen Blick (oben in der Leiste oder der 📋-Knopf im Dorf): Termine, fällige To-dos zum Abhaken, Fokus-Start, Wetter und Zeitung.'],
   ['🔔', 'Neu: der Kirchturm. Wecker, Timer, Pomodoro (voll einstellbar) und Stoppuhr – die Glocke läutet im Desktop-Programm, sonst siehst du es.'],
   ['📅', 'Marktplatz → Kalender: dein Google Kalender mit Monat, Woche, Tag und Liste, zum Anlegen und Bearbeiten (einmal „dorf gmail-anmelden“ mit Kalender).'],

@@ -50,6 +50,9 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
   src/kirchturm.ts     E74: Wecker/Timer/Pomodoro/Stoppuhr auf dem Server (Takt 1 s), Klingeln = Live-Ereignis; Glocke nur im Programm
   src/saxo.ts          E73: Saxo OpenAPI nur lesen (Code-Flow, Refresh-Token-Rotation in dorf_stand, nur 4 GET-Pfade)
   src/uni/todo-bruecke.ts E71: Uni-Fristen → To-dos, Abhaken in beide Richtungen (uni_todos)
+  src/karten.ts        E87: Karteikarten (Uni/faecher/<Fach>/karten.md, „Frage :: Antwort“ / „### Frage“), SM-2-Stand in karten_stand
+  src/tagesplan.ts     E84: Tag planen (To-dos nach Dringlichkeit in freie Kalenderlücken, ohne KI)
+  src/wochenrueckblick.ts E80: sonntags 18:30 Rathaus/wochenrueckblick/JJJJ-KWnn.md (Fakten + KI-Vorschläge)
   src/wetter.ts        Wetter für Leifs Wohnort Konstanz (WETTER_ORT/WETTER_URL) von Open-Meteo (E59): bei Bedarf, 30 min Zwischenspeicher
   src/morgenzeitung.ts 06:30 Linz: Fakten vom Code + KI-Einleitung → Rathaus/morgenzeitung/, Rathaus-Reiter, Telegram
   src/aufwachen.ts     Bürgermeister wacht jede Stunde auf (24/7, E56): Code prüft, KI nur bei NEUEN Anlässen (Lagebericht) oder
@@ -151,3 +154,4 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] Etappe 6 – Programme (E66; Code fertig, Selbsttest unter Linux bestanden; Mac/Windows baut die CI – Abnahme an Leifs Geräten steht aus, Signaturschlüssel als GitHub-Secret von Leif)
 - [x] Etappe 7 – Gebäude anlegen/eröffnen, Einkaufsladen, Bank, Corpshaus, Börse (E67–E70; Code fertig und getestet; echte Läufe, EODHD-Schlüssel und Bank-Exporte auf dem Server abzunehmen)
 - [x] Etappe 8 (18.11.): Uni-Fristen als To-dos (E71), Häuschen/Deko/Kirchturm-Modell (E72), SIX/Franken + Saxo nur lesen (E73), Kirchturm-Uhr mit Glocke im Programm (E74), Google-Kalender auf dem Marktplatz (E75) – Saxo-App und Calendar-API-Freigabe von Leif abzunehmen
+- [x] Nacht 18./19.11. (Produktivität, E76–E88): Teil-Bau der Programme (nur Windows), Mein Tag (/heute), Fokus-Statistik + Nicht stören, Lernzeit einplanen, Wochenrückblick, Mail → To-do, Termin aus Text (/termin), Fach-Karten, Tag planen, Befehlspalette (Strg+K), ⭐ wichtig, Karteikarten (/karten), Tagesabschluss 21:00
