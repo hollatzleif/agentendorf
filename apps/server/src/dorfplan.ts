@@ -17,6 +17,7 @@ import {
 } from '@dorf/shared';
 import type { DB } from './db.js';
 import type { Uhr } from './uhr.js';
+import type { Wetter } from './wetter.js';
 import type { LiveHub } from './live.js';
 import type { VaultDienst } from './vault/dienst.js';
 import { gebaeudeListe } from './vault/gebaeude.js';
@@ -45,7 +46,7 @@ interface Zeile {
  * veralteten Version speichert, bekommt 409 und das aktuelle Layout zurück (statt still zu überschreiben).
  */
 export class Dorfplan {
-  constructor(private o: { db: DB; uhr: Uhr; hub: LiveHub; vault: VaultDienst; uni?: Uni }) {}
+  constructor(private o: { db: DB; uhr: Uhr; hub: LiveHub; vault: VaultDienst; uni?: Uni; wetter?: Wetter }) {}
 
   private zeile(): Zeile | undefined {
     return this.o.db.prepare('SELECT inhalt_json, version FROM dorf_layout WHERE id = 1').get() as Zeile | undefined;
@@ -157,6 +158,7 @@ export class Dorfplan {
       .find((f) => !f.abgegeben && (f.art === 'abgabe' || f.art === 'test') && f.frist && Date.parse(f.frist) > jetzt && Date.parse(f.frist) - jetzt < 3 * TAG);
     if (frist) von('Uni').frist = { titel: frist.kurs ? `${frist.titel} (${frist.kurs})` : frist.titel, frist: frist.frist! };
 
-    return { jetzt: new Date(jetzt).toISOString(), gebaeude: g, figuren };
+    const wetter = this.o.wetter?.aktuell();
+    return { jetzt: new Date(jetzt).toISOString(), gebaeude: g, figuren, ...(wetter ? { wetter } : {}) };
   }
 }

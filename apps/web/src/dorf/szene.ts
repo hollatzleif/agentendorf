@@ -1,12 +1,13 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { GRUNDSTUECK, belegungBerechnen, feldSchluessel, type DorfLayout, type DorfStatus, type Gebaeude } from '@dorf/shared';
+import { GRUNDSTUECK, belegungBerechnen, feldSchluessel, type DorfLayout, type DorfStatus, type DorfWetter, type Gebaeude, type WetterArt } from '@dorf/shared';
 import { Bausatz, entsorgen, glasMaterialien, ikosaeder, leuchtMaterialien, material, zufallAus } from './bausatz';
 import { BODEN, FELD, PLATZ, auto, dekoBauen, gebaeudeModell, modellArt, type Modell } from './modelle';
 import { Gelaende, feldMitte, strassenUndWasser, wasserFreigeben, wasserTick, type Grenzen } from './gelaende';
 import { Figuren } from './figuren';
 import { blase, namensschild, type BlasenArt } from './blasen';
 import { wegFinden } from './wege';
+import { Niederschlag, TRUEBUNG, wetterArtVon } from './wetter';
 
 export type SzeneTreffer =
   | { art: 'gebaeude'; id: string }
@@ -143,8 +144,8 @@ class Himmel {
       v.fluegel[1]!.rotation.z = -schlag;
     }
   }
-  nacht(dunkel: number) {
-    this.wolkenMat.color.set('#ffffff').lerp(new THREE.Color('#3a4560'), dunkel * 0.8);
+  nacht(dunkel: number, truebung = 0) {
+    this.wolkenMat.color.set('#ffffff').lerp(new THREE.Color('#8b95a3'), truebung).lerp(new THREE.Color('#3a4560'), dunkel * 0.8);
     for (const v of this.voegel) v.obj.visible = dunkel < 0.5;
   }
 }
@@ -233,6 +234,10 @@ export class DorfSzene {
   private grenzen: Grenzen = { minX: -10, maxX: 10, minZ: -10, maxZ: 10 };
   private uhr = new THREE.Clock();
   private dunkel = 0;
+  // Wetter (vom Server oder ?wetter=…)
+  private wetterArt: WetterArt = wetterArtVon(undefined);
+  private niederschlag: Niederschlag | null = null;
+  private blitz = { naechster: 4, rest: 0 };
   private schmutzig = true;
   private laeuft = true;
   private raf = 0;
@@ -350,6 +355,7 @@ export class DorfSzene {
     this.daten = d;
     const sichtbar = d.gebaeude.filter((g) => d.layout.gebaeude[g.id]);
     this.grenzenBerechnen(d.layout);
+    this.wetterSetzen(d.status?.wetter);
 
     // Gelände nur neu, wenn sich die Grenzen deutlich ändern
     const gk = `${Math.round(this.grenzen.minX / 10)},${Math.round(this.grenzen.maxX / 10)},${Math.round(this.grenzen.minZ / 10)},${Math.round(this.grenzen.maxZ / 10)}`;
@@ -639,6 +645,42 @@ export class DorfSzene {
     return Number(teile[0]) + Number(teile[1]) / 60;
   }
 
+  /** Wetter vom Server (Linz): Licht, Wolken, Nebel, Regen/Schnee, Blitze */
+  wetterSetzen(w: DorfWetter | undefined) {
+    const art = wetterArtVon(w);
+    if (art === this.wetterArt && (this.niederschlag || !['regen', 'niesel', 'schnee', 'gewitter'].includes(art))) return;
+    this.wetterArt = art;
+    if (this.niederschlag) {
+      this.scene.remove(this.niederschlag.obj);
+      this.niederschlag.entsorgen();
+      this.niederschlag = null;
+    }
+    if (art === 'regen' || art === 'niesel' || art === 'schnee' || art === 'gewitter') {
+      this.niederschlag = new Niederschlag(art, this.o.handy || this.sparsam ? 900 : 2200);
+      this.niederschlag.tick(0, 0, this.steuerung.target);
+      this.scene.add(this.niederschlag.obj);
+    }
+    this.zielBegrenzen();
+    this.tageszeitSetzen();
+  }
+
+  /** Gewitter: ab und zu ein kurzer Blitz (Himmelslicht hell aufflackern lassen) */
+  private blitzTick(dt: number) {
+    const b = this.blitz;
+    if (b.rest > 0) {
+      b.rest -= dt;
+      if (b.rest <= 0) this.tageszeitSetzen();
+      return;
+    }
+    b.naechster -= dt;
+    if (b.naechster <= 0) {
+      b.naechster = 5 + Math.random() * 10;
+      b.rest = 0.12;
+      this.himmel.intensity += 3;
+      this.schmutzig = true;
+    }
+  }
+
   tageszeitSetzen(ms = Date.now()) {
     const h = this.linzStunde(ms);
     // Tageslänge für Linz (48° N) grob nach Jahreszeit; Mittag ≈ 12:20 Ortszeit (Sommerzeit verschiebt mit)
@@ -657,11 +699,12 @@ export class DorfSzene {
     const nachtFarbe = new THREE.Color('#0d1730');
     const tagFarbe = new THREE.Color('#bfe2f3');
     const abend = new THREE.Color('#f0a97c');
-    const himmel = nachtFarbe.clone().lerp(tagFarbe, tag).lerp(abend, daemmerung * 0.55);
+    const trueb = TRUEBUNG[this.wetterArt];
+    const himmel = nachtFarbe.clone().lerp(tagFarbe, tag).lerp(abend, daemmerung * 0.55 * (1 - trueb)).lerp(new THREE.Color('#8e99a6').multiplyScalar(0.25 + 0.75 * tag), trueb * 0.85);
     (this.scene.background as THREE.Color).copy(himmel);
     (this.scene.fog as THREE.Fog).color.copy(himmel).lerp(new THREE.Color('#ffffff'), tag * 0.12);
-    this.himmel.intensity = 0.38 + 0.97 * tag;
-    this.himmel.color.set('#3c4f80').lerp(new THREE.Color('#d8f0ff'), tag);
+    this.himmel.intensity = (0.38 + 0.97 * tag) * (1 + trueb * 0.45);
+    this.himmel.color.set('#3c4f80').lerp(new THREE.Color('#d8f0ff'), tag).lerp(new THREE.Color('#c3cad3').multiplyScalar(0.3 + 0.7 * tag), trueb);
     this.himmel.groundColor.set('#1c2a1a').lerp(new THREE.Color('#5d8a3a'), tag);
     // Sonne zieht über den Himmel; nachts ein bläulicher Mond aus fester Richtung
     const fortschritt = THREE.MathUtils.clamp((h - auf) / (unter - auf), 0, 1);
@@ -669,9 +712,10 @@ export class DorfSzene {
     this.sonnenRichtung.set(-Math.cos(winkel), 0.35 + Math.sin(winkel) * 0.75, 0.42 + Math.sin(winkel) * 0.1);
     if (tag < 0.05) this.sonnenRichtung.set(0.5, 1, 0.3);
     this.sonne.color.set(tag < 0.05 ? '#9fb4ff' : '#fff0d0').lerp(new THREE.Color('#ffb070'), daemmerung * 0.6);
-    this.sonne.intensity = tag < 0.05 ? 0.45 : 0.45 + 2.15 * tag;
-    this.renderer.toneMappingExposure = 0.92 + 0.13 * tag;
-    (this.sterne.material as THREE.PointsMaterial).opacity = THREE.MathUtils.clamp(1 - tag * 2.2, 0, 1) * 0.9;
+    // bei bedecktem Himmel: kaum Sonne, weiche Schatten
+    this.sonne.intensity = (tag < 0.05 ? 0.45 : 0.45 + 2.15 * tag) * Math.max(0.1, 1 - trueb * 1.65);
+    this.renderer.toneMappingExposure = (0.92 + 0.13 * tag) * (1 - trueb * 0.22);
+    (this.sterne.material as THREE.PointsMaterial).opacity = THREE.MathUtils.clamp(1 - tag * 2.2, 0, 1) * 0.9 * (1 - trueb);
     // Fenster und Laternen leuchten, wenn es dunkel wird
     const dunkel = 1 - tag;
     for (const m of glasMaterialien()) {
@@ -679,7 +723,7 @@ export class DorfSzene {
       m.emissiveIntensity = dunkel * 0.85;
     }
     for (const m of leuchtMaterialien()) m.emissiveIntensity = 0.75 + dunkel * 1.6;
-    this.himmelsGruppe?.nacht(dunkel);
+    this.himmelsGruppe?.nacht(dunkel, trueb);
     this.figuren.nachtSetzen(dunkel > 0.6);
     this.dunkel = dunkel;
     wasserTick(this.uhr.elapsedTime, dunkel);
@@ -751,8 +795,9 @@ export class DorfSzene {
     }
     const dist = this.kamera.position.distanceTo(t);
     const nebel = this.scene.fog as THREE.Fog;
-    nebel.near = dist * 1.6 + 10;
-    nebel.far = dist * 3.4 + 40;
+    const dicht = this.wetterArt === 'nebel' ? 0.35 : this.wetterArt === 'regen' || this.wetterArt === 'gewitter' || this.wetterArt === 'schnee' ? 0.75 : 1;
+    nebel.near = (dist * 1.6 + 10) * dicht;
+    nebel.far = (dist * 3.4 + 40) * dicht;
   }
 
   private schattenAnpassen() {
@@ -1003,6 +1048,11 @@ export class DorfSzene {
         animiert = true;
       }
       wasserTick(this.uhr.elapsedTime, this.dunkel);
+      if (this.niederschlag) {
+        this.niederschlag.tick(dt, this.uhr.elapsedTime, this.steuerung.target);
+        animiert = true;
+      }
+      if (this.wetterArt === 'gewitter') this.blitzTick(dt);
       if (this.gebaeude.size) animiert = true; // Blasen schweben
     }
     if (this.auswahl) {
@@ -1033,6 +1083,7 @@ export class DorfSzene {
     document.removeEventListener('visibilitychange', this.sichtbarkeit);
     this.steuerung.dispose();
     for (const [id, e] of this.gebaeude) this.gebaeudeEntfernen(id, e);
+    this.niederschlag?.entsorgen();
     if (this.statisch) {
       wasserFreigeben(this.statisch.gruppe);
       entsorgen(this.statisch.gruppe);

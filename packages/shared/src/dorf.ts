@@ -76,7 +76,40 @@ export interface DorfStatus {
   jetzt: string;
   gebaeude: Record<string, DorfGebaeudeStatus>;
   figuren: DorfFigur[];
+  /** Wetter in Linz (Open-Meteo), wenn eingeschaltet */
+  wetter?: DorfWetter;
 }
+
+export type WetterArt = 'klar' | 'heiter' | 'bedeckt' | 'nebel' | 'niesel' | 'regen' | 'schnee' | 'gewitter';
+export interface DorfWetter {
+  art: WetterArt;
+  temperatur: number; // °C, jetzt
+  tag: { art: WetterArt; min: number; max: number; regen: number | null }; // heute; regen = Wahrscheinlichkeit in %
+  stand: string; // ISO, wann Open-Meteo die Werte berechnet hat
+}
+
+/** WMO-Wettercode → Art (https://open-meteo.com/en/docs: „WMO Weather interpretation codes“) */
+export function wetterArt(code: number): WetterArt {
+  if (code <= 0) return 'klar';
+  if (code <= 2) return 'heiter';
+  if (code === 3) return 'bedeckt';
+  if (code === 45 || code === 48) return 'nebel';
+  if (code >= 51 && code <= 57) return 'niesel';
+  if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return 'regen';
+  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'schnee';
+  if (code >= 95) return 'gewitter';
+  return 'bedeckt';
+}
+export const WETTER_TEXT: Record<WetterArt, { symbol: string; text: string }> = {
+  klar: { symbol: '☀️', text: 'klar' },
+  heiter: { symbol: '🌤️', text: 'heiter' },
+  bedeckt: { symbol: '☁️', text: 'bedeckt' },
+  nebel: { symbol: '🌫️', text: 'Nebel' },
+  niesel: { symbol: '🌦️', text: 'Nieselregen' },
+  regen: { symbol: '🌧️', text: 'Regen' },
+  schnee: { symbol: '🌨️', text: 'Schnee' },
+  gewitter: { symbol: '⛈️', text: 'Gewitter' },
+};
 
 export const feldSchluessel = (x: number, z: number) => `${x},${z}`;
 

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import matter from 'gray-matter';
-import type { MorgenzeitungInfo, MorgenzeitungUebersicht } from '@dorf/shared';
+import { WETTER_TEXT, type MorgenzeitungInfo, type MorgenzeitungUebersicht } from '@dorf/shared';
 import type { DB } from './db.js';
 import type { Uhr } from './uhr.js';
 import type { VaultDienst } from './vault/dienst.js';
@@ -11,6 +11,7 @@ import type { Schreibtisch } from './schreibtisch.js';
 import type { Uni } from './uni/abgleich.js';
 import type { Postbote } from './post/postbote.js';
 import type { Terminkalender } from './kalender.js';
+import type { Wetter } from './wetter.js';
 import { ortszeitZuUtc } from './uni/ical.js';
 import { einzeilig } from './uni/text.js';
 import { fremdinhaltHuelle } from './agenten/leine.js';
@@ -50,6 +51,7 @@ export class Morgenzeitung {
       uni: Uni;
       postbote: Postbote;
       kalender: Terminkalender;
+      wetter?: Wetter;
       log?: (t: string) => void;
     },
   ) {}
@@ -131,6 +133,15 @@ export class Morgenzeitung {
       if (s == null || s < tagBeginn || s >= tagEnde || f.art === 'abgabe') continue;
       const bis = f.ende ? `–${uhr.format(new Date(f.ende))}` : '';
       heute.push({ zeit: s, zeile: `${uhr.format(new Date(s))}${bis} 🎓 ${einzeilig(f.titel, 120)}${f.art === 'test' ? ' (Prüfung)' : ' (Pflicht)'}` });
+    }
+    // Wetter in Linz (nur wenn eingeschaltet; fehlt Open-Meteo, entfällt die Zeile)
+    const w = await this.o.wetter?.holen().catch(() => null);
+    if (w) {
+      const t = WETTER_TEXT[w.tag.art];
+      heute.unshift({
+        zeit: tagBeginn - 1,
+        zeile: `${t.symbol} Wetter in Linz: ${t.text}, ${w.tag.min}–${w.tag.max} °C${w.tag.regen != null && w.tag.regen >= 30 ? `, Regen ${w.tag.regen} %${w.tag.regen >= 60 ? ' – Schirm mitnehmen' : ''}` : ''} (jetzt ${String(w.temperatur).replace('.', ',')} °C)`,
+      });
     }
     abschnitte.push({ titel: 'Heute', zeilen: heute.sort((a, b) => a.zeit - b.zeit).map((x) => x.zeile) });
 

@@ -196,3 +196,14 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
   - Meldungen entstehen aus dem Vergleich zweier Status-Stände: „Helfer läuft zur Uni“, „Zurück aus …“, „Freigabe wartet“, „Frist bald“, „Bürgermeister denkt nach“.
   - Sie verschwinden nach 9 Sekunden, ein Klick schwenkt die Kamera dorthin.
 - **Klicks und Bildschirmpunkte** rechnen mit aktuellen Kameramatrizen, auch wenn seit der letzten Bewegung noch kein Bild gezeichnet wurde. Der Fehler zeigte sich bei langsamer Software-Grafik in den Tests.
+
+**E59 – Wetter wie in Linz, Jahreszeiten, Zeitungs-Knopf** (Nachtarbeit, eigene Empfehlung)
+- **Wetter:** Der Server holt das Linzer Wetter von **Open-Meteo**. Die Schnittstelle ist frei, braucht keinen Schlüssel und kein Konto; am 18.11. ist sie geprüft. Hinaus geht nur die feste Ortsangabe (48,31 / 14,29), keine Daten über Leif.
+  - Geholt wird nur bei Bedarf (Dorf-Ansicht, Morgenzeitung) und höchstens alle 30 Minuten. Bei Fehlern bleibt der letzte Stand, ein neuer Versuch kommt nach 5 Minuten.
+  - Eingeschaltet über `WETTER_URL` in `deploy/compose.yml`; ohne diese Variable ist das Wetter aus, so gehen Tests und Entwicklung nie ins Netz.
+  - Im Dorf: Regen als Streifen, Schnee als Flocken, bei Bewölkung kaum Sonne und weiche Schatten, Nebel rückt näher, bei Gewitter ab und zu ein Blitz. Oben rechts steht ein kleines Schild „🌧️ 7°“.
+  - In der Morgenzeitung steht unter „Heute“ die erste Zeile, z. B. „🌧️ Wetter in Linz: Regen, 6–14 °C, Regen 93 % – Schirm mitnehmen“. Der Schirm-Hinweis kommt ab 60 %.
+  - Zum Ausprobieren: `/?wetter=regen` (oder `schnee`, `gewitter`, `nebel`, `bedeckt`).
+- **Jahreszeiten** nach dem Linzer Kalender: Frühling mit Blüten, Herbstlaub, im Winter Schnee auf Wiesen, Hügeln und Tannenspitzen. Die Grundstücke bleiben grün. Zum Ausprobieren: `/?jahreszeit=winter`.
+- **Zeitungs-Knopf 📰** oben rechts: Ein roter Punkt zeigt, dass die neueste Morgenzeitung auf diesem Gerät noch nicht geöffnet wurde. Ein Tipp öffnet sie im Rathaus.
+- **Bürgermeister schläft nachts sichtbar** (Zz-Blase), wenn er gerade nichts zu tun hat. **Wasser glitzert** (treibende Lichtwellen).

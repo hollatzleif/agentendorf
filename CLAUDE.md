@@ -37,6 +37,7 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
   src/post/       Etappe 4: google-oauth.ts (PKCE, Refresh-Token), gmail.ts (REST: profile/list/history/get/drafts – nie senden),
                   postbote.ts (Abruf alle 10 min, Einordnung ohne Werkzeuge, Post/eingang/JJJJ-MM-TT.md, keine Mailtexte)
   src/kalender.ts      Hauptkalender (geheime iCal-Adresse) – nur lesen, nie speichern
+  src/wetter.ts        Linzer Wetter von Open-Meteo (E59): nur mit WETTER_URL, bei Bedarf, 30 min Zwischenspeicher
   src/morgenzeitung.ts 06:30 Linz: Fakten vom Code + KI-Einleitung → Rathaus/morgenzeitung/, Rathaus-Reiter, Telegram
   src/aufwachen.ts     Bürgermeister wacht jede Stunde auf (24/7, E56): Code prüft, KI nur bei NEUEN Anlässen (Lagebericht) oder
                        alle 3 h als Rundgang; Tagesbudget; Nachtruhe 22–7 für Telegram (istNacht, telegram/bot.ts nachtNachholen)
@@ -50,7 +51,8 @@ apps/web        React + Vite, eigener Mini-Router (src/router.ts), TanStack Quer
     modelle.ts      alle Gebäude-/Deko-Modelle aus Grundformen; FELD = 1,25, Grundstück = 4×4 Felder
     bausatz.ts      Teile je Material zu einem Mesh zusammenfassen (Leistung), Materialien/Formen-Zwischenspeicher
     gelaende.ts     Hügel, Seen, Wald (instanziert), Straßen/Wasser-Felder mit Markierung, Zebrastreifen, Uferkante
-    figuren.ts      Agenten + Bürgermeister, Wege über Straßen (wege.ts, A*), Blasen
+    figuren.ts      Agenten + Bürgermeister, Wege über Straßen (wege.ts, A*), Blasen (nachts schläft er: Zz)
+    wetter.ts       Regen/Schnee/Trübung/Blitze nach dem Server-Wetter (?wetter=regen); jahreszeit.ts Laub/Schnee (?jahreszeit=winter)
     bauen.ts        Bau-Modus: Gesten → Layout (Prüfung wie Server: layoutPruefen aus packages/shared)
     DorfAnsicht.tsx Seite: Szene, Knöpfe, Gebäude-Menü (GebaeudeInhalt), Figurenkarte, Bau-Leiste, Speichern mit basisVersion
 apps/werkstatt  eigener Container: unverändertes claude-CLI (Version im Dockerfile gepinnt) + Runner (HTTP, startet

@@ -30,6 +30,8 @@ services:
       DORF_VERSION: ${DORF_VERSION:-unbekannt}
       WERKSTATT_URL: http://werkstatt:4000
       TZ: Europe/Vienna
+      # Wetter im Dorf und in der Morgenzeitung (Open-Meteo, frei, ohne Konto; geht nur die Ortsangabe Linz hinaus)
+      WETTER_URL: ${WETTER_URL:-https://api.open-meteo.com/v1/forecast?latitude=48.31&longitude=14.29&current=temperature_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Europe%2FVienna&forecast_days=1}
     user: "${DORF_UID:-1000}:${DORF_UID:-1000}"
     volumes:
       - /srv/dorf/vault:/vault

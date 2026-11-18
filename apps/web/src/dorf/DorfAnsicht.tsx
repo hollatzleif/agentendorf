@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { DEKO_ARTEN, DEKO_NAMEN, type DorfAntwort, type DorfFigur, type DorfLayout, type DorfStatus, type Gebaeude, type MorgenzeitungUebersicht } from '@dorf/shared';
+import { DEKO_ARTEN, DEKO_NAMEN, WETTER_TEXT, type DorfAntwort, type DorfFigur, type DorfLayout, type DorfStatus, type Gebaeude, type MorgenzeitungUebersicht } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { linkKlick, navigieren, useOrt } from '../router';
 import { GebaeudeInhalt, standardReiter } from '../seiten/Gebaeude';
@@ -297,6 +297,14 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
         />
       )}
       <div className="dorf-werkzeuge oben-rechts">
+        {!bauen && status.data?.wetter && (
+          <span
+            className="dorf-wetter"
+            title={`Linz: ${WETTER_TEXT[status.data.wetter.art].text}, heute ${status.data.wetter.tag.min}–${status.data.wetter.tag.max} °C${status.data.wetter.tag.regen != null ? `, Regen ${status.data.wetter.tag.regen} %` : ''}`}
+          >
+            {WETTER_TEXT[status.data.wetter.art].symbol} {Math.round(status.data.wetter.temperatur)}°
+          </span>
+        )}
         {!bauen &&
           knopf(
             zeitungNeu ? 'Morgenzeitung (neue Ausgabe)' : 'Morgenzeitung',

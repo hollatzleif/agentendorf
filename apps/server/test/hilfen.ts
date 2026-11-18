@@ -32,6 +32,7 @@ export async function testDorf(
     gmail?: GmailKlient;
     ki?: () => ModellKlient;
     moodleBrowser?: MoodleBrowserKlient;
+    wetter?: () => Promise<unknown>;
   } = {},
 ) {
   const daten = tempOrdner();
@@ -55,6 +56,7 @@ export async function testDorf(
     gmail: opt.gmail,
     ki: opt.ki,
     moodleBrowser: opt.moodleBrowser,
+    wetter: opt.wetter,
   });
   return { ...d, uhr, konfig, daten };
 }
