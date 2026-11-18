@@ -32,6 +32,9 @@ export function Anleitung() {
       <h2>🍅 Tagsüber</h2>
       <ul>
         <li>
+          Nicht lange überlegen: <b>👉 Jetzt dran</b> auf „Heute“ zeigt, was in die Zeit bis zum nächsten Termin passt – „🍅 Los“.
+        </li>
+        <li>
           Am wichtigsten To-do mit <b>🍅 Fokus</b> arbeiten – am besten im <L href="/fokus">Vollbild</L>. Telegram hält solange Meldungen zurück; danach fragt es, ob das To-do erledigt ist.
         </li>
         <li>

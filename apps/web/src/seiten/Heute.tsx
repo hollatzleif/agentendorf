@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { WETTER_TEXT, type DorfStatus, type FokusStatistik, type FreigabeInfo, type KartenFach, type KalenderAntwort, type KalenderTermin, type KirchturmZustand, type MorgenzeitungUebersicht, type PostUebersicht, type TodoInfo } from '@dorf/shared';
 import { api, ApiFehler, offlineGemerkt } from '../api';
-import { minutenText, tagesBudget } from '../tagesbudget';
-import { linkKlick } from '../router';
+import { jetztDran, minutenText, tagesBudget } from '../tagesbudget';
+import { linkKlick, navigieren } from '../router';
 import { FARBEN, ort, tagPlus } from '../komponenten/MarktKalender';
 import { dauerText, useKirchturm } from '../komponenten/KirchturmUhr';
 import { TagPlanen } from '../komponenten/TagPlanen';
@@ -140,6 +140,8 @@ export function Heute() {
   // ---- Womit fange ich an? ----
   const naechsterTermin = termineHeute.find((t) => !t.ganztags && Date.parse(t.ende) > jetzt);
   const erstesTodo = ueberfaellig[0] ?? faelligHeute[0];
+  const dran = jetztDran({ todos: todos.data ?? [], termine: termineHeute, jetzt, jetztMin: ort(jetztIso).min, heute });
+  const fokusLaeuft = !!k?.pomodoro && k.pomodoro.phase !== 'aus';
   const geladen = !kalender.isPending && !todos.isPending;
 
   const zeitungHeute = zeitung.data?.aktuell?.datum === heute ? zeitung.data.aktuell : null;
@@ -193,6 +195,8 @@ export function Heute() {
             )}
           </div>
         )}
+
+        {geladen && dran && !fokusLaeuft && <JetztDran d={dran} />}
 
         <div className="heute-zahlen">
           {kalender.data && (
@@ -674,5 +678,40 @@ function StartSchalter() {
       />{' '}
       Beim Öffnen zuerst „Heute“ zeigen
     </label>
+  );
+}
+
+// ---- E123: Jetzt dran ------------------------------------------------------------------------------
+
+function JetztDran({ d }: { d: NonNullable<ReturnType<typeof jetztDran>> }) {
+  const qc = useQueryClient();
+  const [fehler, setFehler] = useState('');
+  const los = async () => {
+    setFehler('');
+    try {
+      await api('/api/kirchturm', { body: { befehl: 'pomodoro_fuer', titel: d.todo.titel, ...(d.todo.gruppe ? { gruppe: d.todo.gruppe } : {}), pfad: d.todo.pfad } });
+      await qc.invalidateQueries({ queryKey: ['kirchturm'] });
+      navigieren('/fokus');
+    } catch (e) {
+      setFehler(e instanceof ApiFehler ? e.message : String(e));
+    }
+  };
+  const lueckeText = d.luecke === Infinity ? '' : d.bis ? `${minutenText(d.luecke)} bis ${d.bis.titel}` : `${minutenText(d.luecke)} bis 22 Uhr`;
+  return (
+    <div className="heute-jetzt" role="region" aria-label="Jetzt dran">
+      <span className="heute-jetzt-marke">👉 Jetzt dran</span>
+      <div className="heute-jetzt-text">
+        <strong>{d.todo.titel}</strong>
+        {d.schritt && <span className="heute-jetzt-schritt">nächster Schritt: {d.schritt}</span>}
+        <span className="leise">
+          {d.passt ? `passt in die ${lueckeText}` : `für einen 🍅 reicht's (${lueckeText})`}
+          {d.todo.dauer ? ` · ⏱ ${minutenText(d.todo.dauer)}` : ''}
+        </span>
+      </div>
+      <button type="button" className="haupt" onClick={() => void los()} aria-label={`Fokus starten: ${d.todo.titel}`}>
+        🍅 Los
+      </button>
+      {fehler && <p className="fehler">{fehler}</p>}
+    </div>
   );
 }

@@ -1329,6 +1329,26 @@ test('Wochenplan: Eingang und Tage, Verschieben per Ziehen und Auswahl, Auslastu
   await expect(plan.getByRole('button', { name: 'Diese Woche' })).toBeVisible();
 });
 
+test('Heute: „Jetzt dran“ schlägt ein passendes To-do vor, 🍅 Los startet den Fokus (E123)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+  // feste Uhrzeit 10:00 Wien (sonst ist nach 22 Uhr Feierabend) und ein leerer Kalender
+  await page.clock.setFixedTime(new Date(`${heute}T10:00:00+01:00`));
+  await page.route('**/api/kalender?*', (r) => r.fulfill({ json: { modus: 'aus', kalender: [], termine: [] } }));
+  const titel = `Jetzt-Test ${Date.now() % 100000}`;
+  await page.request.post('/api/todos', { headers: { origin: ORIGIN }, data: { titel, faellig: '2020-01-01', wichtig: true, dauer: 20, notiz: '- [ ] Erster Schritt' } });
+  await page.goto('/heute');
+  const j = page.getByRole('region', { name: 'Jetzt dran' });
+  await expect(j).toContainText(titel);
+  await expect(j).toContainText('nächster Schritt: Erster Schritt');
+  await expect(j).toContainText('bis 22 Uhr');
+  await j.getByRole('button', { name: `Fokus starten: ${titel}` }).click();
+  await expect(page).toHaveURL(/\/fokus$/);
+  await expect(page.locator('.fokus-thema')).toHaveText(titel);
+  await page.request.post('/api/kirchturm', { headers: { origin: ORIGIN }, data: { befehl: 'pomodoro', aktion: 'stopp' } });
+});
+
 test('Seite lässt sich nicht laden (nach Deploy): einmal neu laden, dann „Neu laden“ statt weißer Seite (Review)', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'einmal reicht');
   await anmelden(page);

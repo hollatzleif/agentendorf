@@ -952,3 +952,11 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 
 - `GET /api/todos` liefert je To-do `fokusMin`, die Summe der Pomodoro-Minuten, die mit genau diesem To-do gestartet wurden (`fokus_sitzungen.todo`, gibt es seit E76). Die App zeigt „🍅 50 / ⏱ 90 min“. Ein wiederkehrendes To-do beginnt mit jedem Nachfolger bei 0, weil der Nachfolger einen neuen Pfad hat.
 - **Wochenrückblick, Abschnitt „Schätzung“:** Verglichen werden die in der Woche erledigten To-dos, die eine Schätzung *und* mindestens 10 min Fokus haben, z. B. „Du hast im Schnitt 1,5× so lange gebraucht wie geschätzt – nächste Woche großzügiger planen.“ Dazu kommen bis zu 5 Beispiele. Wer seine Schätzungen sieht, plant realistischer. Ohne passende To-dos fehlt der Abschnitt.
+
+## E123 – „Jetzt dran“ auf Heute (Nacht 18./19.11.)
+
+- Unter „Als Nächstes“ schlägt „Heute“ **ein** To-do vor, das in die Lücke bis zum nächsten Termin passt, sonst bis 22 Uhr. Dazu kommt der nächste offene Teilschritt (E119). **„🍅 Los“** startet den Pomodoro für genau dieses To-do und öffnet das Fokus-Vollbild. Ziel: weniger Entscheiden, mehr Anfangen.
+- **Reihenfolge:** überfällig → heute fällig → ⭐ ohne Datum → in 3 Tagen fällig, ⭐ jeweils zuerst.
+- **Was „passt“:** Gerechnet wird mit der Restzeit, also Schätzung (E120, sonst 30 min) minus bisheriger Fokus (E122), mindestens 5 min. Passt keins ganz, reicht die Lücke aber für einen Pomodoro (≥ 25 min), wird das erste vorgeschlagen („für einen 🍅 reicht's“).
+- **Kein Vorschlag:** während eines Termins, bei weniger als 10 min Lücke, nach 22 Uhr und während ein Pomodoro läuft.
+- Rein im Code der App (`apps/web/src/tagesbudget.ts`) und nachvollziehbar, ohne KI. Getestet wird mit Server-Vitest (`test/web-tagesbudget.test.ts`) und einem Browser-Test mit fester Uhrzeit.
