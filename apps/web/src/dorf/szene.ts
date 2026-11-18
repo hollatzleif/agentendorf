@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GRUNDSTUECK, belegungBerechnen, feldSchluessel, type DorfLayout, type DorfStatus, type Gebaeude } from '@dorf/shared';
 import { Bausatz, entsorgen, glasMaterialien, ikosaeder, leuchtMaterialien, material, zufallAus } from './bausatz';
 import { BODEN, FELD, PLATZ, auto, dekoBauen, gebaeudeModell, modellArt, type Modell } from './modelle';
-import { Gelaende, feldMitte, strassenUndWasser, type Grenzen } from './gelaende';
+import { Gelaende, feldMitte, strassenUndWasser, wasserFreigeben, wasserTick, type Grenzen } from './gelaende';
 import { Figuren } from './figuren';
 import { blase, namensschild, type BlasenArt } from './blasen';
 import { wegFinden } from './wege';
@@ -109,12 +109,12 @@ class Himmel {
       this.gruppe.add(g);
       this.wolken.push({ obj: g, v: 0.5 + rnd() * 0.6 });
     }
-    const vogelMat = new THREE.MeshBasicMaterial({ color: '#2b3a55', side: THREE.DoubleSide });
+    const vogelMat = new THREE.MeshBasicMaterial({ color: '#4a5a78', side: THREE.DoubleSide });
     for (let i = 0; i < 4; i++) {
       const g = new THREE.Group();
       const fluegel: THREE.Mesh[] = [];
       for (const s of [-1, 1]) {
-        const f = new THREE.Mesh(new THREE.PlaneGeometry(0.45, 0.14), vogelMat);
+        const f = new THREE.Mesh(new THREE.PlaneGeometry(0.32, 0.1), vogelMat);
         f.geometry.translate(s * 0.22, 0, 0);
         g.add(f);
         fluegel.push(f);
@@ -232,6 +232,7 @@ export class DorfSzene {
   private strassenSet = new Set<string>();
   private grenzen: Grenzen = { minX: -10, maxX: 10, minZ: -10, maxZ: 10 };
   private uhr = new THREE.Clock();
+  private dunkel = 0;
   private schmutzig = true;
   private laeuft = true;
   private raf = 0;
@@ -386,6 +387,7 @@ export class DorfSzene {
     if (this.statisch?.schluessel !== sk) {
       if (this.statisch) {
         this.stadt.remove(this.statisch.gruppe);
+        wasserFreigeben(this.statisch.gruppe);
         entsorgen(this.statisch.gruppe);
       }
       const b = new Bausatz();
@@ -679,6 +681,8 @@ export class DorfSzene {
     for (const m of leuchtMaterialien()) m.emissiveIntensity = 0.75 + dunkel * 1.6;
     this.himmelsGruppe?.nacht(dunkel);
     this.figuren.nachtSetzen(dunkel > 0.6);
+    this.dunkel = dunkel;
+    wasserTick(this.uhr.elapsedTime, dunkel);
     if (this.lichtMat) this.lichtMat.opacity = Math.max(0, dunkel - 0.35) * 1.1;
     this.schattenAnpassen();
     this.schmutzig = true;
@@ -998,6 +1002,7 @@ export class DorfSzene {
         this.himmelsGruppe.tick(dt, this.uhr.elapsedTime);
         animiert = true;
       }
+      wasserTick(this.uhr.elapsedTime, this.dunkel);
       if (this.gebaeude.size) animiert = true; // Blasen schweben
     }
     if (this.auswahl) {
@@ -1028,7 +1033,10 @@ export class DorfSzene {
     document.removeEventListener('visibilitychange', this.sichtbarkeit);
     this.steuerung.dispose();
     for (const [id, e] of this.gebaeude) this.gebaeudeEntfernen(id, e);
-    if (this.statisch) entsorgen(this.statisch.gruppe);
+    if (this.statisch) {
+      wasserFreigeben(this.statisch.gruppe);
+      entsorgen(this.statisch.gruppe);
+    }
     this.gelaende?.g.entsorgen();
     // WebGL-Kontext sofort freigeben: Browser erlauben nur ~16 gleichzeitig, sonst bleibt das Dorf nach
     // häufigem Hin- und Herwechseln irgendwann leer

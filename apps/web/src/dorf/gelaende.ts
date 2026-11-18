@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { feldSchluessel } from '@dorf/shared';
-import { Bausatz, kasten, kugel, quader, scheibe, zufallAus, zylinder } from './bausatz';
+import { Bausatz, canvasTextur, kasten, kugel, quader, scheibe, zufallAus, zylinder } from './bausatz';
 import { FELD } from './modelle';
 
 /** Rechteck des bebauten Dorfs in Welt-Einheiten */
@@ -12,6 +12,61 @@ export interface Grenzen {
 }
 
 const RAND = 4; // flacher Streifen um das Dorf
+
+// ---- Glitzern auf dem Wasser: helle Wellenlinien als Leucht-Textur, die langsam treibt -----------------
+let wellenBild: HTMLCanvasElement | null = null;
+function wellenTextur(wiederholen: number) {
+  if (!wellenBild) {
+    const t = canvasTextur(256, 256, (k) => {
+      k.fillStyle = '#000';
+      k.fillRect(0, 0, 256, 256);
+      const rnd = zufallAus('wellen');
+      k.lineCap = 'round';
+      for (let i = 0; i < 26; i++) {
+        const x = rnd() * 256;
+        const y = rnd() * 256;
+        const l = 14 + rnd() * 26;
+        k.strokeStyle = `rgba(255,255,255,${0.35 + rnd() * 0.5})`;
+        k.lineWidth = 2 + rnd() * 2.5;
+        // kacheln: jede Linie auch versetzt zeichnen, damit die Ränder nahtlos sind
+        for (const dx of [-256, 0, 256])
+          for (const dy of [-256, 0, 256]) {
+            k.beginPath();
+            k.moveTo(x + dx - l / 2, y + dy);
+            k.quadraticCurveTo(x + dx, y + dy - 5, x + dx + l / 2, y + dy);
+            k.stroke();
+          }
+      }
+    });
+    wellenBild = t.image as HTMLCanvasElement;
+    t.dispose();
+  }
+  const t = new THREE.CanvasTexture(wellenBild);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(wiederholen, wiederholen);
+  return t;
+}
+const wellen: THREE.Texture[] = [];
+function wasserMaterial(farbe: string, wiederholen: number, rauheit: number) {
+  const t = wellenTextur(wiederholen);
+  wellen.push(t);
+  return new THREE.MeshStandardMaterial({ color: farbe, roughness: rauheit, emissive: '#ffffff', emissiveMap: t, emissiveIntensity: 0.22 });
+}
+/** Wellen treiben lassen (jedes Bild); nachts glitzert es weniger */
+export function wasserTick(zeit: number, dunkel: number) {
+  for (const t of wellen) {
+    t.offset.set(zeit * 0.012, Math.sin(zeit * 0.25) * 0.03 + zeit * 0.006);
+  }
+  for (const m of wasserMaterialien) m.emissiveIntensity = 0.22 * (1 - dunkel * 0.7);
+}
+const wasserMaterialien = new Set<THREE.MeshStandardMaterial>();
+function wasserEntsorgen(m: THREE.Material) {
+  const w = m as THREE.MeshStandardMaterial;
+  if (!wasserMaterialien.delete(w) || !w.emissiveMap) return;
+  const i = wellen.indexOf(w.emissiveMap);
+  if (i >= 0) wellen.splice(i, 1);
+  w.emissiveMap.dispose();
+}
 const SEEN = [
   { dx: -14, dz: 10, r: 4.5 },
   { dx: 22, dz: -18, r: 6 },
@@ -88,7 +143,9 @@ export class Gelaende {
     m.name = 'boden';
     this.gruppe.add(m);
     for (const s of this.seen) {
-      const w = new THREE.Mesh(new THREE.CircleGeometry(s.r + 0.9, 48), new THREE.MeshStandardMaterial({ color: '#3f9fd9', roughness: 0.15 }));
+      const mat = wasserMaterial('#3f9fd9', Math.max(2, Math.round((s.r + 0.9) / 1.6)), 0.15);
+      wasserMaterialien.add(mat);
+      const w = new THREE.Mesh(new THREE.CircleGeometry(s.r + 0.9, 48), mat);
       w.rotation.x = -Math.PI / 2;
       w.position.set(s.x, -0.18, s.z);
       w.receiveShadow = true;
@@ -139,6 +196,7 @@ export class Gelaende {
     this.gruppe.traverse((x) => {
       if (x instanceof THREE.Mesh) {
         x.geometry.dispose();
+        wasserEntsorgen(x.material as THREE.Material);
         (x.material as THREE.Material).dispose();
       }
     });
@@ -182,10 +240,13 @@ export function strassenUndWasser(b: Bausatz, strassen: [number, number][], wass
     });
   }
   const rnd = zufallAus('wasser');
+  // ein Material je Bau (wird mit dem Bausatz-Ergebnis entsorgt: wasserFreigeben)
+  const glitzer = wasser.length ? wasserMaterial('#4aa9df', 1, 0.18) : null;
+  if (glitzer) wasserMaterialien.add(glitzer);
   for (const [x, z] of wasser) {
     const m = feldMitte(x, z);
     b.mit(m.x, 0, m.z, 0, () => {
-      b.teil(quader(FELD, 0.02, FELD), '#4aa9df', 0, 0.035, 0, { glanz: true, keinSchatten: true });
+      b.teil(quader(FELD, 0.02, FELD), glitzer!, 0, 0.035, 0, { keinSchatten: true });
       b.teil(quader(FELD, 0.02, FELD), '#2f7fae', 0, 0.01, 0, { keinSchatten: true });
       for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
         if (ist(w, x + dx, z + dz)) continue;
@@ -202,4 +263,14 @@ export function strassenUndWasser(b: Bausatz, strassen: [number, number][], wass
       }
     });
   }
+}
+
+/** Wasser-Material eines alten Straßen-/Wasser-Baus freigeben (sonst treiben verwaiste Texturen weiter) */
+export function wasserFreigeben(o: THREE.Object3D) {
+  o.traverse((x) => {
+    if (x instanceof THREE.Mesh && wasserMaterialien.has(x.material as THREE.MeshStandardMaterial)) {
+      wasserEntsorgen(x.material as THREE.Material);
+      (x.material as THREE.Material).dispose();
+    }
+  });
 }
