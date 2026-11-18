@@ -593,3 +593,20 @@ describe('Telegram /woche (E100)', () => {
     expect(t).toMatch(/<b>📅 Die nächsten 7 Tage<\/b>\n[\s\S]*2026-11-18: Bewerbung/);
   });
 });
+
+describe('Morgenzeitung mit Schnellknöpfen (E101)', () => {
+  it('Aufräumen (mit Zahl) und Gewohnheiten nur, wenn es etwas gibt; Knopf führt den Befehl aus; gefälscht nicht', async () => {
+    const d = await dorf();
+    await d.bot.zeitungSenden({ datum: '2026-11-16', einleitung: null, abschnitte: [] } as never);
+    expect(d.aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p.reply_markup).toBeUndefined();
+    await d.todos.anlegen({ titel: 'Steuer', faellig: '2026-11-10' }, 'Leif');
+    await d.gewohnheiten.anlegen({ name: 'Lesen' });
+    await d.bot.zeitungSenden({ datum: '2026-11-16', einleitung: null, abschnitte: [] } as never);
+    const k = (d.aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p.reply_markup as { inline_keyboard: { text: string; callback_data: string }[][] }).inline_keyboard[0]!;
+    expect(k.map((x) => x.text)).toEqual(['🧹 Aufräumen (1)', '🔁 Gewohnheiten']);
+    await d.knopf(k[0]!.callback_data.replace(/:[^:]+$/, ':AAAAAAAAAAAAAAAA'));
+    expect(d.gesendet().at(-1)).not.toMatch(/Aufräumen/);
+    await d.knopf(k[0]!.callback_data);
+    expect(d.gesendet().at(-1)).toMatch(/🧹 <b>Aufräumen<\/b> · noch 1/);
+  });
+});

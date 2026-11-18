@@ -159,7 +159,32 @@ export class TelegramBot {
     for (const a of z.abschnitte) if (a.zeilen.length) teile.push(`<b>${h(a.titel)}</b>\n${a.zeilen.slice(0, 8).map((x) => `• ${fett(x)}`).join('\n')}`);
     let text = teile.join('\n\n');
     if (text.length > 3700) text = `${text.slice(0, 3700)} …`;
-    await this.senden(`${text}\n\n<a href="${this.link('/gebaeude/Rathaus?reiter=morgenzeitung')}">Ganze Zeitung</a>`);
+    // E101: Schnellknöpfe für den Start in den Tag
+    const knoepfe: { text: string; callback_data: string }[] = [];
+    if (this.o.kalender?.verbunden && this.o.kalender.freiAmTag) knoepfe.push({ text: '🧭 Tag planen', callback_data: this.schnellDaten('plan') });
+    if (this.o.listen) {
+      const heute = this.heuteTag();
+      const ueber = (await this.o.listen.todo.liste()).filter((t) => !t.erledigt && t.faellig && t.faellig < heute).length;
+      if (ueber) knoepfe.push({ text: `🧹 Aufräumen (${ueber})`, callback_data: this.schnellDaten('aufraeumen') });
+    }
+    if (this.o.gewohnheiten && (await this.o.gewohnheiten.stand()).gewohnheiten.some((g) => g.heuteFaellig)) knoepfe.push({ text: '🔁 Gewohnheiten', callback_data: this.schnellDaten('gewohnheiten') });
+    await this.senden(`${text}\n\n<a href="${this.link('/gebaeude/Rathaus?reiter=morgenzeitung')}">Ganze Zeitung</a>`, knoepfe.length ? { reply_markup: { inline_keyboard: [knoepfe] } } : {});
+  }
+
+  /** E101: Schnellknopf = derselbe Befehl wie getippt (sb:<befehl>:<Signatur>) */
+  private schnellDaten(befehl: 'plan' | 'aufraeumen' | 'gewohnheiten') {
+    return `sb:${befehl}:${crypto.createHmac('sha256', this.signaturSchluessel).update(`schnell:${befehl}`).digest('base64url').slice(0, 16)}`;
+  }
+  private async schnellKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {
+    const m = /^sb:(plan|aufraeumen|gewohnheiten):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
+    if (!m || !crypto.timingSafeEqual(Buffer.from(m[2]!), Buffer.from(this.schnellDaten(m[1] as 'plan').split(':')[2]!))) {
+      this.o.log?.('Telegram: Schnellknopf mit ungültiger Signatur abgelehnt.');
+      return antworten('Ungültiger Knopf.');
+    }
+    await antworten('');
+    if (m[1] === 'plan') return this.planBefehl('');
+    if (m[1] === 'aufraeumen') return this.aufraeumenZeigen();
+    return this.gewohnheitenSenden();
   }
 
   /** Wochenrückblick (sonntags) – Schalter wie die Morgenzeitung */
@@ -596,6 +621,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (q.data?.startsWith('zl:')) return this.zielKnopf(q, antworten);
     if (q.data?.startsWith('er:')) return this.erinnerKnopf(q, antworten);
     if (q.data?.startsWith('ar:')) return this.aufraeumenKnopf(q, antworten);
+    if (q.data?.startsWith('sb:')) return this.schnellKnopf(q, antworten);
     const m = /^f:([0-9a-f-]{36}):([jn]):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
     if (!m || !crypto.timingSafeEqual(Buffer.from(m[3]!), Buffer.from(this.signatur(m[1]!, m[2] as 'j' | 'n')))) {
       this.o.log?.('Telegram: Knopf mit ungültiger Signatur abgelehnt.');

@@ -737,3 +737,12 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - **`/woche`** zeigt jederzeit die Woche auf einen Blick: Wochenziele (offen ☐ / erreicht ✓), die nächsten 7 Tage (Fristen, Termine, fällige To-dos) und die Gewohnheiten-Bilanz.
 - Die Fakten kommen aus derselben Funktion wie der Wochenrückblick, aber ohne KI und ohne etwas zu speichern.
 - Warum: `/heute` beantwortet „Was jetzt?“, `/woche` beantwortet „Was kommt?“. Das ist die Frage am Sonntagabend oder vor dem Planen.
+
+## E101 – Morgenzeitung mit Schnellknöpfen (Nacht 18./19.11.)
+
+- Die Morgenzeitung in Telegram bekommt bis zu drei Knöpfe:
+  - **🧭 Tag planen**, wenn der Google-Kalender verbunden ist
+  - **🧹 Aufräumen (N)**, wenn etwas überfällig ist
+  - **🔁 Gewohnheiten**, wenn heute eine dran ist
+- Ein Tipp führt genau den Befehl aus, den man sonst tippen würde (`/plan`, `/aufraeumen`, `/gewohnheiten`). Die Knöpfe sind HMAC-signiert und lösen nichts anderes aus.
+- Warum: Morgens liest Leif die Zeitung auf dem Handy. Von dort ist der nächste Schritt, nämlich den Tag einzuteilen, so nur einen Tipp entfernt.
