@@ -323,12 +323,12 @@ test('Marktplatz: To-do-Brett – anlegen, live auf zweitem Gerät, abhaken, bea
   await fertig.getByRole('checkbox').uncheck();
   const offen = page.locator('.todo-liste:not(.erledigt) .todo', { hasText: titel });
   await expect(offen).toBeVisible();
-  await offen.getByRole('button', { name: titel }).click();
+  await offen.getByRole('button', { name: titel, exact: true }).click();
   await page.locator('.todo.bearbeiten').getByLabel('Titel').fill(`${titel} (neu)`);
   await page.locator('.todo.bearbeiten').getByRole('button', { name: 'Speichern' }).click();
   const neu = page.locator('.todo', { hasText: `${titel} (neu)` });
   await expect(neu).toBeVisible();
-  await neu.getByRole('button', { name: `${titel} (neu)` }).click();
+  await neu.getByRole('button', { name: `${titel} (neu)`, exact: true }).click();
   await page.locator('.todo.bearbeiten').getByRole('button', { name: 'Löschen' }).click();
   await expect(page.locator('.todo', { hasText: titel })).toHaveCount(0);
   await expect(p2.locator('.todo', { hasText: titel })).toHaveCount(0);
@@ -646,4 +646,29 @@ test('Fokus: Pomodoro direkt an einem To-do starten; Kirchturm zeigt Thema und F
   await expect(page.getByRole('region', { name: 'Fokus' })).toContainText('7 Tage');
   await p.getByRole('button', { name: '⏹ Stopp' }).click();
   await expect(p).toContainText('Bereit');
+});
+
+test('Lernzeit einplanen: 📅 am To-do zeigt freie Blöcke bis zur Frist, Eintragen geht in den Kalender', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  const morgen = new Date(Date.now() + 2 * 86_400_000).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+  const eingetragen: unknown[] = [];
+  await page.route('**/api/kalender/frei**', (r) =>
+    r.fulfill({ json: [{ start: `${morgen}T08:00:00.000Z`, ende: `${morgen}T09:30:00.000Z` }, { start: `${morgen}T12:00:00.000Z`, ende: `${morgen}T13:30:00.000Z` }] }),
+  );
+  await page.route('**/api/kalender/lernzeit', (r) => {
+    eingetragen.push(r.request().postDataJSON());
+    return r.fulfill({ json: { ok: true } });
+  });
+  await anmelden(page);
+  await page.goto('/gebaeude/Marktplatz');
+  const f = page.getByRole('form', { name: 'Neues To-do' });
+  await f.getByLabel('Neues To-do').fill('Abgabe: Blatt 8');
+  await f.getByLabel('Fällig am').fill(morgen);
+  await f.getByRole('button', { name: '+' }).click();
+  await page.getByRole('button', { name: 'Lernzeit: Abgabe: Blatt 8' }).click();
+  const g = page.getByRole('group', { name: 'Lernzeit für Blatt 8' });
+  await expect(g.getByRole('listitem')).toHaveCount(2);
+  await g.getByRole('button', { name: 'Eintragen' }).first().click();
+  await expect(g).toContainText('✅ eingetragen');
+  expect(eingetragen[0]).toMatchObject({ titel: 'Blatt 8', start: `${morgen}T08:00:00.000Z` });
 });

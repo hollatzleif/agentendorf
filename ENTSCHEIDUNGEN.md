@@ -522,3 +522,11 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
   - Die Morgenzeitung hat einen Abschnitt „Fokus“.
 - **Nicht stören** (Standard an, im Pomodoro einstellbar): Während einer laufenden Arbeitsphase gilt für Telegram dasselbe wie in der Nachtruhe. Meldungen werden gesammelt, Dringendes (Fristen in wenigen Stunden) kommt trotzdem. Endet die Phase, kommt alles sofort in einer Nachricht „🍅 Während deiner Fokuszeit“.
 - Warum: Die App soll beim Arbeiten helfen, nicht ablenken. Fokuszeit je Fach macht sichtbar, wo die Lernzeit wirklich hingeht.
+
+## E79 – Lernzeit einplanen (Nacht 18./19.11.)
+
+- An To-dos mit Fälligkeitsdatum (auch den automatischen Uni-Fristen) gibt es **📅**. Das Dorf sucht freie Blöcke im Google-Kalender, von jetzt bis zum Ende des Fälligkeitstags:
+  - nur 08–20 Uhr Linzer Zeit, mit 15 min Puffer zu Terminen
+  - je Tag höchstens ein Vorschlag, frühe Tage zuerst, Dauer wählbar (45 min bis 3 h)
+  - ganztägige Termine und als „frei“ markierte Termine blockieren nicht; Pflichtvorlesungen und Prüfungen aus der Uni schon
+- **Eintragen erst mit Leifs Klick** („Kalendereinträge legt nur Leif an“): Der Block kommt in den Hauptkalender als „📚 <Titel>“ mit 10 min Erinnerung, ohne Einladungen. Agenten haben dafür kein Werkzeug.

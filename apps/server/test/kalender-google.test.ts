@@ -189,6 +189,36 @@ describe('Kalender auf dem Marktplatz (E75)', () => {
     }
   });
 
+  it('Lernzeit einplanen: freie Lücken bis zur Frist, 08–20 Uhr Linz, 15 min Puffer, je Tag einer', async () => {
+    const g = await googleAttrappe();
+    try {
+      const d = await testDorf({ kalenderKlient: g.klient });
+      const h = await kopf(d);
+      // TestUhr: Mo 16.11. 13:00 Linz; Zahnarzt Di 09–10, Training Mi 18–19:30
+      const r = (await d.app.inject({ url: '/api/kalender/frei?bis=2026-11-19T23:00:00.000Z&dauer=120&anzahl=3', headers: h })).json();
+      expect(r).toEqual([
+        { start: '2026-11-16T12:30:00.000Z', ende: '2026-11-16T14:30:00.000Z' }, // heute ab 13:30 (jetzt + 30 min, gerundet)
+        { start: '2026-11-17T09:15:00.000Z', ende: '2026-11-17T11:15:00.000Z' }, // Di nach dem Zahnarzt + Puffer (10:15 Linz)
+        { start: '2026-11-18T07:00:00.000Z', ende: '2026-11-18T09:00:00.000Z' }, // Mi 08:00 Linz
+      ]);
+      // Vorschlag eintragen: Hauptkalender, Ortszeit, Erinnerung, nie Einladungen
+      const e = await d.app.inject({ method: 'POST', url: '/api/kalender/lernzeit', headers: h, payload: { titel: 'Mathe III: Blatt 5', ...r[1] } });
+      expect(e.json()).toMatchObject({ titel: '📚 Mathe III: Blatt 5', kalenderId: 'leif@gmail.com' });
+      expect(g.anfragen.at(-1)).toMatchObject({
+        methode: 'POST',
+        abfrage: { sendUpdates: 'none' },
+        body: { summary: '📚 Mathe III: Blatt 5', start: { dateTime: '2026-11-17T10:15:00', timeZone: 'Europe/Vienna' }, reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 10 }] } },
+      });
+      // Frist schon vorbei → nichts; ohne Google → 409
+      expect((await d.app.inject({ url: '/api/kalender/frei?bis=2026-11-01T00:00:00.000Z', headers: h })).json()).toEqual([]);
+      const ohne = await testDorf();
+      const h2 = await kopf(ohne);
+      expect((await ohne.app.inject({ url: '/api/kalender/frei?bis=2026-11-19T23:00:00.000Z', headers: h2 })).statusCode).toBe(409);
+    } finally {
+      g.schliessen();
+    }
+  });
+
   it('Anmeldung fragt Mail UND Kalender an – Senden nie', async () => {
     const { anmeldungVorbereiten } = await import('../src/post/google-oauth.js');
     const scope = new URL(anmeldungVorbereiten('id.apps.googleusercontent.com').adresse).searchParams.get('scope')!.split(' ');

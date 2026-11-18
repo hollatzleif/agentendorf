@@ -309,6 +309,64 @@ export class GoogleKalender {
     return aus.sort((a, b) => (a.start ?? 0) - (b.start ?? 0));
   }
 
+  /**
+   * Lernzeit einplanen: freie Lücken zwischen jetzt und der Frist, nur innerhalb der Lernzeiten (Standard 08–20 Uhr),
+   * mit 15 min Puffer zu anderen Terminen. Je Tag höchstens ein Vorschlag, frühe Tage zuerst – Leif wählt und trägt ein.
+   * Ganztägige Termine (Feiertage, Geburtstage) blockieren nicht.
+   */
+  async freieZeiten(o: { bis: number; dauerMin: number; anzahl?: number; tagVon?: number; tagBis?: number }): Promise<{ start: string; ende: string }[]> {
+    if (!this.o.klient) throw new DorfFehler(409, 'Zum Einplanen muss der Google-Kalender verbunden sein (dorf gmail-anmelden).');
+    const jetzt = this.o.jetzt();
+    const bis = Math.min(o.bis, jetzt + 60 * 86_400_000);
+    if (bis <= jetzt) return [];
+    const dauer = o.dauerMin * 60_000;
+    const puffer = 15 * 60_000;
+    const tagVon = o.tagVon ?? 8;
+    const tagBis = o.tagBis ?? 20;
+    const kalender = await this.liste();
+    const belegt: [number, number][] = [];
+    for (const k of kalender)
+      for (const e of await this.o.klient.termine(k.id, jetzt, bis))
+        if (e.start?.dateTime && e.end?.dateTime && (e as { transparency?: string }).transparency !== 'transparent')
+          belegt.push([Date.parse(e.start.dateTime) - puffer, Date.parse(e.end.dateTime) + puffer]);
+    for (const f of this.o.uni?.fristen() ?? []) if ((f.art === 'pflicht' || f.art === 'test') && f.frist && f.ende) belegt.push([Date.parse(f.frist) - puffer, Date.parse(f.ende) + puffer]);
+    belegt.sort((a, b) => a[0] - b[0]);
+    const aus: { start: string; ende: string }[] = [];
+    const tagMs = (ms: number) => new Date(ms).toLocaleDateString('sv-SE', { timeZone: ZONE });
+    for (let tagStart = jetzt; tagStart < bis && aus.length < (o.anzahl ?? 5); tagStart += 86_400_000) {
+      const tag = tagMs(tagStart);
+      const [j, m, t] = tag.split('-').map(Number) as [number, number, number];
+      // auf volle Viertelstunde nach jetzt runden
+      let a = Math.max(ortszeitZuUtc(j, m, t, tagVon, 0, 0, ZONE), Math.ceil((jetzt + 30 * 60_000) / (15 * 60_000)) * 15 * 60_000);
+      const tagEnde = Math.min(ortszeitZuUtc(j, m, t, tagBis, 0, 0, ZONE), bis);
+      while (a + dauer <= tagEnde) {
+        const stoss = belegt.find(([s, e]) => s < a + dauer && e > a);
+        if (!stoss) {
+          aus.push({ start: new Date(a).toISOString(), ende: new Date(a + dauer).toISOString() });
+          break;
+        }
+        a = Math.ceil(stoss[1] / (15 * 60_000)) * 15 * 60_000;
+      }
+    }
+    return aus;
+  }
+
+  /** Gewählten Vorschlag in den Hauptkalender eintragen (Leifs Klick): „📚 <Titel>“, Erinnerung 10 min vorher */
+  async lernzeitEintragen(roh: unknown) {
+    const b = z.object({ titel: z.string().trim().min(1).max(200), start: z.string().datetime(), ende: z.string().datetime(), notiz: z.string().max(2000).optional() }).parse(roh);
+    const k = (await this.liste()).find((x) => x.primaer && x.schreibbar) ?? (await this.liste()).find((x) => x.schreibbar);
+    if (!k) throw new DorfFehler(409, 'Kein Kalender, in den du schreiben darfst.');
+    const lokal = (iso: string) => {
+      const p = Object.fromEntries(
+        new Intl.DateTimeFormat('en-CA', { timeZone: ZONE, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+          .formatToParts(new Date(iso))
+          .map((x) => [x.type, x.value]),
+      );
+      return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+    };
+    return this.anlegen({ kalenderId: k.id, titel: `📚 ${b.titel}`, start: lokal(b.start), ende: lokal(b.ende), erinnerungen: [10], ...(b.notiz ? { beschreibung: b.notiz } : {}) });
+  }
+
   private klient() {
     if (!this.o.klient) throw new DorfFehler(409, 'Zum Bearbeiten muss der Google-Kalender verbunden sein (dorf gmail-anmelden).');
     return this.o.klient;

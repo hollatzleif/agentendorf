@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { TodoInfo } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { bibliothekUrl, linkKlick, navigieren } from '../router';
+import { LernzeitPlaner } from './LernzeitPlaner';
 
 const heute = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
 const datumText = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('de-AT', { weekday: 'short', day: '2-digit', month: '2-digit' });
@@ -89,6 +90,7 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: (f: () =
   const [gruppe, setGruppe] = useState(t.gruppe ?? '');
   // Häkchen sofort zeigen; die Zeile wird mit der neuen Version vom Server ohnehin neu aufgebaut
   const [haken, setHaken] = useState(t.erledigt);
+  const [planen, setPlanen] = useState(false);
   const aendern = (a: Record<string, unknown>) => ausfuehren(() => api(basis, { methode: 'PATCH', body: { pfad: t.pfad, basisVersion: t.version, ...a } }));
   const ueberfaellig = !t.erledigt && t.faellig && t.faellig < heute();
   const vonAgent = t.quelle && t.quelle !== 'Leif' && t.quelle !== 'Telegram';
@@ -153,6 +155,11 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: (f: () =
               Notiz
             </a>
           )}
+          {basis === '/api/todos' && !t.erledigt && t.faellig && t.faellig >= heute() && (
+            <button type="button" className="klein" title="Freie Zeit im Kalender bis zur Frist finden" aria-label={`Lernzeit: ${t.titel}`} onClick={() => setPlanen((x) => !x)}>
+              📅
+            </button>
+          )}
           {basis === '/api/todos' && !t.erledigt && (
             <button
               type="button"
@@ -180,6 +187,10 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: (f: () =
             </button>
           )}
         </span>
+        {planen && t.faellig && (
+          // Frist = Ende des Fälligkeitstags (Linz); der Server rechnet in Ortszeit
+          <LernzeitPlaner titel={t.titel.replace(/^(Abgabe|Prüfung): /, '')} bis={new Date(`${t.faellig}T23:00:00+01:00`).toISOString()} schliessen={() => setPlanen(false)} />
+        )}
       </div>
     </li>
   );

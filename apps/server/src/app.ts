@@ -390,6 +390,13 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
       return k.serie(q.kalenderId, q.serieId);
     });
     app.post('/api/kalender/termin', async (req) => k.anlegen(req.body));
+    app.post('/api/kalender/lernzeit', async (req) => k.lernzeitEintragen(req.body));
+    app.get('/api/kalender/frei', async (req) => {
+      const q = z
+        .object({ bis: z.string().datetime(), dauer: z.coerce.number().int().min(15).max(480).default(90), anzahl: z.coerce.number().int().min(1).max(10).default(5) })
+        .parse(req.query);
+      return k.freieZeiten({ bis: Date.parse(q.bis), dauerMin: q.dauer, anzahl: q.anzahl });
+    });
     app.patch('/api/kalender/termin', async (req) => {
       const b = z.object({ id: z.string().min(1), vonKalender: z.string().optional(), serie: z.boolean().optional(), termin: z.unknown() }).parse(req.body);
       return k.aendern(b.id, b.termin, { serie: b.serie, vonKalender: b.vonKalender });

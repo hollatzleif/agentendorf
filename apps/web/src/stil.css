@@ -644,3 +644,8 @@ input.kurz { width: 5em; }
 .fokus-saeule { width: 70%; min-height: 3px; border-radius: 5px 5px 2px 2px; background: linear-gradient(#e07a5f, #c8553d); }
 .fokus-themen { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.2rem; }
 .fokus-themen li { display: flex; justify-content: space-between; gap: 0.6rem; }
+
+/* Lernzeit einplanen */
+.lernzeit { margin-top: 0.4rem; }
+.lernzeit-liste { list-style: none; padding: 0; margin: 0.4rem 0 0; display: grid; gap: 0.25rem; }
+.lernzeit-liste li { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; }
