@@ -84,7 +84,15 @@ export function konfigLesen(text: string): Record<string, string> {
 // Start als Programm (im Container): „node runner.js“ = Dienst, „node runner.js pruefen“ = Anmeldung testen
 if (process.argv[1] && /runner\.(js|ts)$/.test(process.argv[1])) {
   const datei = process.env.BROWSER_KONFIG;
-  const k: Record<string, string | undefined> = { ...process.env, ...(datei && fs.existsSync(datei) ? konfigLesen(fs.readFileSync(datei, 'utf8')) : {}) };
+  let ausDatei: Record<string, string> = {};
+  if (datei && fs.existsSync(datei)) {
+    try {
+      ausDatei = konfigLesen(fs.readFileSync(datei, 'utf8'));
+    } catch (e) {
+      console.error(`${datei} ist nicht lesbar (${(e as Error).message}) – auf dem Server: dorf deploy bzw. dorf moodle-browser-zugang`);
+    }
+  }
+  const k: Record<string, string | undefined> = { ...process.env, ...ausDatei };
   const browser = new MoodleBrowser({
     moodleUrl: k.MOODLE_WEB_URL || 'https://moodle.jku.at',
     hosts: (k.BROWSER_HOSTS || 'jku.at').split(/[\s,]+/).filter(Boolean),

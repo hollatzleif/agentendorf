@@ -55,6 +55,12 @@ gesund_warten() {
       fi
       sleep 2
     done
+    if [ "$ok" != ja ] && [ "$dienst" = browser ]; then
+      # Der Moodle-Browser ist eine Zusatzfunktion: Warnung, aber kein Rollback des ganzen Dorfs
+      rot "Warnung: Moodle-Browser meldet sich nicht gesund – das Dorf läuft trotzdem weiter."
+      compose logs --tail 30 browser || true
+      continue
+    fi
     [ "$ok" = ja ] || { rot "Dienst $dienst meldet sich nicht gesund."; compose logs --tail 30 "$dienst"; return 1; }
   done
 }
@@ -99,7 +105,8 @@ geheimnisse_sicherstellen() {
     sed -i "s/^BROWSER_GEHEIMNIS=.*/BROWSER_GEHEIMNIS=$g/" "$BASIS/browser.env"
   fi
   chmod 600 "$BASIS/browser.env"
-  [ -n "$uid" ] && chown "$uid:$uid" "$BASIS/browser.env" 2>/dev/null || true
+  # als Datei eingebunden → muss dem Container-Benutzer gehören (Standard 1000)
+  chown "${uid:-1000}:${uid:-1000}" "$BASIS/browser.env" 2>/dev/null || true
 }
 
 cmd_deploy() {
@@ -404,7 +411,7 @@ cmd_moodle_browser_zugang() {
   { printf 'MOODLE_BENUTZER=%s\n' "$benutzer"; printf 'MOODLE_PASSWORT=%s\n' "$passwort"; printf 'BROWSER_HOSTS=%s\n' "${hosts:-jku.at}"; } >> "$datei.neu"
   chmod 600 "$datei.neu" && mv "$datei.neu" "$datei"
   uid=$(grep -E '^DORF_UID=' "$ENV_DATEI" | cut -d= -f2 || true)
-  [ -n "$uid" ] && chown "$uid:$uid" "$datei" 2>/dev/null || true
+  chown "${uid:-1000}:${uid:-1000}" "$datei" 2>/dev/null || true
   compose up -d --force-recreate browser dorf
   info "Prüfe die Anmeldung bei Moodle (bis zu einer Minute) …"
   sleep 5
