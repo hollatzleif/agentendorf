@@ -55,6 +55,7 @@ describe('Aktionen mit Zeitplan und Ablage', () => {
 
   it('Zeitplaner: neue Zeitpläne zählen ab jetzt, jeder Termin genau einmal, über den Motor der Aktion (nicht api), nachholen bis 3 h', async () => {
     const d = await testDorf();
+    fs.rmSync(path.join(d.vault.wurzel, 'Bibliothek/aktionen/checkliste.md')); // die Vorlage läuft auch um 06:00 – hier nur „morgens“
     fs.writeFileSync(path.join(d.vault.wurzel, 'Bibliothek/aktionen/morgens.md'), aktion('name: Morgens\nmotor: claude-code\nzeitplan: täglich 06:00\neingaben:\n  - name: thema\n    standard: Folien'));
     expect(await d.automatik.pruefen()).toEqual([]); // erst bekannt machen
     d.uhr.vor(17 * STUNDE + MIN); // Di 17.11. 06:01 Linz
@@ -223,5 +224,41 @@ describe('Skills anlegen', () => {
     expect(await d.vault.existiert('Bibliothek/aktionen/wochenplan-vom-bm.md')).toBe(false);
     await d.agenten.freigaben.entscheiden(f.id, true);
     expect(await d.vault.existiert('Bibliothek/aktionen/wochenplan-vom-bm.md')).toBe(true);
+  });
+});
+
+describe('Vorlagen: Checkliste und Kursübersicht', () => {
+  it('beide Aktionen sind fehlerfrei; Checkliste läuft täglich 06:00 mit Ablage oben in der Bibliothek; Vorlage-HTML mit Häkchen-Brücke', async () => {
+    const d = await testDorf();
+    const { aktionenListe } = await import('../src/agenten/aktionen.js');
+    const alle = await aktionenListe(d.vault);
+    const check = alle.find((a) => a.id === 'Bibliothek/checkliste')!;
+    expect(check.fehler).toBeUndefined();
+    expect(check).toMatchObject({ zeitplan: 'täglich 06:00', ablage: 'Bibliothek/00_Checkliste.html', motor: 'claude-code', fremdinhalte: true });
+    expect(check.werkzeuge).toEqual(expect.arrayContaining(['moodle', 'post', 'kalender', 'vault_schreiben']));
+    const kurs = alle.find((a) => a.id === 'Uni/kursuebersicht')!;
+    expect(kurs.fehler).toBeUndefined();
+    expect(kurs.ablage).toBe('Uni/faecher/{fach}/00_Kursuebersicht.html');
+    const html = (await d.vault.lesen('Bibliothek/vorlagen/checkliste-vorlage.html')).inhalt;
+    expect(html).toContain('DORF-DATEN-ANFANG');
+    expect(html).toContain("dorf: 'stand-speichern'");
+    expect(await d.vault.existiert('00_Stadtordnung/aktion-vorlage.md')).toBe(true);
+  });
+
+  it('post_suchen findet Mails nach Absender/Betreff/Kurzfassung – als Fremdinhalt', async () => {
+    const d = await testDorf();
+    const jetzt = d.uhr.jetzt();
+    const neu = d.db.prepare("INSERT INTO post_mails (id, thread_id, von, betreff, datum, zusammenfassung) VALUES (?, 't', ?, ?, ?, ?)");
+    neu.run('m1', 'Pawan ‹p@jku.at›', 'Stat ML Assignment 1', jetzt - 86_400_000, 'Bitte bis Sonntag schicken');
+    neu.run('m2', 'Mensa', 'Speiseplan', jetzt - 86_400_000, null);
+    neu.run('m3', 'Pawan ‹p@jku.at›', 'Alt', jetzt - 90 * 86_400_000, null);
+    fs.writeFileSync(path.join(d.vault.wurzel, 'Bibliothek/aktionen/suche.md'), aktion('name: Suche\nwerkzeuge: [post]\nfremdinhalte: ja', '<<werkzeug post_suchen {"suche":"pawan assignment"}>>'));
+    const s = await d.agenten.aktionStarten('Bibliothek/suche', {});
+    await d.agenten.leerlauf();
+    const t = (d.db.prepare("SELECT text FROM nachrichten WHERE chat_id = ? AND rolle = 'werkzeug'").get(s.chatId) as { text: string }).text;
+    expect(t).toContain('<fremdinhalt quelle="gmail-suche">');
+    expect(t).toContain('m1 ·');
+    expect(t).not.toContain('Speiseplan');
+    expect(t).not.toContain('m3 ·');
   });
 });

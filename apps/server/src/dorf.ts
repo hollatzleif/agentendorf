@@ -44,6 +44,9 @@ const PFLICHT_DATEIEN = [
   'Uni/aktionen/moodle-durchsehen.md',
   'Post/aktionen/antwort-entwerfen.md',
   '00_Stadtordnung/aktion-vorlage.md',
+  'Bibliothek/aktionen/checkliste.md',
+  'Bibliothek/vorlagen/checkliste-vorlage.html',
+  'Uni/aktionen/kursuebersicht.md',
 ];
 
 /**

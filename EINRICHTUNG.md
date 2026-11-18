@@ -150,6 +150,16 @@ Die JKU sperrt den Zugang für die Moodle-App. Deshalb holt das Dorf nur die **T
 4. Unterwegs per Telegram: `/moodle CDA was muss ich bis Donnerstag vorbereiten?` startet dasselbe. Nur `/moodle` zeigt deine Fächer.
 5. Auch der Bürgermeister kann das bei seinen Rundgängen als Helfer losschicken (über dein Abo).
 
+### Skills (eigene Aktionen), auch mit Zeitplan
+
+- **In der App:** Gebäude → Aktionen → **„+ Neue Aktion“**. Dort trägst du Name, Anweisung, Werkzeuge, optional einen Zeitplan (z. B. `täglich 06:00`) und eine Ergebnis-Datei ein. „Prüfen“ zeigt die fertige Datei oder den Fehler.
+- **In Obsidian:** Vorlage `00_Stadtordnung/aktion-vorlage.md` kopieren nach `<Gebäude>/aktionen/<name>.md`.
+- **Per Bürgermeister:** „Leg mir einen Skill an, der …“. Er legt einen Vorschlag zur Freigabe vor, angelegt wird erst nach deinem Ja.
+- **Vom Handy:** `/aktion` in Telegram zeigt die Skills, die ohne Eingaben laufen; `/aktion Checkliste` startet einen davon.
+- **Mitgeliefert:**
+  - **Checkliste** (Bibliothek): täglich 06:00 nach `Bibliothek/00_Checkliste.html`, ältere Fassungen in `Bibliothek/archiv/00_Checkliste/`. Deine Häkchen werden im Dorf gespeichert und beim nächsten Lauf berücksichtigt.
+  - **Kursübersicht** (Uni): pro Kurs alle Folien laden und `Uni/faecher/<Kurs>/00_Kursuebersicht.html` schreiben.
+
 ## 9. Post: Gmail verbinden (nur Lesen und Entwürfe)
 
 Das Dorf liest dein Gmail und legt höchstens **Entwürfe** an. Senden kann es nicht, weil die Anmeldung das gar nicht erlaubt.

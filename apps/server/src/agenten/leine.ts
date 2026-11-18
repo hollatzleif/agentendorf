@@ -25,6 +25,7 @@ export type DorfWerkzeug =
   | 'rechenraum_seite_ansehen'
   | 'rechenraum_ablegen'
   | 'post_lesen'
+  | 'post_suchen'
   | 'post_entwurf'
   | 'moodle_oeffnen'
   | 'moodle_klicken'
@@ -52,7 +53,7 @@ export const RECHENRAUM_WERKZEUGE: DorfWerkzeug[] = [
  * Nur Aktionen mit werkzeuge: [post]. Lesen nur von Mails aus dem Posteingang (dem Dorf bekannt),
  * Entwurf nur als Antwort auf genau so eine Mail – kein frei wählbarer Empfänger, Senden gibt es nicht.
  */
-export const POST_WERKZEUGE: DorfWerkzeug[] = ['post_lesen', 'post_entwurf'];
+export const POST_WERKZEUGE: DorfWerkzeug[] = ['post_suchen', 'post_lesen', 'post_entwurf'];
 /**
  * Nur Aktionen mit werkzeuge: [moodle] UND fremdinhalte: ja. Der Browser-Container liest nur (Leine dort: nur
  * JKU-Domains, kein Formular-Senden, keine sesskey-Aktionen) – Moodle-Inhalte sind Fremdinhalt. Herunterladen

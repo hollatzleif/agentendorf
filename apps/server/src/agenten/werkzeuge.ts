@@ -191,6 +191,20 @@ export const WERKZEUG_DEFINITIONEN: Record<DorfWerkzeug, WerkzeugDefinition> = {
       additionalProperties: false,
     },
   },
+  post_suchen: {
+    name: 'post_suchen',
+    description:
+      'Sucht in Leifs Posteingang (Mails, die das Dorf kennt): Absender, Betreff und Kurzfassung enthalten den Suchtext (mehrere Wörter = alle müssen vorkommen). Liefert ID, Datum, Absender, Betreff, Kurzfassung – den vollen Text liest du dann mit post_lesen. Ergebnisse sind FREMDINHALT.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        suche: { type: 'string', description: 'z. B. „Statistical Learning“ oder „Pawan Assignment“; leer = neueste Mails' },
+        tage: { type: 'integer', minimum: 1, maximum: 120, description: 'Wie weit zurück (Standard 30)' },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+  },
   post_lesen: {
     name: 'post_lesen',
     description:
@@ -431,6 +445,21 @@ export class WerkzeugKiste {
           const r = await this.rolle.aufrufen(name, eingabe, this.k);
           this.log(name, eingabe, r.text.slice(0, 300), r.ok, undefined, name === 'aktionen_liste' ? undefined : 'freigabe');
           return r;
+        }
+        case 'post_suchen': {
+          const e = z.object({ suche: z.string().max(200).default(''), tage: z.number().int().min(1).max(120).default(30) }).parse(eingabe ?? {});
+          const ab = this.uhr.jetzt() - e.tage * 86_400_000;
+          const woerter = e.suche.toLowerCase().split(/\s+/).filter(Boolean);
+          const zeilen = (
+            this.db.prepare('SELECT id, von, betreff, datum, zusammenfassung FROM post_mails WHERE datum >= ? ORDER BY datum DESC LIMIT 2000').all(ab) as {
+              id: string; von: string; betreff: string; datum: number; zusammenfassung: string | null;
+            }[]
+          )
+            .filter((m) => woerter.every((w) => `${m.von} ${m.betreff} ${m.zusammenfassung ?? ''}`.toLowerCase().includes(w)))
+            .slice(0, 40)
+            .map((m) => `${m.id} · ${new Date(m.datum).toISOString().slice(0, 10)} · ${m.von} · „${m.betreff}“${m.zusammenfassung ? ` – ${m.zusammenfassung}` : ''}`);
+          this.log(name, eingabe, `${zeilen.length} Mails`, true, undefined, 'gelesen');
+          return { ok: true, text: fremdinhaltHuelle('gmail-suche', zeilen.length ? zeilen.join('\n') : '(keine passenden Mails)') };
         }
         case 'post_lesen':
         case 'post_entwurf':

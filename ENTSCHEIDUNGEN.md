@@ -225,3 +225,28 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - **Akku:** Bei offenem Gebäude-Menü zeichnet das Dorf nur ~8 Bilder pro Sekunde.
 - **Zweite unabhängige Prüfung** (3D/Web): keine Abstürze, zehn kleinere Befunde behoben. Dazu gehörten Umwege des Bürgermeisters beim Nachdenken, nicht freigegebene Autos, Himmel und Lampenlicht, Figuren nach dem Drehen eines Gebäudes und ungesichertes `localStorage`.
 - **Knopf „Agenten“** oben (neben Wetter, Zeitung, Liste, Bauen; 18.11. auf Leifs Wunsch): zeigt mit Zahl, wie viele Agenten gerade laufen. Ein Tipp öffnet die Übersicht mit Gebäude, Auftrag, Status, Laufzeit und dem aktuellen Werkzeug, dazu „Zeigen“ (Kamera zur Figur, Figurenkarte) und „Chat“, darunter die zuletzt fertigen Läufe (✅/❌/⏹️). Am Handy zeigen die oberen Knöpfe nur Symbole, damit alle in eine Reihe passen.
+
+**E60 – Skills: selbst anlegen, von selbst laufen lassen, Ergebnis mit Archiv** (18.11., Leifs Wunsch: „einfach Skills anlegen und automatisch ausführen lassen, auch zu Gebäuden hinzufügen“; Anlass: tägliche Checkliste)
+- **Skill = Aktion** (Markdown in `<Gebäude>/aktionen/`). Neu im Kopf:
+  - `zeitplan` in einfacher Sprache, z. B. „täglich 06:00“, „werktags 07:00, 18:00“ oder „mo, mi 08:00“ (mitteleuropäische Zeit).
+  - `ablage`: Ergebnis-Datei im eigenen Gebäude, auch mit Platzhaltern wie `Uni/faecher/{fach}/00_Kursuebersicht.html`.
+  - `standard` für Eingaben.
+- **Zeitplaner** (`agenten/automatik.ts`): prüft jede Minute und startet jeden Termin genau einmal (DB). Verpasste Termine holt er bis 3 h nach. Neue oder geänderte Zeitpläne zählen erst ab dann. Läuft dieselbe Aktion noch, wird der Termin ausgelassen. Auslöser `automatik` → **Motor der Aktion** (meist dein Abo), nicht das API-Budget des Bürgermeisters. Pflicht-Eingaben brauchen dann einen `standard`.
+- **Ablage mit Archiv:**
+  - Der Agent schreibt nach einem vom Code vorgegebenen Entwurfsnamen (Agenten-Schema).
+  - Erst wenn der Lauf **erfolgreich** war, legt der Code die alte Fassung nach `<Ordner>/archiv/<Name>/` und setzt die neue an ihre Stelle, z. B. `Bibliothek/00_Checkliste.html` (die `00_` hält sie oben).
+  - Scheitert der Lauf, bleibt alles, wie es war.
+- **Häkchen-Brücke:** Abgeschottete HTML-Seiten können per `postMessage` einen kleinen Stand (≤ 64 KB) über die App im Dorf speichern (`seiten_stand`). Häkchen bleiben so auf allen Geräten erhalten. Beim Ablösen wandert der Stand als `_haekchen.json` mit ins Archiv, der nächste Lauf bekommt ihn im Auftrag (als Fremdinhalt) und erkennt so Erledigtes. Weiter gilt: kein Netz, kein Zugriff auf die App.
+- **Neue Werkzeuge:**
+  - `kalender_lesen` (`werkzeuge: [kalender]`, nur mit Fremdinhalten): Hauptkalender, Uni-Fristen (mit „erledigt“) und Pflichttermine, nur lesen.
+  - `post_suchen` (in `post`): durchsucht die Mails, die der Postbote kennt, und liefert die IDs für `post_lesen`.
+- **Anlegen auf drei Wegen**, alle als normale Markdown-Datei und alle wie jede Aktion geprüft (Leine, Zeitplan, Ablage), Fehlerhaftes wird nicht gespeichert:
+  - App-Formular „+ Neue Aktion“ in jedem Gebäude
+  - `00_Stadtordnung/aktion-vorlage.md` für Obsidian
+  - Werkzeug `aktion_vorschlagen` des Bürgermeisters: Er legt eine **Freigabe** vor, erst Leifs Ja legt die Datei an.
+- **Telegram:** `/aktion [Name]` startet Skills, die ohne Eingaben (oder mit Standardwerten) laufen.
+- **Mitgeliefert:**
+  - „Checkliste“ (Bibliothek, täglich 06:00, Moodle + Mails + Kalender + Häkchen → `Bibliothek/00_Checkliste.html`, Vorlage `Bibliothek/vorlagen/checkliste-vorlage.html` ohne persönliche Daten).
+  - „Kursübersicht“ (Uni): Folien eines Kurses holen und `Uni/faecher/<Kurs>/00_Kursuebersicht.html` schreiben, mit ECTS-Anforderungen, Stand und Anstehendem.
+- **Fehlerbild des claude-CLI:** Bei `error_during_execution` zeigt der Chat jetzt den Grund (`errors` aus dem Ergebnis bzw. das Ende von stderr) statt des letzten Satzes.
+

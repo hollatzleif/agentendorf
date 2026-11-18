@@ -9,10 +9,13 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
   src/auth/       Passwort (Argon2id), Sitzungen (Cookie, nur Hash in DB), Drossel, TOTP (eigene RFC-6238-Implementierung)
   src/vault/      VaultDienst (einziger Weg zu den Dateien), Pfadregeln, Gebäude-Erkennung, Suche (FTS5), Dateiwächter
   src/agenten/    Agenten-Kern (Etappe 2a):
-    aktionen.ts     Aktionen = Markdown-Skills in <Gebäude>/aktionen/ (Zod-Frontmatter, Fehler sichtbar)
+    aktionen.ts     Aktionen = Markdown-Skills in <Gebäude>/aktionen/ (Zod-Frontmatter, Fehler sichtbar; zeitplan, ablage, standard – E60)
+    automatik.ts    Zeitplaner (jede Minute, genau einmal je Termin, Auslöser automatik = Motor der Aktion) + Ablage mit Archiv
+    zeitplan.ts     „täglich 06:00“, „werktags 07:00, 18:00“, „mo, mi 08:00“ → Termine (Europe/Vienna)
+    skills.ts       Skill anlegen (App-Formular, aktion_vorschlagen des Bürgermeisters nach Freigabe) – geprüft wie jede Aktion
     modelle.ts      Stufen klein/mittel/gross + Motoren/Notschalter aus 00_Stadtordnung/{modelle,motoren}.md
     leine.ts        DIE Stelle für Regeln: Werkzeugprofil, Schreibregeln, Web vs. Fremdinhalte, Fremdinhalt-Hülle
-    werkzeuge.ts    vault_lesen/liste/suchen/schreiben, freigabe_beantragen – mit Leine und werkzeug_log
+    werkzeuge.ts    vault_lesen/liste/suchen/schreiben, freigabe_beantragen, kalender_lesen, post_suchen – mit Leine und werkzeug_log
     freigaben.ts    Anträge, atomar genau einmal entscheiden, Ausführer, Spiegel in Rathaus/freigaben/
     dienst.ts       Chats, Läufe, Warteschlange (Obergrenzen je Motor), Ausführung, Verlauf je Motor
     kontext.ts      Systemprompt (Stadtordnung, gebaeude.md, neueste Protokolle), Anhänge
@@ -123,5 +126,6 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] Etappe 4 – Post, Kalender, Aufwachen, Morgenzeitung (Code fertig und getestet; Gmail-Anmeldung und echte Läufe auf dem Server abzunehmen; To-do-Brett kommt mit Etappe 7)
 - [x] Etappe 5 – Dorf (3D statt Isometrie, E52; Code fertig und getestet; Abnahme am Handy/PC mit echten Läufen steht aus)
 - [x] Nacht 17./18.11. (E56–E59): Bürgermeister 24/7, Spielknöpfe, Helfer-Figuren, Moodle-Browser (läuft auf dem Server; wartet auf `dorf moodle-browser-zugang`, Leine unabhängig geprüft und gegen das echte JKU-Moodle ohne Login getestet), Wetter/Jahreszeiten, Telegram /heute /fristen
+- [x] E60 (18.11.): Skills anlegen (App, Obsidian-Vorlage, Bürgermeister per Freigabe), Zeitpläne, Ablage mit Archiv, Häkchen-Brücke, Checkliste (täglich 06:00), Kursübersicht
 - [ ] Etappe 6 – Programme (Tauri)
 - [ ] Etappe 7 – Marktplatz-Brett, leere Gebäude
