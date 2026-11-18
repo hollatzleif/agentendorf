@@ -12,6 +12,8 @@ const ARTEN: Record<string, string> = {
   sonstiges: 'Sonstiges (erledigst du selbst)',
   lauf_starten: 'Aktion starten',
   plan_ausfuehren: 'Plan des Bürgermeisters',
+  aktion_anlegen: 'Neuer Skill',
+  persoenlichkeit_aendern: 'Persönlichkeit des Bürgermeisters',
 };
 
 export function Freigaben() {
@@ -28,7 +30,8 @@ export function Freigaben() {
           {erledigt.data?.map((f) => (
             <li key={f.id}>
               <strong>{f.titel}</strong> – {f.status}{f.automatisch ? " (automatisch, keine Antwort)" : ""}
-              {f.ergebnis ? `: ${f.ergebnis}` : ''} <span className="leise">({f.entschieden && zeitKurz(f.entschieden)})</span>
+              {f.ergebnis ? `: ${f.ergebnis}` : ''}
+              {f.grund ? ` – Grund: „${f.grund}“` : ''} <span className="leise">({f.entschieden && zeitKurz(f.entschieden)})</span>
             </li>
           ))}
         </ul>
@@ -40,11 +43,12 @@ export function Freigaben() {
 function FreigabeKarte({ f }: { f: FreigabeInfo }) {
   const [fehler, setFehler] = useState('');
   const [laeuft, setLaeuft] = useState(false);
+  const [grund, setGrund] = useState('');
   const inhalt = f.inhalt as { pfad?: string; inhalt?: string; beschreibung?: string; markdown?: string };
   const entscheiden = async (annehmen: boolean) => {
     setLaeuft(true);
     try {
-      await api(`/api/freigaben/${f.id}/entscheiden`, { body: { annehmen } });
+      await api(`/api/freigaben/${f.id}/entscheiden`, { body: annehmen ? { annehmen } : { annehmen, ...(grund.trim() ? { grund: grund.trim() } : {}) } });
     } catch (e) {
       setFehler(e instanceof ApiFehler ? e.message : String(e));
       setLaeuft(false);
@@ -92,6 +96,10 @@ function FreigabeKarte({ f }: { f: FreigabeInfo }) {
           <pre className="rohtext">{inhalt.inhalt}</pre>
         </details>
       )}
+      <label className="grund">
+        Falls du ablehnst – warum? (optional{f.chatId ? ', geht an den Bürgermeister' : ''})
+        <input value={grund} onChange={(e) => setGrund(e.target.value)} maxLength={2000} placeholder="z. B. „zu teuer“, „erst nach der Prüfung“, „lieber nur Mathe 3“" />
+      </label>
       <div className="werkzeuge">
         <button className="haupt" disabled={laeuft} onClick={() => entscheiden(true)}>
           Ja, ausführen

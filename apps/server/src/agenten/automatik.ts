@@ -3,6 +3,7 @@ import type { DB } from '../db.js';
 import type { Uhr } from '../uhr.js';
 import type { VaultDienst } from '../vault/dienst.js';
 import { aktionenListe, type Aktion } from './aktionen.js';
+import type { AktionInfo } from '@dorf/shared';
 import { naechsterTermin, termineZwischen, zeitplanLesen } from './zeitplan.js';
 import { dateiStempel, kurztitel } from './hilfen.js';
 import { fremdinhaltHuelle } from './leine.js';
@@ -12,6 +13,8 @@ import type { AgentenDienst, LaufEnde } from './dienst.js';
 
 /** Verpasste Termine (Server war aus) werden so lange nachgeholt */
 const NACHHOLEN_MS = 3 * 3600_000;
+/** zeitplan_je: höchstens so viele Läufe pro Termin */
+const MAX_JE = 30;
 
 /**
  * Ablage: Eine Aktion mit `ablage: Bibliothek/00_Checkliste.html` schreibt bei jedem Lauf eine neue Fassung.
@@ -118,6 +121,35 @@ export class Automatik {
     }
   }
 
+  /**
+   * zeitplan_je (E64): ein Lauf je Wert der Auswahl (z. B. jedes Fach). Werte, für die noch ein Lauf dieser Aktion
+   * läuft, werden ausgelassen. Höchstens MAX_JE Läufe pro Termin; die Warteschlange verteilt sie nach den Obergrenzen.
+   */
+  private async jeStarten(a: AktionInfo, eingabe: string) {
+    const e = a.eingaben.find((x) => x.name === eingabe);
+    const werte = (e?.optionen?.length ? e.optionen : e?.quelle ? this.o.agenten.quellen(e.quelle).map((o) => o.wert) : []).slice(0, MAX_JE);
+    let gestartet = 0;
+    let uebersprungen = 0;
+    for (const w of werte) {
+      const laufend = this.o.db
+        .prepare(
+          "SELECT 1 FROM laeufe l JOIN chats c ON c.id = l.chat_id WHERE c.aktion = ? AND json_extract(c.eingaben_json, ?) = ? AND l.status IN ('wartend', 'laeuft', 'wartet_freigabe')",
+        )
+        .get(a.id, `$.${eingabe}`, w);
+      if (laufend) {
+        uebersprungen++;
+        continue;
+      }
+      try {
+        await this.o.agenten.aktionStarten(a.id, { [eingabe]: w }, 'automatik');
+        gestartet++;
+      } catch (err) {
+        this.o.log?.(`Automatik: ${a.id} (${eingabe}=${w}) konnte nicht starten: ${(err as Error).message}`);
+      }
+    }
+    return { gestartet, uebersprungen };
+  }
+
   /** Fällige Aktionen starten; gibt die gestarteten Aktions-IDs zurück */
   async pruefen(): Promise<string[]> {
     if (this.laeuft) return [];
@@ -137,6 +169,12 @@ export class Automatik {
         if (termin == null) continue;
         const r = db.prepare('INSERT OR IGNORE INTO automatik_termine (aktion_id, termin, erstellt) VALUES (?, ?, ?)').run(a.id, termin, jetzt);
         if (r.changes !== 1) continue; // schon erledigt
+        if (a.zeitplanJe) {
+          const n = await this.jeStarten(a, a.zeitplanJe);
+          db.prepare('UPDATE automatik_termine SET hinweis = ? WHERE aktion_id = ? AND termin = ?').run(`${n.gestartet} Läufe (je ${a.zeitplanJe})${n.uebersprungen ? `, ${n.uebersprungen} übersprungen` : ''}`, a.id, termin);
+          if (n.gestartet) gestartet.push(a.id);
+          continue;
+        }
         // läuft dieselbe Aktion noch (z. B. lange Moodle-Runde)? Dann diesen Termin auslassen
         const laufend = db
           .prepare("SELECT 1 FROM laeufe l JOIN chats c ON c.id = l.chat_id WHERE c.aktion = ? AND l.status IN ('wartend', 'laeuft', 'wartet_freigabe')")

@@ -70,8 +70,8 @@ export function agentenRouten(
   });
   app.post('/api/freigaben/:id/entscheiden', async (req) => {
     const { id } = z.object({ id: z.string() }).parse(req.params);
-    const { annehmen } = z.object({ annehmen: z.boolean() }).parse(req.body);
-    return agenten.freigaben.entscheiden(id, annehmen);
+    const { annehmen, grund } = z.object({ annehmen: z.boolean(), grund: z.string().max(2000).optional() }).parse(req.body);
+    return agenten.freigaben.entscheiden(id, annehmen, 'leif', grund);
   });
 
   app.get('/api/verbrauch', async () => verbrauchAuswerten(d.db, d.uhr.jetzt()));

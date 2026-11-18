@@ -262,3 +262,39 @@ describe('Vorlagen: Checkliste und Kursübersicht', () => {
     expect(t).not.toContain('m3 ·');
   });
 });
+
+describe('Zeitplan je Auswahl (E64)', () => {
+  it('ein Lauf je Fach; Fächer mit laufendem Lauf werden ausgelassen; Prüfungen im Kopf', async () => {
+    const d = await testDorf();
+    for (const f of ['mathe-3', 'formal-models', 'nlp']) fs.mkdirSync(path.join(d.vault.wurzel, 'Uni/faecher', f), { recursive: true });
+    const { aktionenListe } = await import('../src/agenten/aktionen.js');
+    // die Vorlage „Kursübersicht“ hat es schon: montags 05:00 für jedes Fach
+    const kurs = (await aktionenListe(d.vault)).find((a) => a.id === 'Uni/kursuebersicht')!;
+    expect(kurs.fehler).toBeUndefined();
+    expect(kurs).toMatchObject({ zeitplan: 'mo 05:00', zeitplanJe: 'fach' });
+    // ein eigener Skill zum Testen (ohne Moodle, damit die Attrappe schnell fertig ist); die Vorlagen stören nicht
+    for (const v of ['Uni/aktionen/kursuebersicht.md', 'Bibliothek/aktionen/checkliste.md']) fs.rmSync(path.join(d.vault.wurzel, v));
+    const ordner = path.join(d.vault.wurzel, 'Uni/aktionen');
+    fs.writeFileSync(
+      path.join(ordner, 'je.md'),
+      aktion('name: Je Fach\nzeitplan: täglich 06:00\nzeitplan_je: fach\neingaben:\n  - name: fach\n    typ: auswahl\n    quelle: uni.faecher', 'Fach {fach} [warte 50]'),
+    );
+    fs.writeFileSync(path.join(ordner, 'falsch.md'), aktion('name: Falsch\nzeitplan: täglich 06:00\nzeitplan_je: thema\neingaben:\n  - name: thema'));
+    const liste = await aktionenListe(d.vault);
+    expect(liste.find((a) => a.id === 'Uni/falsch')!.fehler).toMatch(/quelle oder optionen/);
+    expect(await d.automatik.pruefen()).toEqual([]); // bekannt machen
+    // ein Lauf für mathe-3 läuft schon → wird ausgelassen
+    await d.agenten.aktionStarten('Uni/je', { fach: 'mathe-3' }, 'klick');
+    // Uhr auf den nächsten 06:00-Termin
+    const z = (await import('../src/agenten/zeitplan.js')).zeitplanLesen('täglich 06:00');
+    const { naechsterTermin: nt } = await import('../src/agenten/zeitplan.js');
+    d.uhr.vor(nt(z, d.uhr.jetzt())! + MIN - d.uhr.jetzt());
+    expect(await d.automatik.pruefen()).toEqual(['Uni/je']);
+    const chats = d.agenten.chatListe().filter((c) => c.aktion === 'Uni/je');
+    expect(chats.map((c) => c.titel).sort()).toEqual(['Je Fach: formal-models', 'Je Fach: mathe-3', 'Je Fach: nlp']);
+    const t = d.db.prepare("SELECT hinweis FROM automatik_termine WHERE aktion_id = 'Uni/je'").get() as { hinweis: string };
+    expect(t.hinweis).toBe('2 Läufe (je fach), 1 übersprungen');
+    expect(chats.filter((c) => c.titel === 'Je Fach: formal-models')).toHaveLength(1);
+    await d.agenten.leerlauf();
+  });
+});

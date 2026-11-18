@@ -338,12 +338,20 @@ ${fremdinhaltHuelle('rundgang', zeilen.length ? zeilen.map((z) => `- ${z}`).join
       )
       .all(seit, bis) as { titel: string; fehler: string | null }[];
     for (const e of eigene) zeilen.push(`Dein eigener Lauf „${einzeilig(e.titel, 90)}“ ist gescheitert: ${einzeilig(e.fehler ?? '', 200)}`);
-    const plaene = db.prepare("SELECT inhalt_json FROM plaene WHERE status = 'abgelehnt' AND geaendert >= ? AND geaendert < ? LIMIT 5").all(seit, bis) as { inhalt_json: string }[];
-    for (const p of plaene) zeilen.push(`Leif hat deinen Plan abgelehnt: „${einzeilig((JSON.parse(p.inhalt_json) as { zusammenfassung?: string }).zusammenfassung ?? '', 120)}“`);
+    const plaene = db
+      .prepare(
+        `SELECT p.inhalt_json, f.grund FROM plaene p LEFT JOIN freigaben f ON f.id = p.freigabe_id
+         WHERE p.status = 'abgelehnt' AND p.geaendert >= ? AND p.geaendert < ? LIMIT 5`,
+      )
+      .all(seit, bis) as { inhalt_json: string; grund: string | null }[];
+    for (const p of plaene)
+      zeilen.push(
+        `Leif hat deinen Plan abgelehnt: „${einzeilig((JSON.parse(p.inhalt_json) as { zusammenfassung?: string }).zusammenfassung ?? '', 120)}“${p.grund ? ` – Grund: „${einzeilig(p.grund, 200)}“` : ''}`,
+      );
     const freigaben = db
-      .prepare("SELECT titel, art FROM freigaben WHERE status = 'abgelehnt' AND art != 'plan_ausfuehren' AND entschieden >= ? AND entschieden < ? LIMIT 5")
-      .all(seit, bis) as { titel: string; art: string }[];
-    for (const f of freigaben) zeilen.push(`Leif hat eine Freigabe abgelehnt: „${einzeilig(f.titel, 120)}“ (${f.art})`);
+      .prepare("SELECT titel, art, grund FROM freigaben WHERE status = 'abgelehnt' AND art != 'plan_ausfuehren' AND entschieden >= ? AND entschieden < ? LIMIT 5")
+      .all(seit, bis) as { titel: string; art: string; grund: string | null }[];
+    for (const f of freigaben) zeilen.push(`Leif hat eine Freigabe abgelehnt: „${einzeilig(f.titel, 120)}“ (${f.art})${f.grund ? ` – Grund: „${einzeilig(f.grund, 200)}“` : ''}`);
     const fehlgeschlagen = db
       .prepare("SELECT titel, ergebnis FROM freigaben WHERE status = 'fehlgeschlagen' AND entschieden >= ? AND entschieden < ? LIMIT 5")
       .all(seit, bis) as { titel: string; ergebnis: string | null }[];

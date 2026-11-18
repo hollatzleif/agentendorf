@@ -46,6 +46,7 @@ interface Zeile {
   ergebnis: string | null;
   vault_pfad: string | null;
   entschieden_von: string | null;
+  grund: string | null;
 }
 
 function info(z: Zeile): FreigabeInfo {
@@ -62,6 +63,7 @@ function info(z: Zeile): FreigabeInfo {
     erstellt: new Date(z.erstellt).toISOString(),
     entschieden: z.entschieden ? new Date(z.entschieden).toISOString() : undefined,
     ...(z.entschieden_von === 'automatisch' ? { automatisch: true } : {}),
+    ...(z.grund ? { grund: z.grund } : {}),
     ergebnis: z.ergebnis ?? undefined,
   };
 }
@@ -73,6 +75,8 @@ export class Freigaben {
   readonly beiNeu: ((f: FreigabeInfo) => void | Promise<void>)[] = [];
   /** Zuhörer für Entscheidungen (z. B. Telegram-Nachricht umschreiben, Plan abgelehnt) */
   readonly beiEntscheidung: ((f: FreigabeInfo) => void | Promise<void>)[] = [];
+  /** Grund nachgereicht (E64) */
+  readonly beiGrund: ((f: FreigabeInfo) => void | Promise<void>)[] = [];
 
   private async melden(liste: ((f: FreigabeInfo) => void | Promise<void>)[], f: FreigabeInfo) {
     for (const fn of liste) {
@@ -142,11 +146,12 @@ export class Freigaben {
   }
 
   /** Genau einmal: der Statuswechsel ist atomar; ein zweiter Klick (oder ein zweites Gerät) bekommt 409. */
-  async entscheiden(id: string, annehmen: boolean, von: 'leif' | 'automatisch' = 'leif'): Promise<FreigabeInfo> {
+  async entscheiden(id: string, annehmen: boolean, von: 'leif' | 'automatisch' = 'leif', grund?: string): Promise<FreigabeInfo> {
     const jetzt = this.uhr.jetzt();
+    const g = !annehmen && grund?.trim() ? grund.trim().slice(0, 2000) : null;
     const r = this.db
-      .prepare("UPDATE freigaben SET status = ?, entschieden = ?, entschieden_von = ? WHERE id = ? AND status = 'offen'")
-      .run(annehmen ? 'angenommen' : 'abgelehnt', jetzt, von, id);
+      .prepare("UPDATE freigaben SET status = ?, entschieden = ?, entschieden_von = ?, grund = ? WHERE id = ? AND status = 'offen'")
+      .run(annehmen ? 'angenommen' : 'abgelehnt', jetzt, von, g, id);
     if (r.changes !== 1) {
       this.holen(id); // 404, falls es sie nicht gibt
       throw new DorfFehler(409, 'Diese Freigabe wurde schon entschieden.');
@@ -172,6 +177,25 @@ export class Freigaben {
     return f;
   }
 
+  /**
+   * Grund nachreichen (Telegram: erst ❌, dann ein Satz) – nur für abgelehnte Freigaben ohne Grund, genau einmal.
+   * Danach bekommen die Zuhörer die Freigabe erneut (der Bürgermeister macht mit dem Grund weiter).
+   */
+  async grundNachreichen(id: string, grund: string): Promise<FreigabeInfo> {
+    const g = grund.trim().slice(0, 2000);
+    if (!g) throw new DorfFehler(400, 'Grund ist leer.');
+    const r = this.db.prepare("UPDATE freigaben SET grund = ? WHERE id = ? AND status = 'abgelehnt' AND grund IS NULL").run(g, id);
+    if (r.changes !== 1) {
+      this.holen(id);
+      throw new DorfFehler(409, 'Für diese Freigabe gibt es schon einen Grund oder sie wurde nicht abgelehnt.');
+    }
+    await this.spiegeln(id);
+    this.beiAenderung();
+    const f = this.holen(id);
+    await this.melden(this.beiGrund, f);
+    return f;
+  }
+
   /** Markdown-Spiegel in Rathaus/freigaben/ (für Obsidian). */
   private async spiegeln(id: string) {
     const f = this.holen(id);
@@ -191,7 +215,9 @@ ${f.entschieden ? `entschieden: ${f.entschieden}\n` : ''}---
 
 # Freigabe: ${f.titel}
 
-**Status:** ${f.status}${f.automatisch ? ' (automatisch – keine Antwort innerhalb der Frist)' : ''}${f.ergebnis ? ` – ${f.ergebnis}` : ''}
+**Status:** ${f.status}${f.automatisch ? ' (automatisch – keine Antwort innerhalb der Frist)' : ''}${f.ergebnis ? ` – ${f.ergebnis}` : ''}${f.grund ? `
+
+**Leifs Grund:** ${f.grund}` : ''}
 
 ## Begründung des Agenten
 ${f.begruendung || '–'}

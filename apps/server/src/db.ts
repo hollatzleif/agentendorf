@@ -303,6 +303,10 @@ const MIGRATIONEN: string[] = [
   `
   ALTER TABLE freigaben ADD COLUMN entschieden_von TEXT;
   `,
+  // 13: Leifs Grund beim Ablehnen (geht an den Bürgermeister, E64)
+  `
+  ALTER TABLE freigaben ADD COLUMN grund TEXT;
+  `,
 ];
 
 export function dbOeffnen(datei: string): DB {

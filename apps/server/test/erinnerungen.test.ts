@@ -83,6 +83,29 @@ describe('Erinnerungen an Fristen (Telegram)', () => {
     expect(x.d.uni.fristen().find((f) => f.titel === 'Übung 5')!.abgegeben).toBe(true);
   });
 
+  it('Frist-Wächter (E64): ab 1 Tag vorher Knopf „Vorbereiten lassen“ → Aufgabe für den Bürgermeister; gefälscht wirkt nicht', async () => {
+    const x = await aufbau();
+    x.setzen(ics([['a', 'Übung 2 ist fällig', x.t0 + 20 * STUNDE], ['b', 'Übung 3 ist fällig', x.t0 + 60 * STUNDE]]));
+    await x.d.uni.abgleichen();
+    expect(await x.bot.erinnerungenSenden()).toBe(2);
+    const tasten = (titel: string) =>
+      (x.gesendet().find((g) => String(g.p.text).includes(titel))!.p.reply_markup as { inline_keyboard: { text: string; callback_data: string }[][] }).inline_keyboard[0]!;
+    expect(tasten('Übung 3').map((k) => k.text)).toEqual(['✅ Erledigt']); // 3 Tage vorher: nur abhaken
+    const v = tasten('Übung 2').find((k) => k.text === '🧑‍💼 Vorbereiten lassen')!;
+    expect(v.callback_data.length).toBeLessThanOrEqual(64);
+    await x.knopf(v.callback_data.slice(0, -2) + 'xx');
+    expect(x.d.schreibtisch.liste()).toHaveLength(0);
+    await x.knopf(v.callback_data);
+    const [aufgabe] = x.d.schreibtisch.liste();
+    expect(aufgabe).toMatchObject({ quelle: 'telegram' });
+    const text = (await x.d.vault.lesen(aufgabe!.pfad)).inhalt;
+    expect(text).toContain('Frist-Wächter');
+    expect(text).toMatch(/<fremdinhalt quelle="frist">[\s\S]*Übung 2 ist fällig/);
+    expect(text).toContain('Abgeben tut Leif immer selbst');
+    expect(x.gesendet().some((g) => String(g.p.text).startsWith('🧑‍💼 Der Bürgermeister bereitet'))).toBe(true);
+    await x.d.agenten.leerlauf();
+  });
+
   it('gefälschte oder fremde Knöpfe wirken nicht', async () => {
     const x = await aufbau();
     x.setzen(ics([['a', 'Übung 1 ist fällig', x.t0 + 50 * STUNDE]]));

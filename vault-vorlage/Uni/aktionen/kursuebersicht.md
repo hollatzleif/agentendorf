@@ -6,6 +6,9 @@ stufe: gross
 werkzeuge: [vault_lesen, vault_suchen, vault_schreiben, moodle, post, kalender]
 fremdinhalte: ja
 ablage: Uni/faecher/{fach}/00_Kursuebersicht.html
+# Jeden Montag früh für jedes Fach in Uni/faecher/ einmal (nur Neues wird geladen)
+zeitplan: mo 05:00
+zeitplan_je: fach
 eingaben:
   - name: fach
     typ: auswahl

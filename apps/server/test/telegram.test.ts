@@ -128,6 +128,30 @@ describe('Telegram-Bot', () => {
     expect(d.schreibtisch.liste()[0]!.status).toBe('erledigt');
   });
 
+  it('Plan per Telegram ablehnen: Frage nach dem Grund, Antwort geht an den Bürgermeister (E64)', async () => {
+    const d = await dorf();
+    await d.nachricht({ text: 'Großes Projekt [plan Bibliothek|Übersicht; Uni|Lernplan]' });
+    await d.ruhe();
+    const plan = d.aufrufe.find((x) => x.m === 'sendMessage' && String(x.p.text).startsWith('📋'))!;
+    const nein = (plan.p.reply_markup as { inline_keyboard: { callback_data: string }[][] }).inline_keyboard[0]![1]!.callback_data;
+    await d.knopf(nein);
+    await d.ruhe();
+    expect(d.gesendet().some((t) => t.startsWith('❌ <b>Abgelehnt:</b> Plan: Testplan') && t.includes('warum?'))).toBe(true);
+    await d.nachricht({ text: 'Zu viele Helfer, erst nur die Bibliothek' });
+    await d.ruhe();
+    const f = d.agenten.freigaben.liste('erledigt').find((x) => x.art === 'plan_ausfuehren')!;
+    expect(f).toMatchObject({ status: 'abgelehnt', grund: 'Zu viele Helfer, erst nur die Bibliothek' });
+    expect(d.gesendet().some((t) => t.startsWith('📝 Danke'))).toBe(true);
+    // keine neue Aufgabe – der Bürgermeister arbeitet im selben Chat mit dem Grund weiter
+    expect(d.schreibtisch.liste()).toHaveLength(1);
+    const l = d.agenten.chatDetail(f.chatId!).laeufe;
+    expect(l.at(-1)!.auftrag).toContain('Sein Grund: „Zu viele Helfer, erst nur die Bibliothek“');
+    // die nächste Nachricht ist wieder normal
+    await d.nachricht({ text: '/neu Etwas ganz anderes' });
+    await d.ruhe();
+    expect(d.schreibtisch.liste()).toHaveLength(2);
+  });
+
   it('Meldungs-Schalter wirken; Fehler werden gemeldet; Befehle', async () => {
     const d = await dorf();
     await einstellungenSetzen(d.vault, { ...STANDARD, freigaben: false, beendet: false });

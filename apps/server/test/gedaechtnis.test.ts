@@ -4,7 +4,14 @@ import { describe, expect, it } from 'vitest';
 import { attrappe } from '../src/agenten/motor-attrappe.js';
 import type { LaufAuftrag, Motor } from '../src/agenten/motor.js';
 import { GEDAECHTNIS_PFAD, PERSOENLICHKEIT_PFAD } from '../src/agenten/gedaechtnis.js';
-import { testDorf } from './hilfen.js';
+import { cookieAus, ORIGIN, testDorf } from './hilfen.js';
+import { passwortSetzen } from '../src/auth/passwort.js';
+
+async function anmelden(d: Awaited<ReturnType<typeof testDorf>>) {
+  await passwortSetzen(d.db, d.uhr, 'ein-langes-test-passwort-1');
+  const r = await d.app.inject({ method: 'POST', url: '/api/anmeldung', payload: { passwort: 'ein-langes-test-passwort-1' }, headers: { origin: ORIGIN } });
+  return { cookie: cookieAus(r.headers['set-cookie']), origin: ORIGIN };
+}
 
 /** Attrappe, die die Systemprompts mitschreibt und vor dem Lauf etwas tun kann (z. B. Leif ändert memory.md). */
 function mitschreiber(vorher?: (a: LaufAuftrag) => Promise<void>) {
@@ -256,3 +263,31 @@ describe('Pläne ohne Antwort automatisch annehmen (E62)', () => {
     expect(await d.buergermeister.faelligePlaeneAnnehmen()).toEqual([]);
   });
 });
+
+describe('Ablehnen mit Begründung (E64)', () => {
+  it('App: Grund beim Ablehnen → Bürgermeister arbeitet damit weiter; ohne Grund nur Hinweis; Rückschau nennt den Grund', async () => {
+    const d = await testDorf();
+    const mit = await buergermeister(d, '[plan Bibliothek|A; Uni|B]');
+    const f = d.agenten.freigaben.liste('offen').find((x) => x.art === 'plan_ausfuehren')!;
+    const r = await d.app.inject({ method: 'POST', url: `/api/freigaben/${f.id}/entscheiden`, payload: { annehmen: false, grund: 'Erst nach der Prüfung' }, headers: await anmelden(d) });
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toMatchObject({ status: 'abgelehnt', grund: 'Erst nach der Prüfung' });
+    await d.agenten.leerlauf();
+    const l = d.agenten.chatDetail(mit.chatId).laeufe;
+    expect(l).toHaveLength(2);
+    expect(l[1]!.auftrag).toContain('Leif hat deinen Plan „Plan: Testplan“ abgelehnt. Sein Grund: „Erst nach der Prüfung“');
+    expect(d.aufwachen.rueckschauZeilen(0, d.uhr.jetzt() + 1).some((z) => z.includes('Grund: „Erst nach der Prüfung“'))).toBe(true);
+
+    const ohne = await buergermeister(d, '[plan Bibliothek|C]');
+    const f2 = d.agenten.freigaben.liste('offen').find((x) => x.art === 'plan_ausfuehren')!;
+    await d.agenten.freigaben.entscheiden(f2.id, false);
+    await d.agenten.leerlauf();
+    expect(d.agenten.chatDetail(ohne.chatId).laeufe).toHaveLength(1);
+    // Grund nachreichen (Telegram-Weg) genau einmal
+    await d.agenten.freigaben.grundNachreichen(f2.id, 'Doppelt');
+    await d.agenten.leerlauf();
+    expect(d.agenten.chatDetail(ohne.chatId).laeufe).toHaveLength(2);
+    await expect(d.agenten.freigaben.grundNachreichen(f2.id, 'Nochmal')).rejects.toThrow(/schon einen Grund/);
+  });
+});
+

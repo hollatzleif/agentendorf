@@ -287,3 +287,20 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - Das Aussehen ist immer hell, auch wenn das Gerät auf dunkel steht. Das Dorf ist hell, ein dunkles Fenster daneben passte nicht.
 - Umgesetzt nur in `stil.css`, ohne neue Abhängigkeiten oder Schriften von außen.
 
+**E64 – Ablehnen mit Begründung, Zeitplan „je Fach“, Frist-Wächter** (18.11., Leifs Auswahl aus den Vorschlägen; außerdem: Pläne starten auch nachts und auch große Pläne nach 10 min von selbst, Dunkelmodus entfällt)
+- **Ablehnen mit Begründung:**
+  - In der App gibt es beim Ablehnen ein optionales Feld „warum?“.
+  - In Telegram fragt der Bot nach ❌ „Magst du kurz sagen, warum?“. Als Grund gilt die Antwort auf diese Nachricht oder die nächste Textnachricht innerhalb von 10 Minuten. Ein Befehl beendet die Frage.
+  - Der Grund wird an der Freigabe gespeichert (Migration 13, `grund`, genau einmal nachreichbar).
+  - Stammt die Freigabe vom Bürgermeister, arbeitet er im selben Chat mit dem Grund weiter: Er legt einen überarbeiteten Vorschlag vor oder fragt nach und hält die Lehre im Gedächtnis fest.
+  - Ohne Grund gibt es wie bisher nur einen Hinweis. Die Rückschau nennt den Grund ebenfalls.
+- **`zeitplan_je: <eingabe>`:**
+  - Der Zeitplan startet je Wert einer Auswahl-Eingabe einen Lauf, z. B. je Fach aus `uni.faecher`, höchstens 30 pro Termin.
+  - Werte, für die noch ein Lauf dieser Aktion läuft, werden ausgelassen.
+  - Die Kursübersicht läuft so jeden Montag um 05:00 für jedes Fach und lädt nur Neues.
+  - Die Vorlagen `kursuebersicht.md` und `aktion-vorlage.md` werden aktualisiert, falls unverändert.
+- **Frist-Wächter:**
+  - Die Telegram-Erinnerungen 1 Tag bzw. wenige Stunden vor der Frist bekommen den Knopf „🧑‍💼 Vorbereiten lassen“ (signiert wie „Erledigt“).
+  - Er legt eine Aufgabe für den Bürgermeister an, mit der Frist als Fremdinhalt. Der Bürgermeister bereitet vor, etwa mit „Abgabe bearbeiten“, „Lernen“ oder „Moodle durchsehen“.
+  - Abgegeben wird nie automatisch.
+

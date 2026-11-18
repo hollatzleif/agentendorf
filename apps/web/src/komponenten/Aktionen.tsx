@@ -65,7 +65,7 @@ export function Aktionen({ gebaeude }: { gebaeude: string }) {
             <span className="leise">
               {a.fehler ? 'fehlerhaft' : `${a.motor} · ${stufeText(a.stufe)}${a.werkzeuge.includes('web') ? ' · Web' : ''}${a.fremdinhalte ? ' · Fremdinhalte' : ''}`}
             </span>
-            {a.zeitplan && !a.fehler && <span className="leise">⏰ {a.zeitplan}</span>}
+            {a.zeitplan && !a.fehler && <span className="leise">⏰ {a.zeitplan}{a.zeitplanJe ? ` · je ${a.zeitplanJe}` : ''}</span>}
           </button>
         ))}
         {neuKnopf}
@@ -169,7 +169,7 @@ function AktionStarten({ a }: { a: AktionInfo }) {
       </p>
       {a.zeitplan && (
         <p className="leise">
-          ⏰ Läuft von selbst: {a.zeitplan}
+          ⏰ Läuft von selbst: {a.zeitplan}{a.zeitplanJe ? ` – einmal für jede Auswahl von „${a.zeitplanJe}“` : ''}
           {a.naechsterLauf ? ` – nächstes Mal ${new Date(a.naechsterLauf).toLocaleString('de-AT', { timeZone: 'Europe/Vienna', weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}
         </p>
       )}

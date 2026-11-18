@@ -45,6 +45,8 @@ export const AktionKopf = z
     zeitplan: z.string().optional(),
     /** Ergebnis-Datei im eigenen Gebäude, die bei jedem Lauf ersetzt wird (alte Fassung → archiv/) */
     ablage: z.string().optional(),
+    /** Zeitplan für jeden Wert einer Auswahl-Eingabe (z. B. „fach“ → ein Lauf je Fach in uni.faecher), E64 */
+    zeitplan_je: z.string().optional(),
   })
   .superRefine((k, ctx) => {
     if (k.zeitplan) {
@@ -53,8 +55,14 @@ export const AktionKopf = z
       } catch (e) {
         ctx.addIssue({ code: 'custom', message: (e as Error).message, path: ['zeitplan'] });
       }
-      const ohne = k.eingaben.find((e) => e.pflicht && !e.standard);
+      const ohne = k.eingaben.find((e) => e.pflicht && !e.standard && e.name !== k.zeitplan_je);
       if (ohne) ctx.addIssue({ code: 'custom', message: `Eingabe „${ohne.name}“ braucht einen standard-Wert, damit die Aktion von selbst laufen kann`, path: ['eingaben'] });
+    }
+    if (k.zeitplan_je) {
+      const e = k.eingaben.find((x) => x.name === k.zeitplan_je);
+      if (!k.zeitplan) ctx.addIssue({ code: 'custom', message: 'zeitplan_je braucht einen zeitplan', path: ['zeitplan_je'] });
+      if (!e || (!e.quelle && !e.optionen?.length))
+        ctx.addIssue({ code: 'custom', message: `zeitplan_je: „${k.zeitplan_je}“ muss eine Eingabe mit quelle oder optionen sein`, path: ['zeitplan_je'] });
     }
     if (k.ablage && (!/\/[A-Za-z0-9_-]+\.(html|md)$/.test(k.ablage) || k.ablage.includes('..') || k.ablage.startsWith('/')))
       ctx.addIssue({
@@ -101,6 +109,7 @@ export function zuInfo(gebaeude: string, datei: string, roh: string): Aktion {
       freigabeVorStart: k.freigabe_vor_start,
       rolle: k.rolle,
       zeitplan: k.zeitplan,
+      ...(k.zeitplan_je ? { zeitplanJe: k.zeitplan_je } : {}),
       ablage: k.ablage,
       kopf: k,
       prompt: m.content.trim(),

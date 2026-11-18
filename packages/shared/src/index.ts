@@ -123,6 +123,8 @@ export interface AktionInfo {
   rolle?: 'buergermeister';
   /** Läuft von selbst, z. B. „täglich 06:00“ */
   zeitplan?: string;
+  /** Zeitplan läuft für jeden Wert dieser Eingabe (z. B. „fach“) einmal */
+  zeitplanJe?: string;
   /** nächster automatischer Lauf (ISO) */
   naechsterLauf?: string;
   /** Ergebnis-Datei, die bei jedem Lauf ersetzt wird (alte Fassung → archiv/) */
@@ -199,6 +201,8 @@ export interface FreigabeInfo {
   ergebnis?: string;
   /** true, wenn nicht Leif, sondern die Frist entschieden hat (E62) */
   automatisch?: boolean;
+  /** Leifs Begründung beim Ablehnen (E64) */
+  grund?: string;
 }
 
 export interface VerbrauchZeile {

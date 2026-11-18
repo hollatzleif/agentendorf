@@ -87,6 +87,7 @@ export class Buergermeister implements RollenHandler {
       return `${pfad} aktualisiert${r.archiv ? ` – bisherige Fassung: ${r.archiv}` : ''}.`;
     });
     agenten.freigaben.beiEntscheidung.push((f) => this.entschieden(f));
+    agenten.freigaben.beiGrund.push((f) => this.grundWeitergeben(f));
   }
 
   /** Startet den Bürgermeister für eine Aufgabe vom Schreibtisch. */
@@ -300,9 +301,10 @@ export class Buergermeister implements RollenHandler {
     if (r.changes !== 1) return;
     const p = this.planZeile(planId);
     if (p.schreibtisch_id) await this.schreibtisch.statusSetzen(p.schreibtisch_id, 'abgelehnt');
-    await this.agenten.hinweisSchreiben(p.chat_id, '❌ Plan abgelehnt – es wurde nichts gestartet. Schreib dem Bürgermeister hier, was er anders machen soll.');
     await this.planSpiegeln(planId);
     this.hub.senden({ typ: 'plaene.geaendert' });
+    if (f.grund) await this.grundWeitergeben(f);
+    else await this.agenten.hinweisSchreiben(p.chat_id, '❌ Plan abgelehnt – es wurde nichts gestartet. Schreib dem Bürgermeister hier, was er anders machen soll.');
   }
 
   /**
@@ -345,13 +347,37 @@ export class Buergermeister implements RollenHandler {
     if (c.rolle !== 'buergermeister') return;
     const erg = (this.db.prepare('SELECT ergebnis FROM freigaben WHERE id = ?').get(f.id) as { ergebnis: string | null } | undefined)?.ergebnis ?? '';
     if (f.status === 'abgelehnt') {
-      await this.agenten.hinweisSchreiben(c.id, `❌ Freigabe abgelehnt: ${f.titel}`);
+      if (f.grund) await this.grundWeitergeben(f);
+      else await this.agenten.hinweisSchreiben(c.id, `❌ Freigabe abgelehnt: ${f.titel}`);
       return;
     }
     const text = `${DORF_NACHRICHT} Leif hat deine Freigabe „${f.titel}“ angenommen. Ergebnis: ${f.status === 'ausgefuehrt' ? erg || 'ausgeführt' : `FEHLGESCHLAGEN – ${erg}`}
 
 Mach jetzt mit der ursprünglichen Aufgabe weiter, falls dafür noch etwas fehlt – z. B. einen neuen Skill gleich als Helfer starten (aktionen_liste, helfer_starten) oder den nächsten Schritt als Plan vorlegen. Ist nichts mehr zu tun, sag es kurz. Halte fest, was du daraus lernst (gedaechtnis_schreiben).`;
     await this.fortsetzen(c.id, text, `✅ Freigabe angenommen: ${f.titel} – ${erg}`);
+  }
+
+  /**
+   * E64: Leif hat abgelehnt und sagt warum → der Bürgermeister arbeitet im selben Chat mit diesem Grund weiter
+   * (besserer Vorschlag oder Rückfrage) und hält die Lehre im Gedächtnis fest. Der Grund stammt von Leif selbst.
+   */
+  private async grundWeitergeben(f: FreigabeInfo) {
+    if (!f.chatId || !f.grund) return;
+    let c: ReturnType<AgentenDienst['chatZeile']>;
+    try {
+      c = this.agenten.chatZeile(f.chatId);
+    } catch {
+      return;
+    }
+    if (c.rolle !== 'buergermeister') return;
+    const was = f.art === 'plan_ausfuehren' ? 'deinen Plan' : 'deine Freigabe';
+    await this.fortsetzen(
+      c.id,
+      `${DORF_NACHRICHT} Leif hat ${was} „${f.titel}“ abgelehnt. Sein Grund: „${f.grund}“
+
+Nimm das ernst: Lege – wenn die Aufgabe noch offen ist – einen überarbeiteten Vorschlag vor, der genau diesen Punkt berücksichtigt, oder frag kurz nach, wenn unklar ist, was er stattdessen will. Halte die Lehre im Gedächtnis fest (gedaechtnis_schreiben, Abschnitt „Fehler und Lehren“ oder „Über Leif“).`,
+      `❌ Abgelehnt: ${f.titel} – Grund: ${f.grund}`,
+    );
   }
 
   /**

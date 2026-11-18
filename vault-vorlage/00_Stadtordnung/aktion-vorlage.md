@@ -20,6 +20,8 @@ werkzeuge: [vault_lesen, vault_suchen, vault_schreiben, kalender]
 fremdinhalte: ja
 # optional: läuft von selbst, z. B. „täglich 06:00“, „werktags 07:00, 18:00“, „mo, mi 08:00“, „wochenende 09:30“
 zeitplan: mo 07:00
+# optional: der Zeitplan läuft für JEDEN Wert einer Auswahl-Eingabe einmal, z. B. „zeitplan_je: fach“ mit
+# einer Eingabe fach (typ: auswahl, quelle: uni.faecher) → montags ein Lauf je Fach
 # optional: Ergebnis-Datei im eigenen Gebäude, wird bei jedem Lauf ersetzt (alte Fassung → archiv/)
 ablage: Bibliothek/00_Wochenplan.md
 # optional: Eingaben im Formular; bei zeitplan brauchen Pflicht-Eingaben einen standard

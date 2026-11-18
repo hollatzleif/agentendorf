@@ -48,6 +48,9 @@ interface TgUpdate {
   callback_query?: { id: string; data?: string; from: { id: number }; message?: TgNachricht };
 }
 
+/** So lange gilt die nächste Textnachricht nach ❌ als Grund (ohne direkte Antwort auf die Frage) */
+const GRUND_MINUTEN = 10;
+
 const ARTEN: Record<string, string> = {
   datei_loeschen: 'Datei löschen',
   datei_ueberschreiben: 'Datei überschreiben',
@@ -209,13 +212,46 @@ export class TelegramBot {
     for (const e of this.o.uni.faelligeErinnerungen()) {
       // nachts nur, was in wenigen Stunden fällig ist – der Rest kommt (als dringendste Stufe) nach 7 Uhr
       if (nacht && e.stufe !== '3h') continue;
+      // E64 Frist-Wächter: kurz vor der Frist (1 Tag / wenige Stunden) kann der Bürgermeister vorbereiten – abgeben tut Leif
+      const knoepfe = [{ text: '✅ Erledigt', callback_data: `e:${e.id}:${this.erledigtSignatur(e.id)}` }];
+      if (e.stufe === '1t' || e.stufe === '3h') knoepfe.push({ text: '🧑‍💼 Vorbereiten lassen', callback_data: `v:${e.id}:${this.vorbereitenSignatur(e.id)}` });
       await this.senden(`${this.erinnerungsText(e)}\n<a href="${this.link('/gebaeude/Uni')}">Zur Uni</a>`, {
-        reply_markup: { inline_keyboard: [[{ text: '✅ Erledigt', callback_data: `e:${e.id}:${this.erledigtSignatur(e.id)}` }]] },
+        reply_markup: { inline_keyboard: [knoepfe] },
       });
       this.o.uni.erinnerungGesendet(e);
       n++;
     }
     return n;
+  }
+
+  vorbereitenSignatur(fristId: string) {
+    return crypto.createHmac('sha256', this.signaturSchluessel).update(`vorbereiten:${fristId}`).digest('base64url').slice(0, 16);
+  }
+
+  /** Frist-Wächter: Schreibtisch-Aufgabe für den Bürgermeister – vorbereiten, was geht; abgeben nie (E64) */
+  private async vorbereitenKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {
+    const m = /^v:((?:(?:ical|gfrist|gpfl):[0-9a-f]{32})|(?:assign|event):\d{1,12}):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
+    if (!m || !this.o.uni || !crypto.timingSafeEqual(Buffer.from(m[2]!), Buffer.from(this.vorbereitenSignatur(m[1]!)))) {
+      this.o.log?.('Telegram: Vorbereiten-Knopf mit ungültiger Signatur abgelehnt.');
+      return antworten('Ungültiger Knopf.');
+    }
+    const f = this.o.uni.fristen().find((x) => x.id === m[1]);
+    if (!f) return antworten('Diese Frist gibt es nicht mehr.');
+    if (f.abgegeben) return antworten('Schon erledigt.');
+    const was = f.art === 'test' ? 'Prüfung/Test' : 'Abgabe';
+    const text = `Frist-Wächter: ${was} bald fällig – bitte vorbereiten, was sinnvoll ist.
+
+${fremdinhaltHuelle('frist', `${was}: ${f.titel}${f.kurs ? ` (${f.kurs})` : ''}\nFrist: ${f.frist ? fristText(Date.parse(f.frist)) : 'unbekannt'}${f.pfad ? `\nOrdner: ${f.pfad}` : ''}`)}
+
+Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei einer Abgabe mit Angabe im Kursordner: Helfer mit „Abgabe bearbeiten“; bei einer Prüfung: „Lernen“ für das Fach. Fehlt die Angabe, lass sie mit „Moodle durchsehen“ holen. Abgeben tut Leif immer selbst.`;
+    try {
+      const a = await this.o.schreibtisch.anlegen({ text, quelle: 'telegram' });
+      const r = await this.o.buergermeister.starten(a.id, 'klick');
+      await antworten('Der Bürgermeister kümmert sich.');
+      await this.senden(`🧑‍💼 Der Bürgermeister bereitet „${h(f.titel)}“ vor. <a href="${this.link(`/chats/${r.chatId}`)}">Chat öffnen</a>`, {}, r.chatId);
+    } catch (e) {
+      await antworten(`Fehler: ${(e as Error).message}`.slice(0, 190));
+    }
   }
 
   private async erledigtKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {
@@ -281,6 +317,7 @@ export class TelegramBot {
     }
     let text = (m.text ?? m.caption ?? '').trim();
     if (text.startsWith('/')) {
+      this.grundFrageSetzen(null); // ein Befehl beendet die Frage nach dem Grund
       const b = text.split(/\s/)[0]!.split('@')[0]!.toLowerCase();
       if (b === '/moodle') return this.moodleBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/aktion') return this.aktionBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
@@ -296,6 +333,12 @@ export class TelegramBot {
     // Reiner Text (nicht weitergeleitet, keine Datei) kann ein laufendes Gespräch fortsetzen.
     // Weitergeleitetes und Dateien werden immer neue Aufgaben – Fremdinhalt kommt nie direkt in einen Auftrag.
     const fremd = !!(m.forward_origin || m.forward_from || m.forward_from_chat || m.forward_date);
+    // E64: Antwort auf „Warum abgelehnt?“ → Grund an die Freigabe (und damit an den Bürgermeister)
+    if (text && !fremd && !m.document && !m.photo?.length) {
+      const frage = this.grundFrage();
+      const passt = frage && (m.reply_to_message ? m.reply_to_message.message_id === frage.messageId : this.o.uhr.jetzt() - frage.zeit < GRUND_MINUTEN * 60_000);
+      if (frage && passt) return this.grundAnnehmen(frage.freigabeId, text);
+    }
     if (text && !fremd && !m.document && !m.photo?.length) {
       const chatId = this.gespraechFinden(m);
       if (chatId) return this.fortsetzen(m, chatId, text);
@@ -460,6 +503,7 @@ export class TelegramBot {
     const antworten = (text: string) => this.o.api.aufruf('answerCallbackQuery', { callback_query_id: q.id, text }).catch(() => undefined);
     if (!this.istLeif(q.from.id) && !this.istLeif(q.message?.chat.id)) return antworten('Nicht erlaubt.');
     if (q.data?.startsWith('e:')) return this.erledigtKnopf(q, antworten);
+    if (q.data?.startsWith('v:')) return this.vorbereitenKnopf(q, antworten);
     const m = /^f:([0-9a-f-]{36}):([jn]):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
     if (!m || !crypto.timingSafeEqual(Buffer.from(m[3]!), Buffer.from(this.signatur(m[1]!, m[2] as 'j' | 'n')))) {
       this.o.log?.('Telegram: Knopf mit ungültiger Signatur abgelehnt.');
@@ -468,11 +512,45 @@ export class TelegramBot {
     try {
       const f = await this.o.agenten.freigaben.entscheiden(m[1]!, m[2] === 'j');
       await antworten(f.status === 'abgelehnt' ? 'Abgelehnt.' : f.status === 'fehlgeschlagen' ? 'Ausführung fehlgeschlagen.' : 'Erledigt.');
+      if (f.status === 'abgelehnt') await this.grundErfragen(f);
     } catch (e) {
       if (e instanceof DorfFehler && e.status === 409) {
         await antworten('Diese Freigabe wurde schon entschieden.');
         await this.freigabeAktualisieren(this.o.agenten.freigaben.holen(m[1]!));
       } else await antworten(`Fehler: ${(e as Error).message}`.slice(0, 190));
+    }
+  }
+
+  // ---- Ablehnen mit Begründung (E64) ----------------------------------------------------------
+
+  private grundFrage() {
+    const w = (this.o.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'telegram_grund_frage'").get() as { wert: string } | undefined)?.wert;
+    return w ? (JSON.parse(w) as { messageId: number; freigabeId: string; zeit: number }) : null;
+  }
+  private grundFrageSetzen(f: { messageId: number; freigabeId: string; zeit: number } | null) {
+    if (!f) this.o.db.prepare("DELETE FROM dorf_stand WHERE schluessel = 'telegram_grund_frage'").run();
+    else
+      this.o.db
+        .prepare("INSERT INTO dorf_stand (schluessel, wert) VALUES ('telegram_grund_frage', ?) ON CONFLICT(schluessel) DO UPDATE SET wert = excluded.wert")
+        .run(JSON.stringify(f));
+  }
+
+  private async grundErfragen(f: FreigabeInfo) {
+    const r = await this.senden(
+      `❌ <b>Abgelehnt:</b> ${h(f.titel)}
+Magst du kurz sagen, warum? Antworte einfach mit einem Satz – ${f.chatId ? 'der Bürgermeister macht dann einen besseren Vorschlag und merkt es sich' : 'ich vermerke es an der Freigabe'}.
+<i>(Keine Lust? Einfach ignorieren.)</i>`,
+    );
+    if (typeof r?.message_id === 'number') this.grundFrageSetzen({ messageId: r.message_id, freigabeId: f.id, zeit: this.o.uhr.jetzt() });
+  }
+
+  private async grundAnnehmen(freigabeId: string, grund: string) {
+    this.grundFrageSetzen(null);
+    try {
+      const f = await this.o.agenten.freigaben.grundNachreichen(freigabeId, grund);
+      await this.senden(`📝 Danke – ${f.chatId ? 'der Bürgermeister bekommt deinen Grund und überlegt neu.' : 'vermerkt.'}`, {}, f.chatId ?? undefined);
+    } catch (e) {
+      await this.senden(`⚠️ ${h((e as Error).message)}`);
     }
   }
 
