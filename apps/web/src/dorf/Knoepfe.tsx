@@ -18,6 +18,16 @@ const KNOPF: Record<string, { symbol: string; farbe: string; titel?: string }> =
   eingang: { symbol: '📬', farbe: 'gelb' },
 };
 
+/** Schnellknöpfe: die meistgenutzten Aktionen direkt am Gebäude (öffnen die Aktion schon ausgewählt) */
+const SCHNELL: Record<string, { symbol: string; titel: string; aktion: string }[]> = {
+  Uni: [
+    { symbol: '🌐', titel: 'Moodle', aktion: 'Uni/moodle-durchsehen' },
+    { symbol: '📚', titel: 'Lernen', aktion: 'Uni/lernen' },
+  ],
+  Post: [{ symbol: '✍️', titel: 'Antworten', aktion: 'Post/antwort-entwerfen' }],
+  Rathaus: [{ symbol: '❓', titel: 'Frage', aktion: 'Rathaus/frage-stellen' }],
+};
+
 /**
  * Leiste unten in der Mitte, wenn ein Gebäude angetippt ist: Namensbanner, Statuszeile und runde Knöpfe,
  * die direkt in den passenden Reiter führen. Die wichtigsten zuerst; am Handy scrollt die Reihe.
@@ -75,6 +85,23 @@ export function GebaeudeKnoepfe({
             </button>
           );
         })}
+        {g.status !== 'geschlossen' &&
+          (SCHNELL[g.id] ?? []).map((x, i) => (
+            <button
+              key={x.aktion}
+              className="spiel-knopf gelb"
+              style={{ animationDelay: `${(reiter.length + i) * 35}ms` }}
+              onClick={() => oeffnen(`aktionen&aktion=${encodeURIComponent(x.aktion)}`)}
+              aria-label={x.titel}
+            >
+              <span className="spiel-kreis">
+                <span className="spiel-symbol" aria-hidden>
+                  {x.symbol}
+                </span>
+              </span>
+              <span className="spiel-text">{x.titel}</span>
+            </button>
+          ))}
         <button className="spiel-knopf orange" style={{ animationDelay: `${reiter.length * 35}ms` }} onClick={bauen} aria-label="Versetzen">
           <span className="spiel-kreis">
             <span className="spiel-symbol" aria-hidden>

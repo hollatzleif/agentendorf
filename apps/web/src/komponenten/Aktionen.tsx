@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useOrt } from '../router';
 import { useQuery } from '@tanstack/react-query';
 import type { AktionInfo, AktionQuelle, QuellenOption } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
@@ -9,7 +10,9 @@ import { stufeText } from '../texte';
 /** Aktionen eines Gebäudes als Knöpfe; ein Klick öffnet das Eingabeformular. */
 export function Aktionen({ gebaeude }: { gebaeude: string }) {
   const q = useQuery({ queryKey: ['aktionen', gebaeude], queryFn: () => api<AktionInfo[]>(`/api/aktionen?gebaeude=${encodeURIComponent(gebaeude)}`) });
-  const [offen, setOffen] = useState<string | null>(null);
+  // ?aktion=Uni/lernen öffnet eine Aktion gleich (Schnellknöpfe im Dorf)
+  const { suche } = useOrt();
+  const [offen, setOffen] = useState<string | null>(() => suche.get('aktion'));
   if (q.isPending) return <p className="leise">Lade Aktionen …</p>;
   if (q.isError) return <p className="fehler">{q.error.message}</p>;
   if (!q.data.length)
@@ -35,7 +38,7 @@ export function Aktionen({ gebaeude }: { gebaeude: string }) {
           </button>
         ))}
       </div>
-      {offen && <AktionStarten key={offen} a={q.data.find((x) => x.id === offen)!} />}
+      {offen && q.data.some((x) => x.id === offen) && <AktionStarten key={offen} a={q.data.find((x) => x.id === offen)!} />}
     </div>
   );
 }

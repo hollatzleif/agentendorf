@@ -67,6 +67,12 @@ test('Dorf: Gebäude anklicken öffnet das Menü; Statusanzeigen folgen dem Serv
   await expect(menue.getByRole('heading', { name: /Uni – Arbeitsanweisung/ })).toBeVisible();
   await menue.getByRole('button', { name: 'Menü schließen' }).click();
   await expect(menue).toBeHidden();
+  // Schnellknopf: „Lernen“ öffnet die Aktion gleich ausgewählt
+  await knoepfe.getByRole('button', { name: 'Lernen' }).click();
+  await expect(page).toHaveURL(/reiter=aktionen&aktion=Uni%2Flernen/);
+  await expect(menue.locator('.aktion-knopf.aktiv')).toContainText('Lernen');
+  await expect(menue.getByRole('button', { name: 'Starten' })).toBeVisible();
+  await menue.getByRole('button', { name: 'Menü schließen' }).click();
   // zurück bei den Knöpfen; Auswahl aufheben
   await knoepfe.getByRole('button', { name: 'Auswahl aufheben' }).click();
   await expect(knoepfe).toBeHidden();
