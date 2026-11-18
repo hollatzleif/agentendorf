@@ -761,3 +761,14 @@ describe('Telegram /suche (E108)', () => {
     expect(d.gesendet().at(-1)).toMatch(/Nichts gefunden/);
   });
 });
+
+describe('Telegram /hilfe', () => {
+  it('nennt alle Befehle aus dem Menü, gruppiert', async () => {
+    const d = await dorf();
+    await d.nachricht({ text: '/hilfe' });
+    const t = d.gesendet().at(-1)!;
+    const { TelegramBot } = await import('../src/telegram/bot.js');
+    for (const b of TelegramBot.BEFEHLE) expect(t, b.command).toContain(`/${b.command}`);
+    expect(t).toMatch(/<b>📅 Planen<\/b>[\s\S]*<b>✅ Erledigen<\/b>[\s\S]*<b>🏛️ Dorf<\/b>/);
+  });
+});
