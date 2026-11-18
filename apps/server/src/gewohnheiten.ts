@@ -106,6 +106,13 @@ export class Gewohnheiten {
     return { gewohnheiten: aus, ...(l.fehler ? { fehler: l.fehler } : {}) };
   }
 
+  /** Morgenzeitung: was heute dran ist */
+  async heuteZeilen(): Promise<string[]> {
+    const s = await this.stand();
+    const h = s.gewohnheiten.filter((g) => g.heuteFaellig);
+    return h.length ? [h.map((g) => `${g.symbol} ${g.name}${g.serie > 1 ? ` (🔥 ${g.serie})` : ''}`).join(' · ')] : [];
+  }
+
   /** Wochenrückblick: „Sport 3/3, Lesen 5/7“ */
   async wochenZeile(): Promise<string | null> {
     const s = await this.stand();

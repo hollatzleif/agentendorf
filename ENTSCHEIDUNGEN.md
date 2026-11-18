@@ -632,3 +632,11 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
   - **Wochenrückblick:** ein Abschnitt „Gewohnheiten“, z. B. „Sport 2/3 · Lesen 6/7 (🔥 12)“.
 - Das Telegram-Befehlsmenü kennt jetzt auch `/termin`, `/karten`, `/fokus` und `/gewohnheiten`.
 - Warum: Produktiv sein heißt nicht nur To-dos abarbeiten, sondern auch kleine Dinge regelmäßig tun (Sport, Lesen, Vokabeln). Die Serie motiviert, und der Abend in Telegram ist der natürliche Moment zum Abhaken.
+
+## E90 – Telegram /plan und Gewohnheiten in der Morgenzeitung (Nacht 18./19.11.)
+
+- **`/plan`** (heute) bzw. **`/plan morgen`** rechnet denselben Vorschlag wie „🧭 Tag planen“ in der App (E84, ohne KI) und schickt die Blöcke mit Begründung. Je Block gibt es einen Knopf; dazu „📅 Alle eintragen“.
+  - Eingetragen wird erst per Knopf, jeder Block genau einmal. Er wird vor dem Eintragen vermerkt; schlägt das Eintragen fehl, wird der Vermerk zurückgenommen.
+  - Die Knöpfe sind HMAC-signiert, ein Vorschlag gilt 24 h (`dorf_stand`, höchstens 10).
+- **Morgenzeitung:** Ein Abschnitt „Gewohnheiten heute“ zeigt, was heute dran ist, mit Serie.
+- Warum: Den Tag zu planen geht morgens am schnellsten im Bett mit dem Handy. Und wer morgens sieht, dass „Sport 🔥 6“ dran ist, reißt die Serie seltener.

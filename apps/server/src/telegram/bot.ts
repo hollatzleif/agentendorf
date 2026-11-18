@@ -13,6 +13,9 @@ import type { Rueckblick } from '../wochenrueckblick.js';
 import { terminAusText, type TerminAusText } from '@dorf/shared';
 import type { Karteikasten } from '../karten.js';
 import type { Gewohnheiten } from '../gewohnheiten.js';
+import { tagPlanen } from '../tagesplan.js';
+
+type PlanBlock = { titel: string; grund: string; start: string; ende: string };
 import type { FokusStatistik, TodoInfo } from '@dorf/shared';
 import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
@@ -112,7 +115,13 @@ export class TelegramBot {
       /** Nacht 18./19.11.: /fokus – Pomodoro starten */
       kirchturm?: { ausfuehren(b: unknown): unknown; fokusStatistik?(): FokusStatistik };
       /** Nacht 18./19.11.: /termin – Termin aus Text, eingetragen erst nach Leifs Knopfdruck */
-      kalender?: { verbunden: boolean; inHauptkalender(t: TerminAusText): Promise<{ titel: string }> };
+      kalender?: {
+        verbunden: boolean;
+        inHauptkalender(t: TerminAusText): Promise<{ titel: string }>;
+        /** /plan: freie Lücken eines Tages + Blöcke eintragen (nach Leifs Knopfdruck) */
+        freiAmTag?(tag: string): Promise<[number, number][]>;
+        bloeckeEintragen?(b: unknown): Promise<unknown>;
+      };
       log?: (t: string) => void;
     },
   ) {
@@ -206,6 +215,7 @@ export class TelegramBot {
     { command: 'todo', description: 'To-do-Liste (abhaken per Knopf) – /todo <Text> legt eins an' },
     { command: 'einkauf', description: 'Einkaufsliste (abhaken im Laden) – /einkauf <Text> setzt etwas drauf' },
     { command: 'termin', description: 'Termin in den Kalender: /termin morgen 14 Uhr Zahnarzt' },
+    { command: 'plan', description: 'Tag planen: To-dos als Blöcke in freie Lücken – /plan morgen' },
     { command: 'karten', description: 'Karteikarten wiederholen: /karten [Fach]' },
     { command: 'fokus', description: 'Pomodoro starten: /fokus [Thema]' },
     { command: 'gewohnheiten', description: 'Gewohnheiten heute abhaken' },
@@ -369,6 +379,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       if (b === '/einkauf') return this.todoBefehl(text.slice(text.split(/\s/)[0]!.length).trim(), 'einkauf');
       if (b === '/termin') return this.terminBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/gewohnheiten' || b === '/gewohnheit') return this.gewohnheitenSenden();
+      if (b === '/plan') return this.planBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/karten') return this.kartenBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/fokus') return this.fokusBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b !== '/neu') return this.befehl(b);
@@ -445,7 +456,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
   private async befehl(b: string) {
     if (b === '/start' || b === '/hilfe' || b === '/help')
       return this.senden(
-        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/heute – dein Tag: Wetter, Termine, Fristen\n/fristen – Abgaben und Prüfungen der nächsten 7 Tage (mit Erledigt-Knöpfen)\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/aktion [Name] – Skill starten (ohne Name: Liste)\n/todo – To-do-Liste mit Abhak-Knöpfen (/todo &lt;Text&gt; legt eins an)\n/einkauf – Einkaufsliste (/einkauf &lt;Text&gt; setzt etwas drauf)\n/termin &lt;wann&gt; &lt;was&gt; – Termin in den Kalender (mit Bestätigung)\n/karten [Fach] – Karteikarten wiederholen\n/gewohnheiten – heute abhaken\n/fokus [Thema] – Pomodoro starten\n/hilfe – diese Hilfe`,
+        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/heute – dein Tag: Wetter, Termine, Fristen\n/fristen – Abgaben und Prüfungen der nächsten 7 Tage (mit Erledigt-Knöpfen)\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/aktion [Name] – Skill starten (ohne Name: Liste)\n/todo – To-do-Liste mit Abhak-Knöpfen (/todo &lt;Text&gt; legt eins an)\n/einkauf – Einkaufsliste (/einkauf &lt;Text&gt; setzt etwas drauf)\n/termin &lt;wann&gt; &lt;was&gt; – Termin in den Kalender (mit Bestätigung)\n/plan [morgen] – Tag planen: To-dos in freie Lücken\n/karten [Fach] – Karteikarten wiederholen\n/gewohnheiten – heute abhaken\n/fokus [Thema] – Pomodoro starten\n/hilfe – diese Hilfe`,
       );
     if (b === '/status') {
       const aktiv = this.o.agenten.aktiveLaeufe();
@@ -556,6 +567,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (q.data?.startsWith('v:')) return this.vorbereitenKnopf(q, antworten);
     if (q.data?.startsWith('t:') || q.data?.startsWith('l:')) return this.todoKnopf(q, antworten);
     if (q.data?.startsWith('k:')) return this.terminKnopf(q, antworten);
+    if (q.data?.startsWith('p:')) return this.planKnopf(q, antworten);
     if (q.data?.startsWith('kk:')) return this.karteKnopf(q, antworten);
     if (q.data?.startsWith('st:')) return this.sternKnopf(q, antworten);
     if (q.data?.startsWith('gw:')) return this.gewohnheitKnopf(q, antworten);
@@ -705,6 +717,84 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (q.message)
       await this.o.api
         .aufruf('editMessageText', { chat_id: q.message.chat.id, message_id: q.message.message_id, text: `📅 Eingetragen:\n${TelegramBot.terminText(w.termin)}`, parse_mode: 'HTML' })
+        .catch(() => undefined);
+  }
+
+  // ---- /plan (Nacht 18./19.11.): Tag planen wie in der App, eingetragen wird erst per Knopf --------
+
+  private planSignatur(teil: string) {
+    return crypto.createHmac('sha256', this.signaturSchluessel).update(`plan:${teil}`).digest('base64url').slice(0, 16);
+  }
+  private planWartend(): Record<string, { bloecke: PlanBlock[]; eingetragen: number[]; zeit: number }> {
+    const w = (this.o.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'telegram_plaene'").get() as { wert: string } | undefined)?.wert;
+    return w ? JSON.parse(w) : {};
+  }
+  private planWartendSetzen(x: Record<string, { bloecke: PlanBlock[]; eingetragen: number[]; zeit: number }>) {
+    const jetzt = this.o.uhr.jetzt();
+    const rest = Object.entries(x)
+      .filter(([, v]) => jetzt - v.zeit < 86_400_000)
+      .slice(-10);
+    this.o.db.prepare("INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES ('telegram_plaene', ?)").run(JSON.stringify(Object.fromEntries(rest)));
+  }
+  private static uhrzeit(iso: string) {
+    return new Date(iso).toLocaleTimeString('de-AT', { timeZone: 'Europe/Vienna', hour: '2-digit', minute: '2-digit' });
+  }
+  private planTastatur(id: string, p: { bloecke: PlanBlock[]; eingetragen: number[] }) {
+    const k = (teil: string) => `p:${teil}:${this.planSignatur(teil)}`;
+    const zeilen = p.bloecke.map((b, i) => [
+      { text: `${p.eingetragen.includes(i) ? '✅' : '➕'} ${TelegramBot.uhrzeit(b.start)} ${b.titel}`.slice(0, 60), callback_data: k(`${id}:${i}`) },
+    ]);
+    if (p.eingetragen.length < p.bloecke.length) zeilen.push([{ text: '📅 Alle eintragen', callback_data: k(`${id}:a`) }]);
+    return zeilen;
+  }
+
+  private async planBefehl(rest: string) {
+    const k = this.o.kalender;
+    if (!k?.verbunden || !k.freiAmTag || !k.bloeckeEintragen) return this.senden('🧭 Dafür braucht es den Google-Kalender (auf dem Server: dorf gmail-anmelden, mit Kalender).');
+    if (!this.o.listen) return this.senden('Das To-do-Brett ist nicht eingerichtet.');
+    const morgen = /^morgen$/i.test(rest);
+    if (rest && !morgen) return this.senden('🧭 <b>/plan</b> plant heute, <b>/plan morgen</b> den nächsten Tag.');
+    const tag = new Date(this.o.uhr.jetzt() + (morgen ? 86_400_000 : 0)).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+    const frei = await k.freiAmTag(tag);
+    const bloecke = tagPlanen({ todos: await this.o.listen.todo.liste(), heute: tag, frei }).map((b) => ({
+      titel: b.titel,
+      grund: b.grund,
+      start: new Date(b.start).toISOString(),
+      ende: new Date(b.ende).toISOString(),
+    }));
+    if (!bloecke.length) return this.senden(`🧭 ${morgen ? 'Morgen' : 'Heute'} gibt es nichts einzuplanen – keine offenen To-dos mit passender Lücke im Kalender.`);
+    const id = crypto.randomBytes(6).toString('hex');
+    const p = { bloecke, eingetragen: [] as number[], zeit: this.o.uhr.jetzt() };
+    this.planWartendSetzen({ ...this.planWartend(), [id]: p });
+    const liste = bloecke.map((b) => `• ${TelegramBot.uhrzeit(b.start)}–${TelegramBot.uhrzeit(b.ende)} <b>${h(b.titel)}</b> <i>(${h(b.grund)})</i>`).join('\n');
+    return this.senden(`🧭 <b>Vorschlag für ${morgen ? 'morgen' : 'heute'}</b>\n${liste}\n\nAntippen trägt den Block in deinen Kalender ein.`, { reply_markup: { inline_keyboard: this.planTastatur(id, p) } });
+  }
+
+  private async planKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {
+    const m = /^p:([0-9a-f]{12}):(a|\d{1,2}):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
+    if (!m || !crypto.timingSafeEqual(Buffer.from(m[3]!), Buffer.from(this.planSignatur(`${m[1]}:${m[2]}`)))) {
+      this.o.log?.('Telegram: Plan-Knopf mit ungültiger Signatur abgelehnt.');
+      return antworten('Ungültiger Knopf.');
+    }
+    const alle = this.planWartend();
+    const p = alle[m[1]!];
+    if (!p || !this.o.kalender?.bloeckeEintragen) return antworten('Dieser Vorschlag ist abgelaufen – /plan macht einen neuen.');
+    const nr = m[2] === 'a' ? p.bloecke.map((_, i) => i).filter((i) => !p.eingetragen.includes(i)) : [Number(m[2])].filter((i) => i < p.bloecke.length && !p.eingetragen.includes(i));
+    if (!nr.length) return antworten('Schon eingetragen.');
+    // erst vermerken, dann eintragen – ein Doppelklick trägt nichts doppelt ein
+    p.eingetragen.push(...nr);
+    this.planWartendSetzen(alle);
+    try {
+      await this.o.kalender.bloeckeEintragen(nr.map((i) => ({ titel: p.bloecke[i]!.titel, start: p.bloecke[i]!.start, ende: p.bloecke[i]!.ende })));
+    } catch (e) {
+      p.eingetragen = p.eingetragen.filter((i) => !nr.includes(i));
+      this.planWartendSetzen(alle);
+      return antworten(`Fehler: ${(e as Error).message}`.slice(0, 190));
+    }
+    await antworten(nr.length === 1 ? 'Eingetragen.' : `${nr.length} Blöcke eingetragen.`);
+    if (q.message)
+      await this.o.api
+        .aufruf('editMessageReplyMarkup', { chat_id: q.message.chat.id, message_id: q.message.message_id, reply_markup: { inline_keyboard: this.planTastatur(m[1]!, p) } })
         .catch(() => undefined);
   }
 

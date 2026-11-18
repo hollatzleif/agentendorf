@@ -58,6 +58,10 @@ describe('Gewohnheiten (Nacht 18./19.11.)', () => {
 
     expect(await d.gewohnheiten.wochenZeile()).toMatch(/🏃 Sport 2\/3 · ✅ Lesen 4\/7 \(🔥 4\)/);
 
+    // Morgenzeitung: Freitag – Sport (fällig) und Lesen
+    expect(await d.gewohnheiten.heuteZeilen()).toEqual(['🏃 Sport (🔥 2) · ✅ Lesen (🔥 4)']);
+    expect((await d.morgenzeitung.fakten()).abschnitte.find((a) => a.titel === 'Gewohnheiten heute')?.zeilen).toEqual(['🏃 Sport (🔥 2) · ✅ Lesen (🔥 4)']);
+
     // entfernen
     r = await d.app.inject({ method: 'DELETE', url: '/api/gewohnheiten?name=Sport', headers: h });
     expect(r.json().gewohnheiten.map((g: { name: string }) => g.name)).toEqual(['Lesen']);

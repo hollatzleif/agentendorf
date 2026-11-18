@@ -59,6 +59,8 @@ export class Morgenzeitung {
       wichtig?: () => Promise<string[]>;
       /** Nacht 18./19.11.: Fokuszeit gestern und in der Woche */
       fokus?: { zeitungsZeilen(): string[] };
+      /** Nacht 18./19.11.: heute fällige Gewohnheiten */
+      gewohnheiten?: { heuteZeilen(): Promise<string[]> };
       log?: (t: string) => void;
     },
   ) {}
@@ -212,6 +214,8 @@ export class Morgenzeitung {
     if (depot?.length) abschnitte.push({ titel: 'Depot', zeilen: depot });
     const fokus = this.o.fokus?.zeitungsZeilen() ?? [];
     if (fokus.length) abschnitte.push({ titel: 'Fokus', zeilen: fokus });
+    const gw = await this.o.gewohnheiten?.heuteZeilen().catch(() => [] as string[]);
+    if (gw?.length) abschnitte.push({ titel: 'Gewohnheiten heute', zeilen: gw });
 
     return { datum, einleitung: null, abschnitte };
   }

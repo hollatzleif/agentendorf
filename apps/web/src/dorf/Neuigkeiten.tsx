@@ -1,10 +1,12 @@
 import { useState } from 'react';
 
 /** Bei jeder neuen Ausgabe den Schlüssel ändern – dann erscheint die Karte einmal pro Gerät */
-const AUSGABE = '2026-11-19b';
+const AUSGABE = '2026-11-19c';
 const SCHLUESSEL = 'dorf-neuigkeiten-gesehen';
 
 const PUNKTE: [string, string][] = [
+  ['🧭', 'Telegram /plan (oder /plan morgen): Tagesplan als Knöpfe – antippen trägt den Block in deinen Kalender ein.'],
+  ['🔁', 'Neu: Gewohnheiten auf „Heute“ – Sport, Lesen, Vokabeln … mit 🔥 Serie. Abhaken auch abends in Telegram (/gewohnheiten), Bilanz im Wochenrückblick.'],
   ['⌨️', 'Strg/⌘+K: Befehlspalette – suchen, „todo …“, „termin morgen 14 Uhr …“, „fokus …“, „timer 10“, „frag …“.'],
   ['⭐', 'Stern an To-dos: das Wichtigste steht oben auf „Heute“, kommt beim Tagesplanen zuerst und in die Morgenzeitung. Abends um 21 Uhr fragt Telegram, was morgen wichtig ist.'],
   ['🧭', 'Tag planen (Kalender oder „Heute“): deine dringendsten To-dos als Blöcke in freie Lücken – du wählst, was eingetragen wird.'],

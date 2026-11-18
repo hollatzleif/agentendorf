@@ -217,7 +217,7 @@ describe('Telegram-Bot', () => {
     expect(offsets.at(-1)).toBe(51);
     // Befehlsmenü wird beim Start angemeldet
     const menue = d.aufrufe.find((x) => x.m === 'setMyCommands')?.p.commands as { command: string }[];
-    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'karten', 'fokus', 'gewohnheiten', 'neu', 'hilfe']);
+    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'plan', 'karten', 'fokus', 'gewohnheiten', 'neu', 'hilfe']);
     await d.agenten.leerlauf();
   }, 15_000);
 });
@@ -409,5 +409,58 @@ describe('Telegram Gewohnheiten (Nacht 18./19.11.)', () => {
     d.uhr.vor(8 * 3_600_000 + 5 * 60_000); // 21:05 Linz
     expect(await d.bot.abendSenden()).toBe(true);
     expect(d.gesendet().at(-1)).toMatch(/🔁 <b>Gewohnheiten heute<\/b>/);
+  });
+});
+
+describe('Telegram /plan (Nacht 18./19.11.)', () => {
+  it('Vorschlag für morgen aus offenen To-dos; Knopf trägt genau einmal ein, „Alle“ den Rest; gefälscht nicht', async () => {
+    const n = nachbau();
+    const angelegt: string[] = [];
+    const klient = {
+      async kalender() {
+        return [{ id: 'leif', name: 'Leif', farbe: '#000', primaer: true, schreibbar: true }];
+      },
+      async termine() {
+        return [];
+      },
+      async holen() {
+        throw new Error('-');
+      },
+      async anlegen(_kal: string, body: unknown) {
+        const b = body as { summary: string; start: unknown; end: unknown };
+        angelegt.push(b.summary);
+        return { id: `n${angelegt.length}`, summary: b.summary, start: { dateTime: '2026-11-17T08:00:00+01:00' }, end: { dateTime: '2026-11-17T09:00:00+01:00' } };
+      },
+      async aendern() {
+        throw new Error('-');
+      },
+      async loeschen() {},
+      async verschieben() {
+        throw new Error('-');
+      },
+    };
+    const d = await testDorf({ env: { TELEGRAM_CHAT_ID: LEIF, ORIGIN: 'https://dorf.test' }, telegram: n.api, kalenderKlient: klient as never });
+    const bot = d.telegram!;
+    await d.todos.anlegen({ titel: 'Bewerbung schreiben', faellig: '2026-11-17' }, 'Leif');
+    await d.todos.anlegen({ titel: 'Abgabe: Blatt 6', faellig: '2026-11-18' }, 'Leif');
+    let u = 1;
+    const knopf = (data: string) => bot.verarbeiten({ update_id: u++, callback_query: { id: `c${u}`, data, from: { id: Number(LEIF) }, message: { message_id: 9, chat: { id: Number(LEIF) } } } });
+    await bot.verarbeiten({ update_id: u++, message: { message_id: 1, chat: { id: Number(LEIF) }, text: '/plan morgen' } });
+    const m = n.aufrufe.filter((a) => a.m === 'sendMessage').at(-1)!.p;
+    expect(String(m.text)).toMatch(/🧭 <b>Vorschlag für morgen<\/b>\n• 08:00–08:45 <b>Bewerbung schreiben<\/b> <i>\(heute fällig\)<\/i>\n• 09:00–10:30 <b>Blatt 6<\/b>/);
+    const k = (m.reply_markup as { inline_keyboard: { text: string; callback_data: string }[][] }).inline_keyboard;
+    expect(k.map((z) => z[0]!.text)).toEqual(['➕ 08:00 Bewerbung schreiben', '➕ 09:00 Blatt 6', '📅 Alle eintragen']);
+    expect(angelegt).toEqual([]);
+    await knopf(k[0]![0]!.callback_data.replace(/:[^:]+$/, ':AAAAAAAAAAAAAAAA'));
+    expect(angelegt).toEqual([]);
+    await knopf(k[0]![0]!.callback_data);
+    await knopf(k[0]![0]!.callback_data);
+    expect(angelegt).toEqual(['📚 Bewerbung schreiben']);
+    const neu = n.aufrufe.filter((a) => a.m === 'editMessageReplyMarkup').at(-1)!.p;
+    expect((neu.reply_markup as { inline_keyboard: { text: string }[][] }).inline_keyboard[0]![0]!.text).toBe('✅ 08:00 Bewerbung schreiben');
+    await knopf(k[2]![0]!.callback_data);
+    expect(angelegt).toEqual(['📚 Bewerbung schreiben', '📚 Blatt 6']);
+    const fertig = n.aufrufe.filter((a) => a.m === 'editMessageReplyMarkup').at(-1)!.p;
+    expect((fertig.reply_markup as { inline_keyboard: unknown[][] }).inline_keyboard).toHaveLength(2);
   });
 });
