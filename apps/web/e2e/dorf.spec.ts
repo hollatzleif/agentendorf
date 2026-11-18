@@ -731,3 +731,31 @@ test('Kalender-Schnelleingabe: „morgen 14 Uhr Zahnarzt @Konstanz“ füllt das
   await f.getByRole('button', { name: 'Speichern' }).click();
   await expect.poll(() => neu).toMatchObject({ titel: 'Zahnarzt', start: `${morgen}T14:00`, ende: `${morgen}T15:00`, ort: 'Konstanz' });
 });
+
+test('Tag planen: Vorschläge aus To-dos abwählen und eintragen', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  let eingetragen: unknown = null;
+  await page.route('**/api/kalender?**', (r) => r.fulfill({ json: { modus: 'google', kalender: [{ id: 'leif', name: 'Leif', farbe: '#9fe1e7', primaer: true, schreibbar: true }], termine: [] } }));
+  await page.route('**/api/tag/planen**', (r) =>
+    r.fulfill({
+      json: [
+        { titel: 'Steuer', todoPfad: 'a', start: '2026-11-17T07:00:00.000Z', ende: '2026-11-17T07:45:00.000Z', grund: 'überfällig' },
+        { titel: 'Blatt 5', todoPfad: 'b', start: '2026-11-17T09:15:00.000Z', ende: '2026-11-17T10:45:00.000Z', grund: 'heute fällig' },
+      ],
+    }),
+  );
+  await page.route('**/api/tag/eintragen', (r) => {
+    eingetragen = r.request().postDataJSON();
+    return r.fulfill({ json: [] });
+  });
+  await anmelden(page);
+  await page.goto('/gebaeude/Marktplatz');
+  await page.getByRole('button', { name: 'Kalender', exact: true }).click();
+  await page.getByRole('button', { name: '🧭 Tag planen' }).click();
+  const d = page.getByRole('dialog', { name: 'Tag planen' });
+  await expect(d.getByRole('listitem')).toHaveCount(2);
+  await d.getByRole('checkbox').first().uncheck();
+  await d.getByRole('button', { name: 'Eintragen (1)' }).click();
+  await expect(d).toContainText('1 Block eingetragen');
+  expect(eingetragen).toEqual({ bloecke: [{ titel: 'Blatt 5', start: '2026-11-17T09:15:00.000Z', ende: '2026-11-17T10:45:00.000Z' }] });
+});

@@ -219,6 +219,32 @@ describe('Kalender auf dem Marktplatz (E75)', () => {
     }
   });
 
+  it('Tag planen: To-dos nach Dringlichkeit in die freien Lücken (Puffer zum Zahnarzt), dann eintragen', async () => {
+    const g = await googleAttrappe();
+    try {
+      const d = await testDorf({ kalenderKlient: g.klient });
+      const h = await kopf(d);
+      await d.todos.anlegen({ titel: 'Lesen' }, 'Leif');
+      await d.todos.anlegen({ titel: 'Abgabe: Blatt 5', faellig: '2026-11-17', gebaeude: 'Uni' }, 'Uni');
+      await d.todos.anlegen({ titel: 'Steuer', faellig: '2026-11-10' }, 'Leif');
+      // Di 17.11.: Zahnarzt 09–10 Linz → frei 08:00–08:45 und ab 10:15
+      const p = (await d.app.inject({ url: '/api/tag/planen?tag=2026-11-17', headers: h })).json();
+      expect(p.map((b: { titel: string; start: string; ende: string; grund: string }) => [b.titel, b.start, b.ende, b.grund])).toEqual([
+        ['Steuer', '2026-11-17T07:00:00.000Z', '2026-11-17T07:45:00.000Z', 'überfällig'],
+        ['Blatt 5', '2026-11-17T09:15:00.000Z', '2026-11-17T10:45:00.000Z', 'heute fällig'],
+        ['Lesen', '2026-11-17T11:00:00.000Z', '2026-11-17T11:45:00.000Z', 'ohne Datum'],
+      ]);
+      const vorher = g.anfragen.length;
+      const r = await d.app.inject({ method: 'POST', url: '/api/tag/eintragen', headers: h, payload: { bloecke: p.slice(0, 2).map((b: { titel: string; start: string; ende: string }) => ({ titel: b.titel, start: b.start, ende: b.ende })) } });
+      expect(r.statusCode).toBe(200);
+      const neu = g.anfragen.slice(vorher).filter((x) => x.methode === 'POST' && x.pfad.endsWith('/events'));
+      expect(neu.map((x) => (x.body as { summary: string }).summary)).toEqual(['📚 Steuer', '📚 Blatt 5']);
+      expect(neu.every((x) => x.abfrage.sendUpdates === 'none')).toBe(true);
+    } finally {
+      g.schliessen();
+    }
+  });
+
   it('Anmeldung fragt Mail UND Kalender an – Senden nie', async () => {
     const { anmeldungVorbereiten } = await import('../src/post/google-oauth.js');
     const scope = new URL(anmeldungVorbereiten('id.apps.googleusercontent.com').adresse).searchParams.get('scope')!.split(' ');

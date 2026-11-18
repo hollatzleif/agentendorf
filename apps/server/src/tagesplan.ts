@@ -1,0 +1,48 @@
+import type { TodoInfo } from '@dorf/shared';
+
+/**
+ * Tag planen (Nacht 18./19.11.): verteilt die wichtigsten offenen To-dos als Zeitblöcke auf die freien Lücken eines
+ * Tages – ohne KI, nachvollziehbar. Reihenfolge: überfällig → heute fällig → bald fällig (Uni-Abgaben/Prüfungen
+ * zuerst) → Rest nach Datum. Dauer: Abgabe/Prüfung 90 min, sonst 45 min. Zwischen Blöcken 15 min Pause.
+ * Das Ergebnis ist nur ein Vorschlag – eingetragen wird, was Leif anhakt.
+ */
+export interface Block {
+  titel: string;
+  todoPfad: string;
+  start: number;
+  ende: number;
+  grund: string;
+}
+
+const MIN = 60_000;
+const PAUSE = 15 * MIN;
+
+export function rangfolge(todos: TodoInfo[], heute: string) {
+  const offen = todos.filter((t) => !t.erledigt);
+  const wichtig = (t: TodoInfo) => /^(Abgabe|Prüfung):/i.test(t.titel) || t.gebaeude === 'Uni';
+  const stufe = (t: TodoInfo) => {
+    if (t.faellig && t.faellig < heute) return 0;
+    if (t.faellig === heute) return 1;
+    if (t.faellig) return wichtig(t) ? 2 : 3;
+    return 4;
+  };
+  return offen
+    .map((t) => ({ t, s: stufe(t) }))
+    .sort((a, b) => a.s - b.s || (a.t.faellig ?? '9999').localeCompare(b.t.faellig ?? '9999') || Number(wichtig(b.t)) - Number(wichtig(a.t)) || (b.t.erstellt ?? '').localeCompare(a.t.erstellt ?? ''))
+    .map((x) => ({ ...x, grund: ['überfällig', 'heute fällig', `fällig ${x.t.faellig}`, `fällig ${x.t.faellig}`, 'ohne Datum'][x.s]! }));
+}
+
+export function tagPlanen(o: { todos: TodoInfo[]; heute: string; frei: [number, number][]; hoechstens?: number }): Block[] {
+  const reihe = rangfolge(o.todos, o.heute).filter((x) => x.s <= 3 || o.todos.length <= 8);
+  const luecken = o.frei.map(([a, b]) => [a, b] as [number, number]).sort((x, y) => x[0] - y[0]);
+  const aus: Block[] = [];
+  for (const { t, grund } of reihe) {
+    if (aus.length >= (o.hoechstens ?? 5)) break;
+    const dauer = (/^(Abgabe|Prüfung):/i.test(t.titel) ? 90 : 45) * MIN;
+    const l = luecken.find(([a, b]) => b - a >= dauer);
+    if (!l) continue;
+    aus.push({ titel: t.titel.replace(/^(Abgabe|Prüfung): /i, ''), todoPfad: t.pfad, start: l[0], ende: l[0] + dauer, grund });
+    l[0] += dauer + PAUSE;
+  }
+  return aus.sort((a, b) => a.start - b.start);
+}

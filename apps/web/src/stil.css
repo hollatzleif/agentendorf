@@ -657,3 +657,8 @@ input.kurz { width: 5em; }
 .fach-frist { margin: 0 0 0.4rem; }
 .fach-frist.dringend { color: #b8402f; font-weight: 600; }
 .fach-zahlen { display: flex; gap: 0.9rem; margin-bottom: 0.4rem; font-size: 0.9rem; }
+
+/* Tag planen */
+.plan-liste { list-style: none; padding: 0; margin: 0.5rem 0; display: grid; gap: 0.35rem; }
+.plan-liste label { display: flex; gap: 0.5rem; align-items: baseline; cursor: pointer; }
+.plan-zeit { font-variant-numeric: tabular-nums; min-width: 6.5rem; }

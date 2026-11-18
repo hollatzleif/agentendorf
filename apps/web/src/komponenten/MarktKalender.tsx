@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { terminAusText, type KalenderAntwort, type KalenderInfo, type KalenderTermin, type TerminAusText } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
+import { TagPlanen } from './TagPlanen';
 
 /**
  * Kalender auf dem Marktplatz (E75): Leifs Google Calendar – Monat, Woche, Tag, Liste; anlegen, ändern, verschieben,
@@ -149,6 +150,7 @@ export function MarktKalender() {
   const darfSchreiben = d?.modus === 'google' && d.kalender.some((k) => k.schreibbar);
   const qc = useQueryClient();
   const [zugFehler, setZugFehler] = useState('');
+  const [planen, setPlanen] = useState(false);
   const verschieben = async (t: KalenderTermin, art: 'ziehen' | 'laenge', dMin: number, dTag: number) => {
     if (!dMin && !dTag) return;
     setZugFehler('');
@@ -207,6 +209,11 @@ export function MarktKalender() {
             </form>
           )}
           {darfSchreiben && (
+            <button type="button" onClick={() => setPlanen(true)}>
+              🧭 Tag planen
+            </button>
+          )}
+          {darfSchreiben && (
             <button type="button" className="haupt" onClick={() => neu(ansicht === 'monat' && anker.slice(0, 7) !== heuteTag().slice(0, 7) ? anker : heuteTag(), 9 * 60)}>
               + Termin
             </button>
@@ -233,6 +240,7 @@ export function MarktKalender() {
       )}
       {ansicht === 'liste' && <Liste erster={erster} letzter={letzter} jeTag={jeTag} kalender={d?.kalender ?? []} oeffnen={(t) => setOffen({ termin: t })} />}
       {q.isFetching && <p className="leise">Lade …</p>}
+      {planen && <TagPlanen schliessen={() => setPlanen(false)} />}
       {offen && d && <TerminFenster antwort={d} {...offen} schliessen={() => setOffen(null)} />}
     </div>
   );

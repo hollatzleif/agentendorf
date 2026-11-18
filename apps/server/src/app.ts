@@ -2,6 +2,7 @@ import type { Boerse } from './boerse.js';
 import type { Saxo } from './saxo.js';
 import type { Kirchturm } from './kirchturm.js';
 import type { FachStand } from '@dorf/shared';
+import { tagPlanen } from './tagesplan.js';
 import type { Wochenrueckblick } from './wochenrueckblick.js';
 import type { GoogleKalender } from './kalender-google.js';
 import type { Corps } from './corps.js';
@@ -394,6 +395,14 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
     });
     app.post('/api/kalender/termin', async (req) => k.anlegen(req.body));
     app.post('/api/kalender/lernzeit', async (req) => k.lernzeitEintragen(req.body));
+    // Tag planen: Vorschlag aus To-dos + freien Lücken; eintragen erst mit Leifs Auswahl
+    app.get('/api/tag/planen', async (req) => {
+      const q = z.object({ tag: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).parse(req.query);
+      const frei = await k.freiAmTag(q.tag);
+      const todos = a.listen ? await a.listen.todo.liste() : [];
+      return tagPlanen({ todos, heute: q.tag, frei }).map((b) => ({ ...b, start: new Date(b.start).toISOString(), ende: new Date(b.ende).toISOString() }));
+    });
+    app.post('/api/tag/eintragen', async (req) => k.bloeckeEintragen(z.object({ bloecke: z.unknown() }).parse(req.body).bloecke));
     app.get('/api/kalender/frei', async (req) => {
       const q = z
         .object({ bis: z.string().datetime(), dauer: z.coerce.number().int().min(15).max(480).default(90), anzahl: z.coerce.number().int().min(1).max(10).default(5) })

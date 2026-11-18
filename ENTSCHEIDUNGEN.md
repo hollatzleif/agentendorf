@@ -562,3 +562,11 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
   - der Fokuszeit der letzten 7 Tage,
   - Knöpfen „🍅 Fokus“ (Pomodoro mit dem Fach als Gruppe) und „📚 Lernen“, dazu der Moodle-Link.
 - Fristen und Fokus-Gruppen gehören zu einem Fach, wenn die Namen ungefähr passen: Groß-/Kleinschreibung und Sonderzeichen zählen nicht, ab 4 Zeichen reicht „enthält“. Grund: Kursnamen im Kalender („Mathe III“) und Ordnernamen weichen oft leicht voneinander ab.
+
+## E84 – Tag planen (Nacht 18./19.11.)
+
+- **„🧭 Tag planen“** im Marktplatz-Kalender: Das Dorf legt die dringendsten offenen To-dos in die freien Lücken eines Tages. Nach 18 Uhr ist der vorgeschlagene Tag morgen.
+  - Rangfolge: überfällig → heute fällig → bald fällig (Uni zuerst) → ohne Datum (nur bei kurzer Liste).
+  - Blocklänge: Abgaben und Prüfungen 90 min, sonst 45 min; 15 min Pause dazwischen, höchstens 5 Blöcke.
+  - Freie Zeit: 8–20 Uhr, 15 min Puffer um Termine; Pflichtvorlesungen und Prüfungen der Uni zählen als belegt.
+- **Ohne KI**, damit der Plan nachvollziehbar und sofort da ist (`tagesplan.ts`, getestet). Leif hakt ab, was er will; eingetragen wird als „📚 …“ in den Hauptkalender, ohne Einladungen.

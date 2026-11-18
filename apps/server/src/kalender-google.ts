@@ -351,6 +351,42 @@ export class GoogleKalender {
     return aus;
   }
 
+  /** Freie Zeiten eines Tages (Ortszeit), tagVon–tagBis, 15 min Puffer um Termine; ab jetzt (+15 min), wenn heute */
+  async freiAmTag(tag: string, tagVon = 8, tagBis = 20): Promise<[number, number][]> {
+    if (!this.o.klient) throw new DorfFehler(409, 'Zum Planen muss der Google-Kalender verbunden sein (dorf gmail-anmelden).');
+    const [j, m, t] = tag.split('-').map(Number) as [number, number, number];
+    const puffer = 15 * 60_000;
+    let a = ortszeitZuUtc(j, m, t, tagVon, 0, 0, ZONE);
+    const e = ortszeitZuUtc(j, m, t, tagBis, 0, 0, ZONE);
+    a = Math.max(a, Math.ceil((this.o.jetzt() + puffer) / puffer) * puffer);
+    if (a >= e) return [];
+    const belegt: [number, number][] = [];
+    for (const k of await this.liste())
+      for (const ev of await this.o.klient.termine(k.id, a, e))
+        if (ev.start?.dateTime && ev.end?.dateTime && (ev as { transparency?: string }).transparency !== 'transparent')
+          belegt.push([Date.parse(ev.start.dateTime) - puffer, Date.parse(ev.end.dateTime) + puffer]);
+    for (const f of this.o.uni?.fristen() ?? []) if ((f.art === 'pflicht' || f.art === 'test') && f.frist && f.ende) belegt.push([Date.parse(f.frist) - puffer, Date.parse(f.ende) + puffer]);
+    belegt.sort((x, y) => x[0] - y[0]);
+    const frei: [number, number][] = [];
+    let cur = a;
+    for (const [s, en] of belegt) {
+      if (en <= cur) continue;
+      if (s > cur) frei.push([cur, Math.min(s, e)]);
+      cur = Math.max(cur, en);
+      if (cur >= e) break;
+    }
+    if (cur < e) frei.push([cur, e]);
+    return frei.filter(([x, y]) => y - x >= 30 * 60_000);
+  }
+
+  /** Mehrere gewählte Blöcke eintragen (Tag planen) – Leifs Klick */
+  async bloeckeEintragen(roh: unknown) {
+    const b = z.array(z.object({ titel: z.string().trim().min(1).max(200), start: z.string().datetime(), ende: z.string().datetime() })).min(1).max(10).parse(roh);
+    const aus = [];
+    for (const x of b) aus.push(await this.lernzeitEintragen(x));
+    return aus;
+  }
+
   /** Termin aus Text (Telegram /termin, nach Leifs Bestätigung) in den Hauptkalender */
   async inHauptkalender(t: { titel: string; ganztags: boolean; start: string; ende: string; ort?: string }) {
     const k = (await this.liste()).find((x) => x.primaer && x.schreibbar) ?? (await this.liste()).find((x) => x.schreibbar);
