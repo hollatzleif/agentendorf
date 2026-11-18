@@ -8,6 +8,7 @@ import { Anmelden } from './seiten/Anmelden';
 import { Dorfplatz } from './seiten/Dorfplatz';
 import { GebaeudeSeite } from './seiten/Gebaeude';
 import { Bibliothek } from './seiten/Bibliothek';
+import { Heute } from './seiten/Heute';
 import { Einstellungen } from './seiten/Einstellungen';
 import { ChatSeite } from './seiten/Chat';
 import { Schnelleingabe } from './programm/Schnelleingabe';
@@ -69,6 +70,7 @@ function Rahmen() {
   let seite: React.ReactNode;
   if (pfad === '/') seite = <Dorfplatz />;
   else if (pfad.startsWith('/gebaeude/')) seite = <GebaeudeSeite id={decodeURIComponent(pfad.slice('/gebaeude/'.length))} />;
+  else if (pfad === '/heute') seite = <Heute />;
   else if (pfad === '/bibliothek') seite = <Bibliothek />;
   else if (pfad === '/einstellungen') seite = <Einstellungen />;
   else if (pfad.startsWith('/chats/')) seite = <ChatSeite key={pfad} id={decodeURIComponent(pfad.slice('/chats/'.length))} />;
@@ -88,6 +90,7 @@ function Rahmen() {
         </a>
         <nav>
           {nav('/', 'Dorf', pfad === '/' || pfad.startsWith('/gebaeude') || pfad.startsWith('/chats'))}
+          {nav('/heute', 'Heute', pfad === '/heute')}
           {nav('/bibliothek', 'Bibliothek', pfad === '/bibliothek')}
           {nav('/einstellungen', 'Einstellungen', pfad === '/einstellungen')}
         </nav>

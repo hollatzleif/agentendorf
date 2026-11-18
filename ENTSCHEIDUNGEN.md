@@ -510,3 +510,17 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - **Jetzt:** Was gebaut ist, wird ausgeliefert. Fehlt eine Plattform, behält der Server deren bisherige Fassung zum Herunterladen, mit ihrer alten Versionsnummer in `programme.json`. Die Update-Datei bietet sie dann nicht an, sonst würde das Programm dieselbe alte Fassung immer wieder installieren.
 - Ein Teil-Bau bekommt die Kennung `0000000000000000`, deshalb baut der nächste Lauf beide Plattformen neu. Getestet in `empfangen-test.sh` und `programme.test.ts`.
 - **Nachtrag:** Auf Leifs Wunsch baut die CI vorerst **nur das Windows-Programm**, weil Mac-Minuten zehnfach zählen. Die letzte Mac-Fassung bleibt zum Herunterladen, bekommt aber keine Updates (also auch keine Glocke). Wieder einschalten: Mac-Eintrag in `ci.yml` (Matrix `programme`) und die Vollständigkeitsprüfung.
+
+## E77 – Mein Tag: die Seite „Heute“ (19.11.)
+
+- **Wozu:** ein Blick am Morgen und zwischendurch – was steht an, was ist fällig, womit fange ich an. Eigene Seite `/heute` („Heute“ in der Kopfleiste zwischen Dorf und Bibliothek) und ein 📋-Knopf im 3D-Dorf.
+- **Nur Anzeige, kein neuer Server-Code:** Die Seite nutzt die bestehenden Endpunkte und dieselben Query-Schlüssel wie die Gebäude-Reiter (`['kalender', von, bis]`, `['liste','todo']`, `['kirchturm']`, `['dorf-status']`, `['morgenzeitung']`, `['freigaben','offen']`). Dadurch hält `live.ts` sie ohne Zutun aktuell.
+- **Inhalt:**
+  - Kopf: Gruß, Datum, Wetter am Wohnort und „Als Nächstes“. Das ist der laufende oder nächste Termin von heute; gibt es keinen, das erste überfällige bzw. heute fällige To-do.
+  - Termine heute und morgen (Europe/Vienna, Uni-Fristen inklusive). Vergangenes ist blass, Laufendes trägt „jetzt“. Antippen führt in den Marktplatz-Kalender. Kalender, die Leif dort ausgeblendet hat, fehlen auch hier.
+  - To-dos: überfällig, heute, nächste 7 Tage, dazu die 5 neuesten ohne Datum. Abhaken direkt; Schnell-Anlegen mit Schalter „heute“ (ein Tipp statt Datumsfeld). Bearbeiten und Löschen bleiben auf dem To-do-Brett.
+  - Fokus: Pomodoro starten, Pause, Stopp, Restzeit; laufende Timer und der nächste Wecker. Klingeln zeigt weiter nur die globale Glocke.
+  - Offene Freigaben und die Morgenzeitung von heute (erster Absatz als Anreißer) erscheinen nur, wenn es sie gibt.
+- **Aufbau:** am PC zwei Spalten (Termine + Fokus | To-dos), am Handy eine Spalte in der Reihenfolge Termine, To-dos, Fokus. Die Kopfleiste ist am Handy etwas enger gesetzt, damit vier Reiter und das Brief-Abzeichen Platz haben.
+- **Bewusst nicht:** kein eigener Endpunkt, der alles bündelt (sechs kleine Abfragen sind schnell genug und bleiben live), und die Startseite bleibt das Dorf.
+- Getestet mit Playwright (Desktop und Handy): Termine aus nachgebautem Kalender, To-do anlegen und abhaken, Fokus starten und stoppen, Sprung in den Kalender.
