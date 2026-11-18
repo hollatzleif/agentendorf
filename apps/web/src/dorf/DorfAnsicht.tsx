@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { DEKO_ARTEN, DEKO_NAMEN, WETTER_TEXT, type DorfAntwort, type DorfFigur, type DorfLayout, type DorfStatus, type Gebaeude, type MorgenzeitungUebersicht } from '@dorf/shared';
+import { DEKO_ARTEN, DEKO_NAMEN, WETTER_TEXT, type DorfAntwort, type DorfFigur, type DorfLayout, type DorfStatus, type Gebaeude, type MorgenzeitungUebersicht, type SchreibtischAufgabe } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { linkKlick, navigieren, useOrt } from '../router';
 import { GebaeudeInhalt, standardReiter } from '../seiten/Gebaeude';
@@ -380,12 +380,7 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
               </div>
             </>
           ) : (
-            <>
-              <p>Ruht gerade. Er wacht von 7 bis 21 Uhr alle zwei Stunden auf und kümmert sich um neue Aufgaben auf seinem Schreibtisch.</p>
-              <a className="knopf" href="/?g=Rathaus&reiter=schreibtisch" onClick={linkKlick}>
-                Zum Schreibtisch
-              </a>
-            </>
+            <BuergermeisterRuht />
           )}
         </div>
       ) : figur ? (
@@ -543,5 +538,57 @@ function GeradeZeile({ laufId, gerade }: { laufId: string; gerade?: string }) {
       {gerade && <p>Gerade: {gerade}</p>}
       {ende && <p className="leise">… {ende}</p>}
     </div>
+  );
+}
+
+const uhrzeit = new Intl.DateTimeFormat('de-AT', { timeZone: 'Europe/Vienna', hour: '2-digit', minute: '2-digit' });
+
+/** Karte des ruhenden Bürgermeisters: wann er zuletzt wach war, was dabei herauskam, wann er wieder aufwacht */
+function BuergermeisterRuht() {
+  const auf = useQuery({
+    queryKey: ['aufwachen'],
+    queryFn: () => api<{ naechste: string | null; anlaesse: string[]; verbrauchHeute: number; tagesbudget: number; eigeneAufgaben: boolean }>('/api/aufwachen'),
+  });
+  const tisch = useQuery({ queryKey: ['schreibtisch'], queryFn: () => api<SchreibtischAufgabe[]>('/api/schreibtisch') });
+  const letzte = tisch.data?.find((a) => a.quelle === 'aufwachen');
+  return (
+    <>
+      <p>Ruht gerade. Er ist rund um die Uhr im Dienst: jede Stunde schaut er nach, ob es Neues gibt, alle paar Stunden geht er seine Runde durchs Dorf.</p>
+      <dl>
+        {letzte && (
+          <>
+            <dt>Zuletzt wach</dt>
+            <dd>
+              {uhrzeit.format(new Date(letzte.erstellt))} – {letzte.titel}
+            </dd>
+          </>
+        )}
+        {auf.data?.naechste && (
+          <>
+            <dt>Nächste Runde</dt>
+            <dd>{uhrzeit.format(new Date(auf.data.naechste))}</dd>
+          </>
+        )}
+        {auf.data && (
+          <>
+            <dt>Budget heute</dt>
+            <dd>
+              {auf.data.verbrauchHeute.toLocaleString('de-AT', { style: 'currency', currency: 'USD' })} von{' '}
+              {auf.data.tagesbudget.toLocaleString('de-AT', { style: 'currency', currency: 'USD' })}
+            </dd>
+          </>
+        )}
+      </dl>
+      <div className="zeile">
+        {letzte?.chatId && (
+          <a className="knopf" href={`/chats/${encodeURIComponent(letzte.chatId)}`} onClick={linkKlick}>
+            Letzte Runde
+          </a>
+        )}
+        <a className="knopf" href="/?g=Rathaus&reiter=schreibtisch" onClick={linkKlick}>
+          Zum Schreibtisch
+        </a>
+      </div>
+    </>
   );
 }

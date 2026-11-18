@@ -195,7 +195,10 @@ test('Figuren: arbeitender Agent mit Infokarte und Abbrechen; Bürgermeister', a
   await page.waitForTimeout(300);
   const bm = (await page.evaluate(() => window.__dorf!.bildschirmPunkt('buergermeister')))!;
   await page.mouse.click(bm.x, bm.y);
-  await expect(page.getByRole('dialog', { name: 'Figur' }).getByRole('heading', { name: /Bürgermeister/ })).toBeVisible();
+  const bmKarte = page.getByRole('dialog', { name: 'Figur' });
+  await expect(bmKarte.getByRole('heading', { name: /Bürgermeister/ })).toBeVisible();
+  // ruht er gerade, nennt die Karte die nächste Runde und das Tagesbudget (läuft er, Status und Chat)
+  await expect(bmKarte.getByText(/Nächste Runde|Status/).first()).toBeVisible();
 });
 
 test('Bürgermeister schickt einen Helfer zur Uni: Figur mit Rucksack, Karte nennt ihn Helfer', async ({ page }, info) => {
