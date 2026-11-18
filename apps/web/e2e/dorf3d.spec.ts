@@ -192,6 +192,8 @@ test('Bürgermeister schickt einen Helfer zur Uni: Figur mit Rucksack, Karte nen
     .not.toBeNull();
   const s = (await (await page.request.get('/api/dorf/status')).json()) as DorfStatus;
   const helfer = s.figuren.find((f) => f.gebaeude === 'Uni' && f.ausloeser === 'buergermeister')!;
+  // der Ticker meldet es
+  await expect(page.getByRole('list', { name: 'Was im Dorf passiert' }).getByText(/Helfer läuft zur Uni/)).toBeVisible();
   await page.waitForFunction((id) => !!window.__dorf!.bildschirmPunkt('figur', id), helfer.laufId, { timeout: 15_000 });
   await page.evaluate((id) => window.__dorf!.blickAufFigur(id, 12), helfer.laufId);
   await page.waitForTimeout(300);

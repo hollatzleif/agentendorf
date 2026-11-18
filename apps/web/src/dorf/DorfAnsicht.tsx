@@ -7,6 +7,7 @@ import { GebaeudeInhalt, standardReiter } from '../seiten/Gebaeude';
 import { DorfSzene, type KameraStand, type SzeneTreffer } from './szene';
 import { BauSteuerung, type Auswahl, type Werkzeug } from './bauen';
 import { GebaeudeKnoepfe } from './Knoepfe';
+import { DorfTicker } from './Ticker';
 
 const KAMERA_SCHLUESSEL = 'dorf-kamera';
 const handy = () => window.matchMedia('(max-width: 760px), (pointer: coarse)').matches;
@@ -227,6 +228,7 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
 
   // ---- Anzeige ----
   const gName = (id: string) => gebaeude.data?.find((g) => g.id === id)?.name ?? id;
+  const gNameStabil = useCallback((id: string) => gebaeude.data?.find((g) => g.id === id)?.name ?? id, [gebaeude.data]);
   const figurDaten: DorfFigur | null =
     figur === 'buergermeister'
       ? (status.data?.figuren.find((f) => f.buergermeister && f.status === 'laeuft') ?? status.data?.figuren.find((f) => f.buergermeister) ?? null)
@@ -260,6 +262,21 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
       {(dorf.isPending || gebaeude.isPending) && <div className="dorf-laden">Das Dorf wird aufgebaut …</div>}
       {fehler && <div className="dorf-laden fehler">{fehler.message}</div>}
 
+      {!bauen && (
+        <DorfTicker
+          status={status.data}
+          name={gNameStabil}
+          zeigen={(z) => {
+            if (!z || !szene.current) return;
+            if (z.art === 'figur') szene.current.blickAufFigur(z.id, 16);
+            else {
+              const p = layout?.gebaeude[z.id];
+              if (p) szene.current.blickAuf(p.x + 2, p.z + 2, 22);
+              setAngetippt(z.id);
+            }
+          }}
+        />
+      )}
       <div className="dorf-werkzeuge oben-rechts">
         {!bauen && knopf('Als Liste anzeigen', '☰ Liste', zurListe, 'text')}
         {knopf(bauen ? 'Bau-Modus beenden' : 'Bauen', bauen ? '✓ Fertig' : '🔨 Bauen', () => bauModus(!bauen), `text ${bauen ? 'haupt' : ''}`)}

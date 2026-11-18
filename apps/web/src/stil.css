@@ -362,3 +362,14 @@ button.schliessen { position: absolute; top: 0.5rem; right: 0.5rem; width: 2rem;
   .spiel-symbol { font-size: 1.35rem; }
   .spiel-zeile { max-width: 16rem; }
 }
+
+/* Dorf-Ticker: was gerade passiert */
+.dorf-ticker { position: absolute; top: 0.7rem; left: 0.7rem; z-index: 3; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; max-width: min(26rem, calc(100% - 13rem)); }
+.dorf-ticker button {
+  display: block; width: 100%; text-align: left; padding: 0.35rem 0.75rem; border-radius: 12px; font-size: 0.85rem; font-weight: 700;
+  background: rgb(43 58 85 / 0.88); color: #fff; border: 2px solid rgb(255 255 255 / 0.25); box-shadow: 0 3px 0 rgb(20 28 43 / 0.5);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: ticker-rein 0.25s ease-out both;
+}
+@keyframes ticker-rein { from { transform: translateX(-12px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (max-width: 760px), (pointer: coarse) { .dorf-ticker { top: 3.9rem; max-width: calc(100% - 1.4rem); } }
+@media (prefers-reduced-motion: reduce) { .dorf-ticker button { animation: none; } }
