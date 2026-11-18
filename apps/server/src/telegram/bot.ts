@@ -618,7 +618,7 @@ export class TelegramBot {
     const n = this.o.db.prepare('SELECT chat_id, message_id FROM telegram_nachrichten WHERE freigabe_id = ?').get(f.id) as { chat_id: string; message_id: number } | undefined;
     if (!n) return;
     const ergebnis =
-      f.status === 'abgelehnt' ? '❌ Abgelehnt' : f.status === 'fehlgeschlagen' ? `⚠️ Fehlgeschlagen: ${h(f.ergebnis ?? '')}` : `✅ Angenommen${f.ergebnis ? ` – ${h(f.ergebnis)}` : ''}`;
+      f.status === 'abgelehnt' ? '❌ Abgelehnt' : f.status === 'fehlgeschlagen' ? `⚠️ Fehlgeschlagen: ${h(f.ergebnis ?? '')}` : `✅ Angenommen${f.automatisch ? ' (automatisch – keine Antwort)' : ''}${f.ergebnis ? ` – ${h(f.ergebnis)}` : ''}`;
     await this.o.api
       .aufruf('editMessageText', {
         chat_id: n.chat_id,

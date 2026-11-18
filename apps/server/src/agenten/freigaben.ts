@@ -45,6 +45,7 @@ interface Zeile {
   entschieden: number | null;
   ergebnis: string | null;
   vault_pfad: string | null;
+  entschieden_von: string | null;
 }
 
 function info(z: Zeile): FreigabeInfo {
@@ -60,6 +61,7 @@ function info(z: Zeile): FreigabeInfo {
     status: z.status,
     erstellt: new Date(z.erstellt).toISOString(),
     entschieden: z.entschieden ? new Date(z.entschieden).toISOString() : undefined,
+    ...(z.entschieden_von === 'automatisch' ? { automatisch: true } : {}),
     ergebnis: z.ergebnis ?? undefined,
   };
 }
@@ -140,11 +142,11 @@ export class Freigaben {
   }
 
   /** Genau einmal: der Statuswechsel ist atomar; ein zweiter Klick (oder ein zweites Gerät) bekommt 409. */
-  async entscheiden(id: string, annehmen: boolean): Promise<FreigabeInfo> {
+  async entscheiden(id: string, annehmen: boolean, von: 'leif' | 'automatisch' = 'leif'): Promise<FreigabeInfo> {
     const jetzt = this.uhr.jetzt();
     const r = this.db
-      .prepare("UPDATE freigaben SET status = ?, entschieden = ? WHERE id = ? AND status = 'offen'")
-      .run(annehmen ? 'angenommen' : 'abgelehnt', jetzt, id);
+      .prepare("UPDATE freigaben SET status = ?, entschieden = ?, entschieden_von = ? WHERE id = ? AND status = 'offen'")
+      .run(annehmen ? 'angenommen' : 'abgelehnt', jetzt, von, id);
     if (r.changes !== 1) {
       this.holen(id); // 404, falls es sie nicht gibt
       throw new DorfFehler(409, 'Diese Freigabe wurde schon entschieden.');
@@ -189,7 +191,7 @@ ${f.entschieden ? `entschieden: ${f.entschieden}\n` : ''}---
 
 # Freigabe: ${f.titel}
 
-**Status:** ${f.status}${f.ergebnis ? ` – ${f.ergebnis}` : ''}
+**Status:** ${f.status}${f.automatisch ? ' (automatisch – keine Antwort innerhalb der Frist)' : ''}${f.ergebnis ? ` – ${f.ergebnis}` : ''}
 
 ## Begründung des Agenten
 ${f.begruendung || '–'}

@@ -8,6 +8,9 @@ eigene_aufgaben: ja
 rundgang_abstand_stunden: 3
 # Nachts (22–7 Uhr) schreibt der Telegram-Bot nur Dringendes (Fristen in wenigen Stunden); der Rest kommt um 7 Uhr gesammelt.
 nachtruhe: ja
+# Pläne des Bürgermeisters: Antwortest du nicht innerhalb so vieler Minuten, werden sie automatisch angenommen (0 = nie).
+# Gilt nur für Pläne (Helfer starten) – Senden, Löschen, Abgeben und alle anderen Freigaben warten immer auf dich.
+plan_automatisch_nach_minuten: 10
 ---
 
 # Bürgermeister rund um die Uhr

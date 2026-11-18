@@ -165,6 +165,7 @@ Die JKU sperrt den Zugang für die Moodle-App. Deshalb holt das Dorf nur die **T
 - `Rathaus/memory.md`: Hier hält er fest, was er gelernt hat. Du kannst mitschreiben, und alte Fassungen liegen in `Rathaus/archiv/memory/`.
 - `Rathaus/personality.md`: So tritt er auf. Änderungen schlägt er nur als Freigabe vor, du kannst sie aber jederzeit selbst bearbeiten.
 - Nach deinem Ja zu einer seiner Freigaben und wenn seine Helfer fertig sind, arbeitet er im selben Chat von selbst weiter.
+- **Pläne** nimmt das Dorf automatisch an, wenn du nicht innerhalb von 10 Minuten entscheidest. Einstellbar über `plan_automatisch_nach_minuten` in `00_Stadtordnung/aufwachen.md` (0 = nie). Alle anderen Freigaben warten immer auf dich.
 
 ## 9. Post: Gmail verbinden (nur Lesen und Entwürfe)
 

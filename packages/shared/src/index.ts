@@ -197,6 +197,8 @@ export interface FreigabeInfo {
   erstellt: string;
   entschieden?: string;
   ergebnis?: string;
+  /** true, wenn nicht Leif, sondern die Frist entschieden hat (E62) */
+  automatisch?: boolean;
 }
 
 export interface VerbrauchZeile {
@@ -274,6 +276,8 @@ export interface PlanInhalt {
   teilaufgaben: PlanTeilaufgabe[];
   kostenUsd: number;
   hinweis: string;
+  /** Ohne Entscheidung wird der Plan zu diesem Zeitpunkt automatisch angenommen (E62); fehlt → nie */
+  automatischUm?: string;
 }
 export interface PlanInfo extends PlanInhalt {
   status: 'wartet' | 'abgelehnt' | 'laeuft' | 'fertig';

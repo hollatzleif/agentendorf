@@ -299,6 +299,10 @@ const MIGRATIONEN: string[] = [
     geaendert INTEGER NOT NULL
   );
   `,
+  // 12: Wer hat entschieden – Leif oder die Frist (Pläne werden nach N Minuten ohne Antwort automatisch angenommen, E62)
+  `
+  ALTER TABLE freigaben ADD COLUMN entschieden_von TEXT;
+  `,
 ];
 
 export function dbOeffnen(datei: string): DB {

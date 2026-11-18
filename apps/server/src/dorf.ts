@@ -63,6 +63,7 @@ const VORLAGE_FRUEHERE_FASSUNGEN: Record<string, string[]> = {
   'Uni/aktionen/abgabe-bearbeiten.md': ['28289a20e8f718a2b45d16b34ab2a578350078df696a855dccd52e6857259b11'],
   'Uni/aktionen/lernen.md': ['fe2283fc7e878ffd5f7f6a01ec776f50e49b6f96446c28db7cfcec36f48f1dd1'],
   'Post/gebaeude.md': ['313622cda22bc8ff13c0a644fab2c49f1bdf84c57eb2702231a70f2ac1e9a076'], // bis Etappe 3
+  '00_Stadtordnung/aufwachen.md': ['231a442ce4d7e593e65f27a057d4c5392521cd0da0b139c8c045a2d38c6efbd2'], // bis E61
   // E61: Gedächtnis/Persönlichkeit des Bürgermeisters
   'Rathaus/aktionen/buergermeister.md': ['653aace36ae47d42bc847eda934c819312ceb446d1d624ba92f8ff528eb37084'],
   'Rathaus/gebaeude.md': ['7dd8c996765e716a804cafdaa4734c16aa4f97afb94e20ae69a6b0cda615b130'],
@@ -225,6 +226,9 @@ export async function dorfStarten(
   if (opt.beobachten !== false) morgenzeitung.starten();
   if (opt.beobachten !== false) aufwachen.starten();
   if (opt.beobachten !== false) automatik.starten();
+  // E62: jede Minute fällige Pläne automatisch annehmen
+  const planTakt = opt.beobachten !== false ? setInterval(() => void buergermeister.faelligePlaeneAnnehmen().catch((e) => console.warn(`Pläne: ${(e as Error).message}`)), 60_000) : undefined;
+  planTakt?.unref();
   const dorfplan = new Dorfplan({ db, uhr, hub, vault, uni, wetter });
   const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen, dorfplan, automatik });
   app.addHook('onClose', async () => {
@@ -233,6 +237,7 @@ export async function dorfStarten(
     morgenzeitung.stoppen();
     aufwachen.stoppen();
     automatik.stoppen();
+    if (planTakt) clearInterval(planTakt);
     telegram?.stoppen();
     await intern.close();
     await waechter?.close();

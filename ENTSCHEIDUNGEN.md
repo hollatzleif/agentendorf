@@ -274,3 +274,10 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - **Startwissen in der Vorlage** enthält die Vault-Karte, die Dateinamen-Regel, Rezepte für Helfer-Aufträge und die Lehre aus der gescheiterten Folien-Aufgabe.
 - **Vorlagen:** `stadtordnung.md`, `Rathaus/gebaeude.md` und `Rathaus/aktionen/buergermeister.md` werden aktualisiert, falls sie byte-gleich einer früheren Vorlagenfassung sind.
 - **Fehler behoben:** Beim Prüfen von Plänen und `helfer_starten` fehlten die Auswahl-Quellen. Deshalb war jede Auswahl-Eingabe ungültig, etwa `fach` aus `uni.faecher`, obwohl die Ordner in `Uni/faecher/` existierten. Der Plan „Kursübersicht je Kurs“ wurde so abgelehnt. Jetzt prüft der Code gegen dieselben Quellen wie beim Start.
+
+**E62 – Pläne ohne Antwort nach 10 Minuten automatisch annehmen** (18.11., Leifs Wunsch)
+- Ein Plan des Bürgermeisters bekommt beim Vorlegen einen Zeitpunkt `automatischUm` (jetzt + `plan_automatisch_nach_minuten` aus `00_Stadtordnung/aufwachen.md`, Standard 10, 0 = nie). Der Hinweis im Plan (App, Telegram) nennt die Uhrzeit.
+- Jede Minute nimmt der Code fällige Pläne über `freigaben.entscheiden(id, true, 'automatisch')` an. Das ist atomar: Klickt Leif gleichzeitig, gewinnt genau einer. In der DB steht `entschieden_von = automatisch` (Migration 12); App, Telegram und Spiegel zeigen „automatisch“. Im Chat des Bürgermeisters erscheint ein Hinweis.
+- **Nur Pläne.** Ein Plan startet Helfer im Vault. Senden, Löschen, Abgeben, Überschreiben, Skills und Persönlichkeit bleiben eigene Freigaben und warten immer auf Leifs Klick.
+- Die Einstellung gilt für Pläne, die nach einer Änderung vorgelegt werden. Ältere behalten ihren Zeitpunkt.
+

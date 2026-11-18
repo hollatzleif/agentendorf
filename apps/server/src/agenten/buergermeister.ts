@@ -16,6 +16,9 @@ import { kostenSchaetzen, stufenLaden } from './modelle.js';
 import type { LaufKontext, RollenHandler, WerkzeugAufrufErgebnis } from './werkzeuge.js';
 import { dateiStempel, kurztitel, lokaleZeit } from './hilfen.js';
 import { ersetzen } from './gedaechtnis.js';
+import { aufwachEinstellungen } from '../aufwachen.js';
+
+const uhrzeit = new Intl.DateTimeFormat('de-AT', { timeZone: 'Europe/Vienna', hour: '2-digit', minute: '2-digit' });
 
 export const BUERGERMEISTER_AKTION = 'Rathaus/buergermeister';
 /** Kennung der Läufe, mit denen das Dorf den Bürgermeister nach einem Ereignis weiterarbeiten lässt (E61) */
@@ -216,15 +219,21 @@ export class Buergermeister implements RollenHandler {
     const planId = crypto.randomUUID();
     const kostenUsd = Math.round(teilaufgaben.reduce((s, t) => s + t.kostenUsd, 0) * 1000) / 1000;
     const abo = teilaufgaben.filter((t) => t.motor === 'claude-code').length;
+    const jetzt = this.uhr.jetzt();
+    // E62: ohne Antwort nach N Minuten automatisch annehmen (Einstellung in 00_Stadtordnung/aufwachen.md, 0 = nie)
+    const minuten = (await aufwachEinstellungen(this.vault)).plan_automatisch_nach_minuten;
+    const automatischUm = minuten > 0 ? jetzt + minuten * 60_000 : null;
     const inhalt: PlanInhalt = {
       planId,
       zusammenfassung: p.zusammenfassung,
       begruendung: p.begruendung,
       teilaufgaben,
       kostenUsd,
-      hinweis: `${teilaufgaben.length} Helfer${abo ? `, davon ${abo} über dein Abo` : ''}${kostenUsd ? `, API ca. ${kostenUsd.toFixed(2)} $` : ''} (grobe Schätzung).`,
+      hinweis: `${teilaufgaben.length} Helfer${abo ? `, davon ${abo} über dein Abo` : ''}${kostenUsd ? `, API ca. ${kostenUsd.toFixed(2)} $` : ''} (grobe Schätzung).${
+        automatischUm ? ` Ohne Antwort startet der Plan um ${uhrzeit.format(new Date(automatischUm))} von selbst.` : ''
+      }`,
+      ...(automatischUm ? { automatischUm: new Date(automatischUm).toISOString() } : {}),
     };
-    const jetzt = this.uhr.jetzt();
     this.db
       .prepare('INSERT INTO plaene (id, schreibtisch_id, chat_id, inhalt_json, status, erstellt, geaendert) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .run(planId, chat.schreibtisch_id, k.chatId, JSON.stringify(inhalt), 'wartet', jetzt, jetzt);
@@ -246,7 +255,10 @@ export class Buergermeister implements RollenHandler {
       throw e;
     }
     this.hub.senden({ typ: 'plaene.geaendert' });
-    return { ok: true, text: `Plan vorgelegt (${teilaufgaben.length} Teilaufgaben). Leif entscheidet; danach startet das Dorf die Helfer selbst. Beende jetzt deinen Lauf mit der Zusammenfassung.` };
+    return {
+      ok: true,
+      text: `Plan vorgelegt (${teilaufgaben.length} Teilaufgaben). Leif entscheidet${automatischUm ? ` – ohne Antwort wird er nach ${minuten} Minuten automatisch angenommen` : ''}; danach startet das Dorf die Helfer selbst. Beende jetzt deinen Lauf mit der Zusammenfassung.`,
+    };
   }
 
   // ---- Ausführen, Ablehnen, Abschluss ---------------------------------------------------------
@@ -291,6 +303,30 @@ export class Buergermeister implements RollenHandler {
     await this.agenten.hinweisSchreiben(p.chat_id, '❌ Plan abgelehnt – es wurde nichts gestartet. Schreib dem Bürgermeister hier, was er anders machen soll.');
     await this.planSpiegeln(planId);
     this.hub.senden({ typ: 'plaene.geaendert' });
+  }
+
+  /**
+   * E62: Pläne, über die Leif bis `automatischUm` nicht entschieden hat, werden angenommen – nur Pläne (Helfer starten),
+   * nie andere Freigaben. Atomar über freigaben.entscheiden (klickt Leif gleichzeitig, gewinnt genau einer).
+   * Läuft jede Minute (dorf.ts). Rückgabe: IDs der automatisch angenommenen Freigaben.
+   */
+  async faelligePlaeneAnnehmen(): Promise<string[]> {
+    const jetzt = this.uhr.jetzt();
+    const offen = this.db.prepare("SELECT id, inhalt_json FROM freigaben WHERE status = 'offen' AND art = 'plan_ausfuehren'").all() as { id: string; inhalt_json: string }[];
+    const angenommen: string[] = [];
+    for (const f of offen) {
+      const um = (JSON.parse(f.inhalt_json) as PlanInhalt).automatischUm;
+      if (!um || Date.parse(um) > jetzt) continue;
+      try {
+        const r = await this.agenten.freigaben.entscheiden(f.id, true, 'automatisch');
+        angenommen.push(f.id);
+        const p = this.db.prepare('SELECT chat_id FROM plaene WHERE freigabe_id = ?').get(f.id) as { chat_id: string } | undefined;
+        if (p) await this.agenten.hinweisSchreiben(p.chat_id, `⏱️ Keine Antwort innerhalb der Frist – Plan automatisch angenommen: ${r.titel}`);
+      } catch {
+        // schon entschieden (Leif war schneller) – nichts zu tun
+      }
+    }
+    return angenommen;
   }
 
   /**

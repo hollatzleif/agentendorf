@@ -212,3 +212,47 @@ describe('Gedächtnis und Persönlichkeit des Bürgermeisters', () => {
     expect(d.agenten.freigaben.liste('offen').filter((f) => f.art === 'plan_ausfuehren')).toHaveLength(1);
   });
 });
+
+describe('Pläne ohne Antwort automatisch annehmen (E62)', () => {
+  const plan = '[plan Bibliothek|A; Uni|B]';
+
+  it('nach 10 Minuten angenommen und gestartet – vorher nicht; Hinweis nennt die Uhrzeit; andere Freigaben warten immer', async () => {
+    const d = await testDorf();
+    const { chatId } = await buergermeister(d, `${plan} [freigabe Bibliothek/x.md]`);
+    const f = d.agenten.freigaben.liste('offen').find((x) => x.art === 'plan_ausfuehren')!;
+    expect((f.inhalt as { hinweis: string }).hinweis).toMatch(/Ohne Antwort startet der Plan um \d\d:\d\d von selbst/);
+    d.uhr.vor(9 * 60_000);
+    expect(await d.buergermeister.faelligePlaeneAnnehmen()).toEqual([]);
+    d.uhr.vor(60_000);
+    expect(await d.buergermeister.faelligePlaeneAnnehmen()).toEqual([f.id]);
+    await d.agenten.leerlauf();
+    expect(d.agenten.freigaben.holen(f.id)).toMatchObject({ status: 'ausgefuehrt', automatisch: true });
+    expect(d.agenten.chatListe().filter((c) => c.elternChatId === chatId)).toHaveLength(2);
+    expect(d.agenten.chatDetail(chatId).nachrichten.some((n) => n.rolle === 'hinweis' && n.text.startsWith('⏱️ Keine Antwort'))).toBe(true);
+    // die Lösch-Freigabe aus demselben Lauf bleibt offen, egal wie lange
+    d.uhr.vor(24 * 3_600_000);
+    await d.buergermeister.faelligePlaeneAnnehmen();
+    expect(d.agenten.freigaben.liste('offen').map((x) => x.art)).toEqual(['datei_loeschen']);
+    const spiegel = (await d.vault.lesen(d.db.prepare('SELECT vault_pfad FROM freigaben WHERE id = ?').pluck().get(f.id) as string)).inhalt;
+    expect(spiegel).toContain('(automatisch – keine Antwort innerhalb der Frist)');
+  });
+
+  it('Leif war schneller (abgelehnt) → bleibt abgelehnt; Einstellung 0 → nie automatisch', async () => {
+    const d = await testDorf();
+    await buergermeister(d, plan);
+    const f = d.agenten.freigaben.liste('offen').find((x) => x.art === 'plan_ausfuehren')!;
+    await d.agenten.freigaben.entscheiden(f.id, false);
+    d.uhr.vor(20 * 60_000);
+    expect(await d.buergermeister.faelligePlaeneAnnehmen()).toEqual([]);
+    expect(d.agenten.freigaben.holen(f.id)).toMatchObject({ status: 'abgelehnt' });
+    expect(d.agenten.freigaben.holen(f.id).automatisch).toBeUndefined();
+
+    const datei = path.join(d.vault.wurzel, '00_Stadtordnung/aufwachen.md');
+    fs.writeFileSync(datei, fs.readFileSync(datei, 'utf8').replace('plan_automatisch_nach_minuten: 10', 'plan_automatisch_nach_minuten: 0'));
+    await buergermeister(d, plan);
+    const f2 = d.agenten.freigaben.liste('offen').find((x) => x.art === 'plan_ausfuehren')!;
+    expect((f2.inhalt as { automatischUm?: string }).automatischUm).toBeUndefined();
+    d.uhr.vor(48 * 3_600_000);
+    expect(await d.buergermeister.faelligePlaeneAnnehmen()).toEqual([]);
+  });
+});

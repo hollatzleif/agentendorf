@@ -23,6 +23,8 @@ const EinstellungenSchema = z.object({
   eigene_aufgaben: JaNein.default(true),
   rundgang_abstand_stunden: z.number().min(1).max(48).default(3),
   nachtruhe: JaNein.default(true),
+  // E62: Pläne ohne Antwort nach so vielen Minuten automatisch annehmen (0 = nie, Leif entscheidet immer selbst)
+  plan_automatisch_nach_minuten: z.number().int().min(0).max(1440).default(10),
 });
 export type AufwachEinstellungen = z.infer<typeof EinstellungenSchema>;
 

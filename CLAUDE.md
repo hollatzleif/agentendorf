@@ -129,5 +129,6 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] Nacht 17./18.11. (E56–E59): Bürgermeister 24/7, Spielknöpfe, Helfer-Figuren, Moodle-Browser (läuft auf dem Server; wartet auf `dorf moodle-browser-zugang`, Leine unabhängig geprüft und gegen das echte JKU-Moodle ohne Login getestet), Wetter/Jahreszeiten, Telegram /heute /fristen
 - [x] E60 (18.11.): Skills anlegen (App, Obsidian-Vorlage, Bürgermeister per Freigabe), Zeitpläne, Ablage mit Archiv, Häkchen-Brücke, Checkliste (täglich 06:00), Kursübersicht
 - [x] E61 (18.11.): Gedächtnis/Persönlichkeit des Bürgermeisters, Rückschau beim Aufwachen, Weitermachen nach Freigabe/Helfer-Ende
+- [x] E62 (18.11.): Pläne ohne Antwort nach 10 min automatisch angenommen (nur Pläne; `plan_automatisch_nach_minuten`)
 - [ ] Etappe 6 – Programme (Tauri)
 - [ ] Etappe 7 – Marktplatz-Brett, leere Gebäude

@@ -27,7 +27,7 @@ export function Freigaben() {
         <ul className="chatliste">
           {erledigt.data?.map((f) => (
             <li key={f.id}>
-              <strong>{f.titel}</strong> – {f.status}
+              <strong>{f.titel}</strong> – {f.status}{f.automatisch ? " (automatisch, keine Antwort)" : ""}
               {f.ergebnis ? `: ${f.ergebnis}` : ''} <span className="leise">({f.entschieden && zeitKurz(f.entschieden)})</span>
             </li>
           ))}
