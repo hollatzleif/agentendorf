@@ -62,6 +62,8 @@ export function useLiveVerbindung(qc: QueryClient, aktiv: boolean) {
             break;
           case 'gebaeude.geaendert':
             void qc.invalidateQueries({ queryKey: ['gebaeude'] });
+            void qc.invalidateQueries({ queryKey: ['dorf'] });
+            void qc.invalidateQueries({ queryKey: ['dorf-status'] });
             break;
           case 'konflikte.geaendert':
             void qc.invalidateQueries({ queryKey: ['konflikte'] });
@@ -69,7 +71,11 @@ export function useLiveVerbindung(qc: QueryClient, aktiv: boolean) {
           case 'sitzung.beendet':
             window.dispatchEvent(new Event('dorf:abgemeldet'));
             break;
+          case 'dorf.geaendert':
+            void qc.invalidateQueries({ queryKey: ['dorf'] });
+            break;
           case 'lauf.status':
+            void qc.invalidateQueries({ queryKey: ['dorf-status'] });
             void qc.invalidateQueries({ queryKey: ['plaene'] });
             void qc.invalidateQueries({ queryKey: ['chat', e.chatId] });
             void qc.invalidateQueries({ queryKey: ['chats'] });
@@ -84,9 +90,11 @@ export function useLiveVerbindung(qc: QueryClient, aktiv: boolean) {
             void qc.invalidateQueries({ queryKey: ['chats'] });
             break;
           case 'freigaben.geaendert':
+            void qc.invalidateQueries({ queryKey: ['dorf-status'] });
             void qc.invalidateQueries({ queryKey: ['freigaben'] });
             break;
           case 'verbrauch.geaendert':
+            void qc.invalidateQueries({ queryKey: ['dorf-status'] });
             void qc.invalidateQueries({ queryKey: ['verbrauch'] });
             break;
           case 'aktionen.geaendert':
@@ -97,9 +105,11 @@ export function useLiveVerbindung(qc: QueryClient, aktiv: boolean) {
             void qc.invalidateQueries({ queryKey: ['telegram'] });
             break;
           case 'schreibtisch.geaendert':
+            void qc.invalidateQueries({ queryKey: ['dorf-status'] });
             void qc.invalidateQueries({ queryKey: ['schreibtisch'] });
             break;
           case 'plaene.geaendert':
+            void qc.invalidateQueries({ queryKey: ['dorf-status'] });
             void qc.invalidateQueries({ queryKey: ['plaene'] });
             break;
           case 'morgenzeitung.geaendert':
@@ -109,6 +119,7 @@ export function useLiveVerbindung(qc: QueryClient, aktiv: boolean) {
             void qc.invalidateQueries({ queryKey: ['post'] });
             break;
           case 'uni.geaendert':
+            void qc.invalidateQueries({ queryKey: ['dorf-status'] });
             void qc.invalidateQueries({ queryKey: ['uni'] });
             void qc.invalidateQueries({ queryKey: ['aktion-quellen'] });
             break;

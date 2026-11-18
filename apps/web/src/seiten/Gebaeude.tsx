@@ -35,9 +35,25 @@ const RATHAUS_REITER = [
   ['agenten', 'Agenten-Einstellungen'],
 ] as const;
 
+export function standardReiter(id: string) {
+  return id === 'Rathaus' ? 'schreibtisch' : id === 'Uni' ? 'studium' : id === 'Post' ? 'eingang' : 'aktionen';
+}
+
 export function GebaeudeSeite({ id }: { id: string }) {
   const { suche } = useOrt();
-  const reiter = suche.get('reiter') ?? (id === 'Rathaus' ? 'schreibtisch' : id === 'Uni' ? 'studium' : id === 'Post' ? 'eingang' : 'aktionen');
+  const reiter = suche.get('reiter') ?? standardReiter(id);
+  return (
+    <section>
+      <a href="/" onClick={linkKlick} className="zurueck">
+        ← Dorf
+      </a>
+      <GebaeudeInhalt id={id} reiter={reiter} reiterWaehlen={(k) => navigieren(`/gebaeude/${encodeURIComponent(id)}?reiter=${k}`, true)} />
+    </section>
+  );
+}
+
+/** Kopf, Reiter und Inhalt eines Gebäudes – als eigene Seite oder als Menü über dem Dorf */
+export function GebaeudeInhalt({ id, reiter, reiterWaehlen, kompakt }: { id: string; reiter: string; reiterWaehlen: (k: string) => void; kompakt?: boolean }) {
   const liste = useQuery({ queryKey: ['gebaeude'], queryFn: () => api<Gebaeude[]>('/api/gebaeude') });
   const g = liste.data?.find((x) => x.id === id);
   const anweisung = useQuery({
@@ -51,17 +67,20 @@ export function GebaeudeSeite({ id }: { id: string }) {
   const alle = id === 'Rathaus' ? [...RATHAUS_VORNE, ...REITER, ...RATHAUS_REITER] : id === 'Uni' ? [...UNI_VORNE, ...REITER] : id === 'Post' ? [...POST_VORNE, ...REITER] : REITER;
 
   return (
-    <section>
-      <a href="/" onClick={linkKlick} className="zurueck">
-        ← Dorfplatz
-      </a>
-      <h1>
-        {g.symbol} {g.name} {g.status === 'geschlossen' && <span className="abzeichen">noch nicht eröffnet</span>}
-      </h1>
+    <>
+      {kompakt ? (
+        <h2>
+          {g.symbol} {g.name} {g.status === 'geschlossen' && <span className="abzeichen">noch nicht eröffnet</span>}
+        </h2>
+      ) : (
+        <h1>
+          {g.symbol} {g.name} {g.status === 'geschlossen' && <span className="abzeichen">noch nicht eröffnet</span>}
+        </h1>
+      )}
       {g.fehler && <p className="fehler">{g.fehler}</p>}
       <div className="reiter">
         {alle.map(([k, t]) => (
-          <button key={k} className={reiter === k ? 'aktiv' : ''} onClick={() => navigieren(`/gebaeude/${encodeURIComponent(id)}?reiter=${k}`, true)}>
+          <button key={k} className={reiter === k ? 'aktiv' : ''} onClick={() => reiterWaehlen(k)}>
             {t}
           </button>
         ))}
@@ -82,6 +101,6 @@ export function GebaeudeSeite({ id }: { id: string }) {
         {reiter === 'verbrauch' && <Verbrauch />}
         {reiter === 'agenten' && <AgentenEinstellungen />}
       </div>
-    </section>
+    </>
   );
 }

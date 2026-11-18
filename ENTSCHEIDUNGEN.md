@@ -64,7 +64,7 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 
 ## 2026-11-17 – Etappe 2b (Bürgermeister + Telegram)
 
-**E27 – Grafik fürs Dorf (Etappe 5): freie CC0-Sets + selbst gezeichnete Effekte** (Leif). Gebäude aus einem CC0-Set (Kandidat: Polyy.AI „City Builder: Village Buildings“), Boden/Bäume aus einem passenden zweiten Set; Figuren, Rauch, Brief- und Baustellen-Symbole selbst gezeichnet. Keine Grafiken oder Nachbauten bestehender Spiele. Auswahl mit Probe-Bildschirmfotos zu Beginn von Etappe 5; Lizenzen in `LIZENZEN.md`.
+**E27 – Grafik fürs Dorf (Etappe 5): freie CC0-Sets + selbst gezeichnete Effekte** (Leif). *Ersetzt durch E52 (3D, alles selbst modelliert).* Gebäude aus einem CC0-Set (Kandidat: Polyy.AI „City Builder: Village Buildings“), Boden/Bäume aus einem passenden zweiten Set; Figuren, Rauch, Brief- und Baustellen-Symbole selbst gezeichnet. Keine Grafiken oder Nachbauten bestehender Spiele. Auswahl mit Probe-Bildschirmfotos zu Beginn von Etappe 5; Lizenzen in `LIZENZEN.md`.
 
 **E28 – Reihenfolge bleibt:** 2b vor dem Dorf (Leif, 17.11.2026).
 
@@ -126,3 +126,26 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 **E50 – Aufwachen: Code prüft, KI nur bei Neuem** (Leif: „bearbeiten an der Leine“). Weckzeiten 7, 9, …, 21 Uhr (Linz). Der Code geht neue Schreibtisch-Aufgaben (z. B. aus Obsidian) selbst an, höchstens 3 pro Aufwachen. Dann sammelt er Anlässe ohne KI: Abgaben/Prüfungen < 72 h ohne Haken, Freigaben > 24 h, Läufe mit Fehler, hängende Läufe, wichtige Mails mit „Antwort nötig“. Nur bei **neuen** Anlässen (Schlüssel gemerkt, Fristen einmal pro Tag) entsteht eine Schreibtisch-Aufgabe „Lagebericht“ (Quelle `aufwachen`, Punkte in der Fremdinhalt-Hülle) für den Bürgermeister. Er darf höchstens einen Helfer starten und schlägt sonst Pläne vor. „Abgabe bearbeiten“, „Lernen“ und Antwortentwürfe gibt es nur per Plan. Telegram meldet sich nur, wenn er etwas getan oder vorgeschlagen hat.
 
 **E51 – Was von selbst startet, läuft über api – auch die Helfer.** Startet der Bürgermeister aus einem Lauf mit Auslöser `zeitplan` einen Helfer, bekommt der Helfer ebenfalls `zeitplan` und damit `api`. Nur Pläne, die Leif per Klick freigibt, dürfen wie bisher (E30) Leifs Abo nutzen.
+
+## 2026-11-17 – Etappe 5 (Dorf)
+
+**E52 – Das Dorf ist echtes 3D im Browser, alles selbst im Code modelliert (ersetzt E27)** (Leif). Die Proben „CC0-Set (Kenney)“ und „flache Isometrie im eigenen Stil“ gefielen Leif nicht. Er wollte den Look von Aufbauspielen wie SimCity BuildIt. Umgesetzt mit three.js (MIT): echtes 3D, schräg von oben, Straßennetz, Grundstücke, Wald und Hügel. **Keine fremden Grafiken:** Alle Häuser, Figuren, Autos und Symbole entstehen aus Grundformen im Code (`apps/web/src/dorf/modelle.ts`). Spielgrafik, Symbole oder Oberfläche von SimCity oder anderen Spielen werden nicht übernommen, nur das Genre. Den Kenney-Download hätte Leif selbst laden müssen (Downloadschutz, nicht umgangen). Er ist damit hinfällig. Lizenzen in `LIZENZEN.md`.
+- Jedes Gebäude der Vorlage hat ein eigenes Modell: Rathaus mit Uhrturm, Uni mit Säulenportal, Bibliothek mit Kuppel, Post mit Lieferwagen, Marktplatz mit Ständen, Corpshaus in Fachwerk, Bank, Börse, Laden. Gebäude ohne eigenes Modell werden Wohnhäuser mit Farben und Form aus dem Namen. „Noch nicht eröffnet“ und kaputte `gebaeude.md` erscheinen als Baustelle mit Kran.
+- Rote Dächer sind dem Fristsignal vorbehalten. Kein Gebäude hat von sich aus ein rotes Dach.
+- Leistung: Pro Haus werden alle Teile je Material zu einem Mesh zusammengefasst (`bausatz.ts`), der Wald ist instanziert. three.js (ca. 175 KB gz) wird nur für die Dorfseite nachgeladen. Bei Software-Grafik (Testbrowser, sehr schwache Geräte) zeichnet die Szene nur bei Änderungen neu, ohne Daueranimation (`sparsam`). „Bewegung reduzieren“ des Geräts wird beachtet. Ohne WebGL oder bei einem Fehler erscheint automatisch die Liste.
+
+**E53 – Layout auf dem Server, mit Versionsnummer statt Überschreiben.** Das Layout (Gebäude-Grundstücke 4×4 Felder, Straßen, Wasser, Deko) liegt in der DB (`dorf_layout`, Migration 10), nicht im Vault: Es ist App-Zustand, nicht Leifs Notiz. Jede Änderung erhöht die Version und geht live an alle Geräte (`dorf.geaendert`). Speichert ein Gerät mit veralteter Version, gibt es 409 und den aktuellen Stand zurück. Die App lädt ihn und sagt es. Geprüft wird mit derselben Funktion auf Server und Gerät (`layoutPruefen` in `packages/shared`): keine Doppelbelegung, Grenzen ±60 Felder, nur bekannte Gebäude, Obergrenzen.
+- Neue Gebäude aus dem Vault kommen automatisch auf den freien Block nahe der Mitte und bekommen einen Straßenring. Fehlt beim Speichern ein Gebäude, z. B. von einem Gerät mit älterem Stand, setzt der Server es wieder hin.
+- **„Entfernen“ = ins Lager** (Leif): Das Gebäude verschwindet aus dem Dorf, der Ordner im Vault bleibt unberührt. Aus dem Lager wird es wieder hingestellt. Gebäude löscht man nur im Vault.
+
+**E54 – Statusanzeigen kommen nur aus DB-Fakten, ohne Modell** (`GET /api/dorf/status`):
+- Rauch: Lauf mit Status `laeuft` in einem Chat dieses Gebäudes.
+- Baustellenschild: offene Schreibtisch-Aufgaben (Rathaus) bzw. Teilaufgaben eines noch nicht freigegebenen Plans für dieses Gebäude.
+- Brief: offene Freigaben dieses Gebäudes.
+- Rotes Dach und Uhr: nicht abgehakte Abgabe/Prüfung der Uni mit Frist in weniger als 3 Tagen. Andere Gebäude haben (noch) keine Fristen.
+- Figuren: jeder Lauf in `laeuft`, `wartend` (Sanduhr) oder `wartet_freigabe` (Brief). Eine Figur läuft vom Rathaus über die Straßen (A*) zum Gebäude, arbeitet dort und geht nach dem Ende zurück. Hemd blau = api, orange = claude-code. Der Bürgermeister steht immer am Rathaus und geht beim Arbeiten nachdenklich auf und ab. Ein Klick zeigt Aufgabe, Motor, Modell, Token, Laufzeit, Chat-Link und „Abbrechen“ (mit Rückfrage, über den bestehenden Abbruch).
+
+**E55 – Startseite ist das Dorf, die Liste gibt es per Knopf** (Leif). Die Wahl wird je Gerät gemerkt. Ein Klick auf ein Gebäude öffnet sein Menü über dem Dorf: am PC als Seitenleiste, am Handy als Blatt von unten, mit denselben Reitern wie die Gebäudeseite (`GebaeudeInhalt`) und „Ganze Seite ↗“. Steuerung:
+- Ziehen verschiebt die Kamera, das Mausrad bzw. zwei Finger zoomen, Rechtsklick bzw. zwei Finger drehen.
+- Knöpfe gibt es für Drehen um 90° und „Zum Rathaus“.
+- Der Bau-Modus ist eine Leiste: Auswählen/Ziehen/Drehen/Ins Lager, Straße und Wasser malen, Deko setzen, Abreißen, Lager, Rückgängig (50 Schritte). Jede Geste ist ein Schritt und wird sofort gespeichert.

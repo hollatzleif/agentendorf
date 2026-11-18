@@ -6,7 +6,7 @@ async function anmelden(page: Page) {
   await page.goto('/');
   await page.getByLabel('Passwort').fill(PW);
   await page.getByRole('button', { name: 'Ins Dorf' }).click();
-  await expect(page.getByRole('heading', { name: 'Dorfplatz' })).toBeVisible();
+  await expect(page.getByTestId('dorf-leinwand').or(page.getByRole('heading', { name: 'Dorfplatz' }))).toBeVisible();
 }
 
 test('falsches Passwort wird abgelehnt, richtiges führt ins Dorf', async ({ page }) => {
@@ -16,15 +16,22 @@ test('falsches Passwort wird abgelehnt, richtiges führt ins Dorf', async ({ pag
   await expect(page.getByText('Passwort falsch.')).toBeVisible();
   await page.getByLabel('Passwort').fill(PW);
   await page.getByRole('button', { name: 'Ins Dorf' }).click();
+  // Startseite ist das 3D-Dorf; die Liste gibt es per Knopf (und sie bleibt gemerkt)
+  await expect(page.getByTestId('dorf-leinwand')).toBeVisible();
+  await page.getByRole('button', { name: 'Als Liste anzeigen' }).click();
   for (const g of ['Rathaus', 'Uni', 'Post', 'Marktplatz', 'Bibliothek', 'Corpshaus', 'Bank', 'Börse', 'Einkaufsladen']) {
     await expect(page.locator('.gebaeude-karte', { hasText: g }).first()).toBeVisible();
   }
   await expect(page.locator('.live.verbunden')).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Dorfplatz' })).toBeVisible();
+  await page.getByRole('button', { name: /Zum Dorf/ }).click();
+  await expect(page.getByTestId('dorf-leinwand')).toBeVisible();
 });
 
 test('Gebäude öffnen zeigt die Arbeitsanweisung', async ({ page }) => {
   await anmelden(page);
-  await page.locator('.gebaeude-karte', { hasText: 'Uni' }).click();
+  await page.goto('/gebaeude/Uni');
   await page.getByRole('button', { name: 'Übersicht' }).click();
   await expect(page.getByRole('heading', { name: /Uni – Arbeitsanweisung/ })).toBeVisible();
   await page.getByRole('button', { name: 'Dateien' }).click();
@@ -135,7 +142,7 @@ test('Schreibtisch: Aufgabe hinlegen, Plan freigeben, Helfer arbeiten, Aufgabe e
 
 test('Uni: Fristen und Pflichttermine aus Google, abhaken, Fach anlegen', async ({ page }, info) => {
   await anmelden(page);
-  await page.locator('.gebaeude-karte', { hasText: 'Uni' }).click();
+  await page.goto('/gebaeude/Uni');
   // „Studium“ ist der erste Reiter der Uni
   await expect(page.getByRole('heading', { name: 'Fristen und Pflichttermine' })).toBeVisible();
   await expect(page.getByText(/Fristen aus „Moodle-Fristen \(automatisch\)“ · Pflichttermine aus „JKU Pflicht“/)).toBeVisible();

@@ -229,3 +229,63 @@ button.klein { font-size: 0.8rem; padding: 0.1rem 0.5rem; margin-left: 0.4rem; }
 .mailliste li { padding: 0.55rem 0; border-bottom: 1px solid var(--rand); display: flex; flex-direction: column; gap: 0.15rem; }
 .mailliste li.wichtig strong { color: var(--rot); }
 .morgenzeitung .zeile { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; margin-bottom: 0.6rem; }
+
+/* ---- Etappe 5: Dorf (3D) ---- */
+.rahmen:has(.dorf-buehne) { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+.rahmen:has(.dorf-buehne) > main { max-width: none; width: 100%; margin: 0; padding: 0; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.dorf-buehne { position: relative; flex: 1; min-height: 320px; overflow: hidden; background: #bfe2f3; }
+.dorf-leinwand { position: absolute; inset: 0; }
+.dorf-leinwand canvas { display: block; outline: none; }
+.dorf-laden { position: absolute; inset: 0; display: grid; place-items: center; color: #2b3a55; font-weight: 600; pointer-events: none; }
+.dorf-werkzeuge { position: absolute; display: flex; gap: 0.4rem; z-index: 3; }
+.dorf-werkzeuge.oben-rechts { top: 0.7rem; right: 0.7rem; }
+.dorf-werkzeuge.unten-rechts { bottom: max(0.8rem, env(safe-area-inset-bottom)); right: 0.7rem; flex-direction: column; }
+.dorf-knopf {
+  min-width: 2.6rem; height: 2.6rem; border-radius: 12px; font-size: 1.15rem; font-weight: 700;
+  background: rgb(255 255 255 / 0.92); color: #2b3a55; border: 2px solid rgb(43 58 85 / 0.18);
+  box-shadow: 0 3px 0 rgb(43 58 85 / 0.25), 0 6px 14px rgb(20 40 70 / 0.18);
+}
+.dorf-knopf.text { font-size: 0.95rem; padding: 0 0.8rem; }
+.dorf-knopf.haupt { background: var(--gruen); color: #fff; border-color: var(--gruen); }
+.dorf-knopf:active { transform: translateY(2px); box-shadow: 0 1px 0 rgb(43 58 85 / 0.25); }
+
+.dorf-karte, .dorf-panel, .bau-leiste {
+  background: var(--karte); color: var(--text); border: 1px solid var(--rand); border-radius: 16px;
+  box-shadow: 0 10px 30px rgb(20 40 70 / 0.25);
+}
+.dorf-karte { position: absolute; left: 0.7rem; bottom: max(0.8rem, env(safe-area-inset-bottom)); width: min(360px, calc(100% - 4.6rem)); padding: 0.9rem 1rem; z-index: 4; }
+.dorf-karte h3 { margin: 0 1.8rem 0.4rem 0; font-size: 1.05rem; }
+.figur-titel { font-weight: 600; margin: 0.2rem 0; }
+.figur-auftrag { color: var(--leise); font-size: 0.88rem; max-height: 5.5em; overflow: auto; white-space: pre-wrap; margin: 0.2rem 0 0.5rem; }
+.dorf-karte dl { display: grid; grid-template-columns: auto 1fr; gap: 0.15rem 0.8rem; margin: 0 0 0.7rem; font-size: 0.9rem; }
+.dorf-karte dt { color: var(--leise); }
+.dorf-karte dd { margin: 0; font-variant-numeric: tabular-nums; }
+.dorf-karte .zeile, .kopfzeile { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.kopfzeile { justify-content: space-between; }
+button.schliessen { position: absolute; top: 0.5rem; right: 0.5rem; width: 2rem; height: 2rem; padding: 0; border-radius: 50%; font-size: 1.2rem; line-height: 1; }
+
+.dorf-panel { position: absolute; top: 0.7rem; bottom: 0.7rem; left: 0.7rem; width: min(560px, 46vw); z-index: 5; display: flex; flex-direction: column; overflow: hidden; }
+.dorf-panel-kopf { position: relative; display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 3rem 0.2rem 1rem; min-height: 2.8rem; }
+.dorf-panel-inhalt { overflow: auto; padding: 0 1rem 1rem; flex: 1; overscroll-behavior: contain; }
+.dorf-panel-inhalt h2 { margin: 0.2rem 0 0.6rem; }
+.dorf-panel-inhalt .karte { box-shadow: none; }
+
+.bau-leiste { position: absolute; left: 0.7rem; right: 4.2rem; bottom: max(0.8rem, env(safe-area-inset-bottom)); z-index: 4; padding: 0.6rem; display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; }
+.bau-gruppe { display: flex; gap: 0.35rem; flex-wrap: wrap; align-items: center; }
+.bau-gruppe button.aktiv, .bau-gruppe select.aktiv { background: var(--gruen); color: #fff; border-color: var(--gruen); }
+.bau-gruppe select { width: auto; padding: 0.35rem 0.5rem; }
+.bau-auswahl { font-weight: 700; }
+.bau-hinweis { flex-basis: 100%; margin: 0; font-size: 0.88rem; }
+.bau-stand { font-size: 0.8rem; }
+.dorf-hinweis { position: absolute; top: 0.7rem; left: 50%; transform: translateX(-50%); background: var(--karte); padding: 0.5rem 0.9rem; border-radius: 10px; box-shadow: var(--schatten); z-index: 6; max-width: 80%; }
+.karten-status { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.3rem; }
+.karten-status .abzeichen { margin-top: 0; }
+
+@media (max-width: 760px), (pointer: coarse) {
+  .nur-desktop { display: none; }
+  .dorf-panel { top: auto; left: 0; right: 0; bottom: 0; width: auto; height: 82%; border-radius: 18px 18px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+  .dorf-panel-kopf::before { content: ''; position: absolute; top: 6px; left: 50%; width: 42px; height: 5px; margin-left: -21px; border-radius: 3px; background: var(--rand); }
+  .bau-leiste { left: 0.4rem; right: 3.9rem; padding: 0.5rem; max-height: 45%; overflow: auto; }
+  .bau-gruppe button, .bau-gruppe select { font-size: 0.85rem; }
+  .dorf-karte { left: 0.4rem; }
+}
