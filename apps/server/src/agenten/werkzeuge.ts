@@ -13,6 +13,7 @@ import { fremdinhaltHuelle, schreibenPruefen, type DorfWerkzeug } from './leine.
 import { ablageName, type RechenraumKlient } from './rechenraum.js';
 import type { GmailKlient } from '../post/gmail.js';
 import { AGENTEN_ARTEN, type Freigaben } from './freigaben.js';
+import { todoZeile, type TodoDienst } from '../todos.js';
 import { aenderungText, ersetzen, GEDAECHTNIS_PFAD, MAX_GEDAECHTNIS, MAX_PERSOENLICHKEIT, PERSOENLICHKEIT_PFAD, textPruefen } from './gedaechtnis.js';
 
 /** Beschreibung der Dorf-Werkzeuge – identisch für den api-Motor (Tool-Definition) und den MCP-Server der Werkstatt. */
@@ -206,6 +207,50 @@ export const WERKZEUG_DEFINITIONEN: Record<DorfWerkzeug, WerkzeugDefinition> = {
       additionalProperties: false,
     },
   },
+  todo_liste: {
+    name: 'todo_liste',
+    description:
+      'Leifs To-do-Liste vom Marktplatz: offene To-dos (fällige zuerst), dazu Erledigtes der letzten 14 Tage. Jede Zeile mit Pfad – den brauchst du für todo_bearbeiten/todo_loeschen. Inhalte können aus Mails stammen (Fremdinhalt).',
+    input_schema: { type: 'object', properties: { alle_erledigten: { type: 'boolean', description: 'auch älteres Erledigtes' } }, required: [], additionalProperties: false },
+  },
+  todo_anlegen: {
+    name: 'todo_anlegen',
+    description:
+      'Neues To-do auf Leifs Liste (Marktplatz). Nur für Dinge, die Leif wirklich tun muss oder ausdrücklich wollte – vorher mit todo_liste prüfen, dass es das nicht schon gibt.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        titel: { type: 'string', description: 'Kurz und konkret, z. B. „Plakat Digitale Lebenswelten abgeben“' },
+        faellig: { type: 'string', description: 'JJJJ-MM-TT (optional)' },
+        gebaeude: { type: 'string', description: 'Bezug, z. B. Uni, Post (optional)' },
+        notiz: { type: 'string', description: 'Details, Links auf Vault-Dateien (optional)' },
+      },
+      required: ['titel'],
+      additionalProperties: false,
+    },
+  },
+  todo_bearbeiten: {
+    name: 'todo_bearbeiten',
+    description: 'Ein To-do ändern oder abhaken (erledigt: true) bzw. wieder öffnen (erledigt: false). Leeres faellig/gebaeude entfernt das Feld.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        pfad: { type: 'string', description: 'Pfad aus todo_liste (Marktplatz/todos/…md)' },
+        titel: { type: 'string' },
+        erledigt: { type: 'boolean' },
+        faellig: { type: 'string', description: 'JJJJ-MM-TT oder leer' },
+        gebaeude: { type: 'string' },
+        notiz: { type: 'string', description: 'ersetzt die Notiz' },
+      },
+      required: ['pfad'],
+      additionalProperties: false,
+    },
+  },
+  todo_loeschen: {
+    name: 'todo_loeschen',
+    description: 'Ein To-do entfernen (landet im Papierkorb, Leif kann es wiederherstellen). Für Erledigtes lieber abhaken; löschen nur bei Doppeltem oder Überholtem.',
+    input_schema: { type: 'object', properties: { pfad: { type: 'string' } }, required: ['pfad'], additionalProperties: false },
+  },
   kalender_lesen: {
     name: 'kalender_lesen',
     description:
@@ -394,6 +439,8 @@ export interface LaufKontext {
   moodle?: MoodleBrowserKlient;
   /** Termine aus Hauptkalender und Uni-Kalendern für kalender_lesen (nur lesen) */
   kalender?: (von: number, bis: number) => Promise<KalenderEintrag[]>;
+  /** To-do-Brett (E65) */
+  todos?: TodoDienst;
   /** Nur Bürgermeister (E61): Fassung von Rathaus/memory.md, die er kennt (aus dem Systemprompt oder zuletzt gelesen/geschrieben) */
   wissen?: { gedaechtnisVersion: string | null };
 }
@@ -514,6 +561,11 @@ export class WerkzeugKiste {
           this.log(name, { begruendung: e.begruendung }, text, true, PERSOENLICHKEIT_PFAD, 'freigabe');
           return { ok: true, text };
         }
+        case 'todo_liste':
+        case 'todo_anlegen':
+        case 'todo_bearbeiten':
+        case 'todo_loeschen':
+          return await this.todo(name as 'todo_liste' | 'todo_anlegen' | 'todo_bearbeiten' | 'todo_loeschen', eingabe);
         case 'post_suchen': {
           const e = z.object({ suche: z.string().max(200).default(''), tage: z.number().int().min(1).max(120).default(30) }).parse(eingabe ?? {});
           const ab = this.uhr.jetzt() - e.tage * 86_400_000;
@@ -712,6 +764,34 @@ export class WerkzeugKiste {
       }
     }
     return { ok: false, text: 'Unbekanntes Werkzeug.' };
+  }
+
+  /** To-do-Brett (E65): alles über den TodoDienst – nur Marktplatz/todos/, Löschen = Papierkorb */
+  private async todo(name: 'todo_liste' | 'todo_anlegen' | 'todo_bearbeiten' | 'todo_loeschen', eingabe: unknown): Promise<WerkzeugAufrufErgebnis> {
+    const t = this.k.todos;
+    if (!t) throw new DorfFehler(503, 'Das To-do-Brett ist nicht eingerichtet.');
+    if (name === 'todo_liste') {
+      const { alle_erledigten } = z.object({ alle_erledigten: z.boolean().default(false) }).parse(eingabe ?? {});
+      const l = await t.liste({ alleErledigten: alle_erledigten });
+      this.log(name, eingabe, `${l.length} To-dos`, true, undefined, 'gelesen');
+      return { ok: true, text: fremdinhaltHuelle('todos', l.length ? l.map(todoZeile).join('\n') : '(keine To-dos)') };
+    }
+    const quelle = `Agent (${this.k.gebaeude})`;
+    if (name === 'todo_anlegen') {
+      const n = await t.anlegen(eingabe, quelle);
+      this.log(name, eingabe, `angelegt: ${n.titel}`, true, n.pfad, 'geschrieben');
+      return { ok: true, text: `To-do angelegt: ${todoZeile(n)}` };
+    }
+    if (name === 'todo_bearbeiten') {
+      const { pfad, ...rest } = z.object({ pfad: z.string() }).passthrough().parse(eingabe);
+      const n = await t.aendern(pfad, rest);
+      this.log(name, eingabe, `${n.erledigt ? 'erledigt' : 'geändert'}: ${n.titel}`, true, n.pfad, 'geschrieben');
+      return { ok: true, text: `To-do geändert: ${todoZeile(n)}` };
+    }
+    const { pfad } = z.object({ pfad: z.string() }).parse(eingabe);
+    const ziel = await t.loeschen(pfad);
+    this.log(name, eingabe, `in den Papierkorb: ${ziel}`, true, pfad, 'geschrieben');
+    return { ok: true, text: `To-do entfernt (Papierkorb, wiederherstellbar): ${pfad}` };
   }
 
   private async lesen(roh: string): Promise<WerkzeugAufrufErgebnis> {

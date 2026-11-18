@@ -59,6 +59,10 @@ export function useLiveVerbindung(qc: QueryClient, aktiv: boolean) {
             void qc.invalidateQueries({ queryKey: ['baum'] });
             void qc.invalidateQueries({ queryKey: ['datei', e.pfad] });
             void qc.invalidateQueries({ queryKey: ['suche'] });
+            if (e.pfad.startsWith('Marktplatz/todos/')) void qc.invalidateQueries({ queryKey: ['todos'] });
+            break;
+          case 'todos.geaendert':
+            void qc.invalidateQueries({ queryKey: ['todos'] });
             break;
           case 'gebaeude.geaendert':
             void qc.invalidateQueries({ queryKey: ['gebaeude'] });

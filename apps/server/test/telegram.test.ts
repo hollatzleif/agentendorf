@@ -152,6 +152,27 @@ describe('Telegram-Bot', () => {
     expect(d.schreibtisch.liste()).toHaveLength(2);
   });
 
+  it('/todo: anlegen, Liste mit Abhak-Knöpfen, Knopf hakt ab und aktualisiert die Nachricht; gefälscht wirkt nicht (E65)', async () => {
+    const d = await dorf();
+    await d.nachricht({ text: '/todo Milch kaufen' });
+    await d.nachricht({ text: '/todo Stat ML Übung 4' });
+    expect(d.gesendet().filter((t) => t.startsWith('🧺 Auf die Liste'))).toHaveLength(2);
+    expect(d.schreibtisch.liste()).toHaveLength(0); // keine Aufgabe für den Bürgermeister
+    await d.nachricht({ text: '/todo' });
+    const liste = d.aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p;
+    expect(String(liste.text)).toMatch(/🧺 <b>To-do-Liste<\/b> \(2 offen\)/);
+    const tasten = (liste.reply_markup as { inline_keyboard: { text: string; callback_data: string }[][] }).inline_keyboard.map((r) => r[0]!);
+    expect(tasten.every((k) => k.callback_data.length <= 64)).toBe(true);
+    const milch = tasten.find((k) => k.text === '✅ Milch kaufen')!;
+    await d.knopf(milch.callback_data.slice(0, -1) + (milch.callback_data.endsWith('A') ? 'B' : 'A'));
+    expect((await d.todos.liste()).filter((t) => t.erledigt)).toHaveLength(0);
+    await d.knopf(milch.callback_data);
+    expect((await d.todos.liste()).find((t) => t.titel === 'Milch kaufen')!.erledigt).toBe(true);
+    const edit = d.aufrufe.filter((x) => x.m === 'editMessageText').at(-1)!.p;
+    expect(String(edit.text)).toContain('(1 offen)');
+    expect((await d.todos.liste())[0]).toMatchObject({ quelle: 'Telegram' });
+  });
+
   it('Meldungs-Schalter wirken; Fehler werden gemeldet; Befehle', async () => {
     const d = await dorf();
     await einstellungenSetzen(d.vault, { ...STANDARD, freigaben: false, beendet: false });
@@ -196,7 +217,7 @@ describe('Telegram-Bot', () => {
     expect(offsets.at(-1)).toBe(51);
     // Befehlsmenü wird beim Start angemeldet
     const menue = d.aufrufe.find((x) => x.m === 'setMyCommands')?.p.commands as { command: string }[];
-    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'neu', 'hilfe']);
+    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'neu', 'hilfe']);
     await d.agenten.leerlauf();
   }, 15_000);
 });

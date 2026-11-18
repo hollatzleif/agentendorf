@@ -29,6 +29,7 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
     gedaechtnis.ts  Rathaus/memory.md (Bürgermeister pflegt selbst, Archiv, Version) + personality.md (nur per Freigabe) – E61
     buergermeister.ts     Bürgermeister (Etappe 2b): aktionen_liste, helfer_starten (max. 1 ohne Plan), plan_vorlegen (max. 10),
                           Plan-Ausführung durch den CODE nach Freigabe, Abschluss genau einmal, Status der Schreibtisch-Aufgabe
+  src/todos.ts    To-do-Brett (E65): eine Datei je To-do in Marktplatz/todos/, Version/409, Löschen = Papierkorb; App, Telegram /todo, todo_* für alle Agenten
   src/schreibtisch.ts  Aufgaben = Notizen in Rathaus/schreibtisch/ (DB führt Status, Frontmatter spiegelt ihn); App/Telegram starten
                        den Bürgermeister sofort, Notizen aus Obsidian/von Agenten werden nur aufgenommen
   src/telegram/   eigener Bot ohne Bibliothek (fetch, Long Polling): nur EIN gekoppelter Chat, signierte Knöpfe (HMAC) über
@@ -132,5 +133,6 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E62 (18.11.): Pläne ohne Antwort nach 10 min automatisch angenommen (nur Pläne; `plan_automatisch_nach_minuten`)
 - [x] E63 (18.11.): Spiel-Look für alle Fenster, Reiter und Seiten (nur stil.css)
 - [x] E64 (18.11.): Ablehnen mit Begründung (App/Telegram → Bürgermeister), zeitplan_je (Kursübersicht montags je Fach), Frist-Wächter-Knopf
+- [x] E65 (18.11.): To-do-Brett auf dem Marktplatz (App-Reiter live, Telegram /todo, todo_* für alle Agenten)
 - [ ] Etappe 6 – Programme (Tauri)
-- [ ] Etappe 7 – Marktplatz-Brett, leere Gebäude
+- [ ] Etappe 7 – leere Gebäude (das Marktplatz-Brett kam mit E65)

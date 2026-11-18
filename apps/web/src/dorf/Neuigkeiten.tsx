@@ -1,10 +1,11 @@
 import { useState } from 'react';
 
 /** Bei jeder neuen Ausgabe den Schlüssel ändern – dann erscheint die Karte einmal pro Gerät */
-const AUSGABE = '2026-11-18f';
+const AUSGABE = '2026-11-18g';
 const SCHLUESSEL = 'dorf-neuigkeiten-gesehen';
 
 const PUNKTE: [string, string][] = [
+  ['🧺', 'To-do-Brett: Tipp auf den Marktplatz – deine Liste, immer aktuell, zum Abhaken. Auch per Telegram (/todo), und alle Agenten können sie pflegen.'],
   ['💬', 'Ablehnen mit Begründung: In der App ins Feld „warum?“ schreiben oder in Telegram nach ❌ einfach antworten – der Bürgermeister macht dann einen besseren Vorschlag.'],
   ['📚', 'Kursübersichten aktualisieren sich jeden Montag früh von selbst – für jedes Fach.'],
   ['🧑‍💼', 'Frist-Wächter: Bei Erinnerungen kurz vor der Frist gibt es in Telegram „Vorbereiten lassen“.'],

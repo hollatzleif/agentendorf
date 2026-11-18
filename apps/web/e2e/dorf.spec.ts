@@ -296,3 +296,41 @@ test('Skill anlegen: Formular im Gebäude, Prüfen zeigt Fehler, angelegt ersche
   await expect(knopf).toContainText('⏰ mo 07:00');
   await expect(page.getByText(/Läuft von selbst: mo 07:00 – nächstes Mal/)).toBeVisible();
 });
+
+test('Marktplatz: To-do-Brett – anlegen, live auf zweitem Gerät, abhaken, bearbeiten, löschen', async ({ page, browser }, info) => {
+  await anmelden(page);
+  const zweit = await browser.newContext({ storageState: await page.context().storageState() });
+  const p2 = await zweit.newPage();
+  await p2.goto('/gebaeude/Marktplatz');
+  await page.goto('/gebaeude/Marktplatz');
+  await expect(page.getByRole('button', { name: 'To-do' })).toHaveClass(/aktiv/);
+  const titel = `Plakat abgeben ${info.project.name}`;
+  const form = page.getByRole('form', { name: 'Neues To-do' });
+  await form.getByLabel('Neues To-do').fill(titel);
+  await form.getByLabel('Fällig am').fill('2026-11-18');
+  await form.getByRole('button', { name: '+' }).click();
+  const zeile = page.locator('.todo', { hasText: titel });
+  await expect(zeile).toBeVisible();
+  // zweites Gerät sieht es ohne Neuladen
+  await expect(p2.locator('.todo', { hasText: titel })).toBeVisible();
+  await zeile.getByRole('checkbox').check();
+  await expect(page.locator('.todo-liste:not(.erledigt) .todo', { hasText: titel })).toHaveCount(0);
+  await expect(p2.locator('.todo-liste:not(.erledigt) .todo', { hasText: titel })).toHaveCount(0);
+  await page.getByText(/^Erledigt \(/).click();
+  const fertig = page.locator('.todo.fertig', { hasText: titel });
+  await expect(fertig).toBeVisible();
+  // wieder öffnen, umbenennen, löschen
+  await fertig.getByRole('checkbox').uncheck();
+  const offen = page.locator('.todo-liste:not(.erledigt) .todo', { hasText: titel });
+  await expect(offen).toBeVisible();
+  await offen.getByRole('button', { name: titel }).click();
+  await page.locator('.todo.bearbeiten').getByLabel('Titel').fill(`${titel} (neu)`);
+  await page.locator('.todo.bearbeiten').getByRole('button', { name: 'Speichern' }).click();
+  const neu = page.locator('.todo', { hasText: `${titel} (neu)` });
+  await expect(neu).toBeVisible();
+  await neu.getByRole('button', { name: `${titel} (neu)` }).click();
+  await page.locator('.todo.bearbeiten').getByRole('button', { name: 'Löschen' }).click();
+  await expect(page.locator('.todo', { hasText: titel })).toHaveCount(0);
+  await expect(p2.locator('.todo', { hasText: titel })).toHaveCount(0);
+  await zweit.close();
+});

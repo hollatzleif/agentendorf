@@ -167,6 +167,13 @@ Die JKU sperrt den Zugang für die Moodle-App. Deshalb holt das Dorf nur die **T
 - Nach deinem Ja zu einer seiner Freigaben und wenn seine Helfer fertig sind, arbeitet er im selben Chat von selbst weiter.
 - **Pläne** nimmt das Dorf automatisch an, wenn du nicht innerhalb von 10 Minuten entscheidest. Einstellbar über `plan_automatisch_nach_minuten` in `00_Stadtordnung/aufwachen.md` (0 = nie). Alle anderen Freigaben warten immer auf dich.
 
+### To-do-Brett (Marktplatz)
+
+- Tippst du im Dorf auf den Marktplatz, siehst du deine To-do-Liste, immer aktuell. Dort kannst du abhaken, anlegen (mit Datum), auf den Titel tippen zum Bearbeiten und löschen.
+- In Telegram zeigt `/todo` die Liste mit Abhak-Knöpfen, `/todo Milch kaufen` legt ein To-do an.
+- Alle Agenten können To-dos anlegen, abhaken, bearbeiten und löschen. Gelöschtes landet im Papierkorb des Vaults.
+- Jedes To-do ist eine Datei in `Marktplatz/todos/`, du kannst sie also auch in Obsidian bearbeiten.
+
 ## 9. Post: Gmail verbinden (nur Lesen und Entwürfe)
 
 Das Dorf liest dein Gmail und legt höchstens **Entwürfe** an. Senden kann es nicht, weil die Anmeldung das gar nicht erlaubt.

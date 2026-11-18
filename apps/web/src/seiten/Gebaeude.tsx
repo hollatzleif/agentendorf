@@ -14,6 +14,7 @@ import { Plaene } from '../komponenten/Plaene';
 import { UniUebersicht } from '../komponenten/UniUebersicht';
 import { PostEingang } from '../komponenten/PostEingang';
 import { MorgenzeitungAnsicht } from '../komponenten/MorgenzeitungAnsicht';
+import { TodoBrett } from '../komponenten/TodoBrett';
 
 const REITER = [
   ['aktionen', 'Aktionen'],
@@ -28,6 +29,7 @@ const RATHAUS_VORNE = [
 ] as const;
 const UNI_VORNE = [['studium', 'Studium']] as const;
 const POST_VORNE = [['eingang', 'Eingang']] as const;
+const MARKT_VORNE = [['todo', 'To-do']] as const;
 const RATHAUS_REITER = [
   ['freigaben', 'Freigaben'],
   ['alle-chats', 'Alle Chats'],
@@ -37,11 +39,11 @@ const RATHAUS_REITER = [
 
 /** Alle Reiter eines Gebäudes (Schlüssel, Titel) – auch für die Knöpfe im Dorf */
 export function reiterFuer(id: string): readonly (readonly [string, string])[] {
-  return id === 'Rathaus' ? [...RATHAUS_VORNE, ...REITER, ...RATHAUS_REITER] : id === 'Uni' ? [...UNI_VORNE, ...REITER] : id === 'Post' ? [...POST_VORNE, ...REITER] : REITER;
+  return id === 'Rathaus' ? [...RATHAUS_VORNE, ...REITER, ...RATHAUS_REITER] : id === 'Uni' ? [...UNI_VORNE, ...REITER] : id === 'Post' ? [...POST_VORNE, ...REITER] : id === 'Marktplatz' ? [...MARKT_VORNE, ...REITER] : REITER;
 }
 
 export function standardReiter(id: string) {
-  return id === 'Rathaus' ? 'schreibtisch' : id === 'Uni' ? 'studium' : id === 'Post' ? 'eingang' : 'aktionen';
+  return id === 'Rathaus' ? 'schreibtisch' : id === 'Uni' ? 'studium' : id === 'Post' ? 'eingang' : id === 'Marktplatz' ? 'todo' : 'aktionen';
 }
 
 export function GebaeudeSeite({ id }: { id: string }) {
@@ -99,6 +101,7 @@ export function GebaeudeInhalt({ id, reiter, reiterWaehlen, kompakt }: { id: str
         {reiter === 'schreibtisch' && <Schreibtisch />}
         {reiter === 'studium' && <UniUebersicht />}
         {reiter === 'eingang' && <PostEingang />}
+        {reiter === 'todo' && <TodoBrett />}
         {reiter === 'morgenzeitung' && <MorgenzeitungAnsicht />}
         {reiter === 'plaene' && <Plaene />}
         {reiter === 'freigaben' && <Freigaben />}

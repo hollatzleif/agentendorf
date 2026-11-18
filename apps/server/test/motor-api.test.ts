@@ -75,7 +75,7 @@ describe('api-Motor', () => {
     const p = d.anfragen[0]!;
     expect(p).toMatchObject({ fallbacks: 'default', betas: ['server-side-fallback-2026-07-01'], cache_control: { type: 'ephemeral' }, output_config: { effort: 'high' }, model: 'claude-opus-5-5' });
     expect(p.tool_choice).toBeUndefined();
-    expect((p.tools as { name: string; strict?: boolean }[]).map((t) => t.name)).toEqual(['vault_lesen', 'vault_liste', 'vault_suchen', 'freigabe_beantragen', 'vault_schreiben']);
+    expect((p.tools as { name: string; strict?: boolean }[]).map((t) => t.name)).toEqual(['vault_lesen', 'vault_liste', 'vault_suchen', 'freigabe_beantragen', 'todo_liste', 'todo_anlegen', 'todo_bearbeiten', 'todo_loeschen', 'vault_schreiben']);
     // Regel der echten API: Bei strict muss JEDES Objekt im Schema additionalProperties: false haben
     // (am 17.11.2026 hat die API genau das für freigabe_beantragen mit 400 abgelehnt).
     const objekteOhneFesteFelder = (s: unknown): boolean => {
@@ -87,7 +87,7 @@ describe('api-Motor', () => {
     for (const t of p.tools as { name: string; strict?: boolean; input_schema: unknown }[]) {
       if (t.strict) expect(objekteOhneFesteFelder(t.input_schema), `${t.name} ist strict, aber nicht strict-tauglich`).toBe(false);
     }
-    expect((p.tools as { name: string; strict?: boolean }[]).filter((t) => t.strict).map((t) => t.name)).toEqual(['vault_lesen', 'vault_liste', 'vault_suchen', 'vault_schreiben']);
+    expect((p.tools as { name: string; strict?: boolean }[]).filter((t) => t.strict).map((t) => t.name)).toEqual(['vault_lesen', 'vault_liste', 'vault_suchen', 'todo_liste', 'todo_anlegen', 'todo_bearbeiten', 'todo_loeschen', 'vault_schreiben']);
     expect((p.system as string)).toContain('<stadtordnung>');
 
     // Fortsetzen: die frühere Antwort (inkl. Thinking-Block mit Signatur) wird byte-gleich mitgeschickt

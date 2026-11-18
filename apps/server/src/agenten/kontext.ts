@@ -36,6 +36,7 @@ export async function systemPromptBauen(
       ? `- vault_schreiben: Dateien anlegen in ${a.gebaeude}/… (nicht in gebaeude.md, aktionen/, protokolle/, chats/) und in Rathaus/schreibtisch/`
       : '- Schreiben ist in dieser Aktion nicht erlaubt.',
     '- freigabe_beantragen: für alles, was Leif freigeben muss (löschen, überschreiben, alles mit Außenwirkung)',
+    '- todo_liste, todo_anlegen, todo_bearbeiten (auch abhaken), todo_loeschen: Leifs To-do-Liste auf dem Marktplatz pflegen (Löschen = Papierkorb)',
     a.profil.web ? '- Websuche und Webseiten abrufen sind erlaubt.' : '- Kein Internetzugriff in dieser Aktion.',
     ...(a.profil.dorf.includes('rechenraum_befehl')
       ? [

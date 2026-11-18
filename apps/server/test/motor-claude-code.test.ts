@@ -89,7 +89,7 @@ describe('claude-code-Motor über die Werkstatt', () => {
     const c = d.agenten.chatDetail(chatId);
     expect(c.laeufe[0]).toMatchObject({ status: 'fertig', motor: 'claude-code', modell: 'claude-fable-5-2', einToken: 500, ausToken: 60 });
     const b = bericht(c.nachrichten.at(-1)!.text);
-    expect(b.werkzeuge.sort()).toEqual(['freigabe_beantragen', 'vault_lesen', 'vault_liste', 'vault_schreiben', 'vault_suchen']);
+    expect(b.werkzeuge.sort()).toEqual(['freigabe_beantragen', 'todo_anlegen', 'todo_bearbeiten', 'todo_liste', 'todo_loeschen', 'vault_lesen', 'vault_liste', 'vault_schreiben', 'vault_suchen']);
     expect(b.r1Fehler).toBe(false);
     expect(b.r2Fehler).toBe(true);
     expect(b.r2).toMatch(/Verweigert/);

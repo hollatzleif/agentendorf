@@ -304,3 +304,22 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
   - Er legt eine Aufgabe für den Bürgermeister an, mit der Frist als Fremdinhalt. Der Bürgermeister bereitet vor, etwa mit „Abgabe bearbeiten“, „Lernen“ oder „Moodle durchsehen“.
   - Abgegeben wird nie automatisch.
 
+**E65 – To-do-Brett auf dem Marktplatz, für Leif und alle Agenten** (18.11., Leif: „wenn man auf den Marktplatz klickt, die Todoliste immer aktuell … abhaken“ und „Skills für alle Agenten, damit sie abhaken, anlegen, bearbeiten oder löschen können“; zieht den Kern von Etappe 7 vor)
+- **Speicherort:** Ein To-do ist eine Markdown-Datei in `Marktplatz/todos/` mit dem Frontmatter `titel`, `status: offen|erledigt`, `faellig`, `gebaeude`, `quelle`, `erstellt`, `erledigt_am`; darunter steht die Notiz.
+  - So lässt es sich in Obsidian bearbeiten, wird per Syncthing gespiegelt und von Dataview gelesen.
+  - Von Hand angelegte Dateien ohne Titel erscheinen mit dem Dateinamen als Titel.
+- **`TodoDienst`** (`src/todos.ts`) ist die einzige Stelle für Änderungen:
+  - nur direkt in `Marktplatz/todos/`
+  - Ändern mit Version, sonst 409 statt überschreiben
+  - Löschen legt die Datei in den **Papierkorb** des Vaults und lässt sich wiederherstellen
+  - jede Änderung sendet `todos.geaendert` an alle Geräte
+- **App:** Der Marktplatz öffnet direkt den Reiter „To-do“. Dort kannst du anlegen (mit Datum), abhaken, wieder öffnen, bearbeiten (Titel, Datum, Notiz) und löschen.
+  - Überfällige To-dos sind rot umrandet, To-dos von Agenten tragen 🤖 mit ihrer Quelle.
+  - Erledigtes der letzten 14 Tage steht eingeklappt darunter.
+- **Agenten:** `todo_liste`, `todo_anlegen`, `todo_bearbeiten` (auch abhaken) und `todo_loeschen` hat **jeder** Agent in seinem Werkzeugprofil, auch ohne `vault_schreiben`.
+  - Die Liste kommt als Fremdinhalt zurück, weil To-dos aus Mails stammen können.
+  - Das Löschen von To-dos geht ohne Freigabe, weil es wiederherstellbar ist. Das ist eine bewusste Ausnahme auf Leifs Wunsch, Dateien bleiben bei der Freigabe-Regel.
+  - Die Stadtordnung sagt: nur anlegen, was Leif wirklich tun muss, vorher auf Doppeltes prüfen, Erledigtes abhaken statt löschen.
+- **Telegram:** `/todo` zeigt die offenen To-dos mit signierten ✅-Knöpfen, ein Knopf hakt ab und aktualisiert die Nachricht. `/todo <Text>` legt ein To-do an.
+- Vorlagen `Marktplatz/gebaeude.md` und Stadtordnung werden aktualisiert, falls unverändert.
+

@@ -33,6 +33,7 @@ import { GoogleZugang } from './post/google-oauth.js';
 import { Terminkalender } from './kalender.js';
 import { Morgenzeitung } from './morgenzeitung.js';
 import { Aufwachen } from './aufwachen.js';
+import { TodoDienst } from './todos.js';
 
 /** Dateien, die das Dorf zum Arbeiten braucht: fehlen sie (z. B. Vault aus einer älteren Etappe), werden sie aus der Vorlage ergänzt – nie überschrieben. */
 const PFLICHT_DATEIEN = [
@@ -74,7 +75,9 @@ const VORLAGE_FRUEHERE_FASSUNGEN: Record<string, string[]> = {
     '7dcba59a9ae908f2caaa02362b46cb0e8c4995b9350a764812dfe9f61d4f9bf1', // Etappe 2a
     '495a9ae689adcec68c4878b0fddf28b5c5909de8893b72aed438da2ad66b3bc6', // Etappe 2b
     'd7caf198ce646fe65d2fafa29e6ddd63bae6f21ccdd527b1a9dec63ec517aba9', // Etappe 3 bis E60
+    'ff3beab8cf394168ff1cfc9e3d4e91fb9c6f9eced1152b31f2db5373547043e3', // E61–E64
   ],
+  'Marktplatz/gebaeude.md': ['b7332c301634c2889f157d87138f392c3f2a49500a7fb31cc30a9d2d41157358'], // bis E64
 };
 
 /** Baut das ganze Dorf zusammen (für Start und Integrationstests). */
@@ -184,6 +187,10 @@ export async function dorfStarten(
     const t = await agenten.ablage!.abschliessen(e);
     if (t) await agenten.hinweisSchreiben(e.chatId, t);
   });
+  // E65: To-do-Brett auf dem Marktplatz (App, Telegram, alle Agenten)
+  const todos = new TodoDienst({ vault, uhr });
+  todos.beiAenderung = () => hub.senden({ typ: 'todos.geaendert' });
+  agenten.todos = todos;
   const automatik = new Automatik({ db, uhr, vault, agenten, log: (t) => console.warn(t) });
   // kalender_lesen für Aktionen mit werkzeuge: [kalender]: Hauptkalender + Uni-Fristen/Pflichttermine (nur lesen)
   agenten.kalender = async (von, bis) => {
@@ -218,6 +225,7 @@ export async function dorfStarten(
       uni,
       postbote,
       morgenzeitung,
+      todos,
       log: (t) => console.warn(t),
     });
     if (!opt.telegram) telegram.starten();
@@ -232,7 +240,7 @@ export async function dorfStarten(
   const planTakt = opt.beobachten !== false ? setInterval(() => void buergermeister.faelligePlaeneAnnehmen().catch((e) => console.warn(`Pläne: ${(e as Error).message}`)), 60_000) : undefined;
   planTakt?.unref();
   const dorfplan = new Dorfplan({ db, uhr, hub, vault, uni, wetter });
-  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen, dorfplan, automatik });
+  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen, dorfplan, automatik, todos });
   app.addHook('onClose', async () => {
     uni.stoppen();
     postbote.stoppen();
@@ -247,5 +255,5 @@ export async function dorfStarten(
     await agenten.ruhe();
     db.close();
   });
-  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan, wetter, automatik };
+  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan, wetter, automatik, todos };
 }

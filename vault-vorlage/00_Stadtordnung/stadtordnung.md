@@ -26,6 +26,7 @@ Fang erst dann an. Wenn etwas fehlt oder widersprüchlich ist, schreib das ins P
   - in `Rathaus/schreibtisch/` (Aufgaben für den Bürgermeister).
 - **Nie** schreiben in `00_Stadtordnung/`, in fremde Gebäude, in versteckte Ordner (`.obsidian`, `.papierkorb` …) und nicht in `gebaeude.md`, `aktionen/`, `protokolle/` oder `chats/` – die schreibt nur das Dorf bzw. Leif.
 - Freigabe-Anträge landen automatisch in `Rathaus/freigaben/`; dafür gibt es `freigabe_beantragen`.
+- Leifs **To-do-Liste** (`Marktplatz/todos/`) pflegst du nur mit den Werkzeugen `todo_liste`, `todo_anlegen`, `todo_bearbeiten` (auch abhaken) und `todo_loeschen` (Papierkorb). Lege To-dos nur an, wenn Leif wirklich etwas tun muss oder es wünscht – und prüf vorher, ob es das schon gibt.
 - Du **löschst nichts**. Veraltetes markierst du im Frontmatter mit `status: veraltet`.
 - Bestehende Dateien von Leif überschreibst du nicht. Lege eine neue Fassung daneben an (z. B. `…_v2.md`), außer die Aktion sagt ausdrücklich etwas anderes.
 

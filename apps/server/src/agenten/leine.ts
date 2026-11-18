@@ -36,7 +36,11 @@ export type DorfWerkzeug =
   | 'kalender_lesen'
   | 'aktion_vorschlagen'
   | 'gedaechtnis_schreiben'
-  | 'persoenlichkeit_vorschlagen';
+  | 'persoenlichkeit_vorschlagen'
+  | 'todo_liste'
+  | 'todo_anlegen'
+  | 'todo_bearbeiten'
+  | 'todo_loeschen';
 export const LESE_WERKZEUGE: DorfWerkzeug[] = ['vault_lesen', 'vault_liste', 'vault_suchen'];
 /** Nur Aktionen mit rolle: buergermeister bekommen diese Werkzeuge. */
 export const BUERGERMEISTER_WERKZEUGE: DorfWerkzeug[] = [
@@ -75,6 +79,11 @@ export const MOODLE_WERKZEUGE: DorfWerkzeug[] = ['moodle_oeffnen', 'moodle_klick
  * (Fristen, Pflichttermine) – nur lesen, nichts wird gespeichert. Kalendertitel können von außen stammen (Einladungen).
  */
 export const KALENDER_WERKZEUGE: DorfWerkzeug[] = ['kalender_lesen'];
+/**
+ * To-do-Brett (E65, Leifs Wunsch: „für alle Agenten“): jeder Agent darf To-dos lesen, anlegen, bearbeiten/abhaken und
+ * löschen – nur über den TodoDienst (nur Marktplatz/todos/), Löschen = Papierkorb (wiederherstellbar).
+ */
+export const TODO_WERKZEUGE: DorfWerkzeug[] = ['todo_liste', 'todo_anlegen', 'todo_bearbeiten', 'todo_loeschen'];
 /** Höchstens so viele Helfer pro Plan */
 export const MAX_HELFER_PRO_PLAN = 10;
 /** So viele Helfer darf der Bürgermeister pro Aufgabe ohne Plan starten (Leifs Vorgabe: ab 2 Helfern nur mit Plan) */
@@ -98,7 +107,7 @@ export function aktionPruefen(a: { werkzeuge: AktionsWerkzeug[]; fremdinhalte: b
 export function werkzeugprofil(a: { werkzeuge: AktionsWerkzeug[]; fremdinhalte: boolean }): Werkzeugprofil {
   const fehler = aktionPruefen(a);
   if (fehler) throw new DorfFehler(400, fehler);
-  const dorf: DorfWerkzeug[] = [...LESE_WERKZEUGE, 'freigabe_beantragen'];
+  const dorf: DorfWerkzeug[] = [...LESE_WERKZEUGE, 'freigabe_beantragen', ...TODO_WERKZEUGE];
   if (a.werkzeuge.includes('vault_schreiben')) dorf.push('vault_schreiben');
   if (a.werkzeuge.includes('rechenraum')) dorf.push(...RECHENRAUM_WERKZEUGE);
   if (a.werkzeuge.includes('post')) dorf.push(...POST_WERKZEUGE);

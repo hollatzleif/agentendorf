@@ -47,7 +47,7 @@ describe('Leine: Schreibregeln', () => {
     expect(aktionPruefen({ werkzeuge: ['web'], fremdinhalte: true })).toMatch(/schließen sich aus/);
     expect(() => werkzeugprofil({ werkzeuge: ['web'], fremdinhalte: true })).toThrow();
     expect(werkzeugprofil({ werkzeuge: ['vault_lesen'], fremdinhalte: true })).toEqual({
-      dorf: ['vault_lesen', 'vault_liste', 'vault_suchen', 'freigabe_beantragen'],
+      dorf: ['vault_lesen', 'vault_liste', 'vault_suchen', 'freigabe_beantragen', 'todo_liste', 'todo_anlegen', 'todo_bearbeiten', 'todo_loeschen'],
       web: false,
     });
     expect(werkzeugprofil({ werkzeuge: ['vault_schreiben', 'web'], fremdinhalte: false }).web).toBe(true);

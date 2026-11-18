@@ -76,7 +76,22 @@ export type LiveEreignis =
   | { typ: 'konflikte.geaendert' }
   | { typ: 'sitzung.beendet' }
   | { typ: 'dorf.geaendert'; version: number }
+  | { typ: 'todos.geaendert' }
   | AgentenEreignis;
+
+/** To-do auf dem Marktplatz (E65): eine Datei in Marktplatz/todos/ */
+export interface TodoInfo {
+  pfad: string;
+  version: string;
+  titel: string;
+  erledigt: boolean;
+  faellig?: string; // JJJJ-MM-TT
+  gebaeude?: string;
+  quelle?: string; // „Leif“, „Telegram“ oder der Agent/die Aktion
+  erstellt?: string;
+  erledigtAm?: string;
+  notiz?: string;
+}
 
 export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 

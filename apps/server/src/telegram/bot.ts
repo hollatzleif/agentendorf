@@ -1,3 +1,4 @@
+import type { TodoDienst } from '../todos.js';
 import { aufwachEinstellungen, istNacht } from '../aufwachen.js';
 import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
@@ -89,6 +90,7 @@ export class TelegramBot {
       uni?: Uni;
       postbote?: Postbote;
       morgenzeitung?: Morgenzeitung;
+      todos?: TodoDienst;
       log?: (t: string) => void;
     },
   ) {
@@ -166,6 +168,7 @@ export class TelegramBot {
     { command: 'freigaben', description: 'Offene Freigaben' },
     { command: 'moodle', description: 'In Moodle nachschauen lassen: /moodle <Fach> [Frage]' },
     { command: 'aktion', description: 'Skill starten: /aktion <Name> (ohne Name: Liste)' },
+    { command: 'todo', description: 'To-do-Liste (abhaken per Knopf) – /todo <Text> legt eins an' },
     { command: 'neu', description: 'Nächste Nachricht wird eine neue Aufgabe' },
     { command: 'hilfe', description: 'Was der Bot kann' },
   ];
@@ -321,6 +324,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       const b = text.split(/\s/)[0]!.split('@')[0]!.toLowerCase();
       if (b === '/moodle') return this.moodleBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/aktion') return this.aktionBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
+      if (b === '/todo') return this.todoBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b !== '/neu') return this.befehl(b);
       // „/neu“ beendet das laufende Gespräch; „/neu <Text>“ legt gleich eine neue Aufgabe an
       this.verlaufMerken(m.message_id, '');
@@ -395,7 +399,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
   private async befehl(b: string) {
     if (b === '/start' || b === '/hilfe' || b === '/help')
       return this.senden(
-        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/heute – dein Tag: Wetter, Termine, Fristen\n/fristen – Abgaben und Prüfungen der nächsten 7 Tage (mit Erledigt-Knöpfen)\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/aktion [Name] – Skill starten (ohne Name: Liste)\n/hilfe – diese Hilfe`,
+        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/heute – dein Tag: Wetter, Termine, Fristen\n/fristen – Abgaben und Prüfungen der nächsten 7 Tage (mit Erledigt-Knöpfen)\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/aktion [Name] – Skill starten (ohne Name: Liste)\n/todo – To-do-Liste mit Abhak-Knöpfen (/todo &lt;Text&gt; legt eins an)\n/hilfe – diese Hilfe`,
       );
     if (b === '/status') {
       const aktiv = this.o.agenten.aktiveLaeufe();
@@ -504,6 +508,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (!this.istLeif(q.from.id) && !this.istLeif(q.message?.chat.id)) return antworten('Nicht erlaubt.');
     if (q.data?.startsWith('e:')) return this.erledigtKnopf(q, antworten);
     if (q.data?.startsWith('v:')) return this.vorbereitenKnopf(q, antworten);
+    if (q.data?.startsWith('t:')) return this.todoKnopf(q, antworten);
     const m = /^f:([0-9a-f-]{36}):([jn]):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
     if (!m || !crypto.timingSafeEqual(Buffer.from(m[3]!), Buffer.from(this.signatur(m[1]!, m[2] as 'j' | 'n')))) {
       this.o.log?.('Telegram: Knopf mit ungültiger Signatur abgelehnt.');
@@ -518,6 +523,68 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
         await antworten('Diese Freigabe wurde schon entschieden.');
         await this.freigabeAktualisieren(this.o.agenten.freigaben.holen(m[1]!));
       } else await antworten(`Fehler: ${(e as Error).message}`.slice(0, 190));
+    }
+  }
+
+  // ---- To-do-Brett (E65) ----------------------------------------------------------------------
+
+  private todoKennung(pfad: string) {
+    return crypto.createHash('sha256').update(pfad).digest('hex').slice(0, 12);
+  }
+  todoSignatur(kennung: string) {
+    return crypto.createHmac('sha256', this.signaturSchluessel).update(`todo:${kennung}`).digest('base64url').slice(0, 16);
+  }
+
+  private async todoListeText() {
+    const offen = (await this.o.todos!.liste()).filter((t) => !t.erledigt);
+    if (!offen.length) return { text: '🧺 <b>To-do-Liste</b>\nNichts offen. 🎉\n<i>/todo &lt;Text&gt; legt ein neues an.</i>', knoepfe: [] as { text: string; callback_data: string }[][] };
+    const zeilen = offen.slice(0, 25).map((t) => `• ${h(t.titel)}${t.faellig ? ` <i>(bis ${h(t.faellig)})</i>` : ''}`);
+    const knoepfe = offen.slice(0, 12).map((t) => {
+      const k = this.todoKennung(t.pfad);
+      return [{ text: `✅ ${t.titel}`.slice(0, 60), callback_data: `t:${k}:${this.todoSignatur(k)}` }];
+    });
+    return {
+      text: `🧺 <b>To-do-Liste</b> (${offen.length} offen)\n${zeilen.join('\n')}${offen.length > 25 ? '\n…' : ''}\n<a href="${this.link('/?g=Marktplatz')}">Zum Marktplatz</a>`,
+      knoepfe,
+    };
+  }
+
+  private async todoBefehl(rest: string) {
+    if (!this.o.todos) return this.senden('Das To-do-Brett ist nicht eingerichtet.');
+    if (rest) {
+      try {
+        const t = await this.o.todos.anlegen({ titel: rest.slice(0, 200) }, 'Telegram');
+        return this.senden(`🧺 Auf die Liste: <b>${h(t.titel)}</b>`);
+      } catch (e) {
+        return this.senden(`⚠️ ${h((e as Error).message)}`);
+      }
+    }
+    const l = await this.todoListeText();
+    return this.senden(l.text, l.knoepfe.length ? { reply_markup: { inline_keyboard: l.knoepfe } } : {});
+  }
+
+  private async todoKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {
+    const m = /^t:([0-9a-f]{12}):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
+    if (!m || !this.o.todos || !crypto.timingSafeEqual(Buffer.from(m[2]!), Buffer.from(this.todoSignatur(m[1]!)))) {
+      this.o.log?.('Telegram: To-do-Knopf mit ungültiger Signatur abgelehnt.');
+      return antworten('Ungültiger Knopf.');
+    }
+    const t = (await this.o.todos.liste()).find((x) => this.todoKennung(x.pfad) === m[1]);
+    if (!t) return antworten('Dieses To-do gibt es nicht mehr.');
+    if (!t.erledigt) await this.o.todos.aendern(t.pfad, { erledigt: true });
+    await antworten(`Erledigt: ${t.titel}`.slice(0, 190));
+    if (q.message) {
+      const l = await this.todoListeText();
+      await this.o.api
+        .aufruf('editMessageText', {
+          chat_id: q.message.chat.id,
+          message_id: q.message.message_id,
+          text: l.text,
+          parse_mode: 'HTML',
+          link_preview_options: { is_disabled: true },
+          ...(l.knoepfe.length ? { reply_markup: { inline_keyboard: l.knoepfe } } : {}),
+        })
+        .catch(() => undefined);
     }
   }
 

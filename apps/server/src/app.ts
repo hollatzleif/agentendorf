@@ -1,3 +1,4 @@
+import type { TodoDienst } from './todos.js';
 import type { Dorfplan } from './dorfplan.js';
 import { normalisieren } from './vault/pfade.js';
 import type { Automatik } from './agenten/automatik.js';
@@ -59,6 +60,7 @@ export interface Abhaengigkeiten {
   aufwachen: Aufwachen;
   dorfplan: Dorfplan;
   automatik?: Automatik;
+  todos?: TodoDienst;
 }
 
 /** Für Agenten-HTML: Skripte ja, aber undurchsichtiger Ursprung und kein Netz. Bilder/Schriften nur eingebettet (data:). */
@@ -322,6 +324,21 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
    * einer Checkliste) – sie selbst hat ja weder Speicher noch Netz. Nur für bestehende .html-Dateien, höchstens 64 KB.
    * Beim Ablösen einer Ablage wandert der Stand mit ins Archiv, und der nächste Lauf sieht ihn.
    */
+  // ---- E65: To-do-Brett (Marktplatz) ----
+  if (a.todos) {
+    const todos = a.todos;
+    app.get('/api/todos', async (req) => todos.liste({ alleErledigten: (req.query as { alle?: string }).alle === '1' }));
+    app.post('/api/todos', async (req) => todos.anlegen(req.body, 'Leif'));
+    app.patch('/api/todos', async (req) => {
+      const { pfad, basisVersion, ...rest } = z.object({ pfad: z.string(), basisVersion: z.string().optional() }).passthrough().parse(req.body);
+      return todos.aendern(pfad, rest, basisVersion);
+    });
+    app.delete('/api/todos', async (req) => {
+      const { pfad } = z.object({ pfad: z.string() }).parse(req.query);
+      return { papierkorb: await todos.loeschen(pfad) };
+    });
+  }
+
   app.get('/api/vault/seitenstand', async (req) => {
     const { pfad } = z.object({ pfad: z.string() }).parse(req.query);
     const z1 = db.prepare('SELECT inhalt_json FROM seiten_stand WHERE pfad = ?').get(normalisieren(pfad)) as { inhalt_json: string } | undefined;
