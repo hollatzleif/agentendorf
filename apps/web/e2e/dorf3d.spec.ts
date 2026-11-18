@@ -258,12 +258,20 @@ test('Rundgang: der von selbst geweckte Bürgermeister läuft durchs Dorf und ke
     const p = (await wo())!;
     return Math.hypot(p.x - start.x, p.z - start.z);
   };
-  // Status wie bei einem stündlichen Rundgang (Auslöser zeitplan) – direkt in die Szene, ohne echten Lauf
-  const setzeFiguren = (figuren: unknown[]) =>
-    page.evaluate((f) => {
+  // Status wie bei einem stündlichen Rundgang (Auslöser zeitplan) – ohne echten Lauf. Auch neu geladene Stände
+  // (Live-Ereignisse anderer Läufe) liefern nur diese Figuren, sonst überschreibt der echte Status die Probe.
+  let figurenJetzt: unknown[] = [];
+  await page.route('**/api/dorf/status', async (route) => {
+    const echt = (await (await route.fetch()).json()) as DorfStatus;
+    await route.fulfill({ json: { ...echt, figuren: figurenJetzt } });
+  });
+  const setzeFiguren = (figuren: unknown[]) => {
+    figurenJetzt = figuren;
+    return page.evaluate((f) => {
       const s = window.__dorf as unknown as Intern;
       s.setzen({ ...s.daten, status: { ...(s.daten.status ?? { jetzt: new Date().toISOString(), gebaeude: {} }), figuren: f } });
     }, figuren);
+  };
   await setzeFiguren([
     { laufId: 'rundgang', chatId: 'c', gebaeude: 'Rathaus', titel: 'Rundgang', auftrag: '', motor: 'api', modell: 'm', stufe: 'mittel', status: 'laeuft', ausloeser: 'zeitplan', buergermeister: true, erstellt: new Date().toISOString(), token: 0, kostenUsd: 0 },
   ]);
