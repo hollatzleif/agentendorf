@@ -10,6 +10,7 @@ import { Schnelleingabe } from './programm/Schnelleingabe';
 import { ProgrammMeldungen } from './programm/Meldungen';
 import { KirchturmGlocke } from './programm/KirchturmGlocke';
 import { Befehlspalette } from './komponenten/Befehlspalette';
+import { OfflineSchlange } from './komponenten/OfflineSchlange';
 
 // Seiten erst laden, wenn man sie öffnet – der Start (Dorf) bleibt klein
 const GebaeudeSeite = lazy(() => import('./seiten/Gebaeude').then((m) => ({ default: m.GebaeudeSeite })));
@@ -122,6 +123,7 @@ function Rahmen() {
           <span className={`live ${live}`} title={live === 'verbunden' ? 'Live verbunden' : live === 'verbinde' ? 'Verbinde …' : 'Getrennt – verbinde neu'} />
         </div>
       </header>
+      <OfflineSchlange />
       <main>
         <Suspense fallback={<p className="leise">Lade …</p>}>{seite}</Suspense>
       </main>

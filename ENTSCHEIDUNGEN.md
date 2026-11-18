@@ -853,3 +853,10 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 
 - Morgenzeitung und Wochenrückblick haben einen Abschnitt **„Dein Dorf“**, z. B. „🌸 blühend – 5 von 7 Tagen aktiv, Gewohnheiten 80 %, 150 min Fokus · 🚩 alle Wochenziele erreicht“. Berechnet wird er genauso wie im Dorfstatus (E112).
 - **`/noten`** in Telegram zeigt Schnitt, bestandene, offene und Ziel-ECTS sowie die Fächer mit Note (E98).
+
+## E114 – Offline-Warteschlange und schnellerer Start (Nacht 18./19.11.)
+
+- **Offline-Warteschlange:** Scheitert das Anlegen eines To-dos, eines Listeneintrags (Einkauf, Wunsch, Corps) oder einer Notiz an fehlender Verbindung, merkt die App den Eintrag im Gerät (`localStorage`). Sie sendet ihn von selbst, sobald die Verbindung zurück ist, und zusätzlich alle 30 s. Ein gelber Hinweis zeigt, wie viele Einträge warten.
+- **Bewusst nur Anlegen:** Abhaken, Löschen oder Ändern werden nicht nachgeholt. Ein verspätetes Löschen könnte etwas treffen, das inzwischen anders aussieht.
+- **Verworfen statt wiederholt:** Antwortet der Server später mit 4xx (ungültig), wird der Eintrag verworfen; bei 5xx bleibt er.
+- **Lazy Loading:** Die Seiten Heute, Gebäude, Bibliothek, Einstellungen, Chat und Fokus werden erst beim Öffnen geladen. Das Haupt-Bündel schrumpft von 668 auf 296 KB, der Start am Handy wird spürbar schneller.

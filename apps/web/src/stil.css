@@ -1112,3 +1112,6 @@ input.kurz { width: 5em; }
 .fokus-knoepfe button { font-size: 1.05rem; padding: 0.55rem 1.1rem; min-height: 44px; }
 .fokus-hinweis { font-size: 0.85rem; }
 .heute-fokus-links { display: inline-flex; gap: 0.6rem; }
+
+/* Offline-Warteschlange */
+.offline-schlange { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; justify-content: center; gap: 0.6rem; padding: 0.35rem 0.8rem; background: #fff3cd; border-bottom: 2px solid #e0b84a; font-weight: 700; font-size: 0.9rem; }

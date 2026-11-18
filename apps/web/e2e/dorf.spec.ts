@@ -1189,3 +1189,20 @@ test('Fokus-Vollbild: starten, Zeit läuft, Pause, Stopp; Esc führt zurück', a
   await page.keyboard.press('Escape');
   await expect(page).toHaveURL(/\/heute$/);
 });
+
+test('Offline: To-do wird gemerkt und nach der Verbindung gesendet', async ({ page, context }, info) => {
+  test.skip(info.project.name !== 'handy', 'am Handy am wichtigsten');
+  await anmelden(page);
+  await page.goto('/gebaeude/Marktplatz?reiter=todo');
+  await expect(page.getByRole('form', { name: 'Neues To-do' })).toBeVisible();
+  await context.setOffline(true);
+  const f = page.getByRole('form', { name: 'Neues To-do' });
+  await f.getByRole('textbox', { name: 'Neues To-do' }).fill('Offline-Test');
+  await f.getByRole('button', { name: '+' }).click();
+  await expect(page.getByText(/gemerkt, wird gesendet/)).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: '1 Eintrag wartet' })).toBeVisible();
+  // Verbindung zurück → wird von selbst gesendet (online-Ereignis)
+  await context.setOffline(false);
+  await expect(page.getByRole('status').filter({ hasText: 'wartet' })).toHaveCount(0);
+  await expect(page.locator('li.todo', { hasText: 'Offline-Test' })).toHaveCount(1);
+});
