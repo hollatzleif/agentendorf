@@ -121,6 +121,24 @@ export interface PomodoroEinstellungen {
   autoWeiter: boolean;
   /** optional: woran gearbeitet wird (To-do-Titel) */
   thema?: string;
+  /** optional: Fach/Gruppe (für die Fokus-Statistik) und das To-do dazu */
+  gruppe?: string;
+  todoPfad?: string;
+  /** Während der Arbeitsphase hält Telegram Meldungen zurück (Standard: an) */
+  nichtStoeren?: boolean;
+}
+
+export interface FokusStatistik {
+  heuteMin: number;
+  wocheMin: number;
+  /** Arbeitsphasen heute (fertige) */
+  heutePomodoros: number;
+  /** letzte 7 Tage (Ortszeit), ältester zuerst */
+  tage: { tag: string; min: number }[];
+  /** Themen bzw. Fächer der letzten 7 Tage, meiste zuerst */
+  themen: { thema: string; min: number }[];
+  /** Tage in Folge mit mindestens einer fertigen Arbeitsphase (bis heute bzw. gestern) */
+  serie: number;
 }
 
 export interface KirchturmPomodoro {

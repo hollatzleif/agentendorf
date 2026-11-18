@@ -513,3 +513,12 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - **Nachtrag (Nacht 18./19.11.):**
   - Woche/Tag: Termine lassen sich ziehen (Zeit in 15-min-Schritten, auch auf einen anderen Tag) und am unteren Rand verlängern. Im Monat zieht man einen Termin auf einen anderen Tag. Bei Serien bewegt das nur diesen einen Termin.
   - Ist Google verbunden, lesen auch Morgenzeitung, Corps-Termine und `kalender_lesen` der Agenten über die API (alle Kalender). Geht das schief, nehmen sie die iCal-Adresse.
+
+## E78 – Fokus: Pomodoro am To-do, Fokus-Statistik, Nicht stören (Nacht 18./19.11.)
+
+- **🍅 an jedem offenen To-do** startet einen Pomodoro dafür: Thema = Titel, Fach = Gruppe des To-dos, der Pfad wird gemerkt.
+- **Fokus-Protokoll** (Migration 18, `fokus_sitzungen`): Jede Arbeitsphase wird gespeichert. Abgebrochene oder übersprungene Phasen zählen mit der tatsächlich gearbeiteten Zeit, wenn es mindestens 1 min war.
+  - Die Statistik (`/api/kirchturm/fokus`) zeigt heute, 7 Tage, je Tag, je Fach/Thema und eine Serie. Gezählt werden Tage in Folge mit mindestens einer fertigen Phase; der heutige Tag zählt erst, wenn dort eine fertig ist, sonst reißt die Serie schon morgens.
+  - Die Morgenzeitung hat einen Abschnitt „Fokus“.
+- **Nicht stören** (Standard an, im Pomodoro einstellbar): Während einer laufenden Arbeitsphase gilt für Telegram dasselbe wie in der Nachtruhe. Meldungen werden gesammelt, Dringendes (Fristen in wenigen Stunden) kommt trotzdem. Endet die Phase, kommt alles sofort in einer Nachricht „🍅 Während deiner Fokuszeit“.
+- Warum: Die App soll beim Arbeiten helfen, nicht ablenken. Fokuszeit je Fach macht sichtbar, wo die Lernzeit wirklich hingeht.

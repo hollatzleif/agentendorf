@@ -661,14 +661,17 @@ Magst du kurz sagen, warum? Antworte einfach mit einem Satz – ${f.chatId ? 'de
 
   // ---- Nachtruhe (22–7 Uhr Linz): nur Dringendes sofort, der Rest gesammelt um 7 Uhr (E56) -------------
 
+  /** Nacht ODER Fokus (Pomodoro-Arbeitsphase mit „Nicht stören“): nur Dringendes sofort, der Rest gesammelt */
+  fokusAktiv: () => boolean = () => false;
   private async nachtruhe() {
+    if (this.fokusAktiv()) return true;
     return istNacht(this.o.uhr.jetzt()) && (await aufwachEinstellungen(this.o.vault)).nachtruhe;
   }
-  private nachtListe(): { text: string; freigabe?: string }[] {
+  private nachtListe(): { text: string; freigabe?: string; fokus?: boolean }[] {
     const w = (this.o.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'telegram_nacht'").get() as { wert: string } | undefined)?.wert;
-    return w ? (JSON.parse(w) as { text: string; freigabe?: string }[]) : [];
+    return w ? (JSON.parse(w) as { text: string; freigabe?: string; fokus?: boolean }[]) : [];
   }
-  private nachtListeSetzen(l: { text: string; freigabe?: string }[]) {
+  private nachtListeSetzen(l: { text: string; freigabe?: string; fokus?: boolean }[]) {
     this.o.db
       .prepare("INSERT INTO dorf_stand (schluessel, wert) VALUES ('telegram_nacht', ?) ON CONFLICT(schluessel) DO UPDATE SET wert = excluded.wert")
       .run(JSON.stringify(l.slice(-50)));
@@ -677,7 +680,7 @@ Magst du kurz sagen, warum? Antworte einfach mit einem Satz – ${f.chatId ? 'de
   /** Meldung, die Leif nicht selbst angestoßen hat: nachts gesammelt statt gesendet */
   private async proaktiv(text: string, extra: Record<string, unknown> = {}, gehoertZuChat?: string) {
     if (await this.nachtruhe()) {
-      this.nachtListeSetzen([...this.nachtListe(), { text }]);
+      this.nachtListeSetzen([...this.nachtListe(), { text, ...(this.fokusAktiv() && !istNacht(this.o.uhr.jetzt()) ? { fokus: true } : {}) }]);
       return null;
     }
     return this.senden(text, extra, gehoertZuChat);
@@ -697,7 +700,7 @@ Magst du kurz sagen, warum? Antworte einfach mit einem Satz – ${f.chatId ? 'de
       });
     if (texte.length) {
       // ganze Meldungen, nie mitten in einem HTML-Tag abschneiden (sonst lehnt Telegram die Nachricht ab)
-      const kopf = `🌙 <b>Über Nacht</b> (${texte.length})`;
+      const kopf = l.every((x) => x.fokus) ? `🍅 <b>Während deiner Fokuszeit</b> (${texte.length})` : `🌙 <b>Über Nacht</b> (${texte.length})`;
       const teile: string[] = [];
       let laenge = kopf.length;
       for (const t of texte) {

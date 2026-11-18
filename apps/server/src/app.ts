@@ -405,6 +405,7 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
   if (a.kirchturm) {
     const k = a.kirchturm;
     app.get('/api/kirchturm', async () => k.zustand());
+    app.get('/api/kirchturm/fokus', async () => k.fokusStatistik());
     app.post('/api/kirchturm', async (req) => k.ausfuehren(req.body));
   }
 

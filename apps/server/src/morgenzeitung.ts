@@ -55,6 +55,8 @@ export class Morgenzeitung {
       /** Etappe 7: Budget-Stand (nur Kategorien ab 80 %) und offene Rechnungen */
       bank?: { zeitungsZeilen(): Promise<string[]> };
       boerse?: { zeitungsZeilen(): Promise<string[]> };
+      /** Nacht 18./19.11.: Fokuszeit gestern und in der Woche */
+      fokus?: { zeitungsZeilen(): string[] };
       log?: (t: string) => void;
     },
   ) {}
@@ -204,6 +206,8 @@ export class Morgenzeitung {
     if (geld?.length) abschnitte.push({ titel: 'Budget', zeilen: geld });
     const depot = await this.o.boerse?.zeitungsZeilen().catch(() => [] as string[]);
     if (depot?.length) abschnitte.push({ titel: 'Depot', zeilen: depot });
+    const fokus = this.o.fokus?.zeitungsZeilen() ?? [];
+    if (fokus.length) abschnitte.push({ titel: 'Fokus', zeilen: fokus });
 
     return { datum, einleitung: null, abschnitte };
   }

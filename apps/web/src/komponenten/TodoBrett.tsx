@@ -153,6 +153,17 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: (f: () =
               Notiz
             </a>
           )}
+          {basis === '/api/todos' && !t.erledigt && (
+            <button
+              type="button"
+              className="klein"
+              title="Pomodoro für dieses To-do starten"
+              aria-label={`Fokus: ${t.titel}`}
+              onClick={() => void ausfuehren(() => api('/api/kirchturm', { body: { befehl: 'pomodoro_fuer', titel: t.titel, ...(t.gruppe ? { gruppe: t.gruppe } : {}), pfad: t.pfad } }))}
+            >
+              🍅
+            </button>
+          )}
           {basis.endsWith('/wunsch') && !t.erledigt && (
             <button
               type="button"

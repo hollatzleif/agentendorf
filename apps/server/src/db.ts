@@ -353,6 +353,11 @@ const MIGRATIONEN: string[] = [
   CREATE TABLE boerse_wechselkurse (waehrung TEXT NOT NULL, datum TEXT NOT NULL, je_eur REAL NOT NULL, abgerufen INTEGER NOT NULL, PRIMARY KEY (waehrung, datum));
   INSERT INTO boerse_wechselkurse (waehrung, datum, je_eur, abgerufen) SELECT 'USD', datum, usd_je_eur, abgerufen FROM boerse_fx;
   `,
+  // 18: Fokus (Nacht 18./19.11.) – jede Pomodoro-Arbeitsphase (auch abgebrochene ab 1 min) für die Fokus-Statistik
+  `
+  CREATE TABLE fokus_sitzungen (id INTEGER PRIMARY KEY, start INTEGER NOT NULL, ende INTEGER NOT NULL, minuten REAL NOT NULL, thema TEXT, gruppe TEXT, todo TEXT, vollstaendig INTEGER NOT NULL);
+  CREATE INDEX fokus_sitzungen_ende ON fokus_sitzungen (ende);
+  `,
 ];
 
 export function dbOeffnen(datei: string): DB {

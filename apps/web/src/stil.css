@@ -634,3 +634,13 @@ input.kurz { width: 5em; }
 .raster-griff:hover { background: rgba(0, 0, 0, 0.18); }
 .zug-zeit { position: absolute; right: 2px; top: -1.3em; font-size: 0.7rem; background: #2d241c; color: #fff; padding: 0 0.3rem; border-radius: 4px; white-space: nowrap; }
 .kalender-tag.ziel { outline: 2px dashed #c8553d; outline-offset: -3px; }
+
+/* Fokus-Statistik (Kirchturm) */
+.fokus-zahlen { display: flex; gap: 1.2rem; margin-bottom: 0.6rem; flex-wrap: wrap; }
+.fokus-zahlen div { display: flex; flex-direction: column; }
+.fokus-zahlen strong { font-size: 1.3rem; }
+.fokus-balken { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.35rem; height: 110px; align-items: end; margin-bottom: 0.5rem; }
+.fokus-tag { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; font-size: 0.75rem; }
+.fokus-saeule { width: 70%; min-height: 3px; border-radius: 5px 5px 2px 2px; background: linear-gradient(#e07a5f, #c8553d); }
+.fokus-themen { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.2rem; }
+.fokus-themen li { display: flex; justify-content: space-between; gap: 0.6rem; }

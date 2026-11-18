@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { KirchturmTimer, KirchturmWecker, KirchturmZustand, PomodoroEinstellungen, TodoInfo } from '@dorf/shared';
+import type { FokusStatistik, KirchturmTimer, KirchturmWecker, KirchturmZustand, PomodoroEinstellungen, TodoInfo } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { glocke, glockeStopp, istProgramm } from '../programm/desktop';
 
@@ -89,6 +89,7 @@ export function KirchturmUhr() {
       <Klingelt z={d} befehl={befehl} />
       <div className="kirchturm-raster">
         <Pomodoro z={d} jetzt={jetzt} befehl={befehl} />
+        <Fokus />
         <Timer z={d} jetzt={jetzt} befehl={befehl} />
         <Wecker z={d} befehl={befehl} />
         <Stoppuhr z={d} jetzt={jetzt} befehl={befehl} />
@@ -240,6 +241,10 @@ function PomodoroEinstellen({ e, speichern }: { e: PomodoroEinstellungen; speich
       <label className="zeile">
         <input type="checkbox" checked={w.autoWeiter} onChange={(x) => setW({ ...w, autoWeiter: x.target.checked })} /> Nächste Phase automatisch starten
       </label>
+      <label className="zeile">
+        <input type="checkbox" checked={w.nichtStoeren !== false} onChange={(x) => setW({ ...w, nichtStoeren: x.target.checked })} /> Nicht stören: Telegram hält Meldungen während der
+        Arbeitsphase zurück (Dringendes kommt trotzdem)
+      </label>
       <label>
         Woran arbeitest du? (optional)
         <input list="pomodoro-todos" value={w.thema ?? ''} maxLength={200} onChange={(x) => setW({ ...w, thema: x.target.value })} placeholder="z. B. ein To-do" />
@@ -263,6 +268,57 @@ function PomodoroEinstellen({ e, speichern }: { e: PomodoroEinstellungen; speich
         </button>
       </div>
     </form>
+  );
+}
+
+// ---- Fokus-Statistik ----------------------------------------------------------------------------------
+
+const stunden = (min: number) => (min >= 60 ? `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60} min` : ''}` : `${min} min`);
+
+/** Fokuszeit aus den Pomodoro-Arbeitsphasen: heute, 7 Tage, je Fach/Thema, Serie */
+export function Fokus() {
+  // hängt an ['kirchturm', …] → wird bei jedem Kirchturm-Ereignis frisch geholt
+  const q = useQuery({ queryKey: ['kirchturm', 'fokus'], queryFn: () => api<FokusStatistik>('/api/kirchturm/fokus') });
+  const s = q.data;
+  if (!s) return null;
+  const max = Math.max(25, ...s.tage.map((t) => t.min));
+  return (
+    <section className="karte innen kirchturm-teil fokus" aria-label="Fokus">
+      <h3>📊 Fokus</h3>
+      <div className="fokus-zahlen">
+        <div>
+          <strong>{stunden(s.heuteMin)}</strong>
+          <span className="leise">heute{s.heutePomodoros ? ` · ${s.heutePomodoros} 🍅` : ''}</span>
+        </div>
+        <div>
+          <strong>{stunden(s.wocheMin)}</strong>
+          <span className="leise">7 Tage</span>
+        </div>
+        <div>
+          <strong>{s.serie}</strong>
+          <span className="leise">{s.serie === 1 ? 'Tag' : 'Tage'} in Folge</span>
+        </div>
+      </div>
+      <div className="fokus-balken" role="img" aria-label={`Fokus je Tag: ${s.tage.map((t) => `${t.tag.slice(8)}. ${t.min} min`).join(', ')}`}>
+        {s.tage.map((t) => (
+          <div key={t.tag} className="fokus-tag">
+            <span className="fokus-saeule" style={{ height: `${Math.round((t.min / max) * 100)}%` }} title={`${t.min} min`} />
+            <span className="leise">{new Date(`${t.tag}T12:00:00Z`).toLocaleDateString('de-AT', { weekday: 'short', timeZone: 'UTC' })}</span>
+          </div>
+        ))}
+      </div>
+      {s.themen.length > 0 && (
+        <ul className="fokus-themen">
+          {s.themen.map((t) => (
+            <li key={t.thema}>
+              <span>{t.thema}</span>
+              <span className="leise">{stunden(t.min)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!s.wocheMin && <p className="leise">Noch keine Fokuszeit diese Woche – starte einen Pomodoro, gern direkt an einem To-do (🍅).</p>}
+    </section>
   );
 }
 

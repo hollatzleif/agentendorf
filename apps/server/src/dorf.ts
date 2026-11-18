@@ -334,7 +334,7 @@ export async function dorfStarten(
     log: (t) => console.warn(t),
   });
   const depotZeilen = { zeitungsZeilen: async () => [...saxo.zeitungsZeilen(), ...(await boerse.zeitungsZeilen())] };
-  const morgenzeitung = new Morgenzeitung({ db, uhr, vault, hub, ki, freigaben: agenten.freigaben, schreibtisch, uni, postbote, kalender, wetter, bank, boerse: depotZeilen, log: (t) => console.warn(t) });
+  const morgenzeitung = new Morgenzeitung({ db, uhr, vault, hub, ki, freigaben: agenten.freigaben, schreibtisch, uni, postbote, kalender, wetter, bank, boerse: depotZeilen, fokus: kirchturm, log: (t) => console.warn(t) });
   let telegram: TelegramBot | undefined;
   if ((konfig.telegramToken || opt.telegram) && konfig.telegramChatId) {
     telegram = new TelegramBot({
@@ -358,6 +358,9 @@ export async function dorfStarten(
     const t = telegram;
     bank.beiWarnung.push((text) => t.bankMelden(text));
     saxo.beiMeldung.push((text) => void t.saxoMelden(text).catch(() => undefined));
+    // Fokus: während einer Pomodoro-Arbeitsphase hält Telegram Meldungen zurück und schickt sie danach gesammelt
+    t.fokusAktiv = () => kirchturm.fokusAktiv();
+    kirchturm.beiFokusEnde.push(() => void t.nachtNachholen().catch(() => undefined));
   }
   agenten.anstossen();
   if (!opt.moodle && !opt.kalender && !opt.google && opt.beobachten !== false) uni.starten();

@@ -630,3 +630,20 @@ test('Marktplatz-Kalender: Termin in der Woche ziehen (Zeit und Tag) und unten v
   await t.click();
   await expect(page.getByRole('dialog', { name: 'Termin bearbeiten' })).toBeVisible();
 });
+
+test('Fokus: Pomodoro direkt an einem To-do starten; Kirchturm zeigt Thema und Fokus-Statistik', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  await page.goto('/gebaeude/Marktplatz');
+  const f = page.getByRole('form', { name: 'Neues To-do' });
+  await f.getByLabel('Neues To-do').fill('Blatt 7 rechnen');
+  await f.getByRole('button', { name: '+' }).click();
+  await page.getByRole('button', { name: 'Fokus: Blatt 7 rechnen' }).click();
+  await page.goto('/gebaeude/Kirchturm');
+  const p = page.getByRole('region', { name: 'Pomodoro' });
+  await expect(p).toContainText('Arbeiten');
+  await expect(p).toContainText('Blatt 7 rechnen');
+  await expect(page.getByRole('region', { name: 'Fokus' })).toContainText('7 Tage');
+  await p.getByRole('button', { name: '⏹ Stopp' }).click();
+  await expect(p).toContainText('Bereit');
+});

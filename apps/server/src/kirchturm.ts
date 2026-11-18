@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { z } from 'zod';
-import type { KirchturmKlingel, KirchturmZustand, PomodoroEinstellungen } from '@dorf/shared';
+import type { FokusStatistik, KirchturmKlingel, KirchturmZustand, PomodoroEinstellungen } from '@dorf/shared';
 import type { DB } from './db.js';
 import type { Uhr } from './uhr.js';
 import type { LiveHub } from './live.js';
@@ -82,6 +82,9 @@ export const PomodoroSchema = z.object({
   runden: z.coerce.number().int().min(1).max(50),
   autoWeiter: z.boolean(),
   thema: z.string().trim().max(200).optional(),
+  gruppe: z.string().trim().max(60).optional(),
+  todoPfad: z.string().max(300).optional(),
+  nichtStoeren: z.boolean().optional(),
 });
 
 export const Befehl = z.discriminatedUnion('befehl', [
@@ -100,6 +103,8 @@ export const Befehl = z.discriminatedUnion('befehl', [
   z.object({ befehl: z.literal('vorlagen'), vorlagen: z.array(z.object({ name: Name.min(1), dauerMs: Dauer })).max(20) }),
   z.object({ befehl: z.literal('pomodoro_einstellen'), einstellungen: PomodoroSchema }),
   z.object({ befehl: z.literal('pomodoro'), aktion: z.enum(['start', 'pause', 'weiter', 'ueberspringen', 'stopp']) }),
+  /** Fokus für ein To-do: Thema/Fach setzen und eine neue Arbeitsphase starten */
+  z.object({ befehl: z.literal('pomodoro_fuer'), titel: z.string().trim().min(1).max(200), gruppe: z.string().trim().max(60).optional(), pfad: z.string().max(300).optional() }),
   z.object({ befehl: z.literal('stoppuhr'), aktion: z.enum(['start', 'stopp', 'runde', 'zuruecksetzen']) }),
   z.object({ befehl: z.literal('klingel'), id: z.string(), aktion: z.enum(['aus', 'schlummern']) }),
   z.object({ befehl: z.literal('alle_aus') }),
@@ -116,17 +121,97 @@ export class Kirchturm {
   private z: Zustand;
   /** z. B. Tests: was geklingelt hat */
   readonly beiKlingeln: ((k: KirchturmKlingel) => void)[] = [];
+  /** Fokus (Arbeitsphase) endet → z. B. Telegram holt Zurückgehaltenes nach */
+  readonly beiFokusEnde: (() => void)[] = [];
+  private warFokus = false;
+
+  /** Läuft gerade eine Arbeitsphase mit „Nicht stören“? */
+  fokusAktiv() {
+    const p = this.z.pomodoro;
+    return p.phase === 'arbeit' && p.status === 'laeuft' && p.einstellungen.nichtStoeren !== false;
+  }
+
+  /** Arbeitsphase ins Fokus-Protokoll (fertig = volle Länge; abgebrochen = tatsächlich gearbeitete Zeit, ab 1 min) */
+  private fokusMerken(jetzt: number, fertig: boolean) {
+    const p = this.z.pomodoro;
+    const dauer = this.pomodoroDauer('arbeit');
+    const rest = p.status === 'laeuft' && p.ende != null ? Math.max(0, p.ende - jetzt) : (p.restMs ?? dauer);
+    const ms = fertig ? dauer : Math.max(0, dauer - rest);
+    if (ms < MIN) return;
+    const e = p.einstellungen;
+    this.o.db
+      .prepare('INSERT INTO fokus_sitzungen (start, ende, minuten, thema, gruppe, todo, vollstaendig) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(jetzt - ms, jetzt, Math.round((ms / MIN) * 10) / 10, e.thema ?? null, e.gruppe ?? null, e.todoPfad ?? null, fertig ? 1 : 0);
+  }
+
+  /** Morgenzeitung: gestern und 7 Tage (nur wenn es Fokuszeit gab) */
+  zeitungsZeilen(): string[] {
+    const s = this.fokusStatistik();
+    if (!s.wocheMin) return [];
+    const h = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`);
+    const gestern = s.tage.at(-2)?.min ?? 0;
+    const z = [`Gestern ${h(gestern)} Fokus, in den letzten 7 Tagen ${h(s.wocheMin)}${s.serie > 1 ? ` – ${s.serie} Tage in Folge 🔥` : ''}.`];
+    if (s.themen.length) z.push(`Am meisten: ${s.themen.slice(0, 3).map((t) => `${t.thema} (${h(t.min)})`).join(', ')}.`);
+    return z;
+  }
+
+  /** Fokus-Statistik: heute, Woche (7 Tage), je Tag und Thema/Fach, Serie */
+  fokusStatistik(): FokusStatistik {
+    const jetzt = this.o.uhr.jetzt();
+    const tagVon = (ms: number) => new Date(ms).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+    const heute = tagVon(jetzt);
+    const z = this.o.db.prepare('SELECT ende, minuten, thema, gruppe, vollstaendig FROM fokus_sitzungen WHERE ende > ? ORDER BY ende').all(jetzt - 400 * 86_400_000) as {
+      ende: number;
+      minuten: number;
+      thema: string | null;
+      gruppe: string | null;
+      vollstaendig: number;
+    }[];
+    const jeTag = new Map<string, number>();
+    const fertigeTage = new Set<string>();
+    for (const x of z) {
+      const t = tagVon(x.ende);
+      jeTag.set(t, (jeTag.get(t) ?? 0) + x.minuten);
+      if (x.vollstaendig) fertigeTage.add(t);
+    }
+    const tage: { tag: string; min: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const t = tagVon(jetzt - i * 86_400_000);
+      tage.push({ tag: t, min: Math.round(jeTag.get(t) ?? 0) });
+    }
+    const grenze = jetzt - 7 * 86_400_000;
+    const themen = new Map<string, number>();
+    for (const x of z.filter((y) => y.ende > grenze)) {
+      const k = x.gruppe || x.thema || 'Ohne Thema';
+      themen.set(k, (themen.get(k) ?? 0) + x.minuten);
+    }
+    let serie = 0;
+    // heute zählt mit, wenn schon etwas fertig ist – sonst ab gestern (die Serie reißt nicht schon morgens)
+    for (let i = fertigeTage.has(heute) ? 0 : 1; fertigeTage.has(tagVon(jetzt - i * 86_400_000)); i++) serie++;
+    return {
+      heuteMin: Math.round(jeTag.get(heute) ?? 0),
+      wocheMin: Math.round(tage.reduce((s, t) => s + t.min, 0)),
+      heutePomodoros: z.filter((x) => x.vollstaendig && tagVon(x.ende) === heute).length,
+      tage,
+      themen: [...themen.entries()].map(([thema, min]) => ({ thema, min: Math.round(min) })).sort((a, b) => b.min - a.min).slice(0, 8),
+      serie,
+    };
+  }
 
   constructor(private o: { db: DB; uhr: Uhr; hub: LiveHub }) {
     const roh = (o.db.prepare('SELECT wert FROM dorf_stand WHERE schluessel = ?').get(SCHLUESSEL) as { wert: string } | undefined)?.wert;
     const basis = leer();
     const gelesen = roh ? (JSON.parse(roh) as Partial<Zustand>) : {};
     this.z = { ...basis, ...gelesen, pomodoro: { ...basis.pomodoro, ...gelesen.pomodoro }, toene: { ...basis.toene, ...gelesen.toene } };
+    this.warFokus = this.fokusAktiv();
   }
 
   private speichern(klingel?: Klingel) {
     this.o.db.prepare('INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES (?, ?)').run(SCHLUESSEL, JSON.stringify(this.z));
     this.o.hub.senden({ typ: 'kirchturm.geaendert' });
+    const fokus = this.fokusAktiv();
+    if (this.warFokus && !fokus) for (const fn of this.beiFokusEnde) fn();
+    this.warFokus = fokus;
     if (klingel) {
       const k = this.klingelAus(klingel);
       this.o.hub.senden({ typ: 'kirchturm.klingelt', klingel: k });
@@ -217,13 +302,23 @@ export class Kirchturm {
       case 'pomodoro_einstellen': {
         const p = z2.pomodoro;
         const e = b.einstellungen;
-        p.einstellungen = { ...e, ...(e.thema ? { thema: e.thema } : { thema: undefined }) };
+        p.einstellungen = { ...e, thema: e.thema || undefined, gruppe: e.gruppe || undefined, todoPfad: e.thema ? e.todoPfad : undefined };
         // laufende Phase an die neue Länge anpassen (verstrichene Zeit bleibt)
         if (p.phase !== 'aus' && p.status === 'wartet') p.restMs = this.pomodoroDauer(p.phase);
         break;
       }
+      case 'pomodoro_fuer': {
+        const p = z2.pomodoro;
+        if (p.phase === 'arbeit' && p.status !== 'wartet') this.fokusMerken(jetzt, false);
+        p.einstellungen = { ...p.einstellungen, thema: b.titel, gruppe: b.gruppe || undefined, todoPfad: b.pfad };
+        Object.assign(p, { phase: 'arbeit', status: 'laeuft', ende: jetzt + this.pomodoroDauer('arbeit'), restMs: null, erledigt: p.phase === 'aus' ? 0 : p.erledigt });
+        z2.klingelt = z2.klingelt.filter((k) => k.quelle !== 'pomodoro');
+        break;
+      }
       case 'pomodoro': {
         const p = z2.pomodoro;
+        const warArbeit = p.phase === 'arbeit' && (p.status === 'laeuft' || p.status === 'pause');
+        if ((b.aktion === 'stopp' || b.aktion === 'ueberspringen') && warArbeit) this.fokusMerken(jetzt, false);
         if (b.aktion === 'start') {
           if (p.status === 'wartet' && p.phase !== 'aus') Object.assign(p, { status: 'laeuft', ende: jetzt + (p.restMs ?? this.pomodoroDauer(p.phase)), restMs: null });
           else Object.assign(p, { phase: 'arbeit', status: 'laeuft', ende: jetzt + this.pomodoroDauer('arbeit'), restMs: null, erledigt: 0 });
@@ -268,7 +363,10 @@ export class Kirchturm {
     const p = z2Pomodoro(this.z);
     const e = p.einstellungen;
     const war = p.phase;
-    if (war === 'arbeit') p.erledigt++;
+    if (war === 'arbeit') {
+      p.erledigt++;
+      if (klingeln) this.fokusMerken(jetzt, true);
+    }
     let naechste: 'arbeit' | 'kurz' | 'lang' | 'aus';
     if (war === 'arbeit') naechste = p.erledigt >= e.runden ? 'aus' : p.erledigt % e.langNach === 0 ? 'lang' : 'kurz';
     else naechste = 'arbeit';

@@ -160,3 +160,66 @@ describe('Kirchturm (E74)', () => {
     expect(await x.d.vault.existiert('Kirchturm/gebaeude.md')).toBe(true);
   });
 });
+
+describe('Fokus (Nacht 18./19.11.)', () => {
+  it('Pomodoro für ein To-do: Fokuszeit je Fach, abgebrochene Phasen zählen ab 1 min, Statistik und Serie', async () => {
+    const x = await aufbau();
+    x.b({ befehl: 'pomodoro_einstellen', einstellungen: { arbeitMin: 25, kurzMin: 5, langMin: 15, langNach: 4, runden: 4, autoWeiter: false } });
+    x.b({ befehl: 'pomodoro_fuer', titel: 'Abgabe: Blatt 5', gruppe: 'Mathe III', pfad: 'Marktplatz/todos/a.md' });
+    expect(x.d.kirchturm.zustand().pomodoro).toMatchObject({ phase: 'arbeit', status: 'laeuft', einstellungen: { thema: 'Abgabe: Blatt 5', gruppe: 'Mathe III' } });
+    x.spulen(25 * MIN, 60_000);
+    // zweite Phase nach 10 min abgebrochen
+    x.b({ befehl: 'pomodoro', aktion: 'start' }); // kurze Pause
+    x.spulen(5 * MIN, 60_000);
+    x.b({ befehl: 'pomodoro', aktion: 'start' }); // Arbeit
+    x.spulen(10 * MIN, 60_000);
+    x.b({ befehl: 'pomodoro', aktion: 'stopp' });
+    // 30 s zählen nicht
+    x.b({ befehl: 'pomodoro_fuer', titel: 'Lesen' });
+    x.d.uhr.vor(30_000);
+    x.b({ befehl: 'pomodoro', aktion: 'stopp' });
+    let s = x.d.kirchturm.fokusStatistik();
+    expect(s).toMatchObject({ heuteMin: 35, wocheMin: 35, heutePomodoros: 1, serie: 1 });
+    expect(s.themen).toEqual([{ thema: 'Mathe III', min: 35 }]);
+    expect(s.tage).toHaveLength(7);
+    expect(s.tage.at(-1)).toMatchObject({ tag: '2026-11-16', min: 35 });
+    // nächster Tag ohne fertige Phase: Serie bleibt (zählt bis gestern), übermorgen ist sie weg
+    x.d.uhr.vor(86_400_000);
+    expect(x.d.kirchturm.fokusStatistik()).toMatchObject({ heuteMin: 0, serie: 1, wocheMin: 35 });
+    x.d.uhr.vor(86_400_000);
+    s = x.d.kirchturm.fokusStatistik();
+    expect(s.serie).toBe(0);
+    const h = await kopf(x.d);
+    expect((await x.d.app.inject({ url: '/api/kirchturm/fokus', headers: h })).json()).toMatchObject({ wocheMin: 35 });
+  });
+
+  it('Nicht stören: während der Arbeitsphase sammelt Telegram, danach kommt alles in einer Nachricht', async () => {
+    const aufrufe: { m: string; p: Record<string, unknown> }[] = [];
+    const api = {
+      async aufruf<T>(m: string, p: Record<string, unknown> = {}) {
+        aufrufe.push({ m, p });
+        return { message_id: aufrufe.length } as T;
+      },
+      async dateiLaden() {
+        return { name: 'x', inhalt: Buffer.from('') };
+      },
+    };
+    const d = await testDorf({ telegram: api, env: { TELEGRAM_CHAT_ID: '1' } });
+    const gesendet = () => aufrufe.filter((a) => a.m === 'sendMessage').map((a) => String(a.p.text));
+    d.kirchturm.ausfuehren({ befehl: 'pomodoro_fuer', titel: 'Mathe' });
+    expect(d.kirchturm.fokusAktiv()).toBe(true);
+    await d.telegram!.bankMelden('Budget Essen fast aufgebraucht');
+    expect(gesendet()).toEqual([]);
+    // Phase zu Ende → Nachricht kommt gesammelt
+    d.uhr.vor(25 * MIN);
+    d.kirchturm.pruefen();
+    await expect.poll(() => gesendet().length).toBe(1);
+    expect(gesendet()[0]).toMatch(/Während deiner Fokuszeit.*\n\nBudget Essen fast aufgebraucht/s);
+    // mit „Nicht stören“ aus kommt alles sofort
+    d.kirchturm.ausfuehren({ befehl: 'pomodoro_einstellen', einstellungen: { arbeitMin: 25, kurzMin: 5, langMin: 15, langNach: 4, runden: 4, autoWeiter: false, nichtStoeren: false } });
+    d.kirchturm.ausfuehren({ befehl: 'pomodoro', aktion: 'start' });
+    expect(d.kirchturm.fokusAktiv()).toBe(false);
+    await d.telegram!.bankMelden('Zweite Meldung');
+    expect(gesendet().at(-1)).toMatch(/Zweite Meldung/);
+  });
+});
