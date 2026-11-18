@@ -93,7 +93,7 @@ jobs:
           HAT_SCHLUESSEL: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
         run: |
           # Kennung = Hash über alles, was ins Programm eingeht (+ ob signiert wird); gleich → nicht neu bauen
-          K=$( (cd apps/programm && find einrichten src-tauri/src src-tauri/capabilities src-tauri/icons -type f | sort | xargs cat; \
+          K=$( (cd apps/programm && find einrichten src-tauri/src src-tauri/capabilities src-tauri/icons src-tauri/toene -type f | sort | xargs cat; \
                 cat src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/build.rs src-tauri/tauri.conf.json package.json; echo "$HAT_SCHLUESSEL") | sha256sum | cut -c1-16)
           echo "kennung=$K" >> "$GITHUB_OUTPUT"
           HAT=nein
