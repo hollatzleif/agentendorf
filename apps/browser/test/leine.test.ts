@@ -56,9 +56,13 @@ describe('Leine des Moodle-Browsers', () => {
   });
 
   it('Ajax-Namen: lesend vs. schreibend', () => {
-    for (const n of ['core_course_get_contents', 'core_calendar_get_action_events_by_timesort', 'mod_assign_get_submission_status', 'core_message_get_unread_conversation_counts', 'mod_resource_view_resource'])
+    for (const n of ['core_course_get_contents', 'core_calendar_get_action_events_by_timesort', 'mod_assign_get_submission_status', 'core_message_get_unread_conversation_counts', 'mod_resource_view_resource',
+      // echte Aufrufe des JKU-Dashboards: Komponente (block_…, core_enrol) ist kein Verb
+      'block_recentlyaccesseditems_get_recent_items', 'core_enrol_get_users_courses', 'block_timeline_get_events'])
       expect(nurLesend(n), n).toBe(true);
-    for (const n of ['mod_assign_save_submission', 'mod_assign_submit_for_grading', 'core_user_update_user_preferences', 'mod_forum_add_discussion_post', 'mod_quiz_start_attempt', 'core_session_touch', 'mod_assign_get_and_submit', 'core_course_edit_module'])
+    for (const n of ['mod_assign_save_submission', 'mod_assign_submit_for_grading', 'core_user_update_user_preferences', 'mod_forum_add_discussion_post', 'mod_quiz_start_attempt', 'core_session_touch', 'mod_assign_get_and_submit', 'core_course_edit_module',
+      // Komponente abgetrennt, das Verb zählt weiter
+      'block_starredcourses_set_favourite', 'core_block_add_block', 'core_enrol_submit_user_enrolment_form', 'local_x_delete_y', 'core_get_string_and_set'])
       expect(nurLesend(n), n).toBe(false);
   });
 });

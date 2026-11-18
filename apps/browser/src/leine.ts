@@ -32,9 +32,26 @@ const SCHREIBEND = new Set(
   'submit save update delete remove create add post send set start process lock unlock revert copy duplicate upload grade reset toggle mark enrol unenrol accept decline attempt edit move write change request block unblock favourite star hide show mute unmute touch logout confirm complete answer vote rate import export'.split(' '),
 );
 
-/** Moodle-Ajax-Funktion, die nur liest? Geprüft werden ganze Wortteile (a_b_c), nicht Teilzeichenfolgen. */
+// Moodle-Funktionsnamen beginnen mit der Komponente („Frankenstyle“): core_<Teilsystem>_… oder <Plugin-Typ>_<Plugin>_….
+// Die Komponente ist kein Verb – „block_recentlyaccesseditems_get_recent_items“ liest, obwohl „block“ vorkommt.
+const PLUGIN_TYPEN = new Set(
+  'mod block tool local theme format report gradereport gradeimport gradeexport qtype qbank qbehaviour enrol auth filter message availability assignsubmission assignfeedback quizaccess atto tiny editor dataformat repository portfolio ltisource booktool logstore media plagiarism search customfield paygw aiprovider aiplacement profilefield datafield workshopform mlbackend contenttype fileconverter antivirus communication smsgateway'.split(' '),
+);
+const TEILSYSTEME = new Set(
+  'course user enrol message calendar block completion grades grading files group notes rating comment competency tag badges question cohort role webservice output session navigation courseformat reportbuilder h5p contentbank customfield table form analytics backup blog favourites filters reminders moodlenet payment xapi'.split(' '),
+);
+function ohneKomponente(teile: string[]) {
+  if (teile[0] === 'core') return teile.slice(TEILSYSTEME.has(teile[1] ?? '') ? 2 : 1);
+  if (PLUGIN_TYPEN.has(teile[0] ?? '')) return teile.slice(2);
+  return teile;
+}
+
+/**
+ * Moodle-Ajax-Funktion, die nur liest? Geprüft werden ganze Wortteile (a_b_c) NACH der Komponente, nicht Teilzeichenfolgen.
+ * Ein lesendes Wort muss vorkommen, kein schreibendes – im Zweifel gesperrt.
+ */
 export function nurLesend(methodname: string): boolean {
-  const teile = methodname.toLowerCase().split('_');
+  const teile = ohneKomponente(methodname.toLowerCase().split('_'));
   return teile.some((t) => LESEND.has(t)) && !teile.some((t) => SCHREIBEND.has(t));
 }
 

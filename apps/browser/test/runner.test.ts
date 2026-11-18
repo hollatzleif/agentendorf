@@ -41,6 +41,9 @@ function fakeMoodle() {
         res.writeHead(200, { 'content-type': 'application/json' });
         return res.end('[{"error":false,"data":[]}]');
       }
+      // wie an der JKU: Nicht-Angemeldete sehen ein Gast-Dashboard statt einer Weiterleitung
+      if (!angemeldet && u.pathname === '/my/')
+        return html('Dashboard (Gast)', '<p>Sie sind als Gast angemeldet</p><a href="/login/index.php">Anmelden</a><a href="/course/view.php?id=1">Öffentlicher Kurs</a>');
       if (!angemeldet) return weiter('/login/index.php');
       if (u.pathname === '/my/')
         return html(
@@ -104,7 +107,10 @@ describe('Moodle-Browser gegen ein nachgebautes Moodle', () => {
 
   it('meldet sich über SSO-Knopf und Formular an; Passwort taucht nie in Antworten auf', async () => {
     const r = await b.anmeldungPruefen();
-    expect(r).toMatchObject({ ok: true });
+    expect(r).toMatchObject({ ok: true, meldung: expect.stringContaining('Dashboard') });
+    expect(r.meldung).not.toMatch(/Gast/);
+    // Gast-Dashboard → Login-Seite → SSO-Formular
+    expect(m.aufrufe).toContain('GET /login/index.php');
     expect(m.aufrufe).toContain('POST /auth/sso.php');
     expect(JSON.stringify(r)).not.toContain('sehr-geheim');
   });

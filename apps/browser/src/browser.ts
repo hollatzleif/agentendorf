@@ -200,16 +200,41 @@ export class MoodleBrowser {
     return (await this.hatPasswortfeld(page)) || /\/login\/index\.php$/.test(new URL(page.url()).pathname);
   }
 
+  /**
+   * Gast-Ansicht: JKU-Moodle leitet Nicht-Angemeldete nicht auf die Login-Seite, sondern zeigt ein Gast-Dashboard
+   * („Dashboard (Gast)“). Erkennbar an: Body-Klasse notloggedin, „(Gast)“ im Titel oder Anmelde-Link ohne Abmelde-Link.
+   */
+  private async istGast(page: Page) {
+    if (!hostErlaubt(page.url(), this.o.hosts)) return false;
+    return page
+      .evaluate(() => {
+        const b = document.body;
+        if (!b) return false;
+        if (b.classList.contains('notloggedin')) return true;
+        if (document.querySelector('a[href*="/login/logout.php"]')) return false;
+        return /\((Gast|Guest)\)/i.test(document.title) || !!document.querySelector('a[href*="/login/index.php"]');
+      })
+      .catch(() => false);
+  }
+
   private async nachNavigation(s: Sitzung) {
     await this.warten(s.page);
-    if (await this.istAnmeldeseite(s.page)) {
+    const anmeldeseite = await this.istAnmeldeseite(s.page);
+    const gast = !anmeldeseite && (await this.istGast(s.page));
+    if (anmeldeseite || gast) {
       const ziel = s.page.url();
+      if (gast) {
+        // von der Gast-Ansicht zur Login-Seite (dort SSO-Knopf oder Formular)
+        await s.page.goto(this.absolut('/login/index.php')).catch(() => undefined);
+        await this.warten(s.page);
+      }
       await this.anmelden(s.page);
       // nach der Anmeldung leitet Moodle meist zurück; sonst die ursprüngliche Seite neu öffnen
       if (hostErlaubt(ziel, this.o.hosts) && !/\/login\//.test(new URL(ziel).pathname) && s.page.url() !== ziel) {
         await s.page.goto(ziel).catch(() => undefined);
         await this.warten(s.page);
       }
+      if (await this.istGast(s.page)) throw new BrowserFehler('Anmeldung fehlgeschlagen – Moodle zeigt weiterhin die Gast-Ansicht.');
     }
   }
 
