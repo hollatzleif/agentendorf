@@ -243,8 +243,11 @@ export class Figuren {
       this.bm.obj.position.copy(r.pos);
       this.bm.obj.rotation.y = r.blick;
     }
-    // Rundgang beendet, aber unterwegs: zurück zum Rathaus laufen
-    if (this.bm.pos && (lauf?.status !== 'laeuft' || lauf.ausloeser !== 'zeitplan') && this.bm.obj.position.distanceTo(this.bm.pos) > 0.05)
+    // Rundgang gerade beendet (vorher Zeitplan-Lauf, jetzt nicht mehr): zurück zum Rathaus laufen.
+    // Nur beim Übergang – sonst würde jedes Status-Update sein Auf-und-ab-Gehen beim Nachdenken unterbrechen.
+    const warRundgang = this.bm.laeuft?.status === 'laeuft' && this.bm.laeuft.ausloeser === 'zeitplan';
+    const istRundgang = lauf?.status === 'laeuft' && lauf.ausloeser === 'zeitplan';
+    if (this.bm.pos && warRundgang && !istRundgang && this.bm.obj.position.distanceTo(this.bm.pos) > 0.05)
       this.bm.runde = this.reduziert ? [] : this.welt.weg(this.bm.obj.position.clone(), this.bm.pos);
     this.bm.laeuft = lauf;
     this.blaseSetzen(this.bm, lauf ? (lauf.status === 'laeuft' ? 'denken' : lauf.status === 'wartet_freigabe' ? 'brief' : 'sanduhr') : this.nachts ? 'schlafen' : null);
@@ -335,7 +338,7 @@ export class Figuren {
         aktiv = true;
         bm.winken -= dt;
         // unterwegs (Rundgang) bleibt er stehen, wo er ist, und winkt von dort
-        if (!bm.runde.length) {
+        if (!bm.runde.length && bm.obj.position.distanceTo(bm.pos!) < 0.05) {
           bm.obj.position.copy(bm.pos!);
           bm.obj.rotation.y = bm.blick;
         }
@@ -345,7 +348,13 @@ export class Figuren {
           bm.arme[1]!.rotation.x = 0;
           bm.arme[1]!.rotation.z = 0;
         }
-      } else if (bm.laeuft?.status === 'laeuft' && bm.laeuft.ausloeser === 'zeitplan' && this.welt.gebaeude && !this.reduziert) {
+      } else if (
+        bm.laeuft?.status === 'laeuft' &&
+        bm.laeuft.ausloeser === 'zeitplan' &&
+        this.welt.gebaeude &&
+        this.welt.gebaeude().some((g) => g !== 'Rathaus') &&
+        !this.reduziert
+      ) {
         // Rundgang (stündlich von selbst geweckt): von Gebäude zu Gebäude durchs Dorf, dazwischen kurz zurück zum Rathaus
         aktiv = true;
         if (!bm.runde.length) {

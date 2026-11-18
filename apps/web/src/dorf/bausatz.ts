@@ -190,7 +190,7 @@ export function entsorgen(o: THREE.Object3D) {
       if (x instanceof THREE.Mesh && !formenEnthalten(x.geometry)) x.geometry.dispose();
       const m = x.material as THREE.Material & { map?: THREE.Texture | null };
       // geteilte Materialien (Cache) nicht entsorgen – nur Einzelstücke mit eigener Textur
-      if (m.map && !materialienEnthalten(m)) {
+      if (m.map && !materialienEnthalten(m) && !m.userData.geteilt) {
         m.map.dispose();
         m.dispose();
       }

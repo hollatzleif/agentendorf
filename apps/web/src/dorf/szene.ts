@@ -156,6 +156,14 @@ class Himmel {
       v.fluegel[1]!.rotation.z = -schlag;
     }
   }
+  entsorgen() {
+    this.gruppe.traverse((x) => {
+      // Wolken nutzen die zwischengespeicherte Grundform (nicht entsorgen), die Vogel-Flügel eigene Flächen
+      if (x instanceof THREE.Mesh && x.geometry.type === 'PlaneGeometry') x.geometry.dispose();
+    });
+    this.wolkenMat.dispose();
+    (this.voegel[0]?.fluegel[0]?.material as THREE.Material | undefined)?.dispose();
+  }
   nacht(dunkel: number, truebung = 0) {
     this.wolkenMat.color.set('#ffffff').lerp(new THREE.Color('#8b95a3'), truebung).lerp(new THREE.Color('#3a4560'), dunkel * 0.8);
     for (const v of this.voegel) v.obj.visible = dunkel < 0.5;
@@ -381,7 +389,10 @@ export class DorfSzene {
       const g = new Gelaende(this.grenzen, { baeume: this.sparsam && !this.voll ? 500 : this.o.handy ? 1500 : 3200 });
       this.scene.add(g.gruppe);
       this.gelaende = { schluessel: gk, g };
-      if (this.himmelsGruppe) this.scene.remove(this.himmelsGruppe.gruppe);
+      if (this.himmelsGruppe) {
+        this.scene.remove(this.himmelsGruppe.gruppe);
+        this.himmelsGruppe.entsorgen();
+      }
       this.himmelsGruppe = new Himmel(new THREE.Vector3((this.grenzen.minX + this.grenzen.maxX) / 2, 0, (this.grenzen.minZ + this.grenzen.maxZ) / 2));
       this.scene.add(this.himmelsGruppe.gruppe);
     }
@@ -403,7 +414,7 @@ export class DorfSzene {
 
     // Straßen, Wasser, Deko
     const { belegung } = belegungBerechnen(d.layout);
-    const sk = JSON.stringify([d.layout.strassen, d.layout.wasser, d.layout.deko, Object.values(d.layout.gebaeude).map((g) => [g.x, g.z])]);
+    const sk = JSON.stringify([d.layout.strassen, d.layout.wasser, d.layout.deko, Object.values(d.layout.gebaeude).map((g) => [g.x, g.z, g.dreh])]);
     if (this.statisch?.schluessel !== sk) {
       if (this.statisch) {
         this.stadt.remove(this.statisch.gruppe);
@@ -425,7 +436,10 @@ export class DorfSzene {
       this.lichter.clear();
       for (const l of lichterDerDeko) this.lichter.add(this.lichtSprite(l.pos, l.groesse));
       this.strassenSet = new Set(d.layout.strassen.map(([x, z]) => feldSchluessel(x, z)));
-      if (this.autos) this.scene.remove(this.autos.gruppe);
+      if (this.autos) {
+        this.scene.remove(this.autos.gruppe);
+        entsorgen(this.autos.gruppe);
+      }
       this.autos = null;
       if (!this.o.reduziert && !this.sparsam && d.layout.strassen.length >= 10) {
         this.autos = new Autos(d.layout.strassen);
@@ -511,7 +525,10 @@ export class DorfSzene {
   }
 
   private lichtSprite(pos: THREE.Vector3, groesse: number) {
-    this.lichtMat ??= new THREE.SpriteMaterial({ map: lichtTextur(), color: '#ffd27a', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
+    if (!this.lichtMat) {
+      this.lichtMat = new THREE.SpriteMaterial({ map: lichtTextur(), color: '#ffd27a', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
+      this.lichtMat.userData.geteilt = true; // gehört allen Lampen – beim Abreißen eines Gebäudes nicht entsorgen
+    }
     const sp = new THREE.Sprite(this.lichtMat);
     sp.position.copy(pos);
     sp.scale.setScalar(groesse);
@@ -1104,7 +1121,8 @@ export class DorfSzene {
     const abstand = this.gedrosselt ? 125 : this.o.handy ? 31 : 0;
     if (abstand && !this.schmutzig && zeit - this.letztesBild < abstand) return;
     this.letztesBild = zeit;
-    const dt = Math.min(this.uhr.getDelta(), 0.1);
+    // gedrosselt kommt nur alle ~125 ms ein Bild – dt nicht zu knapp kappen, sonst läuft alles langsamer
+    const dt = Math.min(this.uhr.getDelta(), this.gedrosselt ? 0.2 : 0.1);
     let animiert = false;
     if (this.kameraAnimation) {
       const a = this.kameraAnimation;

@@ -46,6 +46,14 @@ function Rahmen() {
     else void n.clearAppBadge?.().catch(() => undefined);
     document.title = nf > 0 ? `(${nf}) Agentendorf` : 'Agentendorf';
   }, [nf, freigaben.data]);
+  // Abmelden: Plakette und Titel zurücksetzen
+  useEffect(
+    () => () => {
+      void (navigator as Navigator & { clearAppBadge?: () => Promise<void> }).clearAppBadge?.().catch(() => undefined);
+      document.title = 'Agentendorf';
+    },
+    [],
+  );
 
   let seite: React.ReactNode;
   if (pfad === '/') seite = <Dorfplatz />;

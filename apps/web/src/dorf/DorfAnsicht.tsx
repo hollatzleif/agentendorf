@@ -13,6 +13,21 @@ import { Neuigkeiten } from './Neuigkeiten';
 
 const KAMERA_SCHLUESSEL = 'dorf-kamera';
 const ZEITUNG_GELESEN = 'dorf-zeitung-gelesen';
+// localStorage kann gesperrt sein (privater Modus, strenge Einstellungen) – dann eben ohne Merken
+const speicherLesen = (k: string) => {
+  try {
+    return localStorage.getItem(k) ?? '';
+  } catch {
+    return '';
+  }
+};
+const speicherSetzen = (k: string, v: string) => {
+  try {
+    localStorage.setItem(k, v);
+  } catch {
+    /* egal */
+  }
+};
 const handy = () => window.matchMedia('(max-width: 760px), (pointer: coarse)').matches;
 const reduziert = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -37,11 +52,11 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
 
   // Morgenzeitung: roter Punkt am Zeitungs-Knopf, bis die neueste Ausgabe einmal geöffnet wurde (je Gerät)
   const zeitung = useQuery({ queryKey: ['morgenzeitung'], queryFn: () => api<MorgenzeitungUebersicht>('/api/morgenzeitung') });
-  const [gelesen, setGelesen] = useState(() => localStorage.getItem(ZEITUNG_GELESEN) ?? '');
+  const [gelesen, setGelesen] = useState(() => speicherLesen(ZEITUNG_GELESEN));
   const neueste = zeitung.data?.aktuell?.pfad ?? '';
   useEffect(() => {
     if (gewaehlt === 'Rathaus' && reiter === 'morgenzeitung' && neueste && neueste !== gelesen) {
-      localStorage.setItem(ZEITUNG_GELESEN, neueste);
+      speicherSetzen(ZEITUNG_GELESEN, neueste);
       setGelesen(neueste);
     }
   }, [gewaehlt, reiter, neueste, gelesen]);

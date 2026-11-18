@@ -16,10 +16,20 @@ const PUNKTE: [string, string][] = [
 
 /** Kleine Karte „Neu im Dorf“ – einmal pro Gerät und Ausgabe, blockiert nichts */
 export function Neuigkeiten() {
-  const [zu, setZu] = useState(() => navigator.webdriver || localStorage.getItem(SCHLUESSEL) === AUSGABE);
+  const [zu, setZu] = useState(() => {
+    try {
+      return navigator.webdriver || localStorage.getItem(SCHLUESSEL) === AUSGABE;
+    } catch {
+      return true; // ohne Speicher würde die Karte bei jedem Öffnen erscheinen – dann lieber nie
+    }
+  });
   if (zu) return null;
   const schliessen = () => {
-    localStorage.setItem(SCHLUESSEL, AUSGABE);
+    try {
+      localStorage.setItem(SCHLUESSEL, AUSGABE);
+    } catch {
+      /* egal */
+    }
     setZu(true);
   };
   return (
