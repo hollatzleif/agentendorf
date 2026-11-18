@@ -17,7 +17,7 @@ import {
   zufallAus,
   zylinder,
 } from './bausatz';
-import { laubFarben, nadelFarben } from './jahreszeit';
+import { jahreszeit, laubFarben, nadelFarben } from './jahreszeit';
 
 // Laub und Nadeln je Jahreszeit (beim Laden der Seite bestimmt)
 const LAUB = laubFarben();
@@ -38,8 +38,9 @@ const F = {
   holz: '#8a5a32',
   holzDunkel: '#5a3a24',
   gold: '#f2c14e',
-  rasen: '#7cc84a',
-  rasenDunkel: '#6bb83e',
+  // im Winter liegt auch auf den Rasenflächen Schnee
+  rasen: jahreszeit() === 'winter' ? '#e4ece6' : '#7cc84a',
+  rasenDunkel: jahreszeit() === 'winter' ? '#d6e2da' : '#6bb83e',
   gehweg: '#dcd8cf',
   bordstein: '#b9b3a8',
   erde: '#8b6340',

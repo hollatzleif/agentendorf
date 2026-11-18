@@ -204,7 +204,7 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
   - Im Dorf: Regen als Streifen, Schnee als Flocken, bei Bewölkung kaum Sonne und weiche Schatten, Nebel rückt näher, bei Gewitter ab und zu ein Blitz. Oben rechts steht ein kleines Schild „🌧️ 7°“.
   - In der Morgenzeitung steht unter „Heute“ die erste Zeile, z. B. „🌧️ Wetter in Linz: Regen, 6–14 °C, Regen 93 % – Schirm mitnehmen“. Der Schirm-Hinweis kommt ab 60 %.
   - Zum Ausprobieren: `/?wetter=regen` (oder `schnee`, `gewitter`, `nebel`, `bedeckt`).
-- **Jahreszeiten** nach dem Linzer Kalender: Frühling mit Blüten, Herbstlaub, im Winter Schnee auf Wiesen, Hügeln und Tannenspitzen. Die Grundstücke bleiben grün. Zum Ausprobieren: `/?jahreszeit=winter`.
+- **Jahreszeiten** nach dem Linzer Kalender: Frühling mit Blüten, Herbstlaub, im Winter Schnee auf Wiesen, Hügeln, Rasenflächen, Dächern und Tannenspitzen (das rote Frist-Dach geht vor). Zum Ausprobieren: `/?jahreszeit=winter`.
 - **Zeitungs-Knopf 📰** oben rechts: Ein roter Punkt zeigt, dass die neueste Morgenzeitung auf diesem Gerät noch nicht geöffnet wurde. Ein Tipp öffnet sie im Rathaus.
 - **Bürgermeister schläft nachts sichtbar** (Zz-Blase), wenn er gerade nichts zu tun hat. **Wasser glitzert** (treibende Lichtwellen).
 - **Wie ein Lauf endete** (`zuletzt` im Dorf-Status, 10 Minuten): Der Ticker meldet „✅ Fertig in …“, „❌ Fehler in …“ oder „⏹️ Abgebrochen in …“ statt nur „Zurück aus …“. Nur bei Erfolg regnet über dem Gebäude Konfetti.

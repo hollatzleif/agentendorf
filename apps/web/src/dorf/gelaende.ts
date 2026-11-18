@@ -138,7 +138,7 @@ export class Gelaende {
       const n = Math.sin(x * 0.7) * Math.cos(z * 0.9) * 0.5 + Math.sin(x * 0.21 + z * 0.33) * 0.5;
       const bf = bodenFarbe(jz, h);
       c.set(h < -0.15 ? '#cdbb86' : bf.farbe).offsetHSL(n * 0.015, n * 0.05, n * 0.035 + Math.min(Math.max(h, 0), 5) * 0.01);
-      // Schnee überall außer am Seeufer (die Rasenflächen der Grundstücke sind eigene Teile und bleiben grün)
+      // Schnee überall außer am Seeufer
       if (bf.schnee && h >= -0.15) c.lerp(schneeFarbe, Math.min(1, bf.schnee + n * 0.04));
       farben.push(c.r, c.g, c.b);
     }

@@ -8,6 +8,18 @@ import { Figuren } from './figuren';
 import { blase, namensschild, type BlasenArt } from './blasen';
 import { wegFinden } from './wege';
 import { Niederschlag, TRUEBUNG, wetterArtVon } from './wetter';
+import { jahreszeit } from './jahreszeit';
+
+const schneeDaecher = new Map<string, THREE.MeshStandardMaterial>();
+function schneeDach(m: THREE.MeshStandardMaterial) {
+  let s = schneeDaecher.get(m.uuid);
+  if (!s) {
+    s = m.clone();
+    s.color.lerp(new THREE.Color('#f2f6f9'), 0.62);
+    schneeDaecher.set(m.uuid, s);
+  }
+  return s;
+}
 
 export type SzeneTreffer =
   | { art: 'gebaeude'; id: string }
@@ -456,6 +468,11 @@ export class DorfSzene {
 
   private gebaeudeAnlegen(g: Gebaeude, schluessel: string): GebaeudeEintrag {
     const modell = gebaeudeModell(g);
+    // Winter: Schnee auf den Dächern (aufgehellte Dachfarbe; das rote Frist-Dach geht weiterhin vor)
+    if (jahreszeit() === 'winter')
+      modell.gruppe.traverse((m) => {
+        if (m instanceof THREE.Mesh && (m.name === 'dach' || m.name === 'dach2')) m.material = schneeDach(m.material as THREE.MeshStandardMaterial);
+      });
     const huelle = new THREE.Group();
     huelle.add(modell.gruppe);
     for (const l of modell.lichter) modell.gruppe.add(this.lichtSprite(l.pos, l.groesse));
