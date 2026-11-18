@@ -55,6 +55,14 @@ export interface Modell {
   rauch: THREE.Vector3[];
   /** Höhe für Statusblasen */
   hoehe: number;
+  /** Turmuhr: Zeiger als eigene Objekte (Drehung um die lokale z-Achse, 0 = zwölf Uhr), szene.ts stellt sie */
+  zeiger?: Zeiger;
+}
+export interface Zeiger {
+  stunde: THREE.Object3D[];
+  minute: THREE.Object3D[];
+  /** Halter, die nach dem Zusammenfassen der übrigen Teile in die Modellgruppe kommen */
+  objekte: THREE.Object3D[];
 }
 
 // ---- Bauteile -------------------------------------------------------------------------------------
@@ -333,7 +341,7 @@ function kiste(b: Bausatz, x: number, z: number, s = 1, y0 = BODEN, inhalt?: str
 
 // ---- Gebäude ------------------------------------------------------------------------------------
 
-type Bauer = (b: Bausatz, g: Gebaeude, rnd: () => number) => { rauch: THREE.Vector3[]; hoehe: number };
+type Bauer = (b: Bausatz, g: Gebaeude, rnd: () => number) => { rauch: THREE.Vector3[]; hoehe: number; zeiger?: Zeiger };
 
 const rathaus: Bauer = (b, _g, rnd) => {
   grundstueck(b);
@@ -771,6 +779,168 @@ const baustelle: Bauer = (b, _g, rnd) => {
   return { rauch: [new THREE.Vector3(1.55, BODEN + 0.7, 1.55)], hoehe: BODEN + 4.9 };
 };
 
+// ---- Kirchturm mit Turmuhr (E72) --------------------------------------------------------------------
+
+let zifferblattMat: THREE.MeshStandardMaterial | null = null;
+/** Zifferblatt: cremefarben, römische Ziffern, Minutenstriche (eine Textur für alle Seiten) */
+function zifferblatt() {
+  if (zifferblattMat) return zifferblattMat;
+  const px = 512;
+  zifferblattMat = new THREE.MeshStandardMaterial({
+    roughness: 0.55,
+    map: canvasTextur(px, px, (c) => {
+      const m = px / 2;
+      c.fillStyle = '#fbf3dc';
+      c.fillRect(0, 0, px, px);
+      c.strokeStyle = '#2b3a55';
+      c.lineWidth = 10;
+      c.beginPath();
+      c.arc(m, m, m - 12, 0, Math.PI * 2);
+      c.stroke();
+      for (let i = 0; i < 60; i++) {
+        const a = (i / 60) * Math.PI * 2;
+        const lang = i % 5 === 0;
+        const r1 = m - 22;
+        const r2 = r1 - (lang ? 34 : 14);
+        c.lineWidth = lang ? 9 : 4;
+        c.beginPath();
+        c.moveTo(m + Math.sin(a) * r1, m - Math.cos(a) * r1);
+        c.lineTo(m + Math.sin(a) * r2, m - Math.cos(a) * r2);
+        c.stroke();
+      }
+      c.fillStyle = '#2b3a55';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.font = '700 50px Georgia, "Times New Roman", serif';
+      const ziffern = ['XII', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI'];
+      ziffern.forEach((z, i) => {
+        const a = (i / 12) * Math.PI * 2;
+        c.fillText(z, m + Math.sin(a) * (m - 100), m - Math.cos(a) * (m - 100) + 3);
+      });
+    }),
+  });
+  zifferblattMat.userData.geteilt = true; // gehört allen Kirchtürmen – beim Abreißen nicht entsorgen
+  return zifferblattMat;
+}
+
+/** Ein Zeiger als eigenes Objekt: dreht sich um die lokale z-Achse (Blick aufs Zifferblatt), 0 = zwölf Uhr */
+function zeigerObjekt(laenge: number, breite: number, farbe: string) {
+  const dreh = new THREE.Group();
+  const m = new THREE.Mesh(quader(breite, laenge + 0.08, 0.018), material(farbe, { metall: true }));
+  m.position.y = laenge / 2 - 0.04; // kurzes Ende über die Mitte hinaus
+  const spitze = new THREE.Mesh(pyramide(breite * 1.6, breite * 1.4), material(farbe, { metall: true }));
+  spitze.position.y = laenge + breite * 0.5;
+  dreh.add(m, spitze);
+  return dreh;
+}
+
+const kirchturm: Bauer = (b, _g, rnd) => {
+  grundstueck(b);
+  const stein = '#efe6d2';
+  const kante = '#cbbd9f';
+  const dach = '#3f7a68'; // Kupfer mit Patina
+  const tz = -0.45;
+  // Weg vom Gehsteig zur Tür
+  b.teil(kasten(0.75, 0.03, 1.45, 0.01), '#e3dccd', 0, BODEN + 0.015, 1.15);
+  for (let i = 0; i < 4; i++) b.teil(quader(0.7, 0.005, 0.02), '#cfc6b5', 0, BODEN + 0.032, 0.55 + i * 0.36, { keinSchatten: true });
+  const geschosse: [number, number, number][] = [
+    [1.8, 0.35, 1.65], // Breite, Unterkante (über BODEN), Höhe
+    [1.7, 2.0, 1.4],
+    [1.62, 3.4, 1.35], // Uhrgeschoss
+  ];
+  const uhrY = BODEN + 3.4 + 1.35 / 2;
+  const uhrHalb = 1.62 / 2;
+  b.mit(0, 0, tz, 0, () => {
+    b.teil(kasten(2.05, 0.35, 2.05, 0.03), F.steinDunkel, 0, BODEN + 0.175, 0);
+    for (const [w, y0, h] of geschosse) {
+      b.teil(kasten(w, h, w, 0.03), stein, 0, BODEN + y0 + h / 2, 0);
+      b.teil(kasten(w + 0.12, 0.1, w + 0.12, 0.02), kante, 0, BODEN + y0 + h, 0);
+      // Eckquader
+      for (const sx of [-1, 1])
+        for (const sz of [-1, 1])
+          for (let y = y0 + 0.12, i = 0; y < y0 + h - 0.12; y += 0.24, i++)
+            b.teil(quader(i % 2 ? 0.14 : 0.22, 0.12, i % 2 ? 0.22 : 0.14), kante, sx * (w / 2 - (i % 2 ? 0.06 : 0.1)) + sx * 0.012, BODEN + y + 0.06, sz * (w / 2 - (i % 2 ? 0.1 : 0.06)) + sz * 0.012);
+    }
+    // Erdgeschoss: Tür vorn, kleine Fenster an den Seiten
+    tuer(b, 0, 0.9, 0, '#6b3f22', { w: 0.6, h: 1.1, stufen: 2 });
+    b.teil(halbkugel(0.4, 16), kante, 0, BODEN + 1.2, 0.9, { sz: 0.15 }); // Rundbogen über der Tür
+    for (const s of [-1, 1]) fenster(b, s * 0.9, BODEN + 1.2, 0, (s * Math.PI) / 2, { w: 0.22, h: 0.4, sprossen: false });
+    // zweites Geschoss: schmale, hohe Fenster auf allen Seiten
+    for (let k = 0; k < 4; k++)
+      b.mit(0, 0, 0, (k * Math.PI) / 2, () => {
+        fenster(b, 0, BODEN + 2.7, 0.85, 0, { w: 0.22, h: 0.7, sprossen: false, licht: k === 0 });
+        b.teil(halbkugel(0.15, 12), kante, 0, BODEN + 3.13, 0.86, { sz: 0.2 });
+      });
+    // Uhrgeschoss: Zifferblatt auf allen vier Seiten
+    for (let k = 0; k < 4; k++)
+      b.mit(0, 0, 0, (k * Math.PI) / 2, () => {
+        b.teil(kasten(1.18, 1.18, 0.06, 0.02), '#2b3a55', 0, uhrY, uhrHalb + 0.02);
+        b.teil(scheibe(0.5, 40), zifferblatt(), 0, uhrY, uhrHalb + 0.055, { rx: Math.PI / 2, keinSchatten: true });
+        b.teil(torus(0.51, 0.03), F.gold, 0, uhrY, uhrHalb + 0.06, { metall: true });
+        b.teil(kugel(0.045, 10, 8), F.gold, 0, uhrY, uhrHalb + 0.12, { metall: true });
+      });
+    // Glockenstube: Eckpfeiler, offene Schallöffnungen, Glocke
+    const gy = BODEN + 4.75;
+    const gh = 1.25;
+    b.teil(kasten(1.62, 0.1, 1.62, 0.02), kante, 0, gy + 0.05, 0);
+    b.teil(kasten(1.2, gh - 0.1, 1.2, 0.02), '#3a3530', 0, gy + gh / 2, 0); // dunkler Innenraum
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.teil(kasten(0.34, gh, 0.34, 0.03), stein, sx * 0.64, gy + gh / 2, sz * 0.64);
+    for (let k = 0; k < 4; k++)
+      b.mit(0, 0, 0, (k * Math.PI) / 2, () => {
+        b.teil(kasten(1.5, 0.22, 0.18, 0.02), stein, 0, gy + gh - 0.11, 0.67); // Sturz
+        for (let i = -2; i <= 2; i++) b.teil(zylinder(0.03, 0.04, 0.3, 8), stein, i * 0.2, gy + 0.25, 0.67); // Brüstung
+        b.teil(kasten(1.0, 0.06, 0.12, 0.01), kante, 0, gy + 0.42, 0.67);
+      });
+    b.teil(quader(1.3, 0.06, 0.08), F.holzDunkel, 0, gy + gh - 0.3, 0); // Glockenstuhl
+    b.teil(kegel(0.3, 0.48, 18), '#b58a3c', 0, gy + gh - 0.6, 0, { metall: true });
+    b.teil(torus(0.29, 0.035), '#a07832', 0, gy + gh - 0.84, 0, { rx: Math.PI / 2, metall: true });
+    b.teil(kugel(0.06, 8, 6), '#8a6a2a', 0, gy + gh - 0.9, 0, { metall: true });
+    // Helm: vier Ziergiebel, achteckige Spitze, Kugel und Kreuz
+    const hy = gy + gh;
+    b.teil(kasten(1.72, 0.12, 1.72, 0.02), kante, 0, hy + 0.06, 0);
+    for (let k = 0; k < 4; k++)
+      b.mit(0, 0, 0, (k * Math.PI) / 2, () => {
+        b.teil(giebel(1.56, 0.78, 0.5), dach, 0, hy + 0.12, 0.55, { name: 'dach' });
+        b.teil(giebel(1.4, 0.7, 0.06), stein, 0, hy + 0.12, 0.83);
+        b.teil(scheibe(0.12, 16), '#2b3a55', 0, hy + 0.36, 0.865, { rx: Math.PI / 2, keinSchatten: true });
+      });
+    b.teil(kegel(0.78, 3.1, 8), dach, 0, hy + 0.12 + 1.55, 0, { flach: true, ry: Math.PI / 8, name: 'dach2' });
+    const spitze = hy + 0.12 + 3.1;
+    b.teil(zylinder(0.025, 0.025, 0.35, 6), F.gold, 0, spitze + 0.1, 0, { metall: true });
+    b.teil(kugel(0.1, 12, 8), F.gold, 0, spitze + 0.2, 0, { metall: true });
+    b.teil(quader(0.045, 0.5, 0.045), F.gold, 0, spitze + 0.55, 0, { metall: true });
+    b.teil(quader(0.28, 0.045, 0.045), F.gold, 0, spitze + 0.64, 0, { metall: true });
+  });
+  // Platz vor dem Turm
+  parkbank(b, -1.45, 1.35, Math.PI / 2);
+  parkbank(b, 1.45, 1.35, -Math.PI / 2);
+  laterne(b, -0.75, 1.95);
+  baum(b, -1.85, -1.85, 0.85, rnd);
+  tanne(b, 1.85, -1.8, 0.9);
+  blumenbeet(b, 1.55, 0.35, 0.55, 0.9, rnd);
+  blumenbeet(b, -1.55, 0.35, 0.55, 0.9, rnd);
+  busch(b, 1.9, 1.9, 0.8, rnd);
+
+  // Zeiger: je Seite ein Stunden- und ein Minutenzeiger (separate Objekte, szene.ts stellt sie auf die Wiener Zeit)
+  const seiten: THREE.Object3D[] = [];
+  const stunde: THREE.Object3D[] = [];
+  const minute: THREE.Object3D[] = [];
+  for (let k = 0; k < 4; k++) {
+    const seite = new THREE.Group();
+    seite.position.set(0, 0, tz);
+    seite.rotation.y = (k * Math.PI) / 2;
+    const s = zeigerObjekt(0.27, 0.06, '#1d1d24');
+    s.position.set(0, uhrY, uhrHalb + 0.075);
+    const m = zeigerObjekt(0.4, 0.04, '#1d1d24');
+    m.position.set(0, uhrY, uhrHalb + 0.095);
+    seite.add(s, m);
+    stunde.push(s);
+    minute.push(m);
+    seiten.push(seite);
+  }
+  return { rauch: [new THREE.Vector3(0, BODEN + 6.0, tz)], hoehe: BODEN + 10.0, zeiger: { stunde, minute, objekte: seiten } };
+};
+
 const WANDFARBEN = ['#f6e7c8', '#ffd8a8', '#d7ecff', '#e8f5d0', '#f9d5e5', '#fff1b8', '#e6dcf5'];
 const DACHFARBEN = ['#3b6fd8', '#2fa36b', '#7a5c99', '#33467a', '#8a5a32', '#2f8f8f', '#5f6f8a'];
 const LADENFARBEN = ['#2e5aa8', '#2f5d3a', '#7a3b22', '#5a3a8a', '#2f8f8f'];
@@ -815,6 +985,7 @@ const BAUER: Record<string, Bauer> = {
   bank,
   boerse,
   einkaufsladen,
+  kirchturm,
 };
 
 export function modellArt(g: Gebaeude): string {
@@ -827,14 +998,245 @@ export function gebaeudeModell(g: Gebaeude): Modell {
   const b = new Bausatz();
   const art = modellArt(g);
   const bauer = art === 'baustelle' ? baustelle : (BAUER[art] ?? haus);
-  const { rauch, hoehe } = bauer(b, g, zufallAus(g.id));
+  const { rauch, hoehe, zeiger } = bauer(b, g, zufallAus(g.id));
   const lichter = [...b.lichter];
-  return { gruppe: b.fertig(), rauch, hoehe, lichter };
+  const gruppe = b.fertig();
+  for (const o of zeiger?.objekte ?? []) gruppe.add(o);
+  return { gruppe, rauch, hoehe, lichter, ...(zeiger ? { zeiger } : {}) };
+}
+
+// ---- Häuschen und kleine Deko (E72) -----------------------------------------------------------------
+
+const HAEUSCHEN_DACH = ['#b5523b', '#c0633f', '#8a5a32', '#4f5d75', '#3b6fd8', '#2f8f8f', '#7a5c99', '#9a4a3a'];
+
+/**
+ * Kleines Wohnhaus auf 2 × 2 Feldern, Eingang nach +z (lokal). Aussehen fest aus der Position: Wand-/Dachfarbe,
+ * Dachform (trauf-/giebelständig, Zeltdach), Schornstein, Fensterläden, Blumenkästen, Fachwerk.
+ */
+function haeuschen(b: Bausatz, x: number, z: number, ry: number) {
+  const rnd = zufallAus(`haeuschen:${Math.round(x * 8)},${Math.round(z * 8)}`);
+  const fachwerk = rnd() < 0.2;
+  const wf = fachwerk ? '#f7f1e3' : WANDFARBEN[Math.floor(rnd() * WANDFARBEN.length)]!;
+  const dach = HAEUSCHEN_DACH[Math.floor(rnd() * HAEUSCHEN_DACH.length)]!;
+  const laden = rnd() < 0.55 ? LADENFARBEN[Math.floor(rnd() * LADENFARBEN.length)]! : undefined;
+  const form = rnd();
+  const kaesten = rnd() < 0.45;
+  const w = 1.6 + Math.round(rnd() * 2) * 0.12;
+  const d = 1.3;
+  const h = rnd() < 0.3 ? 1.3 : 1.1;
+  const tuerFarbe = laden ?? (rnd() < 0.5 ? F.holz : '#5a3a8a');
+  // Haus auf den Boden der Deko-Felder (die Bauteile rechnen ab BODEN)
+  b.mit(x, -BODEN + 0.03, z, ry, () => {
+    b.mit(0, 0, -0.2, 0, () => {
+      wand(b, w, h, d, wf, { sockel: F.steinDunkel });
+      if (fachwerk)
+        for (const s of [-1, 1]) {
+          const zf = s * (d / 2 + 0.012);
+          for (const fx of [-w / 2 + 0.05, -0.32, 0.32, w / 2 - 0.05]) b.teil(quader(0.06, h - 0.2, 0.025), F.holzDunkel, fx, BODEN + 0.1 + (h - 0.2) / 2 + 0.1, zf);
+          b.teil(quader(w, 0.06, 0.025), F.holzDunkel, 0, BODEN + h * 0.55, zf);
+          for (const sx of [-1, 1]) b.teil(quader(0.05, 0.5, 0.02), F.holzDunkel, sx * (w / 2 - 0.2), BODEN + h * 0.32, zf, { rz: sx * 0.6 });
+        }
+      const fy = BODEN + 0.62;
+      for (const fx of [-w / 4 - 0.08, w / 4 + 0.08]) fenster(b, fx, fy, d / 2, 0, { w: 0.3, h: 0.36, laden, kasten: kaesten });
+      for (const fx of [-w / 4, w / 4]) fenster(b, fx, fy, -d / 2, Math.PI, { w: 0.3, h: 0.36, laden });
+      for (const s of [-1, 1]) fenster(b, (s * w) / 2, fy, 0, (s * Math.PI) / 2, { w: 0.28, h: 0.36, laden });
+      tuer(b, 0, d / 2, 0, tuerFarbe, { w: 0.38, h: 0.76, vordach: rnd() < 0.5 ? dach : undefined });
+      if (form < 0.45) {
+        // traufständig: First parallel zur Straße
+        satteldach(b, w, d, 0.62, BODEN + h, dach, { ueberstand: 0.14, giebelFarbe: wf });
+      } else if (form < 0.8) {
+        // giebelständig: Giebel zur Straße, mit kleinem Rundfenster
+        b.mit(0, 0, 0, Math.PI / 2, () => satteldach(b, d, w, 0.7, BODEN + h, dach, { ueberstand: 0.14, giebelFarbe: wf }));
+        b.teil(scheibe(0.1, 14), F.glas, 0, BODEN + h + 0.24, d / 2 + 0.05, { rx: Math.PI / 2, glanz: true, keinSchatten: true });
+        b.teil(torus(0.1, 0.02), F.rahmen, 0, BODEN + h + 0.24, d / 2 + 0.055);
+      } else {
+        // Zeltdach
+        b.teil(kasten(w + 0.24, 0.06, d + 0.24, 0.02), F.rahmen, 0, BODEN + h + 0.02, 0);
+        b.teil(pyramide(1, 0.72), dach, 0, BODEN + h + 0.05 + 0.36, 0, { sx: w + 0.3, sz: d + 0.3, flach: true, name: 'dach' });
+      }
+      if (rnd() < 0.65) schornstein(b, (w / 2 - 0.35) * (rnd() < 0.5 ? -1 : 1), BODEN + h + 0.15, -0.3, 0.55);
+    });
+    // Gartenweg aus Trittplatten zur Straße
+    for (let i = 0; i < 3; i++) b.teil(kasten(0.28, 0.04, 0.2, 0.02), '#d8d0c2', (i % 2 ? 0.04 : -0.04), BODEN + 0.0, 0.72 + i * 0.22, { keinSchatten: true });
+    if (rnd() < 0.5) busch(b, w / 2 + 0.05, 0.75, 0.55, rnd);
+  });
+}
+
+function gartenhuette(b: Bausatz, x: number, z: number, ry: number, rnd: () => number) {
+  const holz = rnd() < 0.5 ? '#9b6a3e' : '#6f8f5a';
+  b.mit(x, -BODEN, z, ry, () => {
+    b.teil(kasten(0.86, 0.06, 0.74, 0.01), F.stein, 0, BODEN + 0.03, 0);
+    b.teil(kasten(0.72, 0.58, 0.6, 0.02), holz, 0, BODEN + 0.35, 0);
+    for (let i = -3; i <= 3; i++) b.teil(quader(0.012, 0.56, 0.008), dunkler(holz, 0.1), i * 0.1, BODEN + 0.35, 0.304, { keinSchatten: true });
+    b.teil(kasten(0.26, 0.46, 0.03, 0.01), dunkler(holz, 0.12), -0.14, BODEN + 0.3, 0.31);
+    b.teil(kugel(0.018, 6, 4), F.gold, -0.05, BODEN + 0.3, 0.33, { metall: true });
+    fenster(b, 0.36, BODEN + 0.42, 0, Math.PI / 2, { w: 0.2, h: 0.18, sprossen: false });
+    satteldach(b, 0.72, 0.6, 0.24, BODEN + 0.64, '#5f6f8a', { ueberstand: 0.07, giebelFarbe: holz });
+  });
+}
+
+function gartenzaun(b: Bausatz, x: number, z: number, ry: number, rnd: () => number) {
+  const farbe = rnd() < 0.6 ? '#f4efe4' : '#a8703a';
+  const l = FELD;
+  b.mit(x, 0, z, ry, () => {
+    for (const s of [-1, 1]) b.teil(quader(0.07, 0.5, 0.07), dunkler(farbe, 0.08), s * (l / 2 - 0.04), 0.25, 0);
+    for (const y of [0.17, 0.36]) b.teil(quader(l - 0.04, 0.04, 0.03), farbe, 0, y, -0.03);
+    for (let i = 0; i < 7; i++) {
+      const px = -l / 2 + 0.16 + i * ((l - 0.32) / 6);
+      b.teil(quader(0.07, 0.4, 0.025), farbe, px, 0.2, 0);
+      b.teil(pyramide(0.07, 0.07), farbe, px, 0.435, 0, { sz: 0.36 });
+    }
+  });
+}
+
+function steinmauer(b: Bausatz, x: number, z: number, ry: number, rnd: () => number) {
+  const grau = ['#a7a196', '#b8b1a4', '#958f84', '#c3bcaf'];
+  const l = FELD;
+  b.mit(x, 0, z, ry, () => {
+    for (let r = 0; r < 3; r++) {
+      let px = -l / 2 + (r % 2 ? 0.08 : 0);
+      while (px < l / 2 - 0.05) {
+        const lang = Math.min(0.2 + rnd() * 0.16, l / 2 - px);
+        b.teil(kasten(lang - 0.02, 0.13, 0.3 - r * 0.03, 0.03), grau[Math.floor(rnd() * grau.length)]!, px + lang / 2, 0.07 + r * 0.13, 0, { flach: true });
+        px += lang;
+      }
+    }
+    for (let i = 0; i < 3; i++) b.teil(ikosaeder(0.07, 0), '#6f9e4a', -0.4 + i * 0.35 + rnd() * 0.1, 0.42, 0, { flach: true, sy: 0.5 });
+  });
+}
+
+function briefkasten(b: Bausatz, x: number, z: number, ry: number, rnd: () => number) {
+  const farbe = ['#c0392b', '#2f5d3a', '#33467a', '#e8a33d'][Math.floor(rnd() * 4)]!;
+  b.mit(x, 0, z, ry, () => {
+    b.teil(quader(0.07, 0.72, 0.07), F.holzDunkel, 0, 0.36, -0.05);
+    b.teil(kasten(0.22, 0.18, 0.32, 0.04), farbe, 0, 0.8, 0);
+    b.teil(zylinder(0.11, 0.11, 0.32, 12), farbe, 0, 0.89, 0, { rx: Math.PI / 2 });
+    b.teil(quader(0.12, 0.02, 0.01), F.dunkel, 0, 0.82, 0.165);
+    b.teil(quader(0.02, 0.18, 0.02), '#e8413c', 0.12, 0.92, -0.06);
+    b.teil(quader(0.02, 0.07, 0.1), '#e8413c', 0.12, 0.98, -0.02);
+    b.teil(ikosaeder(0.12, 1), '#5dbb4a', 0.12, 0.08, 0.1, { flach: true });
+  });
+}
+
+function blumenkuebel(b: Bausatz, x: number, z: number, rnd: () => number) {
+  const n = 1 + Math.floor(rnd() * 3);
+  const plaetze: [number, number, number][] = [[0, 0, 1], [0.3, 0.22, 0.75], [-0.28, 0.25, 0.65]];
+  for (let i = 0; i < n; i++) {
+    const [dx, dz, s] = plaetze[i]!;
+    b.mit(x + dx, 0, z + dz, 0, () => {
+      b.teil(zylinder(0.17, 0.12, 0.28, 12), '#c4683f', 0, 0.14, 0);
+      b.teil(zylinder(0.19, 0.19, 0.04, 12), '#b55a34', 0, 0.28, 0);
+      b.teil(scheibe(0.16, 12), F.erde, 0, 0.29, 0, { keinSchatten: true });
+      if (rnd() < 0.4) b.teil(kugel(0.2, 10, 8), '#4f9e3f', 0, 0.45, 0, { flach: true });
+      else {
+        b.teil(ikosaeder(0.15, 1), '#5dbb4a', 0, 0.38, 0, { flach: true });
+        for (let k = 0; k < 5; k++) b.teil(kugel(0.04, 6, 4), F.blumen[Math.floor(rnd() * F.blumen.length)]!, Math.cos(k * 1.3) * 0.12, 0.45 + (k % 2) * 0.04, Math.sin(k * 1.3) * 0.12);
+      }
+    }, s);
+  }
+}
+
+function holzstapel(b: Bausatz, x: number, z: number, ry: number, rnd: () => number) {
+  b.mit(x, 0, z, ry, () => {
+    for (let r = 0; r < 3; r++)
+      for (let i = 0; i < 4 - r; i++) {
+        const px = -0.27 + r * 0.09 + i * 0.18;
+        const py = 0.09 + r * 0.155;
+        b.teil(zylinder(0.085, 0.085, 0.62, 8), '#7a4a28', px, py, -0.1, { rx: Math.PI / 2 });
+        b.teil(zylinder(0.07, 0.07, 0.63, 8), '#d9b07a', px, py, -0.1, { rx: Math.PI / 2, keinSchatten: true });
+      }
+    // Hackklotz mit Beil
+    b.teil(zylinder(0.15, 0.16, 0.22, 10), '#8a5a32', 0.32, 0.11, 0.38);
+    b.teil(scheibe(0.14, 10), '#d9b07a', 0.32, 0.225, 0.38, { keinSchatten: true });
+    b.teil(quader(0.03, 0.3, 0.03), F.holz, 0.32, 0.36, 0.38, { rz: 0.4 });
+    b.teil(kasten(0.12, 0.08, 0.025, 0.01), '#8892a0', 0.27, 0.48, 0.38, { rz: 0.4, metall: true });
+    void rnd;
+  });
+}
+
+function wegweiser(b: Bausatz, x: number, z: number, ry: number, rnd: () => number) {
+  const farben = ['#2f8f8f', '#e8a33d', '#3b6fd8', '#b5523b', '#3fa63a'];
+  b.mit(x, 0, z, ry, () => {
+    b.teil(zylinder(0.04, 0.05, 1.25, 8), F.holz, 0, 0.62, 0);
+    b.teil(kugel(0.06, 8, 6), F.holzDunkel, 0, 1.27, 0);
+    for (let i = 0; i < 3; i++) {
+      const winkel = (i - 1) * 1.1 + rnd() * 0.4;
+      const richtung = i % 2 ? -1 : 1;
+      b.mit(0, 1.08 - i * 0.17, 0, winkel, () => {
+        const f = farben[Math.floor(rnd() * farben.length)]!;
+        b.teil(kasten(0.46, 0.11, 0.03, 0.01), f, richtung * 0.27, 0, 0);
+        b.teil(giebel(0.13, 0.09, 0.03), f, richtung * 0.5, 0, 0, { rz: -richtung * Math.PI / 2 });
+        b.teil(quader(0.3, 0.015, 0.035), '#ffffff', richtung * 0.26, 0, 0, { keinSchatten: true });
+      });
+    }
+  });
+}
+
+function bienenstock(b: Bausatz, x: number, z: number, ry: number, rnd: () => number) {
+  b.mit(x, 0, z, ry, () => {
+    for (const [lx, lz] of [[-0.32, -0.15], [0.32, -0.15], [-0.32, 0.15], [0.32, 0.15]] as const) b.teil(quader(0.05, 0.2, 0.05), F.holzDunkel, lx, 0.1, lz);
+    b.teil(kasten(0.82, 0.05, 0.42, 0.01), F.holz, 0, 0.22, 0);
+    for (const sx of [-0.2, 0.2]) {
+      for (let s = 0; s < 3; s++) b.teil(kasten(0.32, 0.13, 0.3, 0.02), s % 2 ? '#fff4cf' : '#f2d06b', sx, 0.31 + s * 0.13, 0);
+      b.teil(kasten(0.38, 0.05, 0.36, 0.01), '#8a5a32', sx, 0.66, 0);
+      b.teil(quader(0.14, 0.02, 0.01), '#3a2a20', sx, 0.27, 0.152);
+    }
+    // ein paar Bienen und Blumen
+    for (let i = 0; i < 5; i++) b.teil(kugel(0.022, 6, 4), i % 2 ? '#2b2b2b' : '#ffc23d', (rnd() - 0.5) * 0.8, 0.45 + rnd() * 0.4, 0.25 + rnd() * 0.2, { keinSchatten: true });
+    for (let i = 0; i < 6; i++) b.teil(kugel(0.04, 6, 4), F.blumen[i % F.blumen.length]!, -0.45 + i * 0.18, 0.06, 0.42);
+  });
+}
+
+function teich(b: Bausatz, x: number, z: number, rnd: () => number) {
+  b.mit(x, 0, z, 0, () => {
+    b.teil(scheibe(0.5, 20), F.erde, 0, 0.012, 0, { keinSchatten: true });
+    b.teil(scheibe(0.46, 20), '#59c3ef', 0, 0.04, 0, { glanz: true, keinSchatten: true });
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2 + rnd() * 0.2;
+      b.teil(ikosaeder(0.07 + rnd() * 0.04, 0), i % 3 ? '#a7a196' : '#8f897e', Math.cos(a) * 0.52, 0.05, Math.sin(a) * 0.52, { flach: true, sy: 0.6 });
+    }
+    for (const [lx, lz] of [[-0.15, 0.1], [0.12, -0.15], [0.2, 0.18]] as const) {
+      b.teil(zylinder(0.08, 0.08, 0.01, 10), '#4f9e3f', lx, 0.05, lz);
+      b.teil(kugel(0.03, 6, 4), '#ff8ac0', lx + 0.02, 0.07, lz);
+    }
+    for (let i = 0; i < 6; i++) {
+      const rx = -0.35 + rnd() * 0.15;
+      const rz = -0.3 + i * 0.1;
+      b.teil(quader(0.015, 0.42, 0.015), '#5e8f3a', rx, 0.21, rz, { rz: (rnd() - 0.5) * 0.3 });
+      if (i % 2) b.teil(kasten(0.035, 0.1, 0.035, 0.015), '#6b4426', rx, 0.4, rz);
+    }
+  });
+}
+
+function pilze(b: Bausatz, x: number, z: number, rnd: () => number) {
+  const n = 3 + Math.floor(rnd() * 3);
+  for (let i = 0; i < n; i++) {
+    const a = rnd() * Math.PI * 2;
+    const r = 0.1 + rnd() * 0.3;
+    const s = 0.7 + rnd() * 0.6;
+    const rot = i !== 1;
+    b.mit(x + Math.cos(a) * r, 0, z + Math.sin(a) * r, rnd() * 6, () => {
+      b.teil(zylinder(0.03, 0.04, 0.14, 8), '#f3ead6', 0, 0.07, 0);
+      b.teil(halbkugel(0.1, 12), rot ? '#d8342c' : '#9a6a3a', 0, 0.13, 0, { sy: 0.7 });
+      if (rot) for (let k = 0; k < 4; k++) b.teil(kugel(0.016, 5, 4), '#ffffff', Math.cos(k * 1.6) * 0.06, 0.18, Math.sin(k * 1.6) * 0.06, { keinSchatten: true });
+    }, s);
+  }
+  b.teil(ikosaeder(0.1, 0), '#6bb83e', x - 0.25, 0.04, z + 0.2, { flach: true, sy: 0.5 });
+}
+
+function heuballen(b: Bausatz, x: number, z: number, ry: number) {
+  b.mit(x, 0, z, ry, () => {
+    // liegender Ballen (Achse quer) und ein stehender daneben
+    b.teil(zylinder(0.28, 0.28, 0.42, 16), '#e3c169', -0.15, 0.28, -0.05, { rz: Math.PI / 2 });
+    b.teil(zylinder(0.18, 0.18, 0.425, 14), '#cfa64e', -0.15, 0.28, -0.05, { rz: Math.PI / 2, keinSchatten: true });
+    b.teil(zylinder(0.22, 0.22, 0.34, 14), '#e3c169', 0.3, 0.17, 0.28);
+    b.teil(zylinder(0.14, 0.14, 0.345, 12), '#cfa64e', 0.3, 0.17, 0.28, { keinSchatten: true });
+  });
 }
 
 // ---- Deko-Felder ----------------------------------------------------------------------------------
 
-/** Ein Deko-Objekt auf einem Feld (lokal um die Feldmitte, Boden y=0) */
+/** Ein Deko-Objekt auf seinen Feldern (x/z = Mitte der belegten Fläche, Boden y=0) */
 export function dekoBauen(b: Bausatz, art: DekoArt, x: number, z: number, dreh: number, rnd: () => number) {
   const ry = (dreh * Math.PI) / 2;
   switch (art) {
@@ -869,6 +1271,30 @@ export function dekoBauen(b: Bausatz, art: DekoArt, x: number, z: number, dreh: 
       return;
     case 'hecke':
       return hecke(b, x, z, FELD, ry, 0);
+    case 'haeuschen':
+      return haeuschen(b, x, z, ry);
+    case 'schuppen':
+      return gartenhuette(b, x, z, ry, rnd);
+    case 'zaun':
+      return gartenzaun(b, x, z, ry, rnd);
+    case 'mauer':
+      return steinmauer(b, x, z, ry, rnd);
+    case 'briefkasten':
+      return briefkasten(b, x, z, ry, rnd);
+    case 'kuebel':
+      return blumenkuebel(b, x, z, rnd);
+    case 'holzstapel':
+      return holzstapel(b, x, z, ry, rnd);
+    case 'wegweiser':
+      return wegweiser(b, x, z, ry, rnd);
+    case 'bienenstock':
+      return bienenstock(b, x, z, ry, rnd);
+    case 'teich':
+      return teich(b, x, z, rnd);
+    case 'pilze':
+      return pilze(b, x, z, rnd);
+    case 'heuballen':
+      return heuballen(b, x, z, ry);
   }
 }
 

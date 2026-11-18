@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { GRUNDSTUECK, belegungBerechnen, feldSchluessel, type DorfLayout, type DorfStatus, type DorfWetter, type Gebaeude, type WetterArt } from '@dorf/shared';
+import { DEKO_GROESSE, GRUNDSTUECK, belegungBerechnen, feldSchluessel, type DorfLayout, type DorfStatus, type DorfWetter, type Gebaeude, type WetterArt } from '@dorf/shared';
 import { Bausatz, entsorgen, glasMaterialien, ikosaeder, leuchtMaterialien, material, zufallAus } from './bausatz';
 import { BODEN, FELD, PLATZ, auto, dekoBauen, gebaeudeModell, modellArt, type Modell } from './modelle';
 import { Gelaende, feldMitte, strassenUndWasser, wasserFreigeben, wasserTick, type Grenzen } from './gelaende';
@@ -266,6 +266,8 @@ export class DorfSzene {
   private zeiger: { x: number; y: number; zeit: number; id: number } | null = null;
   private bauZieht = false;
   private kameraAnimation: { von: number; nach: number; t: number } | null = null;
+  /** zuletzt gestellte Minute der Turmuhren */
+  private uhrMinute = -1;
   bau: BauHandler | null = null;
   /** angetipptes Gebäude: goldener Rahmen + kurzer Hüpfer */
   private auswahl: { id: string; rahmen: THREE.Group; t: number } | null = null;
@@ -425,11 +427,17 @@ export class DorfSzene {
       strassenUndWasser(b, d.layout.strassen, d.layout.wasser, (x, z) => belegung.get(feldSchluessel(x, z))?.art !== 'gebaeude');
       const rnd = zufallAus('deko');
       for (const k of d.layout.deko) {
-        const m = feldMitte(k.x, k.z);
-        dekoBauen(b, k.art, m.x, m.z, k.dreh, rnd);
+        // Mitte der belegten Fläche (Häuschen: 2 × 2 Felder)
+        const n = DEKO_GROESSE[k.art] ?? 1;
+        dekoBauen(b, k.art, (k.x + n / 2) * FELD, (k.z + n / 2) * FELD, k.dreh, rnd);
       }
       const lichterDerDeko = [...b.lichter];
       const gruppe = b.fertig();
+      // Winter: Schnee auch auf den Dächern der Häuschen
+      if (jahreszeit() === 'winter')
+        gruppe.traverse((m) => {
+          if (m instanceof THREE.Mesh && (m.name === 'dach' || m.name === 'dach2')) m.material = schneeDach(m.material as THREE.MeshStandardMaterial);
+        });
       this.stadt.add(gruppe);
       this.statisch = { schluessel: sk, gruppe };
       // Lichtschein für jede Laterne der Deko (Positionen hat der Bausatz mitgeschrieben)
@@ -450,6 +458,7 @@ export class DorfSzene {
 
     this.statusSetzen(d.status);
     this.tageszeitSetzen();
+    this.uhrStellen();
     if (erstes && !this.o.kamera) this.zentrieren(false);
     this.schmutzig = true;
   }
@@ -823,6 +832,27 @@ export class DorfSzene {
     this.schmutzig = true;
   }
 
+  /**
+   * Turmuhren auf die Wiener Zeit stellen (?uhr= gilt auch hier). Der Minutenzeiger springt wie bei echten
+   * Turmuhren jede Minute – so muss das Dorf nur einmal pro Minute neu gezeichnet werden.
+   */
+  private uhrStellen(ms = Date.now()) {
+    this.uhrMinute = Math.floor(ms / 60_000);
+    const stunden = this.linzStunde(ms);
+    const h = Math.floor(stunden);
+    const m = Math.round((stunden - h) * 60) % 60;
+    const winkel = { minute: (m / 60) * Math.PI * 2, stunde: (((h % 12) + m / 60) / 12) * Math.PI * 2 };
+    let da = false;
+    for (const e of this.gebaeude.values()) {
+      const z = e.modell.zeiger;
+      if (!z) continue;
+      for (const o of z.stunde) o.rotation.z = -winkel.stunde;
+      for (const o of z.minute) o.rotation.z = -winkel.minute;
+      da = true;
+    }
+    if (da) this.schmutzig = true;
+  }
+
   private istSommerzeit(ms: number) {
     const z = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Vienna', timeZoneName: 'short' }).format(new Date(ms));
     return /CEST|GMT\+2/.test(z);
@@ -1106,6 +1136,14 @@ export class DorfSzene {
     this.schmutzig = true;
   }
 
+  /** Zeigerstellung einer Turmuhr im Uhrzeigersinn ab zwölf Uhr, in Grad (Tests) */
+  uhrzeiger(id: string): { stunde: number[]; minute: number[] } | null {
+    const z = this.gebaeude.get(id)?.modell.zeiger;
+    if (!z) return null;
+    const grad = (o: THREE.Object3D) => (((-o.rotation.z * 180) / Math.PI) % 360 + 360) % 360;
+    return { stunde: z.stunde.map(grad), minute: z.minute.map(grad) };
+  }
+
   private sichtbarkeit = () => {
     this.uhr.getDelta();
     this.schmutzig = true;
@@ -1125,6 +1163,7 @@ export class DorfSzene {
     // gedrosselt kommt nur alle ~125 ms ein Bild – dt nicht zu knapp kappen, sonst läuft alles langsamer
     const dt = Math.min(this.uhr.getDelta(), this.gedrosselt ? 0.2 : 0.1);
     let animiert = false;
+    if (Math.floor(Date.now() / 60_000) !== this.uhrMinute) this.uhrStellen();
     if (this.kameraAnimation) {
       const a = this.kameraAnimation;
       a.t = Math.min(1, a.t + dt / 0.45);

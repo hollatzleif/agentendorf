@@ -3,9 +3,13 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   GRUNDSTUECK,
+  VERSTREUT_STAND,
   belegungBerechnen,
+  dekoFelder,
+  dekoVerstreuen,
   fehlendePlatzieren,
   feldSchluessel,
+  grundstueckFelder,
   layoutPruefen,
   standardLayout,
   type DorfAntwort,
@@ -147,6 +151,159 @@ describe('Dorf-Layout auf dem Server', () => {
     delete l.gebaeude.Post; // altes Gerät kennt Post (noch) nicht
     const r = (await d.app.inject({ method: 'PUT', url: '/api/dorf/layout', headers: d.h, payload: { basisVersion: 2, layout: l } })).json() as DorfAntwort;
     expect(r.layout.gebaeude.Post).toBeTruthy();
+  });
+});
+
+/** Layout, wie es vor E72 gespeichert wurde: ohne verstreute Deko und ohne Markierung */
+function altesLayout(ids = VORLAGE): DorfLayout {
+  const l = standardLayout(ids);
+  l.deko = l.deko.filter((d) => !d.auto);
+  delete l.verstreut;
+  return l;
+}
+const ringUm = (g: { x: number; z: number }) => {
+  const f: string[] = [];
+  for (let x = g.x - 1; x <= g.x + GRUNDSTUECK; x++) for (let z = g.z - 1; z <= g.z + GRUNDSTUECK; z++) f.push(feldSchluessel(x, z));
+  return f;
+};
+
+describe('Häuschen und verstreute Deko (E72)', () => {
+  it('Häuschen belegen 2 × 2 Felder: Überlappung und Dorfrand werden erkannt', () => {
+    const ok = new Set(['Rathaus']);
+    const l = standardLayout(['Rathaus']);
+    l.deko = [];
+    l.deko.push({ art: 'haeuschen', x: 40, z: 40, dreh: 0 });
+    expect(dekoFelder(l.deko[0]!)).toEqual([[40, 40], [40, 41], [41, 40], [41, 41]]);
+    expect(layoutPruefen(l, ok)).toBeNull();
+    expect(belegungBerechnen(l).belegung.get(feldSchluessel(41, 41))).toEqual({ art: 'deko', index: 0 });
+    const a = kopie(l);
+    a.deko.push({ art: 'baum', x: 41, z: 41, dreh: 0 });
+    expect(layoutPruefen(a, ok)).toMatch(/doppelt belegt/);
+    const b = kopie(l);
+    b.deko.push({ art: 'haeuschen', x: 60, z: 0, dreh: 0 });
+    expect(layoutPruefen(b, ok)).toMatch(/außerhalb/);
+  });
+
+  it('verstreut nur auf freie Felder nahe der Straßen, lässt Grundstücksringe frei, deterministisch', () => {
+    const alt = altesLayout();
+    const a = kopie(alt);
+    const n = dekoVerstreuen(a);
+    expect(n).toBeGreaterThan(20);
+    expect(a.verstreut).toBe(VERSTREUT_STAND);
+    expect(layoutPruefen(a, new Set(VORLAGE))).toBeNull();
+    // Bestehendes bleibt, wie es war; alles Neue ist als „auto“ markiert
+    expect(a.gebaeude).toEqual(alt.gebaeude);
+    expect(a.strassen).toEqual(alt.strassen);
+    expect(a.wasser).toEqual(alt.wasser);
+    expect(a.deko.slice(0, alt.deko.length)).toEqual(alt.deko);
+    const neu = a.deko.slice(alt.deko.length);
+    expect(neu.every((d) => d.auto === true)).toBe(true);
+    const haeuser = neu.filter((d) => d.art === 'haeuschen');
+    expect(haeuser.length).toBeGreaterThanOrEqual(4);
+    expect(new Set(neu.map((d) => d.art)).size).toBeGreaterThanOrEqual(8);
+
+    const { belegung } = belegungBerechnen(alt);
+    const strasse = (x: number, z: number) => belegung.get(feldSchluessel(x, z))?.art === 'strasse';
+    const ringe = new Set(Object.values(alt.gebaeude).flatMap(ringUm));
+    for (const d of neu)
+      for (const [x, z] of dekoFelder(d)) {
+        expect(belegung.has(feldSchluessel(x, z))).toBe(false); // keine Straße, kein Wasser, kein Grundstück
+        expect(ringe.has(feldSchluessel(x, z))).toBe(false); // Eingänge und Gehsteig bleiben frei
+      }
+    // alles höchstens zwei Felder neben einer Straße – oder im Garten eines Häuschens
+    const garten = (d: { x: number; z: number }) => haeuser.some((h) => d.x >= h.x - 1 && d.x <= h.x + 2 && d.z >= h.z - 1 && d.z <= h.z + 2);
+    for (const d of neu)
+      if (!garten(d)) expect(dekoFelder(d).some(([x, z]) => [[0, 1], [1, 0], [0, -1], [-1, 0], [0, 2], [2, 0], [0, -2], [-2, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]].some(([dx, dz]) => strasse(x + dx!, z + dz!)))).toBe(true);
+    // Häuschen: Eingang (Drehung) zeigt zu einer Straße
+    const vorn: [number, number][][] = [
+      [[0, 2], [1, 2]],
+      [[2, 0], [2, 1]],
+      [[0, -1], [1, -1]],
+      [[-1, 0], [-1, 1]],
+    ];
+    for (const h of haeuser) expect(vorn[h.dreh]!.some(([dx, dz]) => strasse(h.x + dx, h.z + dz))).toBe(true);
+
+    // gleicher Stand → gleiches Ergebnis
+    const b = kopie(alt);
+    dekoVerstreuen(b);
+    expect(b).toEqual(a);
+    // das Standarddorf bringt es gleich mit
+    const s = standardLayout(VORLAGE);
+    expect(s.verstreut).toBe(VERSTREUT_STAND);
+    expect(s.deko.filter((d) => d.art === 'haeuschen').length).toBe(haeuser.length);
+  });
+
+  it('ein neues Gebäude verdrängt nur verstreute Deko, nie Leifs eigene', () => {
+    const l = standardLayout(VORLAGE);
+    const eigene = l.deko.filter((d) => !d.auto);
+    // wo es ohne verstreute Deko hinkäme
+    const ohne = kopie(l);
+    ohne.deko = ohne.deko.filter((d) => !d.auto);
+    fehlendePlatzieren(ohne, [...VORLAGE, 'Kirchturm']);
+    const ziel = ohne.gebaeude.Kirchturm!;
+
+    const a = kopie(l);
+    expect(fehlendePlatzieren(a, [...VORLAGE, 'Kirchturm'])).toBe(true);
+    expect(a.gebaeude.Kirchturm).toEqual(ziel);
+    expect(layoutPruefen(a, new Set([...VORLAGE, 'Kirchturm']))).toBeNull();
+    expect(a.deko.filter((d) => !d.auto)).toEqual(eigene);
+    // Grundstück und Straßenring sind vollständig (keine Lücke durch Deko)
+    const { belegung } = belegungBerechnen(a);
+    for (const [x, z] of grundstueckFelder(ziel.x, ziel.z)) expect(belegung.get(feldSchluessel(x, z))).toEqual({ art: 'gebaeude', id: 'Kirchturm' });
+    expect(ringUm(ziel).every((k) => belegung.get(k)?.art === 'strasse' || belegung.get(k)?.art === 'gebaeude')).toBe(true);
+
+    // eine eigene Deko auf dem Block → das Gebäude sucht sich einen anderen Platz
+    const b = kopie(l);
+    b.deko = b.deko.filter((d) => !(d.auto && dekoFelder(d).some(([x, z]) => x === ziel.x + 1 && z === ziel.z + 1)));
+    b.deko.push({ art: 'baum', x: ziel.x + 1, z: ziel.z + 1, dreh: 0 });
+    fehlendePlatzieren(b, [...VORLAGE, 'Kirchturm']);
+    expect(b.gebaeude.Kirchturm).not.toEqual(ziel);
+    expect(b.deko).toContainEqual({ art: 'baum', x: ziel.x + 1, z: ziel.z + 1, dreh: 0 });
+    expect(layoutPruefen(b, new Set([...VORLAGE, 'Kirchturm']))).toBeNull();
+  });
+});
+
+describe('Verstreuen auf dem Server (E72)', () => {
+  it('bestehendes Dorf bekommt EINMAL Häuschen und Deko; Version + Live-Ereignis; Abriss bleibt', async () => {
+    const d = await angemeldet();
+    const alt = altesLayout();
+    d.db.prepare('INSERT INTO dorf_layout (id, inhalt_json, version, geaendert) VALUES (1, ?, 5, 0)').run(JSON.stringify(alt));
+
+    const a = (await d.app.inject({ url: '/api/dorf', headers: d.h })).json() as DorfAntwort;
+    expect(a.version).toBe(6);
+    expect(a.layout.verstreut).toBe(VERSTREUT_STAND);
+    expect(a.layout.deko.length).toBeGreaterThan(alt.deko.length + 20);
+    expect(a.layout.deko.some((x) => x.art === 'haeuschen' && x.auto)).toBe(true);
+    expect(layoutPruefen(a.layout, new Set(VORLAGE))).toBeNull();
+    expect(d.ereignisse).toContainEqual({ typ: 'dorf.geaendert', version: 6 });
+    // gleiches Ergebnis wie das reine Verstreuen (deterministisch)
+    const erwartet = kopie(alt);
+    dekoVerstreuen(erwartet);
+    expect(a.layout).toEqual(erwartet);
+
+    // zweites Laden: nichts mehr
+    expect(((await d.app.inject({ url: '/api/dorf', headers: d.h })).json() as DorfAntwort).version).toBe(6);
+
+    // Leif reißt alle Häuschen ab – ein altes Gerät schickt das Layout ohne Markierung
+    const ohne = kopie(a.layout);
+    ohne.deko = ohne.deko.filter((x) => x.art !== 'haeuschen');
+    delete ohne.verstreut;
+    const r = await d.app.inject({ method: 'PUT', url: '/api/dorf/layout', headers: d.h, payload: { basisVersion: 6, layout: ohne } });
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toMatchObject({ version: 7, layout: { verstreut: VERSTREUT_STAND } });
+    const b = (await d.app.inject({ url: '/api/dorf', headers: d.h })).json() as DorfAntwort;
+    expect(b.version).toBe(7);
+    expect(b.layout.deko.some((x) => x.art === 'haeuschen')).toBe(false);
+    expect(b.layout.deko.length).toBe(ohne.deko.length);
+  });
+
+  it('neues Dorf: Standardlayout ist gleich verstreut, ein Neustart verstreut nicht noch einmal', async () => {
+    const d = await angemeldet();
+    const a = (await d.app.inject({ url: '/api/dorf', headers: d.h })).json() as DorfAntwort;
+    expect(a.version).toBe(1);
+    expect(a.layout.verstreut).toBe(VERSTREUT_STAND);
+    expect(a.layout.deko.filter((x) => x.art === 'haeuschen').length).toBeGreaterThanOrEqual(4);
+    expect(((await d.app.inject({ url: '/api/dorf', headers: d.h })).json() as DorfAntwort).version).toBe(1);
   });
 });
 

@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import {
   DEKO_ARTEN,
+  VERSTREUT_STAND,
+  dekoVerstreuen,
   fehlendePlatzieren,
   layoutPruefen,
   standardLayout,
@@ -33,7 +35,8 @@ export const LayoutSchema = z.object({
   lager: z.array(z.string().min(1).max(200)).max(500),
   strassen: z.array(feld).max(10_000),
   wasser: z.array(feld).max(10_000),
-  deko: z.array(z.object({ art: z.enum(DEKO_ARTEN), x: z.number().int(), z: z.number().int(), dreh })).max(10_000),
+  deko: z.array(z.object({ art: z.enum(DEKO_ARTEN), x: z.number().int(), z: z.number().int(), dreh, auto: z.boolean().optional() })).max(10_000),
+  verstreut: z.number().int().min(0).optional(),
 });
 
 interface Zeile {
@@ -74,7 +77,13 @@ export class Dorfplan {
         return { layout: l, version: 1 };
       }
       const l = LayoutSchema.parse(JSON.parse(z.inhalt_json)) as DorfLayout;
-      if (fehlendePlatzieren(l, ids)) {
+      let geaendert = fehlendePlatzieren(l, ids);
+      // E72: bestehende Dörfer bekommen EINMAL Häuschen und Deko dazu (Markierung im Layout selbst, keine Migration)
+      if ((l.verstreut ?? 0) < VERSTREUT_STAND) {
+        dekoVerstreuen(l);
+        geaendert = true;
+      }
+      if (geaendert) {
         this.schreiben(l, z.version + 1);
         return { layout: l, version: z.version + 1 };
       }
@@ -96,6 +105,9 @@ export class Dorfplan {
       const erlaubt = new Set([...ids, ...Object.keys(alt.gebaeude), ...alt.lager]);
       const fehler = layoutPruefen(neu, erlaubt);
       if (fehler) throw new DorfFehler(400, fehler);
+      // Die Markierung gehört dem Server: ein Gerät mit altem Stand darf sie nicht zurücksetzen (sonst würde erneut verstreut)
+      const verstreut = Math.max(neu.verstreut ?? 0, (alt as Partial<DorfLayout>).verstreut ?? 0);
+      if (verstreut) neu.verstreut = verstreut;
       fehlendePlatzieren(neu, ids);
       this.schreiben(neu, version + 1);
       return { layout: neu, version: version + 1 };

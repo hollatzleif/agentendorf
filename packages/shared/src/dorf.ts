@@ -1,9 +1,9 @@
 // ---- Etappe 5: Dorf (Layout auf dem Server, Status, Figuren) -----------------------------------
 //
 // Das Dorf ist ein Raster aus Feldern (x, z ganzzahlig). Ein Gebäude belegt ein Grundstück aus
-// GRUNDSTUECK × GRUNDSTUECK Feldern (x/z = Ecke mit den kleinsten Koordinaten). Straßen, Wasser und
-// Deko belegen je ein Feld. Kein Feld darf doppelt belegt sein. Server und Oberfläche prüfen mit
-// derselben Funktion (layoutPruefen).
+// GRUNDSTUECK × GRUNDSTUECK Feldern (x/z = Ecke mit den kleinsten Koordinaten). Straßen und Wasser
+// belegen je ein Feld, Deko ein Feld oder – Häuschen – 2 × 2 Felder (DEKO_GROESSE, x/z wieder die Ecke).
+// Kein Feld darf doppelt belegt sein. Server und Oberfläche prüfen mit derselben Funktion (layoutPruefen).
 
 import type { LaufStatus, Motor, Stufe, Ausloeser } from './index.js';
 
@@ -13,9 +13,32 @@ export const MAX_STRASSEN = 4000;
 export const MAX_WASSER = 2000;
 export const MAX_DEKO = 2000;
 
-export const DEKO_ARTEN = ['baum', 'tanne', 'busch', 'blumen', 'laterne', 'bank', 'brunnen', 'felsen', 'hecke'] as const;
+export const DEKO_ARTEN = [
+  'haeuschen',
+  'baum',
+  'tanne',
+  'busch',
+  'blumen',
+  'laterne',
+  'bank',
+  'brunnen',
+  'felsen',
+  'hecke',
+  'schuppen',
+  'zaun',
+  'mauer',
+  'briefkasten',
+  'kuebel',
+  'holzstapel',
+  'wegweiser',
+  'bienenstock',
+  'teich',
+  'pilze',
+  'heuballen',
+] as const;
 export type DekoArt = (typeof DEKO_ARTEN)[number];
 export const DEKO_NAMEN: Record<DekoArt, string> = {
+  haeuschen: 'Häuschen',
   baum: 'Laubbaum',
   tanne: 'Tanne',
   busch: 'Busch',
@@ -25,7 +48,28 @@ export const DEKO_NAMEN: Record<DekoArt, string> = {
   brunnen: 'Brunnen',
   felsen: 'Felsen',
   hecke: 'Hecke',
+  schuppen: 'Gartenhütte',
+  zaun: 'Gartenzaun',
+  mauer: 'Steinmauer',
+  briefkasten: 'Briefkasten',
+  kuebel: 'Blumenkübel',
+  holzstapel: 'Holzstapel',
+  wegweiser: 'Wegweiser',
+  bienenstock: 'Bienenstock',
+  teich: 'Seerosenteich',
+  pilze: 'Pilze',
+  heuballen: 'Heuballen',
 };
+/** Kantenlänge in Feldern (Standard 1); Häuschen brauchen 2 × 2 Felder, damit sie neben den Figuren nicht wie Puppenhäuser wirken */
+export const DEKO_GROESSE: Partial<Record<DekoArt, number>> = { haeuschen: 2 };
+
+/** Felder, die eine Deko belegt (x/z = Ecke mit den kleinsten Koordinaten) */
+export function dekoFelder(d: { art: DekoArt; x: number; z: number }): [number, number][] {
+  const n = DEKO_GROESSE[d.art] ?? 1;
+  const f: [number, number][] = [];
+  for (let dx = 0; dx < n; dx++) for (let dz = 0; dz < n; dz++) f.push([d.x + dx, d.z + dz]);
+  return f;
+}
 
 export type Drehung = 0 | 1 | 2 | 3; // ×90°, 0 = Eingang nach Süden (+z)
 
@@ -35,7 +79,17 @@ export interface DorfLayout {
   lager: string[];
   strassen: [number, number][];
   wasser: [number, number][];
-  deko: { art: DekoArt; x: number; z: number; dreh: Drehung }[];
+  deko: DorfDeko[];
+  /** Stand des einmaligen Verstreuens (VERSTREUT_STAND); fehlt bei Dörfern von vor E72 */
+  verstreut?: number;
+}
+export interface DorfDeko {
+  art: DekoArt;
+  x: number;
+  z: number;
+  dreh: Drehung;
+  /** vom Dorf selbst verstreut (E72): weicht einem neuen Gebäude; wer sie im Bau-Modus anfasst, macht sie zu seiner */
+  auto?: boolean;
 }
 
 export interface DorfAntwort {
@@ -146,7 +200,9 @@ export function belegungBerechnen(l: DorfLayout): { belegung: Belegung; fehler: 
   for (const [id, g] of Object.entries(l.gebaeude)) for (const [x, z] of grundstueckFelder(g.x, g.z)) setzen(x, z, { art: 'gebaeude', id }, id);
   for (const [x, z] of l.strassen) setzen(x, z, { art: 'strasse' }, 'Straße');
   for (const [x, z] of l.wasser) setzen(x, z, { art: 'wasser' }, 'Wasser');
-  l.deko.forEach((d, i) => setzen(d.x, d.z, { art: 'deko', index: i }, 'Deko'));
+  l.deko.forEach((d, i) => {
+    for (const [x, z] of dekoFelder(d)) setzen(x, z, { art: 'deko', index: i }, 'Deko');
+  });
   return { belegung: b, fehler };
 }
 
@@ -176,7 +232,7 @@ export function layoutPruefen(l: DorfLayout, erlaubt: Set<string>): string | nul
   for (const [x, z] of [...l.strassen, ...l.wasser]) if (!imRaster(x, z)) return `Feld ${x},${z} liegt außerhalb des Dorfs.`;
   for (const d of l.deko) {
     if (!(DEKO_ARTEN as readonly string[]).includes(d.art)) return `Unbekannte Deko „${String(d.art)}“.`;
-    if (!imRaster(d.x, d.z)) return `Deko auf ${d.x},${d.z} liegt außerhalb des Dorfs.`;
+    if (!dekoFelder(d).every(([x, z]) => imRaster(x, z))) return `Deko auf ${d.x},${d.z} liegt außerhalb des Dorfs.`;
     if (![0, 1, 2, 3].includes(d.dreh)) return 'Ungültige Drehung bei einer Deko.';
   }
   return belegungBerechnen(l).fehler;
@@ -199,25 +255,36 @@ function bloecke(): { x: number; z: number }[] {
 }
 const BLOECKE = bloecke();
 
+function ringFelder(bx: number, bz: number): [number, number][] {
+  const f: [number, number][] = [];
+  for (let x = bx - 1; x <= bx + GRUNDSTUECK; x++)
+    for (let z = bz - 1; z <= bz + GRUNDSTUECK; z++)
+      if (x === bx - 1 || x === bx + GRUNDSTUECK || z === bz - 1 || z === bz + GRUNDSTUECK) f.push([x, z]);
+  return f;
+}
+
 function strassenRing(l: DorfLayout, bx: number, bz: number) {
   const { belegung } = belegungBerechnen(l);
-  for (let x = bx - 1; x <= bx + GRUNDSTUECK; x++)
-    for (let z = bz - 1; z <= bz + GRUNDSTUECK; z++) {
-      const rand = x === bx - 1 || x === bx + GRUNDSTUECK || z === bz - 1 || z === bz + GRUNDSTUECK;
-      if (rand && imRaster(x, z) && !belegung.has(feldSchluessel(x, z))) {
-        l.strassen.push([x, z]);
-        belegung.set(feldSchluessel(x, z), { art: 'strasse' });
-      }
+  for (const [x, z] of ringFelder(bx, bz))
+    if (imRaster(x, z) && !belegung.has(feldSchluessel(x, z))) {
+      l.strassen.push([x, z]);
+      belegung.set(feldSchluessel(x, z), { art: 'strasse' });
     }
 }
 
-/** Freien Block für ein Gebäude suchen; null, wenn das Dorf voll ist. */
+/** Freien Block für ein Gebäude suchen; null, wenn das Dorf voll ist. Verstreute Deko (auto) zählt als frei – sie weicht. */
 export function freienBlockFinden(l: DorfLayout): { x: number; z: number } | null {
-  const { belegung } = belegungBerechnen(l);
+  const { belegung } = belegungBerechnen({ ...l, deko: l.deko.filter((d) => !d.auto) });
   for (const b of BLOECKE) {
     if (grundstueckFelder(b.x, b.z).every(([x, z]) => !belegung.has(feldSchluessel(x, z)))) return b;
   }
   return null;
+}
+
+/** Verstreute Deko auf einem Block und seinem Straßenring räumt einem neuen Gebäude den Platz */
+function autoDekoRaeumen(l: DorfLayout, bx: number, bz: number) {
+  const weg = new Set([...grundstueckFelder(bx, bz), ...ringFelder(bx, bz)].map(([x, z]) => feldSchluessel(x, z)));
+  l.deko = l.deko.filter((d) => !d.auto || !dekoFelder(d).some(([x, z]) => weg.has(feldSchluessel(x, z))));
 }
 
 /** Setzt Gebäude, die weder im Dorf noch im Lager sind, auf freie Blöcke. Gibt zurück, ob sich etwas geändert hat. */
@@ -229,6 +296,7 @@ export function fehlendePlatzieren(l: DorfLayout, ids: string[]): boolean {
     if (!b) {
       l.lager.push(id);
     } else {
+      autoDekoRaeumen(l, b.x, b.z);
       l.gebaeude[id] = { x: b.x, z: b.z, dreh: 0 };
       strassenRing(l, b.x, b.z);
     }
@@ -237,7 +305,7 @@ export function fehlendePlatzieren(l: DorfLayout, ids: string[]): boolean {
   return geaendert;
 }
 
-/** Erstes Dorf: Gebäude nach Reihenfolge um die Mitte, dazu ein kleiner Park. */
+/** Erstes Dorf: Gebäude nach Reihenfolge um die Mitte, dazu ein kleiner Park und verstreute Häuschen/Deko. */
 export function standardLayout(ids: string[]): DorfLayout {
   const l: DorfLayout = { gebaeude: {}, lager: [], strassen: [], wasser: [], deko: [] };
   fehlendePlatzieren(l, ids);
@@ -256,5 +324,172 @@ export function standardLayout(ids: string[]): DorfLayout {
       { art: 'laterne', x: park.x + 2, z: park.z + 2, dreh: 0 },
     );
   }
+  dekoVerstreuen(l);
   return l;
+}
+
+// ---- Häuschen und Deko verstreuen (E72) -----------------------------------------------------------
+//
+// Einmal je Dorf (Markierung `verstreut` im Layout): kleine Häuschen an die Straßen, daneben Briefkasten,
+// Zaun, Holzstapel …, dazu Deko auf freie Felder nahe der Straßen. Nie auf Straßen, Wasser, Grundstücke
+// oder den Ring direkt um ein Grundstück (Eingänge und Gehsteig bleiben frei). Figuren und Autos fahren
+// nur über Straßen – Deko daneben blockiert keinen Weg. Deterministisch: gleicher Stand → gleiches Ergebnis.
+
+/** Erhöhen, wenn alle Dörfer noch einmal (zusätzlich) verstreut werden sollen */
+export const VERSTREUT_STAND = 1;
+
+/** Deterministischer Zufall aus einem Text (gleiches Verfahren wie zufallAus im 3D-Dorf) */
+export function zufallAusText(text: string) {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
+  let s = (h >>> 0) % 2147483646 || 1;
+  return () => (s = (s * 16807) % 2147483647) / 2147483647;
+}
+
+/** Nachbarn in Richtung +z, +x, −z, −x – Index = Drehung (0 = Süden/+z, 1 = +x, 2 = −z, 3 = −x; im Modell ry = dreh · 90°) */
+const NACHBARN4: [number, number][] = [[0, 1], [1, 0], [0, -1], [-1, 0]];
+
+/** Gestreute Deko: [Art, Gewicht] – direkt an der Straße bzw. ein Feld dahinter */
+const AN_DER_STRASSE: [DekoArt, number][] = [['kuebel', 3], ['blumen', 2], ['busch', 3], ['laterne', 2], ['bank', 1], ['wegweiser', 2], ['zaun', 2], ['baum', 2], ['mauer', 1]];
+const DAHINTER: [DekoArt, number][] = [['baum', 5], ['tanne', 3], ['busch', 3], ['felsen', 2], ['pilze', 2], ['heuballen', 2], ['holzstapel', 2], ['teich', 1], ['bienenstock', 1], ['hecke', 1], ['blumen', 1]];
+/** Was neben einem Häuschen stehen darf */
+const BEIM_HAUS: [DekoArt, number][] = [['holzstapel', 3], ['kuebel', 3], ['schuppen', 2], ['zaun', 3], ['busch', 2], ['baum', 2], ['bienenstock', 1], ['blumen', 2]];
+
+function gewichtet(liste: [DekoArt, number][], rnd: () => number): DekoArt {
+  let r = rnd() * liste.reduce((s, [, g]) => s + g, 0);
+  for (const [a, g] of liste) if ((r -= g) < 0) return a;
+  return liste[liste.length - 1]![0];
+}
+
+/** Die zwölf Felder rund um ein 2 × 2-Häuschen */
+function ringRund(x: number, z: number): [number, number][] {
+  const f: [number, number][] = [];
+  for (let a = x - 1; a <= x + 2; a++) for (let b = z - 1; b <= z + 2; b++) if (a < x || a > x + 1 || b < z || b > z + 1) f.push([a, b]);
+  return f;
+}
+
+/**
+ * Verstreut einmalig Häuschen und Deko (alles mit `auto: true`) und setzt `verstreut`. Bestehendes bleibt
+ * unangetastet. Gibt die Zahl der neuen Deko-Objekte zurück.
+ */
+export function dekoVerstreuen(l: DorfLayout, seed = `verstreuen-${VERSTREUT_STAND}`): number {
+  l.verstreut = VERSTREUT_STAND;
+  if (!l.strassen.length) return 0;
+  const rnd = zufallAusText(seed);
+  const { belegung } = belegungBerechnen(l);
+  const k = feldSchluessel;
+  const strasse = (x: number, z: number) => belegung.get(k(x, z))?.art === 'strasse';
+  const anStrasse = (x: number, z: number) => NACHBARN4.findIndex(([dx, dz]) => strasse(x + dx, z + dz));
+
+  // gesperrt: belegt oder im Ring direkt um ein Grundstück
+  const gesperrt = new Set<string>(belegung.keys());
+  for (const g of Object.values(l.gebaeude)) for (const [x, z] of ringFelder(g.x, g.z)) gesperrt.add(k(x, z));
+  const frei = (x: number, z: number) => imRaster(x, z) && !gesperrt.has(k(x, z));
+
+  // Bereich: Straßen plus zwei Felder
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  for (const [x, z] of l.strassen) {
+    minX = Math.min(minX, x - 2);
+    maxX = Math.max(maxX, x + 2);
+    minZ = Math.min(minZ, z - 2);
+    maxZ = Math.max(maxZ, z + 2);
+  }
+
+  // Dorfmitte (Gebäude): Häuschen lieber zwischen den Gebäuden als draußen
+  const gs = Object.values(l.gebaeude);
+  const mx = gs.length ? gs.reduce((s, g) => s + g.x + GRUNDSTUECK / 2, 0) / gs.length : (minX + maxX) / 2;
+  const mz = gs.length ? gs.reduce((s, g) => s + g.z + GRUNDSTUECK / 2, 0) / gs.length : (minZ + maxZ) / 2;
+
+  const neu: DorfDeko[] = [];
+  const setzen = (d: DorfDeko) => {
+    neu.push({ ...d, auto: true });
+    for (const [x, z] of dekoFelder(d)) gesperrt.add(k(x, z));
+  };
+
+  // 1) Häuschen: 2 × 2 freie Felder mit Straße an einer Seite, Eingang zur Straße, ein Feld Luft zueinander
+  const kandidaten: { x: number; z: number; dreh: Drehung; wert: number }[] = [];
+  for (let x = minX; x < maxX; x++)
+    for (let z = minZ; z < maxZ; z++) {
+      if (!frei(x, z) || !frei(x + 1, z) || !frei(x, z + 1) || !frei(x + 1, z + 1)) continue;
+      // Straßenfelder je Seite (+z, +x, −z, −x)
+      const seiten = [
+        [[x, z + 2], [x + 1, z + 2]],
+        [[x + 2, z], [x + 2, z + 1]],
+        [[x, z - 1], [x + 1, z - 1]],
+        [[x - 1, z], [x - 1, z + 1]],
+      ].map((f) => f.filter(([a, b]) => strasse(a!, b!)).length);
+      const beste = Math.max(...seiten);
+      if (!beste) continue;
+      kandidaten.push({ x, z, dreh: seiten.indexOf(beste) as Drehung, wert: Math.hypot(x + 1 - mx, z + 1 - mz) + (2 - beste) * 3 + rnd() * 8 });
+    }
+  kandidaten.sort((a, b) => a.wert - b.wert || a.x - b.x || a.z - b.z);
+  const zielHaeuser = Math.max(4, Math.min(14, Math.round(gs.length * 1.2)));
+  const haeuser: DorfDeko[] = [];
+  for (const c of kandidaten) {
+    if (haeuser.length >= zielHaeuser) break;
+    if (!frei(c.x, c.z) || !frei(c.x + 1, c.z) || !frei(c.x, c.z + 1) || !frei(c.x + 1, c.z + 1)) continue;
+    if (haeuser.some((h) => Math.abs(h.x - c.x) < 3 && Math.abs(h.z - c.z) < 3)) continue;
+    const h: DorfDeko = { art: 'haeuschen', x: c.x, z: c.z, dreh: c.dreh };
+    haeuser.push(h);
+    setzen(h);
+  }
+
+  // 2) Neben jedes Häuschen: Briefkasten an der Straße, dazu ein, zwei Dinge aus dem Garten
+  for (const h of haeuser) {
+    const ring = ringRund(h.x, h.z);
+    const vorn = ring.filter(([x, z]) => frei(x, z) && anStrasse(x, z) >= 0);
+    if (vorn.length && rnd() < 0.75) {
+      const [x, z] = vorn[Math.floor(rnd() * vorn.length)]!;
+      setzen({ art: 'briefkasten', x, z, dreh: anStrasse(x, z) as Drehung });
+    }
+    const n = 1 + Math.floor(rnd() * 2.2);
+    for (let i = 0; i < n; i++) {
+      const rest = ring.filter(([x, z]) => frei(x, z));
+      if (!rest.length) break;
+      const [x, z] = rest[Math.floor(rnd() * rest.length)]!;
+      const art = gewichtet(BEIM_HAUS, rnd);
+      // Zaun längs der Hauswand, an der er steht
+      const dreh = (art === 'zaun' ? (x < h.x || x > h.x + 1 ? 1 : 0) : Math.floor(rnd() * 4)) as Drehung;
+      setzen({ art, x, z, dreh });
+    }
+  }
+
+  // 3) Deko auf freie Felder bis zwei Felder neben den Straßen – locker, nie zwei direkt nebeneinander
+  const felder: { x: number; z: number; a: number; wert: number }[] = [];
+  for (let x = minX; x <= maxX; x++)
+    for (let z = minZ; z <= maxZ; z++) {
+      if (!frei(x, z)) continue;
+      const a = anStrasse(x, z) >= 0 ? 1 : NACHBARN4.some(([dx, dz]) => frei(x + dx, z + dz) && anStrasse(x + dx, z + dz) >= 0) ? 2 : 0;
+      if (a) felder.push({ x, z, a, wert: rnd() + (a === 1 ? 0 : 0.2) });
+    }
+  felder.sort((p, q) => p.wert - q.wert || p.x - q.x || p.z - q.z);
+  const zielDeko = Math.max(12, Math.min(70, gs.length * 4));
+  const gestreut: { x: number; z: number }[] = [];
+  for (const f of felder) {
+    if (gestreut.length >= zielDeko) break;
+    if (!frei(f.x, f.z)) continue;
+    if (gestreut.some((g) => Math.abs(g.x - f.x) <= 1 && Math.abs(g.z - f.z) <= 1)) continue;
+    let art = gewichtet(f.a === 1 ? AN_DER_STRASSE : DAHINTER, rnd);
+    const zurStrasse = anStrasse(f.x, f.z);
+    // Wegweiser nur an Kreuzungen (ein Straßennachbar mit mindestens drei Straßennachbarn)
+    if (art === 'wegweiser' && !NACHBARN4.some(([dx, dz]) => strasse(f.x + dx, f.z + dz) && NACHBARN4.filter(([ex, ez]) => strasse(f.x + dx + ex, f.z + dz + ez)).length >= 3))
+      art = 'busch';
+    // Bank und Wegweiser schauen zur Straße, Zaun/Mauer/Hecke laufen an ihr entlang
+    const dreh = (
+      zurStrasse >= 0 && (art === 'bank' || art === 'wegweiser')
+        ? zurStrasse
+        : zurStrasse >= 0 && (art === 'zaun' || art === 'mauer' || art === 'hecke')
+          ? zurStrasse % 2
+          : Math.floor(rnd() * 4)
+    ) as Drehung;
+    setzen({ art, x: f.x, z: f.z, dreh });
+    gestreut.push(f);
+  }
+
+  const dazu = neu.slice(0, Math.max(0, MAX_DEKO - l.deko.length));
+  l.deko.push(...dazu);
+  return dazu.length;
 }

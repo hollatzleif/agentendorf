@@ -16,6 +16,7 @@ interface DorfTest {
   figurenAnzahl(): number;
   treffer(e: { clientX: number; clientY: number }): { art: string; id?: string } | null;
   vorspulen(sekunden: number): void;
+  uhrzeiger(id: string): { stunde: number[]; minute: number[] } | null;
 }
 declare global {
   interface Window {
@@ -374,4 +375,55 @@ test('Knopf „Agenten“: Übersicht der laufenden Agenten, „Zeigen“ spring
   await expect(karte).toBeHidden();
   await expect(page.getByRole('dialog', { name: 'Figur' }).getByText('Agent in Bibliothek')).toBeVisible();
   await page.request.post(`/api/laeufe/${laufId}/abbrechen`, { headers: { origin: new URL(page.url()).origin } });
+});
+
+test('Kirchturm: Turmuhr auf vier Seiten zeigt die Wiener Zeit; Häuschen stehen im Dorf und sind im Bau-Menü', async ({ page }) => {
+  await imDorf(page);
+  const origin = new URL(page.url()).origin;
+  // Die Vorlage bringt den Kirchturm mit; fehlt er (ältere Vorlage), legt der Test ihn an
+  const liste = (await (await page.request.get('/api/gebaeude')).json()) as { id: string }[];
+  if (!liste.some((g) => g.id === 'Kirchturm')) {
+    const r = await page.request.put('/api/vault/datei', {
+      headers: { origin },
+      data: { pfad: 'Kirchturm/gebaeude.md', inhalt: '---\nname: Kirchturm\nsymbol: "⛪"\nstatus: offen\n---\n\n# Kirchturm\n', neu: true },
+    });
+    expect(r.ok()).toBe(true);
+  }
+  await expect.poll(async () => !!(await dorf(page)).layout.gebaeude.Kirchturm).toBe(true);
+  await page.reload();
+  await page.waitForFunction(() => !!window.__dorf?.uhrzeiger('Kirchturm'), null, { timeout: 20_000 });
+  const stand = await page.evaluate(() => {
+    const teile = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Vienna', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date()).split(':');
+    return { h: Number(teile[0]), m: Number(teile[1]), zeiger: window.__dorf!.uhrzeiger('Kirchturm')! };
+  });
+  expect(stand.zeiger.stunde).toHaveLength(4);
+  expect(stand.zeiger.minute).toHaveLength(4);
+  // Minutenwechsel zwischen Stellen und Lesen: eine Minute Spielraum (6° Minute, 0,5° Stunde)
+  const abstand = (a: number, b: number) => Math.min(Math.abs(a - b), 360 - Math.abs(a - b));
+  const minute = stand.zeiger.minute[0]!;
+  const stunde = stand.zeiger.stunde[0]!;
+  expect(abstand(minute, stand.m * 6)).toBeLessThanOrEqual(6.01);
+  expect(abstand(stunde, ((stand.h % 12) + stand.m / 60) * 30)).toBeLessThanOrEqual(0.51);
+  // alle vier Seiten zeigen dasselbe
+  for (const w of stand.zeiger.minute) expect(abstand(w, minute)).toBeLessThan(0.01);
+  for (const w of stand.zeiger.stunde) expect(abstand(w, stunde)).toBeLessThan(0.01);
+  expect(await page.evaluate(() => window.__dorf!.bildschirmPunkt('gebaeude', 'Kirchturm'))).not.toBeNull();
+
+  // verstreute Häuschen (2 × 2 Felder) und die neuen Deko-Arten im Bau-Menü
+  const l = (await dorf(page)).layout;
+  const haeuser = l.deko.filter((d) => d.art === 'haeuschen');
+  expect(haeuser.length).toBeGreaterThanOrEqual(4);
+  // das vorderste Häuschen (die Kamera schaut von +x/+z) – davor steht kein Gebäude, das den Klick abfängt
+  const h = [...haeuser].sort((a, b) => b.x + b.z - (a.x + a.z))[0]!;
+  await page.getByRole('button', { name: 'Bauen' }).click();
+  const leiste = page.getByRole('toolbar', { name: 'Bau-Werkzeuge' });
+  await expect(leiste.getByRole('button', { name: 'Häuschen' })).toBeAttached();
+  for (const name of ['Gartenzaun', 'Briefkasten', 'Holzstapel', 'Bienenstock', 'Seerosenteich']) await expect(leiste.getByRole('button', { name })).toBeAttached();
+  // ein Häuschen an einem seiner vier Felder antippen wählt es aus
+  await page.evaluate(([x, z]) => window.__dorf!.blickAuf(x + 1, z + 1, 16), [h.x, h.z] as const);
+  await page.waitForTimeout(300);
+  const p = await page.evaluate(([x, z]) => window.__dorf!.feldPunkt(x + 1, z + 1), [h.x, h.z] as const);
+  await page.mouse.click(p.x, p.y);
+  await expect(leiste.locator('.bau-auswahl')).toHaveText('Häuschen');
+  await page.getByRole('button', { name: 'Bau-Modus beenden' }).click();
 });
