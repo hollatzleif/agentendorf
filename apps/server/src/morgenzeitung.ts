@@ -65,6 +65,8 @@ export class Morgenzeitung {
       gewohnheiten?: { heuteZeilen(): Promise<string[]> };
       /** E91: Wochenziele */
       wochenziele?: { zeitungsZeilen(): Promise<string[]> };
+      /** E120: heute dran stehende To-dos (überfällig + heute fällig) mit Schätzung */
+      todosHeute?: () => Promise<{ dauer?: number }[]>;
       /** E112: wie es dem Dorf geht */
       bluete?: () => Promise<DorfBluete>;
       log?: (t: string) => void;
@@ -134,8 +136,12 @@ export class Morgenzeitung {
 
     // Heute: Hauptkalender + Pflichttermine/Prüfungen der Uni
     const heute: { zeit: number; zeile: string }[] = [];
+    let belegtMin = 0; // Termine zwischen 8 und 22 Uhr (E120)
+    const tagVon = tagBeginn + 8 * 3600_000;
+    const tagBis = tagBeginn + 22 * 3600_000;
     try {
       for (const k of await this.o.kalender.termine(tagBeginn, tagEnde)) {
+        if (!k.ganztags && k.start != null && k.ende != null) belegtMin += Math.max(0, Math.min(k.ende, tagBis) - Math.max(k.start, tagVon)) / 60_000;
         const zeit = k.ganztags ? 'ganztägig' : `${uhr.format(new Date(k.start!))}${k.ende ? `–${uhr.format(new Date(k.ende))}` : ''}`;
         heute.push({ zeit: k.ganztags ? tagBeginn : k.start!, zeile: `${zeit} ${einzeilig(k.titel, 120)}` });
       }
@@ -158,7 +164,18 @@ export class Morgenzeitung {
         zeile: `${t.symbol} Wetter in ${w.ort ?? 'Konstanz'}: ${t.text}, ${w.tag.min}–${w.tag.max} °C${w.tag.regen != null && w.tag.regen >= 30 ? `, Regen ${w.tag.regen} %${w.tag.regen >= 60 ? ' – Schirm mitnehmen' : ''}` : ''} (jetzt ${String(w.temperatur).replace('.', ',')} °C)`,
       });
     }
-    abschnitte.push({ titel: 'Heute', zeilen: heute.sort((a, b) => a.zeit - b.zeit).map((x) => x.zeile) });
+    const heuteZeilen = heute.sort((a, b) => a.zeit - b.zeit).map((x) => x.zeile);
+    // E120: passt der Tag? (Zeiten nach der Sommer-/Winterzeit-Umstellung sind hier egal: 8–22 Uhr ab Mitternacht gezählt)
+    const dran = await this.o.todosHeute?.().catch(() => []);
+    if (dran?.length) {
+      const geschaetzt = dran.reduce((s2, t2) => s2 + (t2.dauer ?? 0), 0);
+      const frei = Math.max(0, Math.round(14 * 60 - belegtMin));
+      const ohne = dran.filter((t2) => !t2.dauer).length;
+      heuteZeilen.push(
+        `☑️ ${dran.length} To-do${dran.length === 1 ? '' : 's'} dran${geschaetzt ? ` (≈ ${minutenText(geschaetzt)} geschätzt${ohne ? `, ${ohne} ohne Schätzung` : ''})` : ''} · frei 8–22 Uhr ≈ ${minutenText(frei)}${geschaetzt > frei ? ' – mehr, als in den Tag passt: etwas verschieben?' : ''}`,
+      );
+    }
+    abschnitte.push({ titel: 'Heute', zeilen: heuteZeilen });
 
     // Fristen der nächsten 7 Tage (nicht abgehakt)
     abschnitte.push({
@@ -291,3 +308,5 @@ export class Morgenzeitung {
     };
   }
 }
+
+const minutenText = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}` : `${m} min`);

@@ -937,6 +937,7 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
   - Reicht sie nicht, kommt der Hinweis „mehr, als in den Tag passt. Etwas auf morgen schieben?“. Die Knöpfe „→ morgen“ gibt es schon (E97).
   - Ohne eine einzige Schätzung erscheint die Zeile nicht, damit sie nicht stört.
 - **Tag planen (E84)** nimmt die Schätzung als Blocklänge, sonst wie bisher 90 bzw. 45 min.
+- **Morgenzeitung:** Unter „Heute“ steht „☑️ 3 To-dos dran (≈ 2 h geschätzt) · frei 8–22 Uhr ≈ 6 h“. Ist es zu viel, folgt der Hinweis zum Verschieben.
 - **Wiederkehrende To-dos:** Der Nachfolger übernimmt die Schätzung.
 
 ## E121 – Wochenplan (Nacht 18./19.11.)

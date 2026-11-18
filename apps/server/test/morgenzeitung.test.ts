@@ -96,6 +96,19 @@ describe('Morgenzeitung', () => {
     expect((await d.vault.konflikte()).length).toBe(1);
   });
 
+  it('Heute: To-dos dran mit Schätzung gegen freie Zeit 8–22 Uhr minus Termine (E120)', async () => {
+    const d = await testDorf({
+      google: { termine: { laden: async () => kal(ev('v', 'Vorlesung', '20261116T080000Z', '20261116T120000Z')) } },
+    });
+    await d.todos.anlegen({ titel: 'Referat', faellig: '2026-11-16', dauer: 300 }, 'Leif');
+    await d.todos.anlegen({ titel: 'Alt', faellig: '2026-11-10', dauer: 360 }, 'Leif');
+    await d.todos.anlegen({ titel: 'Ohne', faellig: '2026-11-16' }, 'Leif');
+    await d.todos.anlegen({ titel: 'Morgen', faellig: '2026-11-17', dauer: 60 }, 'Leif');
+    const h = (await d.morgenzeitung.fakten()).abschnitte.find((a) => a.titel === 'Heute')!.zeilen;
+    // 14 h minus 4 h Vorlesung = 10 h frei; 11 h geschätzt → zu viel
+    expect(h.at(-1)).toBe('☑️ 3 To-dos dran (≈ 11 h geschätzt, 1 ohne Schätzung) · frei 8–22 Uhr ≈ 10 h – mehr, als in den Tag passt: etwas verschieben?');
+  });
+
   it('ohne API-Schlüssel und ohne Kalender: Zeitung trotzdem, nur ohne Einleitung; Telegram abschaltbar', async () => {
     const d = await testDorf();
     const pfad = await d.morgenzeitung.erstellen();

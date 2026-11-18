@@ -41,6 +41,7 @@ import { Wochenrueckblick } from './wochenrueckblick.js';
 import { Karteikasten } from './karten.js';
 import { Gewohnheiten } from './gewohnheiten.js';
 import { Wochenziele } from './wochenziele.js';
+import { tagIn } from './zeit.js';
 import { Notizen } from './notizen.js';
 import { Noten } from './uni/noten.js';
 import { statistik } from './statistik.js';
@@ -360,7 +361,7 @@ export async function dorfStarten(
   if (opt.beobachten !== false) erinnerungen.starten();
   // Nacht 18./19.11.: Wochenrückblick sonntags 18:30
   const wochenrueckblick = new Wochenrueckblick({ db, uhr, vault, hub, ki, todos, uni, kalender, fokus: kirchturm, bank, gewohnheiten, wochenziele, bluete: () => blueteBerechnen(), log: (t) => console.warn(t) });
-  const morgenzeitung = new Morgenzeitung({ db, uhr, vault, hub, ki, freigaben: agenten.freigaben, schreibtisch, uni, postbote, kalender, wetter, bank, boerse: depotZeilen, fokus: kirchturm, gewohnheiten, wochenziele, bluete: () => blueteBerechnen(), wichtig: async () => (await todos.liste()).filter((t) => !t.erledigt && t.wichtig).slice(0, 5).map((t) => `**${t.titel}**${t.faellig ? ` (fällig ${t.faellig})` : ''}`), log: (t) => console.warn(t) });
+  const morgenzeitung = new Morgenzeitung({ db, uhr, vault, hub, ki, freigaben: agenten.freigaben, schreibtisch, uni, postbote, kalender, wetter, bank, boerse: depotZeilen, fokus: kirchturm, gewohnheiten, wochenziele, bluete: () => blueteBerechnen(), todosHeute: async () => { const h = tagIn(uhr.jetzt()); return (await todos.liste()).filter((t) => !t.erledigt && t.faellig && t.faellig <= h); }, wichtig: async () => (await todos.liste()).filter((t) => !t.erledigt && t.wichtig).slice(0, 5).map((t) => `**${t.titel}**${t.faellig ? ` (fällig ${t.faellig})` : ''}`), log: (t) => console.warn(t) });
   let telegram: TelegramBot | undefined;
   if ((konfig.telegramToken || opt.telegram) && konfig.telegramChatId) {
     telegram = new TelegramBot({
