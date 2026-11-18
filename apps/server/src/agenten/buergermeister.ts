@@ -10,6 +10,7 @@ import { DorfFehler } from '../fehler.js';
 import type { Schreibtisch } from '../schreibtisch.js';
 import type { AgentenDienst, LaufEnde } from './dienst.js';
 import { aktionenListe, aktionLaden, eingabenAnwenden } from './aktionen.js';
+import { skillAnlegen, skillPruefen } from './skills.js';
 import { MAX_HELFER_OHNE_PLAN, MAX_HELFER_PRO_PLAN } from './leine.js';
 import { kostenSchaetzen, stufenLaden } from './modelle.js';
 import type { LaufKontext, RollenHandler, WerkzeugAufrufErgebnis } from './werkzeuge.js';
@@ -70,6 +71,8 @@ export class Buergermeister implements RollenHandler {
     agenten.rollenWerkzeuge = this;
     agenten.beiLaufEnde.push((e) => this.laufEnde(e));
     agenten.freigaben.registrieren('plan_ausfuehren', async ({ planId }) => this.planAusfuehren(String(planId)));
+    // Skill-Vorschlag: erst nach Leifs Klick wird die Aktionsdatei angelegt (und dabei noch einmal geprüft)
+    agenten.freigaben.registrieren('aktion_anlegen', async ({ entwurf }) => `Neuer Skill angelegt: ${(await skillAnlegen(this.vault, entwurf)).pfad}`);
     agenten.freigaben.beiEntscheidung.push((f) => this.entschieden(f));
   }
 
@@ -102,6 +105,19 @@ export class Buergermeister implements RollenHandler {
       if (name === 'aktionen_liste') return { ok: true, text: await this.aktionenText() };
       if (name === 'helfer_starten') return await this.helferStarten(eingabe, k);
       if (name === 'plan_vorlegen') return await this.planVorlegen(eingabe, k);
+      if (name === 'aktion_vorschlagen') {
+        const s = await skillPruefen(this.vault, eingabe);
+        const f = await this.agenten.freigaben.beantragen({
+          art: 'aktion_anlegen',
+          titel: `Neuer Skill: ${s.name} (${s.gebaeude})`,
+          begruendung: s.beschreibung || 'Vorschlag des Bürgermeisters',
+          inhalt: { pfad: s.pfad, markdown: s.markdown, entwurf: eingabe },
+          gebaeude: s.gebaeude,
+          laufId: k.laufId,
+          chatId: k.chatId,
+        });
+        return { ok: true, text: `Skill-Vorschlag als Freigabe ${f.id} vorgelegt. Erst wenn Leif zustimmt, gibt es die Aktion ${s.id}.` };
+      }
       return { ok: false, text: 'Unbekanntes Werkzeug.' };
     } catch (e) {
       const t = e instanceof z.ZodError ? `Ungültige Eingabe: ${e.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}` : (e as Error).message;

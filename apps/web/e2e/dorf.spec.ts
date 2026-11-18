@@ -274,3 +274,25 @@ test('Etappe 4: Morgenzeitung drucken, Bürgermeister wecken, Post ohne Gmail', 
   await expect(page.getByText(/Gmail ist noch nicht verbunden/)).toBeVisible();
   await expect(page.getByText('dorf gmail-anmelden')).toBeVisible();
 });
+
+test('Skill anlegen: Formular im Gebäude, Prüfen zeigt Fehler, angelegt erscheint er mit Zeitplan', async ({ page }, info) => {
+  await anmelden(page);
+  await page.goto('/gebaeude/Bibliothek?reiter=aktionen');
+  await page.getByRole('button', { name: /\+ Neue Aktion/ }).click();
+  const f = page.getByRole('form', { name: 'Neue Aktion' });
+  const name = `Wochenplan ${info.project.name}`;
+  await f.getByLabel('Name *').fill(name);
+  await f.getByLabel('Anweisung an den Agenten *').fill('Lies meine Termine und schreib einen Wochenplan.');
+  await f.getByLabel('Kalender lesen').check();
+  await f.getByLabel('Zeitplan (optional)').fill('manchmal 07:00');
+  await f.getByRole('button', { name: 'Prüfen' }).click();
+  await expect(f.getByText(/„manchmal“ verstehe ich nicht/)).toBeVisible();
+  await f.getByLabel('Zeitplan (optional)').fill('mo 07:00');
+  await f.getByRole('button', { name: 'Prüfen' }).click();
+  await expect(f.getByText(/fremdinhalte: ja/)).toBeVisible();
+  await f.getByRole('button', { name: 'Aktion anlegen' }).click();
+  await expect(f).toBeHidden();
+  const knopf = page.locator('.aktion-knopf', { hasText: name });
+  await expect(knopf).toContainText('⏰ mo 07:00');
+  await expect(page.getByText(/Läuft von selbst: mo 07:00 – nächstes Mal/)).toBeVisible();
+});

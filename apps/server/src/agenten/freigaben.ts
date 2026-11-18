@@ -20,6 +20,8 @@ export const FREIGABE_ARTEN = {
   lauf_starten: z.object({ laufId: z.string() }),
   // Inhalt enthält zusätzlich den ganzen Plan (für Anzeige in App und Telegram)
   plan_ausfuehren: z.object({ planId: z.string() }).passthrough(),
+  // Skill-Vorschlag des Bürgermeisters: der fertige Entwurf (wird beim Ausführen erneut geprüft)
+  aktion_anlegen: z.object({ pfad: z.string(), markdown: z.string(), entwurf: z.unknown() }),
 } as const;
 export type FreigabeArt = keyof typeof FREIGABE_ARTEN;
 /** Arten, die ein Agent beantragen darf (lauf_starten legt nur das Dorf selbst an). */

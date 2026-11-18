@@ -13,6 +13,7 @@ import type { Schreibtisch } from '../schreibtisch.js';
 import type { Buergermeister } from './buergermeister.js';
 import { DorfFehler } from '../fehler.js';
 import type { Automatik } from './automatik.js';
+import { skillAnlegen, skillPruefen } from './skills.js';
 
 export function agentenRouten(
   app: FastifyInstance,
@@ -32,6 +33,14 @@ export function agentenRouten(
   app.get('/api/aktionen/quelle', async (req) => {
     const q = z.object({ name: z.enum(['uni.faecher', 'uni.abgaben', 'post.mails']) }).parse(req.query);
     return agenten.quellen(q.name);
+  });
+
+  // Skill anlegen (App-Formular): wird wie jede Aktion geprüft, dann als Markdown-Datei gespeichert
+  app.post('/api/aktionen/neu', async (req) => skillAnlegen(vault, req.body));
+  // Vorschau: Prüfen ohne Speichern (zeigt das Markdown)
+  app.post('/api/aktionen/pruefen', async (req) => {
+    const s = await skillPruefen(vault, req.body);
+    return { pfad: s.pfad, markdown: s.markdown };
   });
 
   app.post('/api/aktionen/starten', async (req) => {

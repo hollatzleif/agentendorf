@@ -179,6 +179,10 @@ label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.92rem;
 .aktion-knopf { display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; padding: 0.7rem 0.9rem; text-align: left; }
 .aktion-knopf.aktiv { border-color: var(--gruen); background: var(--gruen-hell); }
 .aktion-knopf.kaputt { border-color: var(--rot); }
+.aktion-knopf.neu { border-style: dashed; }
+.neue-aktion fieldset { border: 1px solid var(--rand); border-radius: 10px; padding: 0.5rem 0.8rem; display: flex; flex-direction: column; gap: 0.3rem; }
+.neue-aktion .zeile-label { flex-direction: row; align-items: center; gap: 0.4rem; font-weight: normal; }
+.eingabe-zeile input { min-width: 0; flex: 1; }
 .chatliste { list-style: none; padding: 0; margin: 0.6rem 0 0; }
 .chatliste li { padding: 0.45rem 0; border-bottom: 1px solid var(--rand); }
 .lauf-chip { display: inline-block; font-size: 0.78rem; padding: 0.05rem 0.5rem; border-radius: 99px; background: var(--gruen-hell); margin: 0.15rem 0.3rem 0 0; }

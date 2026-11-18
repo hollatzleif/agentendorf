@@ -32,10 +32,11 @@ export type DorfWerkzeug =
   | 'moodle_zurueck'
   | 'moodle_bild'
   | 'moodle_herunterladen'
-  | 'kalender_lesen';
+  | 'kalender_lesen'
+  | 'aktion_vorschlagen';
 export const LESE_WERKZEUGE: DorfWerkzeug[] = ['vault_lesen', 'vault_liste', 'vault_suchen'];
 /** Nur Aktionen mit rolle: buergermeister bekommen diese Werkzeuge. */
-export const BUERGERMEISTER_WERKZEUGE: DorfWerkzeug[] = ['aktionen_liste', 'helfer_starten', 'plan_vorlegen'];
+export const BUERGERMEISTER_WERKZEUGE: DorfWerkzeug[] = ['aktionen_liste', 'helfer_starten', 'plan_vorlegen', 'aktion_vorschlagen'];
 /**
  * Nur Aktionen mit werkzeuge: [rechenraum]. Der Rechenraum hat weder Internet noch Vault – darum ist er auch
  * mit Fremdinhalten erlaubt. Heraus kommt nur, was rechenraum_ablegen in den vom Code bestimmten Ordner legt.

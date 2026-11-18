@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { TelegramSchnittstelle } from '../src/telegram/api.js';
 import { einstellungenSetzen, STANDARD } from '../src/telegram/einstellungen.js';
@@ -142,6 +144,21 @@ describe('Telegram-Bot', () => {
     expect(d.gesendet().at(-1)).toMatch(/Offene Freigaben: 1/);
   });
 
+  it('/aktion: listet startbare Skills (ohne Pflicht-Eingaben oder mit Standard) und startet sie', async () => {
+    const d = await dorf();
+    fs.writeFileSync(path.join(d.vault.wurzel, 'Bibliothek/aktionen/checkliste.md'), '---\nname: Checkliste\nzeitplan: täglich 06:00\n---\nMach die Liste.\n');
+    await d.nachricht({ text: '/aktion' });
+    const liste = d.gesendet().at(-1)!;
+    expect(liste).toContain('<code>/aktion Checkliste</code> – Bibliothek · ⏰ täglich 06:00');
+    expect(liste).not.toContain('Notizen zusammenfassen'); // braucht eine Eingabe
+    await d.nachricht({ text: '/aktion check' });
+    expect(d.gesendet().at(-1)).toMatch(/^▶️ Gestartet: <b>Checkliste<\/b> \(Bibliothek\)/);
+    await d.ruhe();
+    expect(d.db.prepare("SELECT COUNT(*) AS n FROM chats WHERE aktion = 'Bibliothek/checkliste'").get()).toEqual({ n: 1 });
+    await d.nachricht({ text: '/aktion gibtsnicht' });
+    expect(d.gesendet().at(-1)).toMatch(/Keine eindeutige Aktion/);
+  });
+
   it('Polling: ein Ausfall der Bot-API blockiert nichts, danach geht es weiter', async () => {
     const d = await dorf();
     d.updates.push(new Error('Netz weg') as never, [{ update_id: 50, message: { message_id: 1, chat: { id: Number(LEIF) }, text: 'Nach dem Ausfall' } }] as never);
@@ -155,7 +172,7 @@ describe('Telegram-Bot', () => {
     expect(offsets.at(-1)).toBe(51);
     // Befehlsmenü wird beim Start angemeldet
     const menue = d.aufrufe.find((x) => x.m === 'setMyCommands')?.p.commands as { command: string }[];
-    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'neu', 'hilfe']);
+    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'neu', 'hilfe']);
     await d.agenten.leerlauf();
   }, 15_000);
 });

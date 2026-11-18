@@ -15,6 +15,7 @@ import type { Postbote } from '../post/postbote.js';
 import type { Morgenzeitung, Zeitung } from '../morgenzeitung.js';
 import type { PostMail } from '@dorf/shared';
 import { fristText } from '../uni/text.js';
+import { aktionenListe } from '../agenten/aktionen.js';
 import type { Uhr } from '../uhr.js';
 import { fremdinhaltHuelle } from '../agenten/leine.js';
 
@@ -53,6 +54,7 @@ const ARTEN: Record<string, string> = {
   sonstiges: 'Sonstiges',
   lauf_starten: 'Aktion starten',
   plan_ausfuehren: 'Plan ausführen',
+  aktion_anlegen: '🧩 Neuer Skill',
 };
 
 /**
@@ -159,6 +161,7 @@ export class TelegramBot {
     { command: 'fristen', description: 'Abgaben und Prüfungen der nächsten 7 Tage' },
     { command: 'freigaben', description: 'Offene Freigaben' },
     { command: 'moodle', description: 'In Moodle nachschauen lassen: /moodle <Fach> [Frage]' },
+    { command: 'aktion', description: 'Skill starten: /aktion <Name> (ohne Name: Liste)' },
     { command: 'neu', description: 'Nächste Nachricht wird eine neue Aufgabe' },
     { command: 'hilfe', description: 'Was der Bot kann' },
   ];
@@ -279,6 +282,7 @@ export class TelegramBot {
     if (text.startsWith('/')) {
       const b = text.split(/\s/)[0]!.split('@')[0]!.toLowerCase();
       if (b === '/moodle') return this.moodleBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
+      if (b === '/aktion') return this.aktionBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b !== '/neu') return this.befehl(b);
       // „/neu“ beendet das laufende Gespräch; „/neu <Text>“ legt gleich eine neue Aufgabe an
       this.verlaufMerken(m.message_id, '');
@@ -347,7 +351,7 @@ export class TelegramBot {
   private async befehl(b: string) {
     if (b === '/start' || b === '/hilfe' || b === '/help')
       return this.senden(
-        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/heute – dein Tag: Wetter, Termine, Fristen\n/fristen – Abgaben und Prüfungen der nächsten 7 Tage (mit Erledigt-Knöpfen)\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/hilfe – diese Hilfe`,
+        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/heute – dein Tag: Wetter, Termine, Fristen\n/fristen – Abgaben und Prüfungen der nächsten 7 Tage (mit Erledigt-Knöpfen)\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/aktion [Name] – Skill starten (ohne Name: Liste)\n/hilfe – diese Hilfe`,
       );
     if (b === '/status') {
       const aktiv = this.o.agenten.aktiveLaeufe();
@@ -391,6 +395,22 @@ export class TelegramBot {
   }
 
   /** /moodle <Fach> [Frage] – „Moodle durchsehen“ direkt vom Handy starten (Leifs Auftrag → über sein Abo) */
+  /** /aktion [Name] – Skills, die ohne Eingaben (oder mit Standardwerten) laufen, vom Handy starten */
+  private async aktionBefehl(rest: string) {
+    const startbar = (await aktionenListe(this.o.vault)).filter((a) => !a.fehler && a.rolle !== 'buergermeister' && a.eingaben.every((e) => !e.pflicht || e.standard));
+    if (!rest) {
+      if (!startbar.length) return this.senden('Keine Aktion lässt sich ohne Eingaben starten.');
+      const zeilen = startbar.slice(0, 30).map((a) => `• <code>/aktion ${h(a.name)}</code> – ${h(a.gebaeude)}${a.zeitplan ? ` · ⏰ ${h(a.zeitplan)}` : ''}`);
+      return this.senden(`🧩 <b>Aktionen zum Starten</b>\n${zeilen.join('\n')}`);
+    }
+    const klein = rest.toLowerCase();
+    const treffer = startbar.filter((a) => a.name.toLowerCase() === klein || a.id.toLowerCase() === klein);
+    const a = treffer[0] ?? (startbar.filter((x) => x.name.toLowerCase().includes(klein)).length === 1 ? startbar.find((x) => x.name.toLowerCase().includes(klein)) : undefined);
+    if (!a) return this.senden(`Keine eindeutige Aktion „${h(rest)}“. /aktion zeigt die Liste.`);
+    const r = await this.o.agenten.aktionStarten(a.id, {}, 'klick');
+    return this.senden(`▶️ Gestartet: <b>${h(a.name)}</b> (${h(a.gebaeude)})\n<a href="${this.link(`/chats/${r.chatId}`)}">Chat öffnen</a>`, {}, r.chatId);
+  }
+
   private async moodleBefehl(rest: string) {
     if (!this.o.agenten.moodleBrowser) return this.senden('🌐 Der Moodle-Browser ist noch nicht eingerichtet. Auf dem Server: <code>dorf moodle-browser-zugang</code>');
     const faecher = this.o.uni?.faecher() ?? [];

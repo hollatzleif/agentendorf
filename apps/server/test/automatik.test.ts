@@ -175,3 +175,53 @@ describe('Werkzeug kalender_lesen', () => {
     expect(t).not.toContain('Viel später');
   });
 });
+
+describe('Skills anlegen', () => {
+  const entwurf = {
+    gebaeude: 'Bibliothek',
+    name: 'Wochenplan',
+    beschreibung: 'Plant die Woche',
+    anweisung: 'Lies meine Termine und schreib einen Wochenplan.',
+    werkzeuge: ['vault_lesen', 'vault_schreiben', 'kalender'],
+    fremdinhalte: true,
+    zeitplan: 'mo 07:00',
+    ablage: 'Bibliothek/00_Wochenplan.md',
+  };
+
+  it('App-Formular: geprüft wie jede Aktion, als Markdown gespeichert; Fehlerhaftes und Doppeltes nicht', async () => {
+    const d = await testDorf();
+    const h = await kopf(d);
+    const neu = (b: unknown) => d.app.inject({ method: 'POST', url: '/api/aktionen/neu', headers: h, payload: b });
+    const r = await neu(entwurf);
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toEqual({ id: 'Bibliothek/wochenplan', pfad: 'Bibliothek/aktionen/wochenplan.md' });
+    const md = (await d.vault.lesen('Bibliothek/aktionen/wochenplan.md')).inhalt;
+    expect(md).toMatch(/zeitplan: '?mo 07:00'?/);
+    expect(md).toContain('fremdinhalte: ja');
+    expect(md).toContain('Lies meine Termine');
+    const liste = (await d.app.inject({ url: '/api/aktionen?gebaeude=Bibliothek', headers: h })).json() as { id: string; fehler?: string; zeitplan?: string }[];
+    expect(liste.find((a) => a.id === 'Bibliothek/wochenplan')).toMatchObject({ zeitplan: 'mo 07:00' });
+    expect(liste.find((a) => a.id === 'Bibliothek/wochenplan')!.fehler).toBeUndefined();
+
+    expect((await neu(entwurf)).statusCode).toBe(409);
+    const kaputt = await neu({ ...entwurf, name: 'Moodle ohne Fremd', werkzeuge: ['moodle'], fremdinhalte: false });
+    expect(kaputt.statusCode).toBe(400);
+    expect(kaputt.json().fehler).toMatch(/fremdinhalte/);
+    expect(await d.vault.existiert('Bibliothek/aktionen/moodle-ohne-fremd.md')).toBe(false);
+    expect((await neu({ ...entwurf, name: 'X1', gebaeude: 'Gibtsnicht' })).statusCode).toBe(400);
+    expect((await neu({ ...entwurf, name: 'Fremde Ablage', ablage: 'Rathaus/x.md' })).statusCode).toBe(400);
+  });
+
+  it('Bürgermeister schlägt vor (Freigabe); erst nach Leifs Ja gibt es die Datei', async () => {
+    const d = await testDorf();
+    const befehl = `<<werkzeug aktion_vorschlagen ${JSON.stringify({ ...entwurf, name: 'Wochenplan vom BM' })}>>`;
+    await d.agenten.aktionStarten('Rathaus/buergermeister', { aufgabe: befehl });
+    await d.agenten.leerlauf();
+    const f = d.agenten.freigaben.liste('offen').find((x) => x.art === 'aktion_anlegen')!;
+    expect(f.titel).toBe('Neuer Skill: Wochenplan vom BM (Bibliothek)');
+    expect((f.inhalt as { markdown: string }).markdown).toContain('name: Wochenplan vom BM');
+    expect(await d.vault.existiert('Bibliothek/aktionen/wochenplan-vom-bm.md')).toBe(false);
+    await d.agenten.freigaben.entscheiden(f.id, true);
+    expect(await d.vault.existiert('Bibliothek/aktionen/wochenplan-vom-bm.md')).toBe(true);
+  });
+});

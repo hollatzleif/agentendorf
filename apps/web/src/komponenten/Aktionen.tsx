@@ -6,6 +6,7 @@ import { api, ApiFehler } from '../api';
 import { navigieren } from '../router';
 import { alleDateien, useBaum } from '../vaultHilfen';
 import { stufeText } from '../texte';
+import { NeueAktion } from './NeueAktion';
 
 /** Aktionen eines Gebäudes als Knöpfe; ein Klick öffnet das Eingabeformular. */
 export function Aktionen({ gebaeude }: { gebaeude: string }) {
@@ -13,13 +14,39 @@ export function Aktionen({ gebaeude }: { gebaeude: string }) {
   // ?aktion=Uni/lernen öffnet eine Aktion gleich (Schnellknöpfe im Dorf)
   const { suche } = useOrt();
   const [offen, setOffen] = useState<string | null>(() => suche.get('aktion'));
+  const [neu, setNeu] = useState(false);
   if (q.isPending) return <p className="leise">Lade Aktionen …</p>;
   if (q.isError) return <p className="fehler">{q.error.message}</p>;
+  const neuKnopf = (
+    <button
+      className={`aktion-knopf neu${neu ? ' aktiv' : ''}`}
+      onClick={() => {
+        setNeu(!neu);
+        setOffen(null);
+      }}
+    >
+      <strong>+ Neue Aktion</strong>
+      <span className="leise">eigener Skill</span>
+    </button>
+  );
+  const formular = neu && (
+    <NeueAktion
+      gebaeude={gebaeude}
+      fertig={(id) => {
+        setNeu(false);
+        if (id.startsWith(`${gebaeude}/`)) setOffen(id);
+      }}
+    />
+  );
   if (!q.data.length)
     return (
-      <p className="leise">
-        Noch keine Aktionen. Lege eine Markdown-Datei in <code>{gebaeude}/aktionen/</code> an – sie erscheint sofort hier.
-      </p>
+      <div className="aktionen">
+        <p className="leise">
+          Noch keine Aktionen. Leg hier eine an – oder eine Markdown-Datei in <code>{gebaeude}/aktionen/</code> (Vorlage: <code>00_Stadtordnung/aktion-vorlage.md</code>).
+        </p>
+        <div className="aktions-knoepfe">{neuKnopf}</div>
+        {formular}
+      </div>
     );
   return (
     <div className="aktionen">
@@ -28,16 +55,22 @@ export function Aktionen({ gebaeude }: { gebaeude: string }) {
           <button
             key={a.id}
             className={`aktion-knopf${a.fehler ? ' kaputt' : ''}${offen === a.id ? ' aktiv' : ''}`}
-            onClick={() => setOffen(offen === a.id ? null : a.id)}
+            onClick={() => {
+              setOffen(offen === a.id ? null : a.id);
+              setNeu(false);
+            }}
             title={a.fehler ?? a.beschreibung}
           >
             <strong>{a.name}</strong>
             <span className="leise">
               {a.fehler ? 'fehlerhaft' : `${a.motor} · ${stufeText(a.stufe)}${a.werkzeuge.includes('web') ? ' · Web' : ''}${a.fremdinhalte ? ' · Fremdinhalte' : ''}`}
             </span>
+            {a.zeitplan && !a.fehler && <span className="leise">⏰ {a.zeitplan}</span>}
           </button>
         ))}
+        {neuKnopf}
       </div>
+      {formular}
       {offen && q.data.some((x) => x.id === offen) && <AktionStarten key={offen} a={q.data.find((x) => x.id === offen)!} />}
     </div>
   );
@@ -66,7 +99,7 @@ function QuellenAuswahl({ quelle, wert, setzen }: { quelle: AktionQuelle; wert: 
 
 function AktionStarten({ a }: { a: AktionInfo }) {
   const [werte, setWerte] = useState<Record<string, string>>(() =>
-    Object.fromEntries(a.eingaben.map((e) => [e.name, e.typ === 'auswahl' ? (e.optionen?.[0] ?? '') : ''])),
+    Object.fromEntries(a.eingaben.map((e) => [e.name, e.standard ?? (e.typ === 'auswahl' ? (e.optionen?.[0] ?? '') : '')])),
   );
   const [fehler, setFehler] = useState('');
   const [laeuft, setLaeuft] = useState(false);
@@ -134,6 +167,13 @@ function AktionStarten({ a }: { a: AktionInfo }) {
         Motor {a.motor}, Stufe {stufeText(a.stufe)}
         {a.freigabeVorStart ? ' – startet erst nach deiner Freigabe' : ''}
       </p>
+      {a.zeitplan && (
+        <p className="leise">
+          ⏰ Läuft von selbst: {a.zeitplan}
+          {a.naechsterLauf ? ` – nächstes Mal ${new Date(a.naechsterLauf).toLocaleString('de-AT', { timeZone: 'Europe/Vienna', weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}
+        </p>
+      )}
+      {a.ablage && <p className="leise">📄 Ergebnis landet in {a.ablage} (die vorige Fassung kommt ins Archiv)</p>}
       {fehler && <p className="fehler">{fehler}</p>}
       <button type="submit" className="haupt" disabled={laeuft}>
         {laeuft ? 'Starte …' : 'Starten'}

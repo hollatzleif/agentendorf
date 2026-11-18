@@ -138,6 +138,45 @@ export const WERKZEUG_DEFINITIONEN: Record<DorfWerkzeug, WerkzeugDefinition> = {
     },
   },
 
+  aktion_vorschlagen: {
+    name: 'aktion_vorschlagen',
+    description:
+      'Nur für den Bürgermeister: schlägt Leif einen NEUEN Skill (Aktion) für ein Gebäude vor – z. B. wenn er das ausdrücklich wünscht oder eine Aufgabe regelmäßig wiederkommt und keine passende Aktion existiert. Wird als Freigabe vorgelegt; erst nach Leifs Zustimmung gibt es die Datei <Gebäude>/aktionen/<name>.md. Werkzeuge: vault_lesen, vault_suchen, vault_schreiben, post (Mails lesen, Entwürfe), moodle (Moodle-Browser, braucht fremdinhalte), kalender (braucht fremdinhalte), rechenraum, web (nie zusammen mit fremdinhalte). zeitplan z. B. „täglich 06:00“, „werktags 07:00“; dann brauchen Pflicht-Eingaben einen standard. ablage: Datei im Gebäude, die bei jedem Lauf ersetzt wird (alte Fassung → archiv/), z. B. „Bibliothek/00_Checkliste.html“ oder „Uni/faecher/{fach}/00_Kursuebersicht.html“.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        gebaeude: { type: 'string' },
+        name: { type: 'string', description: 'Kurzer Name, z. B. „Wochenplan“' },
+        beschreibung: { type: 'string', description: 'Ein Satz für Leif: was der Skill tut' },
+        anweisung: { type: 'string', description: 'Die vollständige Arbeitsanweisung für den Agenten (Markdown); Platzhalter {eingabe_name}' },
+        motor: { type: 'string', enum: ['claude-code', 'api'] },
+        stufe: { type: 'string', enum: ['klein', 'mittel', 'gross'] },
+        werkzeuge: { type: 'array', items: { type: 'string', enum: ['vault_lesen', 'vault_suchen', 'vault_schreiben', 'web', 'rechenraum', 'post', 'moodle', 'kalender'] } },
+        fremdinhalte: { type: 'boolean' },
+        zeitplan: { type: 'string' },
+        ablage: { type: 'string' },
+        eingaben: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              beschriftung: { type: 'string' },
+              typ: { type: 'string', enum: ['text', 'langtext', 'auswahl'] },
+              pflicht: { type: 'boolean' },
+              standard: { type: 'string' },
+              optionen: { type: 'array', items: { type: 'string' } },
+              quelle: { type: 'string', enum: ['uni.faecher', 'uni.abgaben', 'post.mails'] },
+            },
+            required: ['name'],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ['gebaeude', 'name', 'anweisung'],
+      additionalProperties: false,
+    },
+  },
   kalender_lesen: {
     name: 'kalender_lesen',
     description:
@@ -386,7 +425,8 @@ export class WerkzeugKiste {
         }
         case 'aktionen_liste':
         case 'helfer_starten':
-        case 'plan_vorlegen': {
+        case 'plan_vorlegen':
+        case 'aktion_vorschlagen': {
           if (!this.rolle) throw new DorfFehler(403, 'Dieses Werkzeug hat nur der Bürgermeister.');
           const r = await this.rolle.aufrufen(name, eingabe, this.k);
           this.log(name, eingabe, r.text.slice(0, 300), r.ok, undefined, name === 'aktionen_liste' ? undefined : 'freigabe');

@@ -40,7 +40,7 @@ export function Freigaben() {
 function FreigabeKarte({ f }: { f: FreigabeInfo }) {
   const [fehler, setFehler] = useState('');
   const [laeuft, setLaeuft] = useState(false);
-  const inhalt = f.inhalt as { pfad?: string; inhalt?: string; beschreibung?: string };
+  const inhalt = f.inhalt as { pfad?: string; inhalt?: string; beschreibung?: string; markdown?: string };
   const entscheiden = async (annehmen: boolean) => {
     setLaeuft(true);
     try {
@@ -71,7 +71,7 @@ function FreigabeKarte({ f }: { f: FreigabeInfo }) {
         </>
       )}
       {f.begruendung && <p>{f.begruendung}</p>}
-      {inhalt.pfad && (
+      {inhalt.pfad && f.art !== 'aktion_anlegen' && (
         <p>
           Datei:{' '}
           <a href={bibliothekUrl(inhalt.pfad)} onClick={linkKlick}>
@@ -80,6 +80,12 @@ function FreigabeKarte({ f }: { f: FreigabeInfo }) {
         </p>
       )}
       {inhalt.beschreibung && f.art !== 'plan_ausfuehren' && <p>{inhalt.beschreibung}</p>}
+      {f.art === 'aktion_anlegen' && inhalt.markdown && (
+        <details open>
+          <summary>Vorgeschlagener Skill (wird so als Aktion gespeichert)</summary>
+          <pre className="rohtext">{inhalt.markdown}</pre>
+        </details>
+      )}
       {inhalt.inhalt !== undefined && (
         <details>
           <summary>Neuer Inhalt ansehen</summary>

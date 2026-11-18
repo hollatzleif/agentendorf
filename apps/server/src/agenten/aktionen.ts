@@ -76,7 +76,8 @@ export interface Aktion extends AktionInfo {
   anhaenge: string[];
 }
 
-function zuInfo(gebaeude: string, datei: string, roh: string): Aktion {
+/** Aktion aus Dateitext lesen (Fehler stehen in `fehler`) – auch zum Prüfen neuer Skills vor dem Speichern */
+export function zuInfo(gebaeude: string, datei: string, roh: string): Aktion {
   const id = `${gebaeude}/${datei.replace(/\.md$/, '')}`;
   const pfad = `${gebaeude}/aktionen/${datei}`;
   try {
