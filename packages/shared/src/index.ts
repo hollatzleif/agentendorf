@@ -704,3 +704,14 @@ export interface KalenderAntwort {
   termine: KalenderTermin[];
 }
 export * from './termintext.js';
+
+/** Uni: Stand je Fach (Nacht 18./19.11.) */
+export interface FachStand {
+  name: string;
+  titel: string;
+  ordner: string;
+  moodleUrl: string | null;
+  offeneAbgaben: number;
+  naechsteFrist: { titel: string; frist: string; art: 'abgabe' | 'test' } | null;
+  fokus7Tage: number;
+}

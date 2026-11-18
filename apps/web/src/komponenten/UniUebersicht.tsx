@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { UniFrist, UniUebersicht as Daten } from '@dorf/shared';
+import { FachKarten } from './FachKarten';
 import { api, ApiFehler } from '../api';
 import { bibliothekUrl, linkKlick } from '../router';
 
@@ -136,23 +137,7 @@ export function UniUebersicht() {
       {u.faecher.length === 0 ? (
         <p className="leise">Noch keine Fächer. Leg unten eins an – dann Folien, Altklausuren und Übungsblätter hineinlegen.</p>
       ) : (
-        <ul className="ordnerliste">
-          {u.faecher.map((f) => (
-            <li key={f.name}>
-              <a href={bibliothekUrl(f.ordner)} onClick={linkKlick}>
-                📁 {f.titel}
-              </a>
-              {f.moodleUrl && (
-                <>
-                  {' · '}
-                  <a href={f.moodleUrl} target="_blank" rel="noopener noreferrer">
-                    Moodle
-                  </a>
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
+        <FachKarten />
       )}
       <form className="zeile" onSubmit={fachAnlegen}>
         <input value={neuesFach} onChange={(x) => setNeuesFach(x.target.value)} placeholder="z. B. Computational Data Analytics" aria-label="Neues Fach" required />

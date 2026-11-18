@@ -1,6 +1,7 @@
 import type { Boerse } from './boerse.js';
 import type { Saxo } from './saxo.js';
 import type { Kirchturm } from './kirchturm.js';
+import type { FachStand } from '@dorf/shared';
 import type { Wochenrueckblick } from './wochenrueckblick.js';
 import type { GoogleKalender } from './kalender-google.js';
 import type { Corps } from './corps.js';
@@ -579,6 +580,27 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
       throw new DorfFehler(404, (e as Error).message);
     }
     return { ok: true };
+  });
+  // Stand je Fach: offene Abgaben, nächste Frist (Kurs-Name passt ungefähr zum Fach), Fokuszeit der letzten 7 Tage
+  app.get('/api/uni/faecher-stand', async (): Promise<FachStand[]> => {
+    const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9äöüß]/g, '');
+    const passt = (a: string, b: string) => {
+      const x = norm(a);
+      const y = norm(b);
+      return x.length >= 2 && y.length >= 2 && (x === y || (Math.min(x.length, y.length) >= 4 && (x.includes(y) || y.includes(x))));
+    };
+    const abgaben = a.uni.abgaben();
+    const fristen = a.uni.fristen().filter((f) => (f.art === 'abgabe' || f.art === 'test') && !f.abgegeben && f.frist && Date.parse(f.frist) > uhr.jetzt());
+    const fokus = a.kirchturm?.fokusJeGruppe(uhr.jetzt() - 7 * 86_400_000) ?? new Map<string, number>();
+    return a.uni.faecher().map((f) => {
+      const n = fristen.find((x) => x.kurs && (passt(x.kurs, f.titel) || passt(x.kurs, f.name)));
+      return {
+        ...f,
+        offeneAbgaben: abgaben.filter((x) => x.fach === f.titel).length,
+        naechsteFrist: n ? { titel: n.titel, frist: n.frist!, art: n.art as 'abgabe' | 'test' } : null,
+        fokus7Tage: [...fokus.entries()].filter(([k]) => passt(k, f.titel) || passt(k, f.name)).reduce((s2, [, m]) => s2 + m, 0),
+      };
+    });
   });
   app.post('/api/uni/fach', async (req) => {
     const b = z.object({ name: z.string().min(1).max(120) }).parse(req.body);

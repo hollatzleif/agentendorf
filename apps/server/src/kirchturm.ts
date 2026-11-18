@@ -144,6 +144,12 @@ export class Kirchturm {
       .run(jetzt - ms, jetzt, Math.round((ms / MIN) * 10) / 10, e.thema ?? null, e.gruppe ?? null, e.todoPfad ?? null, fertig ? 1 : 0);
   }
 
+  /** Fokusminuten je Fach/Gruppe (bzw. Thema) seit `seit` */
+  fokusJeGruppe(seit: number): Map<string, number> {
+    const z = this.o.db.prepare('SELECT COALESCE(gruppe, thema) AS k, SUM(minuten) AS m FROM fokus_sitzungen WHERE ende > ? GROUP BY k').all(seit) as { k: string | null; m: number }[];
+    return new Map(z.filter((x) => x.k).map((x) => [x.k!, Math.round(x.m)]));
+  }
+
   /** Morgenzeitung: gestern und 7 Tage (nur wenn es Fokuszeit gab) */
   zeitungsZeilen(): string[] {
     const s = this.fokusStatistik();

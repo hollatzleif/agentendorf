@@ -177,7 +177,7 @@ test('Uni: Fristen und Pflichttermine aus Google, abhaken, Fach anlegen', async 
   const fach = `Fach ${info.project.name}`;
   await page.getByLabel('Neues Fach').fill(fach);
   await page.getByRole('button', { name: 'Fach anlegen' }).click();
-  await page.locator('.uni .ordnerliste').getByRole('link', { name: fach }).click();
+  await page.getByRole('region', { name: `Fach ${fach}` }).getByRole('link', { name: fach }).click();
   await expect(page).toHaveURL(new RegExp(`bibliothek\\?pfad=Uni%2Ffaecher%2FFach%20${info.project.name}`));
   await expect(page.getByRole('link', { name: /aufgaben/ })).toBeVisible();
 });

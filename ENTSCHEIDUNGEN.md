@@ -553,3 +553,12 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
   - Ohne Uhrzeit wird der Termin ganztägig; nur eine Uhrzeit heißt heute, oder morgen, wenn die Zeit schon vorbei ist.
 - **App:** Feld „morgen 14 Uhr Zahnarzt …“ im Marktplatz-Kalender. Es füllt nur das Formular, Leif speichert selbst.
 - **Telegram:** `/termin <Text>` zeigt eine Vorschau mit „✅ Eintragen“ (HMAC-signiert, höchstens 20 Vorschläge, 24 h gültig, kein Doppel-Eintrag). Eingetragen wird erst mit dem Klick, in den Hauptkalender, ohne Einladungen.
+
+## E83 – Fach-Karten in der Uni (Nacht 18./19.11.)
+
+- Statt einer Ordnerliste zeigt die Uni je Fach eine Karte mit:
+  - der nächsten offenen Frist (rot ab 2 Tagen vorher),
+  - offenen Übungsblättern in `aufgaben/`,
+  - der Fokuszeit der letzten 7 Tage,
+  - Knöpfen „🍅 Fokus“ (Pomodoro mit dem Fach als Gruppe) und „📚 Lernen“, dazu der Moodle-Link.
+- Fristen und Fokus-Gruppen gehören zu einem Fach, wenn die Namen ungefähr passen: Groß-/Kleinschreibung und Sonderzeichen zählen nicht, ab 4 Zeichen reicht „enthält“. Grund: Kursnamen im Kalender („Mathe III“) und Ordnernamen weichen oft leicht voneinander ab.
