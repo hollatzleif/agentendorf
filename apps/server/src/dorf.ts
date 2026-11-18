@@ -41,6 +41,7 @@ import { Wochenrueckblick } from './wochenrueckblick.js';
 import { Karteikasten } from './karten.js';
 import { Gewohnheiten } from './gewohnheiten.js';
 import { Wochenziele } from './wochenziele.js';
+import { TodoErinnerungen } from './todo-erinnerungen.js';
 import { GoogleKalender, googleKalenderKlient, type KalenderKlient } from './kalender-google.js';
 import { Bank, datum as bankDatum } from './bank.js';
 import { Corps } from './corps.js';
@@ -343,6 +344,10 @@ export async function dorfStarten(
   const karten = new Karteikasten({ db, uhr, vault, hub });
   const gewohnheiten = new Gewohnheiten({ db, uhr, vault, hub });
   const wochenziele = new Wochenziele({ uhr, vault, hub });
+  // E94: Erinnerungen an To-dos – läuten im Kirchturm, Telegram schickt Knöpfe
+  const erinnerungen = new TodoErinnerungen({ todos, uhr, kirchturm, log: (t) => console.warn(t) });
+  kirchturm.beiErinnerungSchlummern.push((pfad) => void erinnerungen.verschieben(pfad, { minuten: 10 }).catch(() => undefined));
+  if (opt.beobachten !== false) erinnerungen.starten();
   // Nacht 18./19.11.: Wochenrückblick sonntags 18:30
   const wochenrueckblick = new Wochenrueckblick({ db, uhr, vault, hub, ki, todos, uni, kalender, fokus: kirchturm, bank, gewohnheiten, wochenziele, log: (t) => console.warn(t) });
   const morgenzeitung = new Morgenzeitung({ db, uhr, vault, hub, ki, freigaben: agenten.freigaben, schreibtisch, uni, postbote, kalender, wetter, bank, boerse: depotZeilen, fokus: kirchturm, gewohnheiten, wochenziele, wichtig: async () => (await todos.liste()).filter((t) => !t.erledigt && t.wichtig).slice(0, 5).map((t) => `**${t.titel}**${t.faellig ? ` (fällig ${t.faellig})` : ''}`), log: (t) => console.warn(t) });
@@ -368,6 +373,7 @@ export async function dorfStarten(
       kirchturm,
       gewohnheiten,
       wochenziele,
+      erinnerungen,
       log: (t) => console.warn(t),
     });
     if (!opt.telegram) telegram.starten();
@@ -377,6 +383,7 @@ export async function dorfStarten(
     wochenrueckblick.beiNeu.push((r) => t.rueckblickSenden(r));
     // Fokus: während einer Pomodoro-Arbeitsphase hält Telegram Meldungen zurück und schickt sie danach gesammelt
     t.fokusAktiv = () => kirchturm.fokusAktiv();
+    erinnerungen.beiErinnerung.push((todo) => t.erinnerungSenden(todo));
     kirchturm.beiFokusEnde.push(() => void t.nachtNachholen().catch(() => undefined));
   }
   agenten.anstossen();
@@ -431,5 +438,5 @@ export async function dorfStarten(
     await agenten.ruhe();
     db.close();
   });
-  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan, wetter, automatik, todos, listen, bank, corps, boerse, uniTodos, saxo, kirchturm, googleKalender, wochenrueckblick, karten, gewohnheiten, wochenziele };
+  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan, wetter, automatik, todos, listen, bank, corps, boerse, uniTodos, saxo, kirchturm, googleKalender, wochenrueckblick, karten, gewohnheiten, wochenziele, erinnerungen };
 }

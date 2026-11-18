@@ -53,6 +53,7 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
   src/karten.ts        E87: Karteikarten (Uni/faecher/<Fach>/karten.md, „Frage :: Antwort“ / „### Frage“), SM-2-Stand in karten_stand
   src/gewohnheiten.ts  E89: Gewohnheiten (Marktplatz/gewohnheiten.md) + Häkchen in gewohnheit_log, Serien; Heute, Telegram, Wochenrückblick
   src/wochenziele.ts   E91: Wochenziele = Obsidian-Checkliste Rathaus/wochenziele/JJJJ-KWnn.md (max. 7); Heute, /ziel, Zeitung, Rückblick
+  src/todo-erinnerungen.ts E94: To-do mit erinnerung (Ortszeit) läutet im Kirchturm + Telegram (Erledigt/+1 h/Morgen), alle 30 s, genau einmal
   src/statistik.ts     E93: Statistik je Tag (erledigte To-dos, Fokus, Gewohnheiten) aus vorhandenen Daten – Rathaus → Statistik
   src/tagesplan.ts     E84: Tag planen (To-dos nach Dringlichkeit in freie Kalenderlücken, ohne KI)
   src/wochenrueckblick.ts E80: sonntags 18:30 Rathaus/wochenrueckblick/JJJJ-KWnn.md (Fakten + KI-Vorschläge)
@@ -157,4 +158,4 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] Etappe 6 – Programme (E66; Code fertig, Selbsttest unter Linux bestanden; Mac/Windows baut die CI – Abnahme an Leifs Geräten steht aus, Signaturschlüssel als GitHub-Secret von Leif)
 - [x] Etappe 7 – Gebäude anlegen/eröffnen, Einkaufsladen, Bank, Corpshaus, Börse (E67–E70; Code fertig und getestet; echte Läufe, EODHD-Schlüssel und Bank-Exporte auf dem Server abzunehmen)
 - [x] Etappe 8 (18.11.): Uni-Fristen als To-dos (E71), Häuschen/Deko/Kirchturm-Modell (E72), SIX/Franken + Saxo nur lesen (E73), Kirchturm-Uhr mit Glocke im Programm (E74), Google-Kalender auf dem Marktplatz (E75) – Saxo-App und Calendar-API-Freigabe von Leif abzunehmen
-- [x] Nacht 18./19.11. (Produktivität, E76–E88): Teil-Bau der Programme (nur Windows), Mein Tag (/heute), Fokus-Statistik + Nicht stören, Lernzeit einplanen, Wochenrückblick, Mail → To-do, Termin aus Text (/termin), Fach-Karten, Tag planen, Befehlspalette (Strg+K), ⭐ wichtig, Karteikarten (/karten), Tagesabschluss 21:00, Gewohnheiten mit Serien (E89), Telegram /plan (E90), Wochenziele (E91), wiederkehrende To-dos (E92), Statistik (E93)
+- [x] Nacht 18./19.11. (Produktivität, E76–E88): Teil-Bau der Programme (nur Windows), Mein Tag (/heute), Fokus-Statistik + Nicht stören, Lernzeit einplanen, Wochenrückblick, Mail → To-do, Termin aus Text (/termin), Fach-Karten, Tag planen, Befehlspalette (Strg+K), ⭐ wichtig, Karteikarten (/karten), Tagesabschluss 21:00, Gewohnheiten mit Serien (E89), Telegram /plan (E90), Wochenziele (E91), wiederkehrende To-dos (E92), Statistik (E93), Erinnerungen an To-dos (E94)

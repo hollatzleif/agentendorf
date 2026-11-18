@@ -83,6 +83,15 @@ export function TodoBrett({ liste: name = 'todo', platzhalter = 'Neues To-do …
   );
 }
 
+/** E94: „heute 18:00“, „morgen 09:00“, sonst „Fr., 20.11. 14:00“ (Ortszeit wie gespeichert) */
+function erinnerungText(z: string) {
+  const tag = z.slice(0, 10);
+  const h = heute();
+  const morgen = new Date(Date.parse(`${h}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+  const wann = tag === h ? 'heute' : tag === morgen ? 'morgen' : new Date(`${tag}T12:00:00Z`).toLocaleDateString('de-AT', { weekday: 'short', day: '2-digit', month: '2-digit', timeZone: 'UTC' });
+  return `${wann} ${z.slice(11, 16)}`;
+}
+
 /** E92: Auswahl für wiederkehrende To-dos (Obsidian: Feld „wiederholen“, auch „alle 3 tage“ usw.) */
 const WIEDERHOLEN_WAHL = [
   ['', 'Nicht wiederholen'],
@@ -101,6 +110,7 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: (f: () =
   const [notiz, setNotiz] = useState(t.notiz ?? '');
   const [gruppe, setGruppe] = useState(t.gruppe ?? '');
   const [wiederholen, setWiederholen] = useState(t.wiederholen ?? '');
+  const [erinnerung, setErinnerung] = useState(t.erinnerung ?? '');
   // Häkchen sofort zeigen; die Zeile wird mit der neuen Version vom Server ohnehin neu aufgebaut
   const [haken, setHaken] = useState(t.erledigt);
   const [planen, setPlanen] = useState(false);
@@ -115,12 +125,16 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: (f: () =
           className="formspalte"
           onSubmit={(e) => {
             e.preventDefault();
-            void aendern({ titel, faellig, notiz, gruppe, ...(wiederholen !== (t.wiederholen ?? '') ? { wiederholen } : {}) }).then(() => setBearbeiten(false));
+            void aendern({ titel, faellig, notiz, gruppe, ...(wiederholen !== (t.wiederholen ?? '') ? { wiederholen } : {}), ...(erinnerung !== (t.erinnerung ?? '') ? { erinnerung: erinnerung.slice(0, 16) } : {}) }).then(() => setBearbeiten(false));
           }}
         >
           <input value={titel} onChange={(e) => setTitel(e.target.value)} maxLength={200} aria-label="Titel" />
           <input type="date" value={faellig} onChange={(e) => setFaellig(e.target.value)} aria-label="Fällig am" />
           <input value={gruppe} onChange={(e) => setGruppe(e.target.value)} maxLength={60} placeholder="Gruppe (Abteilung, Amt …)" aria-label="Gruppe" />
+          <label className="todo-erinnerung">
+            🔔 Erinnerung
+            <input type="datetime-local" value={erinnerung} onChange={(e) => setErinnerung(e.target.value)} aria-label="Erinnerung" />
+          </label>
           <select value={wiederholen} onChange={(e) => setWiederholen(e.target.value)} aria-label="Wiederholen">
             {[...WIEDERHOLEN_WAHL, ...(wiederholen && !WIEDERHOLEN_WAHL.some(([w]) => w === wiederholen) ? [[wiederholen, `🔁 ${wiederholen}`] as const] : [])].map(([w, text]) => (
               <option key={w} value={w}>
@@ -163,6 +177,11 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: (f: () =
         </button>
         <span className="todo-meta">
           {t.faellig && <span className={`abzeichen${ueberfaellig ? ' warnung' : ''}`}>📅 {datumText(t.faellig)}</span>}
+          {t.erinnerung && !t.erledigt && (
+            <span className="abzeichen" title="Läutet im Kirchturm und schickt eine Telegram-Nachricht">
+              🔔 {erinnerungText(t.erinnerung)}
+            </span>
+          )}
           {t.wiederholen && (
             <span className="abzeichen" title={`Wiederkehrend: ${t.wiederholen} – beim Abhaken kommt das nächste`}>
               🔁 {t.wiederholen}

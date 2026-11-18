@@ -114,9 +114,21 @@ export function Klingelt({ z, befehl }: { z: KirchturmZustand; befehl: Befehl })
             <strong>{k.titel}</strong>
             <div>{k.text}</div>
           </div>
+          {k.quelle === 'erinnerung' && (
+            <button
+              type="button"
+              onClick={() =>
+                void api('/api/todos', { methode: 'PATCH', body: { pfad: k.bezugId, erledigt: true } })
+                  .catch(() => undefined)
+                  .then(() => befehl({ befehl: 'klingel', id: k.id, aktion: 'aus' }))
+              }
+            >
+              ✓ Erledigt
+            </button>
+          )}
           {k.schlummern && (
             <button type="button" onClick={() => void befehl({ befehl: 'klingel', id: k.id, aktion: 'schlummern' })}>
-              Schlummern
+              {k.quelle === 'erinnerung' ? '+10 min' : 'Schlummern'}
             </button>
           )}
           <button type="button" className="haupt" onClick={() => void befehl({ befehl: 'klingel', id: k.id, aktion: 'aus' })}>

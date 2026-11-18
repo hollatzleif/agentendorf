@@ -31,6 +31,8 @@ export const LISTEN_NAMEN = Object.keys(LISTEN) as ListenName[];
 /** Erledigtes so lange auf dem Brett zeigen */
 const ERLEDIGT_TAGE = 14;
 const DATUM = /^\d{4}-\d{2}-\d{2}$/;
+/** E94: Erinnerung als Ortszeit (Wien) */
+export const ZEITPUNKT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 
 /** Wiederkehrend (E92): täglich, werktags, wöchentlich, monatlich, jährlich oder „alle N tage/wochen/monate“ */
 export const WIEDERHOLEN = /^(täglich|werktags|wöchentlich|monatlich|jährlich|alle ([1-9]\d{0,2}) (tage|wochen|monate))$/;
@@ -85,6 +87,7 @@ export const TodoNeu = z.object({
   notiz: z.string().max(5000).optional(),
   wichtig: z.boolean().optional(),
   wiederholen: Wiederholen.optional(),
+  erinnerung: z.string().regex(ZEITPUNKT, 'erinnerung als JJJJ-MM-TTTHH:MM').optional(),
 });
 export const TodoAenderung = z.object({
   titel: z.string().trim().min(1).max(200).optional(),
@@ -95,6 +98,7 @@ export const TodoAenderung = z.object({
   notiz: z.string().max(5000).optional(),
   wichtig: z.boolean().optional(),
   wiederholen: z.union([Wiederholen, z.literal('')]).optional(),
+  erinnerung: z.union([z.string().regex(ZEITPUNKT, 'erinnerung als JJJJ-MM-TTTHH:MM'), z.literal('')]).optional(),
 });
 
 /** Telegram/Schnelleingabe: „Wäsche jeden Montag“ → Titel, Regel und erstes Datum (E92) */
@@ -155,6 +159,8 @@ export class TodoDienst {
       ...(k.fremd === true ? { fremd: true } : {}),
       ...(k.wichtig === true ? { wichtig: true } : {}),
       ...(typeof k.wiederholen === 'string' && WIEDERHOLEN.test(k.wiederholen) ? { wiederholen: k.wiederholen } : {}),
+      ...(typeof k.erinnerung === 'string' && ZEITPUNKT.test(k.erinnerung) ? { erinnerung: k.erinnerung } : {}),
+      ...(typeof k.erinnert === 'string' ? { erinnert: k.erinnert } : {}),
       quelle: typeof k.quelle === 'string' ? k.quelle : undefined,
       erstellt: typeof k.erstellt === 'string' ? k.erstellt : k.erstellt instanceof Date ? k.erstellt.toISOString() : undefined,
       erledigtAm: typeof k.erledigt_am === 'string' ? k.erledigt_am : k.erledigt_am instanceof Date ? k.erledigt_am.toISOString() : undefined,
@@ -196,6 +202,7 @@ export class TodoDienst {
     if (e.gruppe) daten.gruppe = e.gruppe;
     if (e.wichtig) daten.wichtig = true;
     if (e.wiederholen) daten.wiederholen = e.wiederholen;
+    if (e.erinnerung) daten.erinnerung = e.erinnerung;
     daten.quelle = quelle;
     if (opt.fremd) daten.fremd = true;
     daten.erstellt = new Date(jetzt).toISOString();
@@ -240,6 +247,11 @@ export class TodoDienst {
       if (a.wiederholen) k.wiederholen = a.wiederholen;
       else delete k.wiederholen;
     }
+    if (a.erinnerung !== undefined && a.erinnerung !== k.erinnerung) {
+      if (a.erinnerung) k.erinnerung = a.erinnerung;
+      else delete k.erinnerung;
+      delete k.erinnert;
+    }
     // E92: Wiederkehrendes zum ersten Mal abgehakt → nächstes anlegen (Vermerk „wiederholt“ verhindert Doppelte beim Hin- und Herklicken)
     const regel = typeof k.wiederholen === 'string' && WIEDERHOLEN.test(k.wiederholen) ? k.wiederholen : undefined;
     const naechstes = a.erledigt === true && regel && !k.wiederholt;
@@ -258,6 +270,9 @@ export class TodoDienst {
           ...(typeof k.gruppe === 'string' && k.gruppe ? { gruppe: k.gruppe } : {}),
           ...(inhalt.trim() ? { notiz: inhalt.trim().slice(0, 5000) } : {}),
           wiederholen: regel,
+          ...(typeof k.erinnerung === 'string' && ZEITPUNKT.test(k.erinnerung)
+            ? { erinnerung: `${datumText(k.faellig) ? naechstesDatum(regel, datumText(k.faellig)!, heute) : naechstesDatum(regel, k.erinnerung.slice(0, 10), heute)}${k.erinnerung.slice(10)}` }
+            : {}),
         },
         typeof k.quelle === 'string' ? k.quelle : 'Leif',
         { fremd: k.fremd === true },
@@ -268,6 +283,14 @@ export class TodoDienst {
     }
     this.beiAenderung();
     return (await this.lesenEines(pfad))!;
+  }
+
+  /** E94: Erinnerung verschickt – der Vermerk verhindert ein zweites Läuten für denselben Zeitpunkt */
+  async erinnertMarkieren(pfad: string, zeitpunkt: string) {
+    const d = await this.o.vault.lesen(this.pfadPruefen(pfad));
+    const m = matter(d.inhalt);
+    const r = await this.o.vault.schreiben(pfad, matter.stringify(m.content, { ...(m.data as object), erinnert: zeitpunkt }), { basisVersion: d.version });
+    if (r.konflikt) throw new DorfFehler(409, 'Das To-do wurde gerade woanders geändert.');
   }
 
   /** In den Papierkorb des Vaults (wiederherstellbar) */

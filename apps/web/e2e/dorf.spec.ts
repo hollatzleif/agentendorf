@@ -993,3 +993,29 @@ test('Statistik im Rathaus: Kacheln, Balken mit Hover, Tabelle', async ({ page }
   await s.getByRole('button', { name: '3 Monate' }).click();
   await expect(s.getByRole('row')).toHaveCount(91);
 });
+
+test('Erinnerung am To-do: setzen, 🔔-Abzeichen; zur Zeit läutet der Kirchturm mit „✓ Erledigt“', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  test.setTimeout(75_000);
+  await anmelden(page);
+  const o = { origin: 'http://127.0.0.1:3999' };
+  const lokal = (ms: number) => {
+    const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Vienna', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+    return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+  };
+  await page.goto('/gebaeude/Marktplatz?reiter=todo');
+  const f = page.getByRole('form', { name: 'Neues To-do' });
+  await f.getByRole('textbox', { name: 'Neues To-do' }).fill('Erinner-Test');
+  await f.getByRole('button', { name: '+' }).click();
+  await page.getByRole('button', { name: 'Erinner-Test', exact: true }).click();
+  await page.getByLabel('Erinnerung').fill(lokal(Date.now() + 2 * 86_400_000));
+  await page.getByRole('button', { name: 'Speichern' }).click();
+  await expect(page.locator('li.todo', { hasText: 'Erinner-Test' })).toContainText('🔔');
+  // zweites To-do, dessen Zeit schon da ist → läutet beim nächsten Rundgang (alle 30 s)
+  await page.request.post('/api/todos', { headers: o, data: { titel: 'Jetzt-Erinnerung', erinnerung: lokal(Date.now() - 60_000) } });
+  const glocke = page.locator('.kirchturm-klingel', { hasText: 'Jetzt-Erinnerung' });
+  await expect(glocke).toBeVisible({ timeout: 45_000 });
+  await glocke.getByRole('button', { name: '✓ Erledigt' }).click();
+  await expect(glocke).toHaveCount(0);
+  await expect(page.locator('li.todo.fertig', { hasText: 'Jetzt-Erinnerung' })).toHaveCount(1);
+});

@@ -14,6 +14,8 @@ import { terminAusText, type TerminAusText } from '@dorf/shared';
 import type { Karteikasten } from '../karten.js';
 import type { Gewohnheiten } from '../gewohnheiten.js';
 import type { Wochenziele } from '../wochenziele.js';
+import type { TodoErinnerungen } from '../todo-erinnerungen.js';
+import { zeitpunktAus } from '../todo-erinnerungen.js';
 import { tagPlanen } from '../tagesplan.js';
 
 type PlanBlock = { titel: string; grund: string; start: string; ende: string };
@@ -115,6 +117,8 @@ export class TelegramBot {
       gewohnheiten?: Gewohnheiten;
       /** E91: Wochenziele – /ziel */
       wochenziele?: Wochenziele;
+      /** E94: Erinnerungen an To-dos – Knöpfe „+1 h“, „Morgen 9:00“ */
+      erinnerungen?: TodoErinnerungen;
       /** Nacht 18./19.11.: /fokus – Pomodoro starten */
       kirchturm?: { ausfuehren(b: unknown): unknown; fokusStatistik?(): FokusStatistik };
       /** Nacht 18./19.11.: /termin – Termin aus Text, eingetragen erst nach Leifs Knopfdruck */
@@ -218,6 +222,7 @@ export class TelegramBot {
     { command: 'todo', description: 'To-do-Liste (abhaken per Knopf) – /todo <Text> legt eins an' },
     { command: 'einkauf', description: 'Einkaufsliste (abhaken im Laden) – /einkauf <Text> setzt etwas drauf' },
     { command: 'termin', description: 'Termin in den Kalender: /termin morgen 14 Uhr Zahnarzt' },
+    { command: 'erinner', description: 'Erinnerung: /erinner morgen 9 Uhr Mama anrufen, /erinner in 30 min Wäsche' },
     { command: 'plan', description: 'Tag planen: To-dos als Blöcke in freie Lücken – /plan morgen' },
     { command: 'karten', description: 'Karteikarten wiederholen: /karten [Fach]' },
     { command: 'fokus', description: 'Pomodoro starten: /fokus [Thema]' },
@@ -383,6 +388,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       if (b === '/einkauf') return this.todoBefehl(text.slice(text.split(/\s/)[0]!.length).trim(), 'einkauf');
       if (b === '/termin') return this.terminBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/gewohnheiten' || b === '/gewohnheit') return this.gewohnheitenSenden();
+      if (b === '/erinner' || b === '/erinnere' || b === '/erinnerung') return this.erinnerBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/ziel' || b === '/ziele') return this.zielBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/plan') return this.planBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/karten') return this.kartenBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
@@ -461,7 +467,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
   private async befehl(b: string) {
     if (b === '/start' || b === '/hilfe' || b === '/help')
       return this.senden(
-        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/heute – dein Tag: Wetter, Termine, Fristen\n/fristen – Abgaben und Prüfungen der nächsten 7 Tage (mit Erledigt-Knöpfen)\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/aktion [Name] – Skill starten (ohne Name: Liste)\n/todo – To-do-Liste mit Abhak-Knöpfen (/todo &lt;Text&gt; legt eins an)\n/einkauf – Einkaufsliste (/einkauf &lt;Text&gt; setzt etwas drauf)\n/termin &lt;wann&gt; &lt;was&gt; – Termin in den Kalender (mit Bestätigung)\n/plan [morgen] – Tag planen: To-dos in freie Lücken\n/karten [Fach] – Karteikarten wiederholen\n/gewohnheiten – heute abhaken\n/ziel [Text] – Wochenziele (ohne Text: abhaken)\n/fokus [Thema] – Pomodoro starten\n/hilfe – diese Hilfe`,
+        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/heute – dein Tag: Wetter, Termine, Fristen\n/fristen – Abgaben und Prüfungen der nächsten 7 Tage (mit Erledigt-Knöpfen)\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/aktion [Name] – Skill starten (ohne Name: Liste)\n/todo – To-do-Liste mit Abhak-Knöpfen (/todo &lt;Text&gt; legt eins an)\n/einkauf – Einkaufsliste (/einkauf &lt;Text&gt; setzt etwas drauf)\n/termin &lt;wann&gt; &lt;was&gt; – Termin in den Kalender (mit Bestätigung)\n/plan [morgen] – Tag planen: To-dos in freie Lücken\n/erinner &lt;wann&gt; &lt;was&gt; – To-do mit Erinnerung (läutet im Kirchturm)\n/karten [Fach] – Karteikarten wiederholen\n/gewohnheiten – heute abhaken\n/ziel [Text] – Wochenziele (ohne Text: abhaken)\n/fokus [Thema] – Pomodoro starten\n/hilfe – diese Hilfe`,
       );
     if (b === '/status') {
       const aktiv = this.o.agenten.aktiveLaeufe();
@@ -577,6 +583,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (q.data?.startsWith('st:')) return this.sternKnopf(q, antworten);
     if (q.data?.startsWith('gw:')) return this.gewohnheitKnopf(q, antworten);
     if (q.data?.startsWith('zl:')) return this.zielKnopf(q, antworten);
+    if (q.data?.startsWith('er:')) return this.erinnerKnopf(q, antworten);
     const m = /^f:([0-9a-f-]{36}):([jn]):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
     if (!m || !crypto.timingSafeEqual(Buffer.from(m[3]!), Buffer.from(this.signatur(m[1]!, m[2] as 'j' | 'n')))) {
       this.o.log?.('Telegram: Knopf mit ungültiger Signatur abgelehnt.');
@@ -899,6 +906,83 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     const ok = !!(await this.senden(z.join('\n'), { reply_markup: { inline_keyboard: t } }));
     if (ok) await this.gewohnheitenSenden(true).catch((e) => this.fehler(e));
     return ok;
+  }
+
+  // ---- Erinnerungen an To-dos (E94) ----------------------------------------------------------------
+
+  private erinnerDaten(k: string, a: 'e' | 's' | 'm') {
+    return `er:${k}:${a}:${crypto.createHmac('sha256', this.signaturSchluessel).update(`erinnerung:${k}:${a}`).digest('base64url').slice(0, 16)}`;
+  }
+
+  /** Zur Erinnerungszeit (wird von TodoErinnerungen aufgerufen) – auch nachts: die Zeit hat Leif selbst gewählt */
+  async erinnerungSenden(t: TodoInfo) {
+    const k = this.todoKennung(t.pfad);
+    return this.senden(`🔔 <b>Erinnerung</b>\n${h(t.titel)}${t.notiz ? `\n<i>${h(t.notiz.slice(0, 300))}</i>` : ''}`, {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '✅ Erledigt', callback_data: this.erinnerDaten(k, 'e') },
+            { text: '⏰ +1 h', callback_data: this.erinnerDaten(k, 's') },
+            { text: '🌅 Morgen 9:00', callback_data: this.erinnerDaten(k, 'm') },
+          ],
+        ],
+      },
+    });
+  }
+
+  private async erinnerKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {
+    const m = /^er:([0-9a-f]{12}):([esm]):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
+    const soll = m ? this.erinnerDaten(m[1]!, m[2] as 'e' | 's' | 'm').split(':')[3]! : '';
+    if (!m || !this.o.listen || !crypto.timingSafeEqual(Buffer.from(m[3]!), Buffer.from(soll))) {
+      this.o.log?.('Telegram: Erinnerungs-Knopf mit ungültiger Signatur abgelehnt.');
+      return antworten('Ungültiger Knopf.');
+    }
+    const t = (await this.o.listen.todo.liste()).find((x) => this.todoKennung(x.pfad) === m[1]);
+    if (!t) return antworten('Dieses To-do gibt es nicht mehr.');
+    let text: string;
+    if (m[2] === 'e') {
+      if (!t.erledigt) await this.o.listen.todo.aendern(t.pfad, { erledigt: true });
+      text = `✅ Erledigt: <b>${h(t.titel)}</b>`;
+    } else {
+      const ziel = m[2] === 's' ? { minuten: 60 } : { zeitpunkt: this.o.erinnerungen!.morgenFrueh() };
+      const neu = await this.o.erinnerungen!.verschieben(t.pfad, ziel);
+      text = `⏰ <b>${h(t.titel)}</b> – ich erinnere dich ${TelegramBot.zeitpunktText(neu.erinnerung!, this.o.uhr.jetzt())} wieder.`;
+    }
+    await antworten(m[2] === 'e' ? 'Erledigt.' : 'Verschoben.');
+    if (q.message) await this.o.api.aufruf('editMessageText', { chat_id: q.message.chat.id, message_id: q.message.message_id, text, parse_mode: 'HTML' }).catch(() => undefined);
+  }
+
+  static zeitpunktText(z: string, jetzt: number) {
+    const heute = zeitpunktAus(jetzt).slice(0, 10);
+    const morgen = zeitpunktAus(jetzt + 86_400_000).slice(0, 10);
+    const tag = z.slice(0, 10);
+    const wann = tag === heute ? 'heute' : tag === morgen ? 'morgen' : `am ${new Date(`${tag}T12:00:00Z`).toLocaleDateString('de-AT', { weekday: 'short', day: '2-digit', month: '2-digit', timeZone: 'UTC' })}`;
+    return `${wann} um ${z.slice(11)}`;
+  }
+
+  /** /erinner morgen 9 Uhr Mama anrufen · /erinner in 30 min Wäsche · /erinner Fr 14:00 Bericht */
+  private async erinnerBefehl(rest: string) {
+    if (!this.o.listen || !this.o.erinnerungen) return this.senden('Erinnerungen sind nicht eingerichtet.');
+    if (!rest) return this.senden('🔔 <b>/erinner</b> &lt;wann&gt; &lt;was&gt;\nz. B. <i>/erinner morgen 9 Uhr Mama anrufen</i>, <i>/erinner in 30 min Wäsche aufhängen</i>, <i>/erinner Fr 14:00 Bericht abgeben</i>');
+    const jetzt = this.o.uhr.jetzt();
+    let titel: string | undefined;
+    let zp: string | undefined;
+    const relativ = /^in (\d{1,4}) ?(min|minuten|minute|h|std|stunden?|stunde)\b\s*(.*)$/i.exec(rest);
+    if (relativ) {
+      const n = Number(relativ[1]) * (/^(h|std|stunde)/i.test(relativ[2]!) ? 60 : 1);
+      zp = zeitpunktAus(jetzt + n * 60_000);
+      titel = relativ[3]!.trim();
+    } else {
+      const t = terminAusText(rest, jetzt);
+      if (t && !t.ganztags) {
+        zp = t.start.slice(0, 16);
+        titel = t.titel;
+      }
+    }
+    if (!zp || !titel) return this.senden('🔔 Das habe ich nicht verstanden – z. B. <i>/erinner morgen 9 Uhr Mama anrufen</i> oder <i>/erinner in 30 min Wäsche</i>.');
+    if (zp <= zeitpunktAus(jetzt)) return this.senden('🔔 Dieser Zeitpunkt ist schon vorbei.');
+    const neu = await this.o.listen.todo.anlegen({ titel: titel.slice(0, 200), faellig: zp.slice(0, 10), erinnerung: zp }, 'Telegram');
+    return this.senden(`🔔 Erinnerung ${TelegramBot.zeitpunktText(zp, jetzt)}: <b>${h(neu.titel)}</b>\n<i>Steht auch auf deiner To-do-Liste.</i>`);
   }
 
   // ---- Wochenziele (E91) --------------------------------------------------------------------------

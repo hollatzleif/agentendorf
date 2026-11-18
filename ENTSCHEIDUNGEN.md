@@ -676,3 +676,16 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - **Datenquellen:** nur vorhandene Daten (`erledigt_am` der To-dos, `fokus_sitzungen`, `gewohnheit_log`), keine KI, kein neuer Speicher.
 - Eine Gewohnheit zählt erst ab ihrem ersten Häkchen. So drückt eine heute angelegte Gewohnheit die Quote der letzten Wochen nicht.
 - Warum: Was man sieht, verbessert man. Und Leif kann prüfen, ob das Dorf ihn tatsächlich produktiver macht – oder ob es nur gut aussieht.
+
+## E94 – Erinnerungen an To-dos (Nacht 18./19.11.)
+
+- **Neues Feld `erinnerung: JJJJ-MM-TTTHH:MM`** (Ortszeit Wien) am To-do. Es ist lesbar und in Obsidian änderbar.
+- **Prüfung alle 30 s** (`todo-erinnerungen.ts`): Ist die Zeit da, läutet der **Kirchturm**. Im Programm sind das Glocke und Systemmeldung, in der App ein Hinweis mit „✓ Erledigt“ und „+10 min“. Damit bleibt es bei Leifs Regel, dass nur der Kirchturm für Zeit und Mitteilungen läutet.
+- **Telegram** schickt dazu „🔔 Erinnerung“ mit den Knöpfen ✅ Erledigt, ⏰ +1 h und 🌅 Morgen 9:00 (HMAC-signiert). Das gilt auch in der Nachtruhe und während Fokus, denn die Zeit hat Leif selbst gewählt.
+- **Genau einmal:** Vor dem Läuten wird `erinnert: <Zeitpunkt>` vermerkt. Erst ein neuer Zeitpunkt (Verschieben, Bearbeiten) läutet wieder. Wurde ein Zeitpunkt mehr als 12 h verpasst (z. B. weil der Server aus war), läutet er nicht mehr nach.
+- **Wiederkehrende To-dos** übernehmen die Uhrzeit auf den neuen Tag.
+- **Anlegen:**
+  - in der App beim Bearbeiten
+  - in Telegram mit `/erinner morgen 9 Uhr Mama anrufen`, `/erinner in 30 min Wäsche` oder `/erinner Fr 14:00 Bericht`; daraus wird ein To-do mit Fälligkeit und Erinnerung
+  - von Agenten über `todo_*` – laut Beschreibung nur, wenn Leif es will
+- Warum: Ein To-do ohne Zeit geht im Tag leicht unter. Eine Erinnerung zur richtigen Minute am Handy und am PC schließt diese Lücke – ohne eine zweite App.

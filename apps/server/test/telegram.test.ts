@@ -217,7 +217,7 @@ describe('Telegram-Bot', () => {
     expect(offsets.at(-1)).toBe(51);
     // Befehlsmenü wird beim Start angemeldet
     const menue = d.aufrufe.find((x) => x.m === 'setMyCommands')?.p.commands as { command: string }[];
-    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'plan', 'karten', 'fokus', 'ziel', 'gewohnheiten', 'neu', 'hilfe']);
+    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'erinner', 'plan', 'karten', 'fokus', 'ziel', 'gewohnheiten', 'neu', 'hilfe']);
     await d.agenten.leerlauf();
   }, 15_000);
 });
@@ -495,5 +495,31 @@ describe('Telegram /todo wiederkehrend (E92)', () => {
     await d.nachricht({ text: '/todo Wäsche jeden Montag' });
     expect(d.gesendet().at(-1)).toMatch(/<b>Wäsche<\/b> · 🔁 wöchentlich ab 2026-11-16/);
     expect((await d.todos.liste())[0]).toMatchObject({ titel: 'Wäsche', wiederholen: 'wöchentlich', faellig: '2026-11-16' });
+  });
+});
+
+describe('Telegram Erinnerungen (E94)', () => {
+  it('/erinner legt ein To-do mit Erinnerung an; zur Zeit kommt die Nachricht; +1 h und Erledigt per Knopf', async () => {
+    const d = await dorf();
+    await d.nachricht({ text: '/erinner in 30 min Wäsche aufhängen' });
+    expect(d.gesendet().at(-1)).toMatch(/🔔 Erinnerung heute um 13:30: <b>Wäsche aufhängen<\/b>/);
+    await d.nachricht({ text: '/erinner morgen 9 Uhr Mama anrufen' });
+    expect(d.gesendet().at(-1)).toMatch(/morgen um 09:00: <b>Mama anrufen<\/b>/);
+    await d.nachricht({ text: '/erinner irgendwann' });
+    expect(d.gesendet().at(-1)).toMatch(/nicht verstanden/);
+    d.uhr.vor(31 * 60_000);
+    await d.erinnerungen.pruefen();
+    const m = d.aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p;
+    expect(String(m.text)).toBe('🔔 <b>Erinnerung</b>\nWäsche aufhängen');
+    const k = (m.reply_markup as { inline_keyboard: { text: string; callback_data: string }[][] }).inline_keyboard[0]!;
+    expect(k.map((x) => x.text)).toEqual(['✅ Erledigt', '⏰ +1 h', '🌅 Morgen 9:00']);
+    await d.knopf(k[1]!.callback_data.replace(/:[^:]+$/, ':AAAAAAAAAAAAAAAA'));
+    const w = () => d.todos.liste().then((l) => l.find((x) => x.titel === 'Wäsche aufhängen')!);
+    expect((await w()).erinnerung).toBe('2026-11-16T13:30');
+    await d.knopf(k[1]!.callback_data);
+    expect((await w()).erinnerung).toBe('2026-11-16T14:31');
+    expect(String(d.aufrufe.filter((x) => x.m === 'editMessageText').at(-1)!.p.text)).toMatch(/heute um 14:31 wieder/);
+    await d.knopf(k[0]!.callback_data);
+    expect((await w()).erledigt).toBe(true);
   });
 });

@@ -121,6 +121,22 @@ export class Kirchturm {
   private z: Zustand;
   /** z. B. Tests: was geklingelt hat */
   readonly beiKlingeln: ((k: KirchturmKlingel) => void)[] = [];
+  /** E94: Erinnerung geschlummert (bezugId = Pfad des To-dos) */
+  readonly beiErinnerungSchlummern: ((bezugId: string) => void)[] = [];
+
+  /** E94: Erinnerung an ein To-do läuten lassen (zwei Schläge, Schlummern = 10 min) */
+  erinnern(e: { bezugId: string; titel: string; text: string }) {
+    const k: Klingel = { id: crypto.randomUUID(), quelle: 'erinnerung', bezugId: e.bezugId, titel: `🔔 ${e.titel}`.slice(0, 200), text: e.text.slice(0, 400), ton: 'schlag', seit: this.o.uhr.jetzt(), schlummern: true };
+    this.z.klingelt = [...this.z.klingelt.filter((x) => !(x.quelle === 'erinnerung' && x.bezugId === e.bezugId)), k];
+    this.speichern(k);
+  }
+
+  /** E94: To-do erledigt → dessen Erinnerung verstummt */
+  erinnerungAus(bezugId: string) {
+    const vorher = this.z.klingelt.length;
+    this.z.klingelt = this.z.klingelt.filter((x) => !(x.quelle === 'erinnerung' && x.bezugId === bezugId));
+    if (this.z.klingelt.length !== vorher) this.speichern();
+  }
   /** Fokus (Arbeitsphase) endet → z. B. Telegram holt Zurückgehaltenes nach */
   readonly beiFokusEnde: (() => void)[] = [];
   private warFokus = false;
@@ -347,6 +363,7 @@ export class Kirchturm {
       case 'klingel': {
         const k = z2.klingelt.find((x) => x.id === b.id);
         z2.klingelt = z2.klingelt.filter((x) => x.id !== b.id);
+        if (k && b.aktion === 'schlummern' && k.quelle === 'erinnerung') for (const fn of this.beiErinnerungSchlummern) fn(k.bezugId);
         if (k && b.aktion === 'schlummern' && k.quelle === 'wecker') {
           const w = z2.wecker.find((x) => x.id === k.bezugId);
           if (w) Object.assign(w, { aktiv: true, schlummerBis: jetzt + w.schlummerMin * MIN });

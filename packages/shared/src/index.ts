@@ -153,7 +153,7 @@ export interface KirchturmPomodoro {
 
 export interface KirchturmKlingel {
   id: string;
-  quelle: 'wecker' | 'timer' | 'pomodoro';
+  quelle: 'wecker' | 'timer' | 'pomodoro' | 'erinnerung';
   bezugId: string;
   titel: string;
   text: string;
@@ -198,6 +198,10 @@ export interface TodoInfo {
   wichtig?: boolean;
   /** E92: wiederkehrend – täglich, werktags, wöchentlich, monatlich, jährlich, „alle N tage/wochen/monate“ */
   wiederholen?: string;
+  /** E94: Erinnerung zur Uhrzeit (Ortszeit Wien, JJJJ-MM-TTTHH:MM) – Kirchturm + Telegram */
+  erinnerung?: string;
+  /** E94: für welchen Zeitpunkt schon erinnert wurde */
+  erinnert?: string;
   quelle?: string; // „Leif“, „Telegram“ oder der Agent/die Aktion
   erstellt?: string;
   erledigtAm?: string;

@@ -848,3 +848,7 @@ input.kurz { width: 5em; }
 .statistik-tabelle { overflow-x: auto; }
 .statistik-tabelle table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 .statistik-tabelle th, .statistik-tabelle td { text-align: left; padding: 0.3rem 0.5rem; border-bottom: 1px solid var(--rand); }
+
+/* Erinnerung am To-do (E94) */
+.todo-erinnerung { display: flex; flex-direction: row; align-items: center; gap: 0.5rem; font-weight: 700; }
+.todo-erinnerung input { flex: 1; }

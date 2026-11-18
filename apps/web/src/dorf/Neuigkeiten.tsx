@@ -1,10 +1,11 @@
 import { useState } from 'react';
 
 /** Bei jeder neuen Ausgabe den Schlüssel ändern – dann erscheint die Karte einmal pro Gerät */
-const AUSGABE = '2026-11-19f';
+const AUSGABE = '2026-11-19g';
 const SCHLUESSEL = 'dorf-neuigkeiten-gesehen';
 
 const PUNKTE: [string, string][] = [
+  ['🔔', 'Neu: Erinnerungen an To-dos – beim Bearbeiten eine Zeit wählen oder in Telegram „/erinner morgen 9 Uhr Mama anrufen“. Der Kirchturm läutet, Telegram schickt Erledigt / +1 h / Morgen.'],
   ['📊', 'Neu: Rathaus → Statistik – erledigte To-dos, Fokus und Gewohnheiten der letzten 4 Wochen oder 3 Monate.'],
   ['🔁', 'Neu: wiederkehrende To-dos – beim Bearbeiten „Wiederholen“ wählen oder in Telegram „/todo Wäsche jeden Montag“. Abhaken legt das nächste an.'],
   ['🎯', 'Neu: Wochenziele auf „Heute“ (oder /ziel in Telegram) – 3 Dinge, die diese Woche fertig werden sollen. Stehen in der Morgenzeitung, Bilanz im Wochenrückblick, als Checkliste auch in Obsidian.'],
