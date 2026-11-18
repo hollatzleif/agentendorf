@@ -28,7 +28,8 @@ fehler() { echo "FEHLER: $*" >&2; exit 1; }
 for tag in $(seq 10 -1 1); do
   echo "Stand vor $tag Tagen" > "$DORF_BASIS/vault/Uni/notiz.md"
   echo "Datei $tag" > "$DORF_BASIS/vault/Uni/tag-$tag.md"
-  DORF_BACKUP_ZEIT=$(date -d "-$tag days 03:30" '+%Y-%m-%d %H:%M:%S') cmd_backup >/dev/null
+  # relativ zu jetzt (eine Stunde früher), nicht „03:30“: sonst bleibt zwischen 00:00 und 03:30 ein Stand mehr im 7-Tage-Fenster
+  DORF_BACKUP_ZEIT=$(date -d "-$tag days -1 hour" '+%Y-%m-%d %H:%M:%S') cmd_backup >/dev/null
 done
 echo "heute" > "$DORF_BASIS/vault/Uni/notiz.md"
 cmd_backup >/dev/null
