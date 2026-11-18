@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { KalenderAntwort, KalenderTermin, TodoInfo, WochenzieleStand } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { ort, tagPlus } from './MarktKalender';
-import { belegtMs, minutenText } from '@dorf/shared';
+import { belegtMs, minutenText, wocheVerteilen } from '@dorf/shared';
 
 /**
  * E121: Wochenplan – die To-dos der Woche als Spalten Mo–So, links der Eingang (ohne Datum, Überfälliges).
@@ -41,6 +41,8 @@ export function WochenPlan() {
   const [fehler, setFehler] = useState('');
   const [ziehe, setZiehe] = useState<string | null>(null);
   const [ueber, setUeber] = useState<string | null>(null);
+  const [vorschlag, setVorschlag] = useState<{ pfad: string; titel: string; tag: string; dauer: number; an: boolean }[] | null>(null);
+  const [uebernimmt, setUebernimmt] = useState(false);
 
   const offen = (todos.data ?? []).filter((t) => !t.erledigt);
   // Überfälliges aus früheren Wochen landet im Eingang; was in dieser Woche liegt, steht (rot) in seiner Spalte
@@ -167,6 +169,61 @@ export function WochenPlan() {
           </span>
         </span>
       </p>
+      {eingang.length > 0 && !vorschlag && (
+        <button
+          type="button"
+          className="klein wplan-verteilen"
+          title="Vorschlag: To-dos aus dem Eingang auf Tage mit freier Zeit verteilen (70 % Puffer) – du entscheidest"
+          onClick={() => {
+            // E126: Platz je Tag aus Terminen und schon geplanten To-dos (ohne Schätzung: 30 min)
+            const v = wocheVerteilen({
+              eingang,
+              heute,
+              tage: tage.map((tag) => ({ tag, freiMin: TAG_MIN - terminMinuten(termine, tag), geplantMin: amTag(tag).reduce((s2, t) => s2 + Math.max(5, (t.dauer ?? 30) - (t.fokusMin ?? 0)), 0) })),
+            });
+            setVorschlag(v.map((x) => ({ ...x, an: true })));
+          }}
+        >
+          ✨ Woche verteilen
+        </button>
+      )}
+      {vorschlag && (
+        <div className="wplan-vorschlag" role="group" aria-label="Vorschlag: Woche verteilen">
+          {vorschlag.length === 0 ? (
+            <p className="leise">In dieser Woche ist kein Platz mehr frei – nimm lieber etwas heraus.</p>
+          ) : (
+            vorschlag.map((v, i) => (
+              <label key={v.pfad}>
+                <input type="checkbox" checked={v.an} onChange={(e) => setVorschlag(vorschlag.map((x, j) => (j === i ? { ...x, an: e.target.checked } : x)))} />
+                <span>
+                  <b>{tagKurz(v.tag)}</b> · {v.titel} <span className="leise">⏱ {minutenText(v.dauer)}</span>
+                </span>
+              </label>
+            ))
+          )}
+          {vorschlag.length < eingang.length && vorschlag.length > 0 && <p className="leise">{eingang.length - vorschlag.length} passen diese Woche nicht mehr hinein.</p>}
+          <div className="zeile">
+            {vorschlag.length > 0 && (
+              <button
+                type="button"
+                className="haupt klein"
+                disabled={uebernimmt || !vorschlag.some((v) => v.an)}
+                onClick={async () => {
+                  setUebernimmt(true);
+                  for (const v of vorschlag.filter((x) => x.an)) await verschieben(v.pfad, v.tag);
+                  setUebernimmt(false);
+                  setVorschlag(null);
+                }}
+              >
+                {uebernimmt ? 'Trägt ein …' : `Übernehmen (${vorschlag.filter((v) => v.an).length})`}
+              </button>
+            )}
+            <button type="button" className="klein" onClick={() => setVorschlag(null)}>
+              Verwerfen
+            </button>
+          </div>
+        </div>
+      )}
       {fehler && <p className="fehler">{fehler}</p>}
       {todos.isError && <p className="fehler">To-dos nicht erreichbar: {todos.error.message}</p>}
       <div className="wplan-spalten">

@@ -1375,6 +1375,35 @@ test('To-do-Brett: Filter nach Text, ⭐ und Gruppe (E125)', async ({ page }, in
   await expect(page.locator('li.todo', { hasText: p })).toHaveCount(7);
 });
 
+test('Wochenplan: „Woche verteilen“ schlägt Tage vor, Übernehmen setzt die Fälligkeit (E126)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+  await page.clock.setFixedTime(new Date(`${heute}T10:00:00+01:00`));
+  const todos = [
+    { pfad: 'Marktplatz/todos/a.md', version: 'v1', titel: 'Bericht schreiben', erledigt: false, wichtig: true, dauer: 120 },
+    { pfad: 'Marktplatz/todos/b.md', version: 'v1', titel: 'Kleinkram', erledigt: false, dauer: 15 },
+  ];
+  const patches: unknown[] = [];
+  await page.route('**/api/todos', (r) => {
+    if (r.request().method() === 'PATCH') {
+      patches.push(r.request().postDataJSON());
+      return r.fulfill({ json: { ok: true } });
+    }
+    return r.fulfill({ json: todos });
+  });
+  await page.route('**/api/kalender?*', (r) => r.fulfill({ json: { modus: 'aus', kalender: [], termine: [] } }));
+  await page.goto('/gebaeude/Marktplatz?reiter=wochenplan');
+  await page.getByRole('button', { name: '✨ Woche verteilen' }).click();
+  const v = page.getByRole('group', { name: 'Vorschlag: Woche verteilen' });
+  await expect(v.locator('label')).toHaveCount(2);
+  await expect(v.locator('label').first()).toContainText('Bericht schreiben');
+  await v.getByRole('checkbox').nth(1).uncheck();
+  await v.getByRole('button', { name: 'Übernehmen (1)' }).click();
+  await expect(v).toHaveCount(0);
+  expect(patches).toEqual([{ pfad: 'Marktplatz/todos/a.md', basisVersion: 'v1', faellig: heute }]);
+});
+
 test('Seite lässt sich nicht laden (nach Deploy): einmal neu laden, dann „Neu laden“ statt weißer Seite (Review)', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'einmal reicht');
   await anmelden(page);

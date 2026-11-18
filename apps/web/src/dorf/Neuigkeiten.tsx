@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { navigieren } from '../router';
 
 /** Bei jeder neuen Ausgabe den Schlüssel ändern – dann erscheint die Karte einmal pro Gerät */
-const AUSGABE = '2026-11-19s';
+const AUSGABE = '2026-11-19t';
 const SCHLUESSEL = 'dorf-neuigkeiten-gesehen';
 
 const PUNKTE: [string, string][] = [
+  ['✨', 'Wochenplan: „Woche verteilen“ legt den Eingang auf Tage mit freier Zeit (mit Puffer) – du übernimmst, was passt. Dazu: Filter im To-do-Brett, /jetzt in Telegram.'],
   ['👉', '„Jetzt dran“ auf Heute: ein To-do, das in die Lücke bis zum nächsten Termin passt – „🍅 Los“ startet den Fokus. Am To-do steht jetzt auch die Fokuszeit (🍅 / ⏱).'],
   ['🗓️', 'Wochenplan auf dem Marktplatz: To-dos auf Mo–So ziehen, je Tag Auslastung aus Schätzungen und Terminen – ideal für die Planung am Sonntag.'],
   ['⏱', 'Zeitschätzung am To-do („… 30 min“ in Telegram) – „Heute“ zeigt, ob der Tag reicht, „Tag planen“ nimmt die Schätzung als Blocklänge.'],

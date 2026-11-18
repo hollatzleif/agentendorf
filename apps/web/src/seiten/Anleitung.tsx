@@ -76,7 +76,7 @@ export function Anleitung() {
           Vorschläge mit einem Tipp als <b>🎯 Wochenziele</b> übernehmen – oder auf <L href="/heute">Heute</L> selbst drei setzen.
         </li>
         <li>
-          Woche verteilen im <L href="/gebaeude/Marktplatz?reiter=wochenplan">Wochenplan</L>: To-dos aus dem Eingang auf die Tage ziehen – die Leiste zeigt, welcher Tag schon voll ist.
+          Woche verteilen im <L href="/gebaeude/Marktplatz?reiter=wochenplan">Wochenplan</L>: To-dos aus dem Eingang auf die Tage ziehen oder mit <b>✨ Woche verteilen</b> vorschlagen lassen – die Leiste zeigt, welcher Tag schon voll ist.
         </li>
         <li>
           Ein Blick auf die <L href="/gebaeude/Rathaus?reiter=statistik">Statistik</L> und ins Dorf: Je aktiver die Woche, desto mehr blüht es. 🌸

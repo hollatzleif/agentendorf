@@ -50,3 +50,28 @@ describe('Tagesbudget und „Jetzt dran“ (E120/E123)', () => {
     expect(jetztDran({ ...basis, todos: [todo('irgendwann')], termine: [] })).toBeNull();
   });
 });
+
+describe('Woche verteilen (E126)', () => {
+  it('⭐ und Überfälliges zuerst, frühester Tag mit Platz (70 % Puffer), nichts in die Vergangenheit', async () => {
+    const { wocheVerteilen } = await import('@dorf/shared');
+    const tage = [
+      { tag: '2026-11-16', freiMin: 600, geplantMin: 0 }, // Vergangenheit
+      { tag: '2026-11-18', freiMin: 100, geplantMin: 0 }, // 70 min Platz
+      { tag: '2026-11-19', freiMin: 600, geplantMin: 400 }, // 20 min Platz
+      { tag: '2026-11-20', freiMin: 600, geplantMin: 0 }, // 420 min Platz
+    ];
+    const eingang = [
+      todo('alt ohne Datum', { erstellt: '2026-11-01' }),
+      todo('neu ohne Datum', { erstellt: '2026-11-10', dauer: 15 }),
+      todo('überfällig', { faellig: '2026-11-10', dauer: 60 }),
+      todo('wichtig', { wichtig: true, dauer: 300 }),
+    ];
+    const v = wocheVerteilen({ eingang, tage, heute: '2026-11-18' });
+    expect(v.map((x) => [x.titel, x.tag])).toEqual([
+      ['wichtig', '2026-11-20'],
+      ['überfällig', '2026-11-18'],
+      ['alt ohne Datum', '2026-11-20'],
+      ['neu ohne Datum', '2026-11-19'],
+    ]);
+  });
+});

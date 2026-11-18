@@ -1262,3 +1262,8 @@ input.kurz { width: 5em; }
 .todo-filter input[type='search'] { flex: 1 1 10rem; min-width: 8rem; }
 .todo-filter .klein.an { background: var(--gruen); color: #fff; }
 .todo-filter-zahl { font-size: 0.85rem; }
+
+/* E126: Woche verteilen */
+.wplan-verteilen { margin: 0 0 0.5rem; }
+.wplan-vorschlag { display: grid; gap: 0.25rem; margin: 0 0 0.6rem; padding: 0.55rem 0.7rem; border-radius: 12px; background: #fff7d9; border: 2px solid #e7c55a; }
+.wplan-vorschlag label { display: flex; gap: 0.5rem; align-items: center; min-height: 32px; }

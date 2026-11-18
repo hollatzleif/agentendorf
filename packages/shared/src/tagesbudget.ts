@@ -69,3 +69,30 @@ export function jetztDran(o: { todos: TodoInfo[]; termine: KalenderTermin[]; jet
   if (!t) return null;
   return { todo: t, schritt: t.schritte?.find((s) => !s.erledigt)?.text, luecke, bis: naechster ? { titel: naechster.titel, start: naechster.start } : null, passt: !!passend };
 }
+
+/**
+ * E126: „Woche verteilen“ – To-dos aus dem Eingang (ohne Datum, überfällig) auf die Tage verteilen, die noch Platz haben.
+ * Platz je Tag = 70 % der freien Zeit (8–22 Uhr minus Termine) minus die schon geplanten To-dos (Schätzung, sonst 30 min).
+ * Reihenfolge: ⭐ → überfällig (ältestes zuerst) → ohne Datum (ältestes zuerst); jedes To-do auf den frühesten Tag, auf
+ * dem es Platz hat. Nur ein Vorschlag – geschrieben wird, was Leif übernimmt.
+ */
+export const PUFFER = 0.7;
+export function wocheVerteilen(o: { eingang: TodoInfo[]; tage: { tag: string; freiMin: number; geplantMin: number }[]; heute: string }) {
+  const platz = new Map(o.tage.filter((t) => t.tag >= o.heute).map((t) => [t.tag, Math.floor(t.freiMin * PUFFER) - t.geplantMin]));
+  const reihe = [...o.eingang].sort(
+    (a, b) =>
+      Number(!!b.wichtig) - Number(!!a.wichtig) ||
+      Number(!!b.faellig) - Number(!!a.faellig) ||
+      (a.faellig ?? '').localeCompare(b.faellig ?? '') ||
+      (a.erstellt ?? '').localeCompare(b.erstellt ?? ''),
+  );
+  const aus: { pfad: string; titel: string; tag: string; dauer: number }[] = [];
+  for (const t of reihe) {
+    const dauer = Math.max(5, (t.dauer ?? 30) - (t.fokusMin ?? 0));
+    const tag = [...platz.entries()].find(([, p]) => p >= dauer)?.[0];
+    if (!tag) continue;
+    platz.set(tag, platz.get(tag)! - dauer);
+    aus.push({ pfad: t.pfad, titel: t.titel, tag, dauer });
+  }
+  return aus;
+}

@@ -984,3 +984,10 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 
 - Ab 6 offenen Einträgen erscheint über der Liste eine Filterleiste. Sie hat eine Textsuche (Titel, Notiz, Gruppe, Gebäude) und Chips für „⭐“, „Heute & überfällig“, „Ohne Datum“ und je Gruppe bzw. Gebäude (z. B. „Uni“, ein Fach, ein Amt). Daneben steht „N von M“.
 - Der Filter wirkt nur auf die Anzeige. Er wird nicht gespeichert und gilt für alle Listen (To-do, Einkauf, Wunsch, Corps).
+
+## E126 – „Woche verteilen“ im Wochenplan (Nacht 18./19.11.)
+
+- Der Knopf **„✨ Woche verteilen“** schlägt vor, die To-dos aus dem Eingang (ohne Datum, überfällig) auf die Tage ab heute zu legen, die noch Platz haben. Es braucht keine KI, und das Ergebnis ist nachvollziehbar (`wocheVerteilen` in `packages/shared`).
+- **Platz je Tag:** 70 % der freien Zeit (8–22 Uhr minus Termine). Das ist bewusst Puffer, weil nie alles nach Plan läuft. Davon gehen die dort schon geplanten To-dos ab (Schätzung minus bisheriger Fokus, ohne Schätzung 30 min).
+- **Reihenfolge:** ⭐ → überfällig (ältestes zuerst) → ohne Datum (ältestes zuerst). Jedes To-do kommt auf den frühesten Tag mit genug Platz. Was nicht mehr passt, wird genannt.
+- **Leif entscheidet:** Er wählt einzelne Vorschläge ab, erst „Übernehmen“ setzt `faellig` (mit `basisVersion`, wie beim Ziehen).
