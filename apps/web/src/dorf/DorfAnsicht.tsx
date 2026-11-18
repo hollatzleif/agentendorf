@@ -329,6 +329,7 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
             {WETTER_TEXT[status.data.wetter.art].symbol} {Math.round(status.data.wetter.temperatur)}°
           </button>
         )}
+        {!bauen && knopf('Heute – dein Tag', '📋', () => navigieren('/heute'))}
         {!bauen &&
           knopf(
             zeitungNeu ? 'Morgenzeitung (neue Ausgabe)' : 'Morgenzeitung',

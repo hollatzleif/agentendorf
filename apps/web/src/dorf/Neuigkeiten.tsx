@@ -1,10 +1,11 @@
 import { useState } from 'react';
 
 /** Bei jeder neuen Ausgabe den Schlüssel ändern – dann erscheint die Karte einmal pro Gerät */
-const AUSGABE = '2026-11-18m';
+const AUSGABE = '2026-11-19a';
 const SCHLUESSEL = 'dorf-neuigkeiten-gesehen';
 
 const PUNKTE: [string, string][] = [
+  ['📋', 'Neu: „Heute“ – dein Tag auf einen Blick (oben in der Leiste oder der 📋-Knopf im Dorf): Termine, fällige To-dos zum Abhaken, Fokus-Start, Wetter und Zeitung.'],
   ['🔔', 'Neu: der Kirchturm. Wecker, Timer, Pomodoro (voll einstellbar) und Stoppuhr – die Glocke läutet im Desktop-Programm, sonst siehst du es.'],
   ['📅', 'Marktplatz → Kalender: dein Google Kalender mit Monat, Woche, Tag und Liste, zum Anlegen und Bearbeiten (einmal „dorf gmail-anmelden“ mit Kalender).'],
   ['🎓', 'Uni-Abgaben und -Prüfungen landen von selbst auf dem To-do-Brett – abhaken geht in beide Richtungen.'],

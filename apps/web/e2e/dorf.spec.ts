@@ -759,3 +759,69 @@ test('Tag planen: Vorschläge aus To-dos abwählen und eintragen', async ({ page
   await expect(d).toContainText('1 Block eingetragen');
   expect(eingetragen).toEqual({ bloecke: [{ titel: 'Blatt 5', start: '2026-11-17T09:15:00.000Z', ende: '2026-11-17T10:45:00.000Z' }] });
 });
+
+test('Mein Tag (/heute): Termine aus dem Kalender, To-do anlegen und abhaken, Fokus starten', async ({ page }, info) => {
+  const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+  const morgenDatum = new Date(`${heute}T12:00:00Z`);
+  morgenDatum.setUTCDate(morgenDatum.getUTCDate() + 1);
+  const morgen = morgenDatum.toISOString().slice(0, 10);
+  // 11–12 Uhr UTC liegt in Wien immer am selben Tag (12/13 Uhr)
+  const zeit = (tag: string, h: number) => `${tag}T${String(h).padStart(2, '0')}:00:00.000Z`;
+  await page.route('**/api/kalender**', (route) =>
+    route.fulfill({
+      json: {
+        modus: 'google',
+        kalender: [{ id: 'leif', name: 'Leif', farbe: '#9fe1e7', primaer: true, schreibbar: true }],
+        termine: [
+          { id: 'e1', kalenderId: 'leif', titel: 'Zahnarzt', start: zeit(heute, 11), ende: zeit(heute, 12), ganztags: false, ort: 'Konstanz', quelle: 'google', schreibbar: true, erinnerungen: null },
+          { id: 'f1', kalenderId: 'leif', titel: 'Stiftungsfest', start: heute, ende: morgen, ganztags: true, quelle: 'google', schreibbar: true },
+          { id: 'uni:1', kalenderId: 'uni', titel: '⏰ Mathe III: Blatt 5', start: zeit(morgen, 11), ende: zeit(morgen, 11), ganztags: false, quelle: 'uni', schreibbar: false },
+        ],
+      },
+    }),
+  );
+  await anmelden(page);
+  await page.getByRole('link', { name: 'Heute', exact: true }).click();
+  await expect(page).toHaveURL(/\/heute$/);
+  await expect(page.getByRole('link', { name: 'Heute', exact: true })).toHaveClass(/aktiv/);
+  await expect(page.getByRole('heading', { name: /, Leif$/ })).toBeVisible();
+  await expect(page.getByTestId('heute-naechstes')).toBeVisible();
+
+  // Termine: heute (mit Uhrzeit in Wiener Zeit und ganztags), morgen die Uni-Frist
+  const termine = page.getByRole('region', { name: 'Termine' });
+  const wien = new Date(zeit(heute, 11)).toLocaleTimeString('de-AT', { timeZone: 'Europe/Vienna', hour: '2-digit', minute: '2-digit' });
+  await expect(termine.getByRole('link', { name: /Zahnarzt/ })).toContainText(wien);
+  await expect(termine.getByRole('link', { name: /Zahnarzt/ })).toContainText('Konstanz');
+  await expect(termine.getByRole('link', { name: /Stiftungsfest/ })).toContainText('ganztags');
+  await expect(termine).toContainText('Morgen');
+  await expect(termine.getByRole('link', { name: /Mathe III: Blatt 5/ })).toContainText('Uni-Frist');
+
+  // To-do für heute anlegen → Gruppe „Heute“; abhaken → weg, zählt als erledigt
+  const todos = page.getByRole('region', { name: 'To-dos' });
+  const titel = `Heute-Probe ${info.project.name}`;
+  await todos.getByRole('textbox', { name: 'Neues To-do' }).fill(titel);
+  await todos.getByText('heute', { exact: true }).click();
+  await todos.getByRole('button', { name: 'To-do anlegen' }).click();
+  const zeile = todos.locator('.heute-todo', { hasText: titel });
+  await expect(zeile).toBeVisible();
+  await expect(todos.locator('.heute-gruppe', { hasText: titel }).locator('.heute-gruppe-titel')).toContainText('Heute');
+  await expect(todos.getByRole('textbox', { name: 'Neues To-do' })).toHaveValue('');
+  await zeile.getByRole('checkbox').check();
+  await expect(zeile).toHaveCount(0);
+  await expect(page.locator('.heute-zahl.gruen')).toContainText('erledigt');
+  const liste = (await (await page.request.get('/api/todos')).json()) as { titel: string; erledigt: boolean }[];
+  expect(liste.find((t) => t.titel === titel)?.erledigt).toBe(true);
+
+  // Fokus starten → Restzeit läuft; Stopp → Knopf wieder da
+  const fokus = page.getByRole('region', { name: 'Fokus' });
+  await fokus.getByRole('button', { name: '🍅 Fokus starten' }).click();
+  await expect(fokus.getByTestId('heute-fokus-rest')).toHaveText(/^\d{1,2}:\d\d$/);
+  await expect(fokus).toContainText('Arbeiten');
+  await fokus.getByRole('button', { name: '⏹ Stopp' }).click();
+  await expect(fokus.getByRole('button', { name: '🍅 Fokus starten' })).toBeVisible();
+
+  // Termin antippen → Marktplatz-Kalender
+  await termine.getByRole('link', { name: /Zahnarzt/ }).click();
+  await expect(page).toHaveURL(/\/gebaeude\/Marktplatz\?reiter=kalender$/);
+  await expect(page.getByRole('button', { name: 'Kalender', exact: true })).toHaveClass(/aktiv/);
+});

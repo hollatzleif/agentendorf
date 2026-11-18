@@ -675,3 +675,106 @@ input.kurz { width: 5em; }
 .palette-zusatz { font-size: 0.8rem; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .palette-meldung { margin: 0.4rem 0 0; }
 .palette-hilfe { font-size: 0.75rem; margin: 0.4rem 0 0; text-align: right; }
+
+/* ---- E77: „Mein Tag“ (/heute) ---- */
+.heute { max-width: 1080px; margin: 0 auto; }
+.heute .karte { margin-bottom: 0; }
+.heute-kopf { background: linear-gradient(135deg, #fffdf6 0%, #f3f9e9 60%, #e3f1f9 100%); padding: 1.1rem 1.3rem 1rem; }
+.heute-kopf-zeile { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
+.heute-datum { margin: 0; font-size: 0.82rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--leise); }
+.heute-gruss { margin: 0.1rem 0 0; font-size: 1.75rem; line-height: 1.2; }
+.heute-wetter { display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0.85rem 0.4rem 0.6rem; background: rgb(255 255 255 / 0.75); border: 2px solid var(--rand); border-radius: 14px; }
+.heute-wetter-symbol { font-size: 1.9rem; line-height: 1; }
+.heute-wetter strong { font-size: 1.15rem; font-weight: 900; }
+.heute-wetter-klein { font-size: 0.78rem; color: var(--leise); font-weight: 600; }
+.heute-naechstes { margin-top: 0.9rem; display: flex; align-items: baseline; gap: 0.7rem; flex-wrap: wrap; padding: 0.6rem 0.85rem; background: #fff; border: 2px solid var(--navy); border-radius: 14px; box-shadow: 0 3px 0 var(--navy); }
+.heute-naechstes-marke { font-size: 0.7rem; font-weight: 900; letter-spacing: 0.07em; text-transform: uppercase; color: #fff; background: var(--dach); padding: 0.12rem 0.55rem; border-radius: 99px; white-space: nowrap; align-self: center; }
+.heute-naechstes a { color: var(--text); text-decoration: none; font-weight: 500; }
+.heute-naechstes a:hover strong { text-decoration: underline; }
+.heute-naechstes strong { font-weight: 800; overflow-wrap: anywhere; }
+.heute-zahlen { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.8rem; }
+.heute-zahlen:empty { display: none; }
+.heute-zahl { font-size: 0.8rem; font-weight: 800; padding: 0.15rem 0.65rem; border-radius: 99px; background: rgb(255 255 255 / 0.8); border: 2px solid var(--rand); color: var(--text); white-space: nowrap; }
+.heute-zahl.rot { background: #fdecea; border-color: #f0b0aa; color: #a3241b; }
+.heute-zahl.gruen { background: var(--gruen-hell); border-color: #9fd48a; color: var(--gruen); }
+
+.heute-hinweise { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0.8rem; margin-top: 1.1rem; }
+.heute-hinweis { display: flex; align-items: center; gap: 0.75rem; padding: 0.65rem 0.9rem; border-radius: 14px; text-decoration: none; color: var(--text); font-weight: 500; background: var(--karte); border: 2px solid var(--navy); box-shadow: 0 3px 0 var(--navy); transition: transform 0.06s, box-shadow 0.06s; min-width: 0; }
+.heute-hinweis:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--navy); }
+.heute-hinweis.freigabe { background: #fff4e3; border-color: #8a4300; box-shadow: 0 3px 0 #8a4300; }
+.heute-hinweis-symbol { font-size: 1.6rem; line-height: 1; }
+.heute-hinweis > span:last-child { display: flex; flex-direction: column; min-width: 0; }
+.heute-hinweis strong { font-weight: 900; }
+.heute-hinweis-text { font-size: 0.86rem; color: var(--leise); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+.heute-spalten { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.1rem; margin-top: 1.1rem; align-items: start; }
+.heute-spalte { display: flex; flex-direction: column; gap: 1.1rem; min-width: 0; }
+.heute-karte-kopf { display: flex; justify-content: space-between; align-items: baseline; gap: 0.6rem; margin-bottom: 0.5rem; }
+.heute-karte-kopf h2 { margin: 0; }
+.heute-mehr { font-size: 0.85rem; text-decoration: none; white-space: nowrap; }
+.heute-mehr:hover { text-decoration: underline; }
+.heute-mehr.unten { display: inline-block; margin-top: 0.5rem; }
+.heute-gruppe { margin-top: 0.75rem; }
+.heute-gruppe-titel { margin: 0 0 0.35rem; font-size: 0.74rem; font-weight: 900; letter-spacing: 0.07em; text-transform: uppercase; color: var(--leise); display: flex; align-items: center; gap: 0.4rem; }
+.heute-gruppe.rot .heute-gruppe-titel { color: #a3241b; }
+.heute-gruppe-zahl { font-size: 0.7rem; background: var(--rand); color: var(--text); border-radius: 99px; padding: 0 0.45rem; letter-spacing: 0; }
+.heute-gruppe.rot .heute-gruppe-zahl { background: #f6c9c4; color: #a3241b; }
+.heute-leer { margin: 0.2rem 0 0; }
+
+.heute-termine, .heute-todos, .heute-uhren { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.heute-termin { display: grid; grid-template-columns: 3.6rem minmax(0, 1fr); gap: 0.7rem; align-items: center; padding: 0.45rem 0.7rem 0.45rem 0.6rem; text-decoration: none; color: var(--text); font-weight: 500; background: color-mix(in srgb, var(--farbe, #4a86e8) 9%, #fff); border: 2px solid color-mix(in srgb, var(--farbe, #4a86e8) 30%, var(--rand)); border-left: 6px solid var(--farbe, #4a86e8); border-radius: 12px; }
+.heute-termin:hover { background: color-mix(in srgb, var(--farbe, #4a86e8) 16%, #fff); }
+.heute-termin-zeit { display: flex; flex-direction: column; font-variant-numeric: tabular-nums; font-weight: 800; font-size: 0.95rem; line-height: 1.2; }
+.heute-termin-bis { font-weight: 600; font-size: 0.78rem; color: var(--leise); }
+.heute-termin-text { display: flex; flex-direction: column; min-width: 0; }
+.heute-termin-titel { font-weight: 700; overflow-wrap: anywhere; }
+.heute-termin-ort { display: flex; flex-wrap: wrap; gap: 0.15rem 0.6rem; align-items: center; font-size: 0.8rem; color: var(--leise); }
+.heute-termin.vorbei { opacity: 0.5; }
+.heute-termin.laeuft { border-color: var(--navy); border-left-color: var(--farbe, #4a86e8); box-shadow: 0 3px 0 var(--navy); }
+.heute-jetzt { font-size: 0.68rem; font-weight: 900; letter-spacing: 0.06em; text-transform: uppercase; color: #fff; background: var(--gruen); border-radius: 99px; padding: 0 0.45rem; }
+
+.heute-neu { display: flex; gap: 0.4rem; align-items: stretch; }
+.heute-neu > input { flex: 1; min-width: 0; }
+.heute-neu button { font-size: 1.2rem; padding: 0.15rem 0.9rem; }
+.heute-neu-heute { flex-direction: row; align-items: center; gap: 0.3rem; padding: 0 0.65rem; font-size: 0.85rem; font-weight: 800; border: 2px solid var(--rand); border-radius: 12px; background: #fff; cursor: pointer; color: var(--leise); user-select: none; }
+.heute-neu-heute.an { border-color: #1f5a1d; background: var(--gruen-hell); color: var(--gruen); }
+.heute-neu-heute input { position: absolute; opacity: 0; width: 0; height: 0; }
+.heute-neu-heute:has(input:focus-visible) { outline: 3px solid #f2b51e; outline-offset: 2px; }
+.heute-todo { display: flex; align-items: center; gap: 0.5rem; padding: 0.1rem 0.6rem 0.1rem 0; background: #fff; border: 2px solid var(--rand); border-radius: 12px; transition: opacity 0.2s; }
+.heute-gruppe.rot .heute-todo { border-color: #f0b0aa; background: #fffaf9; }
+.heute-todo label { flex: 1; min-width: 0; flex-direction: row; align-items: center; gap: 0.6rem; padding: 0.4rem 0 0.4rem 0.65rem; cursor: pointer; font-size: 1rem; }
+.heute-todo input[type='checkbox'] { width: 1.35rem; height: 1.35rem; flex: none; cursor: pointer; }
+.heute-todo-titel { font-weight: 700; overflow-wrap: anywhere; }
+.heute-todo.fertig { opacity: 0.55; }
+.heute-todo.fertig .heute-todo-titel { text-decoration: line-through; }
+.heute-todo-datum { font-size: 0.76rem; font-weight: 800; color: var(--leise); white-space: nowrap; }
+.heute-todo-datum.rot { color: #a3241b; }
+
+.heute-fokus-zeile { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem 1rem; flex-wrap: wrap; }
+.heute-fokus-text { margin: 0; flex: 1 1 14rem; color: var(--leise); }
+.heute-fokus-lauf { display: flex; align-items: center; gap: 0.8rem; }
+.heute-fokus-ring { width: 3.2rem; height: 3.2rem; border-radius: 50%; flex: none; background: conic-gradient(#d2352a calc(var(--anteil) * 360deg), #e9edf3 0); -webkit-mask: radial-gradient(circle, transparent 54%, #000 56%); mask: radial-gradient(circle, transparent 54%, #000 56%); }
+.heute-fokus.phase-kurz .heute-fokus-ring, .heute-fokus.phase-lang .heute-fokus-ring { background: conic-gradient(#3fa63a calc(var(--anteil) * 360deg), #e9edf3 0); }
+.heute-fokus-zeit { font-size: 1.9rem; font-weight: 900; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.heute-fokus-knoepfe { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.heute-uhren { margin-top: 0.8rem; padding-top: 0.6rem; border-top: 2px dashed var(--rand); font-size: 0.9rem; }
+.heute-uhren li { display: flex; justify-content: space-between; gap: 0.8rem; }
+.heute-uhren strong { font-variant-numeric: tabular-nums; }
+
+@media (max-width: 860px) {
+  .heute-spalten { grid-template-columns: minmax(0, 1fr); }
+  .heute-spalte { display: contents; }
+  .heute-fokus { order: 3; }
+}
+@media (max-width: 760px) {
+  /* vier Reiter in der Kopfleiste: am Handy enger, damit Brief-Abzeichen und Live-Punkt Platz behalten */
+  .kopf { gap: 0.35rem; }
+  .kopf nav { min-width: 0; gap: 0; }
+  .kopf nav a { padding: 0.3rem 0.36rem; font-size: 0.84rem; }
+  .kopf .status { gap: 0.4rem; }
+  .heute-kopf { padding: 0.9rem 1rem; }
+  .heute-gruss { font-size: 1.45rem; }
+  .heute-wetter { width: 100%; }
+  .heute .karte { padding: 0.85rem 0.9rem; }
+  .heute-spalten, .heute-hinweise { gap: 0.9rem; margin-top: 0.9rem; }
+}
