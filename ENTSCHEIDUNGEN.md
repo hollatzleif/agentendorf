@@ -596,3 +596,11 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
   - Ohne Befehlswort werden passende Befehle unter den Treffern angeboten.
 - Zusätzlich auf „Heute“: Fokusminuten von heute und „🧭 Tag planen“.
 - Warum: Weniger Klicks für das, was man zehnmal am Tag macht. Die Palette ist der schnellste Weg vom Gedanken zum Eintrag.
+
+## E86 – ⭐ wichtig (Nacht 18./19.11.)
+
+- Jedes offene To-do hat einen **Stern** (Marktplatz und „Heute“). Markierte To-dos (Frontmatter `wichtig: true`, auch in Obsidian setzbar):
+  - stehen auf dem Brett und auf „Heute“ ganz oben (eigene Gruppe „⭐ Wichtig“),
+  - kommen beim „Tag planen“ direkt nach Überfälligem dran,
+  - erscheinen in der Morgenzeitung als erster Abschnitt „⭐ Heute wichtig“ und in Telegram `/todo` mit ⭐.
+- Warum: Die „1–3 wichtigsten Dinge des Tages“ zu benennen ist die einfachste Produktivitäts-Regel. Das Dorf sorgt dafür, dass sie nicht in der langen Liste untergehen.

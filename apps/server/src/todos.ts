@@ -39,6 +39,7 @@ export const TodoNeu = z.object({
   /** Gruppe innerhalb der Liste, z. B. Abteilung im Laden („Obst & Gemüse“) oder Amt im Corps */
   gruppe: z.string().trim().max(60).optional(),
   notiz: z.string().max(5000).optional(),
+  wichtig: z.boolean().optional(),
 });
 export const TodoAenderung = z.object({
   titel: z.string().trim().min(1).max(200).optional(),
@@ -47,6 +48,7 @@ export const TodoAenderung = z.object({
   gebaeude: z.union([z.string().max(60), z.literal('')]).optional(),
   gruppe: z.union([z.string().trim().max(60), z.literal('')]).optional(),
   notiz: z.string().max(5000).optional(),
+  wichtig: z.boolean().optional(),
 });
 
 const datumText = (v: unknown) => (v instanceof Date ? v.toISOString().slice(0, 10) : typeof v === 'string' && DATUM.test(v) ? v : undefined);
@@ -88,6 +90,7 @@ export class TodoDienst {
       gebaeude: typeof k.gebaeude === 'string' && k.gebaeude ? k.gebaeude : undefined,
       gruppe: typeof k.gruppe === 'string' && k.gruppe ? k.gruppe : undefined,
       ...(k.fremd === true ? { fremd: true } : {}),
+      ...(k.wichtig === true ? { wichtig: true } : {}),
       quelle: typeof k.quelle === 'string' ? k.quelle : undefined,
       erstellt: typeof k.erstellt === 'string' ? k.erstellt : k.erstellt instanceof Date ? k.erstellt.toISOString() : undefined,
       erledigtAm: typeof k.erledigt_am === 'string' ? k.erledigt_am : k.erledigt_am instanceof Date ? k.erledigt_am.toISOString() : undefined,
@@ -103,7 +106,7 @@ export class TodoDienst {
     const grenze = this.o.uhr.jetzt() - ERLEDIGT_TAGE * 86_400_000;
     const offen = alle
       .filter((t) => !t.erledigt)
-      .sort((a, b) => (a.faellig ?? '9999') .localeCompare(b.faellig ?? '9999') || (b.erstellt ?? '').localeCompare(a.erstellt ?? ''));
+      .sort((a, b) => Number(!!b.wichtig) - Number(!!a.wichtig) || (a.faellig ?? '9999').localeCompare(b.faellig ?? '9999') || (b.erstellt ?? '').localeCompare(a.erstellt ?? ''));
     const fertig = alle
       .filter((t) => t.erledigt && (opt.alleErledigten || !t.erledigtAm || Date.parse(t.erledigtAm) >= grenze))
       .sort((a, b) => (b.erledigtAm ?? '').localeCompare(a.erledigtAm ?? ''));
@@ -127,6 +130,7 @@ export class TodoDienst {
     if (e.faellig) daten.faellig = e.faellig;
     if (e.gebaeude) daten.gebaeude = e.gebaeude;
     if (e.gruppe) daten.gruppe = e.gruppe;
+    if (e.wichtig) daten.wichtig = true;
     daten.quelle = quelle;
     if (opt.fremd) daten.fremd = true;
     daten.erstellt = new Date(jetzt).toISOString();
@@ -163,6 +167,10 @@ export class TodoDienst {
       if (a.gruppe) k.gruppe = a.gruppe;
       else delete k.gruppe;
     }
+    if (a.wichtig !== undefined) {
+      if (a.wichtig) k.wichtig = true;
+      else delete k.wichtig;
+    }
     // Inhalt von einem Fremdinhalt-Lauf geändert → ab jetzt „fremd“ (nur Abhaken ändert keinen Inhalt)
     if (opt.fremd && (a.titel !== undefined || a.notiz !== undefined || a.gruppe !== undefined || a.gebaeude !== undefined)) k.fremd = true;
     const inhalt = a.notiz !== undefined ? (a.notiz.trim() ? `${a.notiz.trim()}\n` : '') : m.content;
@@ -184,7 +192,7 @@ export class TodoDienst {
 
 /** Kurzer Text für Agenten und Telegram */
 export function todoZeile(t: TodoInfo) {
-  return `${t.erledigt ? '[x]' : '[ ]'} ${t.titel}${t.faellig ? ` (fällig ${t.faellig})` : ''}${t.gruppe ? ` [${t.gruppe}]` : ''}${t.gebaeude ? ` #${t.gebaeude}` : ''} – ${t.pfad}`;
+  return `${t.erledigt ? '[x]' : '[ ]'} ${t.wichtig ? '⭐ ' : ''}${t.titel}${t.faellig ? ` (fällig ${t.faellig})` : ''}${t.gruppe ? ` [${t.gruppe}]` : ''}${t.gebaeude ? ` #${t.gebaeude}` : ''} – ${t.pfad}`;
 }
 
 /** Alle Listen (E65 + Etappe 7) – eine Instanz je Ordner */

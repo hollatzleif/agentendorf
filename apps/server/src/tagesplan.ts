@@ -21,6 +21,7 @@ export function rangfolge(todos: TodoInfo[], heute: string) {
   const offen = todos.filter((t) => !t.erledigt);
   const wichtig = (t: TodoInfo) => /^(Abgabe|Prüfung):/i.test(t.titel) || t.gebaeude === 'Uni';
   const stufe = (t: TodoInfo) => {
+    if (t.wichtig) return t.faellig && t.faellig < heute ? 0 : 1;
     if (t.faellig && t.faellig < heute) return 0;
     if (t.faellig === heute) return 1;
     if (t.faellig) return wichtig(t) ? 2 : 3;
@@ -29,7 +30,8 @@ export function rangfolge(todos: TodoInfo[], heute: string) {
   return offen
     .map((t) => ({ t, s: stufe(t) }))
     .sort((a, b) => a.s - b.s || (a.t.faellig ?? '9999').localeCompare(b.t.faellig ?? '9999') || Number(wichtig(b.t)) - Number(wichtig(a.t)) || (b.t.erstellt ?? '').localeCompare(a.t.erstellt ?? ''))
-    .map((x) => ({ ...x, grund: ['überfällig', 'heute fällig', `fällig ${x.t.faellig}`, `fällig ${x.t.faellig}`, 'ohne Datum'][x.s]! }));
+    .sort((a, b) => a.s - b.s || Number(!!b.t.wichtig) - Number(!!a.t.wichtig))
+    .map((x) => ({ ...x, grund: x.t.wichtig ? `⭐ wichtig${x.s === 0 ? ', überfällig' : ''}` : ['überfällig', 'heute fällig', `fällig ${x.t.faellig}`, `fällig ${x.t.faellig}`, 'ohne Datum'][x.s]! }));
 }
 
 export function tagPlanen(o: { todos: TodoInfo[]; heute: string; frei: [number, number][]; hoechstens?: number }): Block[] {

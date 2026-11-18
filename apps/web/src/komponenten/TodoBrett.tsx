@@ -4,6 +4,7 @@ import type { TodoInfo } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { bibliothekUrl, linkKlick, navigieren } from '../router';
 import { LernzeitPlaner } from './LernzeitPlaner';
+import { Stern } from '../seiten/Heute';
 
 const heute = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
 const datumText = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('de-AT', { weekday: 'short', day: '2-digit', month: '2-digit' });
@@ -125,6 +126,7 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: (f: () =
     );
   return (
     <li className={`todo${t.erledigt ? ' fertig' : ''}${ueberfaellig ? ' ueberfaellig' : ''}`}>
+      {basis === '/api/todos' && !t.erledigt && <Stern t={t} />}
       <label className="todo-haken">
         <input
           type="checkbox"

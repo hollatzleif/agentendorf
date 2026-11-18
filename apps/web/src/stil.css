@@ -779,3 +779,8 @@ input.kurz { width: 5em; }
   .heute-spalten, .heute-hinweise { gap: 0.9rem; margin-top: 0.9rem; }
 }
 .heute-planen { margin-left: auto; }
+
+/* ⭐ wichtig */
+.stern { background: none; border: none; box-shadow: none; padding: 0 0.2rem; min-height: 0; font-size: 1.15rem; line-height: 1; color: #b9a98a; cursor: pointer; }
+.stern.an { color: #e0a800; }
+.stern:hover { color: #e0a800; transform: scale(1.15); }

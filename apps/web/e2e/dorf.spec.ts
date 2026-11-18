@@ -857,3 +857,16 @@ test('Befehlspalette (Strg+K): To-do anlegen, Termin mit Bestätigung, Gebäude 
   await page.goto('/gebaeude/Marktplatz');
   await expect(page.getByRole('button', { name: 'Palette-Test', exact: true }).first()).toBeVisible();
 });
+
+test('⭐ wichtig: am To-do markieren, auf „Heute“ ganz oben', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  await page.goto('/gebaeude/Marktplatz');
+  const f = page.getByRole('form', { name: 'Neues To-do' });
+  await f.getByLabel('Neues To-do').fill('Stern-Test');
+  await f.getByRole('button', { name: '+' }).click();
+  await page.getByRole('button', { name: 'Stern-Test als wichtig markieren' }).click();
+  await expect(page.getByRole('button', { name: 'Stern-Test nicht mehr wichtig' })).toBeVisible();
+  await page.goto('/heute');
+  await expect(page.locator('.heute-gruppe.stern')).toContainText('Stern-Test');
+});

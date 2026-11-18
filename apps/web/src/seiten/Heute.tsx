@@ -110,12 +110,13 @@ export function Heute() {
 
   // ---- To-dos ----
   const offen = (todos.data ?? []).filter((t) => !t.erledigt);
-  const ueberfaellig = offen.filter((t) => t.faellig && t.faellig < heute);
-  const faelligHeute = offen.filter((t) => t.faellig === heute);
-  const bald = offen.filter((t) => t.faellig && t.faellig > heute && t.faellig <= tagPlus(heute, 7));
-  const ohneDatumAlle = offen.filter((t) => !t.faellig).sort((a, b) => (b.erstellt ?? '').localeCompare(a.erstellt ?? ''));
+  const wichtig = offen.filter((t) => t.wichtig);
+  const ueberfaellig = offen.filter((t) => !t.wichtig && t.faellig && t.faellig < heute);
+  const faelligHeute = offen.filter((t) => !t.wichtig && t.faellig === heute);
+  const bald = offen.filter((t) => !t.wichtig && t.faellig && t.faellig > heute && t.faellig <= tagPlus(heute, 7));
+  const ohneDatumAlle = offen.filter((t) => !t.wichtig && !t.faellig).sort((a, b) => (b.erstellt ?? '').localeCompare(a.erstellt ?? ''));
   const ohneDatum = ohneDatumAlle.slice(0, OHNE_DATUM_ZEIGEN);
-  const gezeigt = ueberfaellig.length + faelligHeute.length + bald.length + ohneDatum.length;
+  const gezeigt = wichtig.length + ueberfaellig.length + faelligHeute.length + bald.length + ohneDatum.length;
   const erledigtHeute = (todos.data ?? []).filter((t) => t.erledigt && t.erledigtAm && ort(t.erledigtAm).tag === heute).length;
 
   // ---- Womit fange ich an? ----
@@ -264,6 +265,7 @@ export function Heute() {
             {todos.isPending && <p className="leise">Lade …</p>}
             {todos.isError && <p className="fehler">To-dos nicht erreichbar: {todos.error.message}</p>}
             {todos.data && gezeigt === 0 && <p className="leise heute-leer">{offen.length ? 'Nichts in den nächsten 7 Tagen fällig. 🎉' : 'Nichts offen. 🎉'}</p>}
+            <TodoGruppe titel="⭐ Wichtig" art="stern" todos={wichtig} heute={heute} />
             <TodoGruppe titel="Überfällig" art="rot" todos={ueberfaellig} heute={heute} />
             <TodoGruppe titel="Heute" todos={faelligHeute} heute={heute} />
             <TodoGruppe titel="In den nächsten 7 Tagen" todos={bald} heute={heute} />
@@ -419,6 +421,7 @@ function TodoZeile({ t, heute }: { t: TodoInfo; heute: string }) {
         <span className="heute-todo-titel">{t.titel}</span>
       </label>
       {datum && <span className={`heute-todo-datum${ueberfaellig ? ' rot' : ''}`}>{datum}</span>}
+      <Stern t={t} />
       {t.gebaeude && <span className="heute-todo-datum">{t.gebaeude}</span>}
       {fehler && <span className="fehler">{fehler}</span>}
     </li>
@@ -537,5 +540,26 @@ function Fokus({ k, laedt, fehler: ladeFehler, jetzt }: { k: (KirchturmZustand &
         </ul>
       )}
     </section>
+  );
+}
+
+/** ⭐ an/aus – die 1–3 wichtigsten Dinge (oben auf „Heute“, zuerst beim Tag planen, in der Morgenzeitung) */
+export function Stern({ t }: { t: TodoInfo }) {
+  const qc = useQueryClient();
+  return (
+    <button
+      type="button"
+      className={`stern${t.wichtig ? ' an' : ''}`}
+      aria-pressed={!!t.wichtig}
+      aria-label={`${t.titel} ${t.wichtig ? 'nicht mehr wichtig' : 'als wichtig markieren'}`}
+      title={t.wichtig ? 'Nicht mehr wichtig' : 'Wichtig für heute'}
+      onClick={async (e) => {
+        e.stopPropagation();
+        await api('/api/todos', { methode: 'PATCH', body: { pfad: t.pfad, basisVersion: t.version, wichtig: !t.wichtig } }).catch(() => undefined);
+        await qc.invalidateQueries({ queryKey: ['liste', 'todo'] });
+      }}
+    >
+      {t.wichtig ? '★' : '☆'}
+    </button>
   );
 }

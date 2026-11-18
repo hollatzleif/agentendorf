@@ -139,3 +139,29 @@ describe('Mail → To-do (Nacht 18./19.11.)', () => {
     expect((await d.app.inject({ method: 'POST', url: '/api/post/todo', headers: h, payload: { id: 'gibts-nicht' } })).statusCode).toBe(404);
   });
 });
+
+describe('⭐ wichtig (Nacht 18./19.11.)', () => {
+  it('markieren, zuerst in der Liste, zuerst beim Tag planen, in der Morgenzeitung', async () => {
+    const { testDorf } = await import('./hilfen.js');
+    const { tagPlanen } = await import('../src/tagesplan.js');
+    const d = await testDorf();
+    await d.todos.anlegen({ titel: 'Heute fällig', faellig: '2026-11-16' }, 'Leif');
+    const w = await d.todos.anlegen({ titel: 'Bewerbung schreiben' }, 'Leif');
+    let l = await d.todos.liste();
+    expect(l[0]!.titel).toBe('Heute fällig');
+    await d.todos.aendern(w.pfad, { wichtig: true });
+    l = await d.todos.liste();
+    expect(l[0]).toMatchObject({ titel: 'Bewerbung schreiben', wichtig: true });
+    expect((await d.vault.lesen(w.pfad)).inhalt).toMatch(/wichtig: true/);
+    const t0 = Date.UTC(2026, 10, 16, 8, 0);
+    const plan = tagPlanen({ todos: l, heute: '2026-11-16', frei: [[t0, t0 + 6 * 3_600_000]] });
+    expect(plan.map((b) => [b.titel, b.grund])).toEqual([
+      ['Bewerbung schreiben', '⭐ wichtig'],
+      ['Heute fällig', 'heute fällig'],
+    ]);
+    const z = await d.morgenzeitung.fakten();
+    expect(z.abschnitte[0]).toEqual({ titel: '⭐ Heute wichtig', zeilen: ['**Bewerbung schreiben**'] });
+    await d.todos.aendern(w.pfad, { wichtig: false });
+    expect((await d.todos.holen(w.pfad)).wichtig).toBeUndefined();
+  });
+});
