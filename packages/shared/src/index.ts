@@ -162,6 +162,10 @@ export interface KirchturmKlingel {
   seit: string;
   /** Wecker: Schlummern möglich */
   schlummern: boolean;
+  /** E99: Fokus-Runde an einem To-do – „✓ Erledigt“ anbieten */
+  todo?: { pfad: string; titel: string };
+  /** E99: die ganze Pomodoro-Folge ist vorbei (nicht nur eine Runde) */
+  sitzungEnde?: boolean;
 }
 
 export interface KirchturmToene {

@@ -562,3 +562,20 @@ describe('Telegram /aufraeumen (E97)', () => {
     expect(String(d.aufrufe.filter((x) => x.m === 'editMessageText').at(-1)!.p.text)).toMatch(/Nichts überfällig/);
   });
 });
+
+describe('Fokus geschafft → Erledigt? (E99)', () => {
+  it('nach der letzten Runde an einem To-do: Kirchturm bietet „Erledigt“ an, Telegram fragt mit Knopf', async () => {
+    const d = await dorf();
+    const t = await d.todos.anlegen({ titel: 'Blatt 7 rechnen' }, 'Leif');
+    d.kirchturm.ausfuehren({ befehl: 'pomodoro_einstellen', einstellungen: { arbeitMin: 25, kurzMin: 5, langMin: 15, langNach: 4, runden: 1, autoWeiter: false } });
+    d.kirchturm.ausfuehren({ befehl: 'pomodoro_fuer', titel: t.titel, pfad: t.pfad });
+    d.uhr.vor(25 * 60_000 + 1000);
+    d.kirchturm.pruefen();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(d.kirchturm.zustand().klingelt[0]).toMatchObject({ quelle: 'pomodoro', todo: { pfad: t.pfad, titel: 'Blatt 7 rechnen' }, sitzungEnde: true });
+    const m = d.aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p;
+    expect(String(m.text)).toBe('🍅 <b>Fokus geschafft</b>: Blatt 7 rechnen\nIst das To-do damit erledigt?');
+    await d.knopf((m.reply_markup as { inline_keyboard: { callback_data: string }[][] }).inline_keyboard[0]![0]!.callback_data);
+    expect((await d.todos.holen(t.pfad)).erledigt).toBe(true);
+  });
+});

@@ -389,6 +389,10 @@ export async function dorfStarten(
     // Fokus: während einer Pomodoro-Arbeitsphase hält Telegram Meldungen zurück und schickt sie danach gesammelt
     t.fokusAktiv = () => kirchturm.fokusAktiv();
     erinnerungen.beiErinnerung.push((todo) => t.erinnerungSenden(todo));
+    // E99: Pomodoro-Folge an einem To-do vorbei → in Telegram „Erledigt?“ fragen
+    kirchturm.beiKlingeln.push((k) => {
+      if (k.todo && k.sitzungEnde) void t.fokusFertigFragen(k.todo.pfad, k.todo.titel).catch(() => undefined);
+    });
     kirchturm.beiFokusEnde.push(() => void t.nachtNachholen().catch(() => undefined));
   }
   agenten.anstossen();

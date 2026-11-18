@@ -403,7 +403,18 @@ export class Kirchturm {
         : naechste === 'arbeit'
           ? `Pause vorbei – Runde ${p.erledigt + 1} von ${e.runden}${e.autoWeiter ? ' läuft' : ': Start drücken'}.`
           : `Runde ${p.erledigt} von ${e.runden} fertig – ${naechste === 'lang' ? 'lange' : 'kurze'} Pause (${naechste === 'lang' ? e.langMin : e.kurzMin} min)${e.autoWeiter ? '' : ': Start drücken'}.`;
-    return { id: crypto.randomUUID(), quelle: 'pomodoro', bezugId: 'pomodoro', titel: war === 'arbeit' ? '🍅 Pause!' : '🍅 Weiter geht’s', text, ton: 'schlag', seit: jetzt, schlummern: false };
+    return {
+      id: crypto.randomUUID(),
+      quelle: 'pomodoro',
+      bezugId: 'pomodoro',
+      titel: war === 'arbeit' ? '🍅 Pause!' : '🍅 Weiter geht’s',
+      text,
+      ton: 'schlag',
+      seit: jetzt,
+      schlummern: false,
+      // E99: nach einer Arbeitsrunde an einem To-do „Erledigt?“ anbieten
+      ...(war === 'arbeit' && e.todoPfad ? { todo: { pfad: e.todoPfad, titel: e.thema ?? '' }, sitzungEnde: naechste === 'aus' } : {}),
+    };
   }
 
   /** Jede Sekunde: Fälliges klingeln lassen */

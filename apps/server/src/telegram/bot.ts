@@ -1019,6 +1019,14 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     });
   }
 
+  /** E99: Pomodoro-Folge an einem To-do fertig → „Erledigt?“ (Knopf wie bei der Erinnerung) */
+  async fokusFertigFragen(pfad: string, titel: string) {
+    const k = this.todoKennung(pfad);
+    return this.senden(`🍅 <b>Fokus geschafft</b>: ${h(titel)}\nIst das To-do damit erledigt?`, {
+      reply_markup: { inline_keyboard: [[{ text: '✅ Ja, erledigt', callback_data: this.erinnerDaten(k, 'e') }]] },
+    });
+  }
+
   private async erinnerKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {
     const m = /^er:([0-9a-f]{12}):([esm]):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
     const soll = m ? this.erinnerDaten(m[1]!, m[2] as 'e' | 's' | 'm').split(':')[3]! : '';

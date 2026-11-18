@@ -725,3 +725,9 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - **Schnitt:** nach ECTS gewichtet über die benoteten, bestandenen Fächer.
 - **Uni → Noten:** Kennzahlen (Schnitt, ECTS bestanden und offen, Fortschritt zum Ziel, z. B. 180 ECTS) und eine Tabelle zum Pflegen. Fächer aus `Uni/faecher/` erscheinen beim Hinzufügen als Vorschläge.
 - Warum: Den Überblick über ECTS und Schnitt braucht man ständig – für Stipendien, Bewerbungen, Studienplanung –, und er liegt sonst verstreut im Uni-Portal.
+
+## E99 – „Fokus geschafft – erledigt?“ (Nacht 18./19.11.)
+
+- Läuft ein Pomodoro für ein To-do (🍅 am To-do), trägt das Klingeln nach jeder Arbeitsrunde den Bezug zum To-do (`todo: { pfad, titel }`). Der Kirchturm-Hinweis bietet dann neben „Aus“ auch **„✓ To-do erledigt“** an.
+- Ist die ganze Pomodoro-Folge vorbei (`sitzungEnde`), fragt **Telegram** einmal: „🍅 Fokus geschafft: … – erledigt?“, mit einem Knopf zum Abhaken (HMAC-signiert, derselbe Weg wie bei Erinnerungen). Nach einzelnen Runden fragt Telegram nicht, das wäre zu viel.
+- Warum: Der Moment nach der Fokusrunde ist der natürliche Zeitpunkt zum Abhaken. Wer es dann vergisst, hat ein erledigtes To-do, das weiter auf „Heute“ steht.
