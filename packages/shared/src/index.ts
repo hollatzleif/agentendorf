@@ -210,6 +210,8 @@ export interface TodoInfo {
   schritte?: { text: string; erledigt: boolean }[];
   /** E120: geschätzte Dauer in Minuten */
   dauer?: number;
+  /** E122: Minuten Fokus (Pomodoro) auf genau dieses To-do – nur in der Antwort von GET /api/todos */
+  fokusMin?: number;
   quelle?: string; // „Leif“, „Telegram“ oder der Agent/die Aktion
   erstellt?: string;
   erledigtAm?: string;

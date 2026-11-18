@@ -947,3 +947,8 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **Auslastung je Tag:** Die Leiste zeigt Termine (blau) und geschätzte To-dos (grün, rot wenn zu viel) gegen die Tageszeit 8–22 Uhr, dazu die Zahlen und Ganztägiges. Die Termine kommen aus derselben Kalenderquelle wie „Heute“, einschließlich ausgeblendeter Kalender. Das ist die Grundlage fürs Planen am Sonntag: Man sieht, welcher Tag schon voll ist.
 - Oben stehen die Wochenziele dieser Woche, damit die Planung an ihnen ausgerichtet ist.
 - **Bewusst ohne Uhrzeiten:** Zeitblöcke im Kalender macht weiterhin „Tag planen“ (E84) bzw. „Lernzeit einplanen“ (E79). Der Wochenplan verteilt nur auf Tage.
+
+## E122 – Fokuszeit je To-do, Schätzung lernen (Nacht 18./19.11.)
+
+- `GET /api/todos` liefert je To-do `fokusMin`, die Summe der Pomodoro-Minuten, die mit genau diesem To-do gestartet wurden (`fokus_sitzungen.todo`, gibt es seit E76). Die App zeigt „🍅 50 / ⏱ 90 min“. Ein wiederkehrendes To-do beginnt mit jedem Nachfolger bei 0, weil der Nachfolger einen neuen Pfad hat.
+- **Wochenrückblick, Abschnitt „Schätzung“:** Verglichen werden die in der Woche erledigten To-dos, die eine Schätzung *und* mindestens 10 min Fokus haben, z. B. „Du hast im Schnitt 1,5× so lange gebraucht wie geschätzt – nächste Woche großzügiger planen.“ Dazu kommen bis zu 5 Beispiele. Wer seine Schätzungen sieht, plant realistischer. Ohne passende To-dos fehlt der Abschnitt.

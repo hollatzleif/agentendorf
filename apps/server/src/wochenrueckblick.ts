@@ -92,6 +92,21 @@ export class Wochenrueckblick {
       abschnitte.push({ titel: 'Fokus', zeilen: z2 });
     } else if (f) abschnitte.push({ titel: 'Fokus', zeilen: ['Diese Woche keine Pomodoros – nächste Woche einfach mit einem 🍅 am wichtigsten To-do anfangen.'] });
 
+    // E122: Schätzung gegen tatsächliche Fokuszeit – nur To-dos dieser Woche mit beidem (lernen, realistischer zu schätzen)
+    const fokusJe = new Map((this.o.db.prepare('SELECT todo, SUM(minuten) AS m FROM fokus_sitzungen WHERE todo IS NOT NULL GROUP BY todo').all() as { todo: string; m: number }[]).map((x) => [x.todo, x.m]));
+    const vergleich = erledigt.filter((t) => t.dauer && (fokusJe.get(t.pfad) ?? 0) >= 10).map((t) => ({ t, ist: Math.round(fokusJe.get(t.pfad)!) }));
+    if (vergleich.length) {
+      const faktor = vergleich.reduce((s2, x) => s2 + x.ist, 0) / vergleich.reduce((s2, x) => s2 + x.t.dauer!, 0);
+      const f2 = faktor.toFixed(1).replace('.', ',');
+      abschnitte.push({
+        titel: 'Schätzung',
+        zeilen: [
+          faktor > 1.2 ? `Du hast im Schnitt **${f2}×** so lange gebraucht wie geschätzt – nächste Woche großzügiger planen.` : faktor < 0.8 ? `Schneller als gedacht: im Schnitt **${f2}×** der Schätzung.` : `Gut geschätzt: im Schnitt **${f2}×** der Schätzung.`,
+          ...vergleich.slice(0, 5).map((x) => `${einzeilig(x.t.titel, 50)}: ⏱ ${x.t.dauer} min geschätzt · 🍅 ${x.ist} min`),
+        ],
+      });
+    }
+
     const b = await this.o.bluete?.().catch(() => undefined);
     if (b) abschnitte.push({ titel: 'Dein Dorf', zeilen: [blueteZeile(b)] });
     const ziele = await this.o.wochenziele?.rueckblickZeilen().catch(() => [] as string[]);

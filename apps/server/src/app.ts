@@ -598,7 +598,13 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
     const listen = a.listen;
     for (const [basis, name] of [['/api/todos', 'todo'] as const, ...LISTEN_NAMEN.map((n) => [`/api/listen/${n}`, n] as const)]) {
       const l = listen[name];
-      app.get(basis, async (req) => l.liste({ alleErledigten: (req.query as { alle?: string }).alle === '1' }));
+      app.get(basis, async (req) => {
+        const liste = await l.liste({ alleErledigten: (req.query as { alle?: string }).alle === '1' });
+        if (name !== 'todo') return liste;
+        // E122: Fokuszeit je To-do (Pomodoro mit To-do, fokus_sitzungen.todo) – tatsächlich gegen geschätzt
+        const fokus = new Map((db.prepare('SELECT todo, SUM(minuten) AS m FROM fokus_sitzungen WHERE todo IS NOT NULL GROUP BY todo').all() as { todo: string; m: number }[]).map((x) => [x.todo, Math.round(x.m)]));
+        return liste.map((t) => (fokus.get(t.pfad) ? { ...t, fokusMin: fokus.get(t.pfad) } : t));
+      });
       app.post(basis, async (req) => l.anlegen(req.body, 'Leif'));
       app.patch(basis, async (req) => {
         const { pfad, basisVersion, ...rest } = z.object({ pfad: z.string(), basisVersion: z.string().optional() }).passthrough().parse(req.body);
