@@ -76,7 +76,7 @@ export interface DorfStatus {
   jetzt: string;
   gebaeude: Record<string, DorfGebaeudeStatus>;
   figuren: DorfFigur[];
-  /** Wetter in Linz (Open-Meteo), wenn eingeschaltet */
+  /** Wetter am Wohnort (Open-Meteo, Standard Konstanz), wenn eingeschaltet */
   wetter?: DorfWetter;
   /** Läufe, die in den letzten 10 Minuten geendet haben (für Ticker und Feier) */
   zuletzt?: DorfLaufEnde[];
@@ -92,6 +92,8 @@ export interface DorfLaufEnde {
 
 export type WetterArt = 'klar' | 'heiter' | 'bedeckt' | 'nebel' | 'niesel' | 'regen' | 'schnee' | 'gewitter';
 export interface DorfWetter {
+  /** Ortsname für die Anzeige (WETTER_ORT, Standard „Konstanz“) */
+  ort?: string;
   art: WetterArt;
   temperatur: number; // °C, jetzt
   tag: { art: WetterArt; min: number; max: number; regen: number | null }; // heute; regen = Wahrscheinlichkeit in %

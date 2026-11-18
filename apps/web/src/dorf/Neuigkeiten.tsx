@@ -8,7 +8,7 @@ const PUNKTE: [string, string][] = [
   ['🎩', 'Der Bürgermeister ist rund um die Uhr wach: stündlich geht er seine Runde durchs Dorf, nachts schläft er (Zz), wenn nichts los ist.'],
   ['🧭', 'Schickt er Helfer los, laufen sie als Figuren mit Rucksack zu ihrem Gebäude. Sind sie fertig, gibt es Konfetti.'],
   ['🔘', 'Gebäude antippen: runde Knöpfe wie im Spiel, dazu Schnellknöpfe (Uni: Moodle, Lernen · Post: Antworten).'],
-  ['🌦️', 'Wetter wie in Linz (Tipp aufs Schild), Jahreszeiten, Tag und Nacht nach der Uhr.'],
+  ['🌦️', 'Wetter wie in Konstanz (Tipp aufs Schild), Jahreszeiten, Tag und Nacht nach der Uhr.'],
   ['📰', 'Zeitungs-Knopf mit rotem Punkt, solange die Morgenzeitung ungelesen ist.'],
   ['🌐', 'Moodle-Browser: einmal auf dem Server „dorf moodle-browser-zugang“, dann Uni → Moodle.'],
   ['📱', 'Telegram: /heute (dein Tag), /fristen (mit Erledigt-Knöpfen) und /moodle <Fach>.'],

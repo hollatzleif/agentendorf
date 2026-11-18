@@ -5,7 +5,7 @@ import { Wetter } from '../src/wetter.js';
 import { TestUhr } from '../src/uhr.js';
 import { testDorf } from './hilfen.js';
 
-/** Open-Meteo-Antwort, wie sie am 18.11.2026 für Linz kam (gekürzt) */
+/** Open-Meteo-Antwort im Format vom 18.11.2026 (gekürzt) */
 const antwort = (code = 3, temp = 6.5, tagCode = 80, regen: number | null = 93) => ({
   timezone: 'Europe/Vienna',
   current: { time: '2026-11-16T13:00', interval: 900, temperature_2m: temp, weather_code: code, is_day: 1 },
@@ -29,7 +29,7 @@ describe('Wetter (Open-Meteo)', () => {
         return antwort();
       },
     });
-    expect(await w.holen()).toEqual({ art: 'bedeckt', temperatur: 6.5, tag: { art: 'regen', min: 6, max: 14, regen: 93 }, stand: '2026-11-16T13:00' });
+    expect(await w.holen()).toEqual({ ort: 'Konstanz', art: 'bedeckt', temperatur: 6.5, tag: { art: 'regen', min: 6, max: 14, regen: 93 }, stand: '2026-11-16T13:00' });
     await w.holen();
     expect(w.aktuell()?.art).toBe('bedeckt');
     expect(aufrufe).toBe(1);
@@ -55,12 +55,12 @@ describe('Wetter (Open-Meteo)', () => {
     await d.wetter.holen();
     expect(d.dorfplan.status().wetter).toMatchObject({ art: 'bedeckt', temperatur: 6.5 });
     const c = matter((await d.vault.lesen(await d.morgenzeitung.erstellen())).inhalt).content;
-    expect(c).toContain('## Heute\n\n- 🌧️ Wetter in Linz: Regen, 6–14 °C, Regen 93 % – Schirm mitnehmen (jetzt 6,5 °C)');
+    expect(c).toContain('## Heute\n\n- 🌧️ Wetter in Konstanz: Regen, 6–14 °C, Regen 93 % – Schirm mitnehmen (jetzt 6,5 °C)');
 
     const ohne = await testDorf();
     expect(ohne.dorfplan.status().wetter).toBeUndefined();
     const sonnig = await testDorf({ wetter: async () => antwort(0, 18, 1, 10) });
     const c2 = matter((await sonnig.vault.lesen(await sonnig.morgenzeitung.erstellen())).inhalt).content;
-    expect(c2).toContain('- 🌤️ Wetter in Linz: heiter, 6–14 °C (jetzt 18 °C)');
+    expect(c2).toContain('- 🌤️ Wetter in Konstanz: heiter, 6–14 °C (jetzt 18 °C)');
   });
 });

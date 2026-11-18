@@ -355,7 +355,7 @@ button.schliessen { position: absolute; top: 0.5rem; right: 0.5rem; width: 2rem;
 }
 .dorf-knopf.haupt { background: linear-gradient(#8ee06b, #3fa63a); color: #fff; border-color: #1f5a1d; box-shadow: inset 0 -4px 0 rgb(0 0 0 / 0.15), 0 4px 0 #1f5a1d, 0 7px 14px rgb(20 40 70 / 0.25); text-shadow: 0 2px 0 #1f5a1d; }
 .dorf-knopf:active { transform: translateY(3px); box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.1), 0 1px 0 #2b3a55; }
-.dorf-knopf { position: relative; }
+.dorf-knopf { position: relative; white-space: nowrap; }
 /* Wetter in Linz: kleines Schild neben den Knöpfen */
 .dorf-wetter {
   display: inline-flex; align-items: center; height: 2.6rem; padding: 0 0.65rem; border-radius: 14px; font-weight: 900; font-size: 0.95rem;
@@ -383,7 +383,7 @@ button.schliessen { position: absolute; top: 0.5rem; right: 0.5rem; width: 2rem;
 }
 
 /* Dorf-Ticker: was gerade passiert */
-.dorf-ticker { position: absolute; top: 0.7rem; left: 0.7rem; z-index: 3; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; max-width: min(26rem, calc(100% - 21rem)); }
+.dorf-ticker { position: absolute; top: 0.7rem; left: 0.7rem; z-index: 3; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; max-width: min(26rem, calc(100% - 28rem)); }
 .dorf-ticker button {
   display: block; width: 100%; text-align: left; padding: 0.35rem 0.75rem; border-radius: 12px; font-size: 0.85rem; font-weight: 700;
   background: rgb(43 58 85 / 0.88); color: #fff; border: 2px solid rgb(255 255 255 / 0.25); box-shadow: 0 3px 0 rgb(20 28 43 / 0.5);
@@ -418,3 +418,24 @@ button.schliessen { position: absolute; top: 0.5rem; right: 0.5rem; width: 2rem;
 .dorf-neuigkeiten-kopf { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
 .dorf-neuigkeiten-kopf .spiel-zu { position: static; transform: none; flex: none; }
 @media (max-width: 760px), (pointer: coarse) { .dorf-neuigkeiten { font-size: 0.8rem; max-height: 52%; } }
+
+/* Agenten-Übersicht (Knopf oben) */
+.dorf-zahl {
+  display: inline-block; min-width: 1.25rem; height: 1.25rem; margin-left: 0.35rem; padding: 0 0.3rem; border-radius: 0.7rem;
+  background: #e8413c; color: #fff; font-size: 0.75rem; line-height: 1.25rem; text-align: center;
+}
+.dorf-agentenkarte { position: absolute; top: 3.9rem; right: 0.7rem; left: auto; bottom: auto; z-index: 6; width: min(25rem, calc(100% - 1.4rem)); max-height: calc(100% - 5rem); overflow: auto; }
+.dorf-agentenkarte h3 { margin: 0 2rem 0.5rem 0; }
+.dorf-agentenkarte h4 { margin: 0.8rem 0 0.3rem; font-size: 0.9rem; }
+.agenten-liste, .agenten-zuletzt { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.agenten-liste li { padding: 0.5rem 0.6rem; border-radius: 12px; background: rgb(43 58 85 / 0.06); }
+.agent-kopf { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem; }
+.agent-kopf .leise { margin-left: auto; font-size: 0.8rem; }
+.agent-titel { margin: 0.2rem 0; font-size: 0.9rem; }
+.agenten-liste .zeile { gap: 0.4rem; margin-top: 0.3rem; }
+.agenten-zuletzt li { font-size: 0.85rem; }
+@media (max-width: 760px), (pointer: coarse) {
+  .dorf-knopf .knopf-text { display: none; }
+  .dorf-werkzeuge.oben-rechts .dorf-knopf.text { padding: 0 0.6rem; }
+  .dorf-werkzeuge.oben-rechts { gap: 0.3rem; }
+}

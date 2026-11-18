@@ -3,7 +3,7 @@ import { wetterArt, type DorfWetter } from '@dorf/shared';
 import type { Uhr } from './uhr.js';
 
 /**
- * Wetter in Linz von Open-Meteo (frei, ohne Schlüssel, ohne Konto). Es geht nur die feste Ortsangabe aus WETTER_URL
+ * Wetter am Wohnort (Leif: Konstanz) von Open-Meteo (frei, ohne Schlüssel, ohne Konto). Es geht nur die feste Ortsangabe aus WETTER_URL
  * hinaus – keine Daten über Leif. Geholt wird nur bei Bedarf (Dorf-Ansicht, Morgenzeitung) und höchstens alle 30 Minuten.
  * Ohne WETTER_URL ist das Wetter aus (Tests, Entwicklung).
  */
@@ -29,6 +29,8 @@ export class Wetter {
   constructor(
     private o: {
       url?: string;
+      /** Ortsname für Anzeige und Morgenzeitung */
+      ort?: string;
       uhr: Uhr;
       log?: (t: string) => void;
       /** Für Tests: Antwort ohne Netz */
@@ -60,6 +62,7 @@ export class Wetter {
       const a = Antwort.parse(roh);
       const regen = a.daily.precipitation_probability_max?.[0];
       const wetter: DorfWetter = {
+        ort: this.o.ort ?? 'Konstanz',
         art: wetterArt(a.current.weather_code),
         temperatur: Math.round(a.current.temperature_2m * 10) / 10,
         tag: {

@@ -179,7 +179,7 @@ Meldet das Dorf irgendwann „Google-Anmeldung abgelaufen oder widerrufen“, f�
 Beides läuft ohne Einrichtung, sobald das Dorf läuft:
 - **Morgenzeitung** jeden Morgen um 06:30: im Rathaus (Reiter „Morgenzeitung“, dort auch „Jetzt neu erstellen“), in `Rathaus/morgenzeitung/` und per Telegram.
 - **Aufwachen** des Bürgermeisters: rund um die Uhr jede Stunde (E56). Die KI kommt nur zum Einsatz, wenn es etwas Neues gibt, und sonst alle 3 Stunden für einen Rundgang. Tagesbudget 5 $ für diese Läufe über den API-Schlüssel; Helfer, die er losschickt, laufen über dein Abo. Einstellbar in `00_Stadtordnung/aufwachen.md`. Nachts (22–7 Uhr) meldet Telegram nur Dringendes, der Rest kommt um 7 Uhr gesammelt. Zum Ausprobieren: Rathaus → Schreibtisch → „Jetzt aufwachen“.
-- **Wetter** (Linz, Open-Meteo, ohne Konto) erscheint im Dorf und in der Morgenzeitung, ohne Einrichtung.
+- **Wetter** (Konstanz, Open-Meteo, ohne Konto) erscheint im Dorf und in der Morgenzeitung, ohne Einrichtung. Anderer Ort: `WETTER_ORT` und die Koordinaten in `WETTER_URL` in `/srv/dorf/.env` setzen (Vorlage in `deploy/compose.yml`).
 
 Für die Einleitung der Zeitung und das Einordnen der Mails braucht das Dorf den API-Schlüssel (`dorf api-schluessel`).
 

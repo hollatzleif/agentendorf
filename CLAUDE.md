@@ -37,7 +37,7 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
   src/post/       Etappe 4: google-oauth.ts (PKCE, Refresh-Token), gmail.ts (REST: profile/list/history/get/drafts – nie senden),
                   postbote.ts (Abruf alle 10 min, Einordnung ohne Werkzeuge, Post/eingang/JJJJ-MM-TT.md, keine Mailtexte)
   src/kalender.ts      Hauptkalender (geheime iCal-Adresse) – nur lesen, nie speichern
-  src/wetter.ts        Linzer Wetter von Open-Meteo (E59): nur mit WETTER_URL, bei Bedarf, 30 min Zwischenspeicher
+  src/wetter.ts        Wetter für Leifs Wohnort Konstanz (WETTER_ORT/WETTER_URL) von Open-Meteo (E59): bei Bedarf, 30 min Zwischenspeicher
   src/morgenzeitung.ts 06:30 Linz: Fakten vom Code + KI-Einleitung → Rathaus/morgenzeitung/, Rathaus-Reiter, Telegram
   src/aufwachen.ts     Bürgermeister wacht jede Stunde auf (24/7, E56): Code prüft, KI nur bei NEUEN Anlässen (Lagebericht) oder
                        alle 3 h als Rundgang; Tagesbudget; Nachtruhe 22–7 für Telegram (istNacht, telegram/bot.ts nachtNachholen)

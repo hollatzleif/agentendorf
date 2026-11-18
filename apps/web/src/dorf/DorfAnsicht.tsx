@@ -63,6 +63,7 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
   const zeitungNeu = !!neueste && neueste !== gelesen;
 
   const [wetterOffen, setWetterOffen] = useState(false);
+  const [agentenOffen, setAgentenOffen] = useState(false);
   const buehne = useRef<HTMLDivElement>(null);
   const szene = useRef<DorfSzene | null>(null);
   const [figur, setFigur] = useState<string | null>(null); // laufId oder 'buergermeister'
@@ -318,7 +319,12 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
       )}
       <div className="dorf-werkzeuge oben-rechts">
         {!bauen && status.data?.wetter && (
-          <button className="dorf-wetter" onClick={() => setWetterOffen((x) => !x)} aria-expanded={wetterOffen} aria-label={`Wetter in Linz: ${WETTER_TEXT[status.data.wetter.art].text}, ${Math.round(status.data.wetter.temperatur)} Grad`}>
+          <button
+            className="dorf-wetter"
+            onClick={() => {
+              setWetterOffen((x) => !x);
+              setAgentenOffen(false);
+            }} aria-expanded={wetterOffen} aria-label={`Wetter in ${status.data.wetter.ort ?? 'Konstanz'}: ${WETTER_TEXT[status.data.wetter.art].text}, ${Math.round(status.data.wetter.temperatur)} Grad`}>
             {WETTER_TEXT[status.data.wetter.art].symbol} {Math.round(status.data.wetter.temperatur)}°
           </button>
         )}
@@ -330,13 +336,66 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
             </>,
             () => navigieren('/?g=Rathaus&reiter=morgenzeitung'),
           )}
-        {!bauen && knopf('Als Liste anzeigen', '☰ Liste', zurListe, 'text')}
-        {knopf(bauen ? 'Bau-Modus beenden' : 'Bauen', bauen ? '✓ Fertig' : '🔨 Bauen', () => bauModus(!bauen), `text ${bauen ? 'haupt' : ''}`)}
+        {!bauen &&
+          knopf(
+            'Agenten',
+            <>
+              <span aria-hidden>🤖</span>
+              <span className="knopf-text"> Agenten</span>
+              {(status.data?.figuren.length ?? 0) > 0 && <span className="dorf-zahl">{status.data!.figuren.length}</span>}
+            </>,
+            () => {
+              setAgentenOffen((x) => !x);
+              setWetterOffen(false);
+            },
+            'text',
+          )}
+        {!bauen &&
+          knopf(
+            'Als Liste anzeigen',
+            <>
+              <span aria-hidden>☰</span>
+              <span className="knopf-text"> Liste</span>
+            </>,
+            zurListe,
+            'text',
+          )}
+        {knopf(
+          bauen ? 'Bau-Modus beenden' : 'Bauen',
+          bauen ? (
+            '✓ Fertig'
+          ) : (
+            <>
+              <span aria-hidden>🔨</span>
+              <span className="knopf-text"> Bauen</span>
+            </>
+          ),
+          () => bauModus(!bauen),
+          `text ${bauen ? 'haupt' : ''}`,
+        )}
       </div>
+      {agentenOffen && !bauen && (
+        <AgentenKarte
+          status={status.data}
+          gerade={gerade}
+          name={gName}
+          schliessen={() => setAgentenOffen(false)}
+          zeigen={(f) => {
+            setAgentenOffen(false);
+            if (f.buergermeister) {
+              szene.current?.blickAufFigur('buergermeister', 14);
+              setFigur('buergermeister');
+            } else {
+              szene.current?.blickAufFigur(f.laufId, 14);
+              setFigur(f.laufId);
+            }
+          }}
+        />
+      )}
       {wetterOffen && status.data?.wetter && !bauen && (
-        <div className="dorf-wetterkarte" role="dialog" aria-label="Wetter in Linz">
+        <div className="dorf-wetterkarte" role="dialog" aria-label={`Wetter in ${status.data.wetter.ort ?? 'Konstanz'}`}>
           <strong>
-            {WETTER_TEXT[status.data.wetter.tag.art].symbol} Linz heute: {WETTER_TEXT[status.data.wetter.tag.art].text}
+            {WETTER_TEXT[status.data.wetter.tag.art].symbol} {status.data.wetter.ort ?? 'Konstanz'} heute: {WETTER_TEXT[status.data.wetter.tag.art].text}
           </strong>
           <span>
             {status.data.wetter.tag.min}–{status.data.wetter.tag.max} °C{status.data.wetter.tag.regen != null ? ` · Regen ${status.data.wetter.tag.regen} %` : ''}
@@ -606,5 +665,71 @@ function BuergermeisterRuht() {
         </a>
       </div>
     </>
+  );
+}
+
+const ENDE_SYMBOL = { fertig: '✅', fehler: '❌', abgebrochen: '⏹️' } as const;
+
+/** Übersicht aller laufenden Agenten (Knopf „Agenten“ oben): was sie tun, wie lange schon; Zeigen springt zur Figur */
+function AgentenKarte({
+  status,
+  gerade,
+  name,
+  zeigen,
+  schliessen,
+}: {
+  status?: DorfStatus;
+  gerade: Record<string, string>;
+  name: (id: string) => string;
+  zeigen: (f: DorfFigur) => void;
+  schliessen: () => void;
+}) {
+  const figuren = status?.figuren ?? [];
+  const zuletzt = status?.zuletzt ?? [];
+  return (
+    <div className="dorf-karte dorf-agentenkarte" role="dialog" aria-label="Laufende Agenten">
+      <button className="schliessen" onClick={schliessen} aria-label="Schließen">
+        ×
+      </button>
+      <h3>🤖 Agenten {figuren.length > 0 && <span className="leise">({figuren.length})</span>}</h3>
+      {figuren.length === 0 ? (
+        <p className="leise">Gerade arbeitet niemand.</p>
+      ) : (
+        <ul className="agenten-liste">
+          {figuren.map((f) => (
+            <li key={f.laufId}>
+              <div className="agent-kopf">
+                <span aria-hidden>{f.buergermeister ? '🎩' : f.ausloeser === 'buergermeister' ? '🧭' : f.motor === 'api' ? '🔵' : '🟠'}</span>
+                <strong>{f.buergermeister ? 'Bürgermeister' : f.ausloeser === 'buergermeister' ? `Helfer · ${name(f.gebaeude)}` : name(f.gebaeude)}</strong>
+                <span className="leise">
+                  {STATUS_TEXT[f.status] ?? f.status} · {dauer(f.start ?? f.erstellt)}
+                </span>
+              </div>
+              <p className="agent-titel">{f.titel}</p>
+              {gerade[f.laufId] && <p className="leise">Gerade: {gerade[f.laufId]}</p>}
+              <div className="zeile">
+                <button onClick={() => zeigen(f)}>Zeigen</button>
+                <a className="knopf" href={`/chats/${encodeURIComponent(f.chatId)}`} onClick={linkKlick}>
+                  Chat
+                </a>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {zuletzt.length > 0 && (
+        <>
+          <h4>Zuletzt fertig</h4>
+          <ul className="agenten-zuletzt">
+            {zuletzt.slice(0, 5).map((e) => (
+              <li key={e.laufId}>
+                {ENDE_SYMBOL[e.status]} {e.buergermeister ? 'Bürgermeister' : name(e.gebaeude)}: {e.titel}{' '}
+                <span className="leise">{uhrzeit.format(new Date(e.ende))}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
   );
 }

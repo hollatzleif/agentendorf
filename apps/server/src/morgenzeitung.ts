@@ -134,13 +134,13 @@ export class Morgenzeitung {
       const bis = f.ende ? `–${uhr.format(new Date(f.ende))}` : '';
       heute.push({ zeit: s, zeile: `${uhr.format(new Date(s))}${bis} 🎓 ${einzeilig(f.titel, 120)}${f.art === 'test' ? ' (Prüfung)' : ' (Pflicht)'}` });
     }
-    // Wetter in Linz (nur wenn eingeschaltet; fehlt Open-Meteo, entfällt die Zeile)
+    // Wetter am Wohnort (nur wenn eingeschaltet; fehlt Open-Meteo, entfällt die Zeile)
     const w = await this.o.wetter?.holen().catch(() => null);
     if (w) {
       const t = WETTER_TEXT[w.tag.art];
       heute.unshift({
         zeit: tagBeginn - 1,
-        zeile: `${t.symbol} Wetter in Linz: ${t.text}, ${w.tag.min}–${w.tag.max} °C${w.tag.regen != null && w.tag.regen >= 30 ? `, Regen ${w.tag.regen} %${w.tag.regen >= 60 ? ' – Schirm mitnehmen' : ''}` : ''} (jetzt ${String(w.temperatur).replace('.', ',')} °C)`,
+        zeile: `${t.symbol} Wetter in ${w.ort ?? 'Konstanz'}: ${t.text}, ${w.tag.min}–${w.tag.max} °C${w.tag.regen != null && w.tag.regen >= 30 ? `, Regen ${w.tag.regen} %${w.tag.regen >= 60 ? ' – Schirm mitnehmen' : ''}` : ''} (jetzt ${String(w.temperatur).replace('.', ',')} °C)`,
       });
     }
     abschnitte.push({ titel: 'Heute', zeilen: heute.sort((a, b) => a.zeit - b.zeit).map((x) => x.zeile) });

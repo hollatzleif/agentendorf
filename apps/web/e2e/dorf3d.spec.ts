@@ -320,10 +320,10 @@ test('Wetter: Schild oben rechts, Tipp zeigt die Wetterkarte; Regen im Dorf ohne
     await route.fulfill({ json: { ...echt, wetter: { art: 'regen', temperatur: 7.2, tag: { art: 'regen', min: 6, max: 14, regen: 93 }, stand: '2026-11-18T08:00' } } });
   });
   await imDorf(page);
-  const schild = page.getByRole('button', { name: /Wetter in Linz: Regen, 7 Grad/ });
+  const schild = page.getByRole('button', { name: /Wetter in Konstanz: Regen, 7 Grad/ });
   await expect(schild).toBeVisible();
   await schild.click();
-  const karte = page.getByRole('dialog', { name: 'Wetter in Linz' });
+  const karte = page.getByRole('dialog', { name: 'Wetter in Konstanz' });
   await expect(karte).toContainText('6–14 °C · Regen 93 %');
   await expect(karte).toContainText('Schirm mitnehmen');
   await schild.click();
@@ -343,4 +343,30 @@ test('„Neu im Dorf“ erscheint einmal und bleibt nach „Alles klar“ weg', 
   await page.reload();
   await expect(page.getByTestId('dorf-leinwand')).toBeVisible();
   await expect(karte).toBeHidden();
+});
+
+test('Knopf „Agenten“: Übersicht der laufenden Agenten, „Zeigen“ springt zur Figur', async ({ page }) => {
+  await imDorf(page);
+  const agenten = page.getByRole('button', { name: 'Agenten' });
+  await agenten.click();
+  const karte = page.getByRole('dialog', { name: 'Laufende Agenten' });
+  await expect(karte).toBeVisible();
+  await karte.getByRole('button', { name: 'Schließen' }).click();
+  await expect(karte).toBeHidden();
+
+  const r = await page.request.post('/api/aktionen/starten', {
+    headers: { origin: new URL(page.url()).origin },
+    data: { id: 'Bibliothek/notizen-zusammenfassen', eingaben: { thema: 'Übersicht [warte 60000]' } },
+  });
+  const { laufId, chatId } = (await r.json()) as { laufId: string; chatId: string };
+  await expect(agenten).toContainText(/\d/, { timeout: 15_000 }); // Zahl am Knopf
+  await agenten.click();
+  const eintrag = karte.getByRole('listitem').filter({ hasText: 'Notizen zusammenfassen' }).first();
+  await expect(eintrag).toContainText('Bibliothek');
+  await expect(eintrag.getByRole('link', { name: 'Chat' })).toHaveAttribute('href', `/chats/${chatId}`);
+  await page.waitForFunction((id) => !!window.__dorf!.bildschirmPunkt('figur', id), laufId, { timeout: 15_000 });
+  await eintrag.getByRole('button', { name: 'Zeigen' }).click();
+  await expect(karte).toBeHidden();
+  await expect(page.getByRole('dialog', { name: 'Figur' }).getByText('Agent in Bibliothek')).toBeVisible();
+  await page.request.post(`/api/laeufe/${laufId}/abbrechen`, { headers: { origin: new URL(page.url()).origin } });
 });

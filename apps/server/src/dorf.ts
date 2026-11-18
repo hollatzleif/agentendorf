@@ -159,7 +159,7 @@ export async function dorfStarten(
   agenten.post = gmail;
   const kalender = new Terminkalender(opt.google ? opt.google.termine : konfig.googleTermineIcs ? kalenderQuelle(konfig.googleTermineIcs) : undefined, () => uhr.jetzt());
   const aufwachen = new Aufwachen({ db, uhr, hub, schreibtisch, buergermeister, freigaben: agenten.freigaben, uni, postbote, vault, log: (t) => console.warn(t) });
-  const wetter = new Wetter({ url: konfig.wetterUrl, uhr, laden: opt.wetter, log: (t) => console.warn(t) });
+  const wetter = new Wetter({ url: konfig.wetterUrl, ort: konfig.wetterOrt, uhr, laden: opt.wetter, log: (t) => console.warn(t) });
   // einmal vorab holen, damit das Wetter schon beim ersten Öffnen des Dorfs da ist (nur mit WETTER_URL)
   if (konfig.wetterUrl) void wetter.holen();
   const morgenzeitung = new Morgenzeitung({ db, uhr, vault, hub, ki, freigaben: agenten.freigaben, schreibtisch, uni, postbote, kalender, wetter, log: (t) => console.warn(t) });

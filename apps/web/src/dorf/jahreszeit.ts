@@ -1,5 +1,5 @@
 /**
- * Jahreszeit nach dem Kalender in Linz: färbt Laub, Wald und Hügel.
+ * Jahreszeit nach dem Kalender (mitteleuropäische Zeit): färbt Laub, Wald und Hügel.
  * ?jahreszeit=winter (fruehling, sommer, herbst) zum Ausprobieren.
  */
 export type Jahreszeit = 'fruehling' | 'sommer' | 'herbst' | 'winter';

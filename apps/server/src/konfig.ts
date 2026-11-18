@@ -31,6 +31,7 @@ const Schema = z.object({
   RECHENRAUM_GEHEIMNIS: z.string().optional(),
   BROWSER_URL: z.string().default('http://browser:4200'),
   WETTER_URL: z.string().optional(),
+  WETTER_ORT: z.string().default('Konstanz'),
   BROWSER_GEHEIMNIS: z.string().optional(),
   MOODLE_URL: z.string().optional(),
   MOODLE_TOKEN: z.string().optional(),
@@ -82,6 +83,7 @@ export interface Konfig {
   rechenraumGeheimnis?: string;
   browserUrl: string;
   wetterUrl?: string;
+  wetterOrt: string;
   browserGeheimnis?: string;
 }
 
@@ -123,6 +125,7 @@ export function konfigLaden(env: NodeJS.ProcessEnv = process.env): Konfig {
     rechenraumGeheimnis: e.RECHENRAUM_GEHEIMNIS || undefined,
     browserUrl: e.BROWSER_URL,
     wetterUrl: e.WETTER_URL || undefined,
+    wetterOrt: e.WETTER_ORT,
     browserGeheimnis: e.BROWSER_GEHEIMNIS || undefined,
   };
 }

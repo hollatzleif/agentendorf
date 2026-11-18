@@ -205,12 +205,12 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
   - Sie verschwinden nach 9 Sekunden, ein Klick schwenkt die Kamera dorthin.
 - **Klicks und Bildschirmpunkte** rechnen mit aktuellen Kameramatrizen, auch wenn seit der letzten Bewegung noch kein Bild gezeichnet wurde. Der Fehler zeigte sich bei langsamer Software-Grafik in den Tests.
 
-**E59 – Wetter wie in Linz, Jahreszeiten, Zeitungs-Knopf** (Nachtarbeit, eigene Empfehlung)
-- **Wetter:** Der Server holt das Linzer Wetter von **Open-Meteo**. Die Schnittstelle ist frei, braucht keinen Schlüssel und kein Konto; am 18.11. ist sie geprüft. Hinaus geht nur die feste Ortsangabe (48,31 / 14,29), keine Daten über Leif.
+**E59 – Wetter wie in Konstanz, Jahreszeiten, Zeitungs-Knopf** (Nachtarbeit, eigene Empfehlung; Ort am 18.11. auf Leifs Wunsch von Linz auf **Konstanz** umgestellt – er wohnt dort)
+- **Wetter:** Der Server holt das Wetter für Leifs Wohnort **Konstanz** (`WETTER_ORT`, Koordinaten in `WETTER_URL`) von **Open-Meteo**. Die Schnittstelle ist frei, braucht keinen Schlüssel und kein Konto; am 18.11. ist sie geprüft. Hinaus geht nur die feste Ortsangabe (Konstanz: 47,66 / 9,18), keine Daten über Leif. Auch der Sonnenstand im Dorf (Tag/Nacht) gilt für Konstanz; Fristen und Uni-Zeiten bleiben in Linzer Zeit (gleiche Zeitzone).
   - Geholt wird nur bei Bedarf (Dorf-Ansicht, Morgenzeitung) und höchstens alle 30 Minuten. Bei Fehlern bleibt der letzte Stand (höchstens 6 Stunden alt, danach lieber gar kein Wetter), ein neuer Versuch kommt nach 5 Minuten.
   - Eingeschaltet über `WETTER_URL` in `deploy/compose.yml`; ohne diese Variable ist das Wetter aus, so gehen Tests und Entwicklung nie ins Netz.
   - Im Dorf: Regen als Streifen, Schnee als Flocken, bei Bewölkung kaum Sonne und weiche Schatten, Nebel rückt näher, bei Gewitter ab und zu ein Blitz. Oben rechts steht ein kleines Schild „🌧️ 7°“.
-  - In der Morgenzeitung steht unter „Heute“ die erste Zeile, z. B. „🌧️ Wetter in Linz: Regen, 6–14 °C, Regen 93 % – Schirm mitnehmen“. Der Schirm-Hinweis kommt ab 60 %.
+  - In der Morgenzeitung steht unter „Heute“ die erste Zeile, z. B. „🌧️ Wetter in Konstanz: Regen, 6–14 °C, Regen 93 % – Schirm mitnehmen“. Der Schirm-Hinweis kommt ab 60 %.
   - Zum Ausprobieren: `/?wetter=regen` (oder `schnee`, `gewitter`, `nebel`, `bedeckt`).
 - **Jahreszeiten** nach dem Linzer Kalender: Frühling mit Blüten, Herbstlaub, im Winter Schnee auf Wiesen, Hügeln, Rasenflächen, Dächern und Tannenspitzen (das rote Frist-Dach geht vor). Zum Ausprobieren: `/?jahreszeit=winter`.
 - **Zeitungs-Knopf 📰** oben rechts: Ein roter Punkt zeigt, dass die neueste Morgenzeitung auf diesem Gerät noch nicht geöffnet wurde. Ein Tipp öffnet sie im Rathaus.
@@ -224,3 +224,4 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - **Bürgermeister-Karte** im Ruhezustand: zuletzt wach (mit Link zur Runde), nächste Runde, Budget heute.
 - **Akku:** Bei offenem Gebäude-Menü zeichnet das Dorf nur ~8 Bilder pro Sekunde.
 - **Zweite unabhängige Prüfung** (3D/Web): keine Abstürze, zehn kleinere Befunde behoben. Dazu gehörten Umwege des Bürgermeisters beim Nachdenken, nicht freigegebene Autos, Himmel und Lampenlicht, Figuren nach dem Drehen eines Gebäudes und ungesichertes `localStorage`.
+- **Knopf „Agenten“** oben (neben Wetter, Zeitung, Liste, Bauen; 18.11. auf Leifs Wunsch): zeigt mit Zahl, wie viele Agenten gerade laufen. Ein Tipp öffnet die Übersicht mit Gebäude, Auftrag, Status, Laufzeit und dem aktuellen Werkzeug, dazu „Zeigen“ (Kamera zur Figur, Figurenkarte) und „Chat“, darunter die zuletzt fertigen Läufe (✅/❌/⏹️). Am Handy zeigen die oberen Knöpfe nur Symbole, damit alle in eine Reihe passen.

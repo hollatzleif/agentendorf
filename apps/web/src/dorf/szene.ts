@@ -671,7 +671,7 @@ export class DorfSzene {
     return [...pts, b.clone()];
   }
 
-  // ---- Tag und Nacht (Linzer Uhrzeit) -----------------------------------------------------------
+  // ---- Tag und Nacht (mitteleuropäische Zeit, Sonnenstand Konstanz) -----------------------------------------------------------
 
   /** Stunde in Linz (mit Minuten als Bruchteil); ?uhr=22 zum Ausprobieren */
   private linzStunde(ms: number) {
@@ -681,7 +681,7 @@ export class DorfSzene {
     return Number(teile[0]) + Number(teile[1]) / 60;
   }
 
-  /** Wetter vom Server (Linz): Licht, Wolken, Nebel, Regen/Schnee, Blitze */
+  /** Wetter vom Server (Wohnort, Standard Konstanz): Licht, Wolken, Nebel, Regen/Schnee, Blitze */
   wetterSetzen(w: DorfWetter | undefined) {
     const art = wetterArtVon(w);
     if (art === this.wetterArt && (this.niederschlag || !['regen', 'niesel', 'schnee', 'gewitter'].includes(art))) return;
@@ -771,10 +771,11 @@ export class DorfSzene {
 
   tageszeitSetzen(ms = Date.now()) {
     const h = this.linzStunde(ms);
-    // Tageslänge für Linz (48° N) grob nach Jahreszeit; Mittag ≈ 12:20 Ortszeit (Sommerzeit verschiebt mit)
+    // Sonnenstand für Leifs Wohnort Konstanz (47,7° N, 9,2° O; gleiche Zeitzone wie Linz): Tageslänge grob nach
+    // Jahreszeit, Mittag ≈ 12:40 Ortszeit – gut 20 Minuten später als in Linz (Sommerzeit verschiebt mit)
     const jahrestag = Math.floor((ms - Date.UTC(new Date(ms).getUTCFullYear(), 0, 0)) / 86_400_000);
-    const laenge = 12.2 + 3.9 * Math.sin((2 * Math.PI * (jahrestag - 80)) / 365);
-    const mittag = 12.3 + (this.istSommerzeit(ms) ? 1 : 0);
+    const laenge = 12.2 + 3.8 * Math.sin((2 * Math.PI * (jahrestag - 80)) / 365);
+    const mittag = 12.65 + (this.istSommerzeit(ms) ? 1 : 0);
     const auf = mittag - laenge / 2;
     const unter = mittag + laenge / 2;
     const glatt = (a: number, b: number, x: number) => {
