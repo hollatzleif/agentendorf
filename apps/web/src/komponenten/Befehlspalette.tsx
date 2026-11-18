@@ -21,6 +21,8 @@ const SEITEN: [string, string, string][] = [
   ['🔔', 'Kirchturm (Uhr, Pomodoro)', '/gebaeude/Kirchturm'],
   ['🗓️', 'Wochenrückblick', '/gebaeude/Rathaus?reiter=woche'],
   ['📊', 'Statistik', '/gebaeude/Rathaus?reiter=statistik'],
+  ['📝', 'Notizen', '/gebaeude/Rathaus?reiter=notizen'],
+  ['🎓', 'Noten & ECTS', '/gebaeude/Uni?reiter=noten'],
   ['📋', 'Heute (Mein Tag)', '/heute'],
   ['☀️', 'Morgenzeitung', '/gebaeude/Rathaus?reiter=morgenzeitung'],
   ['✉️', 'Freigaben', '/gebaeude/Rathaus?reiter=freigaben'],

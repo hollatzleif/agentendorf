@@ -24,6 +24,7 @@ import { KartenLernen } from '../komponenten/KartenLernen';
 import { WochenrueckblickAnsicht } from '../komponenten/WochenrueckblickAnsicht';
 import { StatistikAnsicht } from '../komponenten/StatistikAnsicht';
 import { NotenAnsicht } from '../komponenten/NotenAnsicht';
+import { NotizenAnsicht } from '../komponenten/NotizenAnsicht';
 import { MarktKalender } from '../komponenten/MarktKalender';
 
 const REITER = [
@@ -37,6 +38,7 @@ const RATHAUS_VORNE = [
   ['morgenzeitung', 'Morgenzeitung'],
   ['woche', 'Wochenrückblick'],
   ['statistik', 'Statistik'],
+  ['notizen', 'Notizen'],
   ['plaene', 'Pläne'],
 ] as const;
 const UNI_VORNE = [
@@ -151,6 +153,7 @@ export function GebaeudeInhalt({ id, reiter, reiterWaehlen, kompakt }: { id: str
         {reiter === 'morgenzeitung' && <MorgenzeitungAnsicht />}
         {reiter === 'woche' && <WochenrueckblickAnsicht />}
         {reiter === 'statistik' && <StatistikAnsicht />}
+        {reiter === 'notizen' && <NotizenAnsicht />}
         {reiter === 'plaene' && <Plaene />}
         {reiter === 'freigaben' && <Freigaben />}
         {reiter === 'alle-chats' && <ChatListe />}

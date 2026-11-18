@@ -1124,3 +1124,14 @@ test('Statistik: Stimmung als eigenes Diagramm, sobald eine gesetzt ist', async 
   await d.locator('.statistik-treffer').last().hover();
   await expect(d.locator('.statistik-hover')).toContainText('🙂 4/5');
 });
+
+test('Rathaus → Notizen: festhalten und die letzten Tage sehen', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  await page.goto('/gebaeude/Rathaus?reiter=notizen');
+  const n = page.getByRole('region', { name: 'Notizen' });
+  await n.getByRole('textbox', { name: 'Neue Notiz' }).fill('Notiz-Ansicht-Test');
+  await n.getByRole('button', { name: 'Notiz speichern' }).click();
+  await expect(n.locator('.notizen-tag').first()).toContainText('Notiz-Ansicht-Test');
+  await expect(n.getByRole('textbox', { name: 'Neue Notiz' })).toHaveValue('');
+});

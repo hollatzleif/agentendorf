@@ -478,6 +478,7 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
   if (a.notizen) {
     const n = a.notizen;
     app.get('/api/notizen/heute', async () => n.heute());
+    app.get('/api/notizen', async (req) => n.letzte(z.object({ tage: z.coerce.number().int().min(1).max(60).default(7) }).parse(req.query).tage));
     app.post('/api/notiz', async (req) => n.hinzufuegen(z.object({ text: z.string().min(1).max(4000) }).parse(req.body).text));
   }
 

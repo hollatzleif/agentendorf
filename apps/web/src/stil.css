@@ -1071,3 +1071,10 @@ input.kurz { width: 5em; }
 .stimmung-frage { font-weight: 800; margin-right: auto; }
 .stimmung-knopf { font-size: 1.35rem; min-width: 2.6rem; min-height: 2.6rem; padding: 0.1rem; border-radius: 12px; background: #fff; }
 .stimmung-knopf.an { background: var(--gruen-hell); border-color: var(--gruen); box-shadow: 0 2px 0 var(--gruen); }
+
+/* Notizen (E95) */
+.notizen { display: grid; gap: 0.6rem; }
+.notizen-tag h3 { margin: 0.4rem 0 0.2rem; font-size: 1rem; }
+.notizen-tag ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.2rem; }
+.notizen-tag li { overflow-wrap: anywhere; }
+.notizen-zeit { font-variant-numeric: tabular-nums; color: var(--leise); font-weight: 700; margin-right: 0.3rem; }

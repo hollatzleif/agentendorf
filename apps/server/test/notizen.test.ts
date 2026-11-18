@@ -18,5 +18,8 @@ describe('Schnelle Notizen (E95)', () => {
     d.uhr.vor(86_400_000);
     r = await d.app.inject({ method: 'POST', url: '/api/notiz', headers: h, payload: { text: 'morgen' } });
     expect(r.json().pfad).toBe('Rathaus/notizen/2026-11-17.md');
+    const l = (await d.app.inject({ url: '/api/notizen?tage=7', headers: h })).json();
+    expect(l.map((x: { tag: string }) => x.tag)).toEqual(['2026-11-17', '2026-11-16']);
+    expect(l[1].zeilen).toHaveLength(2);
   });
 });

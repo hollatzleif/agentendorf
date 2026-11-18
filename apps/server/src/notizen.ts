@@ -34,6 +34,17 @@ export class Notizen {
     throw new DorfFehler(409, 'Die Notiz konnte nicht gespeichert werden – bitte noch einmal.');
   }
 
+  /** Die letzten N Tage (neueste zuerst), nur Tage mit Notizen */
+  async letzte(tage = 7) {
+    const aus: { tag: string; pfad: string; zeilen: string[] }[] = [];
+    for (let i = 0; i < tage; i++) {
+      const tag = zeitpunktAus(this.o.uhr.jetzt() - i * 86_400_000).slice(0, 10);
+      const d = await this.o.vault.lesen(this.pfad(tag)).catch(() => null);
+      if (d) aus.push({ tag, pfad: this.pfad(tag), zeilen: d.inhalt.split('\n').filter((z) => /^- \d{2}:\d{2} /.test(z)) });
+    }
+    return aus;
+  }
+
   async heute() {
     const pfad = this.pfad(zeitpunktAus(this.o.uhr.jetzt()).slice(0, 10));
     const d = await this.o.vault.lesen(pfad).catch(() => null);
