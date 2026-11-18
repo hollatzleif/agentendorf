@@ -277,7 +277,7 @@ describe('Zeitplan je Auswahl (E64)', () => {
     const ordner = path.join(d.vault.wurzel, 'Uni/aktionen');
     fs.writeFileSync(
       path.join(ordner, 'je.md'),
-      aktion('name: Je Fach\nzeitplan: täglich 06:00\nzeitplan_je: fach\neingaben:\n  - name: fach\n    typ: auswahl\n    quelle: uni.faecher', 'Fach {fach} [warte 50]'),
+      aktion('name: Je Fach\nzeitplan: täglich 06:00\nzeitplan_je: fach\neingaben:\n  - name: fach\n    typ: auswahl\n    quelle: uni.faecher', 'Fach {fach} [warte 1500]'),
     );
     fs.writeFileSync(path.join(ordner, 'falsch.md'), aktion('name: Falsch\nzeitplan: täglich 06:00\nzeitplan_je: thema\neingaben:\n  - name: thema'));
     const liste = await aktionenListe(d.vault);
