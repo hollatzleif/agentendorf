@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { DEKO_ARTEN, DEKO_NAMEN, type DorfAntwort, type DorfFigur, type DorfLayout, type DorfStatus, type Gebaeude } from '@dorf/shared';
+import { DEKO_ARTEN, DEKO_NAMEN, type DorfAntwort, type DorfFigur, type DorfLayout, type DorfStatus, type Gebaeude, type MorgenzeitungUebersicht } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { linkKlick, navigieren, useOrt } from '../router';
 import { GebaeudeInhalt, standardReiter } from '../seiten/Gebaeude';
@@ -11,6 +11,7 @@ import { useLiveEreignis, useLiveText } from '../live';
 import { DorfTicker } from './Ticker';
 
 const KAMERA_SCHLUESSEL = 'dorf-kamera';
+const ZEITUNG_GELESEN = 'dorf-zeitung-gelesen';
 const handy = () => window.matchMedia('(max-width: 760px), (pointer: coarse)').matches;
 const reduziert = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -32,6 +33,18 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
   const gebaeude = useQuery({ queryKey: ['gebaeude'], queryFn: () => api<Gebaeude[]>('/api/gebaeude') });
   const dorf = useQuery({ queryKey: ['dorf'], queryFn: () => api<DorfAntwort>('/api/dorf') });
   const status = useQuery({ queryKey: ['dorf-status'], queryFn: () => api<DorfStatus>('/api/dorf/status'), refetchInterval: 60_000 });
+
+  // Morgenzeitung: roter Punkt am Zeitungs-Knopf, bis die neueste Ausgabe einmal geöffnet wurde (je Gerät)
+  const zeitung = useQuery({ queryKey: ['morgenzeitung'], queryFn: () => api<MorgenzeitungUebersicht>('/api/morgenzeitung') });
+  const [gelesen, setGelesen] = useState(() => localStorage.getItem(ZEITUNG_GELESEN) ?? '');
+  const neueste = zeitung.data?.aktuell?.pfad ?? '';
+  useEffect(() => {
+    if (gewaehlt === 'Rathaus' && reiter === 'morgenzeitung' && neueste && neueste !== gelesen) {
+      localStorage.setItem(ZEITUNG_GELESEN, neueste);
+      setGelesen(neueste);
+    }
+  }, [gewaehlt, reiter, neueste, gelesen]);
+  const zeitungNeu = !!neueste && neueste !== gelesen;
 
   const buehne = useRef<HTMLDivElement>(null);
   const szene = useRef<DorfSzene | null>(null);
@@ -284,6 +297,14 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
         />
       )}
       <div className="dorf-werkzeuge oben-rechts">
+        {!bauen &&
+          knopf(
+            zeitungNeu ? 'Morgenzeitung (neue Ausgabe)' : 'Morgenzeitung',
+            <>
+              📰{zeitungNeu && <span className="dorf-punkt" aria-hidden="true" />}
+            </>,
+            () => navigieren('/?g=Rathaus&reiter=morgenzeitung'),
+          )}
         {!bauen && knopf('Als Liste anzeigen', '☰ Liste', zurListe, 'text')}
         {knopf(bauen ? 'Bau-Modus beenden' : 'Bauen', bauen ? '✓ Fertig' : '🔨 Bauen', () => bauModus(!bauen), `text ${bauen ? 'haupt' : ''}`)}
       </div>

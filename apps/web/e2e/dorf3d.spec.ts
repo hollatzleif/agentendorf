@@ -223,3 +223,20 @@ test('Bürgermeister schickt einen Helfer zur Uni: Figur mit Rucksack, Karte nen
   await karte.getByRole('button', { name: 'Abbrechen' }).click();
   await expect(page.getByText('Dieser Agent ist gerade fertig geworden.')).toBeVisible();
 });
+
+test('Zeitungs-Knopf: roter Punkt bei neuer Ausgabe, öffnet die Morgenzeitung im Rathaus', async ({ page }) => {
+  await imDorf(page);
+  const r = await page.request.post('/api/morgenzeitung/erstellen', { headers: { origin: new URL(page.url()).origin }, data: {} });
+  expect(r.ok()).toBe(true);
+  const neu = page.getByRole('button', { name: 'Morgenzeitung (neue Ausgabe)' });
+  await expect(neu).toBeVisible({ timeout: 15_000 });
+  await neu.click();
+  await expect(page).toHaveURL(/\?g=Rathaus&reiter=morgenzeitung/);
+  const menue = page.getByRole('complementary', { name: /Gebäude Rathaus/ });
+  await expect(menue.getByRole('heading', { name: /Morgenzeitung –/ })).toBeVisible();
+  // gelesen: der Punkt verschwindet (auch nach dem Neuladen)
+  await menue.getByRole('button', { name: 'Menü schließen' }).click();
+  await expect(page.getByRole('button', { name: 'Morgenzeitung', exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Morgenzeitung', exact: true })).toBeVisible({ timeout: 20_000 });
+});

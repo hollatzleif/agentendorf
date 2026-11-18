@@ -355,6 +355,14 @@ button.schliessen { position: absolute; top: 0.5rem; right: 0.5rem; width: 2rem;
 }
 .dorf-knopf.haupt { background: linear-gradient(#8ee06b, #3fa63a); color: #fff; border-color: #1f5a1d; box-shadow: inset 0 -4px 0 rgb(0 0 0 / 0.15), 0 4px 0 #1f5a1d, 0 7px 14px rgb(20 40 70 / 0.25); text-shadow: 0 2px 0 #1f5a1d; }
 .dorf-knopf:active { transform: translateY(3px); box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.1), 0 1px 0 #2b3a55; }
+.dorf-knopf { position: relative; }
+/* roter Punkt: etwas Neues wartet (z. B. die heutige Morgenzeitung) */
+.dorf-punkt {
+  position: absolute; top: -6px; right: -6px; width: 14px; height: 14px; border-radius: 50%;
+  background: #e8413c; border: 2px solid #fff; box-shadow: 0 1px 0 #2b3a55; animation: punkt-puls 1.6s ease-in-out infinite;
+}
+@keyframes punkt-puls { 50% { transform: scale(1.18); } }
+@media (prefers-reduced-motion: reduce) { .dorf-punkt { animation: none; } }
 
 @media (max-width: 760px), (pointer: coarse) {
   .spiel-auswahl { max-width: calc(100% - 4.4rem); left: calc(50% - 1.8rem); }
@@ -364,7 +372,7 @@ button.schliessen { position: absolute; top: 0.5rem; right: 0.5rem; width: 2rem;
 }
 
 /* Dorf-Ticker: was gerade passiert */
-.dorf-ticker { position: absolute; top: 0.7rem; left: 0.7rem; z-index: 3; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; max-width: min(26rem, calc(100% - 13rem)); }
+.dorf-ticker { position: absolute; top: 0.7rem; left: 0.7rem; z-index: 3; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; max-width: min(26rem, calc(100% - 16.5rem)); }
 .dorf-ticker button {
   display: block; width: 100%; text-align: left; padding: 0.35rem 0.75rem; border-radius: 12px; font-size: 0.85rem; font-weight: 700;
   background: rgb(43 58 85 / 0.88); color: #fff; border: 2px solid rgb(255 255 255 / 0.25); box-shadow: 0 3px 0 rgb(20 28 43 / 0.5);
