@@ -334,3 +334,25 @@ test('Marktplatz: To-do-Brett – anlegen, live auf zweitem Gerät, abhaken, bea
   await expect(p2.locator('.todo', { hasText: titel })).toHaveCount(0);
   await zweit.close();
 });
+
+test('Schnelleingabe (/schnell): Enter schickt an den Bürgermeister oder auf die To-do-Liste; Einstellungen zeigen Programme', async ({ page }, info) => {
+  await anmelden(page);
+  await page.goto('/schnell');
+  const f = page.getByRole('form', { name: 'Schnelleingabe' });
+  await expect(f.getByLabel('Text')).toBeFocused();
+  await f.getByRole('radio', { name: /To-do/ }).click();
+  await f.getByLabel('Text').fill(`Schnell-To-do ${info.project.name}`);
+  await f.getByLabel('Text').press('Enter');
+  await expect(f.getByText('✓ Auf der To-do-Liste')).toBeVisible();
+  await f.getByRole('radio', { name: /Bürgermeister/ }).click();
+  await f.getByLabel('Text').fill(`Schnell-Aufgabe ${info.project.name}`);
+  await f.getByLabel('Text').press('Enter');
+  await expect(f.getByText('✓ Beim Bürgermeister')).toBeVisible();
+  await page.goto('/gebaeude/Marktplatz');
+  await expect(page.locator('.todo', { hasText: `Schnell-To-do ${info.project.name}` })).toBeVisible();
+  await page.goto('/gebaeude/Rathaus');
+  await expect(page.getByText(`Schnell-Aufgabe ${info.project.name}`).first()).toBeVisible();
+  await page.goto('/einstellungen');
+  await expect(page.getByRole('heading', { name: 'Programme für Mac und Windows' })).toBeVisible();
+  await expect(page.getByText(/Noch keine Programme gebaut/)).toBeVisible();
+});

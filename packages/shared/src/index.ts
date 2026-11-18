@@ -420,3 +420,12 @@ export interface MorgenzeitungUebersicht {
 }
 
 export * from './dorf.js';
+
+// ---- Etappe 6: Programme ------------------------------------------------------------------------
+export interface ProgrammeInfo {
+  vorhanden: boolean;
+  version?: string;
+  erstellt?: string;
+  mac?: { datei: string; url: string };
+  windows?: { datei: string; url: string };
+}

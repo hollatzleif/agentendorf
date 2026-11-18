@@ -494,3 +494,13 @@ input::file-selector-button {
 .todo-titel:focus-visible { outline: 3px solid #f2b51e; border-radius: 4px; }
 .todo-meta { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; font-size: 0.8rem; }
 .todo-meta:empty { display: none; }
+
+/* Schnelleingabe (Desktop-Programm, Etappe 6) */
+.schnell { max-width: none; margin: 0; padding: 0.6rem; min-height: 100vh; display: flex; }
+.schnell form { flex: 1; display: flex; flex-direction: column; gap: 0.5rem; background: var(--karte); border: 3px solid var(--navy); border-radius: 16px; padding: 0.7rem; box-shadow: var(--schatten); }
+.schnell textarea { flex: 1; resize: none; font-size: 1.05rem; }
+.schnell-ziele { display: flex; gap: 0.4rem; }
+.schnell-ziele button { border-radius: 99px; }
+.schnell-ziele button.aktiv { background: linear-gradient(#8ee06b, #3fa63a); color: #fff; border-color: #1f5a1d; box-shadow: 0 3px 0 #1f5a1d; text-shadow: 0 1px 0 #1f5a1d; }
+.schnell-fuss { display: flex; align-items: center; gap: 0.5rem; justify-content: space-between; }
+.programme-knoepfe { display: flex; gap: 0.6rem; flex-wrap: wrap; margin: 0.4rem 0 0.6rem; }

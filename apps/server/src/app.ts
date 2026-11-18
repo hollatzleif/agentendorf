@@ -1,3 +1,4 @@
+import { programmeRouten } from './programme.js';
 import type { TodoDienst } from './todos.js';
 import type { Dorfplan } from './dorfplan.js';
 import { normalisieren } from './vault/pfade.js';
@@ -324,6 +325,9 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
    * einer Checkliste) – sie selbst hat ja weder Speicher noch Netz. Nur für bestehende .html-Dateien, höchstens 64 KB.
    * Beim Ablösen einer Ablage wandert der Stand mit ins Archiv, und der nächste Lauf sieht ihn.
    */
+  // ---- Etappe 6: Programme für Mac und Windows ----
+  programmeRouten(app, { ordner: path.join(konfig.datenDir, 'programme'), ursprung: konfig.origins[0] ?? '' });
+
   // ---- E65: To-do-Brett (Marktplatz) ----
   if (a.todos) {
     const todos = a.todos;

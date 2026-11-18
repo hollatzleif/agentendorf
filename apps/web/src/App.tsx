@@ -10,6 +10,8 @@ import { GebaeudeSeite } from './seiten/Gebaeude';
 import { Bibliothek } from './seiten/Bibliothek';
 import { Einstellungen } from './seiten/Einstellungen';
 import { ChatSeite } from './seiten/Chat';
+import { Schnelleingabe } from './programm/Schnelleingabe';
+import { ProgrammMeldungen } from './programm/Meldungen';
 
 export function App() {
   const qc = useQueryClient();
@@ -28,7 +30,14 @@ export function App() {
 
   if (ich.isPending) return <div className="laden">Das Dorf erwacht …</div>;
   if (!angemeldet) return <Anmelden />;
-  return <Rahmen />;
+  // Schnelleingabe (Desktop-Programm, Tastenkürzel): ohne Kopfleiste
+  if (location.pathname === '/schnell') return <Schnelleingabe />;
+  return (
+    <>
+      <ProgrammMeldungen />
+      <Rahmen />
+    </>
+  );
 }
 
 function Rahmen() {

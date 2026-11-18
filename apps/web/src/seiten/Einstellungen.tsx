@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import QRCode from 'qrcode';
-import type { Ich, Konflikt, SitzungInfo } from '@dorf/shared';
+import type { Ich, Konflikt, ProgrammeInfo, SitzungInfo } from '@dorf/shared';
+import { istProgramm } from '../programm/desktop';
 import { api, ApiFehler } from '../api';
 import { bibliothekUrl, linkKlick } from '../router';
 
@@ -23,6 +24,7 @@ export function Einstellungen() {
       <Sitzungen />
       <Zweitfaktor aktiv={!!ich.data?.totpAktiv} />
       <PasswortAendern />
+      <Programme />
       <div className="karte">
         <h2>Abmelden</h2>
         <button
@@ -37,6 +39,52 @@ export function Einstellungen() {
         <p className="leise">Version {ich.data?.version}</p>
       </div>
     </section>
+  );
+}
+
+/** Etappe 6: Programme für Mac und Windows – Download (die CI liefert sie mit dem Deploy) */
+function Programme() {
+  const p = useQuery({ queryKey: ['programme'], queryFn: () => api<ProgrammeInfo>('/api/programme') });
+  return (
+    <div className="karte" id="programme">
+      <h2>Programme für Mac und Windows</h2>
+      {istProgramm() && <p className="hinweis">Du benutzt gerade das Programm. Updates kommen von selbst.</p>}
+      {p.data && !p.data.vorhanden && <p className="leise">Noch keine Programme gebaut – sie kommen mit dem nächsten Deploy.</p>}
+      {p.data?.vorhanden && (
+        <>
+          <p className="leise">
+            Version {p.data.version}
+            {p.data.erstellt ? ` vom ${zeit(p.data.erstellt)}` : ''}. Das Programm öffnet dein Dorf in einem eigenen Fenster – mit Meldungen, Symbol in der Leiste,
+            Schnelleingabe (Strg/⌘ + Umschalt + Leertaste) und Autostart. Updates installiert es selbst.
+          </p>
+          <div className="programme-knoepfe">
+            {p.data.mac && (
+              <a className="knopf haupt-link" href={p.data.mac.url} download>
+                🍎 Mac (Apple Silicon)
+              </a>
+            )}
+            {p.data.windows && (
+              <a className="knopf haupt-link" href={p.data.windows.url} download>
+                🪟 Windows
+              </a>
+            )}
+          </div>
+          <details>
+            <summary>Erster Start (die Programme sind nicht signiert)</summary>
+            <ul>
+              <li>
+                <strong>Mac:</strong> .dmg öffnen, „Agentendorf“ in „Programme“ ziehen. Beim ersten Start meldet macOS „nicht verifiziert“: Systemeinstellungen →
+                Datenschutz &amp; Sicherheit → ganz unten „Dennoch öffnen“. Danach startet es normal.
+              </li>
+              <li>
+                <strong>Windows:</strong> Installer starten. Zeigt Windows „Der Computer wurde durch Windows geschützt“: „Weitere Informationen“ → „Trotzdem ausführen“.
+              </li>
+              <li>Beim ersten Start fragt das Programm nach deiner Dorf-Adresse ({location.origin}) – danach meldest du dich wie im Browser an.</li>
+            </ul>
+          </details>
+        </>
+      )}
+    </div>
   );
 }
 
