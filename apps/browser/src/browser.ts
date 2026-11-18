@@ -87,7 +87,10 @@ export class MoodleBrowser {
         } catch {
           s = undefined; // Anfrage ohne Seite (z. B. Service Worker) – gilt nie als Anmeldung
         }
-        const p = anfragePruefen({ methode: r.method(), url: r.url(), daten: r.postData(), anmeldung: !!s?.anmeldung, navigation: r.isNavigationRequest() }, this.o.hosts);
+        const p = anfragePruefen(
+          { methode: r.method(), url: r.url(), daten: r.postData(), anmeldung: !!s?.anmeldung, navigation: r.isNavigationRequest(), art: r.resourceType() },
+          this.o.hosts,
+        );
         if (p.ok) return route.continue();
         const zeile = this.maskieren(`${r.method()} ${r.url().slice(0, 140)} – ${p.grund}`);
         s?.blockiert.push(zeile);

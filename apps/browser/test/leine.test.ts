@@ -15,6 +15,13 @@ describe('Leine des Moodle-Browsers', () => {
     expect(hostErlaubt('kein url', H)).toBe(false);
     expect(p('GET', 'https://example.com/x')).toEqual({ ok: false, grund: 'fremde Domain example.com' });
     expect(p('GET', 'data:image/png;base64,AAA')).toEqual({ ok: true });
+    // jQuery & Co. von bekannten CDNs: nur als Skript/Style/Schrift/Bild, nie als Seite, nie per POST, sonst nirgends
+    const cdn = (methode: string, url: string, art: string, navigation = false) => anfragePruefen({ methode, url, anmeldung: false, navigation, art }, H);
+    expect(cdn('GET', 'https://code.jquery.com/jquery-4.0.0.slim.min.js', 'script')).toEqual({ ok: true });
+    expect(cdn('GET', 'https://code.jquery.com/jquery-4.0.0.slim.min.js', 'document', true)).toMatchObject({ ok: false });
+    expect(cdn('POST', 'https://code.jquery.com/x', 'fetch')).toMatchObject({ ok: false });
+    expect(cdn('GET', 'https://code.jquery.com/x', 'fetch')).toMatchObject({ ok: false });
+    expect(cdn('GET', 'https://evil.example/x.js', 'script')).toMatchObject({ ok: false });
   });
 
   it('lesen ja: Seiten, Dateien, lesende Ajax-Aufrufe', () => {
@@ -37,7 +44,14 @@ describe('Leine des Moodle-Browsers', () => {
     // verschleierte sesskey-Namen (PHP schneidet Leerzeichen/NUL ab) und Ajax per GET
     for (const q of ['?%20sesskey=abc', '?sesskey%00x=abc', '?%73esskey=abc', '?SESSKEY=abc', '?a=1&+sesskey=b'])
       expect(p('GET', `https://moodle.jku.at/course/togglecompletion.php${q}`), q).toMatchObject({ ok: false, grund: expect.stringMatching(/sesskey/) });
-    expect(p('GET', 'https://moodle.jku.at/lib/ajax/service-nologin.php?args=[{"methodname":"core_auth_request_password_reset"}]')).toMatchObject({ ok: false, grund: expect.stringMatching(/GET/) });
+    // Ajax per GET: wie JKU-Moodle Texte/Vorlagen lädt – lesend ja, schreibend nein, andere Ajax-Skripte nein
+    const get = (m: string[]) => `https://moodle.jku.at/lib/ajax/service-nologin.php?info=x&args=${encodeURIComponent(JSON.stringify(m.map((methodname, index) => ({ index, methodname, args: {} }))))}`;
+    expect(p('GET', get(['core_get_string', 'core_output_load_template_with_dependencies', 'media_videojs_get_language', 'core_output_load_fontawesome_icon_system_map']))).toEqual({ ok: true });
+    expect(p('GET', get(['core_get_string', 'core_auth_request_password_reset']))).toMatchObject({ ok: false, grund: expect.stringMatching(/request_password_reset/) });
+    expect(p('GET', 'https://moodle.jku.at/lib/ajax/service.php?args=kaputt')).toMatchObject({ ok: false });
+    expect(p('GET', 'https://moodle.jku.at/lib/ajax/setuserpref.php?pref=x&value=1')).toMatchObject({ ok: false, grund: expect.stringMatching(/GET/) });
+    // POST mit harmlosem Rumpf, aber schreibender Funktion in ?args=
+    expect(p('POST', get(['core_user_update_user_preferences']).replace('service-nologin', 'service'), JSON.stringify([{ methodname: 'core_get_string' }]))).toMatchObject({ ok: false });
     // auch während der Anmeldung keine sesskey-Links
     expect(p('GET', 'https://moodle.jku.at/course/togglecompletion.php?sesskey=abc', null, true)).toMatchObject({ ok: false });
     // http nur lokal

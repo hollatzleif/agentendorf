@@ -71,13 +71,39 @@ export function nurLesend(methodname: string): boolean {
   return teile.some((t) => LESEND.has(t)) && !teile.some((t) => SCHREIBEND.has(t));
 }
 
+const STATISCH = new Set(['script', 'stylesheet', 'font', 'image']);
+const CDNS = ['code.jquery.com', 'cdn.jsdelivr.net', 'cdnjs.cloudflare.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
+
+const AJAX_DIENST = /\/lib\/ajax\/service(-nologin)?\.php$/i;
+
+/** Moodle-Ajax-Aufrufe (JSON-Liste mit methodname) – nur durchlassen, wenn ALLE nur lesen */
+function funktionenPruefen(json: string | null): Pruefung {
+  let aufrufe: unknown;
+  try {
+    aufrufe = JSON.parse(json ?? '');
+  } catch {
+    return { ok: false, grund: 'Ajax-Aufruf nicht lesbar' };
+  }
+  if (!Array.isArray(aufrufe) || !aufrufe.length) return { ok: false, grund: 'Ajax-Aufruf nicht lesbar' };
+  for (const x of aufrufe) {
+    const name = typeof x === 'object' && x && 'methodname' in x ? String((x as { methodname: unknown }).methodname) : '';
+    if (!nurLesend(name)) return { ok: false, grund: `Moodle-Funktion ${name || '(unbekannt)'} verändert etwas – gesperrt` };
+  }
+  return { ok: true };
+}
+
 /**
  * anmeldung = gerade läuft die Anmeldung; navigation = die Anfrage lädt eine ganze Seite (Formular absenden),
  * kein Skript-Aufruf. Während der Anmeldung ist POST nur als Seitennavigation erlaubt – also das Absenden des
  * Anmeldeformulars, nicht die Ajax-Aufrufe der Seite, die direkt danach lädt.
  */
-export function anfragePruefen(a: { methode: string; url: string; daten?: string | null; anmeldung: boolean; navigation?: boolean }, hosts: string[]): Pruefung {
+export function anfragePruefen(
+  a: { methode: string; url: string; daten?: string | null; anmeldung: boolean; navigation?: boolean; art?: string },
+  hosts: string[],
+): Pruefung {
   if (OHNE_NETZ.test(a.url)) return { ok: true };
+  // Skripte/Styles/Schriften/Bilder von bekannten CDNs (z. B. jQuery auf JKU-Seiten): nur lesen, nie als Seite
+  if (a.methode.toUpperCase() === 'GET' && !a.navigation && a.art && STATISCH.has(a.art) && hostErlaubt(a.url, CDNS)) return { ok: true };
   if (!hostErlaubt(a.url, hosts)) {
     let host = a.url;
     try {
@@ -92,25 +118,21 @@ export function anfragePruefen(a: { methode: string; url: string; daten?: string
   if (/\/login\/logout\.php$/i.test(u.pathname)) return { ok: false, grund: 'Abmelden ist gesperrt' };
   if (methode === 'GET' || methode === 'HEAD') {
     if (mitSesskey(u)) return { ok: false, grund: 'Moodle-Aktion (sesskey) ist gesperrt' };
-    // Ajax-Dienst per GET (Moodle erlaubt dort Aufrufe über ?args=…) – nicht prüfbar, also gesperrt
-    if (/\/lib\/ajax\//i.test(u.pathname)) return { ok: false, grund: 'Ajax-Aufruf per GET ist gesperrt' };
+    // Ajax-Dienst per GET: Moodle lädt so Texte, Vorlagen und Symbole (?args=[…]). Die Funktionen werden geprüft wie
+    // bei POST; andere Ajax-Skripte per GET bleiben gesperrt.
+    if (/\/lib\/ajax\//i.test(u.pathname)) {
+      if (!AJAX_DIENST.test(u.pathname)) return { ok: false, grund: 'Ajax-Aufruf per GET ist gesperrt' };
+      return funktionenPruefen(u.searchParams.get('args'));
+    }
     return { ok: true };
   }
   if (methode !== 'POST') return { ok: false, grund: `${methode} ist gesperrt` };
   if (a.anmeldung && a.navigation && !/\/lib\/ajax\//i.test(u.pathname)) return { ok: true };
-  if (/\/lib\/ajax\/service(-nologin)?\.php$/i.test(u.pathname)) {
-    let aufrufe: unknown;
-    try {
-      aufrufe = JSON.parse(a.daten ?? '');
-    } catch {
-      return { ok: false, grund: 'Ajax-Aufruf nicht lesbar' };
-    }
-    if (!Array.isArray(aufrufe) || !aufrufe.length) return { ok: false, grund: 'Ajax-Aufruf nicht lesbar' };
-    for (const x of aufrufe) {
-      const name = typeof x === 'object' && x && 'methodname' in x ? String((x as { methodname: unknown }).methodname) : '';
-      if (!nurLesend(name)) return { ok: false, grund: `Moodle-Funktion ${name || '(unbekannt)'} verändert etwas – gesperrt` };
-    }
-    return { ok: true };
+  if (AJAX_DIENST.test(u.pathname)) {
+    // Funktionen stehen im Rumpf; Moodle nimmt sie aber auch aus ?args= – beides muss lesend sein
+    const imRumpf = funktionenPruefen(a.daten ?? null);
+    if (!imRumpf.ok) return imRumpf;
+    return u.searchParams.has('args') ? funktionenPruefen(u.searchParams.get('args')) : imRumpf;
   }
   return { ok: false, grund: 'Formular senden ist gesperrt (der Browser liest nur)' };
 }
