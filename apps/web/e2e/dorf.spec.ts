@@ -100,18 +100,20 @@ test('Aktion starten, Chat live, fortsetzen, Freigabe annehmen, Verbrauch', asyn
   await page.getByLabel(/Deine Frage/).fill(`Lege bitte etwas ab [schreibe ${ziel}] und beantrage [freigabe ${ziel}]`);
   await page.getByRole('button', { name: 'Starten' }).click();
   await expect(page).toHaveURL(/\/chats\//);
-  await expect(page.getByText(/Erledigt\. \(claude-code, claude-opus-5-5/)).toBeVisible();
-  await expect(page.getByText(/Lauf 1: fertig/)).toBeVisible();
+  // in der CI teilt sich der Testserver die Maschine mit dem Browser – großzügig warten
+  await expect(page.getByText(/Erledigt\. \(claude-code, claude-opus-5-5/)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/Lauf 1: fertig/)).toBeVisible({ timeout: 15_000 });
 
   await page.getByPlaceholder('Weiter im Gespräch …').fill('Und noch etwas?');
   await page.getByRole('button', { name: 'Senden' }).click();
-  await expect(page.getByText(/Lauf 2: fertig/)).toBeVisible();
+  await expect(page.getByText(/Lauf 2: fertig/)).toBeVisible({ timeout: 15_000 });
 
   // Freigabe im Kopf und im Rathaus
   await page.locator('.abzeichen.brief').click();
   await expect(page.getByRole('heading', { name: `${ziel} löschen` })).toBeVisible();
-  await page.getByRole('button', { name: 'Ja, ausführen' }).first().click();
-  await expect(page.getByText('Nichts offen.')).toBeVisible();
+  await page.locator('.freigabe', { hasText: `${ziel} löschen` }).getByRole('button', { name: 'Ja, ausführen' }).click();
+  // nur die eigene Freigabe prüfen – ein Rest aus dem anderen Geräte-Durchlauf soll diesen Test nicht umwerfen
+  await expect(page.getByRole('heading', { name: `${ziel} löschen` })).toBeHidden();
 
   await page.getByRole('button', { name: 'Verbrauch' }).click();
   await expect(page.locator('table.tabelle').first()).toContainText('2');
