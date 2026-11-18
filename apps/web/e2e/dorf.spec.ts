@@ -1,5 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 
+/** Origin des Testservers (E2E_PORT wie in playwright.config.ts – so laufen auch zwei Testreihen nebeneinander) */
+const ORIGIN = `http://127.0.0.1:${process.env.E2E_PORT ?? 3999}`;
+
 const PW = 'e2e-Passwort-sehr-lang-1';
 
 /** Anmelden; diese Tests brauchen das 3D-Dorf nicht (das prüft dorf3d.spec.ts) → Liste spart Rechenzeit */
@@ -185,7 +188,7 @@ test('Uni: Fristen und Pflichttermine aus Google, abhaken, Fach anlegen', async 
 
 test('Uni: „Lernen“ und „Abgabe bearbeiten“ bieten Leifs Ordner an', async ({ page }, info) => {
   await anmelden(page);
-  const h = { origin: 'http://127.0.0.1:3999' };
+  const h = { origin: ORIGIN };
   const fach = `Lernfach ${info.project.name}`;
   await page.request.post('/api/uni/fach', { headers: h, data: { name: fach } });
   await page.request.put('/api/vault/datei', { headers: h, data: { pfad: `Uni/faecher/${fach}/aufgaben/Blatt 3/Blatt3.pdf`, inhalt: '%PDF' } });
@@ -220,7 +223,7 @@ try { parent.document.title; s('b', 'App erreichbar!'); } catch (e) { s('b', 'Ap
 try { localStorage.getItem('x'); s('c', 'Speicher offen!'); } catch (e) { s('c', 'Speicher blockiert'); }
 fetch('/api/ich').then(() => s('d', 'Netz offen!'), () => s('d', 'Netz blockiert'));
 </script></body></html>`;
-  const r = await page.request.put('/api/vault/datei', { headers: { origin: 'http://127.0.0.1:3999' }, data: { pfad, inhalt: html } });
+  const r = await page.request.put('/api/vault/datei', { headers: { origin: ORIGIN }, data: { pfad, inhalt: html } });
   expect(r.ok()).toBe(true);
   await page.goto(`/bibliothek?pfad=${encodeURIComponent(pfad)}`);
   const rahmen = page.frameLocator('iframe.html-rahmen');
@@ -890,7 +893,7 @@ test('⭐ wichtig: am To-do markieren, auf „Heute“ ganz oben', async ({ page
 test('Karteikarten: Fach mit karten.md, lernen mit Leertaste und 1–4', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'einmal reicht');
   await anmelden(page);
-  const o = { origin: 'http://127.0.0.1:3999' };
+  const o = { origin: ORIGIN };
   expect((await page.request.post('/api/uni/fach', { headers: o, data: { name: 'Karten-Fach' } })).ok()).toBe(true);
   const r = await page.request.put('/api/vault/datei', { headers: o, data: { pfad: 'Uni/faecher/Karten-Fach/karten.md', inhalt: 'Hauptstadt von Österreich :: Wien\n\n### Was ist ein Eigenwert?\nEin λ mit Av = λv.\n' } });
   expect(r.ok()).toBe(true);
@@ -991,7 +994,7 @@ test('Wiederkehrendes To-do: 🔁 wöchentlich, abhaken legt das nächste an', a
 test('Statistik im Rathaus: Kacheln, Balken mit Hover, Tabelle', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'einmal reicht');
   await anmelden(page);
-  const o = { origin: 'http://127.0.0.1:3999' };
+  const o = { origin: ORIGIN };
   for (const t of ['Stat-A', 'Stat-B']) {
     const n = await (await page.request.post('/api/todos', { headers: o, data: { titel: t } })).json();
     await page.request.patch('/api/todos', { headers: o, data: { pfad: n.pfad, erledigt: true } });
@@ -1014,7 +1017,7 @@ test('Erinnerung am To-do: setzen, 🔔-Abzeichen; zur Zeit läutet der Kirchtur
   test.skip(info.project.name !== 'desktop', 'einmal reicht');
   test.setTimeout(75_000);
   await anmelden(page);
-  const o = { origin: 'http://127.0.0.1:3999' };
+  const o = { origin: ORIGIN };
   const lokal = (ms: number) => {
     const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Vienna', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
     return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
@@ -1052,7 +1055,7 @@ test('Befehlspalette: „notiz …“ landet in der Tagesnotiz', async ({ page }
 test('Heute: überfälliges To-do mit „→ morgen“ neu einplanen', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'einmal reicht');
   await anmelden(page);
-  const o = { origin: 'http://127.0.0.1:3999' };
+  const o = { origin: ORIGIN };
   await page.request.post('/api/todos', { headers: o, data: { titel: 'Alt-Überfällig', faellig: '2026-01-02' } });
   await page.goto('/heute');
   await page.getByRole('button', { name: 'Alt-Überfällig auf morgen' }).click();
@@ -1086,7 +1089,8 @@ test('Einstellungen → Anschlüsse: zeigt, was fehlt, mit Befehl', async ({ pag
   await anmelden(page);
   await page.goto('/einstellungen');
   const a = page.locator('#anschluesse');
-  await expect(a.locator('li', { hasText: 'Gmail' })).toContainText('✗ fehlt');
-  await expect(a.locator('li', { hasText: 'Gmail' })).toContainText('dorf gmail-anmelden');
-  await expect(a.locator('li', { hasText: 'KI (API-Schlüssel)' })).toContainText('✓ verbunden'); // Attrappe
+  const zeile = (name: string) => a.locator('li', { has: page.locator('strong', { hasText: new RegExp(`^${name.replace(/[()]/g, '\\$&')}$`) }) });
+  await expect(zeile('Gmail')).toContainText('✗ fehlt');
+  await expect(zeile('Gmail')).toContainText('dorf gmail-anmelden');
+  await expect(zeile('KI (API-Schlüssel)')).toContainText('✓ verbunden'); // Attrappe
 });
