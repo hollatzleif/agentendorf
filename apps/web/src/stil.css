@@ -863,3 +863,12 @@ input.kurz { width: 5em; }
 /* Überfälliges neu einplanen (E97) */
 .heute-verschieben { display: inline-flex; gap: 0.25rem; }
 .heute-verschieben button.klein { margin-left: 0; }
+
+/* Noten & ECTS (E98) */
+.noten { display: grid; gap: 0.8rem; }
+.noten-zahl { width: 4.5rem; }
+.noten-semester { width: 6.5rem; }
+.noten-ziel { display: flex; flex-direction: row; align-items: center; gap: 0.3rem; }
+.noten-ziel input { width: 4.2rem; padding: 0.1rem 0.3rem; }
+.noten-neu > input[aria-label="Fach"] { flex: 1; min-width: 0; }
+.noten-neu > input.noten-zahl { flex: 0 0 5rem; }

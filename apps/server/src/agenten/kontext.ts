@@ -97,6 +97,7 @@ Wo im Dorf was liegt (alles mit vault_lesen/vault_suchen lesbar):
 - Wochenziele: Rathaus/wochenziele/JJJJ-KWnn.md (Checkliste „- [ ] Ziel“, höchstens 7 – richte deine Vorschläge daran aus)
 - Schnelle Notizen: Rathaus/notizen/JJJJ-MM-TT.md (Leifs Gedanken des Tages, „- HH:MM Text“ – gut für Rückblicke und Ideen)
 - Gewohnheiten: Marktplatz/gewohnheiten.md (was Leif regelmäßig tun will; abgehakt wird in der App/Telegram)
+- Noten & ECTS: Uni/noten.md
 - Fächer: Uni/faecher/<Fach>/ (Folien, Aufgaben, karten.md = Karteikarten „Frage :: Antwort“; Aktion „Karteikarten erstellen“ füllt sie)
 - Termine: kalender_lesen (falls freigeschaltet). Einträge legt nur Leif an – schlag ihm Zeiten vor, er trägt per „Tag planen“ (App) oder /plan (Telegram) ein.
 - Fokus/Pomodoro läuft im Kirchturm (App, /fokus in Telegram) – empfiehl ihn für konzentrierte Arbeit an einem To-do.

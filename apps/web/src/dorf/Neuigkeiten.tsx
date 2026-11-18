@@ -1,10 +1,11 @@
 import { useState } from 'react';
 
 /** Bei jeder neuen Ausgabe den Schlüssel ändern – dann erscheint die Karte einmal pro Gerät */
-const AUSGABE = '2026-11-19j';
+const AUSGABE = '2026-11-19k';
 const SCHLUESSEL = 'dorf-neuigkeiten-gesehen';
 
 const PUNKTE: [string, string][] = [
+  ['🎓', 'Neu: Uni → Noten – ECTS, Noten, gewichteter Schnitt und Fortschritt zu deinem Ziel (z. B. 180 ECTS). Steht auch in Uni/noten.md.'],
   ['🧹', 'Neu: Überfälliges aufräumen – /aufraeumen in Telegram (heute, morgen, nächste Woche, erledigt …) oder „→ heute/→ morgen“ direkt auf „Heute“.'],
   ['📚', 'Neu: Lernplan bis zur Prüfung – 📅 am To-do → „Lernplan bis zur Frist“: Stunden wählen, das Dorf verteilt die Blöcke gleichmäßig in freie Zeiten, du trägst ein.'],
   ['📝', 'Neu: schnelle Notizen – „notiz …“ in der Befehlspalette oder /notiz in Telegram. Landen in der Tagesnotiz Rathaus/notizen/ (auch in Obsidian).'],

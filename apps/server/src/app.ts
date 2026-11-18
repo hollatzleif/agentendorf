@@ -8,6 +8,7 @@ import type { Karteikasten } from './karten.js';
 import type { Gewohnheiten } from './gewohnheiten.js';
 import type { Wochenziele } from './wochenziele.js';
 import type { Notizen } from './notizen.js';
+import type { Noten } from './uni/noten.js';
 import { statistik } from './statistik.js';
 import { ortszeitZuUtc } from './uni/ical.js';
 import type { GoogleKalender } from './kalender-google.js';
@@ -88,6 +89,7 @@ export interface Abhaengigkeiten {
   gewohnheiten?: Gewohnheiten;
   wochenziele?: Wochenziele;
   notizen?: Notizen;
+  noten?: Noten;
   googleKalender?: GoogleKalender;
 }
 
@@ -453,6 +455,15 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
       const q = z.object({ tage: z.coerce.number().int().min(7).max(120).default(28) }).parse(req.query);
       return statistik({ db: a.db, uhr: a.uhr, todos, gewohnheiten: a.gewohnheiten }, q.tage);
     });
+  }
+
+  // ---- Noten & ECTS (E98) ----
+  if (a.noten) {
+    const n = a.noten;
+    app.get('/api/uni/noten', async () => n.stand());
+    app.put('/api/uni/noten', async (req) => n.setzen(req.body));
+    app.delete('/api/uni/noten', async (req) => n.entfernen(z.object({ fach: z.string().min(1).max(100) }).parse(req.query).fach));
+    app.put('/api/uni/noten/ziel', async (req) => n.zielSetzen(z.object({ ects: z.number().min(0).max(600).nullable() }).parse(req.body).ects));
   }
 
   // ---- Notizen (E95) ----

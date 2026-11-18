@@ -714,3 +714,14 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - **Tagesabschluss** zeigt „⚠️ N überfällig – /aufraeumen …“, sobald etwas liegen geblieben ist.
 - **„Heute“:** Überfällige To-dos haben „→ heute“ und „→ morgen“ direkt in der Zeile.
 - Warum: Ein Stapel Überfälliges macht jede Liste unbrauchbar und demotiviert. Eine Minute Aufräumen am Abend hält „Heute“ ehrlich: Dort steht, was wirklich heute dran ist.
+
+## E98 – Noten & ECTS (Nacht 18./19.11.)
+
+- **Datei `Uni/noten.md`** mit Frontmatter `faecher:` (fach, ects, note, semester) und optional `ziel_ects`. Sie ist in Obsidian lesbar und änderbar; ist sie fehlerhaft, kommt eine klare Meldung statt stillem Überschreiben. Absichtlich nicht in `kurs.md`, denn die schreibt der Moodle-Abgleich.
+- **Österreichische Skala:**
+  - 1–4 bestanden, 5 „Nicht genügend“ (zählt weder für ECTS noch für den Schnitt).
+  - „bestanden“ steht für „mit Erfolg teilgenommen“ ohne Note: Die ECTS zählen, der Schnitt nicht.
+  - Ein leerer Eintrag ist noch offen.
+- **Schnitt:** nach ECTS gewichtet über die benoteten, bestandenen Fächer.
+- **Uni → Noten:** Kennzahlen (Schnitt, ECTS bestanden und offen, Fortschritt zum Ziel, z. B. 180 ECTS) und eine Tabelle zum Pflegen. Fächer aus `Uni/faecher/` erscheinen beim Hinzufügen als Vorschläge.
+- Warum: Den Überblick über ECTS und Schnitt braucht man ständig – für Stipendien, Bewerbungen, Studienplanung –, und er liegt sonst verstreut im Uni-Portal.

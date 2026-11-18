@@ -771,3 +771,15 @@ export interface Statistik {
   tage: { tag: string; erledigt: number; fokusMin: number; gewohnheitenFaellig: number; gewohnheitenErledigt: number }[];
   summen: { erledigt: number; erledigtWoche: number; fokusMin: number; fokusMinWoche: number; gewohnheitenQuote: number | null; aktiveTage: number };
 }
+
+/** Noten & ECTS (E98) */
+export interface NotenStand {
+  faecher: { fach: string; ects: number; note: number | 'bestanden' | null; semester?: string }[];
+  /** ECTS-gewichtet über benotete, bestandene Fächer (1–4) */
+  schnitt: number | null;
+  ectsBestanden: number;
+  ectsOffen: number;
+  zielEcts: number | null;
+  /** Fächer aus Uni/faecher/, die noch nicht in der Liste stehen */
+  vorschlaege: string[];
+}

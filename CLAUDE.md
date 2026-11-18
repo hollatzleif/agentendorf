@@ -42,7 +42,7 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
                   (automatisch)“ aus seinem Apps-Skript + „JKU Pflicht“; ical.ts mit RRULE, alle 3 h),
                   Fächer/Abgaben = Leifs Ordner unter Uni/faecher/ (abgleich.ts: faecher(), abgaben(), fachAnlegen()).
                   Der App-Weg (moodle.ts, appAbgleichen) bleibt im Code, falls die JKU ihn freischaltet.
-                  text.ts: Moodle-HTML → Markdown, Fristen in Linzer Zeit
+                  text.ts: Moodle-HTML → Markdown, Fristen in Linzer Zeit; noten.ts (E98): Uni/noten.md, ECTS-gewichteter Schnitt
   src/post/       Etappe 4: google-oauth.ts (PKCE, Refresh-Token), gmail.ts (REST: profile/list/history/get/drafts – nie senden),
                   postbote.ts (Abruf alle 10 min, Einordnung ohne Werkzeuge, Post/eingang/JJJJ-MM-TT.md, keine Mailtexte)
   src/kalender.ts      Hauptkalender (geheime iCal-Adresse) – nur lesen, nie speichern
@@ -159,4 +159,4 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] Etappe 6 – Programme (E66; Code fertig, Selbsttest unter Linux bestanden; Mac/Windows baut die CI – Abnahme an Leifs Geräten steht aus, Signaturschlüssel als GitHub-Secret von Leif)
 - [x] Etappe 7 – Gebäude anlegen/eröffnen, Einkaufsladen, Bank, Corpshaus, Börse (E67–E70; Code fertig und getestet; echte Läufe, EODHD-Schlüssel und Bank-Exporte auf dem Server abzunehmen)
 - [x] Etappe 8 (18.11.): Uni-Fristen als To-dos (E71), Häuschen/Deko/Kirchturm-Modell (E72), SIX/Franken + Saxo nur lesen (E73), Kirchturm-Uhr mit Glocke im Programm (E74), Google-Kalender auf dem Marktplatz (E75) – Saxo-App und Calendar-API-Freigabe von Leif abzunehmen
-- [x] Nacht 18./19.11. (Produktivität, E76–E88): Teil-Bau der Programme (nur Windows), Mein Tag (/heute), Fokus-Statistik + Nicht stören, Lernzeit einplanen, Wochenrückblick, Mail → To-do, Termin aus Text (/termin), Fach-Karten, Tag planen, Befehlspalette (Strg+K), ⭐ wichtig, Karteikarten (/karten), Tagesabschluss 21:00, Gewohnheiten mit Serien (E89), Telegram /plan (E90), Wochenziele (E91), wiederkehrende To-dos (E92), Statistik (E93), Erinnerungen an To-dos (E94), schnelle Notizen (E95), Lernplan bis zur Prüfung (E96), Überfälliges aufräumen (E97)
+- [x] Nacht 18./19.11. (Produktivität, E76–E88): Teil-Bau der Programme (nur Windows), Mein Tag (/heute), Fokus-Statistik + Nicht stören, Lernzeit einplanen, Wochenrückblick, Mail → To-do, Termin aus Text (/termin), Fach-Karten, Tag planen, Befehlspalette (Strg+K), ⭐ wichtig, Karteikarten (/karten), Tagesabschluss 21:00, Gewohnheiten mit Serien (E89), Telegram /plan (E90), Wochenziele (E91), wiederkehrende To-dos (E92), Statistik (E93), Erinnerungen an To-dos (E94), schnelle Notizen (E95), Lernplan bis zur Prüfung (E96), Überfälliges aufräumen (E97), Noten & ECTS (E98)

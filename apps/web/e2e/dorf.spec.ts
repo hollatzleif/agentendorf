@@ -138,9 +138,10 @@ test('Schreibtisch: Aufgabe hinlegen, Plan freigeben, Helfer arbeiten, Aufgabe e
   await karte.getByRole('button', { name: 'Ja, ausführen' }).click();
 
   await page.getByRole('button', { name: 'Pläne', exact: true }).click();
-  await expect(page.locator('.karte.innen', { hasText: 'Testplan' }).first().getByText('fertig').first()).toBeVisible();
+  // Helfer laufen im Hintergrund (Attrappe) – auf der langsameren CI kann das ein paar Sekunden dauern
+  await expect(page.locator('.karte.innen', { hasText: 'Testplan' }).first().getByText('fertig').first()).toBeVisible({ timeout: 20_000 });
   await page.getByRole('button', { name: 'Schreibtisch', exact: true }).click();
-  await expect(zeile.getByText('erledigt')).toBeVisible();
+  await expect(zeile.getByText('erledigt')).toBeVisible({ timeout: 20_000 });
   await zeile.getByRole('link').first().click();
   await expect(page.getByText('Alle Helfer sind fertig')).toBeVisible({ timeout: 15_000 });
   await page.getByRole('link', { name: 'Helfer: Lernplan' }).click();
@@ -1057,4 +1058,25 @@ test('Heute: überfälliges To-do mit „→ morgen“ neu einplanen', async ({ 
   await page.getByRole('button', { name: 'Alt-Überfällig auf morgen' }).click();
   await expect(page.locator('.heute-gruppe.rot', { hasText: 'Alt-Überfällig' })).toHaveCount(0);
   await expect(page.locator('.heute-todo', { hasText: 'Alt-Überfällig' })).toContainText('morgen');
+});
+
+test('Uni → Noten: Fach mit ECTS, Note wählen, Schnitt und Ziel', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  await page.goto('/gebaeude/Uni?reiter=noten');
+  const n = page.getByRole('region', { name: 'Noten und ECTS' });
+  const f = n.getByRole('form', { name: 'Fach zur Notenliste' });
+  for (const [fach, ects] of [['Noten-A', '6'], ['Noten-B', '3']] as const) {
+    await f.getByLabel('Fach', { exact: true }).fill(fach);
+    await f.getByLabel('ECTS neu').fill(ects);
+    await f.getByRole('button', { name: 'Fach hinzufügen' }).click();
+    await expect(n.getByRole('cell', { name: fach, exact: true })).toBeVisible();
+  }
+  await n.getByLabel('Note Noten-A').selectOption('1');
+  await n.getByLabel('Note Noten-B').selectOption('4');
+  await expect(n.locator('.statistik-kachel').first()).toContainText('2'); // (6·1 + 3·4) / 9
+  await n.getByLabel('Ziel-ECTS').fill('18');
+  await n.getByLabel('Ziel-ECTS').blur();
+  await expect(n.locator('.statistik-kachel').nth(2)).toContainText('50 %');
+  if (process.env.SCREENSHOT) await page.screenshot({ path: process.env.SCREENSHOT, fullPage: true });
 });

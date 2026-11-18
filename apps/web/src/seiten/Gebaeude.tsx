@@ -23,6 +23,7 @@ import { KirchturmUhr } from '../komponenten/KirchturmUhr';
 import { KartenLernen } from '../komponenten/KartenLernen';
 import { WochenrueckblickAnsicht } from '../komponenten/WochenrueckblickAnsicht';
 import { StatistikAnsicht } from '../komponenten/StatistikAnsicht';
+import { NotenAnsicht } from '../komponenten/NotenAnsicht';
 import { MarktKalender } from '../komponenten/MarktKalender';
 
 const REITER = [
@@ -41,6 +42,7 @@ const RATHAUS_VORNE = [
 const UNI_VORNE = [
   ['studium', 'Studium'],
   ['karten', 'Karteikarten'],
+  ['noten', 'Noten'],
 ] as const;
 const POST_VORNE = [['eingang', 'Eingang']] as const;
 const MARKT_VORNE = [
@@ -140,6 +142,7 @@ export function GebaeudeInhalt({ id, reiter, reiterWaehlen, kompakt }: { id: str
         {reiter === 'depot' && <BoerseUebersicht />}
         {reiter === 'uhr' && <KirchturmUhr />}
         {reiter === 'karten' && <KartenLernen />}
+        {reiter === 'noten' && <NotenAnsicht />}
         {reiter === 'kalender' && <MarktKalender />}
         {reiter === 'aemter' && <TodoBrett liste="corps" platzhalter="Neue Aufgabe – das Amt trägst du beim Bearbeiten als Gruppe ein" gruppiert />}
         {reiter === 'corpspost' && <PostEingang fest="Corps" />}
