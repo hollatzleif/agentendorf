@@ -22,7 +22,8 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
     HOME=/tmp
 WORKDIR /app
 # playwright-core genau in der Version aus package.json; Chromium samt Systembibliotheken
-RUN npm init -y >/dev/null \
+# package.json ausdrücklich als ES-Modul (npm init schreibt sonst "type": "commonjs" → der gebündelte Runner startet nicht)
+RUN echo '{"name":"dorf-browser","private":true,"type":"module"}' > package.json \
  && npm install --omit=dev --no-audit --no-fund playwright-core@1.65.1 \
  && npx -y playwright@1.65.1 install --with-deps chromium \
  && npm cache clean --force && rm -rf /root/.npm /root/.cache /tmp/* /var/lib/apt/lists/*
