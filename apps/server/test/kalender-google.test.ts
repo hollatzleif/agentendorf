@@ -166,6 +166,29 @@ describe('Kalender auf dem Marktplatz (E75)', () => {
     }
   });
 
+  it('verbunden: Morgenzeitung, Corps und kalender_lesen lesen über Google (ganztags in Linzer Zeit); geht Google nicht, die iCal-Adresse', async () => {
+    const g = await googleAttrappe();
+    try {
+      const ics = ['BEGIN:VCALENDAR', 'BEGIN:VEVENT', 'UID:i1', 'SUMMARY:Aus iCal', 'DTSTART:20261118T100000Z', 'DTEND:20261118T110000Z', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+      const d = await testDorf({ kalenderKlient: g.klient, google: { termine: { laden: async () => ics } } });
+      const t = await d.kalender.termine(Date.parse(VON), Date.parse(BIS));
+      expect(t.map((x) => [x.titel, x.kategorie, x.ganztags])).toEqual([
+        ['Zahnarzt', 'Leif', false],
+        ['Training', 'Leif', false],
+        ['Mariä Empfängnis', 'Feiertage in Österreich', true],
+      ]);
+      expect(new Date(t[2]!.start!).toISOString()).toBe('2026-12-07T23:00:00.000Z');
+      const k = await d.agenten.kalender!(Date.parse(VON), Date.parse(BIS));
+      expect(k.map((x) => x.titel)).toContain('Zahnarzt');
+      g.aus(true);
+      // Kalenderliste ist 10 min zwischengespeichert – danach geht der Abruf schief → iCal
+      d.uhr.vor(11 * 60_000);
+      expect((await d.kalender.termine(Date.parse(VON), Date.parse(BIS))).map((x) => x.titel)).toEqual(['Aus iCal']);
+    } finally {
+      g.schliessen();
+    }
+  });
+
   it('Anmeldung fragt Mail UND Kalender an – Senden nie', async () => {
     const { anmeldungVorbereiten } = await import('../src/post/google-oauth.js');
     const scope = new URL(anmeldungVorbereiten('id.apps.googleusercontent.com').adresse).searchParams.get('scope')!.split(' ');

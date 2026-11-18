@@ -231,6 +231,7 @@ export async function dorfStarten(
     hub,
     jetzt: () => uhr.jetzt(),
   });
+  if (googleKalender.verbunden) kalender.google = (von, bis) => googleKalender.alsIcs(von, bis);
   // Etappe 7: Corpshaus (Termine aus dem Hauptkalender per Stichwort, Corps-Absender für den Postboten)
   const corps = new Corps({ vault, uhr, kalender });
   corpsRef.aktuell = corps;

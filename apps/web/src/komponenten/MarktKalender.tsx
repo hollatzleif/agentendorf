@@ -69,6 +69,38 @@ function tageVon(t: KalenderTermin): string[] {
   return aus.length ? aus : [von];
 }
 
+/** Tag + Minuten (auch < 0 oder ≥ 24 h) → JJJJ-MM-TTTHH:MM in Ortszeit */
+export function lokal(tag: string, min: number) {
+  let t = tag;
+  let m = Math.round(min);
+  while (m < 0) {
+    t = tagPlus(t, -1);
+    m += 1440;
+  }
+  while (m >= 1440) {
+    t = tagPlus(t, 1);
+    m -= 1440;
+  }
+  return `${t}T${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+}
+
+/** Verschieben/Verlängern per Ziehen: nur Zeit/Tag ändern, alles andere bleibt (Felder, die fehlen, lässt der Server in Ruhe) */
+export function verschobeneEingabe(t: KalenderTermin, art: 'ziehen' | 'laenge', dMin: number, dTag: number) {
+  const basis = { kalenderId: t.kalenderId, titel: t.titel, ganztags: t.ganztags, ...(t.ort !== undefined ? { ort: t.ort } : {}), ...(t.beschreibung !== undefined ? { beschreibung: t.beschreibung } : {}) };
+  if (t.ganztags) {
+    const ende = art === 'laenge' ? tagPlus(t.ende, dTag) : tagPlus(t.ende, dTag);
+    return { ...basis, start: art === 'laenge' ? t.start : tagPlus(t.start, dTag), ende: ende <= t.start ? tagPlus(t.start, 1) : ende };
+  }
+  const a = ort(t.start);
+  const e = ort(t.ende);
+  // Ende als Minuten ab dem Starttag (Termine über Mitternacht)
+  const tageDazwischen = Math.round((Date.parse(`${e.tag}T00:00:00Z`) - Date.parse(`${a.tag}T00:00:00Z`)) / 86_400_000);
+  const endeMin = tageDazwischen * 1440 + e.min;
+  if (art === 'laenge') return { ...basis, start: lokal(a.tag, a.min), ende: lokal(a.tag, Math.max(a.min + 15, endeMin + dMin)) };
+  const tag = tagPlus(a.tag, dTag);
+  return { ...basis, start: lokal(tag, a.min + dMin), ende: lokal(tag, endeMin + dMin) };
+}
+
 function bereich(ansicht: Ansicht, anker: string): { erster: string; letzter: string } {
   if (ansicht === 'tag') return { erster: anker, letzter: anker };
   if (ansicht === 'woche') return { erster: montag(anker), letzter: tagPlus(montag(anker), 6) };
@@ -115,6 +147,18 @@ export function MarktKalender() {
         ? tagText(anker, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
         : `${tagText(erster, { day: 'numeric', month: 'short' })} – ${tagText(letzter, { day: 'numeric', month: 'short', year: 'numeric' })}`;
   const darfSchreiben = d?.modus === 'google' && d.kalender.some((k) => k.schreibbar);
+  const qc = useQueryClient();
+  const [zugFehler, setZugFehler] = useState('');
+  const verschieben = async (t: KalenderTermin, art: 'ziehen' | 'laenge', dMin: number, dTag: number) => {
+    if (!dMin && !dTag) return;
+    setZugFehler('');
+    try {
+      await api('/api/kalender/termin', { methode: 'PATCH', body: { id: t.id, vonKalender: t.kalenderId, termin: verschobeneEingabe(t, art, dMin, dTag) } });
+    } catch (e) {
+      setZugFehler(e instanceof ApiFehler ? e.message : String(e));
+    }
+    await qc.invalidateQueries({ queryKey: ['kalender'] });
+  };
   const neu = (tag: string, min?: number, ganztags?: boolean) => darfSchreiben && setOffen({ neu: { tag, min, ganztags } });
 
   return (
@@ -155,6 +199,7 @@ export function MarktKalender() {
         </div>
       </div>
       {d?.hinweis && <p className="hinweis">{d.hinweis}</p>}
+      {zugFehler && <p className="fehler">{zugFehler}</p>}
       {q.error && <p className="fehler">{q.error instanceof ApiFehler ? q.error.message : String(q.error)}</p>}
       {d && (
         <div className="kalender-auswahl">
@@ -167,9 +212,9 @@ export function MarktKalender() {
           ))}
         </div>
       )}
-      {ansicht === 'monat' && <Monat anker={anker} erster={erster} jeTag={jeTag} kalender={d?.kalender ?? []} oeffnen={(t) => setOffen({ termin: t })} neu={neu} tagZeigen={(t) => { setAnker(t); setAnsicht('tag'); }} />}
+      {ansicht === 'monat' && <Monat anker={anker} erster={erster} jeTag={jeTag} kalender={d?.kalender ?? []} oeffnen={(t) => setOffen({ termin: t })} neu={neu} verschieben={verschieben} tagZeigen={(t) => { setAnker(t); setAnsicht('tag'); }} />}
       {(ansicht === 'woche' || ansicht === 'tag') && (
-        <Raster tage={ansicht === 'tag' ? [anker] : Array.from({ length: 7 }, (_, i) => tagPlus(erster, i))} jeTag={jeTag} kalender={d?.kalender ?? []} oeffnen={(t) => setOffen({ termin: t })} neu={neu} tagZeigen={(t) => { setAnker(t); setAnsicht('tag'); }} />
+        <Raster tage={ansicht === 'tag' ? [anker] : Array.from({ length: 7 }, (_, i) => tagPlus(erster, i))} jeTag={jeTag} kalender={d?.kalender ?? []} oeffnen={(t) => setOffen({ termin: t })} neu={neu} verschieben={verschieben} tagZeigen={(t) => { setAnker(t); setAnsicht('tag'); }} />
       )}
       {ansicht === 'liste' && <Liste erster={erster} letzter={letzter} jeTag={jeTag} kalender={d?.kalender ?? []} oeffnen={(t) => setOffen({ termin: t })} />}
       {q.isFetching && <p className="leise">Lade …</p>}
@@ -178,16 +223,24 @@ export function MarktKalender() {
   );
 }
 
-function TerminKlotz({ t, kalender, oeffnen, mitZeit = true }: { t: KalenderTermin; kalender: KalenderInfo[]; oeffnen: (t: KalenderTermin) => void; mitZeit?: boolean }) {
+const ziehbar = (t: KalenderTermin) => t.quelle === 'google' && t.schreibbar;
+
+function TerminKlotz({ t, kalender, oeffnen, mitZeit = true, ziehen }: { t: KalenderTermin; kalender: KalenderInfo[]; oeffnen?: (t: KalenderTermin) => void; mitZeit?: boolean; ziehen?: (t: KalenderTermin) => void }) {
   const f = farbeVon(t, kalender);
   return (
     <button
       type="button"
+      draggable={!!ziehen && ziehbar(t)}
+      onDragStart={(e) => {
+        e.dataTransfer.setData('text/plain', t.titel);
+        e.dataTransfer.effectAllowed = 'move';
+        ziehen?.(t);
+      }}
       className={`termin${t.ganztags ? ' ganztags' : ''}${t.quelle !== 'google' ? ' fremd' : ''}`}
       style={t.ganztags ? { background: f } : { ['--farbe' as string]: f }}
       onClick={(e) => {
         e.stopPropagation();
-        oeffnen(t);
+        oeffnen?.(t);
       }}
       title={t.titel}
     >
@@ -196,8 +249,19 @@ function TerminKlotz({ t, kalender, oeffnen, mitZeit = true }: { t: KalenderTerm
   );
 }
 
-function Monat(p: { anker: string; erster: string; jeTag: Map<string, KalenderTermin[]>; kalender: KalenderInfo[]; oeffnen: (t: KalenderTermin) => void; neu: (tag: string, min?: number, ganztags?: boolean) => void; tagZeigen: (t: string) => void }) {
+function Monat(p: {
+  anker: string;
+  erster: string;
+  jeTag: Map<string, KalenderTermin[]>;
+  kalender: KalenderInfo[];
+  oeffnen: (t: KalenderTermin) => void;
+  neu: (tag: string, min?: number, ganztags?: boolean) => void;
+  tagZeigen: (t: string) => void;
+  verschieben: (t: KalenderTermin, art: 'ziehen' | 'laenge', dMin: number, dTag: number) => void;
+}) {
   const heute = heuteTag();
+  const gezogen = useRef<KalenderTermin | null>(null);
+  const [ueber, setUeber] = useState<string | null>(null);
   const monat = p.anker.slice(0, 7);
   return (
     <div className="kalender-monat" role="grid" aria-label="Monat">
@@ -214,8 +278,24 @@ function Monat(p: { anker: string; erster: string; jeTag: Map<string, KalenderTe
             key={tag}
             role="gridcell"
             aria-label={tagText(tag, { weekday: 'long', day: 'numeric', month: 'long' })}
-            className={`kalender-tag${tag.slice(0, 7) !== monat ? ' anderer' : ''}${tag === heute ? ' heute' : ''}`}
+            className={`kalender-tag${tag.slice(0, 7) !== monat ? ' anderer' : ''}${tag === heute ? ' heute' : ''}${ueber === tag ? ' ziel' : ''}`}
             onClick={() => p.neu(tag, 9 * 60)}
+            onDragOver={(e) => {
+              if (!gezogen.current) return;
+              e.preventDefault();
+              setUeber(tag);
+            }}
+            onDragLeave={() => setUeber((u) => (u === tag ? null : u))}
+            onDrop={(e) => {
+              e.preventDefault();
+              setUeber(null);
+              const t = gezogen.current;
+              gezogen.current = null;
+              if (!t) return;
+              const von = t.ganztags ? t.start : ort(t.start).tag;
+              const dTag = Math.round((Date.parse(`${tag}T00:00:00Z`) - Date.parse(`${von}T00:00:00Z`)) / 86_400_000);
+              p.verschieben(t, 'ziehen', 0, dTag);
+            }}
           >
             <button
               type="button"
@@ -228,7 +308,7 @@ function Monat(p: { anker: string; erster: string; jeTag: Map<string, KalenderTe
               {Number(tag.slice(8))}
             </button>
             {liste.slice(0, 4).map((t) => (
-              <TerminKlotz key={`${t.kalenderId}:${t.id}`} t={t} kalender={p.kalender} oeffnen={p.oeffnen} />
+              <TerminKlotz key={`${t.kalenderId}:${t.id}`} t={t} kalender={p.kalender} oeffnen={p.oeffnen} ziehen={(x) => (gezogen.current = x)} />
             ))}
             {liste.length > 4 && (
               <button
@@ -252,8 +332,43 @@ function Monat(p: { anker: string; erster: string; jeTag: Map<string, KalenderTe
 const STUNDE_PX = 44;
 
 /** Woche/Tag: Zeitraster mit Ganztags-Leiste; überlappende Termine nebeneinander */
-function Raster(p: { tage: string[]; jeTag: Map<string, KalenderTermin[]>; kalender: KalenderInfo[]; oeffnen: (t: KalenderTermin) => void; neu: (tag: string, min?: number, ganztags?: boolean) => void; tagZeigen: (t: string) => void }) {
+type Zug = { t: KalenderTermin; art: 'ziehen' | 'laenge'; x0: number; y0: number; breite: number; dMin: number; dTag: number; bewegt: boolean };
+
+function Raster(p: {
+  tage: string[];
+  jeTag: Map<string, KalenderTermin[]>;
+  kalender: KalenderInfo[];
+  oeffnen: (t: KalenderTermin) => void;
+  neu: (tag: string, min?: number, ganztags?: boolean) => void;
+  tagZeigen: (t: string) => void;
+  verschieben: (t: KalenderTermin, art: 'ziehen' | 'laenge', dMin: number, dTag: number) => void;
+}) {
   const scroll = useRef<HTMLDivElement>(null);
+  const [zug, setZug] = useState<Zug | null>(null);
+  const zugStart = (e: React.PointerEvent, t: KalenderTermin, art: 'ziehen' | 'laenge') => {
+    if (!ziehbar(t) || e.button !== 0) return;
+    e.stopPropagation();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    const spalte = (e.currentTarget as HTMLElement).closest('.raster-spalte') as HTMLElement | null;
+    setZug({ t, art, x0: e.clientX, y0: e.clientY, breite: spalte?.getBoundingClientRect().width ?? 100, dMin: 0, dTag: 0, bewegt: false });
+  };
+  const zugBewegen = (e: React.PointerEvent) => {
+    if (!zug) return;
+    const dx = e.clientX - zug.x0;
+    const dy = e.clientY - zug.y0;
+    const bewegt = zug.bewegt || Math.abs(dx) > 4 || Math.abs(dy) > 4;
+    const dMin = Math.round(((dy / STUNDE_PX) * 60) / 15) * 15;
+    const dTag = zug.art === 'ziehen' ? Math.max(-6, Math.min(6, Math.round(dx / zug.breite))) : 0;
+    if (bewegt !== zug.bewegt || dMin !== zug.dMin || dTag !== zug.dTag) setZug({ ...zug, bewegt, dMin, dTag });
+  };
+  const zugEnde = (e: React.PointerEvent) => {
+    if (!zug) return;
+    e.stopPropagation();
+    const z = zug;
+    setZug(null);
+    if (z.bewegt) void p.verschieben(z.t, z.art, z.dMin, z.dTag);
+    else p.oeffnen(z.t);
+  };
   useEffect(() => {
     if (scroll.current) scroll.current.scrollTop = 7 * STUNDE_PX;
   }, []);
@@ -311,15 +426,49 @@ function Raster(p: { tage: string[]; jeTag: Map<string, KalenderTermin[]>; kalen
                 p.neu(tag, Math.floor(y / STUNDE_PX) * 60);
               }}
             >
-              {lage.map(({ t, anfang, ende, spur }) => (
-                <div
-                  key={`${t.kalenderId}:${t.id}`}
-                  className="raster-termin"
-                  style={{ top: (anfang / 60) * STUNDE_PX, height: Math.max(18, ((ende - anfang) / 60) * STUNDE_PX - 2), left: `${(spur / spuren.length) * 100}%`, width: `${100 / spuren.length}%` }}
-                >
-                  <TerminKlotz t={t} kalender={p.kalender} oeffnen={p.oeffnen} />
-                </div>
-              ))}
+              {lage.map(({ t, anfang, ende, spur }) => {
+                const z = zug && zug.t === t ? zug : null;
+                const hoehe = Math.max(18, ((ende - anfang + (z?.art === 'laenge' ? z.dMin : 0)) / 60) * STUNDE_PX - 2);
+                const kann = ziehbar(t);
+                return (
+                  <div
+                    key={`${t.kalenderId}:${t.id}`}
+                    className={`raster-termin${kann ? ' ziehbar' : ''}${z?.bewegt ? ' gezogen' : ''}`}
+                    style={{
+                      top: (anfang / 60) * STUNDE_PX,
+                      height: hoehe,
+                      left: `${(spur / spuren.length) * 100}%`,
+                      width: `${100 / spuren.length}%`,
+                      ...(z?.art === 'ziehen' && z.bewegt ? { transform: `translate(${z.dTag * z.breite}px, ${(z.dMin / 60) * STUNDE_PX}px)` } : {}),
+                    }}
+                    onPointerDown={kann ? (e) => zugStart(e, t, 'ziehen') : undefined}
+                    onPointerMove={kann ? zugBewegen : undefined}
+                    onPointerUp={kann ? zugEnde : undefined}
+                    onPointerCancel={() => setZug(null)}
+                    onClick={kann ? (e) => e.stopPropagation() : undefined}
+                    data-termin={t.titel}
+                  >
+                    <TerminKlotz t={t} kalender={p.kalender} oeffnen={kann ? undefined : p.oeffnen} />
+                    {z?.bewegt && (
+                      <span className="zug-zeit">
+                        {(() => {
+                          const n = verschobeneEingabe(t, z.art, z.dMin, z.dTag);
+                          return `${n.start.slice(11)}–${n.ende.slice(11)}`;
+                        })()}
+                      </span>
+                    )}
+                    {kann && (
+                      <div
+                        className="raster-griff"
+                        aria-label={`${t.titel} verlängern`}
+                        onPointerDown={(e) => zugStart(e, t, 'laenge')}
+                        onPointerMove={zugBewegen}
+                        onPointerUp={zugEnde}
+                      />
+                    )}
+                  </div>
+                );
+              })}
               {tag === heute && <div className="jetzt-linie" style={{ top: (jetzt.min / 60) * STUNDE_PX }} />}
             </div>
           );

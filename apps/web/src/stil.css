@@ -628,3 +628,9 @@ input.kurz { width: 5em; }
   .kalender-tag .termin { font-size: 0.65rem; padding: 0 2px; }
   .termin-zeit { display: none; }
 }
+.raster-termin.ziehbar { touch-action: none; cursor: grab; }
+.raster-termin.gezogen { z-index: 5; opacity: 0.85; cursor: grabbing; filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.25)); }
+.raster-griff { position: absolute; left: 20%; right: 20%; bottom: 0; height: 7px; cursor: ns-resize; border-radius: 4px; }
+.raster-griff:hover { background: rgba(0, 0, 0, 0.18); }
+.zug-zeit { position: absolute; right: 2px; top: -1.3em; font-size: 0.7rem; background: #2d241c; color: #fff; padding: 0 0.3rem; border-radius: 4px; white-space: nowrap; }
+.kalender-tag.ziel { outline: 2px dashed #c8553d; outline-offset: -3px; }

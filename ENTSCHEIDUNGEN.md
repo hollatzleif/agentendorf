@@ -510,3 +510,6 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - **Jetzt:** Was gebaut ist, wird ausgeliefert. Fehlt eine Plattform, behält der Server deren bisherige Fassung zum Herunterladen, mit ihrer alten Versionsnummer in `programme.json`. Die Update-Datei bietet sie dann nicht an, sonst würde das Programm dieselbe alte Fassung immer wieder installieren.
 - Ein Teil-Bau bekommt die Kennung `0000000000000000`, deshalb baut der nächste Lauf beide Plattformen neu. Getestet in `empfangen-test.sh` und `programme.test.ts`.
 - **Nachtrag:** Auf Leifs Wunsch baut die CI vorerst **nur das Windows-Programm**, weil Mac-Minuten zehnfach zählen. Die letzte Mac-Fassung bleibt zum Herunterladen, bekommt aber keine Updates (also auch keine Glocke). Wieder einschalten: Mac-Eintrag in `ci.yml` (Matrix `programme`) und die Vollständigkeitsprüfung.
+- **Nachtrag (Nacht 18./19.11.):**
+  - Woche/Tag: Termine lassen sich ziehen (Zeit in 15-min-Schritten, auch auf einen anderen Tag) und am unteren Rand verlängern. Im Monat zieht man einen Termin auf einen anderen Tag. Bei Serien bewegt das nur diesen einen Termin.
+  - Ist Google verbunden, lesen auch Morgenzeitung, Corps-Termine und `kalender_lesen` der Agenten über die API (alle Kalender). Geht das schief, nehmen sie die iCal-Adresse.

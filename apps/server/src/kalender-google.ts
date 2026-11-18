@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { KalenderAntwort, KalenderInfo, KalenderTermin } from '@dorf/shared';
 import type { GoogleZugang } from './post/google-oauth.js';
 import type { Terminkalender } from './kalender.js';
+import { ortszeitZuUtc, type IcsTermin } from './uni/ical.js';
 import type { LiveHub } from './live.js';
 import { DorfFehler } from './fehler.js';
 
@@ -255,7 +256,7 @@ export class GoogleKalender {
   }
 
   private async icalZeitraum(von: number, bis: number, fristen: KalenderTermin[]): Promise<KalenderAntwort> {
-    const t = await this.o.ical!.termine(von, bis);
+    const t = await this.o.ical!.nurIcal(von, bis);
     const tag = (ms: number) => new Date(ms).toLocaleDateString('sv-SE', { timeZone: ZONE });
     return {
       modus: 'ical',
@@ -278,6 +279,34 @@ export class GoogleKalender {
         ...fristen,
       ],
     };
+  }
+
+  /** Für Morgenzeitung, Corps und kalender_lesen: alle Kalender als einfache Termine; null = Google nicht nutzbar */
+  async alsIcs(von: number, bis: number): Promise<IcsTermin[] | null> {
+    if (!this.o.klient) return null;
+    const kalender = await this.liste();
+    const ms = (z: { date?: string | null; dateTime?: string | null } | undefined) => {
+      if (z?.dateTime) return Date.parse(z.dateTime);
+      if (z?.date) {
+        const [j, m, t] = z.date.split('-').map(Number) as [number, number, number];
+        return ortszeitZuUtc(j, m, t, 0, 0, 0, ZONE);
+      }
+      return null;
+    };
+    const aus: IcsTermin[] = [];
+    for (const k of kalender)
+      for (const e of await this.o.klient.termine(k.id, von, bis))
+        aus.push({
+          uid: `${k.id}:${e.id}`,
+          titel: e.summary ?? '(ohne Titel)',
+          beschreibung: e.description ?? '',
+          kategorie: k.name,
+          start: ms(e.start),
+          ende: ms(e.end),
+          ganztags: !!e.start?.date,
+          url: e.htmlLink ?? '',
+        });
+    return aus.sort((a, b) => (a.start ?? 0) - (b.start ?? 0));
   }
 
   private klient() {

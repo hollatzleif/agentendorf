@@ -581,3 +581,52 @@ test('Marktplatz-Kalender: Monat/Woche/Liste, Termin anlegen, Serie bearbeiten, 
   await page.getByRole('dialog', { name: 'Termin bearbeiten' }).getByRole('button', { name: 'Löschen' }).click();
   expect(gesendet.find((g) => g.methode === 'DELETE')!.url).toContain('kalenderId=leif&id=e1');
 });
+
+test('Marktplatz-Kalender: Termin in der Woche ziehen (Zeit und Tag) und unten verlängern', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+  // Linzer Zeit (MEZ/MESZ), unabhängig von der Zeitzone des Testrechners
+  const versatz = Number(new Date(`${heute}T12:00:00Z`).toLocaleString('en-GB', { timeZone: 'Europe/Vienna', hour: '2-digit', hour12: false })) - 12;
+  const zeit = (h: number) => new Date(Date.parse(`${heute}T${String(h).padStart(2, '0')}:00:00Z`) - versatz * 3_600_000).toISOString();
+  const gesendet: unknown[] = [];
+  await page.route('**/api/kalender**', async (route) => {
+    const r = route.request();
+    if (r.method() === 'PATCH') {
+      gesendet.push(r.postDataJSON());
+      return route.fulfill({ json: { ok: true } });
+    }
+    return route.fulfill({
+      json: {
+        modus: 'google',
+        kalender: [{ id: 'leif', name: 'Leif', farbe: '#9fe1e7', primaer: true, schreibbar: true }],
+        termine: [{ id: 'e1', kalenderId: 'leif', titel: 'Lernen', start: zeit(9), ende: zeit(10), ganztags: false, quelle: 'google', schreibbar: true, erinnerungen: null }],
+      },
+    });
+  });
+  await anmelden(page);
+  await page.goto('/gebaeude/Marktplatz');
+  await page.getByRole('button', { name: 'Kalender', exact: true }).click();
+  await page.getByRole('tab', { name: 'Tag' }).click();
+  const t = page.locator('.raster-termin[data-termin="Lernen"]');
+  await expect(t).toBeVisible();
+  // um 1 Stunde nach unten ziehen (44 px je Stunde)
+  const b = (await t.boundingBox())!;
+  await page.mouse.move(b.x + b.width / 2, b.y + 10);
+  await page.mouse.down();
+  for (let i = 1; i <= 6; i++) await page.mouse.move(b.x + b.width / 2, b.y + 10 + (44 * i) / 6);
+  await expect(page.locator('.zug-zeit')).toHaveText('10:00–11:00');
+  await page.mouse.up();
+  await expect.poll(() => gesendet.length).toBe(1);
+  expect(gesendet[0]).toMatchObject({ id: 'e1', vonKalender: 'leif', termin: { titel: 'Lernen', start: `${heute}T10:00`, ende: `${heute}T11:00` } });
+  // unten am Griff um 30 min verlängern
+  const g = (await t.getByLabel('Lernen verlängern').boundingBox())!;
+  await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2);
+  await page.mouse.down();
+  for (let i = 1; i <= 4; i++) await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2 + (22 * i) / 4);
+  await page.mouse.up();
+  await expect.poll(() => gesendet.length).toBe(2);
+  expect(gesendet[1]).toMatchObject({ termin: { start: `${heute}T09:00`, ende: `${heute}T10:30` } });
+  // ein einfacher Klick öffnet weiterhin das Bearbeiten
+  await t.click();
+  await expect(page.getByRole('dialog', { name: 'Termin bearbeiten' })).toBeVisible();
+});
