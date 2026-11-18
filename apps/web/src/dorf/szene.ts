@@ -238,6 +238,7 @@ export class DorfSzene {
   private wetterArt: WetterArt = wetterArtVon(undefined);
   private niederschlag: Niederschlag | null = null;
   private blitz = { naechster: 4, rest: 0 };
+  private konfetti: { obj: THREE.Points; v: Float32Array; t: number }[] = [];
   private schmutzig = true;
   private laeuft = true;
   private raf = 0;
@@ -665,6 +666,58 @@ export class DorfSzene {
     this.tageszeitSetzen();
   }
 
+  /** Konfetti über einem Gebäude (ein Agent ist erfolgreich fertig) */
+  feiern(id: string) {
+    const e = this.gebaeude.get(id);
+    if (!e || this.o.reduziert || this.sparsam) return;
+    const n = 70;
+    const pos = new Float32Array(n * 3);
+    const v = new Float32Array(n * 3);
+    const farben = new Float32Array(n * 3);
+    const c = new THREE.Color();
+    const bunt = ['#ffc23d', '#e8413c', '#3b6fd8', '#3fa63a', '#ff8ac0', '#ffffff'];
+    for (let i = 0; i < n; i++) {
+      pos.set([e.huelle.position.x, e.modell.hoehe + 0.3, e.huelle.position.z], i * 3);
+      const w = Math.random() * Math.PI * 2;
+      const r = 1 + Math.random() * 2.2;
+      v.set([Math.cos(w) * r, 4 + Math.random() * 3, Math.sin(w) * r], i * 3);
+      c.set(bunt[i % bunt.length]!);
+      farben.set([c.r, c.g, c.b], i * 3);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.BufferAttribute(farben, 3));
+    const obj = new THREE.Points(g, new THREE.PointsMaterial({ size: 0.22, vertexColors: true, transparent: true, depthWrite: false }));
+    obj.frustumCulled = false;
+    this.scene.add(obj);
+    this.konfetti.push({ obj, v, t: 0 });
+    this.schmutzig = true;
+  }
+
+  private konfettiTick(dt: number) {
+    for (const k of [...this.konfetti]) {
+      k.t += dt;
+      const p = k.obj.geometry.getAttribute('position') as THREE.BufferAttribute;
+      const a = p.array as Float32Array;
+      for (let i = 0; i < a.length; i += 3) {
+        k.v[i + 1]! -= 9 * dt;
+        k.v[i]! *= 1 - dt * 1.2;
+        k.v[i + 2]! *= 1 - dt * 1.2;
+        a[i]! += k.v[i]! * dt;
+        a[i + 1]! = Math.max(0.05, a[i + 1]! + Math.max(k.v[i + 1]!, -2.2) * dt); // flattert langsam herab
+        a[i + 2]! += k.v[i + 2]! * dt;
+      }
+      p.needsUpdate = true;
+      (k.obj.material as THREE.PointsMaterial).opacity = Math.min(1, (3 - k.t) / 0.8);
+      if (k.t > 3) {
+        this.scene.remove(k.obj);
+        k.obj.geometry.dispose();
+        (k.obj.material as THREE.Material).dispose();
+        this.konfetti.splice(this.konfetti.indexOf(k), 1);
+      }
+    }
+  }
+
   /** Gewitter: ab und zu ein kurzer Blitz (Himmelslicht hell aufflackern lassen) */
   private blitzTick(dt: number) {
     const b = this.blitz;
@@ -1054,6 +1107,10 @@ export class DorfSzene {
         animiert = true;
       }
       if (this.wetterArt === 'gewitter') this.blitzTick(dt);
+      if (this.konfetti.length) {
+        this.konfettiTick(dt);
+        animiert = true;
+      }
       if (this.gebaeude.size) animiert = true; // Blasen schweben
     }
     if (this.auswahl) {

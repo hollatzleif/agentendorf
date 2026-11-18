@@ -207,3 +207,6 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - **Jahreszeiten** nach dem Linzer Kalender: Frühling mit Blüten, Herbstlaub, im Winter Schnee auf Wiesen, Hügeln und Tannenspitzen. Die Grundstücke bleiben grün. Zum Ausprobieren: `/?jahreszeit=winter`.
 - **Zeitungs-Knopf 📰** oben rechts: Ein roter Punkt zeigt, dass die neueste Morgenzeitung auf diesem Gerät noch nicht geöffnet wurde. Ein Tipp öffnet sie im Rathaus.
 - **Bürgermeister schläft nachts sichtbar** (Zz-Blase), wenn er gerade nichts zu tun hat. **Wasser glitzert** (treibende Lichtwellen).
+- **Wie ein Lauf endete** (`zuletzt` im Dorf-Status, 10 Minuten): Der Ticker meldet „✅ Fertig in …“, „❌ Fehler in …“ oder „⏹️ Abgebrochen in …“ statt nur „Zurück aus …“. Nur bei Erfolg regnet über dem Gebäude Konfetti.
+- **Rundgang sichtbar:** Weckt sich der Bürgermeister selbst (Auslöser `zeitplan`), läuft er von Gebäude zu Gebäude und zwischendurch zum Rathaus. Ist der Lauf vorbei, geht er heim.
+- **Plakette am App-Symbol:** Bei installierter PWA zeigt das App-Symbol die Zahl offener Freigaben, der Fenstertitel lautet „(n) Agentendorf“.

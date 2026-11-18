@@ -7,6 +7,7 @@ import {
   type DorfAntwort,
   type DorfFigur,
   type DorfGebaeudeStatus,
+  type DorfLaufEnde,
   type DorfLayout,
   type DorfStatus,
   type LaufStatus,
@@ -158,7 +159,17 @@ export class Dorfplan {
       .find((f) => !f.abgegeben && (f.art === 'abgabe' || f.art === 'test') && f.frist && Date.parse(f.frist) > jetzt && Date.parse(f.frist) - jetzt < 3 * TAG);
     if (frist) von('Uni').frist = { titel: frist.kurs ? `${frist.titel} (${frist.kurs})` : frist.titel, frist: frist.frist! };
 
+    const zuletzt = (
+      db
+        .prepare(
+          `SELECT l.id, l.status, l.ende, c.gebaeude, c.titel, c.rolle FROM laeufe l JOIN chats c ON c.id = l.chat_id
+           WHERE l.status IN ('fertig', 'fehler', 'abgebrochen') AND l.ende >= ? AND (c.rolle IS NULL OR c.rolle != 'system')
+           ORDER BY l.ende DESC LIMIT 10`,
+        )
+        .all(jetzt - 10 * 60_000) as { id: string; status: DorfLaufEnde['status']; ende: number; gebaeude: string; titel: string; rolle: string | null }[]
+    ).map((l) => ({ laufId: l.id, gebaeude: l.gebaeude, titel: l.titel, status: l.status, ende: new Date(l.ende).toISOString(), buergermeister: l.rolle === 'buergermeister' }));
+
     const wetter = this.o.wetter?.aktuell();
-    return { jetzt: new Date(jetzt).toISOString(), gebaeude: g, figuren, ...(wetter ? { wetter } : {}) };
+    return { jetzt: new Date(jetzt).toISOString(), gebaeude: g, figuren, zuletzt, ...(wetter ? { wetter } : {}) };
   }
 }

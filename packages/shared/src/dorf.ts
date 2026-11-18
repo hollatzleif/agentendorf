@@ -78,6 +78,16 @@ export interface DorfStatus {
   figuren: DorfFigur[];
   /** Wetter in Linz (Open-Meteo), wenn eingeschaltet */
   wetter?: DorfWetter;
+  /** Läufe, die in den letzten 10 Minuten geendet haben (für Ticker und Feier) */
+  zuletzt?: DorfLaufEnde[];
+}
+export interface DorfLaufEnde {
+  laufId: string;
+  gebaeude: string;
+  titel: string;
+  status: 'fertig' | 'fehler' | 'abgebrochen';
+  ende: string;
+  buergermeister: boolean;
 }
 
 export type WetterArt = 'klar' | 'heiter' | 'bedeckt' | 'nebel' | 'niesel' | 'regen' | 'schnee' | 'gewitter';

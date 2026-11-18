@@ -266,6 +266,7 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
   };
 
   const panelOffen = !!gewaehlt && !bauen;
+  const feiern = useCallback((id: string) => szene.current?.feiern(id), []);
   const knopf = useMemo(
     () => (titel: string, inhalt: React.ReactNode, f: () => void, extra = '') => (
       <button className={`dorf-knopf ${extra}`} onClick={f} title={titel} aria-label={titel}>
@@ -285,6 +286,7 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
         <DorfTicker
           status={status.data}
           name={gNameStabil}
+          feiern={feiern}
           zeigen={(z) => {
             if (!z || !szene.current) return;
             if (z.art === 'figur') szene.current.blickAufFigur(z.id, 16);

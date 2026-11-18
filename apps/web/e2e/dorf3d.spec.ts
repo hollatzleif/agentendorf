@@ -266,3 +266,18 @@ test('Rundgang: der von selbst geweckte Bürgermeister läuft durchs Dorf und ke
   await setzeFiguren([]);
   await expect.poll(weg, { timeout: 60_000, intervals: [1000] }).toBeLessThan(0.05);
 });
+
+test('Agent fertig: Ticker meldet ✅ und über dem Gebäude regnet Konfetti', async ({ page }) => {
+  await imDorf(page);
+  await page.goto('/?animiert');
+  await page.waitForFunction(() => !!window.__dorf?.bildschirmPunkt('gebaeude', 'Rathaus'), null, { timeout: 20_000 });
+  const r = await page.request.post('/api/aktionen/starten', {
+    headers: { origin: new URL(page.url()).origin },
+    data: { id: 'Bibliothek/notizen-zusammenfassen', eingaben: { thema: 'Konfetti [warte 7000]' } },
+  });
+  expect(r.ok()).toBe(true);
+  const ticker = page.getByRole('list', { name: 'Was im Dorf passiert' });
+  await expect(ticker.getByText(/Agent geht zur Bibliothek/)).toBeVisible({ timeout: 15_000 });
+  await expect(ticker.getByText(/Fertig in Bibliothek/)).toBeVisible({ timeout: 30_000 });
+  expect(await page.evaluate(() => (window.__dorf as unknown as { konfetti: unknown[] }).konfetti.length)).toBeGreaterThan(0);
+});

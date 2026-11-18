@@ -195,5 +195,9 @@ describe('Dorf-Status', () => {
     const n = (await d.app.inject({ url: '/api/dorf/status', headers: d.h })).json() as DorfStatus;
     expect(n.gebaeude.Uni?.frist ?? null).toBeNull();
     expect(n.figuren.map((f) => f.gebaeude)).toEqual(['Post']);
+    // wie der Lauf geendet hat, steht 10 Minuten lang in „zuletzt“ (Ticker: ✅/❌/⏹️, Feier nur bei Erfolg)
+    expect(n.zuletzt).toEqual([expect.objectContaining({ laufId: lauf.laufId, gebaeude: 'Uni', status: 'abgebrochen', buergermeister: false })]);
+    d.uhr.vor(11 * 60_000);
+    expect(((await d.app.inject({ url: '/api/dorf/status', headers: d.h })).json() as DorfStatus).zuletzt).toEqual([]);
   });
 });
