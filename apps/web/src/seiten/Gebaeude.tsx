@@ -20,6 +20,7 @@ import { BankUebersicht } from '../komponenten/BankUebersicht';
 import { CorpsUebersicht } from '../komponenten/CorpsUebersicht';
 import { BoerseUebersicht } from '../komponenten/BoerseUebersicht';
 import { KirchturmUhr } from '../komponenten/KirchturmUhr';
+import { WochenrueckblickAnsicht } from '../komponenten/WochenrueckblickAnsicht';
 import { MarktKalender } from '../komponenten/MarktKalender';
 
 const REITER = [
@@ -31,6 +32,7 @@ const REITER = [
 const RATHAUS_VORNE = [
   ['schreibtisch', 'Schreibtisch'],
   ['morgenzeitung', 'Morgenzeitung'],
+  ['woche', 'Wochenrückblick'],
   ['plaene', 'Pläne'],
 ] as const;
 const UNI_VORNE = [['studium', 'Studium']] as const;
@@ -137,6 +139,7 @@ export function GebaeudeInhalt({ id, reiter, reiterWaehlen, kompakt }: { id: str
         {reiter === 'einkauf' && <TodoBrett liste="einkauf" platzhalter="Was fehlt? z. B. 2 l Milch" gruppiert />}
         {reiter === 'wunsch' && <TodoBrett liste="wunsch" platzhalter="Was möchtest du kaufen?" />}
         {reiter === 'morgenzeitung' && <MorgenzeitungAnsicht />}
+        {reiter === 'woche' && <WochenrueckblickAnsicht />}
         {reiter === 'plaene' && <Plaene />}
         {reiter === 'freigaben' && <Freigaben />}
         {reiter === 'alle-chats' && <ChatListe />}

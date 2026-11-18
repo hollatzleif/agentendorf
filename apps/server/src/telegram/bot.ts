@@ -9,6 +9,7 @@ const LISTEN_ANZEIGE: Record<ListenName, { symbol: string; titel: string; befehl
   corps: { symbol: '🛡️', titel: 'Corps-Aufgaben', befehl: '/todo' },
 };
 import { aufwachEinstellungen, istNacht } from '../aufwachen.js';
+import type { Rueckblick } from '../wochenrueckblick.js';
 import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
 import type { FreigabeInfo, PlanInhalt, TelegramStatus } from '@dorf/shared';
@@ -126,6 +127,19 @@ export class TelegramBot {
     let text = teile.join('\n\n');
     if (text.length > 3700) text = `${text.slice(0, 3700)} …`;
     await this.senden(`${text}\n\n<a href="${this.link('/gebaeude/Rathaus?reiter=morgenzeitung')}">Ganze Zeitung</a>`);
+  }
+
+  /** Wochenrückblick (sonntags) – Schalter wie die Morgenzeitung */
+  async rueckblickSenden(r: Rueckblick) {
+    if (!(await einstellungenLaden(this.o.vault)).morgenzeitung) return;
+    const fett = (t: string) => h(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+    const teile = [`🗓️ <b>Wochenrückblick</b> (${h(r.woche.replace('-KW', ' · KW '))})`];
+    if (r.einleitung) teile.push(`<i>${h(r.einleitung)}</i>`);
+    if (r.vorschlaege.length) teile.push(`<b>Für nächste Woche</b>\n${r.vorschlaege.map((v) => `• ${h(v)}`).join('\n')}`);
+    for (const a of r.abschnitte) if (a.zeilen.length) teile.push(`<b>${h(a.titel)}</b>\n${a.zeilen.slice(0, 8).map((x) => `• ${fett(x)}`).join('\n')}`);
+    let text = teile.join('\n\n');
+    if (text.length > 3700) text = `${text.slice(0, 3700)} …`;
+    await this.proaktiv(`${text}\n<a href="${this.link('/gebaeude/Rathaus?reiter=woche')}">Ganzer Rückblick</a>`);
   }
 
   /** Wichtige neue Mails – nur mit Schalter „mails“ (standardmäßig aus: Leifs Mail-Assistent meldet schon) */

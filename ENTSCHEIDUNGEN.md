@@ -530,3 +530,11 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
   - je Tag höchstens ein Vorschlag, frühe Tage zuerst, Dauer wählbar (45 min bis 3 h)
   - ganztägige Termine und als „frei“ markierte Termine blockieren nicht; Pflichtvorlesungen und Prüfungen aus der Uni schon
 - **Eintragen erst mit Leifs Klick** („Kalendereinträge legt nur Leif an“): Der Block kommt in den Hauptkalender als „📚 <Titel>“ mit 10 min Erinnerung, ohne Einladungen. Agenten haben dafür kein Werkzeug.
+
+## E80 – Wochenrückblick (Nacht 18./19.11.)
+
+- **Sonntags 18:30 (Linz)** schreibt das Dorf `Rathaus/wochenrueckblick/JJJJ-KWnn.md` (ISO-Kalenderwoche). War der Server aus, holt es den Rückblick bis zu 18 h später nach.
+  - Vom **Code**: erledigte To-dos der Woche, offene und überfällige, Fokus (Stunden, stärkster Tag, Fächer), Fristen/Termine/fällige To-dos der nächsten 7 Tage, Budget-Zeilen der Bank und erledigte Agenten-Aufträge.
+  - Von der **KI** (klein, ohne Werkzeuge, Fakten als Fremdinhalt): 2–3 Sätze Einschätzung und 2–3 kleine Vorschläge für die nächste Woche, als Checkliste in der Datei.
+- In der App unter Rathaus → Wochenrückblick (auch „Jetzt erstellen“) und per Telegram; der Schalter ist derselbe wie bei der Morgenzeitung.
+- Warum: Ein wöchentlicher Rückblick (wie das „Weekly Review“) hält die Listen sauber und lenkt den Blick auf die kommende Woche – das Dorf erledigt das Zusammentragen.

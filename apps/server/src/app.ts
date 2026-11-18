@@ -1,6 +1,7 @@
 import type { Boerse } from './boerse.js';
 import type { Saxo } from './saxo.js';
 import type { Kirchturm } from './kirchturm.js';
+import type { Wochenrueckblick } from './wochenrueckblick.js';
 import type { GoogleKalender } from './kalender-google.js';
 import type { Corps } from './corps.js';
 import type { Bank } from './bank.js';
@@ -74,6 +75,7 @@ export interface Abhaengigkeiten {
   boerse?: Boerse;
   saxo?: Saxo;
   kirchturm?: Kirchturm;
+  wochenrueckblick?: Wochenrueckblick;
   googleKalender?: GoogleKalender;
 }
 
@@ -406,6 +408,13 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
       await k.loeschen(q.kalenderId, q.id, { serie: q.serie === 'ja' });
       return { ok: true };
     });
+  }
+
+  // ---- Wochenrückblick ----
+  if (a.wochenrueckblick) {
+    const w = a.wochenrueckblick;
+    app.get('/api/wochenrueckblick', async () => ({ aktuell: await w.aktuell() }));
+    app.post('/api/wochenrueckblick/erstellen', async () => ({ pfad: await w.erstellen() }));
   }
 
   // ---- E74: Kirchturm ----

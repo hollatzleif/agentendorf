@@ -672,3 +672,13 @@ test('Lernzeit einplanen: 📅 am To-do zeigt freie Blöcke bis zur Frist, Eintr
   await expect(g).toContainText('✅ eingetragen');
   expect(eingetragen[0]).toMatchObject({ titel: 'Blatt 8', start: `${morgen}T08:00:00.000Z` });
 });
+
+test('Wochenrückblick: im Rathaus erstellen und lesen', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  await page.goto('/gebaeude/Rathaus');
+  await page.getByRole('button', { name: 'Wochenrückblick', exact: true }).click();
+  await page.getByRole('button', { name: 'Jetzt erstellen' }).click();
+  await expect(page.getByRole('heading', { name: /Wochenrückblick \d{4} · KW \d{2}/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Nächste Woche' })).toBeVisible();
+});

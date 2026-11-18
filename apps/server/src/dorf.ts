@@ -37,6 +37,7 @@ import { listenAnlegen } from './todos.js';
 import { UniTodoBruecke } from './uni/todo-bruecke.js';
 import { Saxo } from './saxo.js';
 import { Kirchturm } from './kirchturm.js';
+import { Wochenrueckblick } from './wochenrueckblick.js';
 import { GoogleKalender, googleKalenderKlient, type KalenderKlient } from './kalender-google.js';
 import { Bank, datum as bankDatum } from './bank.js';
 import { Corps } from './corps.js';
@@ -334,6 +335,8 @@ export async function dorfStarten(
     log: (t) => console.warn(t),
   });
   const depotZeilen = { zeitungsZeilen: async () => [...saxo.zeitungsZeilen(), ...(await boerse.zeitungsZeilen())] };
+  // Nacht 18./19.11.: Wochenrückblick sonntags 18:30
+  const wochenrueckblick = new Wochenrueckblick({ db, uhr, vault, hub, ki, todos, uni, kalender, fokus: kirchturm, bank, log: (t) => console.warn(t) });
   const morgenzeitung = new Morgenzeitung({ db, uhr, vault, hub, ki, freigaben: agenten.freigaben, schreibtisch, uni, postbote, kalender, wetter, bank, boerse: depotZeilen, fokus: kirchturm, log: (t) => console.warn(t) });
   let telegram: TelegramBot | undefined;
   if ((konfig.telegramToken || opt.telegram) && konfig.telegramChatId) {
@@ -358,6 +361,7 @@ export async function dorfStarten(
     const t = telegram;
     bank.beiWarnung.push((text) => t.bankMelden(text));
     saxo.beiMeldung.push((text) => void t.saxoMelden(text).catch(() => undefined));
+    wochenrueckblick.beiNeu.push((r) => t.rueckblickSenden(r));
     // Fokus: während einer Pomodoro-Arbeitsphase hält Telegram Meldungen zurück und schickt sie danach gesammelt
     t.fokusAktiv = () => kirchturm.fokusAktiv();
     kirchturm.beiFokusEnde.push(() => void t.nachtNachholen().catch(() => undefined));
@@ -382,13 +386,14 @@ export async function dorfStarten(
   saxoTakt?.unref();
   if (!opt.gmail && opt.beobachten !== false) postbote.starten();
   if (opt.beobachten !== false) morgenzeitung.starten();
+  if (opt.beobachten !== false) wochenrueckblick.starten();
   if (opt.beobachten !== false) aufwachen.starten();
   if (opt.beobachten !== false) automatik.starten();
   // E62: jede Minute fällige Pläne automatisch annehmen
   const planTakt = opt.beobachten !== false ? setInterval(() => void buergermeister.faelligePlaeneAnnehmen().catch((e) => console.warn(`Pläne: ${(e as Error).message}`)), 60_000) : undefined;
   planTakt?.unref();
   const dorfplan = new Dorfplan({ db, uhr, hub, vault, uni, wetter });
-  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen, dorfplan, automatik, listen, bank, corps, boerse, saxo, kirchturm, googleKalender });
+  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen, dorfplan, automatik, listen, bank, corps, boerse, saxo, kirchturm, googleKalender, wochenrueckblick });
   // Abhaken in Obsidian kommt ohne Ereignis an → zusätzlich alle 10 Minuten abgleichen
   const uniTodoTakt = opt.beobachten !== false ? setInterval(() => uniTodosAnstossen(), 600_000) : undefined;
   uniTodoTakt?.unref();
@@ -402,6 +407,7 @@ export async function dorfStarten(
     uni.stoppen();
     postbote.stoppen();
     morgenzeitung.stoppen();
+    wochenrueckblick.stoppen();
     aufwachen.stoppen();
     automatik.stoppen();
     if (planTakt) clearInterval(planTakt);
@@ -412,5 +418,5 @@ export async function dorfStarten(
     await agenten.ruhe();
     db.close();
   });
-  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan, wetter, automatik, todos, listen, bank, corps, boerse, uniTodos, saxo, kirchturm, googleKalender };
+  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan, wetter, automatik, todos, listen, bank, corps, boerse, uniTodos, saxo, kirchturm, googleKalender, wochenrueckblick };
 }
