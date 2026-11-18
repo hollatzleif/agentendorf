@@ -12,6 +12,7 @@ interface DorfTest {
   layoutStand(): DorfLayout | null;
   zustand(id: string): { rot: boolean; blasen: string; rauch: number } | null;
   blickAuf(x: number, z: number, abstand?: number): void;
+  blickAufFigur(id: string, abstand?: number): void;
   figurenAnzahl(): number;
   treffer(e: { clientX: number; clientY: number }): { art: string; id?: string } | null;
 }
@@ -157,8 +158,7 @@ test('Figuren: arbeitender Agent mit Infokarte und Abbrechen; Bürgermeister', a
   const { laufId } = (await r.json()) as { laufId: string };
   await page.waitForFunction(() => window.__dorf!.figurenAnzahl() >= 1, null, { timeout: 15_000 });
   await expect.poll(() => page.evaluate(() => window.__dorf!.zustand('Bibliothek')?.rauch ?? 0)).toBeGreaterThan(0);
-  const l = (await dorf(page)).layout.gebaeude.Bibliothek!;
-  await page.evaluate(([x, z]) => window.__dorf!.blickAuf(x, z, 12), [l.x + 2, l.z + 3] as const);
+  await page.evaluate((id) => window.__dorf!.blickAufFigur(id, 12), laufId);
   await page.waitForTimeout(300);
   const pt = (await page.evaluate((id) => window.__dorf!.bildschirmPunkt('figur', id), laufId))!;
   await page.mouse.click(pt.x, pt.y);
@@ -174,10 +174,40 @@ test('Figuren: arbeitender Agent mit Infokarte und Abbrechen; Bürgermeister', a
 
   // Bürgermeister steht am Rathaus
   await page.getByRole('button', { name: 'Schließen' }).click();
-  const r2 = (await dorf(page)).layout.gebaeude.Rathaus!;
-  await page.evaluate(([x, z]) => window.__dorf!.blickAuf(x, z, 12), [r2.x + 1, r2.z + 3] as const);
+  await page.evaluate(() => window.__dorf!.blickAufFigur('buergermeister', 12));
   await page.waitForTimeout(300);
   const bm = (await page.evaluate(() => window.__dorf!.bildschirmPunkt('buergermeister')))!;
   await page.mouse.click(bm.x, bm.y);
   await expect(page.getByRole('dialog', { name: 'Figur' }).getByRole('heading', { name: /Bürgermeister/ })).toBeVisible();
+});
+
+test('Bürgermeister schickt einen Helfer zur Uni: Figur mit Rucksack, Karte nennt ihn Helfer', async ({ page }, info) => {
+  await imDorf(page);
+  const origin = new URL(page.url()).origin;
+  const r = await page.request.post('/api/schreibtisch', { headers: { origin }, multipart: { text: `Folien vorbereiten ${info.project.name} [helfer Uni|Folien lesen {warte 60000}]` } });
+  expect(r.ok()).toBe(true);
+  // Status: ein Helfer (Auslöser buergermeister) in der Uni
+  await expect
+    .poll(async () => ((await (await page.request.get('/api/dorf/status')).json()) as DorfStatus).figuren.find((f) => f.gebaeude === 'Uni' && f.ausloeser === 'buergermeister')?.laufId ?? null, { timeout: 20_000 })
+    .not.toBeNull();
+  const s = (await (await page.request.get('/api/dorf/status')).json()) as DorfStatus;
+  const helfer = s.figuren.find((f) => f.gebaeude === 'Uni' && f.ausloeser === 'buergermeister')!;
+  await page.waitForFunction((id) => !!window.__dorf!.bildschirmPunkt('figur', id), helfer.laufId, { timeout: 15_000 });
+  await page.evaluate((id) => window.__dorf!.blickAufFigur(id, 12), helfer.laufId);
+  await page.waitForTimeout(300);
+  // eine Stelle suchen, an der wirklich die Figur getroffen wird
+  const pt = await page.evaluate((id) => {
+    const m = window.__dorf!.bildschirmPunkt('figur', id)!;
+    for (const [dx, dy] of [[0, 0], [0, -6], [0, 6], [-4, 0], [4, 0], [0, -12]] as const) {
+      const t = window.__dorf!.treffer({ clientX: m.x + dx, clientY: m.y + dy });
+      if (t?.art === 'figur' && t.id === undefined) return { x: m.x + dx, y: m.y + dy };
+    }
+    return m;
+  }, helfer.laufId);
+  await page.mouse.click(pt.x, pt.y);
+  const karte = page.getByRole('dialog', { name: 'Figur' });
+  await expect(karte.getByText('Helfer des Bürgermeisters in Uni')).toBeVisible();
+  page.once('dialog', (d) => void d.accept());
+  await karte.getByRole('button', { name: 'Abbrechen' }).click();
+  await expect(page.getByText('Dieser Agent ist gerade fertig geworden.')).toBeVisible();
 });

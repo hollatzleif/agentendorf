@@ -280,7 +280,11 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
           {figur === 'buergermeister' && <h3>🎩 Bürgermeister</h3>}
           {figurDaten ? (
             <>
-              {figur !== 'buergermeister' && <h3>{figurDaten.motor === 'api' ? '🔵' : '🟠'} Agent in {gName(figurDaten.gebaeude)}</h3>}
+              {figur !== 'buergermeister' && (
+                <h3>
+                  {figurDaten.motor === 'api' ? '🔵' : '🟠'} {figurDaten.ausloeser === 'buergermeister' ? 'Helfer des Bürgermeisters' : 'Agent'} in {gName(figurDaten.gebaeude)}
+                </h3>
+              )}
               <p className="figur-titel">{figurDaten.titel}</p>
               <p className="figur-auftrag">{figurDaten.auftrag}</p>
               <dl>

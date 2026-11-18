@@ -468,9 +468,10 @@ export class DorfSzene {
   private platz(id: string, slot: number) {
     const p = this.daten?.layout.gebaeude[id];
     if (!p || !this.gebaeude.has(id)) return null;
-    const mitte = new THREE.Vector3((p.x + GRUNDSTUECK / 2) * FELD, BODEN, (p.z + GRUNDSTUECK / 2) * FELD);
+    const mitte = new THREE.Vector3((p.x + GRUNDSTUECK / 2) * FELD, slot === 4 ? BODEN : 0.16, (p.z + GRUNDSTUECK / 2) * FELD);
     const lokal =
-      slot === 4 ? new THREE.Vector3(-0.85, 0, PLATZ / 2 - 0.55) : slot === 5 ? new THREE.Vector3(0.0, 0, PLATZ / 2 - 0.15) : new THREE.Vector3(-1.4 + (slot % 4) * 0.93, 0, PLATZ / 2 - 0.55 - Math.floor(slot / 4) * 0.25);
+      // Agenten stehen auf dem Gehsteig vor dem Grundstück (dort steht keine Deko), mit Blick zum Haus
+      slot === 4 ? new THREE.Vector3(-0.85, 0, PLATZ / 2 - 0.55) : slot === 5 ? new THREE.Vector3(0.0, 0, PLATZ / 2 - 0.15) : new THREE.Vector3(-1.65 + (slot % 4) * 0.75 + (slot % 4 >= 2 ? 0.8 : 0), 0, PLATZ / 2 - 0.2 + Math.floor(slot / 4) * 0.0);
     const pos = mitte.add(lokal.applyAxisAngle(new THREE.Vector3(0, 1, 0), DREH(p.dreh)));
     // Agenten schauen zum Gebäude, der Bürgermeister nach vorn
     return { pos, blick: DREH(p.dreh) + (slot === 4 || slot === 5 ? 0 : Math.PI) };
@@ -621,6 +622,9 @@ export class DorfSzene {
   // ---- Zeiger ---------------------------------------------------------------------------------------
 
   private ray(e: { clientX: number; clientY: number }) {
+    // Matrizen aktuell halten, auch wenn seit der letzten Bewegung noch kein Bild gezeichnet wurde
+    this.scene.updateMatrixWorld();
+    this.kamera.updateMatrixWorld();
     const r = this.renderer.domElement.getBoundingClientRect();
     const ray = new THREE.Raycaster();
     ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), this.kamera);
@@ -696,6 +700,7 @@ export class DorfSzene {
       if (e) p = e.huelle.position.clone().setY(Math.min(1.2, e.modell.hoehe / 2));
     } else p = this.figuren.position(art === 'buergermeister' ? 'buergermeister' : id);
     if (!p) return null;
+    this.kamera.updateMatrixWorld();
     p.project(this.kamera);
     const r = this.renderer.domElement.getBoundingClientRect();
     if (p.z > 1) return null;
@@ -704,6 +709,7 @@ export class DorfSzene {
 
   /** Bildschirmpunkt eines Feldes (Tests) */
   feldPunkt(x: number, z: number) {
+    this.kamera.updateMatrixWorld();
     const p = feldMitte(x, z).project(this.kamera);
     const r = this.renderer.domElement.getBoundingClientRect();
     return { x: r.left + ((p.x + 1) / 2) * r.width, y: r.top + ((1 - p.y) / 2) * r.height };
@@ -716,6 +722,12 @@ export class DorfSzene {
     const e = this.gebaeude.get(id);
     return e ? { rot: e.rot, blasen: e.blasenSchluessel, rauch: e.rauch.length } : null;
   }
+  /** Kamera auf eine Figur richten (Tests) */
+  blickAufFigur(laufId: string | 'buergermeister', abstand = 12) {
+    const p = this.figuren.position(laufId);
+    if (p) this.blickAuf(Math.floor(p.x / FELD), Math.floor(p.z / FELD), abstand);
+  }
+
   /** Kamera so setzen, dass ein Feld in der Mitte liegt (Tests, Bau-Modus) */
   blickAuf(x: number, z: number, abstand = 26) {
     const ziel = feldMitte(x, z);

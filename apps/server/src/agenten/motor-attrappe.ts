@@ -8,7 +8,7 @@ import { AbbruchFehler } from './motor.js';
  *   [freigabe <pfad>]  → beantragt datei_loeschen
  *   [fehler]           → wirft einen Fehler
  *   [warte <ms>]       → wartet (abbrechbar)
- *   [helfer Gebäude|Auftrag]              → Bürgermeister: helfer_starten (freier Helfer)
+ *   [helfer Gebäude|Auftrag]              → Bürgermeister: helfer_starten (freier Helfer; {warte ms} im Auftrag → [warte ms])
  *   [plan Gebäude|Titel; Gebäude|Titel]   → Bürgermeister: plan_vorlegen
  *   <<werkzeug name {json}>>              → beliebiges Werkzeug mit JSON-Eingabe
  */
@@ -40,7 +40,8 @@ export function attrappe(name: 'api' | 'claude-code'): Motor {
       }
       for (const [, inhalt] of m.matchAll(/\[helfer ([^\]]+)\]/g)) {
         const [gebaeude, auftrag] = inhalt!.split('|');
-        const r = await a.werkzeuge.aufrufen('helfer_starten', { gebaeude, auftrag: auftrag ?? 'Auftrag', stufe: 'klein' });
+        // {warte 5000} im Auftrag → [warte 5000] für den Helfer (eckige Klammern gehen hier nicht)
+        const r = await a.werkzeuge.aufrufen('helfer_starten', { gebaeude, auftrag: (auftrag ?? 'Auftrag').replace(/\{(warte \d+)\}/g, '[$1]'), stufe: 'klein' });
         yield { typ: 'nachricht', rolle: 'werkzeug', text: `helfer_starten: ${r.text}` };
       }
       for (const [, inhalt] of m.matchAll(/\[plan ([^\]]+)\]/g)) {

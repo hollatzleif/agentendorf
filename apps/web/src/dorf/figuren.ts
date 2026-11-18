@@ -31,7 +31,7 @@ function teil(eltern: THREE.Object3D, geo: THREE.BufferGeometry, farbe: string, 
   return m;
 }
 
-function figurBauen(o: { hemd: string; hose: string; hut: 'kappe' | 'zylinder' | 'helm'; gegenstand?: 'buch' | 'brief' | 'hammer' | 'mappe'; schaerpe?: boolean }): Teile {
+function figurBauen(o: { hemd: string; hose: string; hut: 'kappe' | 'zylinder' | 'helm'; gegenstand?: 'buch' | 'brief' | 'hammer' | 'mappe'; schaerpe?: boolean; helfer?: boolean }): Teile {
   const obj = new THREE.Group();
   const koerper = new THREE.Group();
   obj.add(koerper);
@@ -79,6 +79,13 @@ function figurBauen(o: { hemd: string; hose: string; hut: 'kappe' | 'zylinder' |
     teil(koerper, halbkugel(0.178, 16), o.hemd, 0, 0.97, 0);
     teil(koerper, kasten(0.2, 0.03, 0.15, 0.01), o.hemd, 0, 0.99, 0.15);
   }
+  if (o.helfer) {
+    // Helfer des Bürgermeisters: Rucksack mit goldenem Wimpel
+    teil(koerper, kasten(0.24, 0.26, 0.12, 0.04), '#8a5a32', 0, 0.58, -0.16);
+    teil(koerper, kasten(0.2, 0.06, 0.13, 0.02), '#6b4426', 0, 0.7, -0.16);
+    teil(koerper, zylinder(0.012, 0.012, 0.55, 5), '#5a3a24', 0.08, 0.9, -0.2);
+    teil(koerper, kasten(0.2, 0.12, 0.012, 0.004), '#f2c14e', 0.18, 1.1, -0.2);
+  }
   const hand = arme[1]!;
   if (o.gegenstand === 'buch') teil(hand, kasten(0.18, 0.22, 0.05, 0.015), '#7a3fbf', 0.02, -0.32, 0.08);
   if (o.gegenstand === 'brief') teil(hand, kasten(0.2, 0.13, 0.02, 0.01), '#f7e7c4', 0.02, -0.32, 0.08);
@@ -110,7 +117,7 @@ interface Agent extends Teile {
 export class Figuren {
   readonly gruppe = new THREE.Group();
   private agenten = new Map<string, Agent>();
-  private bm: (Teile & { arbeitet: THREE.Object3D | null; t: number; pos: THREE.Vector3 | null; blick: number; laeuft: DorfFigur | null }) | null = null;
+  private bm: (Teile & { arbeitet: THREE.Object3D | null; t: number; pos: THREE.Vector3 | null; blick: number; laeuft: DorfFigur | null; winken: number }) | null = null;
   private erst = true;
 
   constructor(
@@ -150,7 +157,10 @@ export class Figuren {
       while (belegt.has(slot)) slot++;
       const ziel = this.welt.platz(d.gebaeude, slot);
       if (!ziel) continue; // Gebäude steht nicht im Dorf
-      const t = figurBauen({ hemd: d.motor === 'api' ? '#3b6fd8' : '#e8762a', hose: '#34405a', hut: 'kappe', gegenstand: gegenstandFuer(d.gebaeude) });
+      const helfer = d.ausloeser === 'buergermeister';
+      const t = figurBauen({ hemd: d.motor === 'api' ? '#3b6fd8' : '#e8762a', hose: '#34405a', hut: 'kappe', gegenstand: gegenstandFuer(d.gebaeude), helfer });
+      // Der Bürgermeister winkt seinem Helfer hinterher
+      if (helfer && this.bm && !this.erst) this.bm.winken = 2.2;
       const a: Agent = { ...t, daten: d, pfad: [], phase: 'da', t: Math.random() * 10, slot, blick: ziel.blick };
       const r = this.rathaus();
       if (this.erst || this.reduziert || !r) {
@@ -199,7 +209,7 @@ export class Figuren {
     const r = this.welt.platz('Rathaus', 4);
     if (!this.bm) {
       const t = figurBauen({ hemd: '#2b2b3a', hose: '#2b2b3a', hut: 'zylinder', gegenstand: 'mappe', schaerpe: true });
-      this.bm = { ...t, arbeitet: null, t: 0, pos: null, blick: 0, laeuft: null };
+      this.bm = { ...t, arbeitet: null, t: 0, pos: null, blick: 0, laeuft: null, winken: 0 };
       this.bm.obj.userData = { buergermeister: true };
       this.gruppe.add(this.bm.obj);
     }
@@ -292,7 +302,19 @@ export class Figuren {
     if (this.bm?.obj.visible && this.bm.pos) {
       const bm = this.bm;
       bm.t += dt;
-      if (bm.laeuft?.status === 'laeuft' && !this.reduziert) {
+      if (bm.winken > 0 && !this.reduziert) {
+        // Winken: rechter Arm hoch und hin und her
+        aktiv = true;
+        bm.winken -= dt;
+        bm.obj.position.copy(bm.pos!);
+        bm.obj.rotation.y = bm.blick;
+        bm.arme[1]!.rotation.x = -2.6;
+        bm.arme[1]!.rotation.z = Math.sin(bm.t * 12) * 0.35;
+        if (bm.winken <= 0) {
+          bm.arme[1]!.rotation.x = 0;
+          bm.arme[1]!.rotation.z = 0;
+        }
+      } else if (bm.laeuft?.status === 'laeuft' && !this.reduziert) {
         // Auf und ab gehen und nachdenken
         aktiv = true;
         const s = Math.sin(bm.t * 0.9);
