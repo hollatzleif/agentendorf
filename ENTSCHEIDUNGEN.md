@@ -839,6 +839,15 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **Fahne am Rathaus,** wenn alle Wochenziele erreicht sind; **Feuerwerk** an Tagen mit ≥ 5 erledigten To-dos.
 - **Wirkung im 3D-Dorf:** mehr Blumen, Laub, Licht und Leben je Stufe – wie die Wetter-Darstellung, aber aus Leifs eigenen Zahlen.
 - **Absicht:** motivieren, nicht bestrafen. Schon ein paar aktive Tage machen das Dorf grün; nichts geht kaputt, wenn eine Woche schlecht war. Ohne KI, nur aus vorhandenen Zahlen. Ein Fehler in der Berechnung verhindert den Dorfstatus nie.
+- **Darstellung im 3D-Dorf** (`apps/web/src/dorf/bluete.ts`, nur Anzeige – der Server bleibt unverändert):
+  - **Blumen:** ein instanziertes Mesh auf freien Feldern und den Wiesen ringsum, an Wegen dichter. Alle Plätze werden einmal fest verteilt; die Stufe bestimmt nur, wie viele gezeichnet werden (karg 6 %, grün 30 %, blühend 65 %, prächtig 100 %; höchstens 1600, Handy 900, Software-Grafik 450). Im Winter wenige helle Winterblüher.
+  - **Farben:** Wiesen und Rasen werden getönt (prächtig satter, karg etwas blasser) – im Winter nicht, Schnee bleibt weiß.
+  - **Fenster nachts:** je Stufe sind mehr Häuser hell erleuchtet (karg die Hälfte, prächtig alle); die übrigen haben gedämpftes Licht, keines ist dunkel. Das Rathaus leuchtet immer.
+  - **„karg“ heißt in der Anzeige „Das Dorf ruht“** – ruhig und schlicht, nichts fehlt oder verfällt.
+  - **Fahne:** eigener Mast vor dem Rathaus in den Rathausfarben; das Tuch weht, wenn animiert wird.
+  - **Feuerwerk:** fünf Raketen kurz nach dem Laden, dann alle 4 Minuten eine Runde – nur mit Animation (nicht bei „Bewegung reduzieren“ und nicht mit Software-Grafik).
+  - **Schild** neben dem Wetter (Symbol + Stufe, am Handy nur das Symbol); Tipp zeigt die Gründe.
+  - **Vorschau:** `?bluete=karg|gruen|bluehend|praechtig`, `?fahne`, `?feuerwerk` (auch `=0`) übersteuern den Serverwert in Szene und Schild. Tests lesen `window.__dorf.blueteStand()`.
 
 ## E113 – Blüte in Zeitung und Rückblick, Telegram /noten (Nacht 18./19.11.)
 

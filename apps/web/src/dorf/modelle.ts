@@ -47,6 +47,10 @@ const F = {
   blumen: ['#ff6b8a', '#ffd23d', '#ffffff', '#b07cff', '#ff8c42'],
 };
 
+/** Rasenfarben der Grundstücke (szene.ts tönt sie nach der Blüte des Dorfs, E112) */
+export const RASEN_FARBEN = [F.rasen, F.rasenDunkel];
+export const GLAS_FARBE = F.glas;
+
 export interface Modell {
   gruppe: THREE.Group;
   /** Lampen (lokal) für den nächtlichen Lichtschein */

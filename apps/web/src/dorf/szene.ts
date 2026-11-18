@@ -1,14 +1,15 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { DEKO_GROESSE, GRUNDSTUECK, belegungBerechnen, feldSchluessel, type DorfLayout, type DorfStatus, type DorfWetter, type Gebaeude, type WetterArt } from '@dorf/shared';
+import { DEKO_GROESSE, GRUNDSTUECK, belegungBerechnen, feldSchluessel, type DorfBluete, type DorfLayout, type DorfStatus, type DorfWetter, type Gebaeude, type WetterArt } from '@dorf/shared';
 import { Bausatz, entsorgen, glasMaterialien, ikosaeder, leuchtMaterialien, material, zufallAus } from './bausatz';
-import { BODEN, FELD, PLATZ, auto, dekoBauen, gebaeudeModell, modellArt, type Modell } from './modelle';
+import { BODEN, FELD, GLAS_FARBE, PLATZ, RASEN_FARBEN, auto, dekoBauen, gebaeudeModell, modellArt, type Modell } from './modelle';
 import { Gelaende, feldMitte, strassenUndWasser, wasserFreigeben, wasserTick, type Grenzen } from './gelaende';
 import { Figuren } from './figuren';
 import { blase, namensschild, type BlasenArt } from './blasen';
 import { wegFinden } from './wege';
 import { Niederschlag, TRUEBUNG, wetterArtVon } from './wetter';
 import { jahreszeit } from './jahreszeit';
+import { BLUETE_BILD, Blumen, Fahne, Feuerwerk, blueteVon, wiesenToenung, type BlueteStufe } from './bluete';
 
 const schneeDaecher = new Map<string, THREE.MeshStandardMaterial>();
 function schneeDach(m: THREE.MeshStandardMaterial) {
@@ -50,6 +51,8 @@ interface GebaeudeEintrag {
   blasenSchluessel: string;
   rauch: Rauch[];
   rot: boolean;
+  /** nachts helle Fenster? (bei niedriger Blüte sind in manchen Häusern nur wenige Lichter an) */
+  hell: boolean;
 }
 
 const DREH = (d: number) => (d * Math.PI) / 2;
@@ -259,6 +262,13 @@ export class DorfSzene {
   private niederschlag: Niederschlag | null = null;
   private blitz = { naechster: 4, rest: 0 };
   private konfetti: { obj: THREE.Points; v: Float32Array; t: number }[] = [];
+  // Blüte (E112): vom Server oder ?bluete=…/?fahne/?feuerwerk
+  private bluete: DorfBluete | undefined;
+  private blumen: Blumen | null = null;
+  private fahne: Fahne | null = null;
+  private feuerwerk: Feuerwerk | null = null;
+  /** Fensterglas für Häuser, in denen nachts nur wenig Licht brennt */
+  private glasMatt: THREE.MeshStandardMaterial | null = null;
   private schmutzig = true;
   private laeuft = true;
   private raf = 0;
@@ -454,8 +464,11 @@ export class DorfSzene {
         this.scene.add(this.autos.gruppe);
       }
       this.figuren.neuPlatzieren();
+      // Blumen stehen nur auf freien Feldern → mit dem Layout neu verteilen
+      this.blumenWeg();
     }
 
+    this.blueteSetzen(d.status?.bluete);
     this.statusSetzen(d.status);
     this.tageszeitSetzen();
     this.uhrStellen();
@@ -509,12 +522,17 @@ export class DorfSzene {
     this.blasenEbene.add(schild);
     const blasen = new THREE.Group();
     this.blasenEbene.add(blasen);
-    const e: GebaeudeEintrag = { schluessel, modell, huelle, pick, schild, blasen, blasenSchluessel: '', rauch: [], rot: false };
+    const e: GebaeudeEintrag = { schluessel, modell, huelle, pick, schild, blasen, blasenSchluessel: '', rauch: [], rot: false, hell: true };
     this.gebaeude.set(g.id, e);
     return e;
   }
 
   private gebaeudeEntfernen(id: string, e: GebaeudeEintrag) {
+    if (this.fahne && this.fahne.gruppe.parent === e.modell.gruppe) {
+      e.modell.gruppe.remove(this.fahne.gruppe);
+      this.fahne.entsorgen();
+      this.fahne = null;
+    }
     this.stadt.remove(e.huelle);
     this.blasenEbene.remove(e.schild, e.blasen);
     for (const r of e.rauch) r.entsorgen();
@@ -709,6 +727,111 @@ export class DorfSzene {
     this.tageszeitSetzen();
   }
 
+  // ---- Blüte (E112): das Dorf zeigt, wie Leifs Woche läuft ---------------------------------------------
+
+  private blumenWeg() {
+    if (!this.blumen) return;
+    this.scene.remove(this.blumen.mesh);
+    this.blumen.entsorgen();
+    this.blumen = null;
+  }
+
+  /** Blumen, Farben, Fensterlicht, Fahne und Feuerwerk nach der Blüte (Server oder Vorschau aus der Adresse) */
+  private blueteSetzen(vomServer: DorfBluete | undefined) {
+    const b = blueteVon(vomServer);
+    this.bluete = b;
+    const bild = BLUETE_BILD[b?.stufe ?? 'gruen'];
+    const jz = jahreszeit();
+    const animiert = !this.o.reduziert && !this.sparsam;
+
+    // Blumen auf freien Feldern im Dorf und auf den Wiesen ringsum
+    if (!this.blumen && this.daten && this.gelaende) {
+      const { belegung } = belegungBerechnen(this.daten.layout);
+      const gel = this.gelaende.g;
+      const feld = (x: number, z: number) => belegung.get(feldSchluessel(Math.floor(x / FELD), Math.floor(z / FELD)));
+      this.blumen = new Blumen(
+        {
+          grenzen: this.grenzen,
+          frei: (x, z) => !feld(x, z) && gel.hoehe(x, z) > -0.05,
+          amWeg: (x, z) => {
+            for (const dx of [-FELD, 0, FELD]) for (const dz of [-FELD, 0, FELD]) if (feld(x + dx, z + dz)?.art === 'strasse') return true;
+            return false;
+          },
+          hoehe: (x, z) => gel.hoehe(x, z),
+        },
+        this.sparsam && !this.voll ? 450 : this.o.handy ? 900 : 1600,
+        jz,
+      );
+      this.scene.add(this.blumen.mesh);
+    }
+    // im Winter blüht wenig – ein paar Winterblüher im Schnee
+    this.blumen?.zeigen(bild.blumen * (jz === 'winter' ? 0.4 : 1));
+
+    // sattere (oder ruhigere) Wiesen; im Winter liegt Schnee, der bleibt weiß
+    const ton = wiesenToenung(jz === 'winter' ? 0 : bild.satt);
+    for (const f of RASEN_FARBEN) material(f).color.set(f).multiply(ton);
+    const boden = this.gelaende?.g.gruppe.getObjectByName('boden');
+    if (boden instanceof THREE.Mesh) (boden.material as THREE.MeshStandardMaterial).color.copy(ton);
+
+    // Fenster: je höher die Stufe, desto mehr Häuser sind nachts hell erleuchtet (ohne Angabe: alle)
+    const anteil = b ? bild.fenster : 1;
+    for (const [id, e] of this.gebaeude) {
+      const hell = e.schluessel.startsWith('rathaus|') || zufallAus(`fenster-${id}`)() < anteil;
+      if (hell === e.hell) continue;
+      const glas = material(GLAS_FARBE, { glanz: true });
+      if (!this.glasMatt) this.glasMatt = glas.clone();
+      const matt = this.glasMatt;
+      e.modell.gruppe.traverse((m) => {
+        if (m instanceof THREE.Mesh && (m.material === glas || m.material === matt)) m.material = hell ? glas : matt;
+      });
+      e.hell = hell;
+    }
+
+    // Fahne vor dem Rathaus, wenn alle Wochenziele erreicht sind
+    const rathaus = [...this.gebaeude.values()].find((e) => e.schluessel.startsWith('rathaus|'));
+    if (b?.fahne && rathaus) {
+      if (!this.fahne) this.fahne = new Fahne();
+      if (this.fahne.gruppe.parent !== rathaus.modell.gruppe) {
+        this.fahne.gruppe.position.set(1.82, BODEN, 0.75);
+        rathaus.modell.gruppe.add(this.fahne.gruppe);
+      }
+    } else if (this.fahne) {
+      this.fahne.gruppe.removeFromParent();
+      this.fahne.entsorgen();
+      this.fahne = null;
+    }
+
+    // Feuerwerk (heute ≥ 5 erledigt): nur mit Animation – kurz nach dem Laden, dann alle paar Minuten einmal
+    if (b?.feuerwerk && animiert) {
+      if (!this.feuerwerk) {
+        this.feuerwerk = new Feuerwerk(
+          () => new THREE.Vector3((this.grenzen.minX + this.grenzen.maxX) / 2, 0, (this.grenzen.minZ + this.grenzen.maxZ) / 2),
+          () => Math.max(this.grenzen.maxX - this.grenzen.minX, this.grenzen.maxZ - this.grenzen.minZ),
+        );
+        this.scene.add(this.feuerwerk.obj);
+      }
+    } else if (this.feuerwerk) {
+      this.scene.remove(this.feuerwerk.obj);
+      this.feuerwerk.entsorgen();
+      this.feuerwerk = null;
+    }
+    this.schmutzig = true;
+  }
+
+  /** Was von der Blüte gerade zu sehen ist (Tests) */
+  blueteStand(): { stufe: BlueteStufe | null; blumen: number; fahne: boolean; feuerwerk: boolean; feuerwerkLaeuft: boolean; feuerwerkRunden: number; helleHaeuser: number; haeuser: number } {
+    return {
+      stufe: this.bluete?.stufe ?? null,
+      blumen: this.blumen?.anzahl() ?? 0,
+      fahne: !!this.fahne?.gruppe.parent,
+      feuerwerk: !!this.feuerwerk,
+      feuerwerkLaeuft: !!this.feuerwerk?.laeuft(),
+      feuerwerkRunden: this.feuerwerk?.runden ?? 0,
+      helleHaeuser: [...this.gebaeude.values()].filter((e) => e.hell).length,
+      haeuser: this.gebaeude.size,
+    };
+  }
+
   /** Konfetti über einem Gebäude (ein Agent ist erfolgreich fertig) */
   feiern(id: string) {
     const e = this.gebaeude.get(id);
@@ -818,9 +941,14 @@ export class DorfSzene {
     (this.sterne.material as THREE.PointsMaterial).opacity = THREE.MathUtils.clamp(1 - tag * 2.2, 0, 1) * 0.9 * (1 - trueb);
     // Fenster und Laternen leuchten, wenn es dunkel wird
     const dunkel = 1 - tag;
+    const fensterLicht = BLUETE_BILD[this.bluete?.stufe ?? 'gruen'].fensterLicht;
     for (const m of glasMaterialien()) {
       m.emissive.set('#ffcc66');
-      m.emissiveIntensity = dunkel * 0.85;
+      m.emissiveIntensity = dunkel * fensterLicht;
+    }
+    if (this.glasMatt) {
+      this.glasMatt.emissive.set('#ffcc66');
+      this.glasMatt.emissiveIntensity = dunkel * 0.22;
     }
     for (const m of leuchtMaterialien()) m.emissiveIntensity = 0.75 + dunkel * 1.6;
     this.himmelsGruppe?.nacht(dunkel, trueb);
@@ -1201,6 +1329,11 @@ export class DorfSzene {
         this.konfettiTick(dt);
         animiert = true;
       }
+      if (this.fahne) {
+        this.fahne.tick(this.uhr.elapsedTime);
+        animiert = true;
+      }
+      if (this.feuerwerk?.tick(dt, this.tag, this.scene.background as THREE.Color)) animiert = true;
       if (this.gebaeude.size) animiert = true; // Blasen schweben
     }
     if (this.auswahl) {
@@ -1232,6 +1365,10 @@ export class DorfSzene {
     this.steuerung.dispose();
     for (const [id, e] of this.gebaeude) this.gebaeudeEntfernen(id, e);
     this.niederschlag?.entsorgen();
+    this.blumenWeg();
+    this.fahne?.entsorgen();
+    this.feuerwerk?.entsorgen();
+    this.glasMatt?.dispose();
     if (this.statisch) {
       wasserFreigeben(this.statisch.gruppe);
       entsorgen(this.statisch.gruppe);

@@ -75,6 +75,7 @@ apps/web        React + Vite, eigener Mini-Router (src/router.ts), TanStack Quer
     gelaende.ts     Hügel, Seen, Wald (instanziert), Straßen/Wasser-Felder mit Markierung, Zebrastreifen, Uferkante
     figuren.ts      Agenten + Bürgermeister, Wege über Straßen (wege.ts, A*), Blasen (nachts schläft er: Zz)
     wetter.ts       Regen/Schnee/Trübung/Blitze nach dem Server-Wetter (?wetter=regen); jahreszeit.ts Laub/Schnee (?jahreszeit=winter)
+    bluete.ts       E112: Blüte sichtbar – Blumen (instanziert), Wiesentönung, Fensterlicht, Fahne am Rathaus, Feuerwerk (?bluete=praechtig, ?fahne, ?feuerwerk)
     bauen.ts        Bau-Modus: Gesten → Layout (Prüfung wie Server: layoutPruefen aus packages/shared)
     DorfAnsicht.tsx Seite: Szene, Knöpfe, Gebäude-Menü (GebaeudeInhalt), Figurenkarte, Bau-Leiste, Speichern mit basisVersion
 apps/werkstatt  eigener Container: unverändertes claude-CLI (Version im Dockerfile gepinnt) + Runner (HTTP, startet

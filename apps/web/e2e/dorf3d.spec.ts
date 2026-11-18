@@ -17,6 +17,7 @@ interface DorfTest {
   treffer(e: { clientX: number; clientY: number }): { art: string; id?: string } | null;
   vorspulen(sekunden: number): void;
   uhrzeiger(id: string): { stunde: number[]; minute: number[] } | null;
+  blueteStand(): { stufe: string | null; blumen: number; fahne: boolean; feuerwerk: boolean; feuerwerkLaeuft: boolean; feuerwerkRunden: number; helleHaeuser: number; haeuser: number };
 }
 declare global {
   interface Window {
@@ -343,6 +344,63 @@ test('Wetter: Schild oben rechts, Tipp zeigt die Wetterkarte; Regen im Dorf ohne
   await expect(karte).toContainText('Schirm mitnehmen');
   await schild.click();
   await expect(karte).toBeHidden();
+  expect(fehler).toEqual([]);
+});
+
+test('Blüte: Schild zeigt die Stufe, Tipp die Gründe; ?bluete/?fahne/?feuerwerk übersteuern nur die Darstellung', async ({ page }) => {
+  const fehler: string[] = [];
+  page.on('pageerror', (e) => fehler.push(e.message));
+  await page.route('**/api/dorf/status', async (route) => {
+    const echt = (await (await route.fetch()).json()) as DorfStatus;
+    await route.fulfill({ json: { ...echt, bluete: { wert: 0.62, stufe: 'bluehend', fahne: false, feuerwerk: false, gruende: ['5 von 7 Tagen aktiv', 'Gewohnheiten 80 %', '120 min Fokus'] } } });
+  });
+  await imDorf(page);
+  const stand = () => page.evaluate(() => window.__dorf!.blueteStand());
+  const bereit = (stufe: string) => page.waitForFunction((s) => window.__dorf?.blueteStand().stufe === s && !!window.__dorf.bildschirmPunkt('gebaeude', 'Rathaus'), stufe, { timeout: 20_000 });
+
+  // Serverwert: blühend, keine Fahne
+  await bereit('bluehend');
+  const schild = page.getByRole('button', { name: 'Blüte des Dorfs: Das Dorf blüht' });
+  await expect(schild).toBeVisible();
+  await schild.click();
+  const karte = page.getByRole('dialog', { name: 'Blüte des Dorfs' });
+  await expect(karte).toContainText('5 von 7 Tagen aktiv');
+  await expect(karte).toContainText('Gewohnheiten 80 %');
+  await expect(karte).not.toContainText('Fahne');
+  await schild.click();
+  await expect(karte).toBeHidden();
+  const bluehend = await stand();
+  expect(bluehend.fahne).toBe(false);
+  expect(bluehend.feuerwerk).toBe(false);
+  expect(bluehend.blumen).toBeGreaterThan(50);
+
+  // Vorschau: prächtig mit Fahne – mehr Blumen, alle Häuser hell
+  await page.goto('/?bluete=praechtig&fahne');
+  await bereit('praechtig');
+  const praechtig = await stand();
+  expect(praechtig.fahne).toBe(true);
+  expect(praechtig.blumen).toBeGreaterThan(bluehend.blumen);
+  expect(praechtig.helleHaeuser).toBe(praechtig.haeuser);
+  const schildPracht = page.getByRole('button', { name: 'Blüte des Dorfs: Das Dorf blüht prächtig' });
+  await schildPracht.click();
+  await expect(karte).toContainText('Alle Wochenziele erreicht');
+  await schildPracht.click();
+
+  // Vorschau: karg – ruhig (wenige Blumen, weniger helle Fenster), aber nichts fehlt; Feuerwerk nur mit Animation
+  await page.goto('/?bluete=karg&fahne=0&feuerwerk');
+  await bereit('karg');
+  const karg = await stand();
+  expect(karg.fahne).toBe(false);
+  expect(karg.blumen).toBeLessThan(bluehend.blumen);
+  expect(karg.blumen).toBeGreaterThan(0);
+  expect(karg.helleHaeuser).toBeLessThan(karg.haeuser);
+  expect(karg.helleHaeuser).toBeGreaterThan(0);
+  expect(karg.feuerwerk).toBe(false); // Software-Grafik im Test = keine Daueranimation
+  await expect(page.getByRole('button', { name: 'Blüte des Dorfs: Das Dorf ruht' })).toBeVisible();
+
+  await page.goto('/?animiert&feuerwerk');
+  // ohne ?bluete gilt weiter der Serverwert (sobald der Status geladen ist)
+  await page.waitForFunction(() => window.__dorf?.blueteStand().feuerwerk === true && window.__dorf.blueteStand().stufe === 'bluehend', null, { timeout: 20_000 });
   expect(fehler).toEqual([]);
 });
 

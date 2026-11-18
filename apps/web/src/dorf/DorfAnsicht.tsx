@@ -6,6 +6,7 @@ import { api, ApiFehler } from '../api';
 import { linkKlick, navigieren, useOrt } from '../router';
 import { GebaeudeInhalt, standardReiter } from '../seiten/Gebaeude';
 import { DorfSzene, type KameraStand, type SzeneTreffer } from './szene';
+import { BLUETE_TEXT, blueteVon } from './bluete';
 import { BauSteuerung, type Auswahl, type Werkzeug } from './bauen';
 import { GebaeudeKnoepfe } from './Knoepfe';
 import { useLiveEreignis, useLiveText } from '../live';
@@ -64,6 +65,9 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
   const zeitungNeu = !!neueste && neueste !== gelesen;
 
   const [wetterOffen, setWetterOffen] = useState(false);
+  // Blüte des Dorfs (E112): Serverwert, in der Vorschau von ?bluete=/?fahne/?feuerwerk übersteuert
+  const [blueteOffen, setBlueteOffen] = useState(false);
+  const bluete = useMemo(() => blueteVon(status.data?.bluete), [status.data?.bluete]);
   const [agentenOffen, setAgentenOffen] = useState(false);
   const buehne = useRef<HTMLDivElement>(null);
   const szene = useRef<DorfSzene | null>(null);
@@ -325,8 +329,25 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
             onClick={() => {
               setWetterOffen((x) => !x);
               setAgentenOffen(false);
+              setBlueteOffen(false);
             }} aria-expanded={wetterOffen} aria-label={`Wetter in ${status.data.wetter.ort ?? 'Konstanz'}: ${WETTER_TEXT[status.data.wetter.art].text}, ${Math.round(status.data.wetter.temperatur)} Grad`}>
             {WETTER_TEXT[status.data.wetter.art].symbol} {Math.round(status.data.wetter.temperatur)}°
+          </button>
+        )}
+        {!bauen && bluete && (
+          <button
+            className="dorf-wetter dorf-bluete"
+            data-stufe={bluete.stufe}
+            onClick={() => {
+              setBlueteOffen((x) => !x);
+              setWetterOffen(false);
+              setAgentenOffen(false);
+            }}
+            aria-expanded={blueteOffen}
+            aria-label={`Blüte des Dorfs: ${BLUETE_TEXT[bluete.stufe].titel}`}>
+            <span aria-hidden>{BLUETE_TEXT[bluete.stufe].symbol}</span>
+            <span className="bluete-text">{BLUETE_TEXT[bluete.stufe].kurz}</span>
+            {bluete.fahne && <span aria-hidden>🚩</span>}
           </button>
         )}
         {!bauen && knopf('Heute – dein Tag', '📋', () => navigieren('/heute'))}
@@ -349,6 +370,7 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
             () => {
               setAgentenOffen((x) => !x);
               setWetterOffen(false);
+              setBlueteOffen(false);
             },
             'text',
           )}
@@ -406,6 +428,27 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
             Jetzt {String(status.data.wetter.temperatur).replace('.', ',')} °C, {WETTER_TEXT[status.data.wetter.art].text}
             {status.data.wetter.tag.regen != null && status.data.wetter.tag.regen >= 60 ? ' – Schirm mitnehmen!' : ''}
           </span>
+        </div>
+      )}
+      {blueteOffen && bluete && !bauen && (
+        <div className="dorf-wetterkarte dorf-bluetekarte" role="dialog" aria-label="Blüte des Dorfs">
+          <strong>
+            {BLUETE_TEXT[bluete.stufe].symbol} {BLUETE_TEXT[bluete.stufe].titel}
+          </strong>
+          <span className="bluete-balken" role="img" aria-label={`${Math.round(bluete.wert * 100)} von 100`}>
+            <span style={{ width: `${Math.round(Math.min(1, Math.max(0, bluete.wert)) * 100)}%` }} />
+          </span>
+          <span>{BLUETE_TEXT[bluete.stufe].satz}</span>
+          {bluete.gruende.length > 0 && (
+            <ul className="bluete-gruende" aria-label="Gründe">
+              {bluete.gruende.map((g) => (
+                <li key={g}>{g}</li>
+              ))}
+            </ul>
+          )}
+          {bluete.fahne && <span>🚩 Alle Wochenziele erreicht – die Fahne weht am Rathaus.</span>}
+          {bluete.feuerwerk && <span>🎆 Heute schon fünf oder mehr erledigt – Feuerwerk!</span>}
+          <span className="leise">Aus den letzten 7 Tagen: aktive Tage, Gewohnheiten, Fokus, Erledigtes.</span>
         </div>
       )}
       {!bauen && !panelOffen && <Neuigkeiten />}
