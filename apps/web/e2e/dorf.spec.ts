@@ -303,7 +303,7 @@ test('Marktplatz: To-do-Brett – anlegen, live auf zweitem Gerät, abhaken, bea
   const p2 = await zweit.newPage();
   await p2.goto('/gebaeude/Marktplatz');
   await page.goto('/gebaeude/Marktplatz');
-  await expect(page.getByRole('button', { name: 'To-do' })).toHaveClass(/aktiv/);
+  await expect(page.getByRole('button', { name: 'To-do', exact: true })).toHaveClass(/aktiv/);
   const titel = `Plakat abgeben ${info.project.name}`;
   const form = page.getByRole('form', { name: 'Neues To-do' });
   await form.getByLabel('Neues To-do').fill(titel);
