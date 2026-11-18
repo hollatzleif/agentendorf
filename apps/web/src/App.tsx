@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { FreigabeInfo, Ich, Konflikt } from '@dorf/shared';
 import { api } from './api';
@@ -6,16 +6,18 @@ import { linkKlick, navigieren, useOrt } from './router';
 import { useLiveVerbindung, useLiveZustand } from './live';
 import { Anmelden } from './seiten/Anmelden';
 import { Dorfplatz } from './seiten/Dorfplatz';
-import { GebaeudeSeite } from './seiten/Gebaeude';
-import { Bibliothek } from './seiten/Bibliothek';
-import { Heute } from './seiten/Heute';
-import { Einstellungen } from './seiten/Einstellungen';
-import { ChatSeite } from './seiten/Chat';
 import { Schnelleingabe } from './programm/Schnelleingabe';
 import { ProgrammMeldungen } from './programm/Meldungen';
 import { KirchturmGlocke } from './programm/KirchturmGlocke';
 import { Befehlspalette } from './komponenten/Befehlspalette';
-import { FokusVollbild } from './seiten/FokusVollbild';
+
+// Seiten erst laden, wenn man sie öffnet – der Start (Dorf) bleibt klein
+const GebaeudeSeite = lazy(() => import('./seiten/Gebaeude').then((m) => ({ default: m.GebaeudeSeite })));
+const Bibliothek = lazy(() => import('./seiten/Bibliothek').then((m) => ({ default: m.Bibliothek })));
+const Heute = lazy(() => import('./seiten/Heute').then((m) => ({ default: m.Heute })));
+const Einstellungen = lazy(() => import('./seiten/Einstellungen').then((m) => ({ default: m.Einstellungen })));
+const ChatSeite = lazy(() => import('./seiten/Chat').then((m) => ({ default: m.ChatSeite })));
+const FokusVollbild = lazy(() => import('./seiten/FokusVollbild').then((m) => ({ default: m.FokusVollbild })));
 
 export function App() {
   const qc = useQueryClient();
@@ -120,7 +122,9 @@ function Rahmen() {
           <span className={`live ${live}`} title={live === 'verbunden' ? 'Live verbunden' : live === 'verbinde' ? 'Verbinde …' : 'Getrennt – verbinde neu'} />
         </div>
       </header>
-      <main>{seite}</main>
+      <main>
+        <Suspense fallback={<p className="leise">Lade …</p>}>{seite}</Suspense>
+      </main>
     </div>
   );
 }
