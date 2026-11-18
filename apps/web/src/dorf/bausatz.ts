@@ -18,6 +18,14 @@ export interface MatOpt {
 }
 
 const materialien = new Map<string, THREE.MeshStandardMaterial>();
+
+/** Für Tag/Nacht: alle leuchtenden Materialien (Laternen, Lampen) und das Fensterglas */
+export function leuchtMaterialien() {
+  return [...materialien.entries()].filter(([k]) => k.split('|')[2]).map(([, m]) => m);
+}
+export function glasMaterialien() {
+  return [...materialien.entries()].filter(([k]) => k.startsWith('#6e9fd1|1')).map(([, m]) => m);
+}
 export function material(farbe: string, o: MatOpt = {}): THREE.MeshStandardMaterial {
   const k = `${farbe}|${o.glanz ? 1 : 0}${o.metall ? 1 : 0}${o.flach ? 1 : 0}|${o.leuchten ?? ''}|${o.transparent ?? ''}|${o.doppelseitig ? 1 : 0}`;
   let m = materialien.get(k);

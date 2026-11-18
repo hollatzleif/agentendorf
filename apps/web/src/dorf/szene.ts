@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GRUNDSTUECK, belegungBerechnen, feldSchluessel, type DorfLayout, type DorfStatus, type Gebaeude } from '@dorf/shared';
-import { Bausatz, entsorgen, ikosaeder, material, zufallAus } from './bausatz';
+import { Bausatz, entsorgen, glasMaterialien, ikosaeder, leuchtMaterialien, material, zufallAus } from './bausatz';
 import { BODEN, FELD, PLATZ, auto, dekoBauen, gebaeudeModell, modellArt, type Modell } from './modelle';
 import { Gelaende, feldMitte, strassenUndWasser, type Grenzen } from './gelaende';
 import { Figuren } from './figuren';
@@ -130,6 +130,11 @@ export class DorfSzene {
   private kamera: THREE.PerspectiveCamera;
   private steuerung: OrbitControls;
   private sonne: THREE.DirectionalLight;
+  private himmel: THREE.HemisphereLight;
+  private sterne: THREE.Points;
+  private tag = 1; // 1 = heller Tag, 0 = Nacht
+  private sonnenRichtung = new THREE.Vector3(-0.55, 1, 0.42);
+  private uhrTakt: ReturnType<typeof setInterval>;
   private stadt = new THREE.Group();
   private blasenEbene = new THREE.Group();
   private gebaeude = new Map<string, GebaeudeEintrag>();
@@ -179,7 +184,8 @@ export class DorfSzene {
 
     this.scene.background = new THREE.Color('#bfe2f3');
     this.scene.fog = new THREE.Fog('#cfe7f2', 60, 140);
-    this.scene.add(new THREE.HemisphereLight('#d8f0ff', '#5d8a3a', 1.35));
+    this.himmel = new THREE.HemisphereLight('#d8f0ff', '#5d8a3a', 1.35);
+    this.scene.add(this.himmel);
     this.sonne = new THREE.DirectionalLight('#fff0d0', 2.6);
     this.sonne.castShadow = true;
     const ms = o.handy ? 2048 : 4096;
@@ -187,6 +193,22 @@ export class DorfSzene {
     this.sonne.shadow.bias = -0.0004;
     this.sonne.shadow.normalBias = 0.02;
     this.scene.add(this.sonne, this.sonne.target);
+    // Sterne auf einer Halbkugel – nur nachts sichtbar
+    {
+      const rnd = zufallAus('sterne');
+      const pos: number[] = [];
+      for (let i = 0; i < 700; i++) {
+        const a = rnd() * Math.PI * 2;
+        const h = 0.15 + rnd() * 0.85;
+        const r = Math.sqrt(1 - h * h);
+        pos.push(Math.cos(a) * r * 180, h * 180, Math.sin(a) * r * 180);
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      this.sterne = new THREE.Points(g, new THREE.PointsMaterial({ color: '#ffffff', size: 1.4, sizeAttenuation: false, transparent: true, opacity: 0, fog: false, depthWrite: false }));
+      this.sterne.renderOrder = -1;
+      this.scene.add(this.sterne);
+    }
     this.scene.add(this.stadt, this.blasenEbene);
 
     this.kamera = new THREE.PerspectiveCamera(o.handy ? 38 : 30, 1, 0.3, 400);
@@ -231,6 +253,8 @@ export class DorfSzene {
     this.beobachter.observe(el);
     this.groesse();
     document.addEventListener('visibilitychange', this.sichtbarkeit);
+    this.tageszeitSetzen();
+    this.uhrTakt = setInterval(() => this.tageszeitSetzen(), 60_000);
     this.schleife();
   }
 
@@ -298,7 +322,7 @@ export class DorfSzene {
     }
 
     this.statusSetzen(d.status);
-    this.schattenAnpassen();
+    this.tageszeitSetzen();
     if (erstes && !this.o.kamera) this.zentrieren(false);
     this.schmutzig = true;
   }
@@ -502,6 +526,70 @@ export class DorfSzene {
     return [...pts, b.clone()];
   }
 
+  // ---- Tag und Nacht (Linzer Uhrzeit) -----------------------------------------------------------
+
+  /** Stunde in Linz (mit Minuten als Bruchteil); ?uhr=22 zum Ausprobieren */
+  private linzStunde(ms: number) {
+    const vorgabe = new URLSearchParams(location.search).get('uhr');
+    if (vorgabe !== null && !Number.isNaN(Number(vorgabe))) return Number(vorgabe);
+    const teile = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Vienna', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(ms)).split(':');
+    return Number(teile[0]) + Number(teile[1]) / 60;
+  }
+
+  tageszeitSetzen(ms = Date.now()) {
+    const h = this.linzStunde(ms);
+    // Tageslänge für Linz (48° N) grob nach Jahreszeit; Mittag ≈ 12:20 Ortszeit (Sommerzeit verschiebt mit)
+    const jahrestag = Math.floor((ms - Date.UTC(new Date(ms).getUTCFullYear(), 0, 0)) / 86_400_000);
+    const laenge = 12.2 + 3.9 * Math.sin((2 * Math.PI * (jahrestag - 80)) / 365);
+    const mittag = 12.3 + (this.istSommerzeit(ms) ? 1 : 0);
+    const auf = mittag - laenge / 2;
+    const unter = mittag + laenge / 2;
+    const glatt = (a: number, b: number, x: number) => {
+      const t = THREE.MathUtils.clamp((x - a) / (b - a), 0, 1);
+      return t * t * (3 - 2 * t);
+    };
+    const tag = glatt(auf - 0.6, auf + 0.8, h) * (1 - glatt(unter - 0.8, unter + 0.6, h));
+    const daemmerung = Math.max(0, 1 - Math.min(Math.abs(h - auf), Math.abs(h - unter)) / 1.2) * 0.85;
+    this.tag = tag;
+    const nachtFarbe = new THREE.Color('#0d1730');
+    const tagFarbe = new THREE.Color('#bfe2f3');
+    const abend = new THREE.Color('#f0a97c');
+    const himmel = nachtFarbe.clone().lerp(tagFarbe, tag).lerp(abend, daemmerung * 0.55);
+    (this.scene.background as THREE.Color).copy(himmel);
+    (this.scene.fog as THREE.Fog).color.copy(himmel).lerp(new THREE.Color('#ffffff'), tag * 0.12);
+    this.himmel.intensity = 0.38 + 0.97 * tag;
+    this.himmel.color.set('#3c4f80').lerp(new THREE.Color('#d8f0ff'), tag);
+    this.himmel.groundColor.set('#1c2a1a').lerp(new THREE.Color('#5d8a3a'), tag);
+    // Sonne zieht über den Himmel; nachts ein bläulicher Mond aus fester Richtung
+    const fortschritt = THREE.MathUtils.clamp((h - auf) / (unter - auf), 0, 1);
+    const winkel = Math.PI * (0.15 + 0.7 * fortschritt);
+    this.sonnenRichtung.set(-Math.cos(winkel), 0.35 + Math.sin(winkel) * 0.75, 0.42 + Math.sin(winkel) * 0.1);
+    if (tag < 0.05) this.sonnenRichtung.set(0.5, 1, 0.3);
+    this.sonne.color.set(tag < 0.05 ? '#9fb4ff' : '#fff0d0').lerp(new THREE.Color('#ffb070'), daemmerung * 0.6);
+    this.sonne.intensity = tag < 0.05 ? 0.45 : 0.45 + 2.15 * tag;
+    this.renderer.toneMappingExposure = 0.92 + 0.13 * tag;
+    (this.sterne.material as THREE.PointsMaterial).opacity = THREE.MathUtils.clamp(1 - tag * 2.2, 0, 1) * 0.9;
+    // Fenster und Laternen leuchten, wenn es dunkel wird
+    const dunkel = 1 - tag;
+    for (const m of glasMaterialien()) {
+      m.emissive.set('#ffcc66');
+      m.emissiveIntensity = dunkel * 0.85;
+    }
+    for (const m of leuchtMaterialien()) m.emissiveIntensity = 0.75 + dunkel * 1.6;
+    this.schattenAnpassen();
+    this.schmutzig = true;
+  }
+
+  private istSommerzeit(ms: number) {
+    const z = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Vienna', timeZoneName: 'short' }).format(new Date(ms));
+    return /CEST|GMT\+2/.test(z);
+  }
+
+  /** für Tests: wie hell es gerade ist */
+  helligkeit() {
+    return this.tag;
+  }
+
   // ---- Kamera ---------------------------------------------------------------------------------------
 
   zentrieren(sanft = true) {
@@ -572,7 +660,8 @@ export class DorfSzene {
     c.far = h * 4 + 40;
     c.updateProjectionMatrix();
     this.sonne.target.position.copy(m);
-    this.sonne.position.copy(m).add(new THREE.Vector3(-0.55, 1, 0.42).setLength(h * 1.6 + 20));
+    this.sonne.position.copy(m).add(this.sonnenRichtung.clone().setLength(h * 1.6 + 20));
+    this.sterne.position.set(m.x, 0, m.z);
   }
 
   // ---- Bau-Modus-Hilfen ----------------------------------------------------------------------------
@@ -821,6 +910,7 @@ export class DorfSzene {
   entsorgen() {
     this.laeuft = false;
     cancelAnimationFrame(this.raf);
+    clearInterval(this.uhrTakt);
     this.beobachter.disconnect();
     document.removeEventListener('visibilitychange', this.sichtbarkeit);
     this.steuerung.dispose();
