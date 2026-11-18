@@ -46,8 +46,8 @@ export class Wochenziele {
     return { woche: jetzt.woche, pfad: jetzt.pfad, ziele: jetzt.ziele, letzte: { woche: letzte.woche, ziele: letzte.ziele } };
   }
 
-  private async aendern(f: (zeilen: string[], ziele: ReturnType<typeof zieleLesen>) => void) {
-    const a = await this.lesen();
+  private async aendern(f: (zeilen: string[], ziele: ReturnType<typeof zieleLesen>) => void, woche = this.woche()) {
+    const a = await this.lesen(woche);
     const zeilen = a.inhalt ? a.inhalt.split(/\r?\n/) : [`# Wochenziele ${a.woche.replace('-KW', ' · KW ')}`, ''];
     f(zeilen, zieleLesen(zeilen.join('\n')));
     const neu = zeilen.join('\n').replace(/\n*$/, '\n');
@@ -57,7 +57,8 @@ export class Wochenziele {
     return this.stand();
   }
 
-  hinzufuegen(textRoh: string) {
+  /** versatzWochen: 1 = nächste Woche (Vorschläge aus dem Wochenrückblick am Sonntag) */
+  hinzufuegen(textRoh: string, versatzWochen = 0) {
     const text = textRoh.replace(/\s+/g, ' ').trim().slice(0, 200);
     if (!text) throw new DorfFehler(400, 'Das Ziel ist leer.');
     return this.aendern((zeilen, ziele) => {
@@ -65,7 +66,7 @@ export class Wochenziele {
       if (ziele.some((z) => z.text.toLowerCase() === text.toLowerCase())) throw new DorfFehler(409, 'Dieses Ziel steht schon drauf.');
       const nach = ziele.length ? ziele.at(-1)!.zeile + 1 : zeilen.length - (zeilen.at(-1) === '' ? 1 : 0);
       zeilen.splice(nach, 0, `- [ ] ${text}`);
-    });
+    }, this.woche(versatzWochen));
   }
 
   haken(nr: number, erledigt: boolean) {

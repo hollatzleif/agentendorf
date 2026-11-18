@@ -197,7 +197,46 @@ export class TelegramBot {
     for (const a of r.abschnitte) if (a.zeilen.length) teile.push(`<b>${h(a.titel)}</b>\n${a.zeilen.slice(0, 8).map((x) => `• ${fett(x)}`).join('\n')}`);
     let text = teile.join('\n\n');
     if (text.length > 3700) text = `${text.slice(0, 3700)} …`;
-    await this.proaktiv(`${text}\n<a href="${this.link('/gebaeude/Rathaus?reiter=woche')}">Ganzer Rückblick</a>`);
+    // E102: Vorschläge als Wochenziel für nächste Woche übernehmen – je ein signierter Knopf
+    const knoepfe: { text: string; callback_data: string }[][] = [];
+    if (this.o.wochenziele && r.vorschlaege.length) {
+      const id = crypto.randomBytes(6).toString('hex');
+      const alle = this.vorschlaegeWartend();
+      alle[id] = { texte: r.vorschlaege.slice(0, 3), zeit: this.o.uhr.jetzt() };
+      this.vorschlaegeWartendSetzen(alle);
+      r.vorschlaege.slice(0, 3).forEach((v, i) => knoepfe.push([{ text: `🎯 ${v}`.slice(0, 60), callback_data: this.vorschlagDaten(id, i) }]));
+    }
+    await this.proaktiv(`${text}\n<a href="${this.link('/gebaeude/Rathaus?reiter=woche')}">Ganzer Rückblick</a>${knoepfe.length ? '\n\n<i>Antippen = als Ziel für nächste Woche übernehmen:</i>' : ''}`, knoepfe.length ? { reply_markup: { inline_keyboard: knoepfe } } : {});
+  }
+
+  private vorschlagDaten(id: string, i: number) {
+    return `wv:${id}:${i}:${crypto.createHmac('sha256', this.signaturSchluessel).update(`vorschlag:${id}:${i}`).digest('base64url').slice(0, 16)}`;
+  }
+  private vorschlaegeWartend(): Record<string, { texte: string[]; zeit: number }> {
+    const w = (this.o.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'telegram_vorschlaege'").get() as { wert: string } | undefined)?.wert;
+    return w ? JSON.parse(w) : {};
+  }
+  private vorschlaegeWartendSetzen(x: Record<string, { texte: string[]; zeit: number }>) {
+    const jetzt = this.o.uhr.jetzt();
+    const rest = Object.entries(x).filter(([, v]) => jetzt - v.zeit < 8 * 86_400_000).slice(-5);
+    this.o.db.prepare("INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES ('telegram_vorschlaege', ?)").run(JSON.stringify(Object.fromEntries(rest)));
+  }
+  private async vorschlagKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {
+    const m = /^wv:([0-9a-f]{12}):(\d):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
+    if (!m || !this.o.wochenziele || !crypto.timingSafeEqual(Buffer.from(m[3]!), Buffer.from(this.vorschlagDaten(m[1]!, Number(m[2])).split(':')[3]!))) {
+      this.o.log?.('Telegram: Vorschlag-Knopf mit ungültiger Signatur abgelehnt.');
+      return antworten('Ungültiger Knopf.');
+    }
+    const text = this.vorschlaegeWartend()[m[1]!]?.texte[Number(m[2])];
+    if (!text) return antworten('Dieser Vorschlag ist abgelaufen.');
+    // sonntags gehört er in die neue Woche, ab Montag in die laufende
+    const sonntag = new Date(`${this.heuteTag()}T12:00:00Z`).getUTCDay() === 0;
+    try {
+      await this.o.wochenziele.hinzufuegen(text, sonntag ? 1 : 0);
+      return antworten(`🎯 Wochenziel${sonntag ? ' für nächste Woche' : ''} gesetzt.`);
+    } catch (e) {
+      return antworten((e as Error).message.slice(0, 190));
+    }
   }
 
   /** Wichtige neue Mails – nur mit Schalter „mails“ (standardmäßig aus: Leifs Mail-Assistent meldet schon) */
@@ -622,6 +661,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (q.data?.startsWith('er:')) return this.erinnerKnopf(q, antworten);
     if (q.data?.startsWith('ar:')) return this.aufraeumenKnopf(q, antworten);
     if (q.data?.startsWith('sb:')) return this.schnellKnopf(q, antworten);
+    if (q.data?.startsWith('wv:')) return this.vorschlagKnopf(q, antworten);
     const m = /^f:([0-9a-f-]{36}):([jn]):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
     if (!m || !crypto.timingSafeEqual(Buffer.from(m[3]!), Buffer.from(this.signatur(m[1]!, m[2] as 'j' | 'n')))) {
       this.o.log?.('Telegram: Knopf mit ungültiger Signatur abgelehnt.');

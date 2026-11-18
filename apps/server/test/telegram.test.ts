@@ -610,3 +610,20 @@ describe('Morgenzeitung mit Schnellknöpfen (E101)', () => {
     expect(d.gesendet().at(-1)).toMatch(/🧹 <b>Aufräumen<\/b> · noch 1/);
   });
 });
+
+describe('Wochenrückblick: Vorschläge als Wochenziel (E102)', () => {
+  it('Knopf übernimmt den Vorschlag – sonntags für nächste Woche, sonst für die laufende; gefälscht nicht', async () => {
+    const d = await dorf();
+    const r = { woche: '2026-KW47', einleitung: null, vorschlaege: ['3x Sport', 'Blatt 8 früh anfangen'], abschnitte: [] };
+    d.uhr.vor(6 * 86_400_000 + 5.5 * 3_600_000); // So 22.11. 18:30 Linz
+    await d.bot.rueckblickSenden(r as never);
+    const m = d.aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p;
+    const k = (m.reply_markup as { inline_keyboard: { text: string; callback_data: string }[][] }).inline_keyboard;
+    expect(k.map((z) => z[0]!.text)).toEqual(['🎯 3x Sport', '🎯 Blatt 8 früh anfangen']);
+    await d.knopf(k[1]![0]!.callback_data.replace(/:[^:]+$/, ':AAAAAAAAAAAAAAAA'));
+    expect((await d.wochenziele.lesen('2026-KW48')).ziele).toEqual([]);
+    await d.knopf(k[1]![0]!.callback_data);
+    expect((await d.wochenziele.lesen('2026-KW48')).ziele).toEqual([{ text: 'Blatt 8 früh anfangen', erledigt: false }]);
+    expect((await d.wochenziele.lesen('2026-KW47')).ziele).toEqual([]);
+  });
+});

@@ -746,3 +746,9 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
   - **🔁 Gewohnheiten**, wenn heute eine dran ist
 - Ein Tipp führt genau den Befehl aus, den man sonst tippen würde (`/plan`, `/aufraeumen`, `/gewohnheiten`). Die Knöpfe sind HMAC-signiert und lösen nichts anderes aus.
 - Warum: Morgens liest Leif die Zeitung auf dem Handy. Von dort ist der nächste Schritt, nämlich den Tag einzuteilen, so nur einen Tipp entfernt.
+
+## E102 – Vorschläge aus dem Wochenrückblick als Wochenziel (Nacht 18./19.11.)
+
+- Der Wochenrückblick in Telegram (sonntags 18:30) hängt an jeden KI-Vorschlag für die nächste Woche einen Knopf **„🎯 …“** (höchstens drei). Ein Tipp schreibt den Vorschlag als Checkbox-Ziel in die Wochenziele-Datei. Sonntags ist das die Datei der neuen Woche (`JJJJ-KWnn+1`), ab Montag die der laufenden Woche.
+- Die Vorschläge werden für 8 Tage in `dorf_stand` gemerkt, die Knöpfe sind HMAC-signiert. Für Wochenziele gilt weiter die Obergrenze von 7.
+- Warum: Aus dem Rückblick wird so ohne Umweg der Plan für die nächste Woche. Die KI schlägt nur vor, entscheiden tut Leif mit einem Tipp.
