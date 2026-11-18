@@ -1128,3 +1128,23 @@ input.kurz { width: 5em; }
 /* E118: Seite ließ sich nicht laden */
 .seiten-fehler { max-width: 36rem; margin: 2rem auto; text-align: center; }
 .seiten-fehler code { word-break: break-word; }
+
+/* E119: Teilschritte */
+.todo-schritte-knopf.fertig { opacity: 0.7; }
+.todo-schritte { margin-top: 0.4rem; padding: 0.4rem 0.6rem; border-left: 3px solid var(--rand, #d9cfb8); display: grid; gap: 0.35rem; }
+.todo-schritte ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.15rem; }
+.todo-schritte li { display: flex; align-items: center; gap: 0.4rem; }
+.todo-schritte li label { display: flex; align-items: center; gap: 0.45rem; flex: 1; min-height: 32px; cursor: pointer; }
+.todo-schritte li.fertig span { text-decoration: line-through; opacity: 0.6; }
+.todo-schritte-balken { height: 4px; border-radius: 4px; background: rgba(0, 0, 0, 0.08); overflow: hidden; }
+.todo-schritte-balken span { display: block; height: 100%; background: var(--gruen, #4c9a52); border-radius: 4px; transition: width 0.3s; }
+.todo-schritt-neu { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+.todo-schritt-neu input { flex: 1; min-width: 10rem; }
+.todo-vorschlag { display: grid; gap: 0.25rem; padding: 0.4rem; border-radius: 8px; background: rgba(255, 220, 120, 0.15); }
+.todo-vorschlag label { display: flex; gap: 0.45rem; align-items: center; min-height: 30px; }
+.leise-knopf { opacity: 0.55; }
+.heute-schritt-text { display: inline-block; max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+@media (max-width: 600px) { .heute-schritt-text { max-width: 8rem; } }
+.notizen-tag li { display: flex; gap: 0.4rem; align-items: baseline; }
+.notizen-text { flex: 1; overflow-wrap: anywhere; }
+.notizen-todo { flex-shrink: 0; }

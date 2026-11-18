@@ -225,7 +225,7 @@ export const WERKZEUG_DEFINITIONEN: Record<DorfWerkzeug, WerkzeugDefinition> = {
         faellig: { type: 'string', description: 'JJJJ-MM-TT (optional)' },
         gebaeude: { type: 'string', description: 'Bezug, z. B. Uni, Post (optional)' },
         gruppe: { type: 'string', description: 'Gruppe, z. B. Abteilung im Laden („Obst & Gemüse“, „Kühlregal“) oder Amt im Corps (optional)' },
-        notiz: { type: 'string', description: 'Details, Links auf Vault-Dateien (optional)' },
+        notiz: { type: 'string', description: 'Details, Links auf Vault-Dateien (optional). Teilschritte als Zeilen „- [ ] Schritt“ – die App zeigt sie als abhakbare Schritte.' },
         erinnerung: { type: 'string', description: 'Nur wenn Leif es so will: Zeitpunkt JJJJ-MM-TTTHH:MM (Ortszeit Wien) – dann läutet der Kirchturm und Telegram meldet sich (optional)' },
         wiederholen: { type: 'string', description: 'Nur wenn Leif es so will: täglich, werktags, wöchentlich, monatlich, jährlich oder „alle N tage/wochen/monate“. Beim Abhaken entsteht das nächste (optional)' },
       },

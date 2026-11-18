@@ -735,11 +735,19 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     return liste === 'todo' ? `t:${kennung}:${this.todoSignatur(kennung)}` : `l:${LISTEN_KURZ[liste]}:${kennung}:${this.todoSignatur(kennung, liste)}`;
   }
 
+  /** E119: „ ☑ 2/5 → nächster Schritt“ */
+  static schrittText(t: { schritte?: { text: string; erledigt: boolean }[] }) {
+    const s = t.schritte;
+    if (!s?.length) return '';
+    const naechster = s.find((x) => !x.erledigt);
+    return ` <i>☑ ${s.filter((x) => x.erledigt).length}/${s.length}${naechster ? ` → ${h(naechster.text.slice(0, 60))}` : ''}</i>`;
+  }
+
   private async todoListeText(liste: ListenName) {
     const a = LISTEN_ANZEIGE[liste];
     const offen = (await this.o.listen![liste].liste()).filter((t) => !t.erledigt);
     if (!offen.length) return { text: `${a.symbol} <b>${a.titel}</b>\nNichts offen. 🎉\n<i>${a.befehl} &lt;Text&gt; legt einen Eintrag an.</i>`, knoepfe: [] as { text: string; callback_data: string }[][] };
-    const zeilen = offen.slice(0, 25).map((t) => `• ${t.wichtig ? '⭐ ' : ''}${h(t.titel)}${t.gruppe ? ` <i>[${h(t.gruppe)}]</i>` : ''}${t.faellig ? ` <i>(bis ${h(t.faellig)})</i>` : ''}`);
+    const zeilen = offen.slice(0, 25).map((t) => `• ${t.wichtig ? '⭐ ' : ''}${h(t.titel)}${t.gruppe ? ` <i>[${h(t.gruppe)}]</i>` : ''}${t.faellig ? ` <i>(bis ${h(t.faellig)})</i>` : ''}${TelegramBot.schrittText(t)}`);
     const knoepfe = offen.slice(0, 12).map((t) => [{ text: knopfText(`✅ ${t.titel}`), callback_data: this.knopfDaten(liste, this.todoKennung(t.pfad)) }]);
     return {
       text: `${a.symbol} <b>${a.titel}</b> (${offen.length} offen)\n${zeilen.join('\n')}${offen.length > 25 ? '\n…' : ''}\n<a href="${this.link(`/?g=${encodeURIComponent(LISTEN[liste].gebaeude)}`)}">Öffnen</a>`,

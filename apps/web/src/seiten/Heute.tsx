@@ -489,6 +489,13 @@ function TodoZeile({ t, heute }: { t: TodoInfo; heute: string }) {
           🔁
         </span>
       )}
+      {t.schritte && t.schritte.length > 0 && (
+        // E119: der nächste offene Schritt – die eine Sache, mit der man anfängt
+        <span className="heute-todo-datum heute-schritt" title={t.schritte.find((x) => !x.erledigt)?.text ?? 'alle Schritte erledigt'}>
+          ☑ {t.schritte.filter((x) => x.erledigt).length}/{t.schritte.length}
+          {t.schritte.some((x) => !x.erledigt) && <span className="heute-schritt-text"> · {t.schritte.find((x) => !x.erledigt)!.text}</span>}
+        </span>
+      )}
       {fehler && <span className="fehler">{fehler}</span>}
     </li>
   );

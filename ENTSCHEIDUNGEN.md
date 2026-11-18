@@ -904,3 +904,21 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
   - Zwei gleichzeitige Anlegen derselben Gewohnheit ergeben nur noch einen Eintrag, weil die Doppelt-Prüfung jetzt in der Schreib-Warteschlange läuft.
   - Fokus-Vollbild gibt beim Verlassen den Reitertitel zurück und zeigt, wenn das To-do nicht abgehakt werden konnte.
   - „Erste Schritte“ verschwindet nicht mehr ganz, wenn eine Abfrage scheitert. Nur der betroffene Schritt fällt weg.
+
+## E119 – Teilschritte, „In Schritte zerlegen“, Notiz → To-do (Nacht 18./19.11.)
+
+- **Teilschritte = Obsidian-Checkliste im To-do-Text:** Zeilen wie `- [ ] Gliederung` stehen in der Datei des To-dos. Es gibt kein neues Feld, deshalb sieht und bearbeitet Leif sie in Obsidian genauso.
+  - In der App klappt **☑ 1/3** am To-do die Schritte auf: abhaken, ergänzen, entfernen.
+  - Neue Schritte kommen direkt hinter den letzten vorhandenen; sonst Geschriebenes bleibt stehen.
+  - Abhaken prüft den angezeigten Text gegen die Nummer. Passt er nicht mehr, kommt 409 statt eines falschen Häkchens (wie bei den Wochenziele, E111). Änderungen laufen nacheinander und mit `basisVersion`.
+- **Höchstens 30 Schritte** je To-do.
+- **Wiederkehrende To-dos:** Der Nachfolger beginnt mit wieder offenen Schritten.
+- **Anzeige außerhalb des Bretts:**
+  - „Heute“ zeigt „☑ 1/3 · *nächster Schritt*“, also die eine Sache, mit der man anfängt.
+  - Telegram /todo zeigt dasselbe.
+  - Agenten sehen „(1/3 Schritte)“ in `todo_liste` und können Schritte über die Notiz anlegen.
+- **„✂️ Vorschlagen“:** Ein KI-Aufruf ohne Werkzeuge (`SystemAufrufe`, Stufe klein, verbucht im System-Chat „Marktplatz: Schritte“) schlägt 3–7 kleine Schritte vor.
+  - **Geschrieben wird nichts:** Die App zeigt die Vorschläge zum Abwählen, erst „Übernehmen“ legt sie an.
+  - Einträge aus Mails oder Moodle (`fremd`) gehen nur in der Fremdinhalt-Hülle an das Modell.
+  - Ohne API-Schlüssel antwortet der Server mit 503 und einem Hinweis.
+- **Notiz → To-do:** In Rathaus → Notizen hat jede Zeile den Knopf „→ To-do“. Der Titel ist der Text der Notiz, ohne Bild und ohne Quelle. Die Notiz des neuen To-dos verweist auf den Tag; Bilder werden mitgenommen. So bleibt das Erfassen schnell, und entschieden wird später.

@@ -206,6 +206,8 @@ export interface TodoInfo {
   erinnerung?: string;
   /** E94: für welchen Zeitpunkt schon erinnert wurde */
   erinnert?: string;
+  /** E119: Teilschritte – Obsidian-Checkliste im Text („- [ ] Schritt“) */
+  schritte?: { text: string; erledigt: boolean }[];
   quelle?: string; // „Leif“, „Telegram“ oder der Agent/die Aktion
   erstellt?: string;
   erledigtAm?: string;

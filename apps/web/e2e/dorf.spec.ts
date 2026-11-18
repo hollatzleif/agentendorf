@@ -1136,6 +1136,35 @@ test('Rathaus → Notizen: festhalten und die letzten Tage sehen', async ({ page
   await n.getByRole('button', { name: 'Notiz speichern' }).click();
   await expect(n.locator('.notizen-tag').first()).toContainText('Notiz-Ansicht-Test');
   await expect(n.getByRole('textbox', { name: 'Neue Notiz' })).toHaveValue('');
+  // E119: Notiz → To-do
+  await n.getByRole('button', { name: 'Als To-do: Notiz-Ansicht-Test' }).click();
+  await expect(n.getByText('✓ To-do')).toBeVisible();
+  const todos = await (await page.request.get('/api/todos')).json();
+  expect(todos.find((t: { titel: string }) => t.titel === 'Notiz-Ansicht-Test')?.notiz).toMatch(/^Aus der Notiz vom \d{4}-\d{2}-\d{2}, \d{2}:\d{2}\.$/);
+});
+
+test('To-do: Teilschritte anlegen, abhaken, Fortschritt; „Vorschlagen“ ohne Schlüssel erklärt sich', async ({ page }, info) => {
+  await anmelden(page);
+  const titel = `Schritte-Test ${info.project.name}`;
+  await page.request.post('/api/todos', { headers: { origin: ORIGIN }, data: { titel, faellig: new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' }) } });
+  await page.goto('/gebaeude/Marktplatz?reiter=todo');
+  const z = page.locator('li.todo', { hasText: titel });
+  await z.getByRole('button', { name: `Schritte für ${titel}` }).click();
+  const g = z.getByRole('group', { name: `Schritte: ${titel}` });
+  for (const s of ['Gliederung', 'Folien']) {
+    await g.getByRole('textbox', { name: 'Neuer Schritt' }).fill(s);
+    await g.getByRole('button', { name: 'Schritt hinzufügen' }).click();
+    await expect(g.getByText(s, { exact: true })).toBeVisible();
+  }
+  await expect(g.getByRole('textbox', { name: 'Neuer Schritt' })).toHaveValue('');
+  await expect(z.getByRole('button', { name: 'Schritte: 0 von 2' })).toBeVisible();
+  await g.getByRole('checkbox', { name: 'Schritt erledigt: Gliederung' }).check();
+  await expect(z.getByRole('button', { name: 'Schritte: 1 von 2' })).toBeVisible();
+  await g.getByRole('button', { name: '✂️ Vorschlagen' }).click();
+  await expect(g.getByText(/API-Schlüssel/)).toBeVisible();
+  // auf „Heute“: Fortschritt und der nächste Schritt
+  await page.goto('/heute');
+  await expect(page.locator('li', { hasText: titel }).locator('.heute-schritt', { hasText: '1/2' }).filter({ hasText: 'Folien' })).toBeVisible();
 });
 
 test('Heute: Countdown zur nächsten Prüfung', async ({ page }, info) => {

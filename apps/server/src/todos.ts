@@ -123,6 +123,20 @@ export function wiederholungAusText(text: string, heute: string): { titel: strin
 
 const datumText = (v: unknown) => (v instanceof Date ? v.toISOString().slice(0, 10) : typeof v === 'string' && DATUM.test(v) ? v : undefined);
 
+/** E119: Teilschritte = Obsidian-Checkliste im Text des To-dos („- [ ] Schritt“) */
+const SCHRITT = /^(\s*[-*]\s+\[)([ xX])(\]\s+)(.+?)\s*$/;
+export const MAX_SCHRITTE = 30;
+export function schritteLesen(text: string) {
+  const aus: { text: string; erledigt: boolean; zeile: number }[] = [];
+  text.split(/\r?\n/).forEach((z, i) => {
+    const m = SCHRITT.exec(z);
+    if (m) aus.push({ text: m[4]!, erledigt: m[2] !== ' ', zeile: i });
+  });
+  return aus;
+}
+/** Für den Nachfolger eines wiederkehrenden To-dos: alle Schritte wieder offen */
+export const schritteZuruecksetzen = (text: string) => text.split('\n').map((z) => z.replace(SCHRITT, (_, a: string, _b: string, c: string, t: string) => `${a} ${c}${t}`)).join('\n');
+
 export class TodoDienst {
   /** wird nach jeder Änderung aufgerufen (z. B. für Live-Ereignisse) */
   beiAenderung: () => void = () => undefined;
@@ -168,7 +182,65 @@ export class TodoDienst {
       erstellt: typeof k.erstellt === 'string' ? k.erstellt : k.erstellt instanceof Date ? k.erstellt.toISOString() : undefined,
       erledigtAm: typeof k.erledigt_am === 'string' ? k.erledigt_am : k.erledigt_am instanceof Date ? k.erledigt_am.toISOString() : undefined,
       notiz: m.content.trim() || undefined,
+      ...(() => {
+        const sch = schritteLesen(m.content);
+        return sch.length ? { schritte: sch.map(({ text, erledigt }) => ({ text, erledigt })) } : {};
+      })(),
     };
+  }
+
+  /** Teilschritt abhaken (E119). text: was die App gezeigt hat – passt er nicht mehr zur Nummer → 409 statt falscher Schritt */
+  async schrittHaken(roh: string, nr: number, erledigt: boolean, text?: string, basisVersion?: string) {
+    return this.textAendern(roh, basisVersion, (zeilen) => {
+      const s = schritteLesen(zeilen.join('\n'))[nr];
+      if (!s) throw new DorfFehler(404, 'Diesen Schritt gibt es nicht (mehr).');
+      if (text != null && s.text !== text) throw new DorfFehler(409, 'Die Schritte wurden inzwischen geändert – bitte neu laden.');
+      zeilen[s.zeile] = zeilen[s.zeile]!.replace(SCHRITT, (_, a: string, _b: string, c: string, t: string) => `${a}${erledigt ? 'x' : ' '}${c}${t}`);
+    });
+  }
+
+  /** Schritte anhängen (hinter den letzten vorhandenen Schritt, sonst ans Ende) */
+  async schritteHinzufuegen(roh: string, texte: string[], basisVersion?: string) {
+    const neu = texte.map((t) => t.replace(/\s+/g, ' ').trim().slice(0, 200)).filter(Boolean);
+    if (!neu.length) throw new DorfFehler(400, 'Kein Schritt angegeben.');
+    return this.textAendern(roh, basisVersion, (zeilen) => {
+      const alt = schritteLesen(zeilen.join('\n'));
+      if (alt.length + neu.length > MAX_SCHRITTE) throw new DorfFehler(409, `Höchstens ${MAX_SCHRITTE} Schritte je To-do.`);
+      const nach = alt.length ? alt.at(-1)!.zeile + 1 : zeilen.length;
+      if (!alt.length && zeilen.some((z) => z.trim())) zeilen.push('');
+      zeilen.splice(alt.length ? nach : zeilen.length, 0, ...neu.map((t) => `- [ ] ${t}`));
+    });
+  }
+
+  async schrittEntfernen(roh: string, nr: number, text?: string, basisVersion?: string) {
+    return this.textAendern(roh, basisVersion, (zeilen) => {
+      const s = schritteLesen(zeilen.join('\n'))[nr];
+      if (!s) throw new DorfFehler(404, 'Diesen Schritt gibt es nicht (mehr).');
+      if (text != null && s.text !== text) throw new DorfFehler(409, 'Die Schritte wurden inzwischen geändert – bitte neu laden.');
+      zeilen.splice(s.zeile, 1);
+    });
+  }
+
+  private textKette: Promise<unknown> = Promise.resolve();
+  /** Text des To-dos ändern (Frontmatter bleibt), nacheinander und mit basisVersion – Obsidian-Änderungen gehen nie verloren */
+  private textAendern(roh: string, basisVersion: string | undefined, f: (zeilen: string[]) => void) {
+    const pfad = this.pfadPruefen(roh);
+    const lauf = this.textKette.then(async () => {
+      const d = await this.o.vault.lesen(pfad).catch(() => null);
+      if (!d) throw new DorfFehler(404, 'Dieses To-do gibt es nicht (mehr).');
+      if (basisVersion && basisVersion !== d.version) throw new DorfFehler(409, 'Das To-do wurde inzwischen geändert – bitte neu laden.');
+      const m = matter(d.inhalt);
+      const zeilen = m.content.replace(/\s*$/, '').split('\n');
+      if (zeilen.length === 1 && zeilen[0] === '') zeilen.length = 0;
+      f(zeilen);
+      const inhalt = zeilen.join('\n').replace(/^\n+/, '');
+      const r = await this.o.vault.schreiben(pfad, matter.stringify(inhalt ? `${inhalt}\n` : '', m.data as object), { basisVersion: d.version });
+      if (r.konflikt) throw new DorfFehler(409, 'Das To-do wurde gerade woanders geändert – bitte neu laden.');
+      this.beiAenderung();
+      return (await this.lesenEines(pfad))!;
+    });
+    this.textKette = lauf.catch(() => undefined);
+    return lauf;
   }
 
   /** Offene zuerst (fällige nach Datum, dann neueste), danach Erledigtes der letzten 14 Tage */
@@ -274,7 +346,7 @@ export class TodoDienst {
         faellig: naechstesDatum(regel, ab, heute, urTag),
         ...(typeof k.gebaeude === 'string' && k.gebaeude ? { gebaeude: k.gebaeude.slice(0, 60) } : {}),
         ...(typeof k.gruppe === 'string' && k.gruppe ? { gruppe: k.gruppe.slice(0, 60) } : {}),
-        ...(inhalt.trim() ? { notiz: inhalt.trim().slice(0, 5000) } : {}),
+        ...(inhalt.trim() ? { notiz: schritteZuruecksetzen(inhalt.trim()).slice(0, 5000) } : {}),
         wiederholen: regel,
         ...(monatlich ? { wiederholen_tag: urTag } : {}),
         ...(typeof k.erinnerung === 'string' && ZEITPUNKT.test(k.erinnerung)
@@ -321,7 +393,7 @@ export class TodoDienst {
 
 /** Kurzer Text für Agenten und Telegram */
 export function todoZeile(t: TodoInfo) {
-  return `${t.erledigt ? '[x]' : '[ ]'} ${t.wichtig ? '⭐ ' : ''}${t.titel}${t.faellig ? ` (fällig ${t.faellig})` : ''}${t.wiederholen ? ` 🔁 ${t.wiederholen}` : ''}${t.gruppe ? ` [${t.gruppe}]` : ''}${t.gebaeude ? ` #${t.gebaeude}` : ''} – ${t.pfad}`;
+  return `${t.erledigt ? '[x]' : '[ ]'} ${t.wichtig ? '⭐ ' : ''}${t.titel}${t.schritte?.length ? ` (${t.schritte.filter((s) => s.erledigt).length}/${t.schritte.length} Schritte)` : ''}${t.faellig ? ` (fällig ${t.faellig})` : ''}${t.wiederholen ? ` 🔁 ${t.wiederholen}` : ''}${t.gruppe ? ` [${t.gruppe}]` : ''}${t.gebaeude ? ` #${t.gebaeude}` : ''} – ${t.pfad}`;
 }
 
 /** Alle Listen (E65 + Etappe 7) – eine Instanz je Ordner */

@@ -18,6 +18,8 @@ import type { Corps } from './corps.js';
 import type { Bank } from './bank.js';
 import { programmeRouten } from './programme.js';
 import { LISTEN_NAMEN, type ListenName, type TodoDienst } from './todos.js';
+import { schritteZerlegen } from './todo-schritte.js';
+import type { SystemAufrufe } from './agenten/system.js';
 import type { Dorfplan } from './dorfplan.js';
 import { normalisieren } from './vault/pfade.js';
 import type { Automatik } from './agenten/automatik.js';
@@ -65,6 +67,7 @@ declare module 'fastify' {
 
 export interface Abhaengigkeiten {
   konfig: Konfig;
+  ki?: SystemAufrufe;
   db: DB;
   uhr: Uhr;
   vault: VaultDienst;
@@ -605,7 +608,24 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
         const { pfad } = z.object({ pfad: z.string() }).parse(req.query);
         return { papierkorb: await l.loeschen(pfad) };
       });
+      // E119: Teilschritte (Checkliste im Text des Eintrags)
+      app.post(`${basis}/schritt`, async (req) => {
+        const b = z.object({ pfad: z.string(), nr: z.number().int().min(0).max(100), erledigt: z.boolean().optional(), entfernen: z.boolean().optional(), text: z.string().optional() }).parse(req.body);
+        if (b.entfernen) return l.schrittEntfernen(b.pfad, b.nr, b.text);
+        if (b.erledigt === undefined) throw new DorfFehler(400, 'erledigt oder entfernen angeben.');
+        return l.schrittHaken(b.pfad, b.nr, b.erledigt, b.text);
+      });
+      app.post(`${basis}/schritte`, async (req) => {
+        const b = z.object({ pfad: z.string(), schritte: z.array(z.string().max(200)).min(1).max(20), basisVersion: z.string().optional() }).parse(req.body);
+        return l.schritteHinzufuegen(b.pfad, b.schritte, b.basisVersion);
+      });
     }
+    // E119: KI schlägt Schritte vor – geschrieben wird erst, wenn Leif sie übernimmt
+    app.post('/api/todos/zerlegen', async (req) => {
+      const { pfad } = z.object({ pfad: z.string() }).parse(req.body);
+      if (!a.ki?.verfuegbar) throw new DorfFehler(503, 'Dafür braucht das Dorf den API-Schlüssel (dorf api-schluessel).');
+      return { schritte: await schritteZerlegen(a.ki, await listen.todo.holen(pfad)) };
+    });
   }
 
   app.get('/api/vault/seitenstand', async (req) => {

@@ -101,6 +101,7 @@ Wo im Dorf was liegt (alles mit vault_lesen/vault_suchen lesbar):
 - Fächer: Uni/faecher/<Fach>/ (Folien, Aufgaben, karten.md = Karteikarten „Frage :: Antwort“; Aktion „Karteikarten erstellen“ füllt sie)
 - Termine: kalender_lesen (falls freigeschaltet). Einträge legt nur Leif an – schlag ihm Zeiten vor, er trägt per „Tag planen“ (App) oder /plan (Telegram) ein.
 - Statistik (To-dos, Fokus, Gewohnheiten, Stimmung) und die „Blüte“ des Dorfs sieht Leif im Rathaus bzw. per /statistik – wenn er nach seiner Woche fragt, verweise darauf oder lies Wochenrückblick/Notizen.
+- Große To-dos lassen sich in Teilschritte zerlegen: Zeilen „- [ ] Schritt“ in der Notiz (todo_liste zeigt „2/5 Schritte“). Leif kann sie in der App auch von der KI vorschlagen lassen („✂️ Vorschlagen“).
 - Erinnerungen setzt man mit dem Feld erinnerung am To-do (todo_anlegen/todo_bearbeiten), wiederkehrend mit wiederholen – nur wenn Leif das will.
 - Fokus/Pomodoro läuft im Kirchturm (App, /fokus in Telegram) – empfiehl ihn für konzentrierte Arbeit an einem To-do.
 </orientierung>
