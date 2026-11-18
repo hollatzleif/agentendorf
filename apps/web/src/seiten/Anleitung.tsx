@@ -1,0 +1,91 @@
+import { linkKlick } from '../router';
+
+/**
+ * „So nutzt du das Dorf“ (Nacht 18./19.11.): der Tages- und Wochenrhythmus mit den Bausteinen der App –
+ * kurz, mit Links. Kein Handbuch, sondern ein Vorschlag, wie alles zusammenspielt.
+ */
+const L = ({ href, children }: { href: string; children: React.ReactNode }) => (
+  <a href={href} onClick={linkKlick}>
+    {children}
+  </a>
+);
+
+export function Anleitung() {
+  return (
+    <article className="karte anleitung">
+      <h1>So nutzt du das Dorf</h1>
+      <p className="leise">Ein Vorschlag für den Rhythmus – nimm, was dir hilft. Alles geht auch per Telegram (/hilfe).</p>
+
+      <h2>☀️ Morgens (5 Minuten)</h2>
+      <ol>
+        <li>
+          <b>Morgenzeitung</b> lesen (Telegram, 06:30): Termine, Fristen, ⭐ Wichtiges, Wochenziele, Gewohnheiten.
+        </li>
+        <li>
+          <b>🧭 Tag planen</b> (Knopf in der Zeitung, /plan oder auf <L href="/heute">Heute</L>): die wichtigsten To-dos landen als Blöcke in freien Kalenderlücken – du wählst, was eingetragen wird.
+        </li>
+        <li>
+          Liegt etwas Überfälliges herum: <b>🧹 Aufräumen</b> (/aufraeumen) – heute, morgen, nächste Woche oder weg.
+        </li>
+      </ol>
+
+      <h2>🍅 Tagsüber</h2>
+      <ul>
+        <li>
+          Am wichtigsten To-do mit <b>🍅 Fokus</b> arbeiten – am besten im <L href="/fokus">Vollbild</L>. Telegram hält solange Meldungen zurück; danach fragt es, ob das To-do erledigt ist.
+        </li>
+        <li>
+          Gedanken sofort festhalten: <b>„notiz: …“</b> in Telegram oder Strg/⌘+K → „notiz …“. Aufgaben: <b>„todo: …“</b>, auch „… jeden Montag“.
+        </li>
+        <li>
+          Zeitgebundenes: <b>/erinner morgen 9 Uhr …</b> – der Kirchturm läutet, Telegram meldet sich.
+        </li>
+        <li>
+          Lernen: <L href="/gebaeude/Uni?reiter=karten">Karteikarten</L> (/karten) in Pausen; vor Prüfungen fragt der Prüfungs-Wächter nach einem Lernplan.
+        </li>
+      </ul>
+
+      <h2>🌙 Abends (2 Minuten)</h2>
+      <ol>
+        <li>
+          <b>Tagesabschluss</b> (Telegram, 21:00): Erledigtes, Fokus, was morgen fällig ist.
+        </li>
+        <li>
+          <b>⭐ Was ist morgen wichtig?</b> antippen – dann steht es morgen ganz oben.
+        </li>
+        <li>
+          <b>🔁 Gewohnheiten</b> abhaken und <b>💭 Wie war dein Tag?</b> – ein Tipp.
+        </li>
+      </ol>
+
+      <h2>🗓️ Sonntags (10 Minuten)</h2>
+      <ol>
+        <li>
+          <b>Wochenrückblick</b> (18:30): Bilanz von Zielen, Gewohnheiten, Fokus, Stimmung – und Vorschläge.
+        </li>
+        <li>
+          Vorschläge mit einem Tipp als <b>🎯 Wochenziele</b> übernehmen – oder auf <L href="/heute">Heute</L> selbst drei setzen.
+        </li>
+        <li>
+          Ein Blick auf die <L href="/gebaeude/Rathaus?reiter=statistik">Statistik</L> und ins Dorf: Je aktiver die Woche, desto mehr blüht es. 🌸
+        </li>
+      </ol>
+
+      <h2>🎓 Im Semester</h2>
+      <ul>
+        <li>
+          Uni-Fristen kommen von selbst als To-dos; <b>📅 am To-do</b> plant Lernzeit oder einen ganzen Lernplan bis zur Prüfung.
+        </li>
+        <li>
+          <L href="/gebaeude/Uni?reiter=noten">Noten & ECTS</L> eintragen – Schnitt und Fortschritt rechnet das Dorf.
+        </li>
+        <li>„Karteikarten erstellen“ macht aus deinen Folien abfragbare Karten.</li>
+      </ul>
+
+      <h2>🔌 Was fehlt noch?</h2>
+      <p>
+        Unter <L href="/einstellungen#anschluesse">Einstellungen → Anschlüsse</L> siehst du, was verbunden ist – und den Befehl für den Server, falls nicht (z. B. Google-Kalender für Tag planen und Lernplan).
+      </p>
+    </article>
+  );
+}

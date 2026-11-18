@@ -25,6 +25,7 @@ const SEITEN: [string, string, string][] = [
   ['🎓', 'Noten & ECTS', '/gebaeude/Uni?reiter=noten'],
   ['📋', 'Heute (Mein Tag)', '/heute'],
   ['🍅', 'Fokus-Vollbild', '/fokus'],
+  ['🧭', 'So nutzt du das Dorf (Anleitung)', '/anleitung'],
   ['☀️', 'Morgenzeitung', '/gebaeude/Rathaus?reiter=morgenzeitung'],
   ['✉️', 'Freigaben', '/gebaeude/Rathaus?reiter=freigaben'],
 ];

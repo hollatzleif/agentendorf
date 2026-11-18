@@ -1,10 +1,13 @@
 import { useState } from 'react';
 
 /** Bei jeder neuen Ausgabe den Schlüssel ändern – dann erscheint die Karte einmal pro Gerät */
-const AUSGABE = '2026-11-19m';
+const AUSGABE = '2026-11-19n';
 const SCHLUESSEL = 'dorf-neuigkeiten-gesehen';
 
 const PUNKTE: [string, string][] = [
+  ['🧭', 'Neu: „So nutzt du das Dorf“ (/anleitung) – der Tages- und Wochenrhythmus mit allen Bausteinen auf einer Seite.'],
+  ['🌸', 'Das Dorf blüht, wenn du aktiv bist: Blumen, Licht, eine Fahne am Rathaus bei erreichten Wochenzielen, Feuerwerk an starken Tagen.'],
+  ['📶', 'Offline angelegte To-dos und Notizen werden gemerkt und von selbst gesendet.'],
   ['🚀', '„Heute“ zeigt „Erste Schritte“ – fünf Dinge zum Ausprobieren, die sich von selbst abhaken.'],
   ['⛶', 'Fokus-Vollbild (/fokus oder „⛶ Vollbild“ auf Heute): nur Uhr, Thema und Knöpfe.'],
   ['📝', 'Rathaus → Notizen, Countdown zur nächsten Prüfung auf „Heute“, Stimmung als Diagramm, sonntags die nächste Woche planen.'],

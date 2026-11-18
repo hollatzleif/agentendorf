@@ -20,6 +20,9 @@ export function Einstellungen() {
   return (
     <section className="einstellungen">
       <h1>Einstellungen</h1>
+      <p className="leise">
+        Neu hier oder neu sortieren? <a href="/anleitung" onClick={linkKlick}>So nutzt du das Dorf</a>
+      </p>
       <Anschluesse />
       <Konflikte />
       <Sitzungen />

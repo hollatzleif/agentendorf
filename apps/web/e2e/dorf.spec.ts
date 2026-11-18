@@ -1206,3 +1206,12 @@ test('Offline: To-do wird gemerkt und nach der Verbindung gesendet', async ({ pa
   await expect(page.getByRole('status').filter({ hasText: 'wartet' })).toHaveCount(0);
   await expect(page.locator('li.todo', { hasText: 'Offline-Test' })).toHaveCount(1);
 });
+
+test('Anleitung: erreichbar über Befehlspalette, Links führen weiter', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  await page.goto('/anleitung');
+  await expect(page.getByRole('heading', { name: 'So nutzt du das Dorf' })).toBeVisible();
+  await page.getByRole('link', { name: 'Vollbild' }).click();
+  await expect(page).toHaveURL(/\/fokus$/);
+});

@@ -44,6 +44,9 @@ export function ErsteSchritte() {
           Ausblenden
         </button>
       </div>
+      <p className="leise">
+        Wie alles zusammenspielt: <a href="/anleitung" onClick={linkKlick}>So nutzt du das Dorf</a>
+      </p>
       <ul className="erste-schritte-liste">
         {schritte.map(([fertig, symbol, text, ziel]) => (
           <li key={text} className={fertig ? 'fertig' : ''}>
