@@ -11,6 +11,7 @@ const LISTEN_ANZEIGE: Record<ListenName, { symbol: string; titel: string; befehl
 import { aufwachEinstellungen, istNacht } from '../aufwachen.js';
 import type { Rueckblick } from '../wochenrueckblick.js';
 import { terminAusText, type TerminAusText } from '@dorf/shared';
+import type { Karteikasten } from '../karten.js';
 import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
 import type { FreigabeInfo, PlanInhalt, TelegramStatus } from '@dorf/shared';
@@ -102,6 +103,10 @@ export class TelegramBot {
       postbote?: Postbote;
       morgenzeitung?: Morgenzeitung;
       listen?: Record<ListenName, TodoDienst>;
+      /** Nacht 18./19.11.: /karten – Karteikarten wiederholen */
+      karten?: Karteikasten;
+      /** Nacht 18./19.11.: /fokus – Pomodoro starten */
+      kirchturm?: { ausfuehren(b: unknown): unknown };
       /** Nacht 18./19.11.: /termin – Termin aus Text, eingetragen erst nach Leifs Knopfdruck */
       kalender?: { verbunden: boolean; inHauptkalender(t: TerminAusText): Promise<{ titel: string }> };
       log?: (t: string) => void;
@@ -354,6 +359,8 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       if (b === '/todo') return this.todoBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/einkauf') return this.todoBefehl(text.slice(text.split(/\s/)[0]!.length).trim(), 'einkauf');
       if (b === '/termin') return this.terminBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
+      if (b === '/karten') return this.kartenBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
+      if (b === '/fokus') return this.fokusBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b !== '/neu') return this.befehl(b);
       // „/neu“ beendet das laufende Gespräch; „/neu <Text>“ legt gleich eine neue Aufgabe an
       this.verlaufMerken(m.message_id, '');
@@ -428,7 +435,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
   private async befehl(b: string) {
     if (b === '/start' || b === '/hilfe' || b === '/help')
       return this.senden(
-        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/heute – dein Tag: Wetter, Termine, Fristen\n/fristen – Abgaben und Prüfungen der nächsten 7 Tage (mit Erledigt-Knöpfen)\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/aktion [Name] – Skill starten (ohne Name: Liste)\n/todo – To-do-Liste mit Abhak-Knöpfen (/todo &lt;Text&gt; legt eins an)\n/einkauf – Einkaufsliste (/einkauf &lt;Text&gt; setzt etwas drauf)\n/termin &lt;wann&gt; &lt;was&gt; – Termin in den Kalender (mit Bestätigung)\n/hilfe – diese Hilfe`,
+        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/heute – dein Tag: Wetter, Termine, Fristen\n/fristen – Abgaben und Prüfungen der nächsten 7 Tage (mit Erledigt-Knöpfen)\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/aktion [Name] – Skill starten (ohne Name: Liste)\n/todo – To-do-Liste mit Abhak-Knöpfen (/todo &lt;Text&gt; legt eins an)\n/einkauf – Einkaufsliste (/einkauf &lt;Text&gt; setzt etwas drauf)\n/termin &lt;wann&gt; &lt;was&gt; – Termin in den Kalender (mit Bestätigung)\n/karten [Fach] – Karteikarten wiederholen\n/fokus [Thema] – Pomodoro starten\n/hilfe – diese Hilfe`,
       );
     if (b === '/status') {
       const aktiv = this.o.agenten.aktiveLaeufe();
@@ -539,6 +546,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (q.data?.startsWith('v:')) return this.vorbereitenKnopf(q, antworten);
     if (q.data?.startsWith('t:') || q.data?.startsWith('l:')) return this.todoKnopf(q, antworten);
     if (q.data?.startsWith('k:')) return this.terminKnopf(q, antworten);
+    if (q.data?.startsWith('kk:')) return this.karteKnopf(q, antworten);
     const m = /^f:([0-9a-f-]{36}):([jn]):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
     if (!m || !crypto.timingSafeEqual(Buffer.from(m[3]!), Buffer.from(this.signatur(m[1]!, m[2] as 'j' | 'n')))) {
       this.o.log?.('Telegram: Knopf mit ungültiger Signatur abgelehnt.');
@@ -686,6 +694,82 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       await this.o.api
         .aufruf('editMessageText', { chat_id: q.message.chat.id, message_id: q.message.message_id, text: `📅 Eingetragen:\n${TelegramBot.terminText(w.termin)}`, parse_mode: 'HTML' })
         .catch(() => undefined);
+  }
+
+  // ---- /karten und /fokus (Nacht 18./19.11.) -----------------------------------------------------
+
+  private karteSignatur(teil: string) {
+    return crypto.createHmac('sha256', this.signaturSchluessel).update(`karte:${teil}`).digest('base64url').slice(0, 16);
+  }
+  /** Knopf: kk:<Fach-Nr>:<Karten-Id>:<a|n|s|g|l>:<Signatur> – a = Antwort zeigen */
+  private karteDaten(nr: number, id: string, b: string) {
+    const teil = `${nr}:${id}:${b}`;
+    return `kk:${teil}:${this.karteSignatur(teil)}`;
+  }
+  private async kartenFaecher() {
+    return (await this.o.karten!.uebersicht()).map((f) => f.fach);
+  }
+
+  private async karteZeigen(nr: number, fach: string, ziel?: { chat: number | string; message: number }) {
+    const k = (await this.o.karten!.faellig(fach, 1))[0];
+    const text = k ? `🃏 <b>${h(fach)}</b>${k.neu ? ' · neu' : ''}\n\n${h(k.frage)}` : `🃏 <b>${h(fach)}</b>\nFertig für heute. 🎉`;
+    const extra = k ? { reply_markup: { inline_keyboard: [[{ text: 'Antwort zeigen', callback_data: this.karteDaten(nr, k.id, 'a') }]] } } : {};
+    if (ziel) return this.o.api.aufruf('editMessageText', { chat_id: ziel.chat, message_id: ziel.message, text, parse_mode: 'HTML', ...extra }).catch(() => undefined);
+    return this.senden(text, extra);
+  }
+
+  private async kartenBefehl(rest: string) {
+    if (!this.o.karten) return this.senden('Karteikarten sind nicht eingerichtet.');
+    const ueb = await this.o.karten.uebersicht();
+    if (!ueb.length) return this.senden('🃏 Noch keine Karteikarten. In der App: Uni → Aktionen → „Karteikarten erstellen“.');
+    const f = rest ? ueb.find((x) => x.fach.toLowerCase().includes(rest.toLowerCase())) : ueb.filter((x) => x.faellig).sort((a, b) => b.faellig - a.faellig)[0];
+    if (!f) {
+      const zeilen = ueb.map((x) => `• ${h(x.fach)}: <b>${x.faellig}</b> dran`);
+      return this.senden(`🃏 <b>Karteikarten</b>\n${zeilen.join('\n')}\n\n<i>/karten &lt;Fach&gt; zum Lernen</i>`);
+    }
+    return this.karteZeigen(ueb.findIndex((x) => x.fach === f.fach), f.fach);
+  }
+
+  private async karteKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {
+    const m = /^kk:(\d{1,3}):([0-9a-f]{20}):([ansgl]):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
+    if (!m || !this.o.karten || !crypto.timingSafeEqual(Buffer.from(m[4]!), Buffer.from(this.karteSignatur(`${m[1]}:${m[2]}:${m[3]}`)))) {
+      this.o.log?.('Telegram: Karten-Knopf mit ungültiger Signatur abgelehnt.');
+      return antworten('Ungültiger Knopf.');
+    }
+    const nr = Number(m[1]);
+    const fach = (await this.kartenFaecher())[nr];
+    const karte = fach ? (await this.o.karten.karten(fach)).find((x) => x.id === m[2]) : undefined;
+    if (!fach || !karte) return antworten('Diese Karte gibt es nicht mehr.');
+    const ziel = q.message ? { chat: q.message.chat.id, message: q.message.message_id } : undefined;
+    if (m[3] === 'a') {
+      await antworten('');
+      const knopf = (t: string, b: string) => ({ text: t, callback_data: this.karteDaten(nr, karte.id, b) });
+      if (ziel)
+        await this.o.api
+          .aufruf('editMessageText', {
+            chat_id: ziel.chat,
+            message_id: ziel.message,
+            text: `🃏 <b>${h(fach)}</b>\n\n${h(karte.frage)}\n\n<b>Antwort:</b>\n${h(karte.antwort)}`,
+            parse_mode: 'HTML',
+            reply_markup: { inline_keyboard: [[knopf('Nochmal', 'n'), knopf('Schwer', 's'), knopf('Gut', 'g'), knopf('Leicht', 'l')]] },
+          })
+          .catch(() => undefined);
+      return;
+    }
+    const b = ({ n: 'nochmal', s: 'schwer', g: 'gut', l: 'leicht' } as const)[m[3] as 'n' | 's' | 'g' | 'l'];
+    await this.o.karten.antworten(fach, karte.id, b);
+    await antworten(b === 'nochmal' ? 'Kommt gleich wieder.' : 'Weiter!');
+    await this.karteZeigen(nr, fach, ziel);
+  }
+
+  private async fokusBefehl(rest: string) {
+    if (!this.o.kirchturm) return this.senden('Der Kirchturm ist nicht eingerichtet.');
+    try {
+      this.o.kirchturm.ausfuehren(rest ? { befehl: 'pomodoro_fuer', titel: rest.slice(0, 200) } : { befehl: 'pomodoro', aktion: 'start' });
+    } catch (e) {
+      return this.senden(`⚠️ ${h((e as Error).message)}`);
+    }
+    return this.senden(`🍅 Fokus läuft${rest ? `: <b>${h(rest)}</b>` : ''}. Bis die Runde um ist, halte ich Meldungen zurück (Nicht stören).`);
   }
 
   // ---- Bank (Etappe 7) --------------------------------------------------------------------------

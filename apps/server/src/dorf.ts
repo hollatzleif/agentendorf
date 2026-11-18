@@ -360,6 +360,8 @@ export async function dorfStarten(
       morgenzeitung,
       listen,
       kalender: googleKalender,
+      karten,
+      kirchturm,
       log: (t) => console.warn(t),
     });
     if (!opt.telegram) telegram.starten();

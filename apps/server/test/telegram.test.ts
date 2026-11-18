@@ -340,3 +340,26 @@ describe('Telegram /termin (Nacht 18./19.11.)', () => {
     expect(String(n.aufrufe.filter((a) => a.m === 'sendMessage').at(-1)!.p.text)).toMatch(/nicht verstanden/);
   });
 });
+
+describe('Telegram /karten und /fokus (Nacht 18./19.11.)', () => {
+  it('Karte zeigen, Antwort aufdecken, bewerten → nächste Karte; gefälschter Knopf zählt nicht; /fokus startet', async () => {
+    const d = await dorf();
+    await d.uni.fachAnlegen('Mathe III');
+    await d.vault.schreiben('Uni/faecher/Mathe III/karten.md', 'A? :: 1\nB? :: 2\n');
+    await d.nachricht({ text: '/karten' });
+    const letzte = () => d.aufrufe.filter((a) => a.m === 'sendMessage' || a.m === 'editMessageText').at(-1)!.p;
+    expect(String(letzte().text)).toMatch(/🃏 <b>Mathe III<\/b> · neu\n\nA\?/);
+    const knopf = (p: Record<string, unknown>, i = 0) => (p.reply_markup as { inline_keyboard: { callback_data: string }[][] }).inline_keyboard[0]![i]!.callback_data;
+    await d.knopf(knopf(letzte()));
+    expect(String(letzte().text)).toMatch(/<b>Antwort:<\/b>\n1/);
+    const gut = knopf(letzte(), 2);
+    await d.knopf(gut.replace(/:[^:]+$/, ':AAAAAAAAAAAAAAAA'));
+    expect((await d.karten.faellig('Mathe III')).length).toBe(2);
+    await d.knopf(gut);
+    expect(String(letzte().text)).toMatch(/B\?/);
+    expect((await d.karten.faellig('Mathe III')).map((k) => k.frage)).toEqual(['B?']);
+    await d.nachricht({ text: '/fokus Blatt 6' });
+    expect(d.kirchturm.zustand().pomodoro).toMatchObject({ phase: 'arbeit', status: 'laeuft', einstellungen: { thema: 'Blatt 6' } });
+    expect(d.gesendet().at(-1)).toMatch(/🍅 Fokus läuft: <b>Blatt 6<\/b>/);
+  });
+});
