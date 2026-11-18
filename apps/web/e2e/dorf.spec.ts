@@ -1094,3 +1094,22 @@ test('Einstellungen → Anschlüsse: zeigt, was fehlt, mit Befehl', async ({ pag
   await expect(zeile('Gmail')).toContainText('dorf gmail-anmelden');
   await expect(zeile('KI (API-Schlüssel)')).toContainText('✓ verbunden'); // Attrappe
 });
+
+test('Gewohnheit „3× pro Woche“ mit Uhrzeit: Wochenstand auf „Heute“', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  await page.goto('/heute');
+  const k = page.getByRole('region', { name: 'Gewohnheiten' });
+  await k.getByRole('button', { name: /Anlegen|Bearbeiten/ }).click();
+  const f = k.getByRole('form', { name: 'Neue Gewohnheit' });
+  await f.getByLabel('Name der Gewohnheit').fill('Wochen-Sport');
+  await f.getByLabel('Wann').selectOption('3x pro woche');
+  await f.getByLabel(/Uhrzeit/).fill('07:30');
+  await f.getByRole('button', { name: 'Gewohnheit anlegen' }).click();
+  await k.getByRole('button', { name: 'Fertig' }).click();
+  const z = k.locator('.gewohnheit', { hasText: 'Wochen-Sport' });
+  await expect(z).toContainText('07:30');
+  await expect(z).toContainText('0/3 diese Woche');
+  await z.getByLabel('Wochen-Sport heute erledigt').check();
+  await expect(z).toContainText('1/3 diese Woche');
+});

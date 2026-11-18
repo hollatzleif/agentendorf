@@ -15,9 +15,12 @@ const TAGE = [
   ['wochenende', 'am Wochenende'],
   ['mo,mi,fr', 'Mo, Mi, Fr'],
   ['di,do', 'Di, Do'],
+  ['2x pro woche', '2× pro Woche (beliebig)'],
+  ['3x pro woche', '3× pro Woche (beliebig)'],
+  ['4x pro woche', '4× pro Woche (beliebig)'],
 ] as const;
 const kurzTag = (tag: string) => new Date(`${tag}T12:00:00Z`).toLocaleDateString('de-AT', { weekday: 'narrow', timeZone: 'UTC' });
-const tageText = (t: GewohnheitStand['tage']) => (Array.isArray(t) ? t.map((x) => x[0]!.toUpperCase() + x[1]).join(', ') : t);
+const tageText = (t: GewohnheitStand['tage']) => (Array.isArray(t) ? t.map((x) => x[0]!.toUpperCase() + x[1]).join(', ') : t.replace('x pro woche', '× pro Woche'));
 
 export function GewohnheitenKarte() {
   const qc = useQueryClient();
@@ -73,7 +76,15 @@ export function GewohnheitenKarte() {
                   <span className="gewohnheit-symbol" aria-hidden>
                     {g.symbol}
                   </span>
-                  <span className="gewohnheit-name">{g.name}</span>
+                  <span className="gewohnheit-name">
+                    {g.name}
+                    {(g.uhrzeit || g.wocheStand) && (
+                      <span className="leise">
+                        {g.uhrzeit ? ` · ${g.uhrzeit}` : ''}
+                        {g.wocheStand ? ` · ${g.wocheStand.erledigt}/${g.wocheStand.ziel} diese Woche` : ''}
+                      </span>
+                    )}
+                  </span>
                 </label>
               ) : (
                 <span className="gewohnheit-haken">
@@ -91,8 +102,9 @@ export function GewohnheitenKarte() {
                 ))}
               </span>
               {g.serie > 0 && (
-                <span className="gewohnheit-serie" title={`${g.serie} fällige Tage in Folge`}>
+                <span className="gewohnheit-serie" title={g.serieEinheit === 'wochen' ? `${g.serie} Wochen in Folge geschafft` : `${g.serie} fällige Tage in Folge`}>
                   🔥 {g.serie}
+                  {g.serieEinheit === 'wochen' ? ' W' : ''}
                 </span>
               )}
               {bearbeiten && (
@@ -121,13 +133,15 @@ function Neu({ fertig, fehler }: { fertig: (a: Antwort) => void; fehler: (t: str
   const [name, setName] = useState('');
   const [symbol, setSymbol] = useState('');
   const [tage, setTage] = useState<string>('täglich');
+  const [uhrzeit, setUhrzeit] = useState('');
   const anlegen = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
     fehler('');
     try {
-      fertig(await api<Antwort>('/api/gewohnheiten', { body: { name: name.trim(), ...(symbol.trim() ? { symbol: symbol.trim() } : {}), tage: tage.includes(',') ? tage.split(',') : tage } }));
+      fertig(await api<Antwort>('/api/gewohnheiten', { body: { name: name.trim(), ...(symbol.trim() ? { symbol: symbol.trim() } : {}), tage: tage.includes(',') ? tage.split(',') : tage, ...(uhrzeit ? { uhrzeit } : {}) } }));
       setName('');
+      setUhrzeit('');
       setSymbol('');
     } catch (err) {
       fehler(err instanceof ApiFehler ? err.message : String(err));
@@ -144,6 +158,7 @@ function Neu({ fertig, fehler }: { fertig: (a: Antwort) => void; fehler: (t: str
           </option>
         ))}
       </select>
+      <input type="time" value={uhrzeit} onChange={(e) => setUhrzeit(e.target.value)} aria-label="Uhrzeit (optional, dann läutet der Kirchturm)" title="Optional: dann läutet der Kirchturm zur Uhrzeit" className="gewohnheit-neu-zeit" />
       <button type="submit" className="haupt" aria-label="Gewohnheit anlegen">
         +
       </button>

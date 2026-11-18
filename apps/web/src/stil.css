@@ -1062,3 +1062,6 @@ input.kurz { width: 5em; }
   .noten .statistik-tabelle input, .noten .statistik-tabelle select { width: 100%; min-width: 0; height: 2.6rem; padding: 0.3rem 0.5rem; }
   .noten-neu > input.noten-zahl { flex-basis: 4.4rem; }
 }
+
+/* Gewohnheiten: Uhrzeit im Formular (E106/E110) */
+.gewohnheit-neu-zeit { width: 7rem; }

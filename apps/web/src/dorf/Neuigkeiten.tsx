@@ -1,10 +1,16 @@
 import { useState } from 'react';
 
 /** Bei jeder neuen Ausgabe den Schlüssel ändern – dann erscheint die Karte einmal pro Gerät */
-const AUSGABE = '2026-11-19k';
+const AUSGABE = '2026-11-19l';
 const SCHLUESSEL = 'dorf-neuigkeiten-gesehen';
 
 const PUNKTE: [string, string][] = [
+  ['🔌', 'Einstellungen → Anschlüsse: was verbunden ist und was fehlt – mit dem Befehl für den Server.'],
+  ['📚', 'Prüfungs-Wächter: steht eine Prüfung an und noch keine Lernzeit im Kalender, fragt Telegram – zwei Tipps und der Lernplan ist eingetragen.'],
+  ['💭', 'Abends fragt Telegram „Wie war dein Tag?“ – die Stimmung steht in /statistik und im Wochenrückblick.'],
+  ['🔁', 'Gewohnheiten jetzt auch „3× pro Woche“ (Serie in Wochen) und mit Uhrzeit – dann läutet der Kirchturm.'],
+  ['📱', 'Telegram: /woche, /statistik, /suche, „todo: …“ ohne Schrägstrich, Knöpfe in der Morgenzeitung, Vorschläge aus dem Wochenrückblick als Wochenziel.'],
+  ['🍅', 'Nach dem Pomodoro an einem To-do: „✓ To-do erledigt“ direkt im Kirchturm-Hinweis.'],
   ['🎓', 'Neu: Uni → Noten – ECTS, Noten, gewichteter Schnitt und Fortschritt zu deinem Ziel (z. B. 180 ECTS). Steht auch in Uni/noten.md.'],
   ['🧹', 'Neu: Überfälliges aufräumen – /aufraeumen in Telegram (heute, morgen, nächste Woche, erledigt …) oder „→ heute/→ morgen“ direkt auf „Heute“.'],
   ['📚', 'Neu: Lernplan bis zur Prüfung – 📅 am To-do → „Lernplan bis zur Frist“: Stunden wählen, das Dorf verteilt die Blöcke gleichmäßig in freie Zeiten, du trägst ein.'],
