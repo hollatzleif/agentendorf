@@ -435,6 +435,16 @@ function TodoZeile({ t, heute }: { t: TodoInfo; heute: string }) {
       {datum && <span className={`heute-todo-datum${ueberfaellig ? ' rot' : ''}`}>{datum}</span>}
       <Stern t={t} />
       {t.gebaeude && <span className="heute-todo-datum">{t.gebaeude}</span>}
+      {t.erinnerung && t.erinnerung.slice(0, 10) === heute && (
+        <span className="heute-todo-datum" title="Erinnerung – der Kirchturm läutet">
+          🔔 {t.erinnerung.slice(11, 16)}
+        </span>
+      )}
+      {t.wiederholen && (
+        <span className="heute-todo-datum" title={`wiederkehrend: ${t.wiederholen}`} aria-label={`wiederkehrend: ${t.wiederholen}`}>
+          🔁
+        </span>
+      )}
       {fehler && <span className="fehler">{fehler}</span>}
     </li>
   );
