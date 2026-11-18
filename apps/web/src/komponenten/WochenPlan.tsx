@@ -151,7 +151,22 @@ export function WochenPlan() {
           </span>
         )}
       </div>
-      <p className="leise wplan-tipp">Ziehen (PC) oder Tag auswählen (Handy) – das setzt nur das Fälligkeitsdatum. Die Leiste zeigt geschätzte Zeit und Termine gegen 8–22 Uhr.</p>
+      <p className="leise wplan-tipp">Ziehen (PC) oder Tag auswählen (Handy) – das setzt nur das Fälligkeitsdatum. Die Leiste zeigt geschätzte Zeit und Termine gegen 8–22 Uhr.
+        <span className="wplan-legende" aria-hidden>
+          <span>
+            <i className="wplan-last-termine" />
+            Termine
+          </span>
+          <span>
+            <i className="wplan-last-todos" />
+            To-dos
+          </span>
+          <span>
+            <i className="zu-voll" />
+            zu voll
+          </span>
+        </span>
+      </p>
       {fehler && <p className="fehler">{fehler}</p>}
       {todos.isError && <p className="fehler">To-dos nicht erreichbar: {todos.error.message}</p>}
       <div className="wplan-spalten">
@@ -170,7 +185,7 @@ export function WochenPlan() {
           const ganztags = termine.filter((t) => t.ganztags && t.start <= tag && tag < t.ende);
           const fertig = erledigtAm(tag);
           return (
-            <div key={tag} className={`wplan-spalte${tag === heute ? ' heute' : ''}${tag < heute ? ' vorbei' : ''}${ueber === tag ? ' ueber' : ''}`} {...zone(tag)} aria-label={tagKurz(tag)}>
+            <div key={tag} className={`wplan-spalte${tag === heute ? ' heute' : ''}${tag < heute ? ' vorbei' : ''}${l.length === 0 && term === 0 ? ' leer' : ''}${ueber === tag ? ' ueber' : ''}`} {...zone(tag)} aria-label={tagKurz(tag)}>
               <h3>
                 {tagKurz(tag)}
                 {tag === heute && <span className="abzeichen">heute</span>}
@@ -179,7 +194,7 @@ export function WochenPlan() {
                 <span className="wplan-last-termine" style={{ width: `${Math.min(1, term / TAG_MIN) * 100}%` }} />
                 <span className="wplan-last-todos" style={{ width: `${Math.max(0, voll - Math.min(1, term / TAG_MIN)) * 100}%` }} />
               </div>
-              <span className="wplan-summe">
+              <span className={`wplan-summe${zuViel ? ' voll' : ''}`}>
                 {l.length} To-do{l.length === 1 ? '' : 's'}
                 {geplant > 0 && ` · ⏱ ${minutenText(geplant)}`}
                 {term > 0 && ` · 📅 ${minutenText(term)}`}

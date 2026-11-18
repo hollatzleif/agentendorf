@@ -1129,58 +1129,123 @@ input.kurz { width: 5em; }
 .seiten-fehler { max-width: 36rem; margin: 2rem auto; text-align: center; }
 .seiten-fehler code { word-break: break-word; }
 
-/* E119: Teilschritte */
-.todo-schritte-knopf.fertig { opacity: 0.7; }
-.todo-schritte { margin-top: 0.4rem; padding: 0.4rem 0.6rem; border-left: 3px solid var(--rand, #d9cfb8); display: grid; gap: 0.35rem; }
-.todo-schritte ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.15rem; }
-.todo-schritte li { display: flex; align-items: center; gap: 0.4rem; }
-.todo-schritte li label { display: flex; align-items: center; gap: 0.45rem; flex: 1; min-height: 32px; cursor: pointer; }
-.todo-schritte li.fertig span { text-decoration: line-through; opacity: 0.6; }
-.todo-schritte-balken { height: 4px; border-radius: 4px; background: rgba(0, 0, 0, 0.08); overflow: hidden; }
-.todo-schritte-balken span { display: block; height: 100%; background: var(--gruen, #4c9a52); border-radius: 4px; transition: width 0.3s; }
-.todo-schritt-neu { display: flex; gap: 0.35rem; flex-wrap: wrap; }
-.todo-schritt-neu input { flex: 1; min-width: 10rem; }
-.todo-vorschlag { display: grid; gap: 0.25rem; padding: 0.4rem; border-radius: 8px; background: rgba(255, 220, 120, 0.15); }
-.todo-vorschlag label { display: flex; gap: 0.45rem; align-items: center; min-height: 30px; }
+/* E119: Teilschritte – Knopf in der Meta-Zeile, darunter eine ruhige Tafel mit Fortschritt, Liste und Eingabe */
+.todo-schritte-knopf { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.todo-schritte-knopf[aria-expanded='true'] { background: linear-gradient(#eef3fb, #d9e2f0); }
+.todo-schritte-knopf.fertig { background: var(--gruen-hell); color: #1f5a1d; border-color: #1f5a1d; box-shadow: 0 2px 0 #1f5a1d; }
+.todo-schritte { margin-top: 0.45rem; padding: 0.5rem 0.6rem; background: #f6f8fb; border: 2px solid var(--rand); border-radius: 12px; display: grid; gap: 0.4rem; }
+.todo-schritte ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.1rem; }
+.todo-schritte li { display: flex; align-items: center; gap: 0.3rem; border-radius: 8px; padding-left: 0.3rem; }
+.todo-schritte li:hover { background: rgb(43 58 85 / 0.05); }
+.todo-schritte li label { display: flex; flex-direction: row; align-items: center; gap: 0.5rem; flex: 1; min-width: 0; min-height: 2rem; padding: 0.15rem 0; cursor: pointer; font-size: 0.92rem; line-height: 1.3; }
+.todo-schritte li label input { flex: none; cursor: pointer; }
+.todo-schritte li label span { min-width: 0; overflow-wrap: anywhere; }
+.todo-schritte li.fertig span { text-decoration: line-through; color: var(--leise); }
+.todo-schritte-balken { height: 6px; border-radius: 6px; background: #dfe5ee; overflow: hidden; }
+.todo-schritte-balken span { display: block; height: 100%; background: linear-gradient(#6fcb52, #3fa63a); border-radius: 6px; transition: width 0.3s; }
 .leise-knopf { opacity: 0.55; }
-.heute-schritt-text { display: inline-block; max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
-@media (max-width: 600px) { .heute-schritt-text { max-width: 8rem; } }
+.todo-schritte .leise-knopf { flex: none; min-width: 2rem; min-height: 2rem; margin-left: 0; padding: 0; opacity: 1; color: var(--leise); background: none; border-color: transparent; box-shadow: none; }
+.todo-schritte .leise-knopf:hover, .todo-schritte .leise-knopf:focus-visible { color: #a3241b; background: #fdecea; border-color: #e9a9a3; }
+.todo-schritt-neu { display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: stretch; }
+.todo-schritt-neu input { flex: 1 1 7rem; min-width: 7rem; min-height: 2.25rem; padding: 0.3rem 0.65rem; font-size: 0.92rem; border-radius: 10px; }
+.todo-schritt-neu button.klein { margin: 0 0 2px; min-height: 2.25rem; min-width: 2.25rem; padding: 0.1rem 0.6rem; white-space: nowrap; }
+.todo-schritte .fehler { margin: 0; font-size: 0.85rem; }
+.todo-vorschlag { display: grid; gap: 0.15rem; padding: 0.5rem 0.6rem; border-radius: 12px; background: #fff7dc; border: 2px solid #ecd58a; }
+.todo-vorschlag p { margin: 0; }
+.todo-vorschlag label { display: flex; flex-direction: row; gap: 0.5rem; align-items: center; min-height: 2rem; font-size: 0.92rem; line-height: 1.3; cursor: pointer; }
+.todo-vorschlag label input { flex: none; }
+.todo-vorschlag label span { min-width: 0; overflow-wrap: anywhere; }
+.todo-vorschlag .zeile { margin-top: 0.3rem; gap: 0.5rem; flex-wrap: wrap; }
+.todo-vorschlag .zeile button.klein { margin-left: 0; min-height: 2rem; padding: 0.1rem 0.7rem; }
+@media (max-width: 760px) {
+  .todo-meta { gap: 0.4rem; }
+  .todo-meta button.klein { margin-left: 0; min-height: 2rem; min-width: 2.4rem; }
+  .todo-schritte { padding: 0.45rem 0.5rem; }
+  .todo-schritte li label { min-height: 2.4rem; }
+  .todo-schritte .leise-knopf { min-width: 2.4rem; min-height: 2.4rem; }
+  .todo-schritt-neu input, .todo-schritt-neu button.klein { min-height: 2.5rem; }
+  .todo-schritt-neu button.klein { min-width: 2.5rem; }
+  .todo-vorschlag label { min-height: 2.4rem; }
+  .todo-vorschlag .zeile button.klein { min-height: 2.5rem; }
+}
+/* „Heute“: Fortschritt + nächster Schritt; mit Schritt-Text eine eigene Zeile unter dem Titel */
+.heute-schritt { font-variant-numeric: tabular-nums; }
+.heute-schritt-text { display: inline-block; max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: pre; vertical-align: bottom; font-weight: 600; }
+.heute-schritt:has(.heute-schritt-text) { order: 9; flex-basis: 100%; display: flex; min-width: 0; margin-top: -0.35rem; padding: 0 0.2rem 0.4rem 2.6rem; }
+.heute-schritt:has(.heute-schritt-text) .heute-schritt-text { flex: 0 1 auto; min-width: 0; max-width: none; }
+.heute-todo .fehler { order: 10; }
 .notizen-tag li { display: flex; gap: 0.4rem; align-items: baseline; }
 .notizen-text { flex: 1; overflow-wrap: anywhere; }
 .notizen-todo { flex-shrink: 0; }
 
-/* E120: Zeitbudget heute */
-.heute-budget { margin: 0.3rem 0 0.4rem; font-size: 0.9rem; }
-.heute-budget.warnung { color: #9a3b1d; font-weight: 600; }
+/* E120: Zeitbudget heute – kleine Tafel unter der Eingabe; orange, wenn der Tag zu voll ist */
+.heute-budget { margin: 0.1rem 0 0.6rem; padding: 0.4rem 0.7rem; font-size: 0.88rem; line-height: 1.4; color: var(--text); background: #eef3fb; border: 2px solid var(--rand); border-radius: 12px; }
+.heute-budget b { font-variant-numeric: tabular-nums; }
+.heute-budget .leise { font-size: inherit; }
+.heute-budget.warnung { color: #7a2e12; font-weight: 600; background: #fff1e0; border-color: #f0b27a; }
 
-/* E121: Wochenplan */
+/* E121: Wochenplan – 8 Spalten (Eingang + Mo–So) passen am PC ohne Scrollen, am Handy untereinander */
 .wplan-kopf { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.wplan-kopf strong { font-weight: 900; font-variant-numeric: tabular-nums; }
+.wplan-kopf button.klein { margin-left: 0; min-width: 2rem; min-height: 2rem; padding: 0.1rem 0.6rem; font-size: 0.9rem; }
 .wplan-ziele { font-size: 0.85rem; color: var(--leise); flex: 1; min-width: 12rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wplan-tipp { margin: 0.3rem 0 0.6rem; font-size: 0.85rem; }
-.wplan-spalten { display: grid; grid-template-columns: repeat(8, minmax(150px, 1fr)); gap: 0.5rem; overflow-x: auto; padding-bottom: 0.5rem; }
-.wplan-spalte { background: var(--karte); border: 2px solid var(--rand); border-radius: 12px; padding: 0.45rem; min-height: 9rem; display: flex; flex-direction: column; gap: 0.3rem; transition: border-color 0.15s, background 0.15s; }
-.wplan-spalte h3 { margin: 0; font-size: 0.95rem; display: flex; gap: 0.35rem; align-items: center; }
-.wplan-spalte.heute { border-color: var(--gruen); }
-.wplan-spalte.vorbei { opacity: 0.75; }
-.wplan-spalte.eingang { background: #f6f1e4; }
-.wplan-spalte.ueber { border-color: var(--dach); border-style: dashed; background: #fff5e8; }
+.wplan-tipp { margin: 0.4rem 0 0.7rem; font-size: 0.85rem; line-height: 1.45; }
+.wplan-legende { display: inline-flex; flex-wrap: wrap; gap: 0.15rem 0.7rem; margin-left: 0.3rem; font-weight: 700; white-space: nowrap; vertical-align: bottom; }
+.wplan-legende i { display: inline-block; width: 0.7rem; height: 0.7rem; margin-right: 0.3rem; border-radius: 3px; vertical-align: -0.05em; }
+.wplan-legende i.zu-voll { background: var(--rot); }
+.wplan-spalten { display: grid; grid-template-columns: repeat(8, minmax(122px, 1fr)); gap: 0.4rem; overflow-x: auto; padding: 0 2px 0.6rem; }
+.wplan-spalte { min-width: 0; background: #fff; border: 2px solid var(--rand); border-radius: 12px; padding: 0.4rem; min-height: 9rem; display: flex; flex-direction: column; gap: 0.3rem; transition: border-color 0.15s, background 0.15s; }
+.wplan-spalte h3 { margin: 0; font-size: 0.82rem; line-height: 1.3; min-height: 1.5rem; display: flex; flex-wrap: wrap; gap: 0.1rem 0.35rem; align-items: center; justify-content: space-between; white-space: nowrap; }
+.wplan-spalte h3 .abzeichen { font-size: 0.66rem; padding: 0 0.3rem; border-width: 1px; background: #fff; border-color: #fff; color: #1f5a1d; }
+/* heute: dunkler Rand mit „Boden“ wie die Tafeln, grüner Kopf (.heute ist auch die Seite „Heute“ – deren Breite/Rand hier zurücksetzen) */
+.wplan-spalte.heute { max-width: none; margin: 0; border-color: var(--navy); box-shadow: 0 3px 0 var(--navy); background: #f7fcf2; }
+.wplan-spalte.heute h3 { margin: -0.4rem -0.4rem 0.1rem; padding: 0.25rem 0.4rem; color: #fff; background: linear-gradient(#57b848, #2f8a2b); border-radius: 9px 9px 0 0; text-shadow: 0 1px 0 #1f5a1d; }
+.wplan-spalte.heute h3 .abzeichen { text-shadow: none; }
+.wplan-spalte.vorbei { background: #f3f5f2; }
+.wplan-spalte.vorbei h3 { color: var(--leise); }
+.wplan-spalte.eingang { background: #f8f3e4; border-color: #e0d4b4; }
+.wplan-spalte.eingang h3 { white-space: normal; justify-content: flex-start; }
+.wplan-spalte.ueber { border-color: var(--dach); border-style: dashed; background: #fff3e2; }
 .wplan-spalte ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; }
-.wplan-karte { background: #fff; border: 1px solid var(--rand); border-radius: 8px; padding: 0.35rem 0.45rem; cursor: grab; display: grid; gap: 0.2rem; font-size: 0.9rem; }
-.wplan-karte.wichtig { border-color: #e7b416; }
-.wplan-karte.ueberfaellig { border-left: 3px solid var(--rot); }
+.wplan-spalte > p { margin: 0; font-size: 0.8rem; }
+.wplan-karte { min-width: 0; background: #fff; border: 2px solid var(--rand); border-radius: 10px; box-shadow: 0 2px 0 var(--rand); padding: 0.3rem 0.4rem 0.35rem; cursor: grab; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.2rem; font-size: 0.84rem; line-height: 1.3; transition: border-color 0.12s, box-shadow 0.12s; }
+.wplan-karte:hover { border-color: var(--navy); box-shadow: 0 2px 0 var(--navy); }
+.wplan-karte:active { cursor: grabbing; }
+.wplan-karte.wichtig { border-color: #e0a800; box-shadow: 0 2px 0 #e0a800; background: #fffbea; }
+.wplan-karte.ueberfaellig { border-left: 5px solid var(--rot); }
 .wplan-karte.zieht { opacity: 0.4; }
-.wplan-titel { overflow-wrap: anywhere; }
-.wplan-meta { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; font-size: 0.78rem; color: var(--leise); }
-.wplan-meta .warnung { color: var(--rot); }
-.wplan-wahl { font-size: 0.78rem; padding: 0.1rem 0.2rem; margin-left: auto; max-width: 8.5rem; }
-.wplan-last { display: flex; height: 6px; border-radius: 6px; background: rgba(0, 0, 0, 0.07); overflow: hidden; }
-.wplan-last-termine { background: #7a9cc6; }
-.wplan-last-todos { background: var(--gruen); }
+.wplan-titel { font-weight: 700; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.wplan-meta { display: flex; flex-wrap: wrap; gap: 0.1rem 0.4rem; align-items: center; font-size: 0.74rem; font-weight: 700; color: var(--leise); font-variant-numeric: tabular-nums; }
+.wplan-meta > span { white-space: nowrap; }
+.wplan-meta .warnung { color: #a3241b; }
+.wplan-wahl { flex: 1 1 100%; width: 100%; min-height: 1.75rem; font-size: 0.74rem; padding: 0.1rem 0.1rem; border-radius: 8px; box-shadow: none; color: var(--leise); background: #f6f8fb; }
+.wplan-wahl:hover, .wplan-wahl:focus { color: var(--text); border-color: var(--navy); }
+.wplan-last { flex: none; display: flex; height: 8px; border-radius: 8px; background: #dfe5ee; overflow: hidden; }
+.wplan-last-termine { background: #3f78c4; }
+.wplan-last-todos { background: #3fa63a; }
 .wplan-last.voll .wplan-last-todos { background: var(--rot); }
-.wplan-summe { font-size: 0.75rem; color: var(--leise); }
-.wplan-ganztags { font-size: 0.75rem; }
+.wplan-summe { font-size: 0.72rem; font-weight: 700; line-height: 1.35; color: var(--leise); font-variant-numeric: tabular-nums; }
+.wplan-summe.voll { color: #a3241b; }
+.wplan-ganztags { font-size: 0.72rem; line-height: 1.3; overflow-wrap: anywhere; }
+@media (min-width: 761px) and (max-width: 1100px) { .wplan-spalten { grid-template-columns: repeat(8, minmax(138px, 1fr)); } }
 @media (max-width: 760px) {
-  .wplan-spalten { grid-template-columns: 1fr; overflow-x: visible; }
-  .wplan-spalte { min-height: 0; }
-  .wplan-karte { cursor: default; }
+  .wplan-kopf button.klein { min-width: 2.5rem; min-height: 2.5rem; font-size: 1rem; }
+  .wplan-kopf strong { flex: 1; text-align: center; }
+  .wplan-spalten { grid-template-columns: minmax(0, 1fr); overflow-x: visible; gap: 0.5rem; padding: 0 0 0.3rem; }
+  /* Kopfzeile je Tag: Name links, Summe rechts, Leiste darunter – leere Tage bleiben eine Zeile hoch */
+  .wplan-spalte { min-height: 0; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.6rem; padding: 0.45rem 0.55rem; }
+  .wplan-spalte h3 { flex: 1 1 auto; font-size: 0.95rem; justify-content: flex-start; gap: 0.5rem; }
+  .wplan-spalte h3 .abzeichen { font-size: 0.72rem; }
+  .wplan-spalte.heute h3 { flex: 1 1 100%; margin: -0.45rem -0.55rem 0; padding: 0.3rem 0.55rem; }
+  .wplan-spalte.eingang h3 { flex-basis: 100%; }
+  .wplan-summe { order: 1; font-size: 0.78rem; }
+  .wplan-spalte.heute .wplan-summe { flex-basis: 100%; }
+  .wplan-last { order: 2; flex: 1 1 100%; }
+  .wplan-spalte.leer .wplan-last { display: none; }
+  .wplan-ganztags, .wplan-spalte ul, .wplan-spalte > p { order: 3; flex: 1 1 100%; }
+  .wplan-spalte ul:empty { display: none; }
+  .wplan-ganztags { font-size: 0.8rem; }
+  .wplan-karte { cursor: default; font-size: 0.95rem; padding: 0.4rem 0.55rem; }
+  .wplan-meta { font-size: 0.8rem; gap: 0.3rem 0.6rem; }
+  .wplan-wahl { flex: 0 1 9rem; width: auto; margin-left: auto; min-height: 2.25rem; font-size: 0.82rem; padding: 0.2rem 0.5rem; }
 }
