@@ -18,6 +18,7 @@ import type { TodoErinnerungen } from '../todo-erinnerungen.js';
 import type { Notizen } from '../notizen.js';
 import { zeitpunktAus } from '../todo-erinnerungen.js';
 import { tagPlanen } from '../tagesplan.js';
+import { ortszeitZuUtc } from '../uni/ical.js';
 
 type PlanBlock = { titel: string; grund: string; start: string; ende: string };
 import type { FokusStatistik, Statistik, TodoInfo } from '@dorf/shared';
@@ -135,6 +136,9 @@ export class TelegramBot {
         /** /plan: freie Lücken eines Tages + Blöcke eintragen (nach Leifs Knopfdruck) */
         freiAmTag?(tag: string): Promise<[number, number][]>;
         bloeckeEintragen?(b: unknown): Promise<unknown>;
+        /** E105 Prüfungs-Wächter */
+        zeitraum?(von: number, bis: number): Promise<{ termine: { titel: string }[] }>;
+        lernplan?(o: { bis: number; stunden: number; dauerMin: number }): Promise<{ gewuenscht: number; bloecke: { start: string; ende: string }[] }>;
       };
       log?: (t: string) => void;
     },
@@ -317,6 +321,7 @@ export class TelegramBot {
       void this.erinnerungenSenden().catch((e) => this.fehler(e));
       void this.nachtNachholen().catch((e) => this.fehler(e));
       void this.abendSenden().catch((e) => this.fehler(e));
+      void this.pruefungsWaechter().catch((e) => this.fehler(e));
     }, 10 * 60_000);
     this.erinnerungsTakt.unref();
   }
@@ -669,6 +674,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (q.data?.startsWith('ar:')) return this.aufraeumenKnopf(q, antworten);
     if (q.data?.startsWith('sb:')) return this.schnellKnopf(q, antworten);
     if (q.data?.startsWith('wv:')) return this.vorschlagKnopf(q, antworten);
+    if (q.data?.startsWith('pw:')) return this.pruefungKnopf(q, antworten);
     const m = /^f:([0-9a-f-]{36}):([jn]):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
     if (!m || !crypto.timingSafeEqual(Buffer.from(m[3]!), Buffer.from(this.signatur(m[1]!, m[2] as 'j' | 'n')))) {
       this.o.log?.('Telegram: Knopf mit ungültiger Signatur abgelehnt.');
@@ -1008,6 +1014,70 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     };
     const teile = [teil('Wochenziele', '🎯 Wochenziele'), teil('Nächste Woche', '📅 Die nächsten 7 Tage'), teil('Gewohnheiten', '🔁 Gewohnheiten (7 Tage)')].filter(Boolean);
     return this.senden(`🗓️ <b>Deine Woche</b>\n\n${teile.length ? teile.join('\n\n') : 'Nichts geplant – ein guter Moment für /ziel.'}`);
+  }
+
+  // ---- Prüfungs-Wächter (E105) -----------------------------------------------------------------------
+
+  private pruefungDaten(k: string, std: number) {
+    return `pw:${k}:${std}:${crypto.createHmac('sha256', this.signaturSchluessel).update(`pruefung:${k}:${std}`).digest('base64url').slice(0, 16)}`;
+  }
+
+  /**
+   * Einmal je Prüfung (To-do „Prüfung: …“ in 3–14 Tagen) fragen, wenn im Kalender noch kein „📚 …<Name>“-Block steht.
+   * Tagsüber (9–20 Uhr), nie nachts; gemerkt wird je Pfad+Datum, damit eine verschobene Prüfung neu zählt.
+   */
+  async pruefungsWaechter() {
+    const k = this.o.kalender;
+    if (!this.o.listen || !k?.verbunden || !k.zeitraum || !k.lernplan) return 0;
+    const jetzt = this.o.uhr.jetzt();
+    const stunde = Number(new Date(jetzt).toLocaleString('en-GB', { timeZone: 'Europe/Vienna', hour: '2-digit', hour12: false }));
+    if (stunde < 9 || stunde >= 20) return 0;
+    const gemeldet = new Set<string>(JSON.parse((this.o.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'telegram_pruefungen'").get() as { wert: string } | undefined)?.wert ?? '[]'));
+    const von = this.heuteTag(3);
+    const bis = this.heuteTag(14);
+    let n = 0;
+    for (const t of await this.o.listen.todo.liste()) {
+      if (t.erledigt || !t.faellig || !/^Prüfung:\s*/i.test(t.titel) || t.faellig < von || t.faellig > bis) continue;
+      const schluessel = `${t.pfad}|${t.faellig}`;
+      if (gemeldet.has(schluessel)) continue;
+      gemeldet.add(schluessel);
+      const name = t.titel.replace(/^Prüfung:\s*/i, '');
+      const tagMs = ortszeitZuUtc(...(t.faellig.split('-').map(Number) as [number, number, number]), 0, 0, 0, 'Europe/Vienna');
+      const termine = await k.zeitraum(jetzt, tagMs).catch(() => null);
+      if (!termine || termine.termine.some((x) => x.titel.startsWith('📚') && x.titel.toLowerCase().includes(name.toLowerCase()))) continue;
+      const tage = Math.round((Date.parse(`${t.faellig}T12:00:00Z`) - Date.parse(`${this.heuteTag()}T12:00:00Z`)) / 86_400_000);
+      const kk = this.todoKennung(t.pfad);
+      await this.senden(`📚 <b>${h(name)}</b> ist in ${tage} Tagen (${h(t.faellig)}) – im Kalender steht noch keine Lernzeit dafür.\nSoll ich einen Lernplan bis zum Vorabend vorschlagen?`, {
+        reply_markup: { inline_keyboard: [[6, 10, 15].map((std) => ({ text: `${std} h`, callback_data: this.pruefungDaten(kk, std) }))] },
+      });
+      n++;
+    }
+    this.o.db.prepare("INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES ('telegram_pruefungen', ?)").run(JSON.stringify([...gemeldet].slice(-100)));
+    return n;
+  }
+
+  private async pruefungKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {
+    const m = /^pw:([0-9a-f]{12}):(6|10|15):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
+    const k = this.o.kalender;
+    if (!m || !this.o.listen || !k?.lernplan || !crypto.timingSafeEqual(Buffer.from(m[3]!), Buffer.from(this.pruefungDaten(m[1]!, Number(m[2])).split(':')[3]!))) {
+      this.o.log?.('Telegram: Prüfungs-Knopf mit ungültiger Signatur abgelehnt.');
+      return antworten('Ungültiger Knopf.');
+    }
+    const t = (await this.o.listen.todo.liste()).find((x) => this.todoKennung(x.pfad) === m[1]);
+    if (!t?.faellig) return antworten('Diese Prüfung gibt es nicht mehr.');
+    await antworten('Suche freie Zeiten …');
+    const name = t.titel.replace(/^Prüfung:\s*/i, '');
+    const bis = ortszeitZuUtc(...(t.faellig.split('-').map(Number) as [number, number, number]), 0, 0, 0, 'Europe/Vienna');
+    const plan = await k.lernplan({ bis, stunden: Number(m[2]), dauerMin: 90 });
+    if (!plan.bloecke.length) return this.senden(`📚 Bis ${h(t.faellig)} ist zwischen 9 und 20 Uhr keine passende Lücke mehr frei.`);
+    const bloecke = plan.bloecke.map((b) => ({ titel: `Lernen: ${name}`, grund: name, start: b.start, ende: b.ende }));
+    const id = crypto.randomBytes(6).toString('hex');
+    const p = { bloecke, eingetragen: [] as number[], zeit: this.o.uhr.jetzt() };
+    this.planWartendSetzen({ ...this.planWartend(), [id]: p });
+    const tag = (iso: string) => new Date(iso).toLocaleDateString('de-AT', { timeZone: 'Europe/Vienna', weekday: 'short', day: '2-digit', month: '2-digit' });
+    const liste = bloecke.map((b) => `• ${tag(b.start)} ${TelegramBot.uhrzeit(b.start)}–${TelegramBot.uhrzeit(b.ende)}`).join('\n');
+    const hinweis = plan.bloecke.length < plan.gewuenscht ? `\n<i>Nur ${plan.bloecke.length} von ${plan.gewuenscht} Blöcken passen hinein.</i>` : '';
+    return this.senden(`📚 <b>Lernplan ${h(name)}</b> (${m[2]} h, je 1,5 h)\n${liste}${hinweis}\n\nAntippen trägt den Block in deinen Kalender ein.`, { reply_markup: { inline_keyboard: this.planTastatur(id, p) } });
   }
 
   // ---- /statistik (E104) -----------------------------------------------------------------------------

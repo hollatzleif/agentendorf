@@ -654,3 +654,63 @@ describe('Telegram /statistik (E104)', () => {
     expect(t).toMatch(/📊 <b>Die letzten 7 Tage<\/b>\n<code>DMDFSSM<\/code>\n<code>······█<\/code> ☑️ 1 erledigt\n<code>·······<\/code> 🍅 0 min Fokus\n\n1\/7 aktive Tage/);
   });
 });
+
+describe('Prüfungs-Wächter (E105)', () => {
+  it('fragt einmal je Prüfung ohne Lernzeit; Stunden-Knopf → Lernplan → eintragen; nicht nachts, nicht doppelt', async () => {
+    const n = nachbau();
+    const angelegt: string[] = [];
+    const termine: Record<string, unknown>[] = [];
+    const klient = {
+      async kalender() {
+        return [{ id: 'leif', name: 'Leif', farbe: '#000', primaer: true, schreibbar: true }];
+      },
+      async termine() {
+        return termine;
+      },
+      async holen() {
+        throw new Error('-');
+      },
+      async anlegen(_k: string, body: unknown) {
+        const b = body as { summary: string; start: { dateTime: string }; end: { dateTime: string } };
+        angelegt.push(b.summary);
+        return { id: `n${angelegt.length}`, summary: b.summary, start: { dateTime: '2026-11-17T09:00:00+01:00' }, end: { dateTime: '2026-11-17T10:30:00+01:00' } };
+      },
+      async aendern() {
+        throw new Error('-');
+      },
+      async loeschen() {},
+      async verschieben() {
+        throw new Error('-');
+      },
+    };
+    const d = await testDorf({ env: { TELEGRAM_CHAT_ID: LEIF, ORIGIN: 'https://dorf.test' }, telegram: n.api, kalenderKlient: klient as never });
+    const bot = d.telegram!;
+    let u = 1;
+    const knopf = (data: string) => bot.verarbeiten({ update_id: u++, callback_query: { id: `c${u}`, data, from: { id: Number(LEIF) }, message: { message_id: 9, chat: { id: Number(LEIF) } } } });
+    await d.todos.anlegen({ titel: 'Prüfung: Statistik', faellig: '2026-11-23' }, 'Leif');
+    await d.todos.anlegen({ titel: 'Prüfung: Weit weg', faellig: '2026-12-20' }, 'Leif');
+    expect(await bot.pruefungsWaechter()).toBe(1);
+    expect(await bot.pruefungsWaechter()).toBe(0);
+    const m = n.aufrufe.filter((a) => a.m === 'sendMessage').at(-1)!.p;
+    expect(String(m.text)).toMatch(/📚 <b>Statistik<\/b> ist in 7 Tagen \(2026-11-23\) – im Kalender steht noch keine Lernzeit/);
+    const k = (m.reply_markup as { inline_keyboard: { text: string; callback_data: string }[][] }).inline_keyboard[0]!;
+    expect(k.map((x) => x.text)).toEqual(['6 h', '10 h', '15 h']);
+    await knopf(k[0]!.callback_data.replace(/:[^:]+$/, ':AAAAAAAAAAAAAAAA'));
+    expect(n.aufrufe.filter((a) => a.m === 'sendMessage')).toHaveLength(1);
+    await knopf(k[0]!.callback_data);
+    const plan = n.aufrufe.filter((a) => a.m === 'sendMessage').at(-1)!.p;
+    expect(String(plan.text)).toMatch(/📚 <b>Lernplan Statistik<\/b> \(6 h, je 1,5 h\)\n• Mo\.?, 16\.11\. 13:30–15:00/);
+    const alle = (plan.reply_markup as { inline_keyboard: { text: string; callback_data: string }[][] }).inline_keyboard.at(-1)![0]!;
+    expect(alle.text).toBe('📅 Alle eintragen');
+    await knopf(alle.callback_data);
+    expect(angelegt).toEqual(Array(4).fill('📚 Lernen: Statistik'));
+    // schon Lernzeit im Kalender → keine Frage
+    termine.push({ id: 'x', summary: '📚 Lernen: Physik', start: { dateTime: '2026-11-18T09:00:00+01:00' }, end: { dateTime: '2026-11-18T10:00:00+01:00' } });
+    await d.todos.anlegen({ titel: 'Prüfung: Physik', faellig: '2026-11-25' }, 'Leif');
+    expect(await bot.pruefungsWaechter()).toBe(0);
+    // nachts nie
+    await d.todos.anlegen({ titel: 'Prüfung: Chemie', faellig: '2026-11-26' }, 'Leif');
+    d.uhr.vor(9 * 3_600_000); // 22:00
+    expect(await bot.pruefungsWaechter()).toBe(0);
+  });
+});

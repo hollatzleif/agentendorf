@@ -762,3 +762,10 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 
 - **`/statistik`** zeigt die letzten 7 Tage als kleine Balken aus Blockzeichen (▁▂▃▄▅▆▇█, `·` = nichts), eine Zeile je Kennzahl: erledigte To-dos, Fokus, Anteil erledigter Gewohnheiten. Darüber stehen die Wochentage, darunter die Summen und die Zahl der aktiven Tage. Ein Link führt zur ausführlichen Statistik im Rathaus.
 - Dieselbe Berechnung wie in der App (`statistik.ts`), ohne KI.
+
+## E105 – Prüfungs-Wächter (Nacht 18./19.11.)
+
+- Alle 10 Minuten, aber nur zwischen 9 und 20 Uhr, prüft der Telegram-Bot jedes offene To-do „Prüfung: …“ mit Termin in 3–14 Tagen. Steht im Google-Kalender bis dahin **kein** Block „📚 …<Name>“, fragt er **einmal**: „📚 Statistik ist in 7 Tagen – noch keine Lernzeit. Lernplan vorschlagen?“ mit den Knöpfen 6 h, 10 h und 15 h. Gemerkt wird je Pfad und Datum; eine verschobene Prüfung zählt also neu.
+- **Ein Tipp** rechnet den Lernplan wie in der App (E96: Blöcke à 1,5 h, gleichmäßig bis zum Vorabend, 9–20 Uhr) und zeigt ihn mit einem Knopf je Block und „📅 Alle eintragen“. Eingetragen wird erst damit, als „📚 Lernen: <Name>“. Dadurch erkennt der Wächter beim nächsten Mal, dass es schon Lernzeit gibt.
+- Alles ohne KI; Kalendereinträge entstehen nur durch Leifs Tipp. Alle Knöpfe sind HMAC-signiert.
+- Warum: Der häufigste Prüfungsfehler ist, zu spät anzufangen. Der Wächter fragt rechtzeitig und macht den Plan mit zwei Tipps.
