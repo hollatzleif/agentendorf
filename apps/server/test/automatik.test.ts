@@ -191,7 +191,7 @@ describe('Skills anlegen', () => {
   it('App-Formular: geprüft wie jede Aktion, als Markdown gespeichert; Fehlerhaftes und Doppeltes nicht', async () => {
     const d = await testDorf();
     const h = await kopf(d);
-    const neu = (b: unknown) => d.app.inject({ method: 'POST', url: '/api/aktionen/neu', headers: h, payload: b });
+    const neu = (b: object) => d.app.inject({ method: 'POST', url: '/api/aktionen/neu', headers: h, payload: b });
     const r = await neu(entwurf);
     expect(r.statusCode).toBe(200);
     expect(r.json()).toEqual({ id: 'Bibliothek/wochenplan', pfad: 'Bibliothek/aktionen/wochenplan.md' });
