@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { navigieren } from '../router';
 
 /** Bei jeder neuen Ausgabe den Schlüssel ändern – dann erscheint die Karte einmal pro Gerät */
 const AUSGABE = '2026-11-19n';
@@ -75,7 +76,9 @@ export function Neuigkeiten() {
       return true; // ohne Speicher würde die Karte bei jedem Öffnen erscheinen – dann lieber nie
     }
   });
+  const [alle, setAlle] = useState(false);
   if (zu) return null;
+  const gezeigt = alle ? PUNKTE : PUNKTE.slice(0, 8);
   const schliessen = () => {
     try {
       localStorage.setItem(SCHLUESSEL, AUSGABE);
@@ -93,12 +96,23 @@ export function Neuigkeiten() {
         </button>
       </div>
       <ul>
-        {PUNKTE.map(([s, t]) => (
+        {gezeigt.map(([s, t]) => (
           <li key={t}>
             <span aria-hidden>{s}</span> {t}
           </li>
         ))}
       </ul>
+      {!alle && PUNKTE.length > 8 && (
+        <button type="button" className="klein" onClick={() => setAlle(true)}>
+          Ältere Neuigkeiten ({PUNKTE.length - 8})
+        </button>
+      )}
+      <p className="leise">
+        Wie alles zusammenspielt:{' '}
+        <a href="/anleitung" onClick={(e) => (e.preventDefault(), schliessen(), navigieren('/anleitung'))}>
+          So nutzt du das Dorf
+        </a>
+      </p>
       <button className="dorf-knopf text haupt" onClick={schliessen}>
         Alles klar
       </button>

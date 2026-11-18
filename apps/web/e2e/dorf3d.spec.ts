@@ -410,6 +410,8 @@ test('„Neu im Dorf“ erscheint einmal und bleibt nach „Alles klar“ weg', 
   await imDorf(page);
   const karte = page.getByRole('region', { name: 'Neu im Dorf' });
   await expect(karte).toBeVisible();
+  await expect(karte.locator('li')).toHaveCount(8); // nur die neuesten
+  await karte.getByRole('button', { name: /Ältere Neuigkeiten/ }).click();
   await expect(karte).toContainText('dorf moodle-browser-zugang');
   await karte.getByRole('button', { name: 'Alles klar' }).click();
   await expect(karte).toBeHidden();
