@@ -1267,3 +1267,6 @@ input.kurz { width: 5em; }
 .wplan-verteilen { margin: 0 0 0.5rem; }
 .wplan-vorschlag { display: grid; gap: 0.25rem; margin: 0 0 0.6rem; padding: 0.55rem 0.7rem; border-radius: 12px; background: #fff7d9; border: 2px solid #e7c55a; }
 .wplan-vorschlag label { display: flex; gap: 0.5rem; align-items: center; min-height: 32px; }
+
+/* E127: erkannte Wiederholung/Dauer beim Tippen */
+.todo-text-hinweis { margin: -0.2rem 0 0.4rem; font-size: 0.85rem; }

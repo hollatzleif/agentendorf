@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { WETTER_TEXT, type DorfStatus, type FokusStatistik, type FreigabeInfo, type KartenFach, type KalenderAntwort, type KalenderTermin, type KirchturmZustand, type MorgenzeitungUebersicht, type PostUebersicht, type TodoInfo } from '@dorf/shared';
 import { api, ApiFehler, offlineGemerkt } from '../api';
-import { jetztDran, minutenText, tagesBudget } from '@dorf/shared';
+import { jetztDran, minutenText, tagesBudget, todoAusText } from '@dorf/shared';
+import { TodoTextHinweis } from '../komponenten/TodoTextHinweis';
 import { linkKlick, navigieren } from '../router';
 import { FARBEN, ort, tagPlus } from '../komponenten/MarktKalender';
 import { dauerText, useKirchturm } from '../komponenten/KirchturmUhr';
@@ -403,7 +404,9 @@ function TodoNeu({ heute, fertig }: { heute: string; fertig: () => Promise<unkno
     setFehler('');
     setLaeuft(true);
     try {
-      await api('/api/todos', { body: { titel: titel.trim(), ...(fuerHeute ? { faellig: heute } : {}) } });
+      // E127: „… jeden Montag 30 min“ – erkannte Wiederholung bestimmt das erste Datum, sonst „für heute“
+      const e = todoAusText(titel, heute);
+      await api('/api/todos', { body: { ...e, ...(fuerHeute && !e.faellig ? { faellig: heute } : {}) } });
       setTitel('');
     } catch (err) {
       setFehler(err instanceof ApiFehler ? err.message : String(err));
@@ -425,6 +428,7 @@ function TodoNeu({ heute, fertig }: { heute: string; fertig: () => Promise<unkno
           +
         </button>
       </form>
+      <TodoTextHinweis text={titel} heute={heute} />
       {fehler && <p className="fehler">{fehler}</p>}
     </>
   );

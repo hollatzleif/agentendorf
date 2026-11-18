@@ -1404,6 +1404,22 @@ test('Wochenplan: „Woche verteilen“ schlägt Tage vor, Übernehmen setzt die
   expect(patches).toEqual([{ pfad: 'Marktplatz/todos/a.md', basisVersion: 'v1', faellig: heute }]);
 });
 
+test('To-do aus Text in der App: „… jeden Montag 30 min“ mit Vorschau (E127)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  const titel = `Wäsche${Date.now() % 100000}`;
+  await page.goto('/gebaeude/Marktplatz?reiter=todo');
+  const f = page.getByRole('form', { name: 'Neues To-do' });
+  await f.getByRole('textbox', { name: 'Neues To-do' }).fill(`${titel} jeden Montag 30 min`);
+  await expect(page.locator('.todo-text-hinweis')).toContainText(`→ „${titel}“ · 🔁 wöchentlich ab Mo.`);
+  await expect(page.locator('.todo-text-hinweis')).toContainText('⏱ 30 min');
+  await f.getByRole('button', { name: '+' }).click();
+  const z = page.locator('li.todo', { hasText: titel });
+  await expect(z).toContainText('🔁 wöchentlich');
+  await expect(z).toContainText('⏱ 30 min');
+  await expect(page.locator('.todo-text-hinweis')).toHaveCount(0);
+});
+
 test('Seite lässt sich nicht laden (nach Deploy): einmal neu laden, dann „Neu laden“ statt weißer Seite (Review)', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'einmal reicht');
   await anmelden(page);

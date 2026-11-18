@@ -1,4 +1,4 @@
-import { dauerAusText, LISTEN, wiederholungAusText, type ListenName, type TodoDienst } from '../todos.js';
+import { LISTEN, todoAusText, wiederholungAusText, type ListenName, type TodoDienst } from '../todos.js';
 
 /** Telegram-Darstellung der Listen; Kurzzeichen für Knöpfe (64 Byte Grenze) */
 const LISTEN_KURZ: Record<ListenName, string> = { todo: 't', einkauf: 'e', wunsch: 'w', corps: 'c' };
@@ -764,11 +764,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       try {
         const heute = new Date(this.o.uhr.jetzt()).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
         // „… 30 min jeden Montag“ und „… jeden Montag 30 min“ (E120)
-        const d1 = liste === 'todo' ? dauerAusText(rest.slice(0, 200)) : { titel: rest.slice(0, 200) };
-        const w = wiederholungAusText(d1.titel, heute);
-        const d2 = liste === 'todo' && !('dauer' in d1 && d1.dauer) ? dauerAusText(w.titel) : { titel: w.titel };
-        const dauer = ('dauer' in d1 && d1.dauer) || ('dauer' in d2 && d2.dauer) || undefined;
-        const t = await this.o.listen[liste].anlegen({ ...w, titel: d2.titel, ...(dauer ? { dauer } : {}) }, 'Telegram');
+        const t = await this.o.listen[liste].anlegen(liste === 'todo' ? todoAusText(rest, heute) : wiederholungAusText(rest.slice(0, 200), heute), 'Telegram');
         return this.senden(`${LISTEN_ANZEIGE[liste].symbol} Auf die ${LISTEN[liste].titel}: <b>${h(t.titel)}</b>${t.wiederholen ? ` · 🔁 ${h(t.wiederholen)}${t.faellig ? ` ab ${h(t.faellig)}` : ''}` : ''}${t.dauer ? ` · ⏱ ${t.dauer} min` : ''}`);
       } catch (e) {
         return this.senden(`⚠️ ${h((e as Error).message)}`);

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { terminAusText, type AktionInfo, type Gebaeude, type Suchtreffer, type TodoInfo } from '@dorf/shared';
 import { api, ApiFehler, offlineGemerkt } from '../api';
+import { todoAusText } from '@dorf/shared';
 import { bibliothekUrl, navigieren } from '../router';
 
 /**
@@ -96,7 +97,7 @@ function Palette({ schliessen }: { schliessen: () => void }) {
         symbol: '➕',
         titel: `To-do anlegen: ${todoText}`,
         tun: async () => {
-          await api('/api/todos', { body: { titel: todoText.slice(0, 200) } });
+          await api('/api/todos', { body: todoAusText(todoText, new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' })) });
           void qc.invalidateQueries({ queryKey: ['liste', 'todo'] });
           return `✅ To-do angelegt: ${todoText}`;
         },

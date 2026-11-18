@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { TodoInfo } from '@dorf/shared';
 import { api, ApiFehler, offlineGemerkt } from '../api';
+import { todoAusText } from '@dorf/shared';
+import { TodoTextHinweis } from './TodoTextHinweis';
 import { bibliothekUrl, linkKlick, navigieren } from '../router';
 import { LernzeitPlaner } from './LernzeitPlaner';
 import { Stern } from '../seiten/Heute';
@@ -41,7 +43,9 @@ export function TodoBrett({ liste: name = 'todo', platzhalter = 'Neues To-do …
     e.preventDefault();
     if (!titel.trim()) return;
     void ausfuehren(async () => {
-      await api(basis, { body: { titel: titel.trim(), ...(faellig ? { faellig } : {}) } });
+      // E127: „… jeden Montag 30 min“ wie in Telegram (nur To-do-Liste; ein gewähltes Datum gewinnt)
+      const e = name === 'todo' ? todoAusText(titel, heute()) : { titel: titel.trim() };
+      await api(basis, { body: { ...e, ...(faellig ? { faellig } : {}) } });
       setTitel('');
       setFaellig('');
     }).then((r) => {
@@ -89,6 +93,7 @@ export function TodoBrett({ liste: name = 'todo', platzhalter = 'Neues To-do …
           +
         </button>
       </form>
+      {name === 'todo' && <TodoTextHinweis text={titel} heute={heute()} />}
       {fehler && <p className="fehler">{fehler}</p>}
       {liste.isLoading && <p className="leise">Lade …</p>}
       {alleOffen.length > 5 && (

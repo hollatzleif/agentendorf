@@ -991,3 +991,10 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **Platz je Tag:** 70 % der freien Zeit (8–22 Uhr minus Termine). Das ist bewusst Puffer, weil nie alles nach Plan läuft. Davon gehen die dort schon geplanten To-dos ab (Schätzung minus bisheriger Fokus, ohne Schätzung 30 min).
 - **Reihenfolge:** ⭐ → überfällig (ältestes zuerst) → ohne Datum (ältestes zuerst). Jedes To-do kommt auf den frühesten Tag mit genug Platz. Was nicht mehr passt, wird genannt.
 - **Leif entscheidet:** Er wählt einzelne Vorschläge ab, erst „Übernehmen“ setzt `faellig` (mit `basisVersion`, wie beim Ziehen).
+
+## E127 – „… jeden Montag 30 min“ überall (Nacht 18./19.11.)
+
+- Die Text-Erkennung für Wiederholung (E92) und Dauer (E120) liegt jetzt in `packages/shared/src/todotext.ts` (`todoAusText`). Telegram, das To-do-Brett, „Heute“, die Schnelleingabe des Programms und die Befehlspalette erkennen damit genau dasselbe.
+- Beim Tippen zeigt die App unter dem Feld, was erkannt wurde, z. B. „→ „Wäsche“ · 🔁 wöchentlich ab Mo., 23.11. · ⏱ 30 min“. So gibt es keine Überraschung nach Enter.
+- **Datum:** Ein im Feld gewähltes Datum gewinnt. Auf „Heute“ setzt „heute“ das Datum nur, wenn keine Wiederholung ein erstes Datum bestimmt.
+- Einkaufs-, Wunsch- und Corps-Liste nehmen den Text weiterhin wörtlich. Dort wäre „Milch 2 h“ keine Dauer.

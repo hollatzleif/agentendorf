@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, ApiFehler, offlineGemerkt } from '../api';
+import { todoAusText } from '@dorf/shared';
 import { istProgramm, schnellSchliessen } from './desktop';
 
 type Ziel = 'buergermeister' | 'todo';
@@ -41,7 +42,8 @@ export function Schnelleingabe() {
     setLaeuft(true);
     setMeldung('');
     try {
-      if (ziel === 'todo') await api('/api/todos', { body: { titel: t.split('\n')[0]!.slice(0, 200), ...(t.includes('\n') ? { notiz: t.split('\n').slice(1).join('\n') } : {}) } });
+      if (ziel === 'todo')
+        await api('/api/todos', { body: { ...todoAusText(t.split('\n')[0]!, new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' })), ...(t.includes('\n') ? { notiz: t.split('\n').slice(1).join('\n') } : {}) } });
       else await api('/api/schreibtisch', { body: { text: t } });
       setText('');
       setMeldung(ziel === 'todo' ? '✓ Auf der To-do-Liste' : '✓ Beim Bürgermeister');

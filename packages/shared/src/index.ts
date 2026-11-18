@@ -817,3 +817,4 @@ export interface Anschluss {
   hinweis?: string;
 }
 export * from './tagesbudget.js';
+export * from './todotext.js';
