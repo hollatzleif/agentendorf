@@ -9,7 +9,7 @@ import type { Gewohnheiten } from './gewohnheiten.js';
 import type { Wochenziele } from './wochenziele.js';
 import type { Notizen } from './notizen.js';
 import type { Noten } from './uni/noten.js';
-import { statistik } from './statistik.js';
+import { statistik, stimmungSetzen } from './statistik.js';
 import { ortszeitZuUtc } from './uni/ical.js';
 import type { GoogleKalender } from './kalender-google.js';
 import type { Corps } from './corps.js';
@@ -454,6 +454,13 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
     app.get('/api/statistik', async (req) => {
       const q = z.object({ tage: z.coerce.number().int().min(7).max(120).default(28) }).parse(req.query);
       return statistik({ db: a.db, uhr: a.uhr, todos, gewohnheiten: a.gewohnheiten }, q.tage);
+    });
+    app.post('/api/stimmung', async (req) => {
+      const b = z.object({ wert: z.number().int().min(1).max(5), tag: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }).parse(req.body);
+      const heute = new Date(a.uhr.jetzt()).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+      if (b.tag && b.tag > heute) throw new DorfFehler(400, 'Nur heute oder früher.');
+      stimmungSetzen(a.db, b.tag ?? heute, b.wert, a.uhr.jetzt());
+      return { ok: true };
     });
   }
 

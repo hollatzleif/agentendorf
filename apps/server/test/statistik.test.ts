@@ -15,13 +15,17 @@ describe('Statistik (E93)', () => {
     d.db.prepare('INSERT INTO fokus_sitzungen (start, ende, minuten, thema, gruppe, todo, vollstaendig) VALUES (?, ?, ?, NULL, NULL, NULL, 1)').run(d.uhr.jetzt() - 25 * 60_000, d.uhr.jetzt(), 25);
     await d.gewohnheiten.anlegen({ name: 'Lesen' });
     await d.gewohnheiten.haken('Lesen', true);
+    expect((await d.app.inject({ method: 'POST', url: '/api/stimmung', headers: h, payload: { wert: 2 } })).json()).toEqual({ ok: true });
+    await d.app.inject({ method: 'POST', url: '/api/stimmung', headers: h, payload: { wert: 4 } }); // überschreibt
+    expect((await d.app.inject({ method: 'POST', url: '/api/stimmung', headers: h, payload: { wert: 6 } })).statusCode).toBe(400);
+    expect((await d.app.inject({ method: 'POST', url: '/api/stimmung', headers: h, payload: { wert: 3, tag: '2026-12-01' } })).statusCode).toBe(400);
     // Di 17.11.: nichts
     d.uhr.vor(TAG);
     const r = (await d.app.inject({ url: '/api/statistik', headers: h })).json();
     expect(r.tage).toHaveLength(28);
-    expect(r.tage.at(-2)).toEqual({ tag: '2026-11-16', erledigt: 2, fokusMin: 25, gewohnheitenFaellig: 1, gewohnheitenErledigt: 1 });
-    expect(r.tage.at(-1)).toEqual({ tag: '2026-11-17', erledigt: 0, fokusMin: 0, gewohnheitenFaellig: 1, gewohnheitenErledigt: 0 });
-    expect(r.summen).toEqual({ erledigt: 2, erledigtWoche: 2, fokusMin: 25, fokusMinWoche: 25, gewohnheitenQuote: 50, aktiveTage: 1 });
+    expect(r.tage.at(-2)).toEqual({ tag: '2026-11-16', erledigt: 2, fokusMin: 25, gewohnheitenFaellig: 1, gewohnheitenErledigt: 1, stimmung: 4 });
+    expect(r.tage.at(-1)).toEqual({ tag: '2026-11-17', erledigt: 0, fokusMin: 0, gewohnheitenFaellig: 1, gewohnheitenErledigt: 0, stimmung: null });
+    expect(r.summen).toEqual({ erledigt: 2, erledigtWoche: 2, fokusMin: 25, fokusMinWoche: 25, gewohnheitenQuote: 50, stimmungSchnitt: 4, aktiveTage: 1 });
     expect((await d.app.inject({ url: '/api/statistik?tage=3', headers: h })).statusCode).toBe(400);
   });
 });

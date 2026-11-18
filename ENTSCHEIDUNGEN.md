@@ -777,3 +777,13 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - **Telegram** schickt dazu „🔁 💊 Vitamine – Zeit dafür!“ mit genau ihrem Abhak-Knopf.
 - **Höchstens einmal am Tag** je Gewohnheit (Vermerk in `dorf_stand`). Was mehr als 3 h verpasst ist, läutet nicht nach – eine Gewohnheit um 8 Uhr soll nicht um 15 Uhr klingeln.
 - Geprüft wird im selben 30-Sekunden-Takt wie die To-do-Erinnerungen (E94). Es gilt dieselbe Regel: Läuten tut nur der Kirchturm.
+
+## E107 – Stimmung des Tages (Nacht 18./19.11.)
+
+- **Frage im Tagesabschluss:** Nach dem Tagesabschluss (21 Uhr) fragt Telegram „💭 Wie war dein Tag?“ mit fünf Gesichtern (😞 😕 😐 🙂 😄). Ein Tipp speichert 1–5 für den Tag (Migration 21, Tabelle `stimmung`); ein zweiter Tipp überschreibt. Die Knöpfe sind HMAC-signiert und tragen das Datum, also landet ein später Tipp auf dem richtigen Tag.
+- **Auch per API:** `POST /api/stimmung` (für eine spätere App-Ansicht).
+- **Wo die Werte auftauchen:**
+  - Die Statistik (`/api/statistik`) liefert je Tag `stimmung` und den Schnitt.
+  - `/statistik` in Telegram zeigt eine Stimmungszeile.
+  - Der Wochenrückblick hat einen Abschnitt „Stimmung: Ø 3,8 · 🙂 😐 😄 …“.
+- Warum: Produktivität ohne Befinden ist die halbe Wahrheit. Neben Fokus, Gewohnheiten und Erledigtem zeigt die Stimmung über Wochen, was guttut und was nicht. Ein Tipp am Abend kostet nichts.

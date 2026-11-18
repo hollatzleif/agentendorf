@@ -29,6 +29,7 @@ export async function statistik(o: { db: DB; uhr: Uhr; todos: TodoDienst; gewohn
     fokus.set(tag, (fokus.get(tag) ?? 0) + x.minuten);
   }
 
+  const stimmung = new Map((o.db.prepare('SELECT tag, wert FROM stimmung WHERE tag >= ?').all(erst) as { tag: string; wert: number }[]).map((x) => [x.tag, x.wert]));
   const gw = o.gewohnheiten ? await o.gewohnheiten.jeTag(tage) : tage.map(() => ({ faellig: 0, erledigt: 0 }));
   const zeilen = tage.map((tag, i) => ({
     tag,
@@ -36,6 +37,7 @@ export async function statistik(o: { db: DB; uhr: Uhr; todos: TodoDienst; gewohn
     fokusMin: Math.round(fokus.get(tag) ?? 0),
     gewohnheitenFaellig: gw[i]!.faellig,
     gewohnheitenErledigt: gw[i]!.erledigt,
+    stimmung: stimmung.get(tag) ?? null,
   }));
   const summe = (f: (z: (typeof zeilen)[number]) => number, von = 0) => zeilen.slice(von).reduce((s, z) => s + f(z), 0);
   const gwF = summe((z) => z.gewohnheitenFaellig);
@@ -47,7 +49,16 @@ export async function statistik(o: { db: DB; uhr: Uhr; todos: TodoDienst; gewohn
       fokusMin: summe((z) => z.fokusMin),
       fokusMinWoche: summe((z) => z.fokusMin, anzahl - 7),
       gewohnheitenQuote: gwF ? Math.round((summe((z) => z.gewohnheitenErledigt) / gwF) * 100) : null,
+      stimmungSchnitt: stimmung.size ? Math.round(([...stimmung.values()].reduce((a, b) => a + b, 0) / stimmung.size) * 10) / 10 : null,
       aktiveTage: zeilen.filter((z) => z.erledigt || z.fokusMin || z.gewohnheitenErledigt).length,
     },
   };
+}
+
+export const STIMMUNGEN = ['😞', '😕', '😐', '🙂', '😄'] as const;
+
+/** E107: Stimmung des Tages setzen (1–5); ein zweites Mal überschreibt */
+export function stimmungSetzen(db: DB, tag: string, wert: number, jetzt: number) {
+  if (!Number.isInteger(wert) || wert < 1 || wert > 5) throw new Error('Stimmung 1–5');
+  db.prepare('INSERT INTO stimmung (tag, wert, zeit) VALUES (?, ?, ?) ON CONFLICT(tag) DO UPDATE SET wert = excluded.wert, zeit = excluded.zeit').run(tag, wert, jetzt);
 }

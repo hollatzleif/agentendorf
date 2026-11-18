@@ -375,7 +375,7 @@ describe('Telegram Tagesabschluss 21:00 (Nacht 18./19.11.)', () => {
     d.uhr.vor(8 * 3_600_000 + 5 * 60_000); // 21:05 Linz
     expect(await d.bot.abendSenden()).toBe(true);
     expect(await d.bot.abendSenden()).toBe(false); // nur einmal am Tag
-    const m = d.aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p;
+    const m = d.aufrufe.filter((x) => x.m === 'sendMessage').find((x) => String(x.p.text).startsWith('🌙'))!.p;
     expect(String(m.text)).toMatch(/🌙 <b>Tagesabschluss<\/b>\n✓ <b>1<\/b> erledigt: Folien lesen/);
     const knoepfe = (m.reply_markup as { inline_keyboard: { text: string; callback_data: string }[][] }).inline_keyboard;
     expect(knoepfe.map((z) => z[0]!.text)).toEqual(['☆ Bewerbung schreiben']);
@@ -408,7 +408,7 @@ describe('Telegram Gewohnheiten (Nacht 18./19.11.)', () => {
     expect((neu.reply_markup as { inline_keyboard: { text: string }[][] }).inline_keyboard[0]![0]!.text).toBe('✅ 🏃 Sport');
     d.uhr.vor(8 * 3_600_000 + 5 * 60_000); // 21:05 Linz
     expect(await d.bot.abendSenden()).toBe(true);
-    expect(d.gesendet().at(-1)).toMatch(/🔁 <b>Gewohnheiten heute<\/b>/);
+    expect(d.gesendet().at(-2)).toMatch(/🔁 <b>Gewohnheiten heute<\/b>/);
   });
 });
 
@@ -724,5 +724,26 @@ describe('Telegram: Gewohnheit zur Uhrzeit (E106)', () => {
     expect(String(m.text)).toBe('🔁 💊 <b>Vitamine</b> – Zeit dafür!');
     await d.knopf((m.reply_markup as { inline_keyboard: { callback_data: string }[][] }).inline_keyboard[0]![0]!.callback_data);
     expect((await d.gewohnheiten.stand()).gewohnheiten[0]!.heuteErledigt).toBe(true);
+  });
+});
+
+describe('Stimmung im Tagesabschluss (E107)', () => {
+  it('fragt nach dem Tagesabschluss, Knopf speichert (gefälscht nicht), /statistik und Wochenrückblick zeigen sie', async () => {
+    const d = await dorf();
+    d.uhr.vor(8 * 3_600_000 + 5 * 60_000); // 21:05
+    await d.bot.abendSenden();
+    const m = d.aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p;
+    expect(String(m.text)).toBe('💭 <b>Wie war dein Tag?</b>');
+    const k = (m.reply_markup as { inline_keyboard: { text: string; callback_data: string }[][] }).inline_keyboard[0]!;
+    expect(k.map((x) => x.text)).toEqual(['😞', '😕', '😐', '🙂', '😄']);
+    await d.knopf(k[3]!.callback_data.replace(/:[^:]+$/, ':AAAAAAAAAAAAAAAA'));
+    expect(d.db.prepare('SELECT COUNT(*) AS n FROM stimmung').get()).toEqual({ n: 0 });
+    await d.knopf(k[3]!.callback_data);
+    expect(d.db.prepare('SELECT tag, wert FROM stimmung').all()).toEqual([{ tag: '2026-11-16', wert: 4 }]);
+    expect(String(d.aufrufe.filter((x) => x.m === 'editMessageText').at(-1)!.p.text)).toBe('💭 Dein Tag: 🙂');
+    await d.nachricht({ text: '/statistik' });
+    expect(d.gesendet().at(-1)).toMatch(/<code>······█<\/code> 💭 Stimmung Ø 4/);
+    const r = await d.wochenrueckblick.fakten();
+    expect(r.abschnitte.find((a) => a.titel === 'Stimmung')?.zeilen).toEqual(['Ø 4,0 · 🙂']);
   });
 });

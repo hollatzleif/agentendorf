@@ -18,6 +18,7 @@ import type { TodoErinnerungen } from '../todo-erinnerungen.js';
 import type { Notizen } from '../notizen.js';
 import { zeitpunktAus } from '../todo-erinnerungen.js';
 import { tagPlanen } from '../tagesplan.js';
+import { STIMMUNGEN, stimmungSetzen } from '../statistik.js';
 import { ortszeitZuUtc } from '../uni/ical.js';
 
 type PlanBlock = { titel: string; grund: string; start: string; ende: string };
@@ -675,6 +676,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (q.data?.startsWith('sb:')) return this.schnellKnopf(q, antworten);
     if (q.data?.startsWith('wv:')) return this.vorschlagKnopf(q, antworten);
     if (q.data?.startsWith('pw:')) return this.pruefungKnopf(q, antworten);
+    if (q.data?.startsWith('sm:')) return this.stimmungKnopf(q, antworten);
     const m = /^f:([0-9a-f-]{36}):([jn]):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
     if (!m || !crypto.timingSafeEqual(Buffer.from(m[3]!), Buffer.from(this.signatur(m[1]!, m[2] as 'j' | 'n')))) {
       this.o.log?.('Telegram: Knopf mit ungültiger Signatur abgelehnt.');
@@ -998,6 +1000,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     const t = this.sternAuswahl(alle, morgen);
     const ok = !!(await this.senden(z.join('\n'), { reply_markup: { inline_keyboard: t } }));
     if (ok) await this.gewohnheitenSenden(true).catch((e) => this.fehler(e));
+    if (ok) await this.stimmungFragen(tag).catch((e) => this.fehler(e));
     return ok;
   }
 
@@ -1080,6 +1083,28 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     return this.senden(`📚 <b>Lernplan ${h(name)}</b> (${m[2]} h, je 1,5 h)\n${liste}${hinweis}\n\nAntippen trägt den Block in deinen Kalender ein.`, { reply_markup: { inline_keyboard: this.planTastatur(id, p) } });
   }
 
+  // ---- Stimmung (E107) -------------------------------------------------------------------------------
+
+  private stimmungDaten(tag: string, wert: number) {
+    return `sm:${tag}:${wert}:${crypto.createHmac('sha256', this.signaturSchluessel).update(`stimmung:${tag}:${wert}`).digest('base64url').slice(0, 16)}`;
+  }
+  async stimmungFragen(tag: string) {
+    return this.senden('💭 <b>Wie war dein Tag?</b>', { reply_markup: { inline_keyboard: [STIMMUNGEN.map((e, i) => ({ text: e, callback_data: this.stimmungDaten(tag, i + 1) }))] } });
+  }
+  private async stimmungKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {
+    const m = /^sm:(\d{4}-\d{2}-\d{2}):([1-5]):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
+    if (!m || !crypto.timingSafeEqual(Buffer.from(m[3]!), Buffer.from(this.stimmungDaten(m[1]!, Number(m[2])).split(':')[3]!))) {
+      this.o.log?.('Telegram: Stimmungs-Knopf mit ungültiger Signatur abgelehnt.');
+      return antworten('Ungültiger Knopf.');
+    }
+    stimmungSetzen(this.o.db, m[1]!, Number(m[2]), this.o.uhr.jetzt());
+    await antworten('Danke – gute Nacht! 🌙');
+    if (q.message)
+      await this.o.api
+        .aufruf('editMessageText', { chat_id: q.message.chat.id, message_id: q.message.message_id, text: `💭 Dein Tag: ${STIMMUNGEN[Number(m[2]) - 1]}`, parse_mode: 'HTML' })
+        .catch(() => undefined);
+  }
+
   // ---- /statistik (E104) -----------------------------------------------------------------------------
 
   /** ▁▂▃▄▅▆▇█ je Tag (0 = ·) */
@@ -1103,6 +1128,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       `<code>${TelegramBot.balken(t.map((x) => x.fokusMin))}</code> 🍅 ${std(s.summen.fokusMin)} Fokus`,
     ];
     if (gwF) z.push(`<code>${TelegramBot.balken(t.map((x) => (x.gewohnheitenFaellig ? x.gewohnheitenErledigt / x.gewohnheitenFaellig : 0)))}</code> 🔁 ${gwE}/${gwF} Gewohnheiten`);
+    if (s.summen.stimmungSchnitt != null) z.push(`<code>${TelegramBot.balken(t.map((x) => x.stimmung ?? 0))}</code> 💭 Stimmung Ø ${String(s.summen.stimmungSchnitt).replace('.', ',')}`);
     z.push(`\n${s.summen.aktiveTage}/7 aktive Tage · <a href="${this.link('/gebaeude/Rathaus?reiter=statistik')}">Statistik</a>`);
     return this.senden(z.join('\n'));
   }

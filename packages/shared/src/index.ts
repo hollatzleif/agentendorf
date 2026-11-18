@@ -774,8 +774,8 @@ export interface WochenzieleStand extends Wochenziele {
 
 /** Statistik (E93) */
 export interface Statistik {
-  tage: { tag: string; erledigt: number; fokusMin: number; gewohnheitenFaellig: number; gewohnheitenErledigt: number }[];
-  summen: { erledigt: number; erledigtWoche: number; fokusMin: number; fokusMinWoche: number; gewohnheitenQuote: number | null; aktiveTage: number };
+  tage: { tag: string; erledigt: number; fokusMin: number; gewohnheitenFaellig: number; gewohnheitenErledigt: number; /** E107: 1–5 */ stimmung: number | null }[];
+  summen: { erledigt: number; erledigtWoche: number; fokusMin: number; fokusMinWoche: number; gewohnheitenQuote: number | null; stimmungSchnitt: number | null; aktiveTage: number };
 }
 
 /** Noten & ECTS (E98) */

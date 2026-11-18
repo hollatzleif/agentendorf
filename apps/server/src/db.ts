@@ -367,6 +367,10 @@ const MIGRATIONEN: string[] = [
   `
   CREATE TABLE gewohnheit_log (name TEXT NOT NULL, tag TEXT NOT NULL, PRIMARY KEY (name, tag));
   `,
+  // 21: Stimmung je Tag (E107) – 1 (mies) bis 5 (super), aus dem Tagesabschluss oder der App
+  `
+  CREATE TABLE stimmung (tag TEXT PRIMARY KEY, wert INTEGER NOT NULL CHECK (wert BETWEEN 1 AND 5), zeit INTEGER NOT NULL);
+  `,
 ];
 
 export function dbOeffnen(datei: string): DB {

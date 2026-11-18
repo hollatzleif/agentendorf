@@ -93,6 +93,12 @@ export class Wochenrueckblick {
     if (ziele?.length) abschnitte.push({ titel: 'Wochenziele', zeilen: ziele });
     const gw = await this.o.gewohnheiten?.wochenZeile().catch(() => null);
     if (gw) abschnitte.push({ titel: 'Gewohnheiten', zeilen: [gw] });
+    // E107: Stimmung der letzten 7 Tage
+    const st = this.o.db.prepare('SELECT tag, wert FROM stimmung WHERE tag > ? ORDER BY tag').all(tagIn(seit)) as { tag: string; wert: number }[];
+    if (st.length) {
+      const e = ['😞', '😕', '😐', '🙂', '😄'];
+      abschnitte.push({ titel: 'Stimmung', zeilen: [`Ø ${(st.reduce((a, x) => a + x.wert, 0) / st.length).toFixed(1).replace('.', ',')} · ${st.map((x) => e[x.wert - 1]).join(' ')}`] });
+    }
 
     // nächste 7 Tage: Fristen und Termine
     const bis = jetzt + 8 * TAG;
