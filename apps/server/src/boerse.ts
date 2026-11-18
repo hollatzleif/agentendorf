@@ -27,7 +27,10 @@ const Wert = z.object({
   stueck: z.coerce.number().min(0).optional(),
   /** Einstandskurs je Stück in Euro */
   einstand: z.coerce.number().min(0).optional(),
-});
+  /** E117 Kursalarm (in der Währung des Kurses): Telegram, wenn der Schlusskurs darunter/darüber liegt */
+  alarm_unter: z.coerce.number().min(0).optional(),
+  alarm_ueber: z.coerce.number().min(0).optional(),
+}).passthrough(); // eigene Felder aus Obsidian bleiben beim Speichern
 const Depot = z.object({
   positionen: z.array(Wert).default([]),
   watchlist: z.array(Wert).default([]),
@@ -222,7 +225,39 @@ export class Boerse {
     const offen = kandidaten.length - versucht;
     this.o.db.prepare("INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES ('boerse_letzter', ?)").run(JSON.stringify({ zeit: this.o.uhr.jetzt(), abgerufen, offen, fehler: fehler ?? null }));
     if (abgerufen || fehler) this.o.hub.senden({ typ: 'boerse.geaendert' });
+    if (abgerufen) await this.alarmePruefen().catch((e) => this.o.log?.(`Börse: Kursalarme: ${(e as Error).message}`));
     return { abgerufen, offen, ...(fehler ? { fehler } : {}) };
+  }
+
+  /** E117: Telegram u. a. – bekommt den fertigen Meldungstext */
+  readonly beiAlarm: ((text: string) => void)[] = [];
+
+  /**
+   * Kursalarme: meldet einmal, wenn der Schlusskurs die Grenze unter-/überschreitet; erst wenn er wieder auf der
+   * anderen Seite war, meldet dieselbe Grenze erneut (Zustand in dorf_stand).
+   */
+  async alarmePruefen() {
+    const d = await this.depot();
+    const zustand: Record<string, boolean> = JSON.parse((this.o.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'boerse_alarme'").get() as { wert: string } | undefined)?.wert ?? '{}');
+    const meldungen: string[] = [];
+    for (const w of [...d.positionen, ...d.watchlist]) {
+      if (w.alarm_unter == null && w.alarm_ueber == null) continue;
+      const b = this.bewerten(w, 0);
+      if (b.kurs == null || !b.symbol) continue;
+      const kurs = b.kurs.toLocaleString('de-AT', { maximumFractionDigits: 2 });
+      for (const [art, grenze, aktiv] of [
+        ['unter', w.alarm_unter, w.alarm_unter != null && b.kurs < w.alarm_unter],
+        ['ueber', w.alarm_ueber, w.alarm_ueber != null && b.kurs > w.alarm_ueber],
+      ] as const) {
+        if (grenze == null) continue;
+        const k = `${b.symbol}|${art}|${grenze}`;
+        if (aktiv && !zustand[k]) meldungen.push(`${art === 'unter' ? '📉' : '📈'} ${w.name}: ${kurs} ${b.waehrung ?? ''} – ${art === 'unter' ? 'unter' : 'über'} deiner Grenze ${grenze.toLocaleString('de-AT')} (Schlusskurs ${b.datum ?? ''})`.replace(/\s+/g, ' ').trim());
+        zustand[k] = aktiv;
+      }
+    }
+    this.o.db.prepare("INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES ('boerse_alarme', ?)").run(JSON.stringify(zustand));
+    if (meldungen.length) for (const fn of this.beiAlarm) fn(meldungen.join('\n'));
+    return meldungen;
   }
 
   /** letzter EZB-Kurs: Einheiten der Währung je Euro */
@@ -258,6 +293,8 @@ export class Boerse {
       wertEur: r(wert) ?? undefined,
       gewinnEur: wert != null && einstand != null ? r(wert - einstand) ?? undefined : undefined,
       gewinnProzent: wert != null && einstand ? r(((wert - einstand) / einstand) * 100) ?? undefined : undefined,
+      ...(w.alarm_unter != null ? { alarmUnter: w.alarm_unter } : {}),
+      ...(w.alarm_ueber != null ? { alarmUeber: w.alarm_ueber } : {}),
     };
   }
 

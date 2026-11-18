@@ -440,8 +440,10 @@ test('Börse: ohne Schlüssel Hinweis; Position und Watchlist anlegen und entfer
   await w.getByLabel('Name').fill('Apple');
   await w.getByLabel('ISIN oder Kürzel').fill('aapl');
   await w.getByLabel('Börse').selectOption('US');
+  await w.getByLabel('Kursalarm unter').fill('150');
   await w.getByRole('button', { name: 'Hinzufügen' }).click();
   await expect(page.getByText('AAPL.US')).toBeVisible();
+  await expect(page.locator('.boerse-tabelle', { hasText: 'Apple' })).toContainText('🔔 < 150');
   await page.getByRole('button', { name: 'Apple entfernen' }).click();
   await expect(page.getByText('AAPL.US')).toHaveCount(0);
 });

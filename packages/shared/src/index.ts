@@ -629,6 +629,9 @@ export interface BoerseWert {
   wertEur?: number;
   gewinnEur?: number;
   gewinnProzent?: number;
+  /** E117 Kursalarm-Grenzen (Währung des Kurses) */
+  alarmUnter?: number;
+  alarmUeber?: number;
 }
 /** E73: eine Position aus dem Saxo-Konto (Werte in Kontowährung, wenn Saxo sie liefert) */
 export interface SaxoPosition {

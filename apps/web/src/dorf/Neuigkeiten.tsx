@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { navigieren } from '../router';
 
 /** Bei jeder neuen Ausgabe den Schlüssel ändern – dann erscheint die Karte einmal pro Gerät */
-const AUSGABE = '2026-11-19n';
+const AUSGABE = '2026-11-19o';
 const SCHLUESSEL = 'dorf-neuigkeiten-gesehen';
 
 const PUNKTE: [string, string][] = [
+  ['🔔', 'Börse: Kursalarm – Grenze unter/über setzen, Telegram meldet sich einmal, wenn ein Schlusskurs sie überschreitet.'],
+  ['📷', 'Foto mit „notiz: …“ in Telegram landet samt Bild in der Tagesnotiz. Gewohnheiten lassen sich jetzt bearbeiten (Tage, Uhrzeit).'],
   ['🧭', 'Neu: „So nutzt du das Dorf“ (/anleitung) – der Tages- und Wochenrhythmus mit allen Bausteinen auf einer Seite.'],
   ['🌸', 'Das Dorf blüht, wenn du aktiv bist: Blumen, Licht, eine Fahne am Rathaus bei erreichten Wochenzielen, Feuerwerk an starken Tagen.'],
   ['📶', 'Offline angelegte To-dos und Notizen werden gemerkt und von selbst gesendet.'],

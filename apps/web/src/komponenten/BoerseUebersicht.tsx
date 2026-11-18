@@ -122,6 +122,7 @@ function Tabelle({ werte, depot, entfernen }: { werte: BoerseWert[]; depot?: boo
                 {w.symbol ?? w.isin}
                 {depot && w.stueck != null ? ` · ${w.stueck} Stück` : ''}
                 {w.datum ? ` · ${w.datum}` : ''}
+                {w.alarmUnter != null || w.alarmUeber != null ? ` · 🔔 ${w.alarmUnter != null ? `< ${w.alarmUnter}` : ''}${w.alarmUnter != null && w.alarmUeber != null ? ' / ' : ''}${w.alarmUeber != null ? `> ${w.alarmUeber}` : ''}` : ''}
               </div>
             </td>
             <td>{kurs(w)}</td>
@@ -147,6 +148,8 @@ function WertNeu({ art, fertig }: { art: 'positionen' | 'watchlist'; fertig: () 
   const [boerse, setBoerse] = useState<'XETRA' | 'US' | 'SW'>('XETRA');
   const [stueck, setStueck] = useState('');
   const [einstand, setEinstand] = useState('');
+  const [unter, setUnter] = useState('');
+  const [ueber, setUeber] = useState('');
   const [fehler, setFehler] = useState('');
   if (!offen)
     return (
@@ -172,6 +175,8 @@ function WertNeu({ art, fertig }: { art: 'positionen' | 'watchlist'; fertig: () 
                 ...(istIsin ? { isin: k, boerse } : { symbol: k.includes('.') ? k : `${k}.${boerse}` }),
                 ...(art === 'positionen' && stueck ? { stueck: Number(stueck.replace(',', '.')) } : {}),
                 ...(art === 'positionen' && einstand ? { einstand: Number(einstand.replace(',', '.')) } : {}),
+                ...(unter ? { alarm_unter: Number(unter.replace(',', '.')) } : {}),
+                ...(ueber ? { alarm_ueber: Number(ueber.replace(',', '.')) } : {}),
               },
             },
           });
@@ -180,6 +185,8 @@ function WertNeu({ art, fertig }: { art: 'positionen' | 'watchlist'; fertig: () 
           setKennung('');
           setStueck('');
           setEinstand('');
+          setUnter('');
+          setUeber('');
           fertig();
         } catch (err) {
           setFehler(err instanceof ApiFehler ? err.message : String(err));
@@ -216,6 +223,17 @@ function WertNeu({ art, fertig }: { art: 'positionen' | 'watchlist'; fertig: () 
           </label>
         </div>
       )}
+      <div className="zeile">
+        <label>
+          🔔 Alarm unter
+          <input value={unter} onChange={(e) => setUnter(e.target.value)} inputMode="decimal" placeholder="optional" aria-label="Kursalarm unter" />
+        </label>
+        <label>
+          🔔 Alarm über
+          <input value={ueber} onChange={(e) => setUeber(e.target.value)} inputMode="decimal" placeholder="optional" aria-label="Kursalarm über" />
+        </label>
+      </div>
+      <p className="leise">Kursalarm in der Währung des Kurses – Telegram meldet sich einmal, wenn ein Schlusskurs die Grenze überschreitet.</p>
       <div className="zeile">
         <button type="submit" className="haupt">
           Hinzufügen

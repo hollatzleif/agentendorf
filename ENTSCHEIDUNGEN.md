@@ -872,3 +872,10 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **Gewohnheiten bearbeiten:** Unter „Bearbeiten“ lassen sich Tage (auch „N× pro Woche“) und die Uhrzeit ändern (`PATCH /api/gewohnheiten`). Die Häkchen hängen am Namen und bleiben erhalten, ebenso eigene Felder aus Obsidian.
 - **Behobener Fehler:** Wer nur die Uhrzeit änderte, setzte die Tage still auf „täglich“ zurück. Der Standardwert des Schemas griff auch beim Ändern; jetzt gilt er nur beim Anlegen.
 - **Schreiben nacheinander:** `gewohnheiten.md`, die Wochenziele-Dateien und `noten.md` werden je Dienst in einer Warteschlange geschrieben. Zwei schnelle Änderungen hintereinander, etwa Tage und gleich danach die Uhrzeit, führten sonst zu einem Konflikt: Die zweite überschrieb die erste oder hinterließ eine Konfliktkopie.
+
+## E117 – Kursalarm in der Börse (Nacht 18./19.11.)
+
+- Positionen und Watchlist-Werte können `alarm_unter` und/oder `alarm_ueber` bekommen, in der Währung des Kurses. Das geht in der App (Börse → „+ Beobachten“) oder in `Boerse/depot.md`.
+- **Wann gemeldet wird:** Nach jedem Kursabruf (Schlusskurse, ≤ 19 Abrufe am Tag) prüft das Dorf die Grenzen. Telegram meldet „🔔 Kursalarm – 📉 All-World: 95 EUR – unter deiner Grenze 100“, und zwar **einmal je Überschreiten**. Erst wenn der Kurs wieder auf der anderen Seite war, meldet dieselbe Grenze erneut. Der Zustand liegt in `dorf_stand`. Es gilt derselbe Schalter wie für Saxo-Meldungen, und die Nachtruhe wird beachtet.
+- **Nur Information:** Die Börse handelt nie, daran ändert sich nichts.
+- **Eigene Felder bleiben:** Was Leif in `depot.md` zusätzlich an einen Wert schreibt (z. B. `notiz`), bleibt beim Speichern aus der App erhalten (wie E111).

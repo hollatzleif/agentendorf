@@ -395,6 +395,7 @@ export async function dorfStarten(
     const t = telegram;
     bank.beiWarnung.push((text) => t.bankMelden(text));
     saxo.beiMeldung.push((text) => void t.saxoMelden(text).catch(() => undefined));
+    boerse.beiAlarm.push((text) => void t.saxoMelden(`🔔 Kursalarm\n${text}`).catch(() => undefined));
     wochenrueckblick.beiNeu.push((r) => t.rueckblickSenden(r));
     // Fokus: während einer Pomodoro-Arbeitsphase hält Telegram Meldungen zurück und schickt sie danach gesammelt
     t.fokusAktiv = () => kirchturm.fokusAktiv();
