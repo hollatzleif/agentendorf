@@ -504,12 +504,19 @@ cmd_moodle_browser_zugang() {
 # Google anmelden (OAuth): Gmail nur Lesen + Entwürfe, dazu der Kalender (E75). Client-ID/-Schlüssel aus Leifs eigenem Google-Cloud-Projekt.
 cmd_gmail_anmelden() {
   local id secret aus adresse verifier state rueck token
-  info "Google Cloud Console → Clients → deine Desktop-App: Client-ID und Clientschlüssel bereithalten."
   info "Für den Kalender: Cloud Console → APIs & Dienste → Bibliothek → Google Calendar API → Aktivieren (einmalig)."
-  read -r -p "Client-ID: " id
+  # schon einmal angemeldet → gespeicherte Client-ID/-Schlüssel nehmen (Leif muss sie nicht neu heraussuchen)
+  id=$(grep -E '^GMAIL_CLIENT_ID=' "$ENV_DATEI" | cut -d= -f2- || true)
+  secret=$(grep -E '^GMAIL_CLIENT_SECRET=' "$ENV_DATEI" | cut -d= -f2- || true)
+  if [ -n "$id" ] && [ -n "$secret" ]; then
+    info "Nehme die gespeicherte Client-ID ($id) und den gespeicherten Clientschlüssel."
+  else
+    info "Google Cloud Console → Clients → deine Desktop-App: Client-ID und Clientschlüssel bereithalten."
+    read -r -p "Client-ID: " id
+    read -r -s -p "Clientschlüssel (unsichtbar): " secret; echo
+  fi
   id=$(printf '%s' "$id" | tr -d '\r\n ')
   [[ "$id" =~ ^[0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com$ ]] || { rot "Das sieht nicht wie eine Client-ID aus (…apps.googleusercontent.com)."; return 1; }
-  read -r -s -p "Clientschlüssel (unsichtbar): " secret; echo
   secret=$(printf '%s' "$secret" | tr -d '\r\n ')
   [[ "$secret" =~ ^[A-Za-z0-9_-]{10,100}$ ]] || { rot "Das sieht nicht wie ein Clientschlüssel aus."; return 1; }
   aus=$(compose exec -T dorf node dist/cli.js gmail-anmelden-start "$id") || { rot "Konnte die Anmeldung nicht vorbereiten."; return 1; }

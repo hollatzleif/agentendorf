@@ -111,9 +111,17 @@ grep -qx 'GMAIL_CLIENT_SECRET=GOCSPX-geheim123' "$BASIS/.env" || fehler "GMAIL_C
 grep -qx 'GMAIL_REFRESH_TOKEN=1//0gREFRESHtoken-abc_123' "$BASIS/.env" || fehler "GMAIL_REFRESH_TOKEN fehlt"
 grep -qF 'GOCSPX-geheim123' <<<"$aus" && fehler "Clientschlüssel wurde ausgegeben"
 cp "$BASIS/.env" "$BASIS/env.vorher"
-printf '%s\nGOCSPX-geheim123\nhttp://127.0.0.1:8765/?error=access_denied&state=STATE456\n' "$ID" | dorf gmail-anmelden >/dev/null 2>&1 && fehler "abgelehnte Anmeldung gespeichert"
-printf 'keine-id\nGOCSPX-x\nx\n' | dorf gmail-anmelden >/dev/null 2>&1 && fehler "falsche Client-ID angenommen"
+# erneut anmelden: Client-ID/-Schlüssel kommen aus der .env, gefragt wird nur nach der Rückleitungs-Adresse
+printf 'http://127.0.0.1:8765/?error=access_denied&state=STATE456\n' | dorf gmail-anmelden >/dev/null 2>&1 && fehler "abgelehnte Anmeldung gespeichert"
 cmp -s "$BASIS/.env" "$BASIS/env.vorher" || fehler ".env nach abgelehnter Gmail-Anmeldung verändert"
+aus=$(printf 'http://127.0.0.1:8765/?state=STATE456&code=gut&scope=x\n' | dorf gmail-anmelden 2>&1) || fehler "erneute Anmeldung mit gespeicherten Daten: $aus"
+grep -q 'gespeicherte Client-ID' <<<"$aus" || fehler "gespeicherte Client-ID nicht genommen"
+[ "$(grep -c '^GMAIL_CLIENT_ID=' "$BASIS/.env")" = 1 ] || fehler "GMAIL_CLIENT_ID doppelt"
+grep -qF 'GOCSPX-geheim123' <<<"$aus" && fehler "Clientschlüssel wurde ausgegeben"
+# ohne gespeicherte Daten: falsche Client-ID wird abgelehnt
+sed -i '/^GMAIL_CLIENT_/d' "$BASIS/.env"; cp "$BASIS/.env" "$BASIS/env.vorher"
+printf 'keine-id\nGOCSPX-x\nx\n' | dorf gmail-anmelden >/dev/null 2>&1 && fehler "falsche Client-ID angenommen"
+cmp -s "$BASIS/.env" "$BASIS/env.vorher" || fehler ".env nach falscher Client-ID verändert"
 echo "Gmail anmelden: bestanden"
 
 # Unerwartete Fehler werden benannt statt still zu enden (rollback ohne Versionen: ls schlägt fehl)
