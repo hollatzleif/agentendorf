@@ -1352,6 +1352,29 @@ test('Heute: „Jetzt dran“ schlägt ein passendes To-do vor, 🍅 Los startet
   await page.request.post('/api/kirchturm', { headers: { origin: ORIGIN }, data: { befehl: 'pomodoro', aktion: 'stopp' } });
 });
 
+test('To-do-Brett: Filter nach Text, ⭐ und Gruppe (E125)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  const o = { origin: ORIGIN };
+  const p = `F${Date.now() % 100000}`;
+  for (let i = 0; i < 5; i++) await page.request.post('/api/todos', { headers: o, data: { titel: `${p} Kleinkram ${i}` } });
+  await page.request.post('/api/todos', { headers: o, data: { titel: `${p} Wichtig`, wichtig: true } });
+  await page.request.post('/api/todos', { headers: o, data: { titel: `${p} Mathe-Blatt`, gruppe: `Mathe${p}` } });
+  await page.goto('/gebaeude/Marktplatz?reiter=todo');
+  const f = page.getByRole('group', { name: 'Filter' });
+  await f.getByRole('searchbox', { name: 'To-dos filtern' }).fill(`${p} Klein`);
+  await expect(page.locator('li.todo', { hasText: p })).toHaveCount(5);
+  await f.getByRole('searchbox', { name: 'To-dos filtern' }).fill(p);
+  await f.getByRole('button', { name: `Mathe${p}` }).click();
+  await expect(page.locator('li.todo', { hasText: p })).toHaveCount(1);
+  await expect(page.locator('li.todo', { hasText: `${p} Mathe-Blatt` })).toBeVisible();
+  await f.getByRole('button', { name: '⭐' }).click();
+  await expect(page.locator('li.todo', { hasText: p })).toHaveCount(1);
+  await expect(page.locator('li.todo', { hasText: `${p} Wichtig` })).toBeVisible();
+  await f.getByRole('button', { name: 'Alle', exact: true }).click();
+  await expect(page.locator('li.todo', { hasText: p })).toHaveCount(7);
+});
+
 test('Seite lässt sich nicht laden (nach Deploy): einmal neu laden, dann „Neu laden“ statt weißer Seite (Review)', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'einmal reicht');
   await anmelden(page);

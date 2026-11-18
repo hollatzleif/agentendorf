@@ -1256,3 +1256,9 @@ input.kurz { width: 5em; }
 .heute-jetzt-text { display: grid; gap: 0.1rem; flex: 1; min-width: 12rem; }
 .heute-jetzt-schritt { font-size: 0.9rem; }
 .heute-jetzt .haupt { min-height: 40px; }
+
+/* E125: Filter im To-do-Brett */
+.todo-filter { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; margin: 0.4rem 0 0.6rem; }
+.todo-filter input[type='search'] { flex: 1 1 10rem; min-width: 8rem; }
+.todo-filter .klein.an { background: var(--gruen); color: #fff; }
+.todo-filter-zahl { font-size: 0.85rem; }

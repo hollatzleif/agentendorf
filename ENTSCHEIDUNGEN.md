@@ -979,3 +979,8 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
   - Vor 6 Uhr schlägt „Jetzt dran“ nichts vor.
 - **Tag planen:** Ein To-do mit großer Schätzung, das in keine Lücke passt, bekommt einen Teilblock in der größten Lücke (ab 30 min, „Teil von ⏱ 4 h“), statt still zu fehlen.
 - **Fokus-Vollbild** stellt beim Verlassen den vorherigen Reitertitel wieder her, einschließlich Freigabe-Zähler.
+
+## E125 – Filter im To-do-Brett (Nacht 18./19.11.)
+
+- Ab 6 offenen Einträgen erscheint über der Liste eine Filterleiste. Sie hat eine Textsuche (Titel, Notiz, Gruppe, Gebäude) und Chips für „⭐“, „Heute & überfällig“, „Ohne Datum“ und je Gruppe bzw. Gebäude (z. B. „Uni“, ein Fach, ein Amt). Daneben steht „N von M“.
+- Der Filter wirkt nur auf die Anzeige. Er wird nicht gespeichert und gilt für alle Listen (To-do, Einkauf, Wunsch, Corps).

@@ -20,6 +20,8 @@ export function TodoBrett({ liste: name = 'todo', platzhalter = 'Neues To-do …
   const [titel, setTitel] = useState('');
   const [faellig, setFaellig] = useState('');
   const [fehler, setFehler] = useState('');
+  const [suche, setSuche] = useState('');
+  const [filter, setFilter] = useState('alle');
   const neu = () => qc.invalidateQueries({ queryKey: ['liste', name] });
   /** 'ok' | 'offline' (gemerkt, kommt später an) | 'fehler' – Felder leeren/Vorschläge verwerfen nur bei Erfolg (Review) */
   const ausfuehren: Ausfuehren = async (f) => {
@@ -51,10 +53,33 @@ export function TodoBrett({ liste: name = 'todo', platzhalter = 'Neues To-do …
     });
   };
 
-  const offen = (liste.data?.filter((t) => !t.erledigt) ?? []).slice();
+  const alleOffen = liste.data?.filter((t) => !t.erledigt) ?? [];
+  // E125: Filter – Text, ⭐, heute/überfällig, ohne Datum, je Gruppe/Gebäude (nur Anzeige)
+  const h0 = heute();
+  const gruppen = [...new Set(alleOffen.flatMap((t) => [t.gruppe, t.gebaeude]).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'de'));
+  const passt = (t: TodoInfo) => {
+    if (suche.trim()) {
+      const q = suche.trim().toLowerCase();
+      if (!`${t.titel} ${t.notiz ?? ''} ${t.gruppe ?? ''} ${t.gebaeude ?? ''}`.toLowerCase().includes(q)) return false;
+    }
+    if (filter === 'stern') return !!t.wichtig;
+    if (filter === 'heute') return !!t.faellig && t.faellig <= h0;
+    if (filter === 'ohne') return !t.faellig;
+    if (filter.startsWith('g:')) return t.gruppe === filter.slice(2) || t.gebaeude === filter.slice(2);
+    return true;
+  };
+  const gefiltert = !!suche.trim() || filter !== 'alle';
+  const offen = alleOffen.filter(passt);
   // Einkaufsliste: nach Abteilung sortiert, damit man im Laden der Reihe nach abhakt
   if (gruppiert) offen.sort((a, b) => (a.gruppe ?? 'zzz').localeCompare(b.gruppe ?? 'zzz', 'de') || a.titel.localeCompare(b.titel, 'de'));
-  const erledigt = liste.data?.filter((t) => t.erledigt) ?? [];
+  const erledigt = (liste.data?.filter((t) => t.erledigt) ?? []).filter((t) => !suche.trim() || passt(t));
+  const chips: [string, string][] = [
+    ['alle', 'Alle'],
+    ...(alleOffen.some((t) => t.wichtig) ? [['stern', '⭐'] as [string, string]] : []),
+    ...(alleOffen.some((t) => t.faellig && t.faellig <= h0) ? [['heute', 'Heute & überfällig'] as [string, string]] : []),
+    ...(alleOffen.some((t) => !t.faellig) && alleOffen.some((t) => t.faellig) ? [['ohne', 'Ohne Datum'] as [string, string]] : []),
+    ...gruppen.map((g) => [`g:${g}`, g] as [string, string]),
+  ];
   return (
     <div className="todo-brett">
       <form className="todo-neu" onSubmit={anlegen} aria-label="Neues To-do">
@@ -66,7 +91,23 @@ export function TodoBrett({ liste: name = 'todo', platzhalter = 'Neues To-do …
       </form>
       {fehler && <p className="fehler">{fehler}</p>}
       {liste.isLoading && <p className="leise">Lade …</p>}
-      {liste.data && !offen.length && <p className="leise">Nichts offen. 🎉</p>}
+      {alleOffen.length > 5 && (
+        <div className="todo-filter" role="group" aria-label="Filter">
+          <input type="search" value={suche} onChange={(e) => setSuche(e.target.value)} placeholder="Filtern …" aria-label="To-dos filtern" />
+          {chips.length > 1 &&
+            chips.map(([k, text]) => (
+              <button key={k} type="button" className={`klein${filter === k ? ' an' : ''}`} aria-pressed={filter === k} onClick={() => setFilter(filter === k && k !== 'alle' ? 'alle' : k)}>
+                {text}
+              </button>
+            ))}
+          {gefiltert && (
+            <span className="leise todo-filter-zahl">
+              {offen.length} von {alleOffen.length}
+            </span>
+          )}
+        </div>
+      )}
+      {liste.data && !offen.length && <p className="leise">{gefiltert && alleOffen.length ? 'Nichts passt zum Filter.' : 'Nichts offen. 🎉'}</p>}
       <ul className="todo-liste">
         {offen.map((t) => (
           <TodoZeile key={`${t.pfad}:${t.version}`} t={t} ausfuehren={ausfuehren} basis={basis} />
