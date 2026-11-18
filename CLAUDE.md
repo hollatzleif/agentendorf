@@ -46,6 +46,10 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
   src/post/       Etappe 4: google-oauth.ts (PKCE, Refresh-Token), gmail.ts (REST: profile/list/history/get/drafts – nie senden),
                   postbote.ts (Abruf alle 10 min, Einordnung ohne Werkzeuge, Post/eingang/JJJJ-MM-TT.md, keine Mailtexte)
   src/kalender.ts      Hauptkalender (geheime iCal-Adresse) – nur lesen, nie speichern
+  src/kalender-google.ts E75: Marktplatz-Kalender über die Google Calendar API (Leif schreibt per App, nie Einladungen; Agenten nie)
+  src/kirchturm.ts     E74: Wecker/Timer/Pomodoro/Stoppuhr auf dem Server (Takt 1 s), Klingeln = Live-Ereignis; Glocke nur im Programm
+  src/saxo.ts          E73: Saxo OpenAPI nur lesen (Code-Flow, Refresh-Token-Rotation in dorf_stand, nur 4 GET-Pfade)
+  src/uni/todo-bruecke.ts E71: Uni-Fristen → To-dos, Abhaken in beide Richtungen (uni_todos)
   src/wetter.ts        Wetter für Leifs Wohnort Konstanz (WETTER_ORT/WETTER_URL) von Open-Meteo (E59): bei Bedarf, 30 min Zwischenspeicher
   src/morgenzeitung.ts 06:30 Linz: Fakten vom Code + KI-Einleitung → Rathaus/morgenzeitung/, Rathaus-Reiter, Telegram
   src/aufwachen.ts     Bürgermeister wacht jede Stunde auf (24/7, E56): Code prüft, KI nur bei NEUEN Anlässen (Lagebericht) oder
@@ -78,7 +82,7 @@ apps/browser    Moodle-Browser (E57): Chromium über playwright-core + Runner (H
                 Zugangsdaten nur in /srv/dorf/browser.env (als Datei eingebunden, nicht env_file). Compose-Profil „browser“.
                 Tests: leine (pnpm test), gegen nachgebautes Moodle mit Chromium (pnpm --filter @dorf/browser e2e).
 apps/programm  Etappe 6 (E66): Tauri-v2-Hülle für Mac/Windows. src-tauri/src/lib.rs (Fenster, Leiste, Schnelleingabe,
-                Autostart, Updater, Befehle melden/zaehler_setzen/schnell_schliessen – zur Laufzeit NUR für den Ursprung
+                Autostart, Updater, Befehle melden/zaehler_setzen/schnell_schliessen/glocke/glocke_stopp – zur Laufzeit NUR für den Ursprung
                 der Dorf-Adresse freigegeben), adresse.rs (https-Prüfung, Tests), einrichten/ (lokale Einrichtungsseite).
                 test/selbsttest.sh: Debug-Build unter Xvfb gegen den e2e-Server, prüft die Freigaben. Gebaut in der CI.
 packages/shared Typen für HTTP und WebSocket (LiveEreignis, VaultEintrag …) + Dorf-Layout-Regeln (dorf.ts) – wird in den Server gebündelt
@@ -146,3 +150,4 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E65 (18.11.): To-do-Brett auf dem Marktplatz (App-Reiter live, Telegram /todo, todo_* für alle Agenten)
 - [x] Etappe 6 – Programme (E66; Code fertig, Selbsttest unter Linux bestanden; Mac/Windows baut die CI – Abnahme an Leifs Geräten steht aus, Signaturschlüssel als GitHub-Secret von Leif)
 - [x] Etappe 7 – Gebäude anlegen/eröffnen, Einkaufsladen, Bank, Corpshaus, Börse (E67–E70; Code fertig und getestet; echte Läufe, EODHD-Schlüssel und Bank-Exporte auf dem Server abzunehmen)
+- [x] Etappe 8 (18.11.): Uni-Fristen als To-dos (E71), Häuschen/Deko/Kirchturm-Modell (E72), SIX/Franken + Saxo nur lesen (E73), Kirchturm-Uhr mit Glocke im Programm (E74), Google-Kalender auf dem Marktplatz (E75) – Saxo-App und Calendar-API-Freigabe von Leif abzunehmen

@@ -487,10 +487,11 @@ cmd_moodle_browser_zugang() {
   fi
 }
 
-# Gmail anmelden (OAuth, nur Lesen + Entwürfe). Client-ID/-Schlüssel aus Leifs eigenem Google-Cloud-Projekt.
+# Google anmelden (OAuth): Gmail nur Lesen + Entwürfe, dazu der Kalender (E75). Client-ID/-Schlüssel aus Leifs eigenem Google-Cloud-Projekt.
 cmd_gmail_anmelden() {
   local id secret aus adresse verifier state rueck token
   info "Google Cloud Console → Clients → deine Desktop-App: Client-ID und Clientschlüssel bereithalten."
+  info "Für den Kalender: Cloud Console → APIs & Dienste → Bibliothek → Google Calendar API → Aktivieren (einmalig)."
   read -r -p "Client-ID: " id
   id=$(printf '%s' "$id" | tr -d '\r\n ')
   [[ "$id" =~ ^[0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com$ ]] || { rot "Das sieht nicht wie eine Client-ID aus (…apps.googleusercontent.com)."; return 1; }
@@ -501,7 +502,7 @@ cmd_gmail_anmelden() {
   adresse=$(sed -n 1p <<<"$aus"); verifier=$(sed -n 2p <<<"$aus"); state=$(sed -n 3p <<<"$aus")
   info "1. Öffne diese Adresse im Browser und melde dich mit deinem Gmail-Konto an:"
   echo; echo "   $adresse"; echo
-  info "2. Warnt Google, die App sei nicht überprüft: Erweitert → Weiter zu Agentendorf. Beide Zugriffe erlauben."
+  info "2. Warnt Google, die App sei nicht überprüft: Erweitert → Weiter zu Agentendorf. ALLE Haken setzen (Mail lesen, Entwürfe, Kalender)."
   info "3. Danach lädt eine Seite, die nicht erreichbar ist (127.0.0.1) – das ist richtig so."
   info "   Kopiere die KOMPLETTE Adresse aus der Adresszeile (beginnt mit http://127.0.0.1:8765/)."
   read -r -s -p "4. Adresse hier einfügen (unsichtbar): " rueck; echo
@@ -515,7 +516,7 @@ cmd_gmail_anmelden() {
   sed -i '/^GMAIL_CLIENT_ID=/d;/^GMAIL_CLIENT_SECRET=/d;/^GMAIL_REFRESH_TOKEN=/d' "$ENV_DATEI"
   printf 'GMAIL_CLIENT_ID=%s\nGMAIL_CLIENT_SECRET=%s\nGMAIL_REFRESH_TOKEN=%s\n' "$id" "$secret" "$token" >> "$ENV_DATEI"
   compose up -d --force-recreate dorf
-  gruen "Gmail verbunden. In der App: Post → Eingang → Jetzt abholen (sonst automatisch alle 10 Minuten)."
+  gruen "Google verbunden. Post: Eingang → Jetzt abholen (sonst alle 10 Minuten). Kalender: Marktplatz → Kalender."
 }
 
 # Google-Kalender (geheime iCal-Adressen): „Moodle-Fristen (automatisch)“ aus Leifs Skript, „JKU Pflicht“
@@ -600,7 +601,7 @@ Agentendorf – Befehle auf dem Server
   dorf boerse-schluessel         EODHD-Schlüssel für die Börsenkurse eintragen (kostenlos, eodhd.com)
   dorf saxo-einrichten           Saxo-App (nur lesen) eintragen – danach in der App: Mit Saxo verbinden (EINRICHTUNG.md)
   dorf telegram-einrichten       eigenen Telegram-Bot koppeln (Token von @BotFather)
-  dorf gmail-anmelden            Post: Gmail verbinden (nur Lesen + Entwürfe)
+  dorf gmail-anmelden            Google verbinden: Gmail (nur Lesen + Entwürfe) und Kalender (Marktplatz)
   dorf google-kalender           Uni: Google-Kalender eintragen (Moodle-Fristen aus deinem Skript, JKU Pflicht)
   dorf moodle-kalender           (alt) Fristen direkt aus dem Moodle-Kalender-Export
   dorf moodle-anmelden [url]     Moodle-App-Zugang (an der JKU derzeit gesperrt)

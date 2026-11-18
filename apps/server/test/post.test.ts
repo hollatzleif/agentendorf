@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
 import matter from 'gray-matter';
 import type { BetaMessage } from '@anthropic-ai/sdk/resources/beta/messages/messages';
-import { GMAIL_BEREICHE, GoogleAnmeldungUngueltig, GoogleZugang, RUECKLEITUNG, anmeldungVorbereiten, codeAusAdresse, codeTauschen } from '../src/post/google-oauth.js';
+import { GMAIL_BEREICHE, KALENDER_BEREICHE, GoogleAnmeldungUngueltig, GoogleZugang, RUECKLEITUNG, anmeldungVorbereiten, codeAusAdresse, codeTauschen } from '../src/post/google-oauth.js';
 import { gmailKlient, rohNachricht } from '../src/post/gmail.js';
 import type { ModellKlient } from '../src/agenten/motor-api.js';
 import { einstellungenLaden, einstellungenSetzen } from '../src/telegram/einstellungen.js';
@@ -22,11 +22,11 @@ async function google() {
 }
 
 describe('Google-Anmeldung (OAuth mit PKCE)', () => {
-  it('fragt nur Lesen und Entwürfe an, mit PKCE (S256), offline und state', () => {
+  it('fragt nur Lesen, Entwürfe und Kalender an, mit PKCE (S256), offline und state', () => {
     const a = anmeldungVorbereiten('123-abc.apps.googleusercontent.com');
     const u = new URL(a.adresse);
     expect(u.origin + u.pathname).toBe('https://accounts.google.com/o/oauth2/v2/auth');
-    expect(u.searchParams.get('scope')!.split(' ')).toEqual(GMAIL_BEREICHE);
+    expect(u.searchParams.get('scope')!.split(' ')).toEqual([...GMAIL_BEREICHE, ...KALENDER_BEREICHE]);
     expect(u.searchParams.get('scope')).not.toMatch(/gmail\.send|mail\.google\.com|gmail\.modify/);
     expect(u.searchParams.get('redirect_uri')).toBe(RUECKLEITUNG);
     expect(u.searchParams.get('access_type')).toBe('offline');

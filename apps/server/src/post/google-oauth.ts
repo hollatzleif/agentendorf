@@ -4,9 +4,11 @@ import crypto from 'node:crypto';
  * Google-Anmeldung für einen Desktop-Client (OAuth 2.0 mit PKCE), ohne Bibliothek.
  * Ablauf wie bei Moodle: Leif öffnet die Adresse, meldet sich an, Google leitet auf eine lokale Adresse um
  * (dort lauscht nichts) – Leif kopiert die Adresse aus der Adresszeile ins Terminal.
- * Nur Lesen und Entwürfe: gmail.readonly + gmail.compose. Senden wird nie angefragt.
+ * Mail: nur Lesen und Entwürfe (gmail.readonly + gmail.compose) – Senden wird nie angefragt.
+ * E75: Kalender (calendar.events + calendar.calendarlist.readonly) für den Marktplatz-Kalender; schreiben nur per Leifs Klick.
  */
 export const GMAIL_BEREICHE = ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.compose'];
+export const KALENDER_BEREICHE = ['https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/calendar.calendarlist.readonly'];
 export const RUECKLEITUNG = 'http://127.0.0.1:8765/';
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 
@@ -21,7 +23,7 @@ export function anmeldungVorbereiten(clientId: string) {
     client_id: clientId,
     redirect_uri: RUECKLEITUNG,
     response_type: 'code',
-    scope: GMAIL_BEREICHE.join(' '),
+    scope: [...GMAIL_BEREICHE, ...KALENDER_BEREICHE].join(' '),
     access_type: 'offline',
     prompt: 'consent', // sonst gibt Google bei erneuter Anmeldung kein Refresh-Token heraus
     code_challenge: challenge,

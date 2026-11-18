@@ -1,6 +1,7 @@
 import type { Boerse } from './boerse.js';
 import type { Saxo } from './saxo.js';
 import type { Kirchturm } from './kirchturm.js';
+import type { GoogleKalender } from './kalender-google.js';
 import type { Corps } from './corps.js';
 import type { Bank } from './bank.js';
 import { programmeRouten } from './programme.js';
@@ -73,6 +74,7 @@ export interface Abhaengigkeiten {
   boerse?: Boerse;
   saxo?: Saxo;
   kirchturm?: Kirchturm;
+  googleKalender?: GoogleKalender;
 }
 
 /** Für Agenten-HTML: Skripte ja, aber undurchsichtiger Ursprung und kein Netz. Bilder/Schriften nur eingebettet (data:). */
@@ -373,6 +375,29 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
       const { art, index } = z.object({ art: z.enum(['positionen', 'watchlist']), index: z.coerce.number().int().min(0) }).parse(req.query);
       await boerse.wertAendern(art, { entfernen: index });
       return boerse.uebersicht();
+    });
+  }
+
+  // ---- E75: Kalender auf dem Marktplatz (schreiben nur hier, also nur mit Leifs Klick) ----
+  if (a.googleKalender) {
+    const k = a.googleKalender;
+    app.get('/api/kalender', async (req) => {
+      const q = z.object({ von: z.string().datetime(), bis: z.string().datetime() }).parse(req.query);
+      return k.zeitraum(Date.parse(q.von), Date.parse(q.bis));
+    });
+    app.get('/api/kalender/serie', async (req) => {
+      const q = z.object({ kalenderId: z.string().min(1), serieId: z.string().min(1) }).parse(req.query);
+      return k.serie(q.kalenderId, q.serieId);
+    });
+    app.post('/api/kalender/termin', async (req) => k.anlegen(req.body));
+    app.patch('/api/kalender/termin', async (req) => {
+      const b = z.object({ id: z.string().min(1), vonKalender: z.string().optional(), serie: z.boolean().optional(), termin: z.unknown() }).parse(req.body);
+      return k.aendern(b.id, b.termin, { serie: b.serie, vonKalender: b.vonKalender });
+    });
+    app.delete('/api/kalender/termin', async (req) => {
+      const q = z.object({ kalenderId: z.string().min(1), id: z.string().min(1), serie: z.enum(['ja', 'nein']).optional() }).parse(req.query);
+      await k.loeschen(q.kalenderId, q.id, { serie: q.serie === 'ja' });
+      return { ok: true };
     });
   }
 

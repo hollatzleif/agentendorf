@@ -61,6 +61,9 @@ export function useLiveVerbindung(qc: QueryClient, aktiv: boolean) {
             void qc.invalidateQueries({ queryKey: ['suche'] });
             if (/^(Marktplatz\/todos|Einkaufsladen\/(liste|wunschliste)|Corpshaus\/aufgaben)\//.test(e.pfad)) void qc.invalidateQueries({ queryKey: ['liste'] });
             break;
+          case 'kalender.geaendert':
+            void qc.invalidateQueries({ queryKey: ['kalender'] });
+            break;
           case 'kirchturm.geaendert':
           case 'kirchturm.klingelt':
             void qc.invalidateQueries({ queryKey: ['kirchturm'] });

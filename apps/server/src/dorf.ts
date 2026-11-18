@@ -37,6 +37,7 @@ import { listenAnlegen } from './todos.js';
 import { UniTodoBruecke } from './uni/todo-bruecke.js';
 import { Saxo } from './saxo.js';
 import { Kirchturm } from './kirchturm.js';
+import { GoogleKalender, googleKalenderKlient, type KalenderKlient } from './kalender-google.js';
 import { Bank, datum as bankDatum } from './bank.js';
 import { Corps } from './corps.js';
 import { Boerse, eodhdKlient, ezbKurs, type BoerseKlient, type Fremdwaehrung } from './boerse.js';
@@ -125,6 +126,8 @@ export async function dorfStarten(
     /** Für Tests: nachgebauter Kurs-Anbieter und EZB-Kurs */
     boerse?: BoerseKlient;
     boerseFx?: (waehrung: Fremdwaehrung) => Promise<{ datum: string; kurs: number }>;
+    /** Tests: Google Kalender nachgebaut */
+    kalenderKlient?: KalenderKlient;
     /** Tests: Saxo-Server nachgebaut */
     saxoHolen?: typeof fetch;
     /** Für Tests: Open-Meteo-Antwort ohne Netz */
@@ -199,7 +202,8 @@ export async function dorfStarten(
     log: (t) => console.warn(t),
   });
   agenten.quellen = (q) => (q === 'post.mails' ? postbote.quelle() : uni.quelle(q));
-  const gmail = opt.gmail ?? (konfig.gmail ? gmailKlient(new GoogleZugang({ ...konfig.gmail, tokenUrl: konfig.googleTokenUrl }), konfig.gmailApiUrl) : undefined);
+  const googleZugang = konfig.gmail ? new GoogleZugang({ ...konfig.gmail, tokenUrl: konfig.googleTokenUrl }) : undefined;
+  const gmail = opt.gmail ?? (googleZugang ? gmailKlient(googleZugang, konfig.gmailApiUrl) : undefined);
   const ki = new SystemAufrufe({
     db,
     uhr,
@@ -219,6 +223,14 @@ export async function dorfStarten(
   });
   agenten.post = gmail;
   const kalender = new Terminkalender(opt.google ? opt.google.termine : konfig.googleTermineIcs ? kalenderQuelle(konfig.googleTermineIcs) : undefined, () => uhr.jetzt());
+  // E75: Kalender auf dem Marktplatz – Google Calendar (lesen + schreiben durch Leif), sonst nur lesen über iCal
+  const googleKalender = new GoogleKalender({
+    klient: opt.kalenderKlient ?? (googleZugang ? googleKalenderKlient(googleZugang, konfig.googleCalendarApiUrl) : undefined),
+    ical: kalender,
+    uni,
+    hub,
+    jetzt: () => uhr.jetzt(),
+  });
   // Etappe 7: Corpshaus (Termine aus dem Hauptkalender per Stichwort, Corps-Absender für den Postboten)
   const corps = new Corps({ vault, uhr, kalender });
   corpsRef.aktuell = corps;
@@ -372,7 +384,7 @@ export async function dorfStarten(
   const planTakt = opt.beobachten !== false ? setInterval(() => void buergermeister.faelligePlaeneAnnehmen().catch((e) => console.warn(`Pläne: ${(e as Error).message}`)), 60_000) : undefined;
   planTakt?.unref();
   const dorfplan = new Dorfplan({ db, uhr, hub, vault, uni, wetter });
-  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen, dorfplan, automatik, listen, bank, corps, boerse, saxo, kirchturm });
+  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen, dorfplan, automatik, listen, bank, corps, boerse, saxo, kirchturm, googleKalender });
   // Abhaken in Obsidian kommt ohne Ereignis an → zusätzlich alle 10 Minuten abgleichen
   const uniTodoTakt = opt.beobachten !== false ? setInterval(() => uniTodosAnstossen(), 600_000) : undefined;
   uniTodoTakt?.unref();
@@ -396,5 +408,5 @@ export async function dorfStarten(
     await agenten.ruhe();
     db.close();
   });
-  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan, wetter, automatik, todos, listen, bank, corps, boerse, uniTodos, saxo, kirchturm };
+  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan, wetter, automatik, todos, listen, bank, corps, boerse, uniTodos, saxo, kirchturm, googleKalender };
 }

@@ -1,10 +1,15 @@
 import { useState } from 'react';
 
 /** Bei jeder neuen Ausgabe den Schlüssel ändern – dann erscheint die Karte einmal pro Gerät */
-const AUSGABE = '2026-11-18l';
+const AUSGABE = '2026-11-18m';
 const SCHLUESSEL = 'dorf-neuigkeiten-gesehen';
 
 const PUNKTE: [string, string][] = [
+  ['🔔', 'Neu: der Kirchturm. Wecker, Timer, Pomodoro (voll einstellbar) und Stoppuhr – die Glocke läutet im Desktop-Programm, sonst siehst du es.'],
+  ['📅', 'Marktplatz → Kalender: dein Google Kalender mit Monat, Woche, Tag und Liste, zum Anlegen und Bearbeiten (einmal „dorf gmail-anmelden“ mit Kalender).'],
+  ['🎓', 'Uni-Abgaben und -Prüfungen landen von selbst auf dem To-do-Brett – abhaken geht in beide Richtungen.'],
+  ['🏡', 'Mehr Leben im Dorf: kleine Häuschen und neue Deko, im Bau-Modus verschiebbar.'],
+  ['🇨🇭', 'Börse: Schweizer Werte (SIX, Franken) und – nach Einrichtung – dein echtes Saxo-Depot mit Rendite, nur lesen.'],
   ['📈', 'Börse ist offen: Depot und Watchlist mit Kursen (nach „dorf boerse-schluessel“), sonntags ein Wochenbericht – gehandelt wird nie.'],
   ['🛡️', 'Corpshaus: Corps-Termine, Corps-Mails, Ämter & Aufgaben; Skills für Veranstaltungen und Übergaben. Absender und Stichworte in Corpshaus/einstellungen.md.'],
   ['🏦', 'Bank ist offen: Kontoauszug (CSV oder PDF) hochladen → Monatsübersicht, Kategorien, Abos, Budget und Sparziele. Rechnungen aus Mails landen als To-do.'],

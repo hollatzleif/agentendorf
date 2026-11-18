@@ -51,6 +51,7 @@ const Schema = z.object({
   GMAIL_CLIENT_SECRET: z.string().optional(),
   GMAIL_REFRESH_TOKEN: z.string().optional(),
   GMAIL_API_URL: z.string().default('https://gmail.googleapis.com'),
+  GOOGLE_CALENDAR_API_URL: z.string().default('https://www.googleapis.com/calendar/v3'),
   GOOGLE_TOKEN_URL: z.string().default('https://oauth2.googleapis.com/token'),
   GOOGLE_PFLICHT_ICS: z.string().optional(),
   DORF_MOTOR_ATTRAPPE: z
@@ -87,6 +88,7 @@ export interface Konfig {
   gmail?: { clientId: string; clientSecret: string; refreshToken: string };
   gmailApiUrl: string;
   googleTokenUrl: string;
+  googleCalendarApiUrl: string;
   googlePflichtIcs?: string;
   rechenraumUrl: string;
   rechenraumGeheimnis?: string;
@@ -133,6 +135,7 @@ export function konfigLaden(env: NodeJS.ProcessEnv = process.env): Konfig {
         : undefined,
     gmailApiUrl: e.GMAIL_API_URL,
     googleTokenUrl: e.GOOGLE_TOKEN_URL,
+    googleCalendarApiUrl: e.GOOGLE_CALENDAR_API_URL.replace(/\/$/, ''),
     googlePflichtIcs: e.GOOGLE_PFLICHT_ICS || undefined,
     rechenraumUrl: e.RECHENRAUM_URL,
     rechenraumGeheimnis: e.RECHENRAUM_GEHEIMNIS || undefined,

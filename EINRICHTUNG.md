@@ -228,9 +228,13 @@ Das Dorf liest Kontowert, Positionen und Performance direkt aus deinem Saxo-Kont
 - Bricht die Verbindung ab, schreibt dir das Dorf einmal per Telegram. Dann einfach neu verbinden. Gründe sind z. B. ein Server, der länger als ~40 Minuten aus war, oder neue Saxo-Bedingungen.
 - **Zugriff ganz entziehen:** In SaxoTrader unter Konto → Sonstiges → Anwendungszugriff die App entfernen.
 
-## 9. Post: Gmail verbinden (nur Lesen und Entwürfe)
+## 9. Post: Gmail verbinden (nur Lesen und Entwürfe) – und der Kalender
 
 Das Dorf liest dein Gmail und legt höchstens **Entwürfe** an. Senden kann es nicht, weil die Anmeldung das gar nicht erlaubt.
+
+**Kalender auf dem Marktplatz (E75):** Dieselbe Anmeldung erlaubt auch den Google Kalender. Damit kannst du auf dem Marktplatz Termine ansehen, anlegen, ändern, verschieben und löschen, mit Serien, Erinnerungen und Farben. Einladungen verschickt das Dorf nie, und Agenten können dort nichts eintragen.
+- Warst du schon verbunden, dann einmal im Google-Cloud-Projekt unter **APIs & Dienste → Bibliothek** die **Google Calendar API** aktivieren und danach `dorf gmail-anmelden` erneut ausführen. Bei Google alle Haken setzen.
+- Bis dahin zeigt der Kalender deine Termine nur zum Lesen, über die geheime iCal-Adresse (`dorf google-kalender`).
 
 **Google-Cloud-Projekt (einmalig, im Browser):**
 1. Öffne **console.cloud.google.com** und melde dich mit dem Gmail-Konto an, das das Dorf lesen soll. Leg oben über die Projektauswahl ein **neues Projekt** an, z. B. `Agentendorf`.

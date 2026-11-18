@@ -466,3 +466,14 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
   - Abgespielt wird mit Bordmitteln (macOS `afplay`, Windows `Media.SoundPlayer`, Linux `paplay`/`aplay`). Das klingt auch bei verstecktem Fenster und kommt ohne Audio-Bibliothek aus.
   - Neue Programm-Befehle `glocke` und `glocke_stopp` nehmen nur die Namen „schlag“ und „gelaeut“ an – keine Pfade (Rust-Test + Selbsttest).
 - Kein Telegram (Leifs Wahl: nur im Programm). Agenten stellen keine Uhren.
+
+## E75 – Kalender auf dem Marktplatz: Leifs Google Calendar (18.11.)
+
+- **Calendar API v3** (Doku developers.google.com, am 18.11. gelesen) über dieselbe Google-Anmeldung wie Gmail. Neue Bereiche: `calendar.events` (Termine lesen und ändern) und `calendar.calendarlist.readonly` (Kalenderliste). Leif muss die Calendar API im Cloud-Projekt aktivieren und sich mit `dorf gmail-anmelden` neu anmelden. Fehlt das, kommt ein verständlicher Hinweis, und der Kalender zeigt nur zum Lesen über die iCal-Adresse.
+- **Ansichten:** Monat, Woche, Tag, Liste (30 Tage). Alle Kalender lassen sich einzeln ein- und ausblenden. Uni-Fristen sind eingeblendet, nur zum Ansehen. Alle Zeiten gelten für Europe/Vienna.
+- **Bearbeiten:** anlegen, ändern, in einen anderen Kalender verschieben, löschen. Möglich sind ganztägige Termine, Serien (täglich, wöchentlich, werktags, monatlich, jährlich; enden nie, an einem Datum oder nach n Mal), bis zu 5 Erinnerungen und die 11 Google-Farben. Bei Serien wählt Leif „nur dieser Termin“ oder „ganze Serie“.
+- **Leine:**
+  - Geschrieben wird nur über die App-Routen, also mit Leifs Klick. Agenten bekommen weiter kein Schreibwerkzeug.
+  - Einladungen gehen nie raus (`sendUpdates=none` bei jedem Schreiben). Teilnehmer werden nur angezeigt.
+  - Kalender, die Leif nur lesen darf (z. B. Feiertage), sind gesperrt. Wiederholungsregeln prüft der Server gegen ein festes Muster.
+- Kein Zwischenspeicher der Termine auf dem Server; nur die Kalenderliste wird 10 min im Speicher gehalten.

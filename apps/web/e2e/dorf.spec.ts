@@ -500,3 +500,84 @@ test('Kirchturm: Timer klingelt überall sichtbar, im Programm mit Glocke; Wecke
   await s.getByRole('button', { name: 'Zurücksetzen' }).click();
   await expect(s.locator('.stoppuhr-zeit')).toHaveText('0:00,00');
 });
+
+test('Marktplatz-Kalender: Monat/Woche/Liste, Termin anlegen, Serie bearbeiten, löschen (Google nachgebaut)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+  const zeit = (h: number) => new Date(`${heute}T${String(h).padStart(2, '0')}:00:00`).toISOString();
+  const gesendet: { methode: string; url: string; body: unknown }[] = [];
+  await page.route('**/api/kalender**', async (route) => {
+    const r = route.request();
+    if (r.method() !== 'GET' || r.url().includes('/serie')) {
+      gesendet.push({ methode: r.method(), url: r.url(), body: r.postDataJSON() as unknown });
+      return route.fulfill({ json: r.url().includes('/serie') ? { wiederholung: 'RRULE:FREQ=WEEKLY;BYDAY=WE', start: null } : { ok: true } });
+    }
+    return route.fulfill({
+      json: {
+        modus: 'google',
+        kalender: [
+          { id: 'leif', name: 'Leif', farbe: '#9fe1e7', primaer: true, schreibbar: true },
+          { id: 'feiertage', name: 'Feiertage', farbe: '#16a765', primaer: false, schreibbar: false },
+        ],
+        termine: [
+          { id: 'e1', kalenderId: 'leif', titel: 'Zahnarzt', start: zeit(9), ende: zeit(10), ganztags: false, ort: 'Konstanz', quelle: 'google', schreibbar: true, erinnerungen: null },
+          { id: 's_1', kalenderId: 'leif', titel: 'Training', start: zeit(18), ende: zeit(19), ganztags: false, serieId: 's', quelle: 'google', schreibbar: true, erinnerungen: [30] },
+          { id: 'f1', kalenderId: 'feiertage', titel: 'Feiertag', start: heute, ende: heute.replace(/\d\d$/, (t) => String(Number(t) + 1).padStart(2, '0')), ganztags: true, quelle: 'google', schreibbar: false },
+          { id: 'uni:1', kalenderId: 'uni', titel: '⏰ Mathe III: Blatt 5', start: zeit(22), ende: zeit(22), ganztags: false, quelle: 'uni', schreibbar: false },
+        ],
+      },
+    });
+  });
+  await anmelden(page);
+  await page.goto('/gebaeude/Marktplatz');
+  await page.getByRole('button', { name: 'Kalender', exact: true }).click();
+  await page.getByRole('tab', { name: 'Monat' }).click();
+  const heuteZelle = page.locator('.kalender-tag.heute');
+  await expect(heuteZelle).toContainText('Zahnarzt');
+  await expect(heuteZelle).toContainText('Training');
+  await expect(heuteZelle).toContainText('Feiertag');
+  await expect(page.getByLabel('Uni-Fristen')).toBeChecked();
+
+  // Kalender ausblenden
+  await page.getByLabel('Feiertage').uncheck();
+  await expect(heuteZelle).not.toContainText('Feiertag');
+
+  // neuer Termin
+  await page.getByRole('button', { name: '+ Termin' }).click();
+  const f = page.getByRole('dialog', { name: 'Neuer Termin' });
+  await f.getByLabel('Titel').fill('Corps-Kneipe');
+  await f.getByLabel('Beginn Uhrzeit').fill('20:00');
+  await f.getByLabel('Ende Uhrzeit').fill('23:30');
+  await f.getByLabel('Ort').fill('Corpshaus');
+  await f.getByLabel('Wiederholen').selectOption('woechentlich');
+  await f.getByLabel('Wiederholung endet').selectOption('anzahl');
+  await f.getByLabel('Anzahl Termine').fill('4');
+  await f.getByLabel('Erinnerung', { exact: true }).selectOption('30');
+  await f.getByRole('button', { name: 'Tomate' }).click();
+  await f.getByRole('button', { name: 'Speichern' }).click();
+  await expect(f).toHaveCount(0);
+  const neu = gesendet.find((g) => g.methode === 'POST')!;
+  expect(neu.body).toMatchObject({ kalenderId: 'leif', titel: 'Corps-Kneipe', ganztags: false, start: `${heute}T20:00`, ende: `${heute}T23:30`, ort: 'Corpshaus', erinnerungen: [30], farbe: '11' });
+  expect((neu.body as { wiederholung: string }).wiederholung).toMatch(/^RRULE:FREQ=WEEKLY;BYDAY=(MO|TU|WE|TH|FR|SA|SU);COUNT=4$/);
+
+  // Serie bearbeiten: ganze Serie umbenennen
+  await page.getByRole('tab', { name: 'Woche' }).click();
+  await page.locator('.kalender-raster').getByRole('button', { name: /Training/ }).click();
+  const b = page.getByRole('dialog', { name: 'Termin bearbeiten' });
+  await expect(b.getByLabel('Wiederholen')).toBeDisabled();
+  await b.getByLabel('ganze Serie').check();
+  await expect(b.getByLabel('Wiederholen')).toHaveValue('woechentlich');
+  await b.getByLabel('Titel').fill('Training (neu)');
+  await b.getByRole('button', { name: 'Speichern' }).click();
+  await expect(b).toHaveCount(0);
+  expect(gesendet.find((g) => g.methode === 'PATCH')!.body).toMatchObject({ id: 's_1', serie: true, vonKalender: 'leif', termin: { titel: 'Training (neu)', wiederholung: 'RRULE:FREQ=WEEKLY;BYDAY=WE' } });
+
+  // Liste: Uni-Frist nur ansehen; Zahnarzt löschen
+  await page.getByRole('tab', { name: 'Liste' }).click();
+  await page.locator('.kalender-liste').getByRole('button', { name: /Mathe III/ }).click();
+  await expect(page.getByRole('dialog', { name: 'Termin' })).toContainText('Uni-Frist');
+  await page.getByRole('button', { name: 'Schließen' }).click();
+  await page.locator('.kalender-liste').getByRole('button', { name: 'Zahnarzt' }).click();
+  await page.getByRole('dialog', { name: 'Termin bearbeiten' }).getByRole('button', { name: 'Löschen' }).click();
+  expect(gesendet.find((g) => g.methode === 'DELETE')!.url).toContain('kalenderId=leif&id=e1');
+});

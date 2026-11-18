@@ -11,7 +11,7 @@ import { moodleKlient, tokenAusLaunch, verbindungPruefen } from './uni/moodle.js
 import { kalenderQuelle } from './uni/abgleich.js';
 import { icsLesen, icsTermine } from './uni/ical.js';
 import { fristText } from './uni/text.js';
-import { GMAIL_BEREICHE, GoogleZugang, anmeldungVorbereiten, codeAusAdresse, codeTauschen } from './post/google-oauth.js';
+import { GMAIL_BEREICHE, KALENDER_BEREICHE, GoogleZugang, anmeldungVorbereiten, codeAusAdresse, codeTauschen } from './post/google-oauth.js';
 import { gmailKlient } from './post/gmail.js';
 
 const HILFE = `Agentendorf – Verwaltung
@@ -128,6 +128,8 @@ try {
         break;
       }
       if (fehlend.length) console.error('Hinweis: Entwürfe wurden nicht erlaubt (gmail.compose fehlt) – „Antwort entwerfen“ geht dann nicht.');
+      if (KALENDER_BEREICHE.some((b) => !t.bereiche.includes(b)))
+        console.error('Hinweis: Der Kalender wurde nicht (ganz) erlaubt – der Kalender auf dem Marktplatz kann dann nur lesen. Für alles: dorf gmail-anmelden erneut und alle Haken setzen.');
       const p = await gmailKlient(new GoogleZugang({ clientId: e.clientId, clientSecret: e.clientSecret, refreshToken: t.refreshToken, tokenUrl: konfig.googleTokenUrl }), konfig.gmailApiUrl).profil();
       console.error(`Verbunden mit ${p.emailAddress}.`);
       process.stdout.write(t.refreshToken);

@@ -576,3 +576,53 @@ input.kurz { width: 5em; }
 @keyframes glocke-wackeln { 0%, 100% { transform: rotate(-14deg); } 50% { transform: rotate(14deg); } }
 @media (prefers-reduced-motion: reduce) { .glocke-wackelt { animation: none; } }
 .kirchturm-schwebend { position: fixed; top: 0.8rem; left: 50%; transform: translateX(-50%); z-index: 1000; width: min(560px, calc(100vw - 1.6rem)); }
+
+/* E75: Kalender auf dem Marktplatz */
+.kalender-kopf { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem; }
+.kalender-titel { margin: 0 0 0 0.4rem; font-size: 1.15rem; }
+.reiter.klein { margin-bottom: 0; }
+.reiter.klein button { padding: 0.2rem 0.7rem; }
+.kalender-auswahl { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; margin-bottom: 0.6rem; font-size: 0.9rem; }
+.kalender-schalter { display: inline-flex; align-items: center; gap: 0.3rem; cursor: pointer; }
+.kalender-schalter .punkt { width: 0.75rem; height: 0.75rem; border-radius: 3px; display: inline-block; }
+.kalender-monat { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border: 1px solid rgba(0, 0, 0, 0.12); border-radius: 10px; overflow: hidden; background: var(--karte, #fffaf0); }
+.kalender-wt { padding: 0.25rem; text-align: center; font-size: 0.8rem; font-weight: 600; background: rgba(0, 0, 0, 0.05); }
+.kalender-tag { min-height: 6.2rem; border-top: 1px solid rgba(0, 0, 0, 0.08); border-left: 1px solid rgba(0, 0, 0, 0.08); padding: 0.15rem; display: flex; flex-direction: column; gap: 2px; cursor: pointer; overflow: hidden; }
+.kalender-tag.anderer { background: rgba(0, 0, 0, 0.03); color: rgba(0, 0, 0, 0.45); }
+.kalender-tag .tag-nr { align-self: flex-start; background: none; border: none; padding: 0.05rem 0.35rem; border-radius: 99px; font-size: 0.82rem; cursor: pointer; min-height: 0; box-shadow: none; }
+.kalender-tag.heute .tag-nr, .raster-tag.heute strong { background: #c8553d; color: #fff; border-radius: 99px; padding: 0.05rem 0.4rem; }
+.termin { display: block; width: 100%; text-align: left; font-size: 0.78rem; line-height: 1.25; padding: 0.1rem 0.3rem; border: none; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; background: color-mix(in srgb, var(--farbe, #4a86e8) 18%, transparent); color: inherit; border-left: 3px solid var(--farbe, #4a86e8); min-height: 0; box-shadow: none; }
+.termin.ganztags { color: #fff; border-left: none; }
+.termin.fremd { font-style: italic; }
+.termin-zeit { font-variant-numeric: tabular-nums; opacity: 0.75; }
+.kalender-tag .mehr { font-size: 0.75rem; padding: 0 0.3rem; min-height: 0; }
+.kalender-raster { border: 1px solid rgba(0, 0, 0, 0.12); border-radius: 10px; overflow: hidden; background: var(--karte, #fffaf0); }
+.raster-kopf { display: grid; grid-template-columns: 3.4rem repeat(var(--spalten), minmax(0, 1fr)); border-bottom: 1px solid rgba(0, 0, 0, 0.12); }
+.raster-tag { background: none; border: none; box-shadow: none; padding: 0.3rem; font-size: 0.85rem; min-height: 0; }
+.raster-ganztags { border-left: 1px solid rgba(0, 0, 0, 0.08); padding: 2px; display: flex; flex-direction: column; gap: 2px; min-height: 1.4rem; cursor: pointer; }
+.klein-text { font-size: 0.7rem; padding: 0.3rem; }
+.raster-koerper { display: grid; grid-template-columns: 3.4rem repeat(var(--spalten), minmax(0, 1fr)); max-height: 62vh; overflow-y: auto; position: relative; }
+.raster-stunden div { font-size: 0.7rem; color: rgba(0, 0, 0, 0.5); text-align: right; padding-right: 0.3rem; border-top: 1px solid rgba(0, 0, 0, 0.06); box-sizing: border-box; }
+.raster-spalte { position: relative; border-left: 1px solid rgba(0, 0, 0, 0.08); background-image: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.06) 0 1px, transparent 1px 44px); cursor: pointer; }
+.raster-spalte.heute { background-color: rgba(200, 85, 61, 0.05); }
+.raster-termin { position: absolute; padding: 0 1px; box-sizing: border-box; }
+.raster-termin .termin { height: 100%; white-space: normal; background: color-mix(in srgb, var(--farbe, #4a86e8) 30%, var(--karte, #fffaf0)); }
+.jetzt-linie { position: absolute; left: 0; right: 0; height: 2px; background: #c8553d; pointer-events: none; }
+.kalender-liste section { margin-bottom: 0.6rem; }
+.kalender-liste h4 { margin: 0.4rem 0 0.2rem; }
+.kalender-liste h4.heute { color: #c8553d; }
+.liste-termin { display: flex; align-items: center; gap: 0.5rem; padding: 0.15rem 0; }
+.liste-termin .termin { width: auto; flex: 1; font-size: 0.9rem; }
+.liste-zeit { min-width: 6.5rem; font-variant-numeric: tabular-nums; font-size: 0.85rem; }
+.fenster-hintergrund { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.35); display: grid; place-items: center; z-index: 900; padding: 1rem; }
+.fenster { width: min(560px, 100%); max-height: 90vh; overflow: auto; padding: 1rem; }
+.termin-form .termin-titel { font-size: 1.15rem; font-weight: 600; }
+.farbwahl .farbe { width: 1.5rem; height: 1.5rem; border-radius: 50%; padding: 0; min-height: 0; border: 2px solid transparent; }
+.farbwahl .farbe.standard { background: repeating-conic-gradient(#ddd 0 25%, #fff 0 50%) 50% / 8px 8px; }
+.farbwahl .farbe.gewaehlt { border-color: #2d241c; transform: scale(1.15); }
+.vorformatiert { white-space: pre-wrap; }
+@media (max-width: 700px) {
+  .kalender-tag { min-height: 3.6rem; }
+  .kalender-tag .termin { font-size: 0.65rem; padding: 0 2px; }
+  .termin-zeit { display: none; }
+}

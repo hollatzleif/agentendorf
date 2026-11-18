@@ -80,6 +80,7 @@ export type LiveEreignis =
   | { typ: 'bank.geaendert' }
   | { typ: 'boerse.geaendert' }
   | { typ: 'kirchturm.geaendert' }
+  | { typ: 'kalender.geaendert' }
   | { typ: 'kirchturm.klingelt'; klingel: KirchturmKlingel }
   | AgentenEreignis;
 
@@ -640,3 +641,47 @@ export interface BoerseUebersicht {
   fehler?: string;
 }
 
+
+// ---- E75: Kalender auf dem Marktplatz (Leifs Google Calendar) -----------------------------------
+
+export interface KalenderInfo {
+  id: string;
+  name: string;
+  farbe: string;
+  primaer: boolean;
+  /** Leif darf hier Termine anlegen/ändern */
+  schreibbar: boolean;
+}
+
+export interface KalenderTermin {
+  id: string;
+  kalenderId: string;
+  titel: string;
+  /** ganztags: JJJJ-MM-TT; sonst ISO mit Zeit */
+  start: string;
+  /** ganztags: JJJJ-MM-TT (exklusiv, wie bei Google); sonst ISO */
+  ende: string;
+  ganztags: boolean;
+  ort?: string;
+  beschreibung?: string;
+  /** Teil einer Serie: ID der Serie */
+  serieId?: string;
+  /** Serie: RRULE (nur wenn bekannt) */
+  wiederholung?: string;
+  /** Erinnerungen in Minuten vorher (Popup); null = Standard des Kalenders */
+  erinnerungen?: number[] | null;
+  farbe?: string;
+  link?: string;
+  teilnehmer?: number;
+  /** quelle uni = Uni-Frist (nur anzeigen); ical = nur lesbar (Google-API nicht verbunden) */
+  quelle: 'google' | 'uni' | 'ical';
+  schreibbar: boolean;
+}
+
+export interface KalenderAntwort {
+  /** google = voll (lesen + schreiben), ical = nur lesen über die geheime Adresse, aus = nichts eingerichtet */
+  modus: 'google' | 'ical' | 'aus';
+  hinweis?: string;
+  kalender: KalenderInfo[];
+  termine: KalenderTermin[];
+}
