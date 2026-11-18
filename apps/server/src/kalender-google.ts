@@ -351,6 +351,16 @@ export class GoogleKalender {
     return aus;
   }
 
+  /**
+   * E96 Lernplan: so viele Sitzungen, dass die gewünschten Stunden zusammenkommen, gleichmäßig auf die Tage bis
+   * `bis` verteilt (je Tag höchstens eine, die früheste freie Lücke 9–20 Uhr). Nur ein Vorschlag – eintragen tut Leif.
+   */
+  async lernplan(o: { bis: number; stunden: number; dauerMin: number }) {
+    const gewuenscht = Math.max(1, Math.ceil((o.stunden * 60) / o.dauerMin));
+    const kandidaten = await this.freieZeiten({ bis: o.bis, dauerMin: o.dauerMin, anzahl: 60, tagVon: 9, tagBis: 20 });
+    return { gewuenscht, bloecke: gleichmaessigVerteilen(kandidaten, gewuenscht) };
+  }
+
   /** Freie Zeiten eines Tages (Ortszeit), tagVon–tagBis, 15 min Puffer um Termine; ab jetzt (+15 min), wenn heute */
   async freiAmTag(tag: string, tagVon = 8, tagBis = 20): Promise<[number, number][]> {
     if (!this.o.klient) throw new DorfFehler(409, 'Zum Planen muss der Google-Kalender verbunden sein (dorf gmail-anmelden).');
@@ -457,4 +467,13 @@ export class GoogleKalender {
     await this.klient().loeschen(k.id, zielId);
     this.geaendert();
   }
+}
+
+/** k Elemente möglichst gleichmäßig über die Liste verteilt (erstes und letztes inklusive); Reihenfolge bleibt */
+export function gleichmaessigVerteilen<T>(liste: T[], k: number): T[] {
+  const n = liste.length;
+  if (k >= n) return liste.slice();
+  if (k <= 0) return [];
+  if (k === 1) return [liste[n - 1]!];
+  return Array.from({ length: k }, (_, i) => liste[Math.round((i * (n - 1)) / (k - 1))]!);
 }

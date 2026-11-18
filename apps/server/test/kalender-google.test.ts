@@ -219,6 +219,31 @@ describe('Kalender auf dem Marktplatz (E75)', () => {
     }
   });
 
+  it('Lernplan (E96): Stunden → Sitzungen, gleichmäßig über die Tage bis zur Prüfung (Prüfungstag selbst nicht), 9–20 Uhr', async () => {
+    const { gleichmaessigVerteilen } = await import('../src/kalender-google.js');
+    expect(gleichmaessigVerteilen([1, 2, 3, 4, 5, 6, 7], 4)).toEqual([1, 3, 5, 7]);
+    expect(gleichmaessigVerteilen([1, 2, 3], 5)).toEqual([1, 2, 3]);
+    expect(gleichmaessigVerteilen([1, 2, 3], 1)).toEqual([3]);
+    const g = await googleAttrappe();
+    try {
+      const d = await testDorf({ kalenderKlient: g.klient });
+      const h = await kopf(d);
+      // Prüfung Mo 23.11. → bis 23.11. 00:00 Linz; 6 h à 90 min = 4 Sitzungen auf Mo 16. … So 22.
+      const r = (await d.app.inject({ url: `/api/kalender/lernplan?bis=${encodeURIComponent('2026-11-23T00:00:00+01:00')}&stunden=6&dauer=90`, headers: h })).json();
+      expect(r.gewuenscht).toBe(4);
+      const tage = r.bloecke.map((b: { start: string }) => new Date(b.start).toLocaleString('sv-SE', { timeZone: 'Europe/Vienna' }).slice(0, 16));
+      expect(tage).toEqual(['2026-11-16 13:30', '2026-11-18 09:00', '2026-11-20 09:00', '2026-11-22 09:00']);
+      expect((await d.app.inject({ url: '/api/kalender/lernplan?bis=x&stunden=6', headers: h })).statusCode).toBe(400);
+      expect((await d.app.inject({ url: '/api/kalender/lernplan?bisTag=2026-11-23&stunden=6&dauer=90', headers: h })).json()).toEqual(r);
+      // eintragen wie Tag planen: Leifs Klick, Hauptkalender, „📚 …“
+      const e = await d.app.inject({ method: 'POST', url: '/api/tag/eintragen', headers: h, payload: { bloecke: r.bloecke.map((b: object) => ({ titel: 'Lernen: Statistik', ...b })) } });
+      expect(e.json()).toHaveLength(4);
+      expect(g.anfragen.filter((a) => a.methode === 'POST' && a.pfad.includes('/events')).map((a) => (a.body as { summary: string }).summary)).toEqual(Array(4).fill('📚 Lernen: Statistik'));
+    } finally {
+      g.schliessen();
+    }
+  });
+
   it('Tag planen: To-dos nach Dringlichkeit in die freien Lücken (Puffer zum Zahnarzt), dann eintragen', async () => {
     const g = await googleAttrappe();
     try {

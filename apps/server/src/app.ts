@@ -9,6 +9,7 @@ import type { Gewohnheiten } from './gewohnheiten.js';
 import type { Wochenziele } from './wochenziele.js';
 import type { Notizen } from './notizen.js';
 import { statistik } from './statistik.js';
+import { ortszeitZuUtc } from './uni/ical.js';
 import type { GoogleKalender } from './kalender-google.js';
 import type { Corps } from './corps.js';
 import type { Bank } from './bank.js';
@@ -419,6 +420,15 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
       return tagPlanen({ todos, heute: q.tag, frei }).map((b) => ({ ...b, start: new Date(b.start).toISOString(), ende: new Date(b.ende).toISOString() }));
     });
     app.post('/api/tag/eintragen', async (req) => k.bloeckeEintragen(z.object({ bloecke: z.unknown() }).parse(req.body).bloecke));
+    app.get('/api/kalender/lernplan', async (req) => {
+      const q = z
+        .object({ bis: z.string().datetime({ offset: true }).optional(), bisTag: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), stunden: z.coerce.number().min(0.5).max(100), dauer: z.coerce.number().int().min(30).max(240).default(90) })
+        .refine((x) => x.bis || x.bisTag, 'bis oder bisTag fehlt')
+        .parse(req.query);
+      // bisTag = Prüfungstag (Ortszeit) – gelernt wird bis zum Vorabend
+      const bis = q.bisTag ? ortszeitZuUtc(...(q.bisTag.split('-').map(Number) as [number, number, number]), 0, 0, 0, 'Europe/Vienna') : Date.parse(q.bis!);
+      return k.lernplan({ bis, stunden: q.stunden, dauerMin: q.dauer });
+    });
     app.get('/api/kalender/frei', async (req) => {
       const q = z
         .object({ bis: z.string().datetime(), dauer: z.coerce.number().int().min(15).max(480).default(90), anzahl: z.coerce.number().int().min(1).max(10).default(5) })

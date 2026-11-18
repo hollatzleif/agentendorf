@@ -671,6 +671,21 @@ test('Lernzeit einplanen: 📅 am To-do zeigt freie Blöcke bis zur Frist, Eintr
   await g.getByRole('button', { name: 'Eintragen' }).first().click();
   await expect(g).toContainText('✅ eingetragen');
   expect(eingetragen[0]).toMatchObject({ titel: 'Blatt 8', start: `${morgen}T08:00:00.000Z` });
+  // E96: Lernplan bis zur Frist – Stunden wählen, einen Block abwählen, Rest eintragen
+  let plan: { bloecke: { titel: string }[] } | null = null;
+  await page.route('**/api/kalender/lernplan**', (r) =>
+    r.fulfill({ json: { gewuenscht: 4, bloecke: [1, 2, 3].map((i) => ({ start: `${morgen}T0${i}:00:00.000Z`, ende: `${morgen}T0${i}:30:00.000Z` })) } }),
+  );
+  await page.route('**/api/tag/eintragen', (r) => {
+    plan = r.request().postDataJSON();
+    return r.fulfill({ json: [] });
+  });
+  await g.getByRole('button', { name: 'Lernplan bis zur Frist' }).click();
+  await expect(g).toContainText('nur 3 von 4 Blöcken');
+  await g.getByRole('checkbox').nth(1).uncheck();
+  await g.getByRole('button', { name: '2 Blöcke eintragen' }).click();
+  await expect(g).toContainText('2 Lernblöcke im Kalender');
+  expect(plan!.bloecke.map((b) => b.titel)).toEqual(['Lernen: Blatt 8', 'Lernen: Blatt 8']);
 });
 
 test('Wochenrückblick: im Rathaus erstellen und lesen', async ({ page }, info) => {

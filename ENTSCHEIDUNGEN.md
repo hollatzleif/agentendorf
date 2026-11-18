@@ -699,3 +699,11 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
   - Die API `POST /api/notiz`.
 - **Angehängt wird mit `basisVersion`**: Schreibt Obsidian gleichzeitig, versucht das Dorf es einmal neu; Leifs eigener Text bleibt stehen. Zeilenumbrüche werden zu „⏎“, damit jede Notiz eine Zeile bleibt.
 - **Unterschied zu `/todo` und zum Bürgermeister:** Eine Notiz ist weder Aufgabe noch Auftrag, nur ein Merkzettel. Der Bürgermeister kennt den Ort (Orientierung) und kann die Notizen bei Rückblicken oder auf Nachfrage lesen.
+
+## E96 – Lernplan bis zur Prüfung (Nacht 18./19.11.)
+
+- **„📅 Lernzeit“ hat zwei Modi:** wie bisher „Ein Block“ und neu **„Lernplan bis zur Frist“**. Leif wählt die Gesamtstunden (z. B. 6 h) und die Länge je Block (z. B. 1,5 h). Das Dorf verteilt die nötige Zahl an Blöcken möglichst gleichmäßig auf die Tage bis zum Vorabend der Frist, höchstens einen pro Tag, jeweils die früheste freie Lücke zwischen 9 und 20 Uhr. Puffer und belegte Zeiten werden wie bei „Ein Block“ beachtet.
+- **Passt nicht alles hinein**, sagt die Ansicht das offen („nur 3 von 4 Blöcken“) und schlägt längere Blöcke oder einen früheren Start vor.
+- **Nur ein Vorschlag:** Leif kann einzelne Blöcke abwählen. Eingetragen wird erst mit seinem Klick, über denselben Weg wie „Tag planen“: Hauptkalender, „📚 Lernen: …“, Erinnerung 10 min vorher, nie Einladungen.
+- **Technik:** API `GET /api/kalender/lernplan?bisTag=JJJJ-MM-TT&stunden=…&dauer=…`. Die Verteilung `gleichmaessigVerteilen` ist eine reine Funktion und getestet.
+- Warum: Verteiltes Lernen schlägt Pauken am Vorabend. Mit diesem Modus wird aus „Prüfung am 23.“ in einem Klick ein Plan im Kalender.

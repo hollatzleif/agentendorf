@@ -234,7 +234,7 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: (f: () =
         </span>
         {planen && t.faellig && (
           // Frist = Ende des Fälligkeitstags (Linz); der Server rechnet in Ortszeit
-          <LernzeitPlaner titel={t.titel.replace(/^(Abgabe|Prüfung): /, '')} bis={new Date(`${t.faellig}T23:00:00+01:00`).toISOString()} schliessen={() => setPlanen(false)} />
+          <LernzeitPlaner titel={t.titel.replace(/^(Abgabe|Prüfung): /, '')} bis={new Date(`${t.faellig}T23:00:00+01:00`).toISOString()} fristTag={t.faellig} schliessen={() => setPlanen(false)} />
         )}
       </div>
     </li>

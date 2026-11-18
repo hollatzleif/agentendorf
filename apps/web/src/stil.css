@@ -852,3 +852,9 @@ input.kurz { width: 5em; }
 /* Erinnerung am To-do (E94) */
 .todo-erinnerung { display: flex; flex-direction: row; align-items: center; gap: 0.5rem; font-weight: 700; }
 .todo-erinnerung input { flex: 1; }
+
+/* Lernplan (E96) */
+.lernzeit-modus { display: inline-flex; gap: 0.3rem; flex-wrap: wrap; }
+.lernzeit-modus button.an { background: var(--navy); color: #fff; }
+.lernzeit-feld { display: flex; flex-direction: row; align-items: center; gap: 0.35rem; font-weight: 700; }
+.lernzeit-wahl { display: flex; flex-direction: row; align-items: center; gap: 0.45rem; font-weight: 600; }
