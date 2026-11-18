@@ -11,7 +11,7 @@ const PUNKTE: [string, string][] = [
   ['🌦️', 'Wetter wie in Linz (Tipp aufs Schild), Jahreszeiten, Tag und Nacht nach der Uhr.'],
   ['📰', 'Zeitungs-Knopf mit rotem Punkt, solange die Morgenzeitung ungelesen ist.'],
   ['🌐', 'Moodle-Browser: einmal auf dem Server „dorf moodle-browser-zugang“, dann Uni → Moodle.'],
-  ['📱', 'Telegram: /fristen (mit Erledigt-Knöpfen) und /moodle <Fach>.'],
+  ['📱', 'Telegram: /heute (dein Tag), /fristen (mit Erledigt-Knöpfen) und /moodle <Fach>.'],
 ];
 
 /** Kleine Karte „Neu im Dorf“ – einmal pro Gerät und Ausgabe, blockiert nichts */

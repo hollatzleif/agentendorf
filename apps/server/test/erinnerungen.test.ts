@@ -148,3 +148,18 @@ describe('/fristen in Telegram', () => {
     expect(String(x.gesendet().at(-1)!.p.text)).toMatch(/Keine offenen Abgaben/);
   });
 });
+
+describe('/heute in Telegram', () => {
+  it('Tagesüberblick: Termine heute, Fristen, was wartet – ohne die Morgenzeitung zu speichern', async () => {
+    const x = await aufbau();
+    x.setzen(ics([['t', 'Zwischentest schließt', x.t0 + 5 * STUNDE], ['a', 'Übung 1 ist fällig', x.t0 + 50 * STUNDE]]));
+    await x.d.uni.abgleichen();
+    await x.bot.verarbeiten({ update_id: 500, message: { message_id: 500, chat: { id: 1 }, from: { id: 1 }, text: '/heute' } });
+    const t = String(x.gesendet().at(-1)!.p.text);
+    expect(t).toMatch(/^📅 <b>Dein Tag<\/b>\n\n<b>Heute<\/b>/);
+    expect(t).toContain('<b>Fristen (7 Tage)</b>');
+    expect(t).toContain('Übung 1 ist fällig');
+    expect(t).toContain('<b>Wartet auf dich</b>');
+    expect((await x.d.morgenzeitung.uebersicht()).aktuell).toBeNull(); // nichts gespeichert
+  });
+});

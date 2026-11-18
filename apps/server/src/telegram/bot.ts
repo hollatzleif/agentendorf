@@ -155,6 +155,7 @@ export class TelegramBot {
   /** Befehlsmenü („/“ in Telegram) – reine Anzeige, Fehler sind egal */
   static readonly BEFEHLE = [
     { command: 'status', description: 'Was läuft gerade' },
+    { command: 'heute', description: 'Dein Tag: Wetter, Termine, Fristen' },
     { command: 'fristen', description: 'Abgaben und Prüfungen der nächsten 7 Tage' },
     { command: 'freigaben', description: 'Offene Freigaben' },
     { command: 'moodle', description: 'In Moodle nachschauen lassen: /moodle <Fach> [Frage]' },
@@ -346,7 +347,7 @@ export class TelegramBot {
   private async befehl(b: string) {
     if (b === '/start' || b === '/hilfe' || b === '/help')
       return this.senden(
-        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/fristen – Abgaben und Prüfungen der nächsten 7 Tage (mit Erledigt-Knöpfen)\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/hilfe – diese Hilfe`,
+        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/heute – dein Tag: Wetter, Termine, Fristen\n/fristen – Abgaben und Prüfungen der nächsten 7 Tage (mit Erledigt-Knöpfen)\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/hilfe – diese Hilfe`,
       );
     if (b === '/status') {
       const aktiv = this.o.agenten.aktiveLaeufe();
@@ -356,6 +357,16 @@ export class TelegramBot {
         return `• ${h(c.titel)} – ${l.status === 'laeuft' ? 'läuft' : l.status === 'wartend' ? 'wartet' : 'wartet auf Freigabe'}`;
       });
       return this.senden(`📊 <b>Status</b>\n${zeilen.length ? zeilen.join('\n') : 'Gerade arbeitet niemand.'}\n\n✉️ Offene Freigaben: ${offen}`);
+    }
+    if (b === '/heute') {
+      // Tagesüberblick wie in der Morgenzeitung (Wetter, Termine, Fristen) – jederzeit, ohne KI und ohne Speichern
+      if (!this.o.morgenzeitung) return this.senden('Der Tagesüberblick ist gerade nicht verfügbar.');
+      const z = await this.o.morgenzeitung.fakten();
+      const fett = (t: string) => h(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+      const teile = z.abschnitte
+        .filter((a) => a.titel === 'Heute' || a.titel === 'Fristen (7 Tage)' || a.titel === 'Wartet auf dich')
+        .map((a) => `<b>${h(a.titel)}</b>\n${a.zeilen.length ? a.zeilen.slice(0, 10).map((x) => `• ${fett(x)}`).join('\n') : '–'}`);
+      return this.senden(`📅 <b>Dein Tag</b>\n\n${teile.join('\n\n')}\n\n<a href="${this.link('/gebaeude/Rathaus?reiter=morgenzeitung')}">Morgenzeitung</a>`);
     }
     if (b === '/fristen') {
       const jetzt = this.o.uhr.jetzt();
