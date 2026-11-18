@@ -235,12 +235,15 @@ export class MoodleBrowser {
         }
       }
       await this.anmelden(s.page);
+      // wo die Anmeldung endete (für die Fehlermeldung, falls z. B. eine Einwilligungsseite dazwischenkommt)
+      const u = new URL(s.page.url());
+      const zuletzt = `${u.hostname}${u.pathname} „${(await s.page.title().catch(() => '')).slice(0, 80)}“`;
       // nach der Anmeldung leitet Moodle meist zurück; sonst die ursprüngliche Seite neu öffnen
       if (hostErlaubt(ziel, this.o.hosts) && !/\/login\//.test(new URL(ziel).pathname) && s.page.url() !== ziel) {
         await s.page.goto(ziel).catch(() => undefined);
         await this.warten(s.page);
       }
-      if (await this.istGast(s.page)) throw new BrowserFehler('Anmeldung fehlgeschlagen – Moodle zeigt weiterhin die Gast-Ansicht.');
+      if (await this.istGast(s.page)) throw new BrowserFehler(`Anmeldung fehlgeschlagen – Moodle zeigt weiterhin die Gast-Ansicht (Anmeldung endete auf ${zuletzt}).`);
     }
   }
 
