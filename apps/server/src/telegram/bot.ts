@@ -17,6 +17,7 @@ import type { Wochenziele } from '../wochenziele.js';
 import type { TodoErinnerungen } from '../todo-erinnerungen.js';
 import type { Notizen } from '../notizen.js';
 import { zeitpunktAus } from '../todo-erinnerungen.js';
+import { dateinameBereinigen } from '../vault/pfade.js';
 import { tagPlanen } from '../tagesplan.js';
 import { STIMMUNGEN, stimmungSetzen } from '../statistik.js';
 import { bluete, STUFE_TEXT } from '../bluete.js';
@@ -468,6 +469,10 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       return;
     }
     let text = (m.text ?? m.caption ?? '').trim();
+    // E115: Foto/Datei mit Bildunterschrift „notiz: …“ → in die Tagesnotiz (Bild daneben im Vault), nicht als Aufgabe
+    const bildNotiz = /^notiz\s*:\s*([\s\S]*)$/i.exec(m.caption ?? '');
+    if (bildNotiz && (m.photo?.length || m.document) && this.o.notizen && !(m.forward_origin || m.forward_from || m.forward_from_chat || m.forward_date))
+      return this.notizMitDatei(m, bildNotiz[1]!.trim());
     // E103: „todo: …“, „notiz: …“, „ziel: …“, „einkauf: …“ wie der Befehl – nur Leifs eigene Textnachricht, nie Weitergeleitetes
     const kurz = /^(todo|notiz|ziel|einkauf)\s*:\s*(\S[\s\S]*)$/i.exec(text);
     if (kurz && m.text && !(m.forward_origin || m.forward_from || m.forward_from_chat || m.forward_date)) text = `/${kurz[1]!.toLowerCase()} ${kurz[2]!}`;
@@ -565,7 +570,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
   private async befehl(b: string) {
     if (b === '/start' || b === '/hilfe' || b === '/help')
       return this.senden(
-        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters. Weiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch); antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n<b>📅 Planen</b>\n/heute – dein Tag · /woche – die nächsten 7 Tage\n/plan [morgen] – To-dos in freie Kalenderlücken\n/fristen – Abgaben und Prüfungen (7 Tage)\n/termin &lt;wann&gt; &lt;was&gt; – Termin eintragen (mit Bestätigung)\n\n<b>✅ Erledigen</b>\n/todo [Text] – To-do-Liste bzw. neues To-do (auch „… jeden Montag“)\n/einkauf [Text] – Einkaufsliste\n/erinner &lt;wann&gt; &lt;was&gt; – Erinnerung (läutet im Kirchturm)\n/aufraeumen – Überfälliges neu einplanen\n/fokus [Thema] – Pomodoro starten\n/gewohnheiten – heute abhaken · /ziel [Text] – Wochenziele\n\n<b>🎓 Lernen</b>\n/karten [Fach] – Karteikarten · /moodle &lt;Fach&gt; [Frage] – in Moodle nachsehen\n/noten – Notenschnitt und ECTS\n\n<b>📝 Festhalten &amp; Finden</b>\n/notiz &lt;Text&gt; – Tagesnotiz · /suche &lt;Begriff&gt; – im Vault suchen\n/statistik – die letzten 7 Tage\n\n<b>🏛️ Dorf</b>\n/status – was läuft · /freigaben – offene Freigaben\n/aktion [Name] – Skill starten · /neu – nächste Nachricht = neue Aufgabe\n/hilfe – diese Hilfe\n\n<i>Tipp: „todo: …“, „notiz: …“, „ziel: …“, „einkauf: …“ gehen auch ohne Schrägstrich.</i>`,
+        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters. Weiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch); antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n<b>📅 Planen</b>\n/heute – dein Tag · /woche – die nächsten 7 Tage\n/plan [morgen] – To-dos in freie Kalenderlücken\n/fristen – Abgaben und Prüfungen (7 Tage)\n/termin &lt;wann&gt; &lt;was&gt; – Termin eintragen (mit Bestätigung)\n\n<b>✅ Erledigen</b>\n/todo [Text] – To-do-Liste bzw. neues To-do (auch „… jeden Montag“)\n/einkauf [Text] – Einkaufsliste\n/erinner &lt;wann&gt; &lt;was&gt; – Erinnerung (läutet im Kirchturm)\n/aufraeumen – Überfälliges neu einplanen\n/fokus [Thema] – Pomodoro starten\n/gewohnheiten – heute abhaken · /ziel [Text] – Wochenziele\n\n<b>🎓 Lernen</b>\n/karten [Fach] – Karteikarten · /moodle &lt;Fach&gt; [Frage] – in Moodle nachsehen\n/noten – Notenschnitt und ECTS\n\n<b>📝 Festhalten &amp; Finden</b>\n/notiz &lt;Text&gt; – Tagesnotiz · /suche &lt;Begriff&gt; – im Vault suchen\n/statistik – die letzten 7 Tage\n\n<b>🏛️ Dorf</b>\n/status – was läuft · /freigaben – offene Freigaben\n/aktion [Name] – Skill starten · /neu – nächste Nachricht = neue Aufgabe\n/hilfe – diese Hilfe\n\n<i>Tipp: „todo: …“, „notiz: …“, „ziel: …“, „einkauf: …“ gehen auch ohne Schrägstrich – ein Foto mit „notiz: …“ landet samt Bild in der Tagesnotiz.</i>`,
       );
     if (b === '/status') {
       const aktiv = this.o.agenten.aktiveLaeufe();
@@ -1240,6 +1245,22 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
   }
 
   // ---- Notizen (E95) ---------------------------------------------------------------------------------
+
+  private async notizMitDatei(m: TgNachricht, text: string) {
+    const datei = m.document ?? { ...m.photo![m.photo!.length - 1]!, file_name: `foto-${m.message_id}.jpg` };
+    if ((datei.file_size ?? 0) > MAX_DATEI) return this.senden('📎 Die Datei ist größer als 20 MB – so große Dateien kann ein Bot nicht laden.');
+    try {
+      const d = await this.o.api.dateiLaden(datei.file_id);
+      const zp = zeitpunktAus(this.o.uhr.jetzt());
+      const name = dateinameBereinigen(`${zp.slice(0, 10)}_${zp.slice(11).replace(':', '')}_${datei.file_name ?? d.name}`);
+      const pfad = `Rathaus/notizen/anhaenge/${name}`;
+      await this.o.vault.schreiben(pfad, d.inhalt, { nurNeu: true });
+      const r = await this.o.notizen!.hinzufuegen(`${text ? `${text} ` : ''}![[${pfad}]]`, 'Telegram');
+      return this.senden(`📝 Notiert – mit ${m.document ? 'Datei' : 'Foto'} (${h(r.pfad)}).`);
+    } catch (e) {
+      return this.senden(`⚠️ Konnte die Notiz nicht speichern: ${h((e as Error).message)}`);
+    }
+  }
 
   private async notizBefehl(rest: string) {
     if (!this.o.notizen) return this.senden('Notizen sind nicht eingerichtet.');

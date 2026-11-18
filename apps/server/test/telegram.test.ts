@@ -810,3 +810,19 @@ describe('Telegram /noten (E113) und Blüte in der Zeitung (E112)', () => {
     expect((await d.wochenrueckblick.fakten()).abschnitte.some((a) => a.titel === 'Dein Dorf')).toBe(true);
   });
 });
+
+describe('Telegram: Foto mit „notiz: …“ (E115)', () => {
+  it('landet mit Bild in der Tagesnotiz, nicht auf dem Schreibtisch; Weitergeleitetes nicht', async () => {
+    const d = await dorf();
+    await d.nachricht({ caption: 'notiz: Tafelbild Statistik', photo: [{ file_id: 'K', file_size: 10 }, { file_id: 'G', file_size: 20 }] });
+    expect(d.gesendet().at(-1)).toMatch(/📝 Notiert – mit Foto/);
+    const n = (await d.notizen.heute()).zeilen;
+    expect(n[0]).toMatch(/^- 13:00 Tafelbild Statistik !\[\[Rathaus\/notizen\/anhaenge\/2026-11-16_1300_foto-\d+\.jpg\]\] _\(Telegram\)_$/);
+    const pfad = /!\[\[(.+?)\]\]/.exec(n[0]!)![1]!;
+    expect((await d.vault.lesen(pfad)).inhalt).toBe('Inhalt von G');
+    expect(d.schreibtisch.liste()).toHaveLength(0);
+    await d.nachricht({ caption: 'notiz: fremd', photo: [{ file_id: 'X', file_size: 10 }], forward_date: 1 });
+    await d.ruhe();
+    expect(d.schreibtisch.liste()).toHaveLength(1);
+  });
+});

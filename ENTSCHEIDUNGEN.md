@@ -860,3 +860,9 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **Bewusst nur Anlegen:** Abhaken, Löschen oder Ändern werden nicht nachgeholt. Ein verspätetes Löschen könnte etwas treffen, das inzwischen anders aussieht.
 - **Verworfen statt wiederholt:** Antwortet der Server später mit 4xx (ungültig), wird der Eintrag verworfen; bei 5xx bleibt er.
 - **Lazy Loading:** Die Seiten Heute, Gebäude, Bibliothek, Einstellungen, Chat und Fokus werden erst beim Öffnen geladen. Das Haupt-Bündel schrumpft von 668 auf 296 KB, der Start am Handy wird spürbar schneller.
+
+## E115 – Foto/Datei als Notiz, Mail-Hinweis, Anleitung (Nacht 18./19.11.)
+
+- **Foto/Datei mit „notiz: …“:** Ein Foto oder eine Datei in Telegram mit der Bildunterschrift „notiz: …“ (z. B. Tafelbild, Buchseite) landet in der Tagesnotiz: Das Bild liegt unter `Rathaus/notizen/anhaenge/`, in der Notiz steht es als `![[…]]` (Obsidian zeigt es an). Das wird keine Aufgabe für den Bürgermeister. Weitergeleitetes ist Fremdinhalt und bleibt ausgenommen.
+- **„Heute“** zeigt „✉️ N Mails warten auf Antwort“ – Mails der letzten 3 Tage, die die Einordnung als „Antwort nötig“ markiert hat.
+- **`/anleitung`:** „So nutzt du das Dorf“ – der Tages- und Wochenrhythmus mit allen Bausteinen auf einer Seite. Verlinkt ist sie aus „Erste Schritte“, den Einstellungen und der Befehlspalette.
