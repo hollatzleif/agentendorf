@@ -59,10 +59,10 @@ export function useLiveVerbindung(qc: QueryClient, aktiv: boolean) {
             void qc.invalidateQueries({ queryKey: ['baum'] });
             void qc.invalidateQueries({ queryKey: ['datei', e.pfad] });
             void qc.invalidateQueries({ queryKey: ['suche'] });
-            if (e.pfad.startsWith('Marktplatz/todos/')) void qc.invalidateQueries({ queryKey: ['todos'] });
+            if (/^(Marktplatz\/todos|Einkaufsladen\/(liste|wunschliste)|Corpshaus\/aufgaben)\//.test(e.pfad)) void qc.invalidateQueries({ queryKey: ['liste'] });
             break;
           case 'todos.geaendert':
-            void qc.invalidateQueries({ queryKey: ['todos'] });
+            void qc.invalidateQueries({ queryKey: e.liste ? ['liste', e.liste] : ['liste'] });
             break;
           case 'gebaeude.geaendert':
             void qc.invalidateQueries({ queryKey: ['gebaeude'] });

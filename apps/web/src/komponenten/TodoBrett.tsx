@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { TodoInfo } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
-import { bibliothekUrl, linkKlick } from '../router';
+import { bibliothekUrl, linkKlick, navigieren } from '../router';
 
 const heute = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
 const datumText = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('de-AT', { weekday: 'short', day: '2-digit', month: '2-digit' });
@@ -11,13 +11,14 @@ const datumText = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('d
  * To-do-Brett auf dem Marktplatz (E65): immer aktuell (Live-Ereignis), abhaken, anlegen, bearbeiten, löschen.
  * Jedes To-do ist eine Datei in Marktplatz/todos/ – auch Agenten und Telegram pflegen sie.
  */
-export function TodoBrett() {
+export function TodoBrett({ liste: name = 'todo', platzhalter = 'Neues To-do …', gruppiert = false }: { liste?: string; platzhalter?: string; gruppiert?: boolean } = {}) {
   const qc = useQueryClient();
-  const liste = useQuery({ queryKey: ['todos'], queryFn: () => api<TodoInfo[]>('/api/todos') });
+  const basis = name === 'todo' ? '/api/todos' : `/api/listen/${name}`;
+  const liste = useQuery({ queryKey: ['liste', name], queryFn: () => api<TodoInfo[]>(basis) });
   const [titel, setTitel] = useState('');
   const [faellig, setFaellig] = useState('');
   const [fehler, setFehler] = useState('');
-  const neu = () => qc.invalidateQueries({ queryKey: ['todos'] });
+  const neu = () => qc.invalidateQueries({ queryKey: ['liste', name] });
   const ausfuehren = async (f: () => Promise<unknown>) => {
     setFehler('');
     try {
@@ -32,18 +33,20 @@ export function TodoBrett() {
     e.preventDefault();
     if (!titel.trim()) return;
     void ausfuehren(async () => {
-      await api('/api/todos', { body: { titel: titel.trim(), ...(faellig ? { faellig } : {}) } });
+      await api(basis, { body: { titel: titel.trim(), ...(faellig ? { faellig } : {}) } });
       setTitel('');
       setFaellig('');
     });
   };
 
-  const offen = liste.data?.filter((t) => !t.erledigt) ?? [];
+  const offen = (liste.data?.filter((t) => !t.erledigt) ?? []).slice();
+  // Einkaufsliste: nach Abteilung sortiert, damit man im Laden der Reihe nach abhakt
+  if (gruppiert) offen.sort((a, b) => (a.gruppe ?? 'zzz').localeCompare(b.gruppe ?? 'zzz', 'de') || a.titel.localeCompare(b.titel, 'de'));
   const erledigt = liste.data?.filter((t) => t.erledigt) ?? [];
   return (
     <div className="todo-brett">
       <form className="todo-neu" onSubmit={anlegen} aria-label="Neues To-do">
-        <input value={titel} onChange={(e) => setTitel(e.target.value)} placeholder="Neues To-do …" maxLength={200} aria-label="Neues To-do" />
+        <input value={titel} onChange={(e) => setTitel(e.target.value)} placeholder={platzhalter} maxLength={200} aria-label="Neues To-do" />
         <input type="date" value={faellig} onChange={(e) => setFaellig(e.target.value)} aria-label="Fällig am" />
         <button type="submit" className="haupt">
           +
@@ -54,7 +57,7 @@ export function TodoBrett() {
       {liste.data && !offen.length && <p className="leise">Nichts offen. 🎉</p>}
       <ul className="todo-liste">
         {offen.map((t) => (
-          <TodoZeile key={`${t.pfad}:${t.version}`} t={t} ausfuehren={ausfuehren} />
+          <TodoZeile key={`${t.pfad}:${t.version}`} t={t} ausfuehren={ausfuehren} basis={basis} />
         ))}
       </ul>
       {erledigt.length > 0 && (
@@ -62,24 +65,30 @@ export function TodoBrett() {
           <summary>Erledigt ({erledigt.length})</summary>
           <ul className="todo-liste erledigt">
             {erledigt.map((t) => (
-              <TodoZeile key={`${t.pfad}:${t.version}`} t={t} ausfuehren={ausfuehren} />
+              <TodoZeile key={`${t.pfad}:${t.version}`} t={t} ausfuehren={ausfuehren} basis={basis} />
             ))}
           </ul>
         </details>
       )}
-      <p className="leise">Auch in Obsidian unter Marktplatz/todos/ – und per Telegram: /todo. Gelöschtes liegt im Papierkorb.</p>
+      <p className="leise">
+        {name === 'einkauf'
+          ? 'Auch per Telegram: /einkauf. Der Essensplan setzt Zutaten von selbst drauf.'
+          : name === 'todo'
+            ? 'Auch in Obsidian unter Marktplatz/todos/ – und per Telegram: /todo. Gelöschtes liegt im Papierkorb.'
+            : 'Gelöschtes liegt im Papierkorb.'}
+      </p>
     </div>
   );
 }
 
-function TodoZeile({ t, ausfuehren }: { t: TodoInfo; ausfuehren: (f: () => Promise<unknown>) => Promise<void> }) {
+function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: (f: () => Promise<unknown>) => Promise<void>; basis: string }) {
   const [bearbeiten, setBearbeiten] = useState(false);
   const [titel, setTitel] = useState(t.titel);
   const [faellig, setFaellig] = useState(t.faellig ?? '');
   const [notiz, setNotiz] = useState(t.notiz ?? '');
   // Häkchen sofort zeigen; die Zeile wird mit der neuen Version vom Server ohnehin neu aufgebaut
   const [haken, setHaken] = useState(t.erledigt);
-  const aendern = (a: Record<string, unknown>) => ausfuehren(() => api('/api/todos', { methode: 'PATCH', body: { pfad: t.pfad, basisVersion: t.version, ...a } }));
+  const aendern = (a: Record<string, unknown>) => ausfuehren(() => api(basis, { methode: 'PATCH', body: { pfad: t.pfad, basisVersion: t.version, ...a } }));
   const ueberfaellig = !t.erledigt && t.faellig && t.faellig < heute();
   const vonAgent = t.quelle && t.quelle !== 'Leif' && t.quelle !== 'Telegram';
 
@@ -103,7 +112,7 @@ function TodoZeile({ t, ausfuehren }: { t: TodoInfo; ausfuehren: (f: () => Promi
             <button type="button" onClick={() => setBearbeiten(false)}>
               Abbrechen
             </button>
-            <button type="button" className="gefahr" onClick={() => void ausfuehren(() => api(`/api/todos?pfad=${encodeURIComponent(t.pfad)}`, { methode: 'DELETE' }))}>
+            <button type="button" className="gefahr" onClick={() => void ausfuehren(() => api(`${basis}?pfad=${encodeURIComponent(t.pfad)}`, { methode: 'DELETE' }))}>
               Löschen
             </button>
           </div>
@@ -129,12 +138,33 @@ function TodoZeile({ t, ausfuehren }: { t: TodoInfo; ausfuehren: (f: () => Promi
         </button>
         <span className="todo-meta">
           {t.faellig && <span className={`abzeichen${ueberfaellig ? ' warnung' : ''}`}>📅 {datumText(t.faellig)}</span>}
+          {t.gruppe && <span className="abzeichen">{t.gruppe}</span>}
           {t.gebaeude && <span className="abzeichen">{t.gebaeude}</span>}
+          {t.fremd && (
+            <span className="abzeichen" title="Aus Mails oder Moodle – Agenten mit Internet sehen diesen Eintrag nicht">
+              ✉️ aus Mail
+            </span>
+          )}
           {vonAgent && <span className="abzeichen" title={t.quelle}>🤖 {t.quelle}</span>}
           {t.notiz && (
             <a href={bibliothekUrl(t.pfad)} onClick={linkKlick} className="leise">
               Notiz
             </a>
+          )}
+          {basis.endsWith('/wunsch') && !t.erledigt && (
+            <button
+              type="button"
+              className="klein"
+              title="Preise und Alternativen im Netz suchen lassen"
+              onClick={() =>
+                void ausfuehren(async () => {
+                  const r = await api<{ chatId: string }>('/api/aktionen/starten', { body: { id: 'Einkaufsladen/preisvergleich', eingaben: { produkt: t.titel } } });
+                  navigieren(`/chats/${r.chatId}`);
+                })
+              }
+            >
+              🔎 Preise
+            </button>
           )}
         </span>
       </div>

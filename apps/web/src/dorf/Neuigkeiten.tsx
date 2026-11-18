@@ -1,10 +1,12 @@
 import { useState } from 'react';
 
 /** Bei jeder neuen Ausgabe den Schlüssel ändern – dann erscheint die Karte einmal pro Gerät */
-const AUSGABE = '2026-11-18h';
+const AUSGABE = '2026-11-18i';
 const SCHLUESSEL = 'dorf-neuigkeiten-gesehen';
 
 const PUNKTE: [string, string][] = [
+  ['🛒', 'Einkaufsladen ist offen: Einkaufsliste (auch /einkauf), Wunschliste mit Preisvergleich, sonntags ein Essensplan, der die Zutaten gleich auf die Liste setzt.'],
+  ['🏗️', 'Neue Gebäude baust du jetzt selbst (Liste oder Bau-Modus), geschlossene eröffnest du per Knopf.'],
   ['💻', 'Programme für Mac und Windows: Einstellungen → Programme. Eigenes Fenster, Meldungen, Symbol in der Leiste, Schnelleingabe (Strg/⌘+Umschalt+Leertaste), Autostart.'],
   ['🧺', 'To-do-Brett: Tipp auf den Marktplatz – deine Liste, immer aktuell, zum Abhaken. Auch per Telegram (/todo), und alle Agenten können sie pflegen.'],
   ['💬', 'Ablehnen mit Begründung: In der App ins Feld „warum?“ schreiben oder in Telegram nach ❌ einfach antworten – der Bürgermeister macht dann einen besseren Vorschlag.'],

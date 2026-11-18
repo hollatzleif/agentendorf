@@ -1,4 +1,4 @@
-import type { TodoDienst } from '../todos.js';
+import type { ListenName, TodoDienst } from '../todos.js';
 import crypto from 'node:crypto';
 import type { Ausloeser, ChatDetail, ChatInfo, LaufInfo, LaufStatus, Motor as MotorName, Stufe } from '@dorf/shared';
 import type { DB } from '../db.js';
@@ -133,8 +133,8 @@ export class AgentenDienst {
   ablage?: Ablage;
   /** Termine für kalender_lesen (Hauptkalender + Uni), wird in dorf.ts gesetzt */
   kalender?: (von: number, bis: number) => Promise<KalenderEintrag[]>;
-  /** To-do-Brett (E65) */
-  todos?: TodoDienst;
+  /** To-do-Brett (E65) und weitere Listen (Etappe 7) */
+  listen?: Record<ListenName, TodoDienst>;
 
   constructor(
     private db: DB,
@@ -418,7 +418,9 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
           moodle: this.moodleBrowser && profil.dorf.includes('moodle_oeffnen') ? this.moodleBrowser : undefined,
           kalender: profil.dorf.includes('kalender_lesen') ? this.kalender : undefined,
           wissen: wissen ? { gedaechtnisVersion: wissen.gedaechtnisVersion } : undefined,
-          todos: this.todos,
+          listen: this.listen,
+          fremdinhalte: !!c.fremdinhalte,
+          web: profil.web,
         },
         c.rolle === 'buergermeister' ? this.rollenWerkzeuge : undefined,
       );

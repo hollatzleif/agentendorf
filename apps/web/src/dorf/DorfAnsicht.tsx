@@ -1,3 +1,4 @@
+import { NeuesGebaeude } from '../komponenten/NeuesGebaeude';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { DEKO_ARTEN, DEKO_NAMEN, WETTER_TEXT, type DorfAntwort, type DorfFigur, type DorfLayout, type DorfStatus, type Gebaeude, type MorgenzeitungUebersicht, type SchreibtischAufgabe } from '@dorf/shared';
@@ -544,6 +545,9 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
               ))}
             </div>
           )}
+          <div className="bau-gruppe">
+            <NeuesGebaeude fertig={(id) => setHinweis(`„${gName(id)}“ steht – zieh es an seinen Platz.`)} />
+          </div>
           <div className="bau-gruppe">
             <button onClick={rueckgaengig} disabled={!rueck.length}>
               ↶ Rückgängig

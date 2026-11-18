@@ -76,7 +76,7 @@ export type LiveEreignis =
   | { typ: 'konflikte.geaendert' }
   | { typ: 'sitzung.beendet' }
   | { typ: 'dorf.geaendert'; version: number }
-  | { typ: 'todos.geaendert' }
+  | { typ: 'todos.geaendert'; liste?: string }
   | AgentenEreignis;
 
 /** To-do auf dem Marktplatz (E65): eine Datei in Marktplatz/todos/ */
@@ -87,6 +87,10 @@ export interface TodoInfo {
   erledigt: boolean;
   faellig?: string; // JJJJ-MM-TT
   gebaeude?: string;
+  /** Gruppe in der Liste (Abteilung im Laden, Amt im Corps …) */
+  gruppe?: string;
+  /** von einem Agenten mit Fremdinhalten (Mails, Moodle …) angelegt/geändert – Internet-Läufe sehen ihn nicht */
+  fremd?: boolean;
   quelle?: string; // „Leif“, „Telegram“ oder der Agent/die Aktion
   erstellt?: string;
   erledigtAm?: string;

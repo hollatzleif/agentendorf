@@ -1,5 +1,5 @@
 import { programmeRouten } from './programme.js';
-import type { TodoDienst } from './todos.js';
+import { LISTEN_NAMEN, type ListenName, type TodoDienst } from './todos.js';
 import type { Dorfplan } from './dorfplan.js';
 import { normalisieren } from './vault/pfade.js';
 import type { Automatik } from './agenten/automatik.js';
@@ -21,7 +21,7 @@ import { Sitzungen, SITZUNG_DAUER_MS, type Sitzung } from './auth/sitzungen.js';
 import { nutzerLaden, passwortSetzen, passwortVergleichen } from './auth/passwort.js';
 import { geheimnisErzeugen, otpauthUri, totpPruefen } from './auth/totp.js';
 import { VaultDienst } from './vault/dienst.js';
-import { gebaeudeListe } from './vault/gebaeude.js';
+import { gebaeudeAendern, gebaeudeAnlegen, gebaeudeListe } from './vault/gebaeude.js';
 import { Suchindex } from './vault/suche.js';
 import { LiveHub } from './live.js';
 import type { AgentenDienst } from './agenten/dienst.js';
@@ -61,7 +61,7 @@ export interface Abhaengigkeiten {
   aufwachen: Aufwachen;
   dorfplan: Dorfplan;
   automatik?: Automatik;
-  todos?: TodoDienst;
+  listen?: Record<ListenName, TodoDienst>;
 }
 
 /** Für Agenten-HTML: Skripte ja, aber undurchsichtiger Ursprung und kein Netz. Bilder/Schriften nur eingebettet (data:). */
@@ -329,18 +329,22 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
   programmeRouten(app, { ordner: path.join(konfig.datenDir, 'programme'), ursprung: konfig.origins[0] ?? '' });
 
   // ---- E65: To-do-Brett (Marktplatz) ----
-  if (a.todos) {
-    const todos = a.todos;
-    app.get('/api/todos', async (req) => todos.liste({ alleErledigten: (req.query as { alle?: string }).alle === '1' }));
-    app.post('/api/todos', async (req) => todos.anlegen(req.body, 'Leif'));
-    app.patch('/api/todos', async (req) => {
-      const { pfad, basisVersion, ...rest } = z.object({ pfad: z.string(), basisVersion: z.string().optional() }).passthrough().parse(req.body);
-      return todos.aendern(pfad, rest, basisVersion);
-    });
-    app.delete('/api/todos', async (req) => {
-      const { pfad } = z.object({ pfad: z.string() }).parse(req.query);
-      return { papierkorb: await todos.loeschen(pfad) };
-    });
+  // Etappe 7: alle Listen unter /api/listen/<name>; /api/todos bleibt für die To-do-Liste
+  if (a.listen) {
+    const listen = a.listen;
+    for (const [basis, name] of [['/api/todos', 'todo'] as const, ...LISTEN_NAMEN.map((n) => [`/api/listen/${n}`, n] as const)]) {
+      const l = listen[name];
+      app.get(basis, async (req) => l.liste({ alleErledigten: (req.query as { alle?: string }).alle === '1' }));
+      app.post(basis, async (req) => l.anlegen(req.body, 'Leif'));
+      app.patch(basis, async (req) => {
+        const { pfad, basisVersion, ...rest } = z.object({ pfad: z.string(), basisVersion: z.string().optional() }).passthrough().parse(req.body);
+        return l.aendern(pfad, rest, basisVersion);
+      });
+      app.delete(basis, async (req) => {
+        const { pfad } = z.object({ pfad: z.string() }).parse(req.query);
+        return { papierkorb: await l.loeschen(pfad) };
+      });
+    }
   }
 
   app.get('/api/vault/seitenstand', async (req) => {
@@ -399,6 +403,18 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
   app.get('/api/vault/konflikte', async () => vault.konflikte());
 
   app.get('/api/gebaeude', async () => gebaeudeListe(vault));
+  // Etappe 7: Gebäude anlegen und eröffnen/ändern
+  app.post('/api/gebaeude', async (req) => {
+    const id = await gebaeudeAnlegen(vault, req.body);
+    hub.senden({ typ: 'gebaeude.geaendert' });
+    return { id };
+  });
+  app.patch('/api/gebaeude/:id', async (req) => {
+    const { id } = z.object({ id: z.string().min(1).max(80) }).parse(req.params);
+    await gebaeudeAendern(vault, id, req.body);
+    hub.senden({ typ: 'gebaeude.geaendert' });
+    return (await gebaeudeListe(vault)).find((g) => g.id === id);
+  });
 
   // ---- Agenten (Etappe 2a) ------------------------------------------------------------------
   agentenRouten(app, { agenten: a.agenten, vault, uhr, db, hub, schreibtisch: a.schreibtisch, buergermeister: a.buergermeister, automatik: a.automatik });

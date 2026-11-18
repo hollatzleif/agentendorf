@@ -1,3 +1,4 @@
+import { NeuesGebaeude } from '../komponenten/NeuesGebaeude';
 import { Component, lazy, Suspense, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { DorfStatus, Gebaeude } from '@dorf/shared';
@@ -77,7 +78,8 @@ export function DorfListe({ zumDorf, hinweis }: { zumDorf: (() => void) | null; 
           );
         })}
       </div>
-      <p className="leise">Neues Gebäude: Ordner mit einer <code>gebaeude.md</code> im Vault anlegen – es erscheint sofort im Dorf.</p>
+      <NeuesGebaeude />
+      <p className="leise">Oder in Obsidian: Ordner mit einer <code>gebaeude.md</code> anlegen – es erscheint sofort im Dorf.</p>
     </section>
   );
 }

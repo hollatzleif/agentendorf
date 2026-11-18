@@ -357,3 +357,22 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - **Caddy:** Die CSP erlaubt zusätzlich `ipc: http://ipc.localhost` bei `connect-src`. Das ist der schnelle IPC-Weg; ohne ihn weicht Tauri auf postMessage aus.
 - **Nicht dokumentiert, darum offen:** ob Systemmeldungen eines ad-hoc-signierten Mac-Programms ohne Weiteres erscheinen. Das prüft Leif bei der Abnahme.
 
+**E67 – Etappe 7 (Teil 1): Gebäude anlegen und eröffnen, Listen allgemein, Einkaufsladen** (18.11., Leifs Wahl: alle Vorschläge für Bank, Börse, Einkaufsladen und Corpshaus)
+- **Gebäude in der App:**
+  - „🏗️ Neues Gebäude“ gibt es in der Liste und im Bau-Modus: Name, Symbol, Beschreibung. Daraus entstehen der Ordner (ASCII), `gebaeude.md` und `aktionen/`, und der Dorfplan platziert das Gebäude automatisch.
+  - Geschlossene Gebäude lassen sich per Knopf eröffnen. Unter „Gebäude einstellen“ im Reiter Übersicht ändert man Name, Symbol und Beschreibung oder schließt das Gebäude; das Rathaus bleibt immer offen.
+  - Der Text der Arbeitsanweisung bleibt dabei unangetastet. Bearbeitet wird er in der Bibliothek.
+- **Listen allgemein:** Der TodoDienst bekommt einen Ordner je Liste: `todo` (Marktplatz/todos), `einkauf` (Einkaufsladen/liste), `wunsch` (Einkaufsladen/wunschliste), `corps` (Corpshaus/aufgaben).
+  - Neues Feld `gruppe`, etwa die Abteilung im Laden oder das Amt im Corps.
+  - API unter `/api/listen/<name>`; `/api/todos` bleibt erhalten.
+  - Die Agenten nutzen dieselben `todo_*`-Werkzeuge mit dem Parameter `liste`.
+  - Telegram hat zusätzlich `/einkauf`. Die Abhak-Knöpfe sind je Liste signiert, alte To-do-Knöpfe bleiben gültig.
+- **Leine für Listen:** Einträge, die ein Lauf mit Fremdinhalten anlegt oder inhaltlich ändert, bekommen `fremd: true` (Abhaken allein markiert nicht).
+  - Läufe mit Internet sehen solche Einträge nicht und dürfen sie nicht ändern. Sonst käme Fremdes über eine Liste ins Netz, z. B. ein präparierter Mailtext über die Wunschliste zum Preisvergleich.
+  - In der App tragen sie den Hinweis „✉️ aus Mail“.
+- **Einkaufsladen (jetzt offen):**
+  - Reiter Einkaufsliste (nach Abteilung sortiert) und Wunschliste (je Eintrag ein Knopf „🔎 Preise“).
+  - Skill „Essensplan“ jeden Sonntag 17:00: Er nimmt die Vorgaben aus `einstellungen.md` (schnell und günstig, Meal-Prep) und den Kalender, schreibt `Einkaufsladen/00_Essensplan.md` (Archiv) und setzt Zutaten auf die Einkaufsliste.
+  - Skill „Preisvergleich“ (Internet, ohne Fremdinhalte) schreibt `preisvergleiche/` und ergänzt die Wunschliste.
+  - Bestellt und bezahlt wird nie.
+

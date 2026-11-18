@@ -33,7 +33,7 @@ import { GoogleZugang } from './post/google-oauth.js';
 import { Terminkalender } from './kalender.js';
 import { Morgenzeitung } from './morgenzeitung.js';
 import { Aufwachen } from './aufwachen.js';
-import { TodoDienst } from './todos.js';
+import { listenAnlegen } from './todos.js';
 
 /** Dateien, die das Dorf zum Arbeiten braucht: fehlen sie (z. B. Vault aus einer älteren Etappe), werden sie aus der Vorlage ergänzt – nie überschrieben. */
 const PFLICHT_DATEIEN = [
@@ -50,6 +50,9 @@ const PFLICHT_DATEIEN = [
   'Uni/aktionen/kursuebersicht.md',
   'Rathaus/memory.md',
   'Rathaus/personality.md',
+  'Einkaufsladen/einstellungen.md',
+  'Einkaufsladen/aktionen/essensplan.md',
+  'Einkaufsladen/aktionen/preisvergleich.md',
 ];
 
 /**
@@ -77,6 +80,7 @@ const VORLAGE_FRUEHERE_FASSUNGEN: Record<string, string[]> = {
     'd7caf198ce646fe65d2fafa29e6ddd63bae6f21ccdd527b1a9dec63ec517aba9', // Etappe 3 bis E60
     'ff3beab8cf394168ff1cfc9e3d4e91fb9c6f9eced1152b31f2db5373547043e3', // E61–E64
   ],
+  'Einkaufsladen/gebaeude.md': ['b334b038336be925930e612231f6129a7f25a723f111d08af9568117fe45e87f'], // geschlossen bis Etappe 7
   'Marktplatz/gebaeude.md': ['b7332c301634c2889f157d87138f392c3f2a49500a7fb31cc30a9d2d41157358'], // bis E64
 };
 
@@ -188,9 +192,10 @@ export async function dorfStarten(
     if (t) await agenten.hinweisSchreiben(e.chatId, t);
   });
   // E65: To-do-Brett auf dem Marktplatz (App, Telegram, alle Agenten)
-  const todos = new TodoDienst({ vault, uhr });
-  todos.beiAenderung = () => hub.senden({ typ: 'todos.geaendert' });
-  agenten.todos = todos;
+  // Etappe 7: weitere Listen (Einkauf, Wunsch, Corps) mit derselben Technik
+  const listen = listenAnlegen({ vault, uhr }, (liste) => hub.senden({ typ: 'todos.geaendert', liste }));
+  const todos = listen.todo;
+  agenten.listen = listen;
   const automatik = new Automatik({ db, uhr, vault, agenten, log: (t) => console.warn(t) });
   // kalender_lesen für Aktionen mit werkzeuge: [kalender]: Hauptkalender + Uni-Fristen/Pflichttermine (nur lesen)
   agenten.kalender = async (von, bis) => {
@@ -225,7 +230,7 @@ export async function dorfStarten(
       uni,
       postbote,
       morgenzeitung,
-      todos,
+      listen,
       log: (t) => console.warn(t),
     });
     if (!opt.telegram) telegram.starten();
@@ -240,7 +245,7 @@ export async function dorfStarten(
   const planTakt = opt.beobachten !== false ? setInterval(() => void buergermeister.faelligePlaeneAnnehmen().catch((e) => console.warn(`Pläne: ${(e as Error).message}`)), 60_000) : undefined;
   planTakt?.unref();
   const dorfplan = new Dorfplan({ db, uhr, hub, vault, uni, wetter });
-  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen, dorfplan, automatik, todos });
+  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen, dorfplan, automatik, listen });
   app.addHook('onClose', async () => {
     uni.stoppen();
     postbote.stoppen();
@@ -255,5 +260,5 @@ export async function dorfStarten(
     await agenten.ruhe();
     db.close();
   });
-  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan, wetter, automatik, todos };
+  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan, wetter, automatik, todos, listen };
 }

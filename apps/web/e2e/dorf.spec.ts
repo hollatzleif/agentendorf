@@ -356,3 +356,31 @@ test('Schnelleingabe (/schnell): Enter schickt an den Bürgermeister oder auf di
   await expect(page.getByRole('heading', { name: 'Programme für Mac und Windows' })).toBeVisible();
   await expect(page.getByText(/Noch keine Programme gebaut/)).toBeVisible();
 });
+
+test('Etappe 7: neues Gebäude bauen, Einkaufsliste nach Abteilung, Wunschliste mit Preisvergleich', async ({ page }, info) => {
+  await anmelden(page);
+  // neues Gebäude aus der Liste heraus
+  await page.goto('/');
+  await page.getByRole('button', { name: '🏗️ Neues Gebäude' }).click();
+  const f = page.getByRole('form', { name: 'Neues Gebäude' });
+  const name = `Werkhof ${info.project.name}`;
+  await f.getByLabel('Name').fill(name);
+  await f.getByLabel('Wofür ist es da?').fill('Testgebäude');
+  await f.getByRole('button', { name: 'Bauen' }).click();
+  await expect(page.locator('.gebaeude-karte', { hasText: name })).toBeVisible();
+  // Einkaufsladen: Einkaufsliste ist der erste Reiter
+  await page.goto('/gebaeude/Einkaufsladen');
+  await expect(page.getByRole('button', { name: 'Einkaufsliste', exact: true })).toHaveClass(/aktiv/);
+  const milch = `Milch ${info.project.name}`;
+  await page.getByRole('textbox', { name: 'Neues To-do' }).fill(milch);
+  await page.getByRole('form', { name: 'Neues To-do' }).getByRole('button', { name: '+' }).click();
+  await expect(page.locator('.todo', { hasText: milch })).toBeVisible();
+  // Wunschliste → Preisvergleich startet einen Chat
+  await page.getByRole('button', { name: 'Wunschliste', exact: true }).click();
+  const wunsch = `Kopfhörer ${info.project.name}`;
+  await page.getByRole('textbox', { name: 'Neues To-do' }).fill(wunsch);
+  await page.getByRole('form', { name: 'Neues To-do' }).getByRole('button', { name: '+' }).click();
+  await page.locator('.todo', { hasText: wunsch }).getByRole('button', { name: '🔎 Preise' }).click();
+  await expect(page).toHaveURL(/\/chats\//);
+  await expect(page.getByText(`Preisvergleich: ${wunsch}`).first()).toBeVisible();
+});

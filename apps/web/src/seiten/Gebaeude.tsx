@@ -1,7 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Gebaeude, VaultDatei } from '@dorf/shared';
-import { api } from '../api';
-import { linkKlick, navigieren, useOrt } from '../router';
+import { api, ApiFehler } from '../api';
+import { bibliothekUrl, linkKlick, navigieren, useOrt } from '../router';
 import { Markdown } from '../komponenten/Markdown';
 import { Dateibaum } from '../komponenten/Dateibaum';
 import { Aktionen } from '../komponenten/Aktionen';
@@ -30,6 +31,10 @@ const RATHAUS_VORNE = [
 const UNI_VORNE = [['studium', 'Studium']] as const;
 const POST_VORNE = [['eingang', 'Eingang']] as const;
 const MARKT_VORNE = [['todo', 'To-do']] as const;
+const EINKAUF_VORNE = [
+  ['einkauf', 'Einkaufsliste'],
+  ['wunsch', 'Wunschliste'],
+] as const;
 const RATHAUS_REITER = [
   ['freigaben', 'Freigaben'],
   ['alle-chats', 'Alle Chats'],
@@ -39,11 +44,11 @@ const RATHAUS_REITER = [
 
 /** Alle Reiter eines Gebäudes (Schlüssel, Titel) – auch für die Knöpfe im Dorf */
 export function reiterFuer(id: string): readonly (readonly [string, string])[] {
-  return id === 'Rathaus' ? [...RATHAUS_VORNE, ...REITER, ...RATHAUS_REITER] : id === 'Uni' ? [...UNI_VORNE, ...REITER] : id === 'Post' ? [...POST_VORNE, ...REITER] : id === 'Marktplatz' ? [...MARKT_VORNE, ...REITER] : REITER;
+  return id === 'Rathaus' ? [...RATHAUS_VORNE, ...REITER, ...RATHAUS_REITER] : id === 'Uni' ? [...UNI_VORNE, ...REITER] : id === 'Post' ? [...POST_VORNE, ...REITER] : id === 'Marktplatz' ? [...MARKT_VORNE, ...REITER] : id === 'Einkaufsladen' ? [...EINKAUF_VORNE, ...REITER] : REITER;
 }
 
 export function standardReiter(id: string) {
-  return id === 'Rathaus' ? 'schreibtisch' : id === 'Uni' ? 'studium' : id === 'Post' ? 'eingang' : id === 'Marktplatz' ? 'todo' : 'aktionen';
+  return id === 'Rathaus' ? 'schreibtisch' : id === 'Uni' ? 'studium' : id === 'Post' ? 'eingang' : id === 'Marktplatz' ? 'todo' : id === 'Einkaufsladen' ? 'einkauf' : 'aktionen';
 }
 
 export function GebaeudeSeite({ id }: { id: string }) {
@@ -93,15 +98,21 @@ export function GebaeudeInhalt({ id, reiter, reiterWaehlen, kompakt }: { id: str
         ))}
       </div>
       <div className="karte">
-        {reiter === 'aktionen' &&
-          (g.status === 'geschlossen' ? <p className="leise">Dieses Gebäude ist noch nicht eröffnet.</p> : <Aktionen gebaeude={id} />)}
+        {reiter === 'aktionen' && (g.status === 'geschlossen' ? <Eroeffnen id={id} /> : <Aktionen gebaeude={id} />)}
         {reiter === 'chats' && <ChatListe gebaeude={id} />}
-        {reiter === 'uebersicht' && (anweisung.data ? <Markdown inhalt={anweisung.data.inhalt} pfad={anweisung.data.pfad} /> : <p>Lade …</p>)}
+        {reiter === 'uebersicht' && (
+          <>
+            {anweisung.data ? <Markdown inhalt={anweisung.data.inhalt} pfad={anweisung.data.pfad} /> : <p>Lade …</p>}
+            <GebaeudeEinstellen g={g} />
+          </>
+        )}
         {reiter === 'dateien' && <Dateibaum wurzel={id} />}
         {reiter === 'schreibtisch' && <Schreibtisch />}
         {reiter === 'studium' && <UniUebersicht />}
         {reiter === 'eingang' && <PostEingang />}
         {reiter === 'todo' && <TodoBrett />}
+        {reiter === 'einkauf' && <TodoBrett liste="einkauf" platzhalter="Was fehlt? z. B. 2 l Milch" gruppiert />}
+        {reiter === 'wunsch' && <TodoBrett liste="wunsch" platzhalter="Was möchtest du kaufen?" />}
         {reiter === 'morgenzeitung' && <MorgenzeitungAnsicht />}
         {reiter === 'plaene' && <Plaene />}
         {reiter === 'freigaben' && <Freigaben />}
@@ -110,5 +121,86 @@ export function GebaeudeInhalt({ id, reiter, reiterWaehlen, kompakt }: { id: str
         {reiter === 'agenten' && <AgentenEinstellungen />}
       </div>
     </>
+  );
+}
+
+/** Etappe 7: „noch nicht eröffnet“ → per Knopf eröffnen */
+function Eroeffnen({ id }: { id: string }) {
+  const [fehler, setFehler] = useState('');
+  return (
+    <div>
+      <p>Dieses Gebäude ist noch nicht eröffnet.</p>
+      <button
+        className="haupt"
+        onClick={() =>
+          void api(`/api/gebaeude/${encodeURIComponent(id)}`, { methode: 'PATCH', body: { status: 'offen' } }).catch((e) => setFehler(e instanceof ApiFehler ? e.message : String(e)))
+        }
+      >
+        🎉 Gebäude eröffnen
+      </button>
+      {fehler && <p className="fehler">{fehler}</p>}
+    </div>
+  );
+}
+
+/** Etappe 7: Name, Symbol, Beschreibung ändern, schließen; Arbeitsanweisung in der Bibliothek bearbeiten */
+function GebaeudeEinstellen({ g }: { g: Gebaeude }) {
+  const qc = useQueryClient();
+  const [offen, setOffen] = useState(false);
+  const [name, setName] = useState(g.name);
+  const [symbol, setSymbol] = useState(g.symbol);
+  const [beschreibung, setBeschreibung] = useState(g.beschreibung);
+  const [fehler, setFehler] = useState('');
+  const speichern = async (body: Record<string, unknown>) => {
+    setFehler('');
+    try {
+      await api(`/api/gebaeude/${encodeURIComponent(g.id)}`, { methode: 'PATCH', body });
+      await qc.invalidateQueries({ queryKey: ['gebaeude'] });
+      setOffen(false);
+    } catch (e) {
+      setFehler(e instanceof ApiFehler ? e.message : String(e));
+    }
+  };
+  return (
+    <details className="gebaeude-einstellen" open={offen} onToggle={(e) => setOffen((e.target as HTMLDetailsElement).open)}>
+      <summary>Gebäude einstellen</summary>
+      <form
+        className="formspalte"
+        aria-label="Gebäude einstellen"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void speichern({ name, symbol, beschreibung });
+        }}
+      >
+        <div className="zeile">
+          <label>
+            Symbol
+            <input value={symbol} onChange={(e) => setSymbol(e.target.value)} maxLength={8} style={{ width: '5rem' }} />
+          </label>
+          <label style={{ flex: 1 }}>
+            Name
+            <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40} />
+          </label>
+        </div>
+        <label>
+          Kurzbeschreibung
+          <input value={beschreibung} onChange={(e) => setBeschreibung(e.target.value)} maxLength={200} />
+        </label>
+        <div className="zeile">
+          <button type="submit" className="haupt">
+            Speichern
+          </button>
+          <a className="knopf" href={bibliothekUrl(`${g.id}/gebaeude.md`)} onClick={linkKlick}>
+            Arbeitsanweisung bearbeiten
+          </a>
+          {g.id !== 'Rathaus' && (
+            <button type="button" className="gefahr" onClick={() => void speichern({ status: 'geschlossen' })}>
+              Schließen
+            </button>
+          )}
+        </div>
+        {fehler && <p className="fehler">{fehler}</p>}
+      </form>
+    </details>
   );
 }

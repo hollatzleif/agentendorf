@@ -156,7 +156,7 @@ describe('Telegram-Bot', () => {
     const d = await dorf();
     await d.nachricht({ text: '/todo Milch kaufen' });
     await d.nachricht({ text: '/todo Stat ML Übung 4' });
-    expect(d.gesendet().filter((t) => t.startsWith('🧺 Auf die Liste'))).toHaveLength(2);
+    expect(d.gesendet().filter((t) => t.startsWith('🧺 Auf die To-do-Liste'))).toHaveLength(2);
     expect(d.schreibtisch.liste()).toHaveLength(0); // keine Aufgabe für den Bürgermeister
     await d.nachricht({ text: '/todo' });
     const liste = d.aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p;
@@ -217,7 +217,7 @@ describe('Telegram-Bot', () => {
     expect(offsets.at(-1)).toBe(51);
     // Befehlsmenü wird beim Start angemeldet
     const menue = d.aufrufe.find((x) => x.m === 'setMyCommands')?.p.commands as { command: string }[];
-    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'neu', 'hilfe']);
+    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'neu', 'hilfe']);
     await d.agenten.leerlauf();
   }, 15_000);
 });

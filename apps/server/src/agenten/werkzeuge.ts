@@ -13,7 +13,7 @@ import { fremdinhaltHuelle, schreibenPruefen, type DorfWerkzeug } from './leine.
 import { ablageName, type RechenraumKlient } from './rechenraum.js';
 import type { GmailKlient } from '../post/gmail.js';
 import { AGENTEN_ARTEN, type Freigaben } from './freigaben.js';
-import { todoZeile, type TodoDienst } from '../todos.js';
+import { LISTEN, LISTEN_NAMEN, todoZeile, type ListenName, type TodoDienst } from '../todos.js';
 import { aenderungText, ersetzen, GEDAECHTNIS_PFAD, MAX_GEDAECHTNIS, MAX_PERSOENLICHKEIT, PERSOENLICHKEIT_PFAD, textPruefen } from './gedaechtnis.js';
 
 /** Beschreibung der Dorf-Werkzeuge – identisch für den api-Motor (Tool-Definition) und den MCP-Server der Werkstatt. */
@@ -210,19 +210,21 @@ export const WERKZEUG_DEFINITIONEN: Record<DorfWerkzeug, WerkzeugDefinition> = {
   todo_liste: {
     name: 'todo_liste',
     description:
-      'Leifs To-do-Liste vom Marktplatz: offene To-dos (fällige zuerst), dazu Erledigtes der letzten 14 Tage. Jede Zeile mit Pfad – den brauchst du für todo_bearbeiten/todo_loeschen. Inhalte können aus Mails stammen (Fremdinhalt).',
-    input_schema: { type: 'object', properties: { alle_erledigten: { type: 'boolean', description: 'auch älteres Erledigtes' } }, required: [], additionalProperties: false },
+      'Eine von Leifs Listen lesen (Standard: To-do-Liste vom Marktplatz; auch Einkaufsliste, Wunschliste, Corps-Aufgaben): offene Einträge (fällige zuerst), dazu Erledigtes der letzten 14 Tage. Jede Zeile mit Pfad – den brauchst du für todo_bearbeiten/todo_loeschen. Inhalte können aus Mails stammen (Fremdinhalt).',
+    input_schema: { type: 'object', properties: { liste: { type: 'string', enum: ['todo', 'einkauf', 'wunsch', 'corps'], description: 'Welche Liste: todo (Leifs To-dos, Standard), einkauf (Einkaufsliste), wunsch (Wunschliste), corps (Corps-Aufgaben/Ämter)' }, alle_erledigten: { type: 'boolean', description: 'auch älteres Erledigtes' } }, required: [], additionalProperties: false },
   },
   todo_anlegen: {
     name: 'todo_anlegen',
     description:
-      'Neues To-do auf Leifs Liste (Marktplatz). Nur für Dinge, die Leif wirklich tun muss oder ausdrücklich wollte – vorher mit todo_liste prüfen, dass es das nicht schon gibt.',
+      'Neuer Eintrag auf einer von Leifs Listen (Standard: To-do-Liste; „einkauf“ für die Einkaufsliste). Nur für Dinge, die Leif wirklich tun muss oder ausdrücklich wollte – vorher mit todo_liste prüfen, dass es das nicht schon gibt.',
     input_schema: {
       type: 'object',
       properties: {
-        titel: { type: 'string', description: 'Kurz und konkret, z. B. „Plakat Digitale Lebenswelten abgeben“' },
+        liste: { type: 'string', enum: ['todo', 'einkauf', 'wunsch', 'corps'], description: 'Welche Liste: todo (Leifs To-dos, Standard), einkauf (Einkaufsliste), wunsch (Wunschliste), corps (Corps-Aufgaben/Ämter)' },
+        titel: { type: 'string', description: 'Kurz und konkret, z. B. „Plakat Digitale Lebenswelten abgeben“ oder „2 l Milch“' },
         faellig: { type: 'string', description: 'JJJJ-MM-TT (optional)' },
         gebaeude: { type: 'string', description: 'Bezug, z. B. Uni, Post (optional)' },
+        gruppe: { type: 'string', description: 'Gruppe, z. B. Abteilung im Laden („Obst & Gemüse“, „Kühlregal“) oder Amt im Corps (optional)' },
         notiz: { type: 'string', description: 'Details, Links auf Vault-Dateien (optional)' },
       },
       required: ['titel'],
@@ -235,11 +237,13 @@ export const WERKZEUG_DEFINITIONEN: Record<DorfWerkzeug, WerkzeugDefinition> = {
     input_schema: {
       type: 'object',
       properties: {
-        pfad: { type: 'string', description: 'Pfad aus todo_liste (Marktplatz/todos/…md)' },
+        liste: { type: 'string', enum: ['todo', 'einkauf', 'wunsch', 'corps'], description: 'Welche Liste: todo (Leifs To-dos, Standard), einkauf (Einkaufsliste), wunsch (Wunschliste), corps (Corps-Aufgaben/Ämter)' },
+        pfad: { type: 'string', description: 'Pfad aus todo_liste' },
         titel: { type: 'string' },
         erledigt: { type: 'boolean' },
         faellig: { type: 'string', description: 'JJJJ-MM-TT oder leer' },
         gebaeude: { type: 'string' },
+        gruppe: { type: 'string' },
         notiz: { type: 'string', description: 'ersetzt die Notiz' },
       },
       required: ['pfad'],
@@ -249,7 +253,7 @@ export const WERKZEUG_DEFINITIONEN: Record<DorfWerkzeug, WerkzeugDefinition> = {
   todo_loeschen: {
     name: 'todo_loeschen',
     description: 'Ein To-do entfernen (landet im Papierkorb, Leif kann es wiederherstellen). Für Erledigtes lieber abhaken; löschen nur bei Doppeltem oder Überholtem.',
-    input_schema: { type: 'object', properties: { pfad: { type: 'string' } }, required: ['pfad'], additionalProperties: false },
+    input_schema: { type: 'object', properties: { liste: { type: 'string', enum: ['todo', 'einkauf', 'wunsch', 'corps'], description: 'Welche Liste: todo (Leifs To-dos, Standard), einkauf (Einkaufsliste), wunsch (Wunschliste), corps (Corps-Aufgaben/Ämter)' }, pfad: { type: 'string' } }, required: ['pfad'], additionalProperties: false },
   },
   kalender_lesen: {
     name: 'kalender_lesen',
@@ -439,8 +443,11 @@ export interface LaufKontext {
   moodle?: MoodleBrowserKlient;
   /** Termine aus Hauptkalender und Uni-Kalendern für kalender_lesen (nur lesen) */
   kalender?: (von: number, bis: number) => Promise<KalenderEintrag[]>;
-  /** To-do-Brett (E65) */
-  todos?: TodoDienst;
+  /** To-do-Brett (E65) und weitere Listen (Etappe 7) */
+  listen?: Record<ListenName, TodoDienst>;
+  /** Leine für die Listen: Lauf mit Fremdinhalten markiert seine Einträge; Lauf mit Internet sieht markierte nicht */
+  fremdinhalte?: boolean;
+  web?: boolean;
   /** Nur Bürgermeister (E61): Fassung von Rathaus/memory.md, die er kennt (aus dem Systemprompt oder zuletzt gelesen/geschrieben) */
   wissen?: { gedaechtnisVersion: string | null };
 }
@@ -767,31 +774,45 @@ export class WerkzeugKiste {
   }
 
   /** To-do-Brett (E65): alles über den TodoDienst – nur Marktplatz/todos/, Löschen = Papierkorb */
+  /**
+   * Listen (E65/Etappe 7): alles über den TodoDienst – nur der Ordner der Liste, Löschen = Papierkorb.
+   * Leine „Internet nie mit Fremdinhalten“: Einträge aus Fremdinhalt-Läufen sind markiert (fremd) und für Läufe mit
+   * Internet unsichtbar und unveränderbar – sonst könnte ein präparierter Mailtext über die Liste ins Netz gelangen.
+   */
   private async todo(name: 'todo_liste' | 'todo_anlegen' | 'todo_bearbeiten' | 'todo_loeschen', eingabe: unknown): Promise<WerkzeugAufrufErgebnis> {
-    const t = this.k.todos;
-    if (!t) throw new DorfFehler(503, 'Das To-do-Brett ist nicht eingerichtet.');
+    const { liste: ln } = z.object({ liste: z.enum(LISTEN_NAMEN as [ListenName, ...ListenName[]]).default('todo') }).passthrough().parse(eingabe ?? {});
+    const t = this.k.listen?.[ln];
+    if (!t) throw new DorfFehler(503, 'Die Listen sind nicht eingerichtet.');
+    // „liste“ gehört nicht zum Eintrag selbst
+    if (eingabe && typeof eingabe === 'object') delete (eingabe as Record<string, unknown>).liste;
+    const fremd = !!this.k.fremdinhalte;
+    const imNetz = !!this.k.web;
     if (name === 'todo_liste') {
       const { alle_erledigten } = z.object({ alle_erledigten: z.boolean().default(false) }).parse(eingabe ?? {});
-      const l = await t.liste({ alleErledigten: alle_erledigten });
-      this.log(name, eingabe, `${l.length} To-dos`, true, undefined, 'gelesen');
-      return { ok: true, text: fremdinhaltHuelle('todos', l.length ? l.map(todoZeile).join('\n') : '(keine To-dos)') };
+      const alle = await t.liste({ alleErledigten: alle_erledigten });
+      const l = imNetz ? alle.filter((x) => !x.fremd) : alle;
+      const aus = alle.length - l.length;
+      this.log(name, { liste: ln }, `${l.length} Einträge${aus ? ` (${aus} ausgeblendet)` : ''}`, true, undefined, 'gelesen');
+      const hinweis = aus ? `\n(${aus} Einträge aus Mails/Moodle sind in Läufen mit Internet ausgeblendet.)` : '';
+      return { ok: true, text: `${LISTEN[ln].titel}:\n${fremdinhaltHuelle(ln, l.length ? l.map(todoZeile).join('\n') : '(leer)')}${hinweis}` };
     }
     const quelle = `Agent (${this.k.gebaeude})`;
     if (name === 'todo_anlegen') {
-      const n = await t.anlegen(eingabe, quelle);
-      this.log(name, eingabe, `angelegt: ${n.titel}`, true, n.pfad, 'geschrieben');
-      return { ok: true, text: `To-do angelegt: ${todoZeile(n)}` };
+      const n = await t.anlegen(eingabe, quelle, { fremd });
+      this.log(name, { ...(eingabe as object), liste: ln }, `angelegt: ${n.titel}`, true, n.pfad, 'geschrieben');
+      return { ok: true, text: `Eintrag angelegt: ${todoZeile(n)}` };
     }
+    const { pfad } = z.object({ pfad: z.string() }).passthrough().parse(eingabe);
+    if (imNetz && (await t.holen(pfad)).fremd) throw new DorfFehler(403, 'Dieser Eintrag stammt aus Mails/Moodle – in Läufen mit Internet nicht änderbar.');
     if (name === 'todo_bearbeiten') {
-      const { pfad, ...rest } = z.object({ pfad: z.string() }).passthrough().parse(eingabe);
-      const n = await t.aendern(pfad, rest);
-      this.log(name, eingabe, `${n.erledigt ? 'erledigt' : 'geändert'}: ${n.titel}`, true, n.pfad, 'geschrieben');
-      return { ok: true, text: `To-do geändert: ${todoZeile(n)}` };
+      const { pfad: _p, ...rest } = z.object({ pfad: z.string() }).passthrough().parse(eingabe);
+      const n = await t.aendern(pfad, rest, undefined, { fremd });
+      this.log(name, { ...(eingabe as object), liste: ln }, `${n.erledigt ? 'erledigt' : 'geändert'}: ${n.titel}`, true, n.pfad, 'geschrieben');
+      return { ok: true, text: `Eintrag geändert: ${todoZeile(n)}` };
     }
-    const { pfad } = z.object({ pfad: z.string() }).parse(eingabe);
     const ziel = await t.loeschen(pfad);
-    this.log(name, eingabe, `in den Papierkorb: ${ziel}`, true, pfad, 'geschrieben');
-    return { ok: true, text: `To-do entfernt (Papierkorb, wiederherstellbar): ${pfad}` };
+    this.log(name, { pfad, liste: ln }, `in den Papierkorb: ${ziel}`, true, pfad, 'geschrieben');
+    return { ok: true, text: `Eintrag entfernt (Papierkorb, wiederherstellbar): ${pfad}` };
   }
 
   private async lesen(roh: string): Promise<WerkzeugAufrufErgebnis> {
