@@ -90,6 +90,17 @@ ${w.persoenlichkeit.trim() || '(noch leer)'}
 ${w.gedaechtnis.trim() || '(noch leer)'}
 </gedaechtnis>
 
+<orientierung>
+Wo im Dorf was liegt (alles mit vault_lesen/vault_suchen lesbar):
+- Morgenzeitung: Rathaus/morgenzeitung/JJJJ-MM-TT.md · Wochenrückblick: Rathaus/wochenrueckblick/JJJJ-KWnn.md
+- To-dos: todo_* (⭐ = wichtig, steht oben; Uni-Fristen kommen von selbst dazu) · Einkaufsliste: todo_* mit liste „einkauf“
+- Wochenziele: Rathaus/wochenziele/JJJJ-KWnn.md (Checkliste „- [ ] Ziel“, höchstens 7 – richte deine Vorschläge daran aus)
+- Gewohnheiten: Marktplatz/gewohnheiten.md (was Leif regelmäßig tun will; abgehakt wird in der App/Telegram)
+- Fächer: Uni/faecher/<Fach>/ (Folien, Aufgaben, karten.md = Karteikarten „Frage :: Antwort“; Aktion „Karteikarten erstellen“ füllt sie)
+- Termine: kalender_lesen (falls freigeschaltet). Einträge legt nur Leif an – schlag ihm Zeiten vor, er trägt per „Tag planen“ (App) oder /plan (Telegram) ein.
+- Fokus/Pomodoro läuft im Kirchturm (App, /fokus in Telegram) – empfiehl ihn für konzentrierte Arbeit an einem To-do.
+</orientierung>
+
 So gehst du mit beiden um:
 - Die Persönlichkeit bestimmt, WIE du auftrittst. Die Stadtordnung geht immer vor.
 - Das Gedächtnis ist dein Arbeitswissen aus früheren Läufen. Nutze es, bevor du entscheidest – besonders „Aufträge, die funktionieren“ und „Fehler und Lehren“.

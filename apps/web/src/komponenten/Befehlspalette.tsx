@@ -91,7 +91,7 @@ function Palette({ schliessen }: { schliessen: () => void }) {
         titel: `To-do anlegen: ${todoText}`,
         tun: async () => {
           await api('/api/todos', { body: { titel: todoText.slice(0, 200) } });
-          await qc.invalidateQueries({ queryKey: ['liste', 'todo'] });
+          void qc.invalidateQueries({ queryKey: ['liste', 'todo'] });
           return `✅ To-do angelegt: ${todoText}`;
         },
       });
@@ -107,7 +107,7 @@ function Palette({ schliessen }: { schliessen: () => void }) {
             return `Eintragen? ${terminText} – Enter zum Bestätigen`;
           }
           await api('/api/kalender/schnell', { body: { text: befehl?.[1]?.toLowerCase() === 'termin' ? rest : t } });
-          await qc.invalidateQueries({ queryKey: ['kalender'] });
+          void qc.invalidateQueries({ queryKey: ['kalender'] });
           setBestaetigen(null);
           return `📅 Eingetragen: ${terminText}`;
         },
@@ -182,6 +182,7 @@ function Palette({ schliessen }: { schliessen: () => void }) {
           value={q}
           onChange={(e) => {
             setQ(e.target.value);
+            setWahl(0); // sofort, nicht erst im Effekt – sonst kann ein schnelles Enter ins Leere gehen
             setBestaetigen(null);
           }}
           placeholder="Suchen oder: todo …, termin morgen 14 Uhr …, fokus …, timer 10 …, frag …"
@@ -196,7 +197,7 @@ function Palette({ schliessen }: { schliessen: () => void }) {
               setWahl((w) => Math.max(0, w - 1));
             } else if (e.key === 'Enter') {
               e.preventDefault();
-              void ausfuehren(eintraege[wahl]);
+              void ausfuehren(eintraege[Math.min(wahl, eintraege.length - 1)]);
             }
           }}
         />

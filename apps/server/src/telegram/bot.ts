@@ -13,6 +13,7 @@ import type { Rueckblick } from '../wochenrueckblick.js';
 import { terminAusText, type TerminAusText } from '@dorf/shared';
 import type { Karteikasten } from '../karten.js';
 import type { Gewohnheiten } from '../gewohnheiten.js';
+import type { Wochenziele } from '../wochenziele.js';
 import { tagPlanen } from '../tagesplan.js';
 
 type PlanBlock = { titel: string; grund: string; start: string; ende: string };
@@ -112,6 +113,8 @@ export class TelegramBot {
       karten?: Karteikasten;
       /** Nacht 18./19.11.: Gewohnheiten abhaken (Tagesabschluss, /gewohnheiten) */
       gewohnheiten?: Gewohnheiten;
+      /** E91: Wochenziele – /ziel */
+      wochenziele?: Wochenziele;
       /** Nacht 18./19.11.: /fokus – Pomodoro starten */
       kirchturm?: { ausfuehren(b: unknown): unknown; fokusStatistik?(): FokusStatistik };
       /** Nacht 18./19.11.: /termin – Termin aus Text, eingetragen erst nach Leifs Knopfdruck */
@@ -218,6 +221,7 @@ export class TelegramBot {
     { command: 'plan', description: 'Tag planen: To-dos als Blöcke in freie Lücken – /plan morgen' },
     { command: 'karten', description: 'Karteikarten wiederholen: /karten [Fach]' },
     { command: 'fokus', description: 'Pomodoro starten: /fokus [Thema]' },
+    { command: 'ziel', description: 'Wochenziele: /ziel <Text> setzt eins, /ziel zeigt sie zum Abhaken' },
     { command: 'gewohnheiten', description: 'Gewohnheiten heute abhaken' },
     { command: 'neu', description: 'Nächste Nachricht wird eine neue Aufgabe' },
     { command: 'hilfe', description: 'Was der Bot kann' },
@@ -379,6 +383,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       if (b === '/einkauf') return this.todoBefehl(text.slice(text.split(/\s/)[0]!.length).trim(), 'einkauf');
       if (b === '/termin') return this.terminBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/gewohnheiten' || b === '/gewohnheit') return this.gewohnheitenSenden();
+      if (b === '/ziel' || b === '/ziele') return this.zielBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/plan') return this.planBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/karten') return this.kartenBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/fokus') return this.fokusBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
@@ -456,7 +461,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
   private async befehl(b: string) {
     if (b === '/start' || b === '/hilfe' || b === '/help')
       return this.senden(
-        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/heute – dein Tag: Wetter, Termine, Fristen\n/fristen – Abgaben und Prüfungen der nächsten 7 Tage (mit Erledigt-Knöpfen)\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/aktion [Name] – Skill starten (ohne Name: Liste)\n/todo – To-do-Liste mit Abhak-Knöpfen (/todo &lt;Text&gt; legt eins an)\n/einkauf – Einkaufsliste (/einkauf &lt;Text&gt; setzt etwas drauf)\n/termin &lt;wann&gt; &lt;was&gt; – Termin in den Kalender (mit Bestätigung)\n/plan [morgen] – Tag planen: To-dos in freie Lücken\n/karten [Fach] – Karteikarten wiederholen\n/gewohnheiten – heute abhaken\n/fokus [Thema] – Pomodoro starten\n/hilfe – diese Hilfe`,
+        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters.\n\nWeiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch). Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n/neu – nächste Nachricht wird eine neue Aufgabe (oder /neu &lt;Aufgabe&gt;)\n/status – was läuft gerade\n/freigaben – offene Freigaben\n/heute – dein Tag: Wetter, Termine, Fristen\n/fristen – Abgaben und Prüfungen der nächsten 7 Tage (mit Erledigt-Knöpfen)\n/moodle &lt;Fach&gt; [Frage] – in Moodle nachschauen lassen\n/aktion [Name] – Skill starten (ohne Name: Liste)\n/todo – To-do-Liste mit Abhak-Knöpfen (/todo &lt;Text&gt; legt eins an)\n/einkauf – Einkaufsliste (/einkauf &lt;Text&gt; setzt etwas drauf)\n/termin &lt;wann&gt; &lt;was&gt; – Termin in den Kalender (mit Bestätigung)\n/plan [morgen] – Tag planen: To-dos in freie Lücken\n/karten [Fach] – Karteikarten wiederholen\n/gewohnheiten – heute abhaken\n/ziel [Text] – Wochenziele (ohne Text: abhaken)\n/fokus [Thema] – Pomodoro starten\n/hilfe – diese Hilfe`,
       );
     if (b === '/status') {
       const aktiv = this.o.agenten.aktiveLaeufe();
@@ -571,6 +576,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (q.data?.startsWith('kk:')) return this.karteKnopf(q, antworten);
     if (q.data?.startsWith('st:')) return this.sternKnopf(q, antworten);
     if (q.data?.startsWith('gw:')) return this.gewohnheitKnopf(q, antworten);
+    if (q.data?.startsWith('zl:')) return this.zielKnopf(q, antworten);
     const m = /^f:([0-9a-f-]{36}):([jn]):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
     if (!m || !crypto.timingSafeEqual(Buffer.from(m[3]!), Buffer.from(this.signatur(m[1]!, m[2] as 'j' | 'n')))) {
       this.o.log?.('Telegram: Knopf mit ungültiger Signatur abgelehnt.');
@@ -891,6 +897,57 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     const ok = !!(await this.senden(z.join('\n'), { reply_markup: { inline_keyboard: t } }));
     if (ok) await this.gewohnheitenSenden(true).catch((e) => this.fehler(e));
     return ok;
+  }
+
+  // ---- Wochenziele (E91) --------------------------------------------------------------------------
+
+  private zielDaten(woche: string, nr: number, text: string) {
+    const teil = `${woche}:${nr}:${crypto.createHash('sha256').update(text).digest('hex').slice(0, 8)}`;
+    return `zl:${teil}:${crypto.createHmac('sha256', this.signaturSchluessel).update(`ziel:${teil}`).digest('base64url').slice(0, 16)}`;
+  }
+  private zielTastatur(s: { woche: string; ziele: { text: string; erledigt: boolean }[] }) {
+    return s.ziele.map((z, i) => [{ text: `${z.erledigt ? '✅' : '⬜'} ${z.text}`.slice(0, 60), callback_data: this.zielDaten(s.woche, i, z.text) }]);
+  }
+
+  private async zielBefehl(rest: string) {
+    const w = this.o.wochenziele;
+    if (!w) return this.senden('Wochenziele sind nicht eingerichtet.');
+    if (rest) {
+      try {
+        await w.hinzufuegen(rest);
+      } catch (e) {
+        return this.senden(`🎯 ${h((e as Error).message)}`);
+      }
+    }
+    const s = await w.stand();
+    if (!s.ziele.length) return this.senden('🎯 Noch keine Wochenziele. Setz eins mit <i>/ziel Blatt 6 abgeben</i> – drei reichen.');
+    const fertig = s.ziele.filter((z) => z.erledigt).length;
+    return this.senden(`🎯 <b>Wochenziele ${h(s.woche.replace('-KW', ' · KW '))}</b> – ${fertig}/${s.ziele.length} erreicht${rest ? '\n✓ hinzugefügt' : ''}`, {
+      reply_markup: { inline_keyboard: this.zielTastatur(s) },
+    });
+  }
+
+  private async zielKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {
+    const m = /^zl:(\d{4}-KW\d{2}):(\d{1,2}):([0-9a-f]{8}):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
+    const w = this.o.wochenziele;
+    if (!m || !w || this.zielSignaturFalsch(m)) {
+      this.o.log?.('Telegram: Ziel-Knopf mit ungültiger Signatur abgelehnt.');
+      return antworten('Ungültiger Knopf.');
+    }
+    const s = await w.stand();
+    const nr = Number(m[2]);
+    const z = s.ziele[nr];
+    if (s.woche !== m[1] || !z || crypto.createHash('sha256').update(z.text).digest('hex').slice(0, 8) !== m[3]) return antworten('Die Ziele haben sich geändert – /ziel zeigt sie neu.');
+    const neu = await w.haken(nr, !z.erledigt);
+    await antworten(z.erledigt ? 'Wieder offen.' : '🎯 Erreicht!');
+    if (q.message)
+      await this.o.api
+        .aufruf('editMessageReplyMarkup', { chat_id: q.message.chat.id, message_id: q.message.message_id, reply_markup: { inline_keyboard: this.zielTastatur(neu) } })
+        .catch(() => undefined);
+  }
+  private zielSignaturFalsch(m: RegExpExecArray) {
+    const soll = crypto.createHmac('sha256', this.signaturSchluessel).update(`ziel:${m[1]}:${m[2]}:${m[3]}`).digest('base64url').slice(0, 16);
+    return !crypto.timingSafeEqual(Buffer.from(m[4]!), Buffer.from(soll));
   }
 
   // ---- Gewohnheiten (Nacht 18./19.11.) ------------------------------------------------------------

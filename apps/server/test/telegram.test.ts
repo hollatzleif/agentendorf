@@ -217,7 +217,7 @@ describe('Telegram-Bot', () => {
     expect(offsets.at(-1)).toBe(51);
     // Befehlsmenü wird beim Start angemeldet
     const menue = d.aufrufe.find((x) => x.m === 'setMyCommands')?.p.commands as { command: string }[];
-    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'plan', 'karten', 'fokus', 'gewohnheiten', 'neu', 'hilfe']);
+    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'plan', 'karten', 'fokus', 'ziel', 'gewohnheiten', 'neu', 'hilfe']);
     await d.agenten.leerlauf();
   }, 15_000);
 });
@@ -462,5 +462,29 @@ describe('Telegram /plan (Nacht 18./19.11.)', () => {
     expect(angelegt).toEqual(['📚 Bewerbung schreiben', '📚 Blatt 6']);
     const fertig = n.aufrufe.filter((a) => a.m === 'editMessageReplyMarkup').at(-1)!.p;
     expect((fertig.reply_markup as { inline_keyboard: unknown[][] }).inline_keyboard).toHaveLength(2);
+  });
+});
+
+describe('Telegram /ziel (E91)', () => {
+  it('/ziel <Text> setzt ein Wochenziel, Knopf hakt ab; gefälscht oder veraltet nicht', async () => {
+    const d = await dorf();
+    await d.nachricht({ text: '/ziel' });
+    expect(d.gesendet().at(-1)).toMatch(/Noch keine Wochenziele/);
+    await d.nachricht({ text: '/ziel Blatt 6 abgeben' });
+    await d.nachricht({ text: '/ziel Bewerbung' });
+    const m = d.aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p;
+    expect(String(m.text)).toMatch(/🎯 <b>Wochenziele 2026 · KW 47<\/b> – 0\/2 erreicht\n✓ hinzugefügt/);
+    const k = (m.reply_markup as { inline_keyboard: { text: string; callback_data: string }[][] }).inline_keyboard;
+    expect(k.map((z) => z[0]!.text)).toEqual(['⬜ Blatt 6 abgeben', '⬜ Bewerbung']);
+    await d.knopf(k[1]![0]!.callback_data.replace(/:[^:]+$/, ':AAAAAAAAAAAAAAAA'));
+    expect((await d.wochenziele.stand()).ziele[1]!.erledigt).toBe(false);
+    await d.knopf(k[1]![0]!.callback_data);
+    expect((await d.wochenziele.stand()).ziele[1]!.erledigt).toBe(true);
+    // Ziel 0 entfernt → alter Knopf für Nr. 1 passt nicht mehr zum Text
+    await d.wochenziele.entfernen(0);
+    await d.knopf(k[1]![0]!.callback_data);
+    expect((await d.wochenziele.stand()).ziele).toEqual([{ text: 'Bewerbung', erledigt: true }]);
+    await d.nachricht({ text: '/ziel Bewerbung' });
+    expect(d.gesendet().at(-1)).toMatch(/steht schon drauf/);
   });
 });

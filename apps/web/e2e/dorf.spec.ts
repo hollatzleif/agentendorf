@@ -931,3 +931,22 @@ test('Gewohnheiten auf „Heute“: anlegen, abhaken (Serie 🔥 1), entfernen',
   await k.getByRole('button', { name: 'Lesen-Test entfernen' }).click();
   await expect(k.getByText('Lesen-Test')).toHaveCount(0);
 });
+
+test('Wochenziele auf „Heute“: setzen, abhaken (Balken), entfernen', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  await page.goto('/heute');
+  const k = page.getByRole('region', { name: 'Wochenziele' });
+  await expect(k).toContainText('Welche 3 Dinge');
+  for (const t of ['Ziel-Test A', 'Ziel-Test B']) {
+    await k.getByRole('textbox', { name: 'Neues Wochenziel' }).fill(t);
+    await k.getByRole('button', { name: 'Ziel hinzufügen' }).click();
+    await expect(k.getByText(t)).toBeVisible();
+  }
+  await k.getByLabel('Ziel erreicht: Ziel-Test A').click();
+  await expect(k.getByLabel('Ziel erreicht: Ziel-Test A')).toBeChecked();
+  await expect(k.locator('.wochenziele-stand')).toHaveText(' 1/2');
+  await k.getByRole('button', { name: 'Bearbeiten' }).click();
+  await k.getByRole('button', { name: 'Ziel entfernen: Ziel-Test B' }).click();
+  await expect(k.getByText('Ziel-Test B')).toHaveCount(0);
+});

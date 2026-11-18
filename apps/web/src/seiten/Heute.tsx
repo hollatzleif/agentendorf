@@ -7,6 +7,7 @@ import { FARBEN, ort, tagPlus } from '../komponenten/MarktKalender';
 import { dauerText, useKirchturm } from '../komponenten/KirchturmUhr';
 import { TagPlanen } from '../komponenten/TagPlanen';
 import { GewohnheitenKarte } from '../komponenten/GewohnheitenKarte';
+import { WochenzieleKarte } from '../komponenten/WochenzieleKarte';
 
 /**
  * „Mein Tag“ (E77): der eine Blick am Morgen und zwischendurch – Termine heute/morgen, fällige To-dos zum Abhaken,
@@ -264,6 +265,7 @@ export function Heute() {
         </div>
 
         <div className="heute-spalte">
+          <WochenzieleKarte />
           <section className="karte heute-karte" aria-label="To-dos">
             <div className="heute-karte-kopf">
               <h2>☑️ To-dos</h2>

@@ -61,6 +61,8 @@ export class Morgenzeitung {
       fokus?: { zeitungsZeilen(): string[] };
       /** Nacht 18./19.11.: heute fällige Gewohnheiten */
       gewohnheiten?: { heuteZeilen(): Promise<string[]> };
+      /** E91: Wochenziele */
+      wochenziele?: { zeitungsZeilen(): Promise<string[]> };
       log?: (t: string) => void;
     },
   ) {}
@@ -206,6 +208,8 @@ export class Morgenzeitung {
     const offen = this.o.schreibtisch.liste().filter((a) => ['neu', 'in_arbeit', 'plan_wartet', 'helfer_laufen'].includes(a.status));
     if (offen.length) warten.push(`🗂️ ${offen.length} auf dem Schreibtisch: ${offen.slice(0, 5).map((a) => einzeilig(a.titel, 60)).join('; ')}`);
     abschnitte.push({ titel: 'Wartet auf dich', zeilen: warten });
+    const ziele = await this.o.wochenziele?.zeitungsZeilen().catch(() => [] as string[]);
+    if (ziele?.length) abschnitte.unshift({ titel: '🎯 Wochenziele', zeilen: ziele });
     const wichtig = await this.o.wichtig?.().catch(() => [] as string[]);
     if (wichtig?.length) abschnitte.unshift({ titel: '⭐ Heute wichtig', zeilen: wichtig });
     const geld = await this.o.bank?.zeitungsZeilen().catch(() => [] as string[]);

@@ -60,6 +60,7 @@ export class Wochenrueckblick {
       fokus?: { fokusStatistik(): FokusStatistik };
       bank?: { zeitungsZeilen(): Promise<string[]> };
       gewohnheiten?: { wochenZeile(): Promise<string | null> };
+      wochenziele?: { rueckblickZeilen(): Promise<string[]> };
       log?: (t: string) => void;
     },
   ) {}
@@ -88,6 +89,8 @@ export class Wochenrueckblick {
       abschnitte.push({ titel: 'Fokus', zeilen: z2 });
     } else if (f) abschnitte.push({ titel: 'Fokus', zeilen: ['Diese Woche keine Pomodoros – nächste Woche einfach mit einem 🍅 am wichtigsten To-do anfangen.'] });
 
+    const ziele = await this.o.wochenziele?.rueckblickZeilen().catch(() => [] as string[]);
+    if (ziele?.length) abschnitte.push({ titel: 'Wochenziele', zeilen: ziele });
     const gw = await this.o.gewohnheiten?.wochenZeile().catch(() => null);
     if (gw) abschnitte.push({ titel: 'Gewohnheiten', zeilen: [gw] });
 

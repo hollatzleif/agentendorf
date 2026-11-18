@@ -813,3 +813,13 @@ input.kurz { width: 5em; }
 .gewohnheit-neu { display: flex; gap: 0.4rem; margin-top: 0.5rem; flex-wrap: wrap; }
 .gewohnheit-neu > input:not(.gewohnheit-neu-symbol) { flex: 1; min-width: 8rem; }
 .gewohnheit-neu-symbol { width: 3.2rem; text-align: center; }
+
+/* Wochenziele (E91) */
+.wochenziele-stand { font-size: 0.9rem; color: var(--leise); }
+.wochenziele-balken { height: 8px; border-radius: 99px; background: #eee6d3; border: 2px solid var(--rand); overflow: hidden; margin-bottom: 0.45rem; }
+.wochenziele-balken span { display: block; height: 100%; background: var(--gruen); transition: width 0.3s; }
+.wochenziele { list-style: none; margin: 0 0 0.5rem; padding: 0; display: grid; gap: 0.25rem; }
+.wochenziele li { display: flex; align-items: center; gap: 0.4rem; }
+.wochenziele label { flex: 1; display: flex; flex-direction: row; align-items: center; gap: 0.5rem; font-weight: 700; cursor: pointer; }
+.wochenziele input { width: 1.15rem; height: 1.15rem; margin: 0; }
+.wochenziele li.erledigt span { text-decoration: line-through; text-decoration-thickness: 2px; color: var(--gruen); }

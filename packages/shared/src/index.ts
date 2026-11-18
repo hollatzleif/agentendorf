@@ -749,3 +749,13 @@ export interface GewohnheitStand {
   /** letzte 7 Tage, ältester zuerst */
   woche: { tag: string; faellig: boolean; erledigt: boolean }[];
 }
+
+/** Wochenziele (E91) */
+export interface Wochenziele {
+  woche: string;
+  pfad: string;
+  ziele: { text: string; erledigt: boolean }[];
+}
+export interface WochenzieleStand extends Wochenziele {
+  letzte: { woche: string; ziele: { text: string; erledigt: boolean }[] };
+}

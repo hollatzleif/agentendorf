@@ -640,3 +640,15 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
   - Die Knöpfe sind HMAC-signiert, ein Vorschlag gilt 24 h (`dorf_stand`, höchstens 10).
 - **Morgenzeitung:** Ein Abschnitt „Gewohnheiten heute“ zeigt, was heute dran ist, mit Serie.
 - Warum: Den Tag zu planen geht morgens am schnellsten im Bett mit dem Handy. Und wer morgens sieht, dass „Sport 🔥 6“ dran ist, reißt die Serie seltener.
+
+## E91 – Wochenziele (Nacht 18./19.11.)
+
+- **Datei je Kalenderwoche:** `Rathaus/wochenziele/JJJJ-KWnn.md` als normale Obsidian-Checkliste (`- [ ] Ziel` / `- [x] Ziel`). Die App ändert nur die Checkbox-Zeilen; Notizen, die Leif dazuschreibt, bleiben stehen. Geschrieben wird mit `basisVersion`, bei einem Konflikt kommt 409 statt Überschreiben.
+- **Höchstens 7 Ziele**, gedacht sind 3. Doppelte werden abgelehnt.
+- **Wo sie auftauchen:**
+  - auf „Heute“ als Karte mit Fortschrittsbalken (anlegen, abhaken, entfernen)
+  - in Telegram mit `/ziel <Text>` (setzt eines) bzw. `/ziel` (zeigt sie mit Abhak-Knöpfen). Ein Knopf trägt Woche, Nummer und den Hash des Zieltexts in sich und ist HMAC-signiert; hat sich die Liste inzwischen geändert, wird nichts falsch abgehakt.
+  - in der Morgenzeitung oben, mit den offenen Zielen; montags ohne Ziele kommt ein Anstoß
+  - im Wochenrückblick als Bilanz (✓/✗)
+- Der Bürgermeister kennt den Ort (Orientierung im Systemprompt) und kann seine Vorschläge daran ausrichten. Schreiben kann er dort nicht: Die Datei liegt im Rathaus, nicht in seinem Schreibbereich, und die Ziele setzt Leif.
+- Warum: To-dos sagen, was ansteht; Wochenziele sagen, was zählt. Der Sonntag (Rückblick) und der Montag (Zeitung) bilden zusammen den kleinsten sinnvollen Wochenrhythmus.

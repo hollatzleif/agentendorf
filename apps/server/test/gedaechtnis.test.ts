@@ -46,6 +46,7 @@ describe('Gedächtnis und Persönlichkeit des Bürgermeisters', () => {
     expect((await d.vault.lesen(PERSOENLICHKEIT_PFAD)).inhalt).toContain('Machen statt fragen');
     await buergermeister(d, 'Wie geht es dir?');
     expect(m.prompts[0]).toContain('<gedaechtnis datei="Rathaus/memory.md">');
+    expect(m.prompts[0]).toMatch(/<orientierung>[\s\S]*Marktplatz\/gewohnheiten\.md[\s\S]*karten\.md/);
     expect(m.prompts[0]).toContain('## Fehler und Lehren');
     expect(m.prompts[0]).toContain('<persoenlichkeit datei="Rathaus/personality.md">');
     expect(m.prompts[0]).toContain('gedaechtnis_schreiben');

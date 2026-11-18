@@ -6,6 +6,7 @@ import { tagPlanen } from './tagesplan.js';
 import type { Wochenrueckblick } from './wochenrueckblick.js';
 import type { Karteikasten } from './karten.js';
 import type { Gewohnheiten } from './gewohnheiten.js';
+import type { Wochenziele } from './wochenziele.js';
 import type { GoogleKalender } from './kalender-google.js';
 import type { Corps } from './corps.js';
 import type { Bank } from './bank.js';
@@ -82,6 +83,7 @@ export interface Abhaengigkeiten {
   wochenrueckblick?: Wochenrueckblick;
   karten?: Karteikasten;
   gewohnheiten?: Gewohnheiten;
+  wochenziele?: Wochenziele;
   googleKalender?: GoogleKalender;
 }
 
@@ -429,6 +431,19 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
       await k.loeschen(q.kalenderId, q.id, { serie: q.serie === 'ja' });
       return { ok: true };
     });
+  }
+
+  // ---- Wochenziele (E91) ----
+  if (a.wochenziele) {
+    const w = a.wochenziele;
+    const nr = z.object({ nr: z.number().int().min(0).max(50) });
+    app.get('/api/wochenziele', async () => w.stand());
+    app.post('/api/wochenziele', async (req) => w.hinzufuegen(z.object({ text: z.string().min(1).max(200) }).parse(req.body).text));
+    app.post('/api/wochenziele/haken', async (req) => {
+      const b = nr.extend({ erledigt: z.boolean() }).parse(req.body);
+      return w.haken(b.nr, b.erledigt);
+    });
+    app.delete('/api/wochenziele', async (req) => w.entfernen(z.object({ nr: z.coerce.number().int().min(0).max(50) }).parse(req.query).nr));
   }
 
   // ---- Gewohnheiten ----
