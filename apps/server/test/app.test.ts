@@ -124,7 +124,7 @@ describe('Bibliothek über die API', () => {
     const d = await angemeldetesDorf();
     const g = (await d.app.inject({ url: '/api/gebaeude', headers: d.h })).json();
     expect(g.map((x: { id: string }) => x.id)).toEqual(['Rathaus', 'Uni', 'Post', 'Marktplatz', 'Bibliothek', 'Corpshaus', 'Bank', 'Boerse', 'Einkaufsladen']);
-    expect(g.find((x: { id: string }) => x.id === 'Bank').status).toBe('geschlossen');
+    expect(g.find((x: { id: string }) => x.id === 'Bank').status).toBe('offen'); // seit Etappe 7
     expect(g.every((x: { fehler?: string }) => !x.fehler)).toBe(true);
     const baum = (await d.app.inject({ url: '/api/vault/baum', headers: d.h })).json();
     expect(baum.kinder[0].name).toBe('00_Stadtordnung');

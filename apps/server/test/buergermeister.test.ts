@@ -89,12 +89,13 @@ describe('Schreibtisch und Bürgermeister', () => {
 
   it('Pläne werden geprüft: max. 10, nur offene Gebäude, gültige Aktionen und Eingaben, kein Bürgermeister als Helfer', async () => {
     const d = await dorf();
+    await d.vault.schreiben('Lager/gebaeude.md', '---\nname: Lager\nstatus: geschlossen\n---\n# Lager\n');
     const elf = Array.from({ length: 11 }, (_, i) => `Bibliothek|T${i}`).join('; ');
-    const { chat } = await d.aufgabe(`Zu viel [plan ${elf}] [plan Zauberturm|X] [plan Bank|X]`);
+    const { chat } = await d.aufgabe(`Zu viel [plan ${elf}] [plan Zauberturm|X] [plan Lager|X]`);
     const w = chat().nachrichten.filter((n) => n.rolle === 'werkzeug').map((n) => n.text);
     expect(w[0]).toMatch(/Höchstens 10/);
     expect(w[1]).toMatch(/Zauberturm.*gibt es nicht/);
-    expect(w[2]).toMatch(/Bank.*nicht eröffnet/);
+    expect(w[2]).toMatch(/Lager.*nicht eröffnet/);
     const v = await d.aufgabe(
       '<<werkzeug plan_vorlegen {"zusammenfassung":"x","begruendung":"","teilaufgaben":[{"titel":"a","gebaeude":"Rathaus","aktion":"frage-stellen","auftrag":"x","stufe":"klein"}]}>> ' +
         '<<werkzeug plan_vorlegen {"zusammenfassung":"x","begruendung":"","teilaufgaben":[{"titel":"a","gebaeude":"Rathaus","aktion":"buergermeister","eingaben":{"aufgabe":"x"},"auftrag":"x","stufe":"klein"}]}>>',
