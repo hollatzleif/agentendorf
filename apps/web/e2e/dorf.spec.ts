@@ -1080,3 +1080,13 @@ test('Uni → Noten: Fach mit ECTS, Note wählen, Schnitt und Ziel', async ({ pa
   await expect(n.locator('.statistik-kachel').nth(2)).toContainText('50 %');
   if (process.env.SCREENSHOT) await page.screenshot({ path: process.env.SCREENSHOT, fullPage: true });
 });
+
+test('Einstellungen → Anschlüsse: zeigt, was fehlt, mit Befehl', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  await page.goto('/einstellungen');
+  const a = page.locator('#anschluesse');
+  await expect(a.locator('li', { hasText: 'Gmail' })).toContainText('✗ fehlt');
+  await expect(a.locator('li', { hasText: 'Gmail' })).toContainText('dorf gmail-anmelden');
+  await expect(a.locator('li', { hasText: 'KI (API-Schlüssel)' })).toContainText('✓ verbunden'); // Attrappe
+});

@@ -789,3 +789,16 @@ export interface NotenStand {
   /** Fächer aus Uni/faecher/, die noch nicht in der Liste stehen */
   vorschlaege: string[];
 }
+
+/** Anschlüsse (E109) – nur Ja/Nein, nie Geheimnisse */
+export interface Anschluss {
+  name: string;
+  symbol: string;
+  ok: boolean;
+  /** z. B. Kalender nur über iCal (lesen), Saxo eingerichtet aber nicht angemeldet */
+  teilweise?: boolean;
+  wofuer: string;
+  /** Befehl auf dem Server */
+  befehl: string;
+  hinweis?: string;
+}

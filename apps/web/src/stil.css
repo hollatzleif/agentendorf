@@ -872,3 +872,16 @@ input.kurz { width: 5em; }
 .noten-ziel input { width: 4.2rem; padding: 0.1rem 0.3rem; }
 .noten-neu > input[aria-label="Fach"] { flex: 1; min-width: 0; }
 .noten-neu > input.noten-zahl { flex: 0 0 5rem; }
+
+/* Anschlüsse (E109) */
+.anschluesse { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.45rem; }
+.anschluesse li { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.5rem 0.6rem; border: 2px solid var(--rand); border-radius: 12px; background: #fff; }
+.anschluesse li.ok { border-color: #b9dcb0; }
+.anschluesse li.fehlt { border-color: #f0c4bf; background: #fff8f7; }
+.anschluesse li.teilweise { border-color: #f2d58a; background: #fffbea; }
+.anschluss-symbol { font-size: 1.3rem; line-height: 1.4; }
+.anschluss-text { flex: 1; min-width: 0; }
+.anschluss-stand { font-size: 0.8rem; font-weight: 800; color: var(--leise); }
+.anschluesse li.ok .anschluss-stand { color: var(--gruen); }
+.anschluesse li.fehlt .anschluss-stand { color: var(--rot); }
+.anschluss-befehl { margin-top: 0.3rem; font-size: 0.85rem; }

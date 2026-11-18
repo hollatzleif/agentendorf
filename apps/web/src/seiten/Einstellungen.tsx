@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import QRCode from 'qrcode';
-import type { Ich, Konflikt, ProgrammeInfo, SitzungInfo } from '@dorf/shared';
+import type { Anschluss, Ich, Konflikt, ProgrammeInfo, SitzungInfo } from '@dorf/shared';
 import { istProgramm } from '../programm/desktop';
 import { api, ApiFehler } from '../api';
 import { bibliothekUrl, linkKlick } from '../router';
@@ -20,6 +20,7 @@ export function Einstellungen() {
   return (
     <section className="einstellungen">
       <h1>Einstellungen</h1>
+      <Anschluesse />
       <Konflikte />
       <Sitzungen />
       <Zweitfaktor aktiv={!!ich.data?.totpAktiv} />
@@ -39,6 +40,48 @@ export function Einstellungen() {
         <p className="leise">Version {ich.data?.version}</p>
       </div>
     </section>
+  );
+}
+
+/** E109: Was ist verbunden, was fehlt – mit dem Befehl auf dem Server zum Kopieren */
+function Anschluesse() {
+  const q = useQuery({ queryKey: ['anschluesse'], queryFn: () => api<Anschluss[]>('/api/anschluesse') });
+  const [kopiert, setKopiert] = useState('');
+  const fehlen = q.data?.filter((a) => !a.ok) ?? [];
+  return (
+    <div className="karte" id="anschluesse">
+      <h2>
+        Anschlüsse {q.data && (fehlen.length ? <span className="abzeichen">{fehlen.length} offen</span> : <span className="abzeichen gut">alles verbunden</span>)}
+      </h2>
+      {q.isError && <p className="fehler">{q.error.message}</p>}
+      <ul className="anschluesse">
+        {q.data?.map((a) => (
+          <li key={a.name} className={a.ok ? 'ok' : a.teilweise ? 'teilweise' : 'fehlt'}>
+            <span className="anschluss-symbol" aria-hidden>
+              {a.symbol}
+            </span>
+            <div className="anschluss-text">
+              <strong>{a.name}</strong> <span className="anschluss-stand">{a.ok ? '✓ verbunden' : a.teilweise ? '◐ teilweise' : '✗ fehlt'}</span>
+              <div className="leise">{a.wofuer}</div>
+              {!a.ok && (
+                <div className="anschluss-befehl">
+                  {a.hinweis && <div>{a.hinweis}</div>}
+                  Auf dem Server: <code>{a.befehl}</code>{' '}
+                  <button
+                    type="button"
+                    className="klein"
+                    onClick={() => void navigator.clipboard?.writeText(a.befehl).then(() => setKopiert(a.befehl))}
+                    aria-label={`Befehl kopieren: ${a.befehl}`}
+                  >
+                    {kopiert === a.befehl ? '✓ kopiert' : 'kopieren'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

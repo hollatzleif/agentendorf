@@ -10,6 +10,7 @@ import type { Wochenziele } from './wochenziele.js';
 import type { Notizen } from './notizen.js';
 import type { Noten } from './uni/noten.js';
 import { statistik, stimmungSetzen } from './statistik.js';
+import { anschluesse } from './anschluesse.js';
 import { ortszeitZuUtc } from './uni/ical.js';
 import type { GoogleKalender } from './kalender-google.js';
 import type { Corps } from './corps.js';
@@ -778,6 +779,7 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
     return a.dorfplan.speichern(b.basisVersion, b.layout);
   });
   app.get('/api/dorf/status', async () => a.dorfplan.status());
+  app.get('/api/anschluesse', async () => anschluesse(a.konfig, { kalenderVerbunden: !!a.googleKalender?.verbunden, saxo: a.saxo?.uebersicht() }));
 
   app.get('/api/live', { websocket: true }, (socket, req) => {
     const abmelden = hub.anmelden({

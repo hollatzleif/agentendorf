@@ -792,3 +792,10 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 
 - **`/suche <Begriff>`** (oder `/s`) durchsucht den ganzen Vault über den vorhandenen Volltextindex (FTS5): Notizen, Uni-Unterlagen, To-dos, Protokolle. Bis zu 8 Treffer kommen mit Titel und Pfad, jeder als Link in die Bibliothek mit hervorgehobenem Begriff.
 - Die Ausschnitte aus den Dateien werden absichtlich nicht mitgeschickt. Vault-Dateien können Fremdinhalt sein, und Telegram zeigt nur Titel und Pfad (HTML-escaped).
+
+## E109 – Anschlüsse in den Einstellungen (Nacht 18./19.11.)
+
+- **Neuer Abschnitt ganz oben in den Einstellungen:** Er zeigt für jeden Anschluss, ob er verbunden ist, wofür er gebraucht wird und – falls nicht – den Befehl auf dem Server (mit „kopieren“). Erfasst sind KI-Schlüssel, Werkstatt, Telegram, Gmail, Google-Kalender, Uni-Fristen, Moodle-Browser, EODHD und Saxo.
+- **Zwischenstände** werden als „teilweise“ markiert, mit konkretem Hinweis. Beispiel Kalender: nur die iCal-Adresse, also lesen ohne API, dazu der Hinweis „Calendar API aktivieren, dann `dorf gmail-anmelden`“. Beispiel Saxo: App-Schlüssel da, aber noch nicht angemeldet.
+- **Sicherheit:** `GET /api/anschluesse` liefert nur Ja/Nein und feste Texte, nie Geheimnisse oder Teile davon (getestet). Ohne Anmeldung gibt es 401.
+- Warum: Einige Funktionen der Nacht (Tag planen, Lernplan, Prüfungs-Wächter, Saxo) hängen an Anschlüssen, die noch fehlen. So sieht Leif auf einen Blick, was zu tun ist.
