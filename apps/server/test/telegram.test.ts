@@ -222,7 +222,7 @@ describe('Telegram-Bot', () => {
     expect(offsets.at(-1)).toBe(51);
     // Befehlsmenü wird beim Start angemeldet
     const menue = d.aufrufe.find((x) => x.m === 'setMyCommands')?.p.commands as { command: string }[];
-    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'woche', 'noten', 'suche', 'statistik', 'aufraeumen', 'notiz', 'erinner', 'plan', 'karten', 'jetzt', 'fokus', 'ziel', 'gewohnheiten', 'neu', 'hilfe']);
+    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'woche', 'noten', 'suche', 'statistik', 'aufraeumen', 'notiz', 'erinner', 'plan', 'karten', 'jetzt', 'verteilen', 'fokus', 'ziel', 'gewohnheiten', 'neu', 'hilfe']);
     await d.agenten.leerlauf();
   }, 15_000);
 });
@@ -876,5 +876,34 @@ describe('Telegram /jetzt (E123)', () => {
     await d.knopf(daten);
     expect(d.kirchturm.zustand().pomodoro).toMatchObject({ phase: 'arbeit', einstellungen: { thema: 'Blatt <3>', todoPfad: t.pfad } });
     expect(d.gesendet().at(-1)).toMatch(/🍅 Fokus läuft: <b>Blatt &lt;3&gt;<\/b>/);
+  });
+});
+
+describe('Telegram /verteilen (E128)', () => {
+  it('schlägt Tage für To-dos ohne Datum vor; Knopf setzt das Datum; Alle übernehmen; Signatur geprüft', async () => {
+    const d = await dorf();
+    await d.nachricht({ text: '/verteilen' });
+    expect(d.gesendet().at(-1)).toMatch(/deine Woche ist verteilt/);
+    // Mo 16.11. → Rest der Woche Mo–So, 70 % von 14 h = 588 min Platz je Tag
+    const a = await d.todos.anlegen({ titel: 'Großes <Projekt>', wichtig: true, dauer: 500 }, 'Leif');
+    const b = await d.todos.anlegen({ titel: 'Noch eins', dauer: 200 }, 'Leif');
+    const c = await d.todos.anlegen({ titel: 'Alt', faellig: '2026-11-10', dauer: 60 }, 'Leif');
+    await d.nachricht({ text: '/verteilen' });
+    const p = d.aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p;
+    expect(p.text).toContain('<b>Vorschlag: Rest der Woche</b>');
+    expect(p.text).toContain('• Mo., 16.11. – Großes &lt;Projekt&gt; <i>(⏱ 8 h 20 min)</i>');
+    expect(p.text).toContain('• Mo., 16.11. – Alt <i>(⏱ 1 h)</i>');
+    expect(p.text).toContain('• Di., 17.11. – Noch eins <i>(⏱ 3 h 20 min)</i>');
+    const tasten = (p.reply_markup as { inline_keyboard: { text: string; callback_data: string }[][] }).inline_keyboard;
+    expect(tasten.every((z) => z[0]!.callback_data.length <= 64)).toBe(true);
+    await d.knopf(tasten[0]![0]!.callback_data.replace(/:[^:]+$/, ':AAAAAAAAAAAAAAAA'));
+    expect((await d.todos.holen(a.pfad)).faellig).toBeUndefined();
+    await d.knopf(tasten[0]![0]!.callback_data);
+    expect((await d.todos.holen(a.pfad)).faellig).toBe('2026-11-16');
+    await d.knopf(tasten.at(-1)![0]!.callback_data); // Alle übernehmen
+    expect((await d.todos.holen(b.pfad)).faellig).toBe('2026-11-17');
+    expect((await d.todos.holen(c.pfad)).faellig).toBe('2026-11-16');
+    await d.knopf(tasten.at(-1)![0]!.callback_data);
+    expect(d.aufrufe.filter((x) => x.m === 'answerCallbackQuery').at(-1)!.p.text).toBe('Schon übernommen.');
   });
 });

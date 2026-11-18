@@ -998,3 +998,9 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - Beim Tippen zeigt die App unter dem Feld, was erkannt wurde, z. B. „→ „Wäsche“ · 🔁 wöchentlich ab Mo., 23.11. · ⏱ 30 min“. So gibt es keine Überraschung nach Enter.
 - **Datum:** Ein im Feld gewähltes Datum gewinnt. Auf „Heute“ setzt „heute“ das Datum nur, wenn keine Wiederholung ein erstes Datum bestimmt.
 - Einkaufs-, Wunsch- und Corps-Liste nehmen den Text weiterhin wörtlich. Dort wäre „Milch 2 h“ keine Dauer.
+
+## E128 – /verteilen in Telegram (Nacht 18./19.11.)
+
+- `/verteilen` macht dasselbe wie „✨ Woche verteilen“ (E126), aber am Handy. **Sonntags** plant es die nächste Woche (Mo–So), sonst den Rest dieser Woche ab heute.
+- Die freie Zeit je Tag kommt aus dem Google-Kalender, wenn er verbunden ist; überlappende Termine zählen einmal. Ohne Kalender gilt der ganze Tag 8–22 Uhr, mit 70 % Puffer.
+- Jeder Vorschlag ist ein Knopf, dazu kommt „🗓️ Alle übernehmen“. Die Knöpfe sind signiert (`vt:`), werden vor dem Schreiben vermerkt (ein Doppelklick ändert nichts doppelt) und laufen nach 2 Tagen ab. Es wird nur `faellig` gesetzt.

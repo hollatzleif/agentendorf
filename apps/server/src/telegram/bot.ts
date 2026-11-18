@@ -10,7 +10,7 @@ const LISTEN_ANZEIGE: Record<ListenName, { symbol: string; titel: string; befehl
 };
 import { aufwachEinstellungen, istNacht } from '../aufwachen.js';
 import type { Rueckblick } from '../wochenrueckblick.js';
-import { jetztDran, minutenText, terminAusText, type KalenderTermin, type TerminAusText } from '@dorf/shared';
+import { belegtMs, jetztDran, minutenText, terminAusText, wocheVerteilen, type KalenderTermin, type TerminAusText } from '@dorf/shared';
 import type { Karteikasten } from '../karten.js';
 import type { Gewohnheiten } from '../gewohnheiten.js';
 import type { Wochenziele } from '../wochenziele.js';
@@ -316,6 +316,7 @@ export class TelegramBot {
     { command: 'plan', description: 'Tag planen: To-dos als Blöcke in freie Lücken – /plan morgen' },
     { command: 'karten', description: 'Karteikarten wiederholen: /karten [Fach]' },
     { command: 'jetzt', description: 'Was passt jetzt? Ein To-do für die Zeit bis zum nächsten Termin' },
+    { command: 'verteilen', description: 'To-dos ohne Datum auf die Woche verteilen (Vorschlag)' },
     { command: 'fokus', description: 'Pomodoro starten: /fokus [Thema]' },
     { command: 'ziel', description: 'Wochenziele: /ziel <Text> setzt eins, /ziel zeigt sie zum Abhaken' },
     { command: 'gewohnheiten', description: 'Gewohnheiten heute abhaken' },
@@ -506,6 +507,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       if (b === '/plan') return this.planBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/karten') return this.kartenBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/jetzt') return this.jetztBefehl();
+      if (b === '/verteilen') return this.verteilenBefehl();
       if (b === '/fokus') return this.fokusBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b !== '/neu') return this.befehl(b);
       // „/neu“ beendet das laufende Gespräch; „/neu <Text>“ legt gleich eine neue Aufgabe an
@@ -581,7 +583,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
   private async befehl(b: string) {
     if (b === '/start' || b === '/hilfe' || b === '/help')
       return this.senden(
-        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters. Weiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch); antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n<b>📅 Planen</b>\n/heute – dein Tag · /woche – die nächsten 7 Tage\n/plan [morgen] – To-dos in freie Kalenderlücken\n/fristen – Abgaben und Prüfungen (7 Tage)\n/termin &lt;wann&gt; &lt;was&gt; – Termin eintragen (mit Bestätigung)\n\n<b>✅ Erledigen</b>\n/todo [Text] – To-do-Liste bzw. neues To-do (auch „… jeden Montag“)\n/einkauf [Text] – Einkaufsliste\n/erinner &lt;wann&gt; &lt;was&gt; – Erinnerung (läutet im Kirchturm)\n/aufraeumen – Überfälliges neu einplanen\n/jetzt – was jetzt passt (mit 🍅 Los) · /fokus [Thema] – Pomodoro starten\n/gewohnheiten – heute abhaken · /ziel [Text] – Wochenziele\n\n<b>🎓 Lernen</b>\n/karten [Fach] – Karteikarten · /moodle &lt;Fach&gt; [Frage] – in Moodle nachsehen\n/noten – Notenschnitt und ECTS\n\n<b>📝 Festhalten &amp; Finden</b>\n/notiz &lt;Text&gt; – Tagesnotiz · /suche &lt;Begriff&gt; – im Vault suchen\n/statistik – die letzten 7 Tage\n\n<b>🏛️ Dorf</b>\n/status – was läuft · /freigaben – offene Freigaben\n/aktion [Name] – Skill starten · /neu – nächste Nachricht = neue Aufgabe\n/hilfe – diese Hilfe\n\n<i>Tipp: „todo: …“, „notiz: …“, „ziel: …“, „einkauf: …“ gehen auch ohne Schrägstrich – ein Foto mit „notiz: …“ landet samt Bild in der Tagesnotiz.</i>`,
+        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters. Weiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch); antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n<b>📅 Planen</b>\n/heute – dein Tag · /woche – die nächsten 7 Tage\n/plan [morgen] – To-dos in freie Kalenderlücken\n/verteilen – To-dos ohne Datum auf die Woche verteilen\n/fristen – Abgaben und Prüfungen (7 Tage)\n/termin &lt;wann&gt; &lt;was&gt; – Termin eintragen (mit Bestätigung)\n\n<b>✅ Erledigen</b>\n/todo [Text] – To-do-Liste bzw. neues To-do (auch „… jeden Montag“)\n/einkauf [Text] – Einkaufsliste\n/erinner &lt;wann&gt; &lt;was&gt; – Erinnerung (läutet im Kirchturm)\n/aufraeumen – Überfälliges neu einplanen\n/jetzt – was jetzt passt (mit 🍅 Los) · /fokus [Thema] – Pomodoro starten\n/gewohnheiten – heute abhaken · /ziel [Text] – Wochenziele\n\n<b>🎓 Lernen</b>\n/karten [Fach] – Karteikarten · /moodle &lt;Fach&gt; [Frage] – in Moodle nachsehen\n/noten – Notenschnitt und ECTS\n\n<b>📝 Festhalten &amp; Finden</b>\n/notiz &lt;Text&gt; – Tagesnotiz · /suche &lt;Begriff&gt; – im Vault suchen\n/statistik – die letzten 7 Tage\n\n<b>🏛️ Dorf</b>\n/status – was läuft · /freigaben – offene Freigaben\n/aktion [Name] – Skill starten · /neu – nächste Nachricht = neue Aufgabe\n/hilfe – diese Hilfe\n\n<i>Tipp: „todo: …“, „notiz: …“, „ziel: …“, „einkauf: …“ gehen auch ohne Schrägstrich – ein Foto mit „notiz: …“ landet samt Bild in der Tagesnotiz.</i>`,
       );
     if (b === '/status') {
       const aktiv = this.o.agenten.aktiveLaeufe();
@@ -693,6 +695,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (q.data?.startsWith('t:') || q.data?.startsWith('l:')) return this.todoKnopf(q, antworten);
     if (q.data?.startsWith('k:')) return this.terminKnopf(q, antworten);
     if (q.data?.startsWith('p:')) return this.planKnopf(q, antworten);
+    if (q.data?.startsWith('vt:')) return this.verteilenKnopf(q, antworten);
     if (q.data?.startsWith('kk:')) return this.karteKnopf(q, antworten);
     if (q.data?.startsWith('st:')) return this.sternKnopf(q, antworten);
     if (q.data?.startsWith('gw:')) return this.gewohnheitKnopf(q, antworten);
@@ -938,6 +941,101 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (q.message)
       await this.o.api
         .aufruf('editMessageReplyMarkup', { chat_id: q.message.chat.id, message_id: q.message.message_id, reply_markup: { inline_keyboard: this.planTastatur(m[1]!, p) } })
+        .catch(() => undefined);
+  }
+
+  // ---- E128: /verteilen – „Woche verteilen“ (E126) am Handy -----------------------------------------
+
+  private verteilenWartend(): Record<string, { v: { pfad: string; titel: string; tag: string; dauer: number }[]; uebernommen: number[]; zeit: number }> {
+    const w = (this.o.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'telegram_verteilen'").get() as { wert: string } | undefined)?.wert;
+    return w ? JSON.parse(w) : {};
+  }
+  private verteilenWartendSetzen(x: ReturnType<TelegramBot['verteilenWartend']>) {
+    const jetzt = this.o.uhr.jetzt();
+    const rest = Object.entries(x)
+      .filter(([, v]) => jetzt - v.zeit < 2 * 86_400_000)
+      .slice(-5);
+    this.o.db.prepare("INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES ('telegram_verteilen', ?)").run(JSON.stringify(Object.fromEntries(rest)));
+  }
+  private verteilenTastatur(id: string, p: { v: { titel: string; tag: string }[]; uebernommen: number[] }) {
+    const k = (teil: string) => `vt:${teil}:${this.planSignatur(`vt:${teil}`)}`;
+    const zeilen = p.v.slice(0, 12).map((x, i) => [{ text: knopfText(`${p.uebernommen.includes(i) ? '✅' : '➕'} ${TelegramBot.tagKurz(x.tag)} ${x.titel}`), callback_data: k(`${id}:${i}`) }]);
+    if (p.uebernommen.length < Math.min(12, p.v.length)) zeilen.push([{ text: '🗓️ Alle übernehmen', callback_data: k(`${id}:a`) }]);
+    return zeilen;
+  }
+  private static tagKurz(tag: string) {
+    return new Date(`${tag}T12:00:00Z`).toLocaleDateString('de-AT', { weekday: 'short', day: 'numeric', month: 'numeric', timeZone: 'UTC' });
+  }
+
+  private async verteilenBefehl() {
+    if (!this.o.listen) return this.senden('Die To-do-Liste ist nicht eingerichtet.');
+    const jetzt = this.o.uhr.jetzt();
+    const heute = tagVonJetzt(jetzt, 0);
+    const wt = (new Date(`${heute}T12:00:00Z`).getUTCDay() + 6) % 7; // 0 = Montag
+    // sonntags wird die nächste Woche geplant, sonst der Rest dieser Woche
+    const tage = wt === 6 ? Array.from({ length: 7 }, (_, i) => tagVonJetzt(jetzt, i + 1)) : Array.from({ length: 7 - wt }, (_, i) => tagVonJetzt(jetzt, i));
+    const grenze = (tag: string, std: number) => ortszeitZuUtc(...(tag.split('-').map(Number) as [number, number, number]), std, 0, 0, 'Europe/Vienna');
+    let termine: KalenderTermin[] = [];
+    if (this.o.kalender?.zeitraum) {
+      const z = await this.o.kalender.zeitraum(grenze(tage[0]!, 0), grenze(tage.at(-1)!, 0) + 86_400_000).catch(() => null);
+      termine = (z?.termine ?? []).filter((t): t is KalenderTermin => typeof t.start === 'string' && typeof t.ende === 'string' && typeof t.ganztags === 'boolean');
+    }
+    const iv = termine.filter((t) => !t.ganztags).map((t) => [Date.parse(t.start), Date.parse(t.ende)] as [number, number]);
+    const todos = (await this.o.listen.todo.liste()).filter((t) => !t.erledigt);
+    const eingang = todos.filter((t) => !t.faellig || t.faellig < heute);
+    if (!eingang.length) return this.senden('📥 Nichts ohne Datum oder überfällig – deine Woche ist verteilt. 🎉');
+    const v = wocheVerteilen({
+      eingang,
+      heute,
+      tage: tage.map((tag) => ({
+        tag,
+        freiMin: 14 * 60 - Math.round(belegtMs(iv, grenze(tag, 8), grenze(tag, 22)) / 60_000),
+        geplantMin: todos.filter((t) => t.faellig === tag).reduce((s2, t) => s2 + (t.dauer ?? 30), 0),
+      })),
+    });
+    if (!v.length) return this.senden(`📥 ${eingang.length} To-dos warten, aber ${wt === 6 ? 'nächste Woche' : 'diese Woche'} ist kein Platz mehr frei (70 % der freien Zeit sind schon verplant). Lieber etwas streichen oder später einplanen.`);
+    const id = crypto.randomBytes(6).toString('hex');
+    const p = { v, uebernommen: [] as number[], zeit: jetzt };
+    this.verteilenWartendSetzen({ ...this.verteilenWartend(), [id]: p });
+    const rest = eingang.length - v.length;
+    return this.senden(
+      `🗓️ <b>Vorschlag: ${wt === 6 ? 'nächste Woche' : 'Rest der Woche'}</b>\n${v
+        .slice(0, 12)
+        .map((x) => `• ${TelegramBot.tagKurz(x.tag)} – ${h(x.titel)} <i>(⏱ ${minutenText(x.dauer)})</i>`)
+        .join('\n')}${rest > 0 ? `\n<i>${rest} passen nicht mehr hinein.</i>` : ''}\n\nAntippen setzt das Fälligkeitsdatum.`,
+      { reply_markup: { inline_keyboard: this.verteilenTastatur(id, p) } },
+    );
+  }
+
+  private async verteilenKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {
+    const m = /^vt:([0-9a-f]{12}):(a|\d{1,2}):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
+    if (!m || !crypto.timingSafeEqual(Buffer.from(m[3]!), Buffer.from(this.planSignatur(`vt:${m[1]}:${m[2]}`)))) {
+      this.o.log?.('Telegram: Verteilen-Knopf mit ungültiger Signatur abgelehnt.');
+      return antworten('Ungültiger Knopf.');
+    }
+    const alle = this.verteilenWartend();
+    const p = alle[m[1]!];
+    if (!p || !this.o.listen) return antworten('Dieser Vorschlag ist abgelaufen – /verteilen macht einen neuen.');
+    const nr = m[2] === 'a' ? p.v.slice(0, 12).map((_, i) => i).filter((i) => !p.uebernommen.includes(i)) : [Number(m[2])].filter((i) => i < p.v.length && !p.uebernommen.includes(i));
+    if (!nr.length) return antworten('Schon übernommen.');
+    p.uebernommen.push(...nr);
+    this.verteilenWartendSetzen(alle);
+    let ok = 0;
+    for (const i of nr) {
+      const x = p.v[i]!;
+      try {
+        await this.o.listen.todo.aendern(x.pfad, { faellig: x.tag });
+        ok++;
+      } catch (e) {
+        p.uebernommen = p.uebernommen.filter((j) => j !== i);
+        this.o.log?.(`Telegram /verteilen: ${(e as Error).message}`);
+      }
+    }
+    this.verteilenWartendSetzen(alle);
+    await antworten(ok === nr.length ? (ok === 1 ? 'Eingeplant.' : `${ok} eingeplant.`) : `${ok} von ${nr.length} eingeplant – der Rest wurde inzwischen geändert.`);
+    if (q.message)
+      await this.o.api
+        .aufruf('editMessageReplyMarkup', { chat_id: q.message.chat.id, message_id: q.message.message_id, reply_markup: { inline_keyboard: this.verteilenTastatur(m[1]!, p) } })
         .catch(() => undefined);
   }
 
