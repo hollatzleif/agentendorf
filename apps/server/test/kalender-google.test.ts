@@ -286,3 +286,14 @@ describe('Kalender auf dem Marktplatz (E75)', () => {
     expect(scope.some((s) => s.includes('gmail.send') || s.endsWith('mail.google.com/'))).toBe(false);
   });
 });
+
+describe('freieZeiten über Kalendertage (Review)', () => {
+  it('findet am Fristtag eine Lücke vor der Frist, auch wenn die Frist früher am Tag ist als jetzt', async () => {
+    const { GoogleKalender } = await import('../src/kalender-google.js');
+    const klient = { kalender: async () => [{ id: 'k', name: 'K', farbe: '#000', primaer: true, schreibbar: true }], termine: async () => [] };
+    // jetzt Mi 18.11. 19:00 Wien, Frist Do 19.11. 12:00 Wien
+    const k = new GoogleKalender({ klient: klient as never, jetzt: () => Date.UTC(2026, 10, 18, 18, 0) } as never);
+    const r = await k.freieZeiten({ bis: Date.UTC(2026, 10, 19, 11, 0), dauerMin: 120, anzahl: 3 });
+    expect(r).toEqual([{ start: '2026-11-19T07:00:00.000Z', ende: '2026-11-19T09:00:00.000Z' }]);
+  });
+});

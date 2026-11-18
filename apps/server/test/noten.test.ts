@@ -43,3 +43,24 @@ describe('Noten & ECTS (E98)', () => {
     expect((await d.app.inject({ method: 'DELETE', url: '/api/uni/noten?fach=Gibtsnicht', headers: h })).statusCode).toBe(404);
   });
 });
+
+describe('Noten/Gewohnheiten: eigene Felder aus Obsidian bleiben (Review)', () => {
+  it('pruefer/datum am Fach und notiz an der Gewohnheit überleben App-Änderungen; keine Standardwerte hineingeschrieben', async () => {
+    const d = await testDorf();
+    await d.vault.schreiben(NOTEN_PFAD, '---\nfaecher:\n  - fach: LA\n    ects: 6\n    pruefer: Prof. X\n    datum: 2026-10-01\n---\n');
+    await d.noten.setzen({ fach: 'LA', ects: 6, note: 2 });
+    const n = (await d.vault.lesen(NOTEN_PFAD)).inhalt;
+    expect(n).toContain('pruefer: Prof. X');
+    expect(n).toContain('note: 2');
+    await d.vault.schreiben('Marktplatz/gewohnheiten.md', '---\ngewohnheiten:\n  - name: Laufen\n    notiz: 30 min\n---\n');
+    await d.gewohnheiten.anlegen({ name: 'Lesen' });
+    const g = (await d.vault.lesen('Marktplatz/gewohnheiten.md')).inhalt;
+    expect(g).toContain('notiz: 30 min');
+    expect(g).not.toContain('symbol');
+    expect(g).not.toContain('tage');
+    expect((await d.gewohnheiten.stand()).gewohnheiten.map((x) => [x.name, x.symbol, x.tage])).toEqual([
+      ['Laufen', '✅', 'täglich'],
+      ['Lesen', '✅', 'täglich'],
+    ]);
+  });
+});

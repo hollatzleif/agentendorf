@@ -90,8 +90,13 @@ describe('Telegram-Bot', () => {
     const d = await dorf();
     await d.vault.schreiben('Uni/alt.md', 'alt');
     const f = await d.agenten.freigaben.beantragen({ art: 'datei_loeschen', titel: 'Alte Notiz löschen', inhalt: { pfad: 'Uni/alt.md' }, gebaeude: 'Uni' });
-    await new Promise((r) => setTimeout(r, 20));
-    const msg = d.aufrufe.find((x) => x.m === 'sendMessage' && String(x.p.text).includes('Alte Notiz löschen'))!;
+    // die Meldung geht im Hintergrund raus – warten, bis sie da ist (unter Last dauert das länger als ein paar ms)
+    let msg: (typeof d.aufrufe)[number] | undefined;
+    for (let i = 0; i < 100 && !msg; i++) {
+      await new Promise((r) => setTimeout(r, 20));
+      msg = d.aufrufe.find((x) => x.m === 'sendMessage' && String(x.p.text).includes('Alte Notiz löschen'));
+    }
+    if (!msg) throw new Error('Freigabe-Meldung kam nicht');
     const tasten = (msg.p.reply_markup as { inline_keyboard: { callback_data: string }[][] }).inline_keyboard[0]!;
     const ja = tasten[0]!.callback_data;
     expect(ja).toMatch(new RegExp(`^f:${f.id}:j:[A-Za-z0-9_-]{16}$`));
@@ -770,5 +775,23 @@ describe('Telegram /hilfe', () => {
     const { TelegramBot } = await import('../src/telegram/bot.js');
     for (const b of TelegramBot.BEFEHLE) expect(t, b.command).toContain(`/${b.command}`);
     expect(t).toMatch(/<b>📅 Planen<\/b>[\s\S]*<b>✅ Erledigen<\/b>[\s\S]*<b>🏛️ Dorf<\/b>/);
+  });
+});
+
+describe('Gewohnheits-Knopf mit Datum (Review)', () => {
+  it('nach Mitternacht auf die Nachricht von gestern getippt → hakt gestern ab, nicht heute', async () => {
+    const d = await dorf();
+    await d.gewohnheiten.anlegen({ name: 'Lesen' });
+    await d.nachricht({ text: '/gewohnheiten' });
+    const m = d.aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p;
+    const daten = (m.reply_markup as { inline_keyboard: { callback_data: string }[][] }).inline_keyboard[0]![0]!.callback_data;
+    expect(daten).toMatch(/^gw:[0-9a-f]{12}:20261116:/);
+    d.uhr.vor(86_400_000); // nächster Tag
+    await d.knopf(daten);
+    expect(d.db.prepare('SELECT tag FROM gewohnheit_log').all()).toEqual([{ tag: '2026-11-16' }]);
+    expect((await d.gewohnheiten.stand()).gewohnheiten[0]!.heuteErledigt).toBe(false);
+    // gefälschter Tag (Signatur passt nicht) → nichts
+    await d.knopf(daten.replace(':20261116:', ':20261117:'));
+    expect(d.db.prepare('SELECT COUNT(*) AS n FROM gewohnheit_log').get()).toEqual({ n: 1 });
   });
 });

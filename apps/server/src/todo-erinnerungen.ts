@@ -2,6 +2,7 @@ import type { TodoInfo } from '@dorf/shared';
 import type { Uhr } from './uhr.js';
 import type { TodoDienst } from './todos.js';
 import { ortszeitZuUtc } from './uni/ical.js';
+import { tagVonJetzt } from './zeit.js';
 
 /**
  * Erinnerungen an To-dos (E94): Ein To-do mit `erinnerung: JJJJ-MM-TTTHH:MM` (Ortszeit Wien) läutet zur Zeit
@@ -36,7 +37,11 @@ export class TodoErinnerungen {
   /** E106: Gewohnheit mit Uhrzeit ist dran (Telegram schickt den Abhak-Knopf) */
   readonly beiGewohnheit: ((name: string) => Promise<unknown> | void)[] = [];
 
-  constructor(private o: { todos: TodoDienst; uhr: Uhr; gewohnheiten?: { faelligeErinnerungen(): Promise<{ name: string; symbol: string; uhrzeit?: string }[]>; stand(): Promise<{ gewohnheiten: { name: string; heuteErledigt: boolean }[] }> }; kirchturm?: { erinnern(e: { bezugId: string; titel: string; text: string; schlummern?: boolean }): void; erinnerungAus(bezugId: string): void }; log?: (t: string) => void }) {}
+  constructor(private o: { todos: TodoDienst; /** Review: auch Einkauf, Wunsch, Corps – erinnerung gibt es in jeder Liste */ weitereListen?: TodoDienst[]; uhr: Uhr; gewohnheiten?: { faelligeErinnerungen(): Promise<{ name: string; symbol: string; uhrzeit?: string }[]>; stand(): Promise<{ gewohnheiten: { name: string; heuteErledigt: boolean }[] }> }; kirchturm?: { erinnern(e: { bezugId: string; titel: string; text: string; schlummern?: boolean }): void; erinnerungAus(bezugId: string): void }; log?: (t: string) => void }) {}
+
+  private dienste() {
+    return [this.o.todos, ...(this.o.weitereListen ?? []).filter((x) => x !== this.o.todos)];
+  }
 
   starten() {
     this.takt = setInterval(() => void this.pruefen().catch((e) => this.o.log?.(`Erinnerungen: ${(e as Error).message}`)), 30_000);
@@ -52,13 +57,13 @@ export class TodoErinnerungen {
     try {
       const jetzt = this.o.uhr.jetzt();
       let n = 0;
-      for (const t of await this.o.todos.liste()) {
+      for (const dienst of this.dienste()) for (const t of await dienst.liste()) {
         if (t.erledigt && t.erinnerung) this.o.kirchturm?.erinnerungAus(t.pfad);
         if (t.erledigt || !t.erinnerung || t.erinnert === t.erinnerung) continue;
         const ms = zeitpunktMs(t.erinnerung);
         if (ms > jetzt) continue;
         // erst vermerken, dann läuten – lieber einmal zu wenig als jede halbe Minute
-        await this.o.todos.erinnertMarkieren(t.pfad, t.erinnerung);
+        await dienst.erinnertMarkieren(t.pfad, t.erinnerung);
         if (jetzt - ms > VERPASST_HOECHSTENS) continue;
         n++;
         const uhrzeit = t.erinnerung.slice(11);
@@ -82,11 +87,12 @@ export class TodoErinnerungen {
   async verschieben(pfad: string, ziel: { minuten: number } | { zeitpunkt: string }) {
     const zp = 'zeitpunkt' in ziel ? ziel.zeitpunkt : zeitpunktAus(this.o.uhr.jetzt() + ziel.minuten * 60_000);
     this.o.kirchturm?.erinnerungAus(pfad);
-    return this.o.todos.aendern(pfad, { erinnerung: zp });
+    const dienst = this.dienste().find((x) => pfad.startsWith(`${x.ordner}/`)) ?? this.o.todos;
+    return dienst.aendern(pfad, { erinnerung: zp });
   }
 
   /** Morgen 9:00 (Ortszeit) */
   morgenFrueh() {
-    return `${zeitpunktAus(this.o.uhr.jetzt() + 86_400_000).slice(0, 10)}T09:00`;
+    return `${tagVonJetzt(this.o.uhr.jetzt(), 1)}T09:00`;
   }
 }

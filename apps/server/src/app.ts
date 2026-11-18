@@ -492,10 +492,13 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
       return w.hinzufuegen(b.text, b.naechsteWoche ? 1 : 0);
     });
     app.post('/api/wochenziele/haken', async (req) => {
-      const b = nr.extend({ erledigt: z.boolean() }).parse(req.body);
-      return w.haken(b.nr, b.erledigt);
+      const b = nr.extend({ erledigt: z.boolean(), text: z.string().max(200) }).parse(req.body);
+      return w.haken(b.nr, b.erledigt, b.text);
     });
-    app.delete('/api/wochenziele', async (req) => w.entfernen(z.object({ nr: z.coerce.number().int().min(0).max(50) }).parse(req.query).nr));
+    app.delete('/api/wochenziele', async (req) => {
+      const q = z.object({ nr: z.coerce.number().int().min(0).max(50), text: z.string().max(200) }).parse(req.query);
+      return w.entfernen(q.nr, q.text);
+    });
   }
 
   // ---- Gewohnheiten ----

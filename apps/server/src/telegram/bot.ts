@@ -42,6 +42,7 @@ import { fristText } from '../uni/text.js';
 import { aktionenListe } from '../agenten/aktionen.js';
 import type { Uhr } from '../uhr.js';
 import { fremdinhaltHuelle } from '../agenten/leine.js';
+import { tagVonJetzt } from '../zeit.js';
 
 /** So lange nach dem letzten Austausch gilt eine neue Nachricht als Fortsetzung des Gesprächs */
 export const GESPRAECH_MINUTEN = 60;
@@ -167,7 +168,7 @@ export class TelegramBot {
     if (z.einleitung) teile.push(`<i>${h(z.einleitung)}</i>`);
     for (const a of z.abschnitte) if (a.zeilen.length) teile.push(`<b>${h(a.titel)}</b>\n${a.zeilen.slice(0, 8).map((x) => `• ${fett(x)}`).join('\n')}`);
     let text = teile.join('\n\n');
-    if (text.length > 3700) text = `${text.slice(0, 3700)} …`;
+    text = htmlKuerzen(text, 3700);
     // E101: Schnellknöpfe für den Start in den Tag
     const knoepfe: { text: string; callback_data: string }[] = [];
     if (this.o.kalender?.verbunden && this.o.kalender.freiAmTag) knoepfe.push({ text: '🧭 Tag planen', callback_data: this.schnellDaten('plan') });
@@ -205,7 +206,7 @@ export class TelegramBot {
     if (r.vorschlaege.length) teile.push(`<b>Für nächste Woche</b>\n${r.vorschlaege.map((v) => `• ${h(v)}`).join('\n')}`);
     for (const a of r.abschnitte) if (a.zeilen.length) teile.push(`<b>${h(a.titel)}</b>\n${a.zeilen.slice(0, 8).map((x) => `• ${fett(x)}`).join('\n')}`);
     let text = teile.join('\n\n');
-    if (text.length > 3700) text = `${text.slice(0, 3700)} …`;
+    text = htmlKuerzen(text, 3700);
     // E102: Vorschläge als Wochenziel für nächste Woche übernehmen – je ein signierter Knopf
     const knoepfe: { text: string; callback_data: string }[][] = [];
     if (this.o.wochenziele && r.vorschlaege.length) {
@@ -213,7 +214,7 @@ export class TelegramBot {
       const alle = this.vorschlaegeWartend();
       alle[id] = { texte: r.vorschlaege.slice(0, 3), zeit: this.o.uhr.jetzt() };
       this.vorschlaegeWartendSetzen(alle);
-      r.vorschlaege.slice(0, 3).forEach((v, i) => knoepfe.push([{ text: `🎯 ${v}`.slice(0, 60), callback_data: this.vorschlagDaten(id, i) }]));
+      r.vorschlaege.slice(0, 3).forEach((v, i) => knoepfe.push([{ text: knopfText(`🎯 ${v}`), callback_data: this.vorschlagDaten(id, i) }]));
     }
     await this.proaktiv(`${text}\n<a href="${this.link('/gebaeude/Rathaus?reiter=woche')}">Ganzer Rückblick</a>${knoepfe.length ? '\n\n<i>Antippen = als Ziel für nächste Woche übernehmen:</i>' : ''}`, knoepfe.length ? { reply_markup: { inline_keyboard: knoepfe } } : {});
   }
@@ -720,7 +721,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     const offen = (await this.o.listen![liste].liste()).filter((t) => !t.erledigt);
     if (!offen.length) return { text: `${a.symbol} <b>${a.titel}</b>\nNichts offen. 🎉\n<i>${a.befehl} &lt;Text&gt; legt einen Eintrag an.</i>`, knoepfe: [] as { text: string; callback_data: string }[][] };
     const zeilen = offen.slice(0, 25).map((t) => `• ${t.wichtig ? '⭐ ' : ''}${h(t.titel)}${t.gruppe ? ` <i>[${h(t.gruppe)}]</i>` : ''}${t.faellig ? ` <i>(bis ${h(t.faellig)})</i>` : ''}`);
-    const knoepfe = offen.slice(0, 12).map((t) => [{ text: `✅ ${t.titel}`.slice(0, 60), callback_data: this.knopfDaten(liste, this.todoKennung(t.pfad)) }]);
+    const knoepfe = offen.slice(0, 12).map((t) => [{ text: knopfText(`✅ ${t.titel}`), callback_data: this.knopfDaten(liste, this.todoKennung(t.pfad)) }]);
     return {
       text: `${a.symbol} <b>${a.titel}</b> (${offen.length} offen)\n${zeilen.join('\n')}${offen.length > 25 ? '\n…' : ''}\n<a href="${this.link(`/?g=${encodeURIComponent(LISTEN[liste].gebaeude)}`)}">Öffnen</a>`,
       knoepfe,
@@ -854,7 +855,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
   private planTastatur(id: string, p: { bloecke: PlanBlock[]; eingetragen: number[] }) {
     const k = (teil: string) => `p:${teil}:${this.planSignatur(teil)}`;
     const zeilen = p.bloecke.map((b, i) => [
-      { text: `${p.eingetragen.includes(i) ? '✅' : '➕'} ${TelegramBot.uhrzeit(b.start)} ${b.titel}`.slice(0, 60), callback_data: k(`${id}:${i}`) },
+      { text: knopfText(`${p.eingetragen.includes(i) ? '✅' : '➕'} ${TelegramBot.uhrzeit(b.start)} ${b.titel}`), callback_data: k(`${id}:${i}`) },
     ]);
     if (p.eingetragen.length < p.bloecke.length) zeilen.push([{ text: '📅 Alle eintragen', callback_data: k(`${id}:a`) }]);
     return zeilen;
@@ -866,7 +867,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (!this.o.listen) return this.senden('Das To-do-Brett ist nicht eingerichtet.');
     const morgen = /^morgen$/i.test(rest);
     if (rest && !morgen) return this.senden('🧭 <b>/plan</b> plant heute, <b>/plan morgen</b> den nächsten Tag.');
-    const tag = new Date(this.o.uhr.jetzt() + (morgen ? 86_400_000 : 0)).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+    const tag = tagVonJetzt(this.o.uhr.jetzt(), morgen ? 1 : 0);
     const frei = await k.freiAmTag(tag);
     const bloecke = tagPlanen({ todos: await this.o.listen.todo.liste(), heute: tag, frei }).map((b) => ({
       titel: b.titel,
@@ -991,7 +992,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     const erledigt = alle.filter((t) => t.erledigt && t.erledigtAm && new Date(t.erledigtAm).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' }) === tag);
     const fokus = this.o.kirchturm?.fokusStatistik?.();
     const karten = this.o.karten ? (await this.o.karten.uebersicht()).reduce((s2, f) => s2 + f.faellig, 0) : 0;
-    const morgen = new Date(jetzt + 86_400_000).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+    const morgen = tagVonJetzt(jetzt, 1);
     const fristen = (this.o.uni?.fristen() ?? []).filter((f) => (f.art === 'abgabe' || f.art === 'test') && !f.abgegeben && f.frist && new Date(f.frist).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' }) === morgen);
     const z = [`🌙 <b>Tagesabschluss</b>`];
     z.push(erledigt.length ? `✓ <b>${erledigt.length}</b> erledigt: ${erledigt.slice(0, 6).map((t) => h(t.titel)).join(', ')}` : '✓ Heute nichts abgehakt – morgen ist ein neuer Tag.');
@@ -1039,6 +1040,8 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     const jetzt = this.o.uhr.jetzt();
     const stunde = Number(new Date(jetzt).toLocaleString('en-GB', { timeZone: 'Europe/Vienna', hour: '2-digit', hour12: false }));
     if (stunde < 9 || stunde >= 20) return 0;
+    // während einer Fokusphase nicht stören – die Frage kommt im nächsten Takt (sie trägt Knöpfe, die Sammelnachricht nicht)
+    if (this.fokusAktiv()) return 0;
     const gemeldet = new Set<string>(JSON.parse((this.o.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'telegram_pruefungen'").get() as { wert: string } | undefined)?.wert ?? '[]'));
     const von = this.heuteTag(3);
     const bis = this.heuteTag(14);
@@ -1048,6 +1051,8 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       const schluessel = `${t.pfad}|${t.faellig}`;
       if (gemeldet.has(schluessel)) continue;
       gemeldet.add(schluessel);
+      // sofort merken – fällt das Senden aus, kommt dieselbe Frage nicht im nächsten Takt nochmal (Review)
+      this.o.db.prepare("INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES ('telegram_pruefungen', ?)").run(JSON.stringify([...gemeldet].slice(-100)));
       const name = t.titel.replace(/^Prüfung:\s*/i, '');
       const tagMs = ortszeitZuUtc(...(t.faellig.split('-').map(Number) as [number, number, number]), 0, 0, 0, 'Europe/Vienna');
       const termine = await k.zeitraum(jetzt, tagMs).catch(() => null);
@@ -1155,7 +1160,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     return `ar:${k}:${a}:${crypto.createHmac('sha256', this.signaturSchluessel).update(`aufraeumen:${k}:${a}`).digest('base64url').slice(0, 16)}`;
   }
   private heuteTag(plusTage = 0) {
-    return new Date(this.o.uhr.jetzt() + plusTage * 86_400_000).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+    return tagVonJetzt(this.o.uhr.jetzt(), plusTage);
   }
   private async aufraeumenText(): Promise<{ text: string; extra: Record<string, unknown> }> {
     const heute = this.heuteTag();
@@ -1265,11 +1270,20 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       this.o.log?.('Telegram: Erinnerungs-Knopf mit ungültiger Signatur abgelehnt.');
       return antworten('Ungültiger Knopf.');
     }
-    const t = (await this.o.listen.todo.liste()).find((x) => this.todoKennung(x.pfad) === m[1]);
+    // alle Listen (Erinnerungen gibt es auch in Einkauf, Wunsch, Corps)
+    let dienst = this.o.listen.todo;
+    let t: TodoInfo | undefined;
+    for (const d of Object.values(this.o.listen)) {
+      t = (await d.liste()).find((x) => this.todoKennung(x.pfad) === m[1]);
+      if (t) {
+        dienst = d;
+        break;
+      }
+    }
     if (!t) return antworten('Dieses To-do gibt es nicht mehr.');
     let text: string;
     if (m[2] === 'e') {
-      if (!t.erledigt) await this.o.listen.todo.aendern(t.pfad, { erledigt: true });
+      if (!t.erledigt) await dienst.aendern(t.pfad, { erledigt: true });
       text = `✅ Erledigt: <b>${h(t.titel)}</b>`;
     } else {
       const ziel = m[2] === 's' ? { minuten: 60 } : { zeitpunkt: this.o.erinnerungen!.morgenFrueh() };
@@ -1282,7 +1296,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
 
   static zeitpunktText(z: string, jetzt: number) {
     const heute = zeitpunktAus(jetzt).slice(0, 10);
-    const morgen = zeitpunktAus(jetzt + 86_400_000).slice(0, 10);
+    const morgen = tagVonJetzt(jetzt, 1);
     const tag = z.slice(0, 10);
     const wann = tag === heute ? 'heute' : tag === morgen ? 'morgen' : `am ${new Date(`${tag}T12:00:00Z`).toLocaleDateString('de-AT', { weekday: 'short', day: '2-digit', month: '2-digit', timeZone: 'UTC' })}`;
     return `${wann} um ${z.slice(11)}`;
@@ -1320,7 +1334,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     return `zl:${teil}:${crypto.createHmac('sha256', this.signaturSchluessel).update(`ziel:${teil}`).digest('base64url').slice(0, 16)}`;
   }
   private zielTastatur(s: { woche: string; ziele: { text: string; erledigt: boolean }[] }) {
-    return s.ziele.map((z, i) => [{ text: `${z.erledigt ? '✅' : '⬜'} ${z.text}`.slice(0, 60), callback_data: this.zielDaten(s.woche, i, z.text) }]);
+    return s.ziele.map((z, i) => [{ text: knopfText(`${z.erledigt ? '✅' : '⬜'} ${z.text}`), callback_data: this.zielDaten(s.woche, i, z.text) }]);
   }
 
   private async zielBefehl(rest: string) {
@@ -1372,14 +1386,24 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
   private gewohnheitSignatur(k: string) {
     return crypto.createHmac('sha256', this.signaturSchluessel).update(`gewohnheit:${k}`).digest('base64url').slice(0, 16);
   }
-  private async gewohnheitKnoepfe() {
+  /** Review: Knopf trägt den Tag (JJJJMMTT) – ein Tipp nach Mitternacht auf die Nachricht von gestern hakt gestern ab */
+  private gewohnheitDaten(k: string, tag: string) {
+    const t = tag.replace(/-/g, '');
+    return `gw:${k}:${t}:${crypto.createHmac('sha256', this.signaturSchluessel).update(`gewohnheit:${k}:${t}`).digest('base64url').slice(0, 16)}`;
+  }
+  private async gewohnheitKnoepfe(tag = this.heuteTag()) {
+    if (tag !== this.heuteTag())
+      return (await this.o.gewohnheiten!.standAm(tag)).map((g) => {
+        const k = this.gewohnheitKennung(g.name);
+        return [{ text: knopfText(`${g.erledigt ? '✅' : '⬜'} ${g.symbol} ${g.name}`), callback_data: this.gewohnheitDaten(k, tag) }];
+      });
     const s = await this.o.gewohnheiten!.stand();
     return s.gewohnheiten
       .filter((g) => g.heuteFaellig)
       .map((g) => {
         const k = this.gewohnheitKennung(g.name);
         const zusatz = g.wocheStand ? ` · ${g.wocheStand.erledigt}/${g.wocheStand.ziel} diese Woche` : g.serie > 1 ? ` · 🔥 ${g.serie}` : '';
-        return [{ text: `${g.heuteErledigt ? '✅' : '⬜'} ${g.symbol} ${g.name}${zusatz}`.slice(0, 60), callback_data: `gw:${k}:${this.gewohnheitSignatur(k)}` }];
+        return [{ text: knopfText(`${g.heuteErledigt ? '✅' : '⬜'} ${g.symbol} ${g.name}${zusatz}`), callback_data: this.gewohnheitDaten(k, tag) }];
       });
   }
 
@@ -1389,7 +1413,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (!g) return;
     const k = this.gewohnheitKennung(g.name);
     return this.senden(`🔁 ${h(g.symbol)} <b>${h(g.name)}</b> – Zeit dafür!${g.serie > 1 ? ` (🔥 ${g.serie})` : ''}`, {
-      reply_markup: { inline_keyboard: [[{ text: `⬜ ${g.symbol} ${g.name}`.slice(0, 60), callback_data: `gw:${k}:${this.gewohnheitSignatur(k)}` }]] },
+      reply_markup: { inline_keyboard: [[{ text: knopfText(`⬜ ${g.symbol} ${g.name}`), callback_data: this.gewohnheitDaten(k, this.heuteTag()) }]] },
     });
   }
 
@@ -1402,18 +1426,24 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
   }
 
   private async gewohnheitKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {
-    const m = /^gw:([0-9a-f]{12}):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
-    if (!m || !this.o.gewohnheiten || !crypto.timingSafeEqual(Buffer.from(m[2]!), Buffer.from(this.gewohnheitSignatur(m[1]!)))) {
+    const neu = /^gw:([0-9a-f]{12}):(\d{8}):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
+    const alt = /^gw:([0-9a-f]{12}):([A-Za-z0-9_-]{16})$/.exec(q.data ?? ''); // Knöpfe von vor der Umstellung: heute
+    const k = neu?.[1] ?? alt?.[1];
+    const tag = neu ? `${neu[2]!.slice(0, 4)}-${neu[2]!.slice(4, 6)}-${neu[2]!.slice(6, 8)}` : this.heuteTag();
+    const soll = neu ? this.gewohnheitDaten(neu[1]!, tag).split(':')[3]! : alt ? this.gewohnheitSignatur(alt[1]!) : '';
+    const ist = neu?.[3] ?? alt?.[2];
+    if (!k || !ist || !this.o.gewohnheiten || !crypto.timingSafeEqual(Buffer.from(ist), Buffer.from(soll))) {
       this.o.log?.('Telegram: Gewohnheits-Knopf mit ungültiger Signatur abgelehnt.');
       return antworten('Ungültiger Knopf.');
     }
-    const g = (await this.o.gewohnheiten.stand()).gewohnheiten.find((x) => this.gewohnheitKennung(x.name) === m[1]);
+    if (tag > this.heuteTag()) return antworten('Ungültiger Knopf.');
+    const g = (await this.o.gewohnheiten.standAm(tag)).find((x) => this.gewohnheitKennung(x.name) === k) ?? (await this.o.gewohnheiten.liste()).gewohnheiten.map((x) => ({ name: x.name, symbol: x.symbol, erledigt: false })).find((x) => this.gewohnheitKennung(x.name) === k);
     if (!g) return antworten('Diese Gewohnheit gibt es nicht mehr.');
-    await this.o.gewohnheiten.haken(g.name, !g.heuteErledigt);
-    await antworten(g.heuteErledigt ? 'Wieder offen.' : `${g.symbol} Erledigt!`);
+    await this.o.gewohnheiten.haken(g.name, !g.erledigt, tag);
+    await antworten(g.erledigt ? 'Wieder offen.' : `${g.symbol} Erledigt${tag !== this.heuteTag() ? ` (für ${tag})` : ''}!`);
     if (q.message)
       await this.o.api
-        .aufruf('editMessageReplyMarkup', { chat_id: q.message.chat.id, message_id: q.message.message_id, reply_markup: { inline_keyboard: await this.gewohnheitKnoepfe() } })
+        .aufruf('editMessageReplyMarkup', { chat_id: q.message.chat.id, message_id: q.message.message_id, reply_markup: { inline_keyboard: await this.gewohnheitKnoepfe(tag) } })
         .catch(() => undefined);
   }
 
@@ -1424,7 +1454,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     const offen = alle.filter((t) => !t.erledigt).sort((a, b) => Number(!!b.wichtig) - Number(!!a.wichtig) || (a.faellig ?? '9999').localeCompare(b.faellig ?? '9999'));
     return offen.slice(0, 8).map((t) => {
       const k = this.todoKennung(t.pfad);
-      return [{ text: `${t.wichtig ? '⭐' : '☆'} ${t.titel}${t.faellig && t.faellig <= morgen ? ` (${t.faellig === morgen ? 'morgen' : 'fällig'})` : ''}`.slice(0, 60), callback_data: `st:${k}:${this.sternSignatur(k)}` }];
+      return [{ text: knopfText(`${t.wichtig ? '⭐' : '☆'} ${t.titel}${t.faellig && t.faellig <= morgen ? ` (${t.faellig === morgen ? 'morgen' : 'fällig'})` : ''}`), callback_data: `st:${k}:${this.sternSignatur(k)}` }];
     });
   }
 
@@ -1441,7 +1471,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     await antworten(t.wichtig ? 'Nicht mehr wichtig.' : '⭐ Wichtig für morgen.');
     if (q.message) {
       const neu = await this.o.listen.todo.liste();
-      const morgen = new Date(this.o.uhr.jetzt() + 86_400_000).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+      const morgen = tagVonJetzt(this.o.uhr.jetzt(), 1);
       await this.o.api
         .aufruf('editMessageReplyMarkup', { chat_id: q.message.chat.id, message_id: q.message.message_id, reply_markup: { inline_keyboard: this.sternAuswahl(neu, morgen) } })
         .catch(() => undefined);
@@ -1577,7 +1607,7 @@ Magst du kurz sagen, warum? Antworte einfach mit einem Satz – ${f.chatId ? 'de
   async senden(text: string, extra: Record<string, unknown> = {}, gehoertZuChat?: string) {
     const r = await this.o.api.aufruf<{ message_id: number }>('sendMessage', {
       chat_id: this.o.chatId,
-      text: text.slice(0, 4000),
+      text: htmlKuerzen(text, 4000),
       parse_mode: 'HTML',
       link_preview_options: { is_disabled: true },
       ...extra,
@@ -1712,4 +1742,21 @@ function kuerzen(t: string, max: number) {
     .replace(/<[^>]+>/g, '')
     .slice(0, max - 2)
     .replace(/&[^;\s]*$/, '')} …`;
+}
+
+/** Knopftext höchstens 60 Zeichen – nach Zeichen (nicht UTF-16-Einheiten), damit kein Emoji zerteilt wird (Review) */
+export function knopfText(t: string) {
+  const z = Array.from(t);
+  return z.length > 60 ? z.slice(0, 60).join('') : t;
+}
+
+/**
+ * HTML für Telegram kürzen, ohne ein Tag oder eine Entität zu zerschneiden (Review): an der letzten ganzen Zeile
+ * abschneiden – unsere Texte öffnen und schließen Tags je Zeile. Notfalls (eine einzige lange Zeile) als reiner Text.
+ */
+export function htmlKuerzen(text: string, max: number) {
+  if (text.length <= max) return text;
+  const schnitt = text.lastIndexOf('\n', max - 2);
+  if (schnitt > max / 2) return `${text.slice(0, schnitt)}\n…`;
+  return `${text.replace(/<[^>]*>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&').slice(0, max - 20).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')} …`;
 }

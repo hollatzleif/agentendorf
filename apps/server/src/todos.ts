@@ -43,7 +43,8 @@ const Wiederholen = z
   .regex(WIEDERHOLEN, 'wiederholen: täglich, werktags, wöchentlich, monatlich, jährlich oder „alle N tage/wochen/monate“');
 
 /** Nächstes Datum nach einer Regel – immer nach „heute“ (Erledigtes von gestern springt nicht in die Vergangenheit) */
-export function naechstesDatum(regel: string, ab: string, heute: string) {
+/** tagImMonat: der ursprüngliche Monatstag (31 bleibt 31, auch nach einem Februar mit 28) */
+export function naechstesDatum(regel: string, ab: string, heute: string, tagImMonatUr?: number) {
   const m = WIEDERHOLEN.exec(regel);
   if (!m) return undefined;
   const plusTage = (t: string, n: number) => {
@@ -58,7 +59,7 @@ export function naechstesDatum(regel: string, ab: string, heute: string) {
     ziel.setUTCDate(Math.min(tag, letzter));
     return ziel.toISOString().slice(0, 10);
   };
-  const tagImMonat = Number(ab.slice(8, 10));
+  const tagImMonat = tagImMonatUr ?? Number(ab.slice(8, 10));
   const schritt = (t: string): string => {
     if (m[1] === 'täglich') return plusTage(t, 1);
     if (m[1] === 'werktags') {
@@ -87,6 +88,8 @@ export const TodoNeu = z.object({
   notiz: z.string().max(5000).optional(),
   wichtig: z.boolean().optional(),
   wiederholen: Wiederholen.optional(),
+  /** Monatstag der ersten Fälligkeit (wiederkehrend monatlich/jährlich) – intern weitergereicht */
+  wiederholen_tag: z.number().int().min(1).max(31).optional(),
   erinnerung: z.string().regex(ZEITPUNKT, 'erinnerung als JJJJ-MM-TTTHH:MM').optional(),
 });
 export const TodoAenderung = z.object({
@@ -202,6 +205,7 @@ export class TodoDienst {
     if (e.gruppe) daten.gruppe = e.gruppe;
     if (e.wichtig) daten.wichtig = true;
     if (e.wiederholen) daten.wiederholen = e.wiederholen;
+    if (e.wiederholen && e.wiederholen_tag) daten.wiederholen_tag = e.wiederholen_tag;
     if (e.erinnerung) daten.erinnerung = e.erinnerung;
     daten.quelle = quelle;
     if (opt.fremd) daten.fremd = true;
@@ -258,28 +262,40 @@ export class TodoDienst {
     // Inhalt von einem Fremdinhalt-Lauf geändert → ab jetzt „fremd“ (nur Abhaken ändert keinen Inhalt)
     if (opt.fremd && (a.titel !== undefined || a.notiz !== undefined || a.gruppe !== undefined || a.gebaeude !== undefined)) k.fremd = true;
     const inhalt = a.notiz !== undefined ? (a.notiz.trim() ? `${a.notiz.trim()}\n` : '') : m.content;
-    const r = await this.o.vault.schreiben(pfad, matter.stringify(inhalt, k), { basisVersion: d.version });
-    if (r.konflikt) throw new DorfFehler(409, 'Das To-do wurde gerade woanders geändert – bitte neu laden.');
+    // Nachfolger VOR dem Schreiben bauen und prüfen – sonst wäre das Original erledigt, aber ohne Nachfolger (Review)
+    let nachfolger: z.infer<typeof TodoNeu> | undefined;
     if (naechstes) {
       const heute = new Date(this.o.uhr.jetzt()).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
-      const neu = await this.anlegen(
-        {
-          titel: k.titel ?? (await this.lesenEines(pfad))!.titel,
-          faellig: naechstesDatum(regel, datumText(k.faellig) ?? heute, heute),
-          ...(typeof k.gebaeude === 'string' && k.gebaeude ? { gebaeude: k.gebaeude } : {}),
-          ...(typeof k.gruppe === 'string' && k.gruppe ? { gruppe: k.gruppe } : {}),
-          ...(inhalt.trim() ? { notiz: inhalt.trim().slice(0, 5000) } : {}),
-          wiederholen: regel,
-          ...(typeof k.erinnerung === 'string' && ZEITPUNKT.test(k.erinnerung)
-            ? { erinnerung: `${datumText(k.faellig) ? naechstesDatum(regel, datumText(k.faellig)!, heute) : naechstesDatum(regel, k.erinnerung.slice(0, 10), heute)}${k.erinnerung.slice(10)}` }
-            : {}),
-        },
-        typeof k.quelle === 'string' ? k.quelle : 'Leif',
-        { fremd: k.fremd === true },
-      );
-      const jetzt = await this.o.vault.lesen(pfad);
-      const m2 = matter(jetzt.inhalt);
-      await this.o.vault.schreiben(pfad, matter.stringify(m2.content, { ...(m2.data as object), wiederholt: neu.pfad }), { basisVersion: jetzt.version });
+      const ab = datumText(k.faellig) ?? heute;
+      const urTag = typeof k.wiederholen_tag === 'number' ? k.wiederholen_tag : Number(ab.slice(8, 10));
+      const monatlich = /monat|jährlich/.test(regel);
+      const roh = {
+        titel: String(k.titel ?? (await this.lesenEines(pfad))!.titel).slice(0, 200),
+        faellig: naechstesDatum(regel, ab, heute, urTag),
+        ...(typeof k.gebaeude === 'string' && k.gebaeude ? { gebaeude: k.gebaeude.slice(0, 60) } : {}),
+        ...(typeof k.gruppe === 'string' && k.gruppe ? { gruppe: k.gruppe.slice(0, 60) } : {}),
+        ...(inhalt.trim() ? { notiz: inhalt.trim().slice(0, 5000) } : {}),
+        wiederholen: regel,
+        ...(monatlich ? { wiederholen_tag: urTag } : {}),
+        ...(typeof k.erinnerung === 'string' && ZEITPUNKT.test(k.erinnerung)
+          ? { erinnerung: `${datumText(k.faellig) ? naechstesDatum(regel, ab, heute, urTag) : naechstesDatum(regel, k.erinnerung.slice(0, 10), heute)}${k.erinnerung.slice(10)}` }
+          : {}),
+      };
+      const geprueft = TodoNeu.safeParse(roh);
+      if (!geprueft.success) throw new DorfFehler(400, `Das nächste To-do lässt sich nicht anlegen: ${geprueft.error.issues.map((x) => x.message).join('; ')}`);
+      nachfolger = geprueft.data;
+    }
+    const r = await this.o.vault.schreiben(pfad, matter.stringify(inhalt, k), { basisVersion: d.version });
+    if (r.konflikt) throw new DorfFehler(409, 'Das To-do wurde gerade woanders geändert – bitte neu laden.');
+    if (nachfolger) {
+      const neu = await this.anlegen(nachfolger, typeof k.quelle === 'string' ? k.quelle : 'Leif', { fremd: k.fremd === true });
+      // Vermerk „wiederholt“ – bei einem gleichzeitigen Schreiben einmal neu versuchen, sonst entstünde beim nächsten Abhaken ein zweiter Nachfolger
+      for (let versuch = 0; versuch < 3; versuch++) {
+        const jetzt = await this.o.vault.lesen(pfad);
+        const m2 = matter(jetzt.inhalt);
+        const r2 = await this.o.vault.schreiben(pfad, matter.stringify(m2.content, { ...(m2.data as object), wiederholt: neu.pfad }), { basisVersion: jetzt.version });
+        if (!r2.konflikt) break;
+      }
     }
     this.beiAenderung();
     return (await this.lesenEines(pfad))!;

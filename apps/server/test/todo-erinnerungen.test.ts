@@ -48,3 +48,14 @@ describe('Erinnerungen an To-dos (E94)', () => {
     expect(neu).toMatchObject({ faellig: '2026-11-17', erinnerung: '2026-11-17T18:00' });
   });
 });
+
+describe('Erinnerungen in allen Listen (Review)', () => {
+  it('läutet auch für die Einkaufsliste; Verschieben trifft die richtige Liste', async () => {
+    const d = await testDorf();
+    const t = await d.listen.einkauf.anlegen({ titel: 'Milch', erinnerung: '2026-11-16T13:10' }, 'Leif');
+    d.uhr.vor(11 * 60_000);
+    expect(await d.erinnerungen.pruefen()).toBe(1);
+    const neu = await d.erinnerungen.verschieben(t.pfad, { minuten: 60 });
+    expect(neu).toMatchObject({ pfad: t.pfad, erinnerung: '2026-11-16T14:11' });
+  });
+});

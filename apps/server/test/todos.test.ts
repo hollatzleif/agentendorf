@@ -216,3 +216,30 @@ describe('Wiederholung aus Text (E92, Telegram /todo)', () => {
     expect(wiederholungAusText('Bericht über tägliche Arbeit', '2026-11-18')).toEqual({ titel: 'Bericht über tägliche Arbeit' });
   });
 });
+
+describe('Wiederkehrend: Review-Korrekturen', () => {
+  it('monatlich ab dem 31. bleibt beim 31. (über den Februar hinweg)', async () => {
+    const d = await testDorf();
+    // TestUhr 16.11.2026 – fällig 31.01.2027
+    let t = await d.todos.anlegen({ titel: 'Miete', faellig: '2027-01-31', wiederholen: 'monatlich' }, 'Leif');
+    const folge: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      await d.todos.aendern(t.pfad, { erledigt: true });
+      t = (await d.todos.liste()).find((x) => !x.erledigt)!;
+      folge.push(t.faellig!);
+    }
+    expect(folge).toEqual(['2027-02-28', '2027-03-31', '2027-04-30']);
+  });
+
+  it('Nachfolger ungültig (z. B. Titel als Zahl in Obsidian geht, zu lange Gruppe wird gekürzt) – nie halb abgehakt', async () => {
+    const d = await testDorf();
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    fs.mkdirSync(path.join(d.vault.wurzel, 'Marktplatz/todos'), { recursive: true });
+    fs.writeFileSync(path.join(d.vault.wurzel, 'Marktplatz/todos/zahl.md'), `---\ntitel: 2026\nstatus: offen\nwiederholen: jährlich\ngruppe: ${'x'.repeat(80)}\n---\n`);
+    await d.todos.aendern('Marktplatz/todos/zahl.md', { erledigt: true });
+    const l = await d.todos.liste();
+    expect(l.find((x) => !x.erledigt)).toMatchObject({ titel: '2026', wiederholen: 'jährlich' });
+    expect(l.find((x) => !x.erledigt)!.gruppe).toHaveLength(60);
+  });
+});

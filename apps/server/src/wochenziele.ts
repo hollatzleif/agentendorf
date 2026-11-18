@@ -4,6 +4,7 @@ import type { VaultDienst } from './vault/dienst.js';
 import type { LiveHub } from './live.js';
 import { DorfFehler } from './fehler.js';
 import { kalenderwoche } from './wochenrueckblick.js';
+import { tagVonJetzt } from './zeit.js';
 
 /**
  * Wochenziele (E91): je Kalenderwoche eine Obsidian-Checkliste `Rathaus/wochenziele/JJJJ-KWnn.md`
@@ -28,7 +29,7 @@ export class Wochenziele {
   constructor(private o: { uhr: Uhr; vault: VaultDienst; hub: LiveHub }) {}
 
   woche(versatzWochen = 0) {
-    return kalenderwoche(tagIn(this.o.uhr.jetzt() + versatzWochen * 7 * 86_400_000));
+    return kalenderwoche(tagVonJetzt(this.o.uhr.jetzt(), 7 * versatzWochen));
   }
   pfad(woche = this.woche()) {
     return `${ZIELE_ORDNER}/${woche}.md`;
@@ -70,18 +71,21 @@ export class Wochenziele {
     }, this.woche(versatzWochen));
   }
 
-  haken(nr: number, erledigt: boolean) {
+  /** text: was die App/der Knopf angezeigt hat – passt er nicht mehr zur Nummer, lieber 409 als das falsche Ziel (Review) */
+  haken(nr: number, erledigt: boolean, text?: string) {
     return this.aendern((zeilen, ziele) => {
       const z = ziele[nr];
       if (!z) throw new DorfFehler(404, 'Dieses Ziel gibt es nicht (mehr).');
+      if (text != null && z.text !== text) throw new DorfFehler(409, 'Die Wochenziele wurden inzwischen geändert – bitte neu laden.');
       zeilen[z.zeile] = zeilen[z.zeile]!.replace(ZEILE, (_, a: string, _b: string, c: string, t: string) => `${a}${erledigt ? 'x' : ' '}${c}${t}`);
     });
   }
 
-  entfernen(nr: number) {
+  entfernen(nr: number, text?: string) {
     return this.aendern((zeilen, ziele) => {
       const z = ziele[nr];
       if (!z) throw new DorfFehler(404, 'Dieses Ziel gibt es nicht (mehr).');
+      if (text != null && z.text !== text) throw new DorfFehler(409, 'Die Wochenziele wurden inzwischen geändert – bitte neu laden.');
       zeilen.splice(z.zeile, 1);
     });
   }

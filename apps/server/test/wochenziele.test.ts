@@ -23,7 +23,7 @@ describe('Wochenziele (E91)', () => {
     // Leif schreibt in Obsidian eine Notiz dazu
     const v = await d.vault.lesen('Rathaus/wochenziele/2026-KW47.md');
     await d.vault.schreiben('Rathaus/wochenziele/2026-KW47.md', `${v.inhalt}\nNotiz: Montag Uni lang.\n`, { basisVersion: v.version });
-    r = await d.app.inject({ method: 'POST', url: '/api/wochenziele/haken', headers: h, payload: { nr: 1, erledigt: true } });
+    r = await d.app.inject({ method: 'POST', url: '/api/wochenziele/haken', headers: h, payload: { nr: 1, erledigt: true, text: '3x Sport' } });
     expect(r.json().ziele).toEqual([
       { text: 'Blatt 6 abgeben', erledigt: false },
       { text: '3x Sport', erledigt: true },
@@ -33,11 +33,13 @@ describe('Wochenziele (E91)', () => {
     expect(inhalt).toBe('# Wochenziele 2026 · KW 47\n- [ ] Blatt 6 abgeben\n- [x] 3x Sport\n- [ ] Bewerbung\n\nNotiz: Montag Uni lang.\n');
     expect(await d.wochenziele.zeitungsZeilen()).toEqual(['1/3 erreicht · offen: Blatt 6 abgeben; Bewerbung']);
     expect(await d.wochenziele.rueckblickZeilen()).toEqual(['**1/3** erreicht', '✗ Blatt 6 abgeben', '✓ 3x Sport', '✗ Bewerbung']);
-    r = await d.app.inject({ method: 'DELETE', url: '/api/wochenziele?nr=0', headers: h });
+    r = await d.app.inject({ method: 'DELETE', url: `/api/wochenziele?nr=0&text=${encodeURIComponent('Blatt 6 abgeben')}`, headers: h });
     expect(r.json().ziele.map((z: { text: string }) => z.text)).toEqual(['3x Sport', 'Bewerbung']);
     for (let i = 0; i < 5; i++) await d.app.inject({ method: 'POST', url: '/api/wochenziele', headers: h, payload: { text: `Z${i}` } });
     expect((await d.app.inject({ method: 'POST', url: '/api/wochenziele', headers: h, payload: { text: 'zu viel' } })).statusCode).toBe(409);
-    expect((await d.app.inject({ method: 'POST', url: '/api/wochenziele/haken', headers: h, payload: { nr: 9, erledigt: true } })).statusCode).toBe(404);
+    expect((await d.app.inject({ method: 'POST', url: '/api/wochenziele/haken', headers: h, payload: { nr: 9, erledigt: true, text: 'x' } })).statusCode).toBe(404);
+    // Datei inzwischen geändert (andere Zeile an Nr. 0) → 409 statt falsches Ziel
+    expect((await d.app.inject({ method: 'DELETE', url: '/api/wochenziele?nr=0&text=Bewerbung', headers: h })).statusCode).toBe(409);
     // nächste Woche: neue Datei, letzte Woche als Bilanz
     d.uhr.vor(7 * 86_400_000);
     const s = (await d.app.inject({ url: '/api/wochenziele', headers: h })).json();

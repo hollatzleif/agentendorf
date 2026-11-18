@@ -68,14 +68,14 @@ export function WochenzieleKarte() {
                   onChange={(e) => {
                     const erledigt = e.target.checked;
                     qc.setQueryData<WochenzieleStand>(KEY, (a) => a && { ...a, ziele: a.ziele.map((x, j) => (j === i ? { ...x, erledigt } : x)) });
-                    void aufruf(() => api<WochenzieleStand>('/api/wochenziele/haken', { body: { nr: i, erledigt } }));
+                    void aufruf(() => api<WochenzieleStand>('/api/wochenziele/haken', { body: { nr: i, erledigt, text: z.text } }));
                   }}
                   aria-label={`Ziel erreicht: ${z.text}`}
                 />
                 <span>{z.text}</span>
               </label>
               {bearbeiten && (
-                <button type="button" className="klein" aria-label={`Ziel entfernen: ${z.text}`} onClick={() => void aufruf(() => api<WochenzieleStand>(`/api/wochenziele?nr=${i}`, { methode: 'DELETE' }))}>
+                <button type="button" className="klein" aria-label={`Ziel entfernen: ${z.text}`} onClick={() => void aufruf(() => api<WochenzieleStand>(`/api/wochenziele?nr=${i}&text=${encodeURIComponent(z.text)}`, { methode: 'DELETE' }))}>
                   ✕
                 </button>
               )}

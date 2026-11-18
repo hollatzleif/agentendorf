@@ -71,26 +71,38 @@ export class Gewohnheiten {
     }
   }
 
-  private async schreiben(neu: GewohnheitT[]) {
+  /**
+   * Schreibt die ROHE Liste aus der Datei weiter (Review): Felder, die Leif in Obsidian ergänzt hat (z. B. notiz),
+   * bleiben erhalten, und es werden keine Standardwerte (symbol, tage) hineingeschrieben.
+   */
+  private async schreiben(f: (roh: Record<string, unknown>[]) => Record<string, unknown>[]) {
     const d = await this.o.vault.lesen(GEWOHNHEITEN_PFAD).catch(() => null);
-    const m = d ? matter(d.inhalt) : { data: {}, content: '\n# Gewohnheiten\n\nPflegst du hier oder in der App („Heute“). `tage`: täglich, werktags, wochenende oder eine Liste wie [mo, mi, fr].\n' };
-    const r = await this.o.vault.schreiben(GEWOHNHEITEN_PFAD, matter.stringify(m.content, { ...(m.data as object), gewohnheiten: neu }), d ? { basisVersion: d.version } : { nurNeu: true });
+    const m = d ? matter(d.inhalt) : { data: {}, content: '\n# Gewohnheiten\n\nPflegst du hier oder in der App („Heute“). `tage`: täglich, werktags, wochenende, eine Liste wie [mo, mi, fr] oder „3x pro woche“; optional `uhrzeit: 07:30`.\n' };
+    const daten = m.data as Record<string, unknown>;
+    const roh = Array.isArray(daten.gewohnheiten) ? (daten.gewohnheiten as Record<string, unknown>[]) : [];
+    const r = await this.o.vault.schreiben(GEWOHNHEITEN_PFAD, matter.stringify(m.content, { ...daten, gewohnheiten: f(roh) }), d ? { basisVersion: d.version } : { nurNeu: true });
     if (r.konflikt) throw new DorfFehler(409, 'gewohnheiten.md wurde gerade woanders geändert – bitte neu laden.');
     this.o.hub.senden({ typ: 'todos.geaendert', liste: 'gewohnheiten' });
   }
 
   async anlegen(roh: unknown) {
     const g = Gewohnheit.parse(roh);
+    const eingabe = (roh ?? {}) as Record<string, unknown>;
     const l = await this.liste();
     if (l.fehler) throw new DorfFehler(409, l.fehler);
     if (l.gewohnheiten.some((x) => x.name.toLowerCase() === g.name.toLowerCase())) throw new DorfFehler(409, 'Diese Gewohnheit gibt es schon.');
-    await this.schreiben([...l.gewohnheiten, g]);
+    // nur, was angegeben wurde – Standardwerte ergänzt das Lesen
+    const neu: Record<string, unknown> = { name: g.name };
+    if (eingabe.symbol != null && eingabe.symbol !== '') neu.symbol = g.symbol;
+    if (eingabe.tage != null) neu.tage = g.tage;
+    if (g.uhrzeit) neu.uhrzeit = g.uhrzeit;
+    await this.schreiben((alt) => [...alt, neu]);
   }
 
   async entfernen(name: string) {
     const l = await this.liste();
     if (!l.gewohnheiten.some((x) => x.name === name)) throw new DorfFehler(404, 'Diese Gewohnheit gibt es nicht.');
-    await this.schreiben(l.gewohnheiten.filter((x) => x.name !== name));
+    await this.schreiben((alt) => alt.filter((x) => x?.name !== name));
   }
 
   async haken(name: string, erledigt: boolean, tag = tagIn(this.o.uhr.jetzt())) {
@@ -173,6 +185,13 @@ export class Gewohnheiten {
       const f = l.gewohnheiten.filter((g) => proWoche(g) == null && tag >= start.get(g.name)! && faelligAm(g, tag));
       return { faellig: f.length, erledigt: f.filter((g) => log.has(`${g.name}\n${tag}`)).length };
     });
+  }
+
+  /** Review: Stand an einem bestimmten Tag (für Telegram-Knöpfe, die nach Mitternacht getippt werden) */
+  async standAm(tag: string) {
+    const l = await this.liste();
+    const log = new Set((this.o.db.prepare('SELECT name FROM gewohnheit_log WHERE tag = ?').all(tag) as { name: string }[]).map((x) => x.name));
+    return l.gewohnheiten.filter((g) => faelligAm(g, tag) || log.has(g.name)).map((g) => ({ name: g.name, symbol: g.symbol, erledigt: log.has(g.name) }));
   }
 
   /** Morgenzeitung: was heute dran ist */

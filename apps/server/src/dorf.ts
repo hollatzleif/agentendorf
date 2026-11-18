@@ -350,7 +350,7 @@ export async function dorfStarten(
   const notizen = new Notizen({ uhr, vault });
   const noten = new Noten({ vault, hub, faecher: () => uni.faecher() });
   // E94: Erinnerungen an To-dos – läuten im Kirchturm, Telegram schickt Knöpfe
-  const erinnerungen = new TodoErinnerungen({ todos, uhr, kirchturm, gewohnheiten, log: (t) => console.warn(t) });
+  const erinnerungen = new TodoErinnerungen({ todos, weitereListen: Object.values(listen), uhr, kirchturm, gewohnheiten, log: (t) => console.warn(t) });
   kirchturm.beiErinnerungSchlummern.push((pfad) => {
     if (!pfad.startsWith('gewohnheit:')) void erinnerungen.verschieben(pfad, { minuten: 10 }).catch(() => undefined);
   });

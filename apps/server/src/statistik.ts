@@ -3,6 +3,7 @@ import type { DB } from './db.js';
 import type { Uhr } from './uhr.js';
 import type { TodoDienst } from './todos.js';
 import type { Gewohnheiten } from './gewohnheiten.js';
+import { tagVonJetzt } from './zeit.js';
 
 /**
  * Statistik (E93): die letzten N Tage auf einen Blick – erledigte To-dos, Fokusminuten, Gewohnheiten.
@@ -13,7 +14,7 @@ const tagVon = (ms: number) => new Date(ms).toLocaleDateString('sv-SE', { timeZo
 export async function statistik(o: { db: DB; uhr: Uhr; todos: TodoDienst; gewohnheiten?: Gewohnheiten }, anzahl = 28): Promise<Statistik> {
   const jetzt = o.uhr.jetzt();
   const tage: string[] = [];
-  for (let i = anzahl - 1; i >= 0; i--) tage.push(tagVon(jetzt - i * 86_400_000));
+  for (let i = anzahl - 1; i >= 0; i--) tage.push(tagVonJetzt(jetzt, -i));
   const erst = tage[0]!;
 
   const erledigt = new Map<string, number>();

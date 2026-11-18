@@ -2,6 +2,7 @@ import type { Uhr } from './uhr.js';
 import type { VaultDienst } from './vault/dienst.js';
 import { DorfFehler } from './fehler.js';
 import { zeitpunktAus } from './todo-erinnerungen.js';
+import { tagVonJetzt } from './zeit.js';
 
 /**
  * Schnelle Notizen (E95): Gedanke festhalten, ohne ihn einzuordnen – je Tag eine Datei `Rathaus/notizen/JJJJ-MM-TT.md`
@@ -30,6 +31,8 @@ export class Notizen {
       const neu = d ? `${d.inhalt.replace(/\s*$/, '')}\n${zeile}\n` : `${kopf}${zeile}\n`;
       const r = await this.o.vault.schreiben(pfad, neu, d ? { basisVersion: d.version } : { nurNeu: true }).catch((e) => (versuch === 0 ? null : Promise.reject(e)));
       if (r && !r.konflikt) return { pfad, zeile };
+      // die Konfliktkopie enthielte nur dieselbe Notiz doppelt – weg damit (Papierkorb), dann neu anhängen (Review)
+      if (r?.konfliktPfad) await this.o.vault.loeschen(r.konfliktPfad).catch(() => undefined);
     }
     throw new DorfFehler(409, 'Die Notiz konnte nicht gespeichert werden – bitte noch einmal.');
   }
@@ -38,7 +41,7 @@ export class Notizen {
   async letzte(tage = 7) {
     const aus: { tag: string; pfad: string; zeilen: string[] }[] = [];
     for (let i = 0; i < tage; i++) {
-      const tag = zeitpunktAus(this.o.uhr.jetzt() - i * 86_400_000).slice(0, 10);
+      const tag = tagVonJetzt(this.o.uhr.jetzt(), -i);
       const d = await this.o.vault.lesen(this.pfad(tag)).catch(() => null);
       if (d) aus.push({ tag, pfad: this.pfad(tag), zeilen: d.inhalt.split('\n').filter((z) => /^- \d{2}:\d{2} /.test(z)) });
     }

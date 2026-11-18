@@ -808,3 +808,22 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - **Anzeige:** Telegram zeigt „2/3 diese Woche“, der Wochenrückblick „Sport 3/3 (🔥 2 Wochen)“.
 - In der Tagesquote der Statistik zählen solche Gewohnheiten nicht mit, weil kein Tag „fällig“ ist. Sonst sähe ein freier Tag wie ein verpasster aus.
 - Warum: Viele Vorsätze lauten „dreimal die Woche“, nicht „jeden Montag, Mittwoch, Freitag“. Ohne diese Form wäre die Serie bei Sport ständig gerissen.
+
+## E111 – Review der Nacht: Korrekturen (Nacht 18./19.11.)
+
+Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Sicherheit oder Leine, aber diese echten Fehler. Alle sind behoben und mit Tests abgesichert:
+
+- **Eigene Felder blieben nicht erhalten:** Was Leif in Obsidian in `Uni/noten.md` oder `Marktplatz/gewohnheiten.md` zusätzlich an einen Eintrag schreibt (z. B. `pruefer`, `notiz`), ging beim nächsten Speichern aus der App verloren. Jetzt wird die rohe Liste weitergeschrieben bzw. der Eintrag ergänzt statt ersetzt. Standardwerte (`symbol: ✅`) landen nicht mehr in der Datei.
+- **Sommerzeit:** „morgen“, „nächste Woche“ und die Tagesreihen der Statistik wurden mit `jetzt ± 24 h` gerechnet. An 23- bzw. 25-Stunden-Tagen lag das einen Tag daneben, z. B. landete „🌅 Morgen 9:00“ am falschen Tag oder die Statistik zeigte einen Tag doppelt. Neu ist `zeit.ts` (`tagVonJetzt`, `tagPlus`): Es wird mit Kalendertagen in Wien gerechnet.
+- **Lernzeit bis zur Frist:** Lag die Frist am Fristtag früher als die aktuelle Uhrzeit, fiel der ganze Fristtag aus dem Vorschlag. Jetzt läuft die Suche über Kalendertage bis einschließlich zum Fristtag.
+- **Monatlich ab dem 31.:** Die Wiederholung blieb nach dem Februar dauerhaft beim 28. Jetzt merkt sich das To-do den ursprünglichen Tag (`wiederholen_tag`): 31.01. → 28.02. → 31.03.
+- **Wiederkehrendes halb abgehakt:** Der Nachfolger wird jetzt geprüft, *bevor* das Original als erledigt gespeichert wird; zu lange Felder aus Obsidian werden gekürzt. Der Vermerk `wiederholt` wird bei gleichzeitigem Schreiben neu versucht, damit kein zweiter Nachfolger entsteht.
+- **Wochenziele nach Nummer:** Abhaken und Entfernen in der App schicken jetzt auch den angezeigten Text mit. Hat sich die Datei inzwischen geändert, gibt es 409 statt eines falsch getroffenen Ziels.
+- **Telegram:**
+  - Lange Nachrichten werden an einer ganzen Zeile gekürzt statt mitten in einem Tag; Telegram hätte sie sonst ganz abgelehnt.
+  - Knopftexte werden nach Zeichen gekürzt, damit kein Emoji zerteilt wird.
+  - Gewohnheits-Knöpfe tragen das Datum: Ein Tipp nach Mitternacht auf die Nachricht von gestern hakt gestern ab. Ältere Knöpfe gelten weiter für heute.
+  - Der Prüfungs-Wächter merkt sich jede Frage sofort und fragt nicht während einer Fokusphase.
+- **Erinnerungen in allen Listen:** Einkauf, Wunsch und Corps läuten jetzt auch, und „Erledigt“ bzw. „+1 h“ trifft die richtige Liste.
+- **Notizen:** Bei gleichzeitigem Schreiben kommt die überflüssige Konfliktkopie (nur die doppelte Notiz) in den Papierkorb.
+- **Wackelnder Test:** Der Test „Freigabe-Knöpfe“ wartet jetzt, bis die Meldung da ist, statt fest 20 ms.

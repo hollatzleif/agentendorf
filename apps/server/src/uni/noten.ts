@@ -17,7 +17,7 @@ const Eintrag = z.object({
   ects: z.number().min(0).max(60).default(0),
   note: z.union([z.number().int().min(1).max(5), z.literal('bestanden')]).nullable().optional(),
   semester: z.string().trim().max(20).optional(),
-});
+}).passthrough(); // Review: eigene Felder aus Obsidian (z. B. pruefer, datum) bleiben erhalten
 type EintragT = z.infer<typeof Eintrag>;
 const Datei = z.object({ ziel_ects: z.number().min(0).max(600).optional(), faecher: z.array(Eintrag).max(200).default([]) });
 
@@ -72,9 +72,15 @@ export class Noten {
     const e = Eintrag.parse(roh);
     return this.schreiben((d) => {
       const i = d.faecher.findIndex((x) => x.fach.toLowerCase() === e.fach.toLowerCase());
-      const sauber: EintragT = { fach: e.fach, ects: e.ects, ...(e.note != null ? { note: e.note } : {}), ...(e.semester ? { semester: e.semester } : {}) };
-      if (i >= 0) d.faecher[i] = sauber;
-      else d.faecher.push(sauber);
+      // bestehenden Eintrag ergänzen statt ersetzen – unbekannte Felder bleiben
+      const basis: Record<string, unknown> = i >= 0 ? { ...d.faecher[i] } : {};
+      Object.assign(basis, { fach: e.fach, ects: e.ects });
+      if (e.note != null) basis.note = e.note;
+      else delete basis.note;
+      if (e.semester) basis.semester = e.semester;
+      else delete basis.semester;
+      if (i >= 0) d.faecher[i] = basis as EintragT;
+      else d.faecher.push(basis as EintragT);
     });
   }
 

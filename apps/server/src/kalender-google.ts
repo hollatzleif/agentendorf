@@ -5,6 +5,7 @@ import type { Terminkalender } from './kalender.js';
 import { ortszeitZuUtc, type IcsTermin } from './uni/ical.js';
 import type { LiveHub } from './live.js';
 import { DorfFehler } from './fehler.js';
+import { tagIn, tagPlus } from './zeit.js';
 
 /**
  * Kalender auf dem Marktplatz (E75): Leifs Google Calendar über die Calendar API v3 (Doku developers.google.com,
@@ -332,9 +333,9 @@ export class GoogleKalender {
     for (const f of this.o.uni?.fristen() ?? []) if ((f.art === 'pflicht' || f.art === 'test') && f.frist && f.ende) belegt.push([Date.parse(f.frist) - puffer, Date.parse(f.ende) + puffer]);
     belegt.sort((a, b) => a[0] - b[0]);
     const aus: { start: string; ende: string }[] = [];
-    const tagMs = (ms: number) => new Date(ms).toLocaleDateString('sv-SE', { timeZone: ZONE });
-    for (let tagStart = jetzt; tagStart < bis && aus.length < (o.anzahl ?? 5); tagStart += 86_400_000) {
-      const tag = tagMs(tagStart);
+    // über Kalendertage (Wien) – auch der Fristtag selbst, wenn die Frist erst später am Tag ist
+    const letzterTag = tagIn(bis - 1);
+    for (let tag = tagIn(jetzt); tag <= letzterTag && aus.length < (o.anzahl ?? 5); tag = tagPlus(tag, 1)) {
       const [j, m, t] = tag.split('-').map(Number) as [number, number, number];
       // auf volle Viertelstunde nach jetzt runden
       let a = Math.max(ortszeitZuUtc(j, m, t, tagVon, 0, 0, ZONE), Math.ceil((jetzt + 30 * 60_000) / (15 * 60_000)) * 15 * 60_000);
