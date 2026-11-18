@@ -12,6 +12,7 @@ import type { MoodleKlient } from '../src/uni/moodle.js';
 import type { KalenderQuelle } from '../src/uni/abgleich.js';
 import type { GmailKlient } from '../src/post/gmail.js';
 import type { ModellKlient } from '../src/agenten/motor-api.js';
+import type { MoodleBrowserKlient } from '../src/agenten/moodle-browser.js';
 
 export const ORIGIN = 'https://dorf.test';
 
@@ -30,6 +31,7 @@ export async function testDorf(
     google?: { fristen?: KalenderQuelle; pflicht?: KalenderQuelle; termine?: KalenderQuelle };
     gmail?: GmailKlient;
     ki?: () => ModellKlient;
+    moodleBrowser?: MoodleBrowserKlient;
   } = {},
 ) {
   const daten = tempOrdner();
@@ -52,6 +54,7 @@ export async function testDorf(
     google: opt.google,
     gmail: opt.gmail,
     ki: opt.ki,
+    moodleBrowser: opt.moodleBrowser,
   });
   return { ...d, uhr, konfig, daten };
 }

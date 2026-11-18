@@ -135,6 +135,16 @@ Die JKU sperrt den Zugang für die Moodle-App. Deshalb holt das Dorf nur die **T
 
 > `dorf moodle-anmelden` (der App-Weg) bleibt im Dorf, falls die JKU den App-Zugang je freischaltet.
 
+**Moodle-Browser (Agent, der Moodle selbst durchsieht):** Ein eigener Container mit Chromium meldet sich mit deinem JKU-Login an und darf **nur lesen**. Abgeben, Formulare senden, „als erledigt markieren“ und Abmelden sind technisch gesperrt, ebenso jede Seite außerhalb von jku.at.
+1. Auf dem Server (erst möglich, wenn `dorf status` einen Dienst `browser` zeigt; das passiert nach dem übernächsten Deploy automatisch):
+   ```bash
+   dorf moodle-browser-zugang
+   ```
+   Das Skript fragt Benutzername (k-Nummer) und Passwort, die Eingabe ist unsichtbar. Gespeichert wird nur in `/srv/dorf/browser.env`, die bekommt allein der Browser-Container. Danach meldet es sich zur Probe an und sagt „angemeldet“ oder warum nicht.
+2. Führt die JKU-Anmeldung auf eine Domain außerhalb von jku.at (die Meldung nennt sie), gibst du sie beim nächsten Aufruf bei „Erlaubte Domains“ zusätzlich an, z. B. `jku.at,login.beispiel.org`. Nur eintragen, wenn es wirklich die JKU-Anmeldung ist.
+3. In der App: **Uni → Aktionen → Moodle durchsehen**. Das Fach wählen und optional eine Frage stellen („Was muss ich bis Donnerstag vorbereiten?“). Der Agent holt neue Folien und Blätter nach `Uni/faecher/<Fach>/moodle/` und schreibt eine Übersicht: was ansteht, was schon abgegeben ist, was du vorbereiten solltest.
+4. Auch der Bürgermeister kann das bei seinen Rundgängen als Helfer losschicken (über dein Abo).
+
 ## 9. Post: Gmail verbinden (nur Lesen und Entwürfe)
 
 Das Dorf liest dein Gmail und legt höchstens **Entwürfe** an. Senden kann es nicht, weil die Anmeldung das gar nicht erlaubt.

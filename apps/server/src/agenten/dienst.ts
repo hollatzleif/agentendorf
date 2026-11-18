@@ -8,6 +8,7 @@ import type { LiveHub } from '../live.js';
 import { DorfFehler } from '../fehler.js';
 import { aktionLaden, eingabenAnwenden, type QuellenFn } from './aktionen.js';
 import { ablageOrdner, type RechenraumKlient } from './rechenraum.js';
+import type { MoodleBrowserKlient } from './moodle-browser.js';
 import type { GmailKlient } from '../post/gmail.js';
 import { BUERGERMEISTER_WERKZEUGE, LESE_WERKZEUGE, werkzeugprofil, type DorfWerkzeug } from './leine.js';
 import { kostenSchaetzen, motorenLaden, stufenLaden } from './modelle.js';
@@ -121,6 +122,8 @@ export class AgentenDienst {
   quellen: QuellenFn = () => [];
   /** Rechenraum (pdflatex/Python ohne Netz) – nur gesetzt, wenn eingerichtet */
   rechenraum?: RechenraumKlient;
+  /** Moodle-Browser (eigener Container) – nur für Aktionen mit werkzeuge: [moodle] */
+  moodleBrowser?: MoodleBrowserKlient;
   /** Gmail (nur Lesen + Entwürfe) – nur gesetzt, wenn verbunden */
   post?: GmailKlient;
 
@@ -397,6 +400,7 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
               ? { klient: this.rechenraum, ablage: ablageOrdner({ gebaeude: c.gebaeude, titel: c.titel, erstellt: c.erstellt, eingaben: JSON.parse(c.eingaben_json || '{}') }) }
               : undefined,
           post: profil.dorf.includes('post_lesen') ? this.post : undefined,
+          moodle: this.moodleBrowser && profil.dorf.includes('moodle_oeffnen') ? this.moodleBrowser : undefined,
         },
         c.rolle === 'buergermeister' ? this.rollenWerkzeuge : undefined,
       );
@@ -456,6 +460,8 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
     } finally {
       this.db.prepare('UPDATE laeufe SET status = ?, fehler = ?, ende = ? WHERE id = ?').run(status, fehler, this.uhr.jetzt(), laufId);
       this.db.prepare('UPDATE chats SET geaendert = ? WHERE id = ?').run(this.uhr.jetzt(), c.id);
+      // Browser-Seite dieses Laufs schließen (die Moodle-Anmeldung bleibt im Browser erhalten)
+      if (this.moodleBrowser && (JSON.parse(c.werkzeuge_json) as string[]).includes('moodle_oeffnen')) void this.moodleBrowser.schliessen(laufId);
       try {
         await chatSpiegeln(this.db, this.vault, c.id);
         await protokollSchreiben(this.db, this.vault, laufId, letzteAntwort);

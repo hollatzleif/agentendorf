@@ -21,6 +21,7 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
     motor-claude-code.ts  claude-code-Motor: Auftrag an die Werkstatt, stream-json-Parser
     motor-attrappe.ts     Motor ohne Tokenverbrauch (Tests, DORF_MOTOR_ATTRAPPE=1)
     system.ts       SystemAufrufe: ein api-Aufruf OHNE Werkzeuge mit JSON-Schema-Antwort, verbucht als System-Chat (Einordnung, Zeitung)
+    moodle-browser.ts Klient für den Moodle-Browser + Seitenauszug-Text; Werkzeuge moodle_* (werkzeuge.ts), nur mit werkzeuge: [moodle] + fremdinhalte
     rechenraum.ts   Klient für den Rechenraum + Ablage-Ordner (vom Code bestimmt) + erlaubte Endungen (.pdf/.tex)
     buergermeister.ts     Bürgermeister (Etappe 2b): aktionen_liste, helfer_starten (max. 1 ohne Plan), plan_vorlegen (max. 10),
                           Plan-Ausführung durch den CODE nach Freigabe, Abschluss genau einmal, Status der Schreibtisch-Aufgabe
@@ -59,6 +60,12 @@ apps/werkstatt  eigener Container: unverändertes claude-CLI (Version im Dockerf
 apps/rechenraum eigener Container: pdflatex (texlive), Python (numpy/sympy/scipy/matplotlib), poppler; runner.py nur
                 Standardbibliothek. Internes Netz ohne Internet, kein Vault, Arbeitsordner pro Chat, 120 s pro Befehl.
                 Image-Kennung = Hash(Dockerfile+runner.py), wird nur ausgeliefert, wenn der Server es nicht hat.
+apps/browser    Moodle-Browser (E57): Chromium über playwright-core + Runner (HTTP, Bearer-Geheimnis). leine.ts = DIE Regeln
+                (nur Domains aus BROWSER_HOSTS, GET ja außer sesskey/Abmelden, POST nur Anmeldeformular als Seiten-
+                navigation oder lesende Moodle-Ajax-Funktionen), browser.ts = Sitzung je Lauf, nummerierte Links,
+                automatische Anmeldung (SSO-Knopf + Formular, ein-/zweistufig), Download mit geprüften Weiterleitungen.
+                Zugangsdaten nur in /srv/dorf/browser.env (als Datei eingebunden, nicht env_file). Compose-Profil „browser“.
+                Tests: leine (pnpm test), gegen nachgebautes Moodle mit Chromium (pnpm --filter @dorf/browser e2e).
 packages/shared Typen für HTTP und WebSocket (LiveEreignis, VaultEintrag …) + Dorf-Layout-Regeln (dorf.ts) – wird in den Server gebündelt
 vault-vorlage   Startinhalt des Vaults (Stadtordnung, gebaeude.md je Gebäude). Wird nur in einen LEEREN Vault kopiert.
 deploy          compose.yml, Caddyfile, dorf (Server-Verwaltung), bootstrap.sh (Ersteinrichtung), test/ (Backup-/Deploy-Tests)
@@ -70,7 +77,7 @@ deploy          compose.yml, Caddyfile, dorf (Server-Verwaltung), bootstrap.sh (
 - Ein Gebäude = Ordner auf oberster Ebene mit `gebaeude.md` (Frontmatter per Zod geprüft; Fehler werden angezeigt, nicht verschluckt).
 - Schreibende Anfragen und WebSocket brauchen passende `Origin` (CSRF-Schutz) und ein gültiges Sitzungs-Cookie (`HttpOnly`, `Secure`, `SameSite=Strict`).
 - Rohdateien aus dem Vault werden mit `Content-Security-Policy: sandbox` ausgeliefert, HTML/SVG nur als Download (Vault-Inhalte können aus fremden Quellen stammen). Anzeigen lässt sich `.html` nur über `/api/vault/seite`: Skripte ja, aber undurchsichtiger Ursprung und kein Netz (E36).
-- Geheimnisse nur auf dem Server – nie im Repo, nie im Vault: `/srv/dorf/.env` (Dorf: ANTHROPIC_API_KEY, WERKSTATT_GEHEIMNIS, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, GOOGLE_FRISTEN_ICS, GOOGLE_PFLICHT_ICS, GOOGLE_TERMINE_ICS, GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN, MOODLE_KALENDER_URL, MOODLE_URL, MOODLE_TOKEN, RECHENRAUM_GEHEIMNIS), `/srv/dorf/rechenraum.env` (nur RECHENRAUM_GEHEIMNIS) und `/srv/dorf/werkstatt.env` (Werkstatt: CLAUDE_CODE_OAUTH_TOKEN, WERKSTATT_GEHEIMNIS). Der API-Schlüssel erreicht die Werkstatt nie, das Abo-Token das Dorf nie.
+- Geheimnisse nur auf dem Server – nie im Repo, nie im Vault: `/srv/dorf/.env` (Dorf: ANTHROPIC_API_KEY, WERKSTATT_GEHEIMNIS, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, GOOGLE_FRISTEN_ICS, GOOGLE_PFLICHT_ICS, GOOGLE_TERMINE_ICS, GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN, MOODLE_KALENDER_URL, MOODLE_URL, MOODLE_TOKEN, RECHENRAUM_GEHEIMNIS), `/srv/dorf/rechenraum.env` (nur RECHENRAUM_GEHEIMNIS), `/srv/dorf/browser.env` (nur Browser-Container: BROWSER_GEHEIMNIS, MOODLE_BENUTZER, MOODLE_PASSWORT, BROWSER_HOSTS, MOODLE_WEB_URL) und `/srv/dorf/werkstatt.env` (Werkstatt: CLAUDE_CODE_OAUTH_TOKEN, WERKSTATT_GEHEIMNIS). Der API-Schlüssel erreicht die Werkstatt nie, das Abo-Token das Dorf nie.
 - **Die Leine sitzt im Code** (`agenten/leine.ts`, `werkzeuge.ts`, Werkstatt-Argumente): Agenten haben kein eingebautes Schreiben/Shell, Außenwirkung nur über `freigabe_beantragen`, Ausführung erst nach Leifs Klick (`freigaben.ts`). Zeitgesteuerte Läufe des Bürgermeisters laufen über `api` mit Tagesbudget (`00_Stadtordnung/aufwachen.md`); Helfer, die er startet, über den Motor ihrer Aktion – meist claude-code/Abo (E56, ersetzt E51); Notschalter `alle_auf` übersteuert alles.
 - api-Verlauf wird **nur angehängt**, Antworten unverändert zurückgeschickt (Opus 5.5/Fable 5.2 prüfen das).
 

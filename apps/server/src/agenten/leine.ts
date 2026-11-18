@@ -25,7 +25,13 @@ export type DorfWerkzeug =
   | 'rechenraum_seite_ansehen'
   | 'rechenraum_ablegen'
   | 'post_lesen'
-  | 'post_entwurf';
+  | 'post_entwurf'
+  | 'moodle_oeffnen'
+  | 'moodle_klicken'
+  | 'moodle_seite'
+  | 'moodle_zurueck'
+  | 'moodle_bild'
+  | 'moodle_herunterladen';
 export const LESE_WERKZEUGE: DorfWerkzeug[] = ['vault_lesen', 'vault_liste', 'vault_suchen'];
 /** Nur Aktionen mit rolle: buergermeister bekommen diese Werkzeuge. */
 export const BUERGERMEISTER_WERKZEUGE: DorfWerkzeug[] = ['aktionen_liste', 'helfer_starten', 'plan_vorlegen'];
@@ -45,6 +51,12 @@ export const RECHENRAUM_WERKZEUGE: DorfWerkzeug[] = [
  * Entwurf nur als Antwort auf genau so eine Mail – kein frei wählbarer Empfänger, Senden gibt es nicht.
  */
 export const POST_WERKZEUGE: DorfWerkzeug[] = ['post_lesen', 'post_entwurf'];
+/**
+ * Nur Aktionen mit werkzeuge: [moodle] UND fremdinhalte: ja. Der Browser-Container liest nur (Leine dort: nur
+ * JKU-Domains, kein Formular-Senden, keine sesskey-Aktionen) – Moodle-Inhalte sind Fremdinhalt. Herunterladen
+ * landet nur in einem vom Code bestimmten Ordner unter Uni/.
+ */
+export const MOODLE_WERKZEUGE: DorfWerkzeug[] = ['moodle_oeffnen', 'moodle_klicken', 'moodle_seite', 'moodle_zurueck', 'moodle_bild', 'moodle_herunterladen'];
 /** Höchstens so viele Helfer pro Plan */
 export const MAX_HELFER_PRO_PLAN = 10;
 /** So viele Helfer darf der Bürgermeister pro Aufgabe ohne Plan starten (Leifs Vorgabe: ab 2 Helfern nur mit Plan) */
@@ -59,6 +71,8 @@ export interface Werkzeugprofil {
 export function aktionPruefen(a: { werkzeuge: AktionsWerkzeug[]; fremdinhalte: boolean }): string | null {
   if (a.fremdinhalte && a.werkzeuge.includes('web'))
     return 'Web-Werkzeuge und Fremdinhalte schließen sich aus (Stadtordnung, Abschnitt 5): Sonst könnte ein präparierter Inhalt Daten über eine Web-Adresse nach außen schicken.';
+  if (a.werkzeuge.includes('moodle') && !a.fremdinhalte) return 'Moodle-Werkzeuge nur mit „fremdinhalte: ja“ – Moodle-Seiten stammen von außen.';
+  if (a.werkzeuge.includes('moodle') && a.werkzeuge.includes('web')) return 'Moodle-Werkzeuge und Web-Werkzeuge schließen sich aus.';
   return null;
 }
 
@@ -69,6 +83,7 @@ export function werkzeugprofil(a: { werkzeuge: AktionsWerkzeug[]; fremdinhalte: 
   if (a.werkzeuge.includes('vault_schreiben')) dorf.push('vault_schreiben');
   if (a.werkzeuge.includes('rechenraum')) dorf.push(...RECHENRAUM_WERKZEUGE);
   if (a.werkzeuge.includes('post')) dorf.push(...POST_WERKZEUGE);
+  if (a.werkzeuge.includes('moodle')) dorf.push(...MOODLE_WERKZEUGE);
   return { dorf, web: a.werkzeuge.includes('web') && !a.fremdinhalte };
 }
 

@@ -21,6 +21,7 @@ import { telegramApi, type TelegramSchnittstelle } from './telegram/api.js';
 import { Uni, kalenderQuelle, type KalenderQuelle } from './uni/abgleich.js';
 import { moodleKlient, type MoodleKlient } from './uni/moodle.js';
 import { rechenraumKlient } from './agenten/rechenraum.js';
+import { moodleBrowserKlient, type MoodleBrowserKlient } from './agenten/moodle-browser.js';
 import { SystemAufrufe } from './agenten/system.js';
 import { sdkKlient, type ModellKlient } from './agenten/motor-api.js';
 import { Postbote } from './post/postbote.js';
@@ -37,6 +38,7 @@ const PFLICHT_DATEIEN = [
   '00_Stadtordnung/aufwachen.md',
   'Uni/aktionen/lernen.md',
   'Uni/aktionen/abgabe-bearbeiten.md',
+  'Uni/aktionen/moodle-durchsehen.md',
   'Post/aktionen/antwort-entwerfen.md',
 ];
 
@@ -72,6 +74,8 @@ export async function dorfStarten(
     ki?: () => ModellKlient;
     /** Für Tests: nachgebaute Google-Kalender */
     google?: { fristen?: KalenderQuelle; pflicht?: KalenderQuelle; termine?: KalenderQuelle };
+    /** Für Tests: nachgebauter Moodle-Browser */
+    moodleBrowser?: MoodleBrowserKlient;
   } = {},
 ) {
   const uhr = opt.uhr ?? systemUhr;
@@ -110,6 +114,8 @@ export async function dorfStarten(
   const motoren = typeof opt.motoren === 'function' ? opt.motoren(register) : (opt.motoren ?? motorenBauen(konfig, register));
   const agenten = new AgentenDienst(db, uhr, vault, suche, hub, motoren);
   if (konfig.rechenraumGeheimnis) agenten.rechenraum = rechenraumKlient(konfig.rechenraumUrl, konfig.rechenraumGeheimnis);
+  if (opt.moodleBrowser) agenten.moodleBrowser = opt.moodleBrowser;
+  else if (konfig.browserGeheimnis) agenten.moodleBrowser = moodleBrowserKlient(konfig.browserUrl, konfig.browserGeheimnis);
   const intern = await internBauen(register);
   const schreibtisch = new Schreibtisch(db, uhr, vault, hub);
   schreibtischRef.aktuell = schreibtisch;

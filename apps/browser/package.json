@@ -1,0 +1,21 @@
+{
+  "name": "@dorf/browser",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node bauen.mjs",
+    "typecheck": "tsc --noEmit -p .",
+    "test": "vitest run test/leine.test.ts",
+    "e2e": "vitest run test/runner.test.ts"
+  },
+  "dependencies": {
+    "playwright-core": "1.65.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}

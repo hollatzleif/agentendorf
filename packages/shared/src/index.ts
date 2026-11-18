@@ -87,7 +87,7 @@ export type Stufe = 'klein' | 'mittel' | 'gross';
 export type Aufwand = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export type LaufStatus = 'wartet_freigabe' | 'wartend' | 'laeuft' | 'fertig' | 'fehler' | 'abgebrochen';
 export type Ausloeser = 'klick' | 'zeitplan' | 'buergermeister';
-export type AktionsWerkzeug = 'vault_lesen' | 'vault_suchen' | 'vault_schreiben' | 'web' | 'rechenraum' | 'post';
+export type AktionsWerkzeug = 'vault_lesen' | 'vault_suchen' | 'vault_schreiben' | 'web' | 'rechenraum' | 'post' | 'moodle';
 
 export interface AktionEingabe {
   name: string;

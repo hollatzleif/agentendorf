@@ -29,6 +29,8 @@ const Schema = z.object({
   TELEGRAM_API_URL: z.string().default('https://api.telegram.org'),
   RECHENRAUM_URL: z.string().default('http://rechenraum:4100'),
   RECHENRAUM_GEHEIMNIS: z.string().optional(),
+  BROWSER_URL: z.string().default('http://browser:4200'),
+  BROWSER_GEHEIMNIS: z.string().optional(),
   MOODLE_URL: z.string().optional(),
   MOODLE_TOKEN: z.string().optional(),
   MOODLE_KALENDER_URL: z.string().optional(),
@@ -77,6 +79,8 @@ export interface Konfig {
   googlePflichtIcs?: string;
   rechenraumUrl: string;
   rechenraumGeheimnis?: string;
+  browserUrl: string;
+  browserGeheimnis?: string;
 }
 
 export function konfigLaden(env: NodeJS.ProcessEnv = process.env): Konfig {
@@ -115,5 +119,7 @@ export function konfigLaden(env: NodeJS.ProcessEnv = process.env): Konfig {
     googlePflichtIcs: e.GOOGLE_PFLICHT_ICS || undefined,
     rechenraumUrl: e.RECHENRAUM_URL,
     rechenraumGeheimnis: e.RECHENRAUM_GEHEIMNIS || undefined,
+    browserUrl: e.BROWSER_URL,
+    browserGeheimnis: e.BROWSER_GEHEIMNIS || undefined,
   };
 }

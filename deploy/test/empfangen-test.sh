@@ -13,13 +13,13 @@ source "$HIER/../dorf"
 BILDER=$(mktemp -d)
 docker() {
   case "$1" in
-    load) local inhalt; inhalt=$(cat); case "$inhalt" in rr:*) touch "$BILDER/${inhalt#rr:}" ;; esac ;;
+    load) local inhalt; inhalt=$(cat); case "$inhalt" in rr:*) touch "$BILDER/${inhalt#rr:}" ;; bb:*) touch "$BILDER/b-${inhalt#bb:}" ;; esac ;;
     image)
       case "$2" in
-        inspect) [ -e "$BILDER/${3#agentendorf-rechenraum:}" ] ;;
-        rm) shift 2; local b; for b in "$@"; do rm -f "$BILDER/${b#agentendorf-rechenraum:}"; done ;;
+        inspect) case "$3" in agentendorf-browser:*) [ -e "$BILDER/b-${3#agentendorf-browser:}" ] ;; *) [ -e "$BILDER/${3#agentendorf-rechenraum:}" ] ;; esac ;;
+        rm) shift 2; local b; for b in "$@"; do case "$b" in agentendorf-browser:*) rm -f "$BILDER/b-${b#agentendorf-browser:}" ;; *) rm -f "$BILDER/${b#agentendorf-rechenraum:}" ;; esac; done ;;
       esac ;;
-    images) ls -1 "$BILDER" ;;
+    images) if [ "$2" = agentendorf-browser ]; then find "$BILDER" -name 'b-*' -printf '%f\n' | sed 's/^b-//'; else find "$BILDER" -type f ! -name 'b-*' -printf '%f\n'; fi ;;
     *) : ;;
   esac
 }
@@ -28,8 +28,12 @@ GESUND=ja
 gesund_warten() { [ "$GESUND" = ja ]; }
 fehler() { echo "FEHLER: $*" >&2; exit 1; }
 
-buendel() { # version [rechenraum-kennung [mit-image]]
+buendel() { # version [rechenraum-kennung [mit-image]]   (BROWSER=kennung[:mit] in der Umgebung → Browser-Image)
   local d dateien=(VERSION deploy image.tar.gz); d=$(mktemp -d)
+  if [ -n "${BROWSER:-}" ]; then
+    echo "${BROWSER%%:*}" > "$d/BROWSER_VERSION"; dateien+=(BROWSER_VERSION)
+    if [ "${BROWSER#*:}" = mit ]; then printf 'bb:%s' "${BROWSER%%:*}" | gzip > "$d/browser.tar.gz"; dateien+=(browser.tar.gz); fi
+  fi
   echo "$1" > "$d/VERSION"; cp -r "$HIER/.." "$d/deploy"
   echo "image" | gzip > "$d/image.tar.gz"
   if [ -n "${2:-}" ]; then
@@ -87,4 +91,26 @@ for v in v10 v11 v12; do cmd_empfangen < "$(buendel $v $RC "$([ $v = v10 ] && ec
 [ ! -e "$BILDER/$RA" ] || fehler "nicht mehr gebrauchtes Rechenraum-Image $RA wurde nicht entfernt"
 [ -e "$BILDER/$RC" ] || fehler "gebrauchtes Rechenraum-Image $RC wurde entfernt"
 echo "Alte Rechenraum-Images aufräumen: bestanden"
+
+# Moodle-Browser: Image nur bei Bedarf, fehlendes Image stoppt, Kennung landet in BROWSER_VERSION (→ Compose-Profil)
+BA=1111111111111111; BB=2222222222222222
+[ ! -f "$AKTUELL/BROWSER_VERSION" ] || fehler "ohne Browser-Image darf es keine BROWSER_VERSION geben"
+BROWSER="$BA:mit" cmd_empfangen < "$(BROWSER="$BA:mit" buendel v13 $RC)" >/dev/null || fehler "v13 mit Browser-Image"
+[ "$(cat "$AKTUELL/BROWSER_VERSION")" = $BA ] || fehler "BROWSER_VERSION nicht übernommen"
+BROWSER="$BA" cmd_empfangen < "$(BROWSER="$BA" buendel v14 $RC)" >/dev/null || fehler "v14 ohne Image, aber Server hat es"
+if cmd_empfangen < "$(BROWSER="$BB" buendel v15 $RC)" >/dev/null 2>&1; then fehler "v15 ohne vorhandenes Browser-Image angenommen"; fi
+[ "$(cat "$AKTUELL/VERSION")" = v14 ] || fehler "nach fehlendem Browser-Image sollte v14 aktiv bleiben"
+[ "$(SSH_ORIGINAL_COMMAND="hat-browser $BA" cmd_ci)" = ja ] || fehler "hat-browser $BA sollte ja sein"
+[ "$(SSH_ORIGINAL_COMMAND="hat-browser $BB" cmd_ci)" = nein ] || fehler "hat-browser $BB sollte nein sein"
+( SSH_ORIGINAL_COMMAND="hat-browser $BA; rm -rf /" cmd_ci ) >/dev/null 2>&1 && fehler "hat-browser mit Anhang erlaubt"
+echo "Browser-Image nur bei Bedarf, hat-browser: bestanden"
+# Compose bekommt das Profil „browser“ genau dann, wenn die Version eine BROWSER_VERSION hat
+# echte compose()-Funktion aus dem Skript wiederherstellen (oben durch eine Attrappe ersetzt)
+# shellcheck disable=SC1090
+source <(sed -n '/^compose() {/,/^}/p' "$HIER/../dorf")
+docker() { [ "$1" = compose ] && echo "BV=$BROWSER_VERSION PROFIL=$COMPOSE_PROFILES"; }
+[ "$(compose ps)" = "BV=$BA PROFIL=browser" ] || fehler "Compose-Profil fehlt: $(compose ps)"
+rm "$AKTUELL/BROWSER_VERSION"
+[ "$(compose ps)" = "BV=fehlt PROFIL=" ] || fehler "ohne BROWSER_VERSION darf kein Profil gesetzt sein: $(compose ps)"
+echo "Compose-Profil für den Browser: bestanden"
 echo "ALLE EMPFANGS-TESTS BESTANDEN"

@@ -42,7 +42,7 @@ services:
     security_opt:
       - no-new-privileges:true
     mem_limit: 768m
-    networks: [default, rechennetz]
+    networks: [default, rechennetz, browsernetz]
     # kein Port nach außen – nur Caddy spricht mit dem Dorf (3000); die Werkstatt ruft Werkzeuge über 3001 auf
 
   werkstatt:
@@ -95,6 +95,33 @@ services:
     cpus: 1.0
     pids_limit: 256
 
+  browser:
+    # Chromium für den Moodle-Browser-Agenten (nur lesen; Leine im Runner: nur JKU-Domains, kein Formular-Senden).
+    # Kennt Leifs JKU-Zugang (browser.env, als Datei eingebunden), sonst nichts: kein Vault, keine anderen Schlüssel.
+    # Startet nur, wenn die Version ein Browser-Image mitbringt (Profil „browser“, setzt ./dorf).
+    profiles: [browser]
+    image: agentendorf-browser:${BROWSER_VERSION:-fehlt}
+    restart: unless-stopped
+    environment:
+      TZ: Europe/Vienna
+      HOME: /tmp
+      BROWSER_KONFIG: /geheim/browser.env
+    user: "1000:1000"
+    read_only: true
+    networks: [browsernetz]
+    volumes:
+      - /srv/dorf/browser.env:/geheim/browser.env:ro
+      - type: tmpfs
+        target: /tmp
+        tmpfs: { mode: 01777, size: 536870912 }
+    shm_size: 256m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    cpus: 1.0
+    pids_limit: 512
+
   syncthing:
     image: syncthing/syncthing:2
     restart: unless-stopped
@@ -118,6 +145,8 @@ networks:
   # Nur Dorf ↔ Rechenraum, ohne Weg ins Internet
   rechennetz:
     internal: true
+  # Dorf ↔ Moodle-Browser; der Browser braucht Internet (moodle.jku.at), die Leine im Runner begrenzt auf JKU
+  browsernetz: {}
 
 volumes:
   caddy-daten:

@@ -21,10 +21,14 @@ gruen() { printf '\033[32m%s\033[0m\n' "$*"; }
 info() { printf '» %s\n' "$*"; }
 
 compose() {
-  local version rv
+  local version rv bv profile=""
   version=$(cat "$AKTUELL/VERSION" 2>/dev/null || echo latest)
   rv=$(cat "$AKTUELL/RECHENRAUM_VERSION" 2>/dev/null || echo fehlt)
-  DORF_VERSION="$version" RECHENRAUM_VERSION="$rv" docker compose --project-name dorf --env-file "$ENV_DATEI" -f "$AKTUELL/deploy/compose.yml" "$@"
+  # Moodle-Browser nur, wenn diese Version ein Browser-Image mitbringt (Compose-Profil „browser“)
+  bv=$(cat "$AKTUELL/BROWSER_VERSION" 2>/dev/null || echo fehlt)
+  [ "$bv" = fehlt ] || profile=browser
+  DORF_VERSION="$version" RECHENRAUM_VERSION="$rv" BROWSER_VERSION="$bv" COMPOSE_PROFILES="$profile" \
+    docker compose --project-name dorf --env-file "$ENV_DATEI" -f "$AKTUELL/deploy/compose.yml" "$@"
 }
 
 # Gesundheitsprüfung eines Dienstes von innen (Rechenraum hat Python statt Node)
@@ -38,10 +42,11 @@ gesund_pruefen() { # dienst port pfad
 
 gesund_warten() {
   local eintrag dienst port pfad ok
-  for eintrag in dorf:3000:/api/gesundheit werkstatt:4000:/gesundheit rechenraum:4100:/gesundheit; do
+  for eintrag in dorf:3000:/api/gesundheit werkstatt:4000:/gesundheit rechenraum:4100:/gesundheit browser:4200:/gesundheit; do
     IFS=: read -r dienst port pfad <<< "$eintrag"
-    # ältere Versionen (vor Etappe 3) haben keinen Rechenraum
+    # ältere Versionen (vor Etappe 3) haben keinen Rechenraum, Versionen ohne Browser-Image keinen Browser
     [ "$dienst" != rechenraum ] || [ -f "$AKTUELL/RECHENRAUM_VERSION" ] || continue
+    [ "$dienst" != browser ] || [ -f "$AKTUELL/BROWSER_VERSION" ] || continue
     ok=nein
     for _ in $(seq 1 60); do
       if gesund_pruefen "$dienst" "$port" "$pfad"; then
@@ -81,6 +86,20 @@ geheimnisse_sicherstellen() {
   [ -n "$uid" ] && chown "$uid:$uid" "$BASIS/rechenraum.env" 2>/dev/null || true
   mkdir -p "$BASIS/claude"
   [ -n "$uid" ] && chown "$uid:$uid" "$BASIS/claude" "$BASIS/werkstatt.env" 2>/dev/null || true
+  # Moodle-Browser: eigenes Geheimnis; browser.env (Leifs JKU-Zugang) bekommt NUR der Browser-Container
+  if ! grep -qE '^BROWSER_GEHEIMNIS=.{32,}' "$ENV_DATEI"; then
+    g=$(zufall 40)
+    sed -i '/^BROWSER_GEHEIMNIS=/d' "$ENV_DATEI"
+    echo "BROWSER_GEHEIMNIS=$g" >> "$ENV_DATEI"
+  fi
+  g=$(grep -E '^BROWSER_GEHEIMNIS=' "$ENV_DATEI" | cut -d= -f2)
+  if [ ! -f "$BASIS/browser.env" ]; then
+    printf '# Nur für den Moodle-Browser-Container. Zugang setzen mit: dorf moodle-browser-zugang\nBROWSER_GEHEIMNIS=%s\nMOODLE_WEB_URL=https://moodle.jku.at\nBROWSER_HOSTS=jku.at\nMOODLE_BENUTZER=\nMOODLE_PASSWORT=\n' "$g" > "$BASIS/browser.env"
+  else
+    sed -i "s/^BROWSER_GEHEIMNIS=.*/BROWSER_GEHEIMNIS=$g/" "$BASIS/browser.env"
+  fi
+  chmod 600 "$BASIS/browser.env"
+  [ -n "$uid" ] && chown "$uid:$uid" "$BASIS/browser.env" 2>/dev/null || true
 }
 
 cmd_deploy() {
@@ -93,7 +112,7 @@ cmd_deploy() {
 # Wird von GitHub Actions per SSH aufgerufen (erzwungener Befehl). Erwartet ein tar.gz-Bündel auf stdin:
 #   VERSION, deploy/…, image.tar.gz, RECHENRAUM_VERSION und – nur wenn der Server es noch nicht hat – rechenraum.tar.gz
 cmd_empfangen() {
-  local tmp version ziel vorher rv
+  local tmp version ziel vorher rv bv
   tmp=$(mktemp -d)
   # Aufräumen beim Verlassen dieser Funktion – die Falle entfernt sich selbst, sonst feuert sie später erneut.
   trap 'rm -rf "${tmp:-}"; trap - RETURN' RETURN
@@ -101,6 +120,16 @@ cmd_empfangen() {
   version=$(tr -cd 'a-zA-Z0-9._-' < "$tmp/VERSION")
   [ -n "$version" ] || { rot "Bündel ohne VERSION"; return 1; }
   rv=""
+  bv=""
+  if [ -f "$tmp/BROWSER_VERSION" ]; then
+    bv=$(tr -cd 'a-f0-9' < "$tmp/BROWSER_VERSION")
+    [[ "$bv" =~ ^[a-f0-9]{16}$ ]] || { rot "Ungültige BROWSER_VERSION"; return 1; }
+    if [ -f "$tmp/browser.tar.gz" ]; then
+      info "Lade Browser-Image $bv …"
+      gunzip -c "$tmp/browser.tar.gz" | docker load
+    fi
+    docker image inspect "agentendorf-browser:$bv" >/dev/null 2>&1 || { rot "Browser-Image $bv fehlt auf dem Server und war nicht im Bündel."; return 1; }
+  fi
   if [ -f "$tmp/RECHENRAUM_VERSION" ]; then
     rv=$(tr -cd 'a-f0-9' < "$tmp/RECHENRAUM_VERSION")
     [[ "$rv" =~ ^[a-f0-9]{16}$ ]] || { rot "Ungültige RECHENRAUM_VERSION"; return 1; }
@@ -116,6 +145,7 @@ cmd_empfangen() {
   cp -r "$tmp/deploy" "$ziel/deploy"
   echo "$version" > "$ziel/VERSION"
   [ -z "$rv" ] || echo "$rv" > "$ziel/RECHENRAUM_VERSION"
+  [ -z "$bv" ] || echo "$bv" > "$ziel/BROWSER_VERSION"
   info "Lade Image …"
   gunzip -c "$tmp/image.tar.gz" | docker load
   vorher=$(readlink -f "$AKTUELL" 2>/dev/null || true)
@@ -128,6 +158,7 @@ cmd_empfangen() {
       rm -rf "$alt"
     done
     rechenraum_aufraeumen
+    browser_aufraeumen
     gruen "Deploy von $version erfolgreich."
   else
     if [ -n "$vorher" ] && [ "$vorher" != "$ziel" ]; then
@@ -149,7 +180,17 @@ rechenraum_aufraeumen() {
   done
 }
 
-# Erzwungener SSH-Befehl für den CI-Schlüssel: erlaubt nur "empfangen", "status" und "hat-image <16 Hex-Zeichen>".
+# Browser-Images, die keine behaltene Version mehr braucht, entfernen.
+browser_aufraeumen() {
+  local behalten tag
+  behalten=$(cat "$APP"/releases/*/BROWSER_VERSION 2>/dev/null || true)
+  docker images agentendorf-browser --format '{{.Tag}}' 2>/dev/null | while read -r tag; do
+    [ -n "$tag" ] || continue
+    grep -qx "$tag" <<< "$behalten" || docker image rm "agentendorf-browser:$tag" >/dev/null 2>&1 || true
+  done
+}
+
+# Erzwungener SSH-Befehl für den CI-Schlüssel: erlaubt nur "empfangen", "status", "hat-image <16 Hex>" und "hat-browser <16 Hex>".
 cmd_ci() {
   local befehl=${SSH_ORIGINAL_COMMAND:-}
   case "$befehl" in
@@ -159,6 +200,10 @@ cmd_ci() {
       local rv=${befehl#hat-image }
       [[ "$rv" =~ ^[a-f0-9]{16}$ ]] || { rot "Nicht erlaubt: $befehl"; exit 1; }
       if docker image inspect "agentendorf-rechenraum:$rv" >/dev/null 2>&1; then echo ja; else echo nein; fi ;;
+    "hat-browser "*)
+      local bv=${befehl#hat-browser }
+      [[ "$bv" =~ ^[a-f0-9]{16}$ ]] || { rot "Nicht erlaubt: $befehl"; exit 1; }
+      if docker image inspect "agentendorf-browser:$bv" >/dev/null 2>&1; then echo ja; else echo nein; fi ;;
     *) rot "Nicht erlaubt: $befehl"; exit 1 ;;
   esac
 }
@@ -337,6 +382,40 @@ cmd_moodle_anmelden() {
   gruen "Moodle verbunden. Der erste Abgleich startet in einer Minute (Uni → Übersicht → 'Jetzt abgleichen' geht sofort)."
 }
 
+# Moodle-Browser: JKU-Zugangsdaten nur in browser.env (liest nur der Browser-Container), dann Anmeldung prüfen.
+cmd_moodle_browser_zugang() {
+  local benutzer passwort hosts neu uid datei="$BASIS/browser.env"
+  [ -f "$AKTUELL/BROWSER_VERSION" ] || { rot "Diese Version hat noch keinen Moodle-Browser – nach dem nächsten Deploy erneut versuchen."; return 1; }
+  geheimnisse_sicherstellen
+  info "Dein JKU-Login (wie bei moodle.jku.at). Wird nur auf diesem Server in $datei gespeichert."
+  read -r -p "Benutzername (z. B. k12345678): " benutzer
+  benutzer=$(printf '%s' "$benutzer" | tr -d '\r\n ')
+  [[ "$benutzer" =~ ^[A-Za-z0-9._@-]{2,80}$ ]] || { rot "Ungültiger Benutzername."; return 1; }
+  read -r -s -p "Passwort (unsichtbar): " passwort; echo
+  [ -n "$passwort" ] || { rot "Abgebrochen."; return 1; }
+  case "$passwort" in *$'\n'*|*$'\r'*) rot "Passwort mit Zeilenumbruch geht nicht."; return 1 ;; esac
+  hosts=$(sed -n 's/^BROWSER_HOSTS=//p' "$datei" | tail -1)
+  read -r -p "Erlaubte Domains [${hosts:-jku.at}] (Enter = so lassen): " neu
+  neu=$(printf '%s' "${neu:-}" | tr -d '\r ')
+  [ -z "$neu" ] || hosts=$neu
+  [[ "${hosts:-jku.at}" =~ ^[a-z0-9.,-]+$ ]] || { rot "Ungültige Domains (nur z. B. jku.at,login.example.org)."; return 1; }
+  # Zeilen ersetzen, ohne das Passwort durch sed zu schicken
+  grep -vE '^(MOODLE_BENUTZER|MOODLE_PASSWORT|BROWSER_HOSTS)=' "$datei" > "$datei.neu" || true
+  { printf 'MOODLE_BENUTZER=%s\n' "$benutzer"; printf 'MOODLE_PASSWORT=%s\n' "$passwort"; printf 'BROWSER_HOSTS=%s\n' "${hosts:-jku.at}"; } >> "$datei.neu"
+  chmod 600 "$datei.neu" && mv "$datei.neu" "$datei"
+  uid=$(grep -E '^DORF_UID=' "$ENV_DATEI" | cut -d= -f2 || true)
+  [ -n "$uid" ] && chown "$uid:$uid" "$datei" 2>/dev/null || true
+  compose up -d --force-recreate browser dorf
+  info "Prüfe die Anmeldung bei Moodle (bis zu einer Minute) …"
+  sleep 5
+  if compose exec -T browser node runner.js pruefen; then
+    gruen "Moodle-Browser angemeldet. In der App: Uni → Aktionen → Moodle durchsehen."
+  else
+    rot "Anmeldung hat nicht geklappt (Meldung oben). Daten prüfen und 'dorf moodle-browser-zugang' erneut ausführen."
+    return 1
+  fi
+}
+
 # Gmail anmelden (OAuth, nur Lesen + Entwürfe). Client-ID/-Schlüssel aus Leifs eigenem Google-Cloud-Projekt.
 cmd_gmail_anmelden() {
   local id secret aus adresse verifier state rueck token
@@ -452,6 +531,7 @@ Agentendorf – Befehle auf dem Server
   dorf google-kalender           Uni: Google-Kalender eintragen (Moodle-Fristen aus deinem Skript, JKU Pflicht)
   dorf moodle-kalender           (alt) Fristen direkt aus dem Moodle-Kalender-Export
   dorf moodle-anmelden [url]     Moodle-App-Zugang (an der JKU derzeit gesperrt)
+  dorf moodle-browser-zugang     JKU-Login für den Moodle-Browser-Agenten hinterlegen und Anmeldung prüfen
 
   dorf backup                    Sicherung jetzt (läuft sonst täglich 03:30)
   dorf restore-test [stand]      Wiederherstellung in Testordner prüfen
@@ -487,6 +567,7 @@ case "$befehl" in
   api-schluessel) cmd_api_schluessel ;;
   telegram-einrichten) cmd_telegram_einrichten ;;
   moodle-anmelden) cmd_moodle_anmelden "$@" ;;
+  moodle-browser-zugang) cmd_moodle_browser_zugang ;;
   moodle-kalender) cmd_moodle_kalender ;;
   google-kalender) cmd_google_kalender ;;
   gmail-anmelden) cmd_gmail_anmelden ;;
