@@ -249,6 +249,14 @@ test('Zeitungs-Knopf: roter Punkt bei neuer Ausgabe, öffnet die Morgenzeitung i
   await expect(page.getByRole('button', { name: 'Morgenzeitung', exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByRole('button', { name: 'Morgenzeitung', exact: true })).toBeVisible({ timeout: 20_000 });
+
+  // neue Ausgabe, diesmal auf der vollen Rathaus-Seite gelesen → im Dorf kein Punkt mehr
+  await page.request.post('/api/morgenzeitung/erstellen', { headers: { origin: new URL(page.url()).origin }, data: {} });
+  await page.evaluate(() => localStorage.removeItem('dorf-zeitung-gelesen'));
+  await page.goto('/gebaeude/Rathaus?reiter=morgenzeitung');
+  await expect(page.getByRole('heading', { name: /Morgenzeitung –/ })).toBeVisible();
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Morgenzeitung', exact: true })).toBeVisible({ timeout: 20_000 });
 });
 
 test('Rundgang: der von selbst geweckte Bürgermeister läuft durchs Dorf und kehrt danach zum Rathaus zurück', async ({ page }) => {

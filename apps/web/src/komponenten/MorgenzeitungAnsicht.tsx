@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { MorgenzeitungUebersicht } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
@@ -12,6 +12,16 @@ export function MorgenzeitungAnsicht() {
   const q = useQuery({ queryKey: ['morgenzeitung'], queryFn: () => api<MorgenzeitungUebersicht>('/api/morgenzeitung') });
   const [laeuft, setLaeuft] = useState(false);
   const [fehler, setFehler] = useState('');
+  // gelesen merken (für den roten Punkt am Zeitungs-Knopf im Dorf) – egal, wo die Zeitung geöffnet wurde
+  const pfad = q.data?.aktuell?.pfad;
+  useEffect(() => {
+    if (!pfad) return;
+    try {
+      localStorage.setItem('dorf-zeitung-gelesen', pfad);
+    } catch {
+      /* ohne Speicher eben ohne Merken */
+    }
+  }, [pfad]);
   if (!q.data) return <p className="leise">Lade …</p>;
   const m = q.data;
 
