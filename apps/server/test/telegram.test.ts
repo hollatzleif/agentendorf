@@ -714,3 +714,15 @@ describe('Prüfungs-Wächter (E105)', () => {
     expect(await bot.pruefungsWaechter()).toBe(0);
   });
 });
+
+describe('Telegram: Gewohnheit zur Uhrzeit (E106)', () => {
+  it('schickt die Gewohnheit mit Abhak-Knopf', async () => {
+    const d = await dorf();
+    await d.gewohnheiten.anlegen({ name: 'Vitamine', symbol: '💊', uhrzeit: '13:00' });
+    await d.erinnerungen.pruefen();
+    const m = d.aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p;
+    expect(String(m.text)).toBe('🔁 💊 <b>Vitamine</b> – Zeit dafür!');
+    await d.knopf((m.reply_markup as { inline_keyboard: { callback_data: string }[][] }).inline_keyboard[0]![0]!.callback_data);
+    expect((await d.gewohnheiten.stand()).gewohnheiten[0]!.heuteErledigt).toBe(true);
+  });
+});

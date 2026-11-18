@@ -33,7 +33,10 @@ export class TodoErinnerungen {
   private laeuft = false;
   private takt?: NodeJS.Timeout;
 
-  constructor(private o: { todos: TodoDienst; uhr: Uhr; kirchturm?: { erinnern(e: { bezugId: string; titel: string; text: string }): void; erinnerungAus(bezugId: string): void }; log?: (t: string) => void }) {}
+  /** E106: Gewohnheit mit Uhrzeit ist dran (Telegram schickt den Abhak-Knopf) */
+  readonly beiGewohnheit: ((name: string) => Promise<unknown> | void)[] = [];
+
+  constructor(private o: { todos: TodoDienst; uhr: Uhr; gewohnheiten?: { faelligeErinnerungen(): Promise<{ name: string; symbol: string; uhrzeit?: string }[]>; stand(): Promise<{ gewohnheiten: { name: string; heuteErledigt: boolean }[] }> }; kirchturm?: { erinnern(e: { bezugId: string; titel: string; text: string; schlummern?: boolean }): void; erinnerungAus(bezugId: string): void }; log?: (t: string) => void }) {}
 
   starten() {
     this.takt = setInterval(() => void this.pruefen().catch((e) => this.o.log?.(`Erinnerungen: ${(e as Error).message}`)), 30_000);
@@ -61,6 +64,13 @@ export class TodoErinnerungen {
         const uhrzeit = t.erinnerung.slice(11);
         this.o.kirchturm?.erinnern({ bezugId: t.pfad, titel: t.titel, text: `Erinnerung für ${uhrzeit} Uhr${t.faellig ? ` · fällig ${t.faellig}` : ''}` });
         for (const fn of this.beiErinnerung) await Promise.resolve(fn(t)).catch((e) => this.o.log?.(`Erinnerung senden: ${(e as Error).message}`));
+      }
+      if (this.o.gewohnheiten && this.o.kirchturm)
+        for (const g of (await this.o.gewohnheiten.stand()).gewohnheiten) if (g.heuteErledigt) this.o.kirchturm.erinnerungAus(`gewohnheit:${g.name}`);
+      for (const g of (await this.o.gewohnheiten?.faelligeErinnerungen()) ?? []) {
+        n++;
+        this.o.kirchturm?.erinnern({ bezugId: `gewohnheit:${g.name}`, titel: `${g.symbol} ${g.name}`, text: `Gewohnheit für ${g.uhrzeit} Uhr – noch nicht abgehakt.`, schlummern: false });
+        for (const fn of this.beiGewohnheit) await Promise.resolve(fn(g.name)).catch((e) => this.o.log?.(`Gewohnheit melden: ${(e as Error).message}`));
       }
       return n;
     } finally {

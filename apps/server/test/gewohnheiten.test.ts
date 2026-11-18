@@ -76,3 +76,24 @@ describe('Gewohnheiten (Nacht 18./19.11.)', () => {
     expect((await d.app.inject({ method: 'POST', url: '/api/gewohnheiten', headers: h, payload: { name: 'Lesen' } })).statusCode).toBe(409);
   });
 });
+
+describe('Gewohnheiten mit Uhrzeit (E106)', () => {
+  it('läutet einmal am Tag zur Uhrzeit, wenn offen (bis 3 h danach); abgehakt → verstummt; ungültige Uhrzeit abgelehnt', async () => {
+    const d = await testDorf();
+    // TestUhr: Mo 16.11. 13:00 Wien
+    await d.gewohnheiten.anlegen({ name: 'Vitamine', symbol: '💊', uhrzeit: '13:30' });
+    await d.gewohnheiten.anlegen({ name: 'Früh', uhrzeit: '08:00' }); // schon > 3 h vorbei
+    await expect(d.gewohnheiten.anlegen({ name: 'X', uhrzeit: '25:00' })).rejects.toThrow();
+    expect(await d.erinnerungen.pruefen()).toBe(0);
+    d.uhr.vor(31 * 60_000);
+    expect(await d.erinnerungen.pruefen()).toBe(1);
+    expect(await d.erinnerungen.pruefen()).toBe(0);
+    expect(d.kirchturm.zustand().klingelt).toEqual([expect.objectContaining({ quelle: 'erinnerung', bezugId: 'gewohnheit:Vitamine', titel: '🔔 💊 Vitamine', schlummern: false })]);
+    await d.gewohnheiten.haken('Vitamine', true);
+    await d.erinnerungen.pruefen();
+    expect(d.kirchturm.zustand().klingelt).toEqual([]);
+    // nächster Tag: wieder
+    d.uhr.vor(86_400_000);
+    expect(await d.erinnerungen.pruefen()).toBe(1);
+  });
+});

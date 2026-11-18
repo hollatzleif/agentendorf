@@ -125,8 +125,8 @@ export class Kirchturm {
   readonly beiErinnerungSchlummern: ((bezugId: string) => void)[] = [];
 
   /** E94: Erinnerung an ein To-do läuten lassen (zwei Schläge, Schlummern = 10 min) */
-  erinnern(e: { bezugId: string; titel: string; text: string }) {
-    const k: Klingel = { id: crypto.randomUUID(), quelle: 'erinnerung', bezugId: e.bezugId, titel: `🔔 ${e.titel}`.slice(0, 200), text: e.text.slice(0, 400), ton: 'schlag', seit: this.o.uhr.jetzt(), schlummern: true };
+  erinnern(e: { bezugId: string; titel: string; text: string; schlummern?: boolean }) {
+    const k: Klingel = { id: crypto.randomUUID(), quelle: 'erinnerung', bezugId: e.bezugId, titel: `🔔 ${e.titel}`.slice(0, 200), text: e.text.slice(0, 400), ton: 'schlag', seit: this.o.uhr.jetzt(), schlummern: e.schlummern ?? true };
     this.z.klingelt = [...this.z.klingelt.filter((x) => !(x.quelle === 'erinnerung' && x.bezugId === e.bezugId)), k];
     this.speichern(k);
   }

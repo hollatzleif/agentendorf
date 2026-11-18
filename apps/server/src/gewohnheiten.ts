@@ -20,6 +20,11 @@ const Gewohnheit = z.object({
   symbol: z.string().trim().max(8).default('✅'),
   /** täglich | werktags | wochenende | Liste wie [mo, mi, fr] */
   tage: z.union([z.enum(['täglich', 'werktags', 'wochenende']), z.array(z.enum(TAGE)).min(1)]).default('täglich'),
+  /** E106: Uhrzeit (Wien) – dann läutet der Kirchturm und Telegram erinnert, falls noch nicht abgehakt */
+  uhrzeit: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'uhrzeit als HH:MM')
+    .optional(),
 });
 type GewohnheitT = z.infer<typeof Gewohnheit>;
 const Datei = z.object({ gewohnheiten: z.array(Gewohnheit).max(30).default([]) });
@@ -101,9 +106,32 @@ export class Gewohnheiten {
         const t = tagPlus(heute, i - 6);
         return { tag: t, faellig: faelligAm(g, t), erledigt: tage.has(t) };
       });
-      aus.push({ name: g.name, symbol: g.symbol, tage: g.tage, heuteFaellig: faelligAm(g, heute), heuteErledigt: tage.has(heute), serie, woche });
+      aus.push({ name: g.name, symbol: g.symbol, tage: g.tage, ...(g.uhrzeit ? { uhrzeit: g.uhrzeit } : {}), heuteFaellig: faelligAm(g, heute), heuteErledigt: tage.has(heute), serie, woche });
     }
     return { gewohnheiten: aus, ...(l.fehler ? { fehler: l.fehler } : {}) };
+  }
+
+  /**
+   * E106: Gewohnheiten mit Uhrzeit, deren Zeit heute gekommen ist (höchstens 3 h her), die offen sind und heute noch
+   * nicht erinnert wurden. Der Vermerk (dorf_stand) wird hier gesetzt – jede läutet höchstens einmal am Tag.
+   */
+  async faelligeErinnerungen(): Promise<GewohnheitStand[]> {
+    const jetzt = this.o.uhr.jetzt();
+    const zp = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Vienna', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(jetzt));
+    const heute = tagIn(jetzt);
+    const schluessel = 'gewohnheiten_erinnert';
+    const roh = (this.o.db.prepare('SELECT wert FROM dorf_stand WHERE schluessel = ?').get(schluessel) as { wert: string } | undefined)?.wert;
+    const merk: { tag: string; namen: string[] } = roh ? JSON.parse(roh) : { tag: heute, namen: [] };
+    if (merk.tag !== heute) Object.assign(merk, { tag: heute, namen: [] });
+    const minuten = (hm: string) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5));
+    const aus = (await this.stand()).gewohnheiten.filter(
+      (g) => g.uhrzeit && g.heuteFaellig && !g.heuteErledigt && !merk.namen.includes(g.name) && minuten(zp) >= minuten(g.uhrzeit) && minuten(zp) - minuten(g.uhrzeit) <= 180,
+    );
+    if (aus.length) {
+      merk.namen.push(...aus.map((g) => g.name));
+      this.o.db.prepare('INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES (?, ?)').run(schluessel, JSON.stringify(merk));
+    }
+    return aus;
   }
 
   /** Statistik: je Tag fällige und erledigte Gewohnheiten (nach der heutigen Liste) */

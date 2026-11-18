@@ -769,3 +769,11 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - **Ein Tipp** rechnet den Lernplan wie in der App (E96: Blöcke à 1,5 h, gleichmäßig bis zum Vorabend, 9–20 Uhr) und zeigt ihn mit einem Knopf je Block und „📅 Alle eintragen“. Eingetragen wird erst damit, als „📚 Lernen: <Name>“. Dadurch erkennt der Wächter beim nächsten Mal, dass es schon Lernzeit gibt.
 - Alles ohne KI; Kalendereinträge entstehen nur durch Leifs Tipp. Alle Knöpfe sind HMAC-signiert.
 - Warum: Der häufigste Prüfungsfehler ist, zu spät anzufangen. Der Wächter fragt rechtzeitig und macht den Plan mit zwei Tipps.
+
+## E106 – Gewohnheiten mit Uhrzeit (Nacht 18./19.11.)
+
+- **Neues optionales Feld `uhrzeit: HH:MM`** (Wien) an einer Gewohnheit in `Marktplatz/gewohnheiten.md`, z. B. „Vitamine 08:00“.
+- **Wann geläutet wird:** Ist die Gewohnheit heute dran, noch offen und die Uhrzeit erreicht (höchstens 3 h danach), läutet der **Kirchturm** einmal. Schlummern gibt es dafür nicht; abgehakt verstummt die Glocke.
+- **Telegram** schickt dazu „🔁 💊 Vitamine – Zeit dafür!“ mit genau ihrem Abhak-Knopf.
+- **Höchstens einmal am Tag** je Gewohnheit (Vermerk in `dorf_stand`). Was mehr als 3 h verpasst ist, läutet nicht nach – eine Gewohnheit um 8 Uhr soll nicht um 15 Uhr klingeln.
+- Geprüft wird im selben 30-Sekunden-Takt wie die To-do-Erinnerungen (E94). Es gilt dieselbe Regel: Läuten tut nur der Kirchturm.

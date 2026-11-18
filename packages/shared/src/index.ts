@@ -753,6 +753,8 @@ export interface GewohnheitStand {
   name: string;
   symbol: string;
   tage: 'täglich' | 'werktags' | 'wochenende' | ('so' | 'mo' | 'di' | 'mi' | 'do' | 'fr' | 'sa')[];
+  /** E106: Erinnerung zur Uhrzeit (HH:MM, Wien) */
+  uhrzeit?: string;
   heuteFaellig: boolean;
   heuteErledigt: boolean;
   serie: number;

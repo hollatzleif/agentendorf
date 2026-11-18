@@ -1340,6 +1340,16 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       });
   }
 
+  /** E106: eine Gewohnheit mit Uhrzeit ist dran – Nachricht mit genau ihrem Abhak-Knopf */
+  async gewohnheitErinnern(name: string) {
+    const g = (await this.o.gewohnheiten?.stand())?.gewohnheiten.find((x) => x.name === name);
+    if (!g) return;
+    const k = this.gewohnheitKennung(g.name);
+    return this.senden(`🔁 ${h(g.symbol)} <b>${h(g.name)}</b> – Zeit dafür!${g.serie > 1 ? ` (🔥 ${g.serie})` : ''}`, {
+      reply_markup: { inline_keyboard: [[{ text: `⬜ ${g.symbol} ${g.name}`.slice(0, 60), callback_data: `gw:${k}:${this.gewohnheitSignatur(k)}` }]] },
+    });
+  }
+
   /** Heute fällige Gewohnheiten mit Abhak-Knöpfen. still = nichts senden, wenn es keine gibt (Tagesabschluss). */
   async gewohnheitenSenden(still = false) {
     if (!this.o.gewohnheiten) return still ? undefined : this.senden('Gewohnheiten sind nicht eingerichtet.');
