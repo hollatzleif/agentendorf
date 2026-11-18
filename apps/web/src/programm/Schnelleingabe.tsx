@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, ApiFehler } from '../api';
+import { api, ApiFehler, offlineGemerkt } from '../api';
 import { istProgramm, schnellSchliessen } from './desktop';
 
 type Ziel = 'buergermeister' | 'todo';
@@ -47,7 +47,10 @@ export function Schnelleingabe() {
       setMeldung(ziel === 'todo' ? '✓ Auf der To-do-Liste' : '✓ Beim Bürgermeister');
       if (istProgramm()) setTimeout(() => void schnellSchliessen().then(() => setMeldung('')), 700);
     } catch (e) {
-      setMeldung(`⚠️ ${e instanceof ApiFehler ? e.message : String(e)}`);
+      if (offlineGemerkt(e)) {
+        setText('');
+        setMeldung(`📶 ${(e as ApiFehler).message}`);
+      } else setMeldung(`⚠️ ${e instanceof ApiFehler ? e.message : String(e)}`);
     } finally {
       setLaeuft(false);
     }

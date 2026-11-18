@@ -137,4 +137,11 @@ describe('Gewohnheit bearbeiten', () => {
     expect((await d.app.inject({ method: 'PATCH', url: '/api/gewohnheiten', headers: h, payload: { name: 'Sport', uhrzeit: '25:00' } })).statusCode).toBe(400);
     expect((await d.app.inject({ method: 'PATCH', url: '/api/gewohnheiten', headers: h, payload: { name: 'Gibtsnicht', tage: 'täglich' } })).statusCode).toBe(404);
   });
+
+  it('gleichzeitiges Anlegen derselben Gewohnheit: genau einmal in der Datei (Review)', async () => {
+    const d = await testDorf();
+    const r = await Promise.allSettled([d.gewohnheiten.anlegen({ name: 'Lesen' }), d.gewohnheiten.anlegen({ name: 'lesen' }), d.gewohnheiten.anlegen({ name: 'Lesen' })]);
+    expect(r.filter((x) => x.status === 'fulfilled')).toHaveLength(1);
+    expect((await d.vault.lesen(GEWOHNHEITEN_PFAD)).inhalt.match(/name: [Ll]esen/g)).toHaveLength(1);
+  });
 });

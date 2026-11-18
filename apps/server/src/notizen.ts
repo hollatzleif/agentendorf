@@ -18,10 +18,13 @@ export class Notizen {
     return `${NOTIZ_ORDNER}/${tag}.md`;
   }
 
-  async hinzufuegen(textRoh: string, quelle?: string) {
+  /** zeitMs: wann die Notiz entstand (Offline-Warteschlange) – nur die letzten 7 Tage, sonst gilt jetzt */
+  async hinzufuegen(textRoh: string, quelle?: string, zeitMs?: number) {
     const text = textRoh.replace(/\r/g, '').trim().replace(/\n+/g, ' ⏎ ').slice(0, 2000);
     if (!text) throw new DorfFehler(400, 'Die Notiz ist leer.');
-    const zp = zeitpunktAus(this.o.uhr.jetzt());
+    const jetzt = this.o.uhr.jetzt();
+    const wann = zeitMs != null && zeitMs <= jetzt && zeitMs > jetzt - 7 * 86_400_000 ? zeitMs : jetzt;
+    const zp = zeitpunktAus(wann);
     const tag = zp.slice(0, 10);
     const pfad = this.pfad(tag);
     const zeile = `- ${zp.slice(11)} ${text}${quelle ? ` _(${quelle})_` : ''}`;

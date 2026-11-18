@@ -4,6 +4,15 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { App } from './App';
 import './stil.css';
 
+// Nach einem Deploy fehlen alte Seiten-Dateien: einmal neu laden (nicht in Schleife – Merker für 1 min)
+window.addEventListener('vite:preloadError', (e) => {
+  const zuletzt = Number(sessionStorage.getItem('dorf-neu-geladen') ?? 0);
+  if (Date.now() - zuletzt < 60_000) return; // dann zeigt SeitenFehler „Neu laden“
+  e.preventDefault();
+  sessionStorage.setItem('dorf-neu-geladen', String(Date.now()));
+  location.reload();
+});
+
 const qc = new QueryClient({
   defaultOptions: { queries: { retry: (n, e) => n < 2 && (e as { status?: number }).status !== 401, staleTime: 10_000 } },
 });

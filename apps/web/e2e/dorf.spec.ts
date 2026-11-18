@@ -1203,10 +1203,60 @@ test('Offline: To-do wird gemerkt und nach der Verbindung gesendet', async ({ pa
   await f.getByRole('button', { name: '+' }).click();
   await expect(page.getByText(/gemerkt, wird gesendet/)).toBeVisible();
   await expect(page.getByRole('status').filter({ hasText: '1 Eintrag wartet' })).toBeVisible();
+  // Feld geleert – sonst tippt man es nochmal und es kommt doppelt an (Review)
+  await expect(f.getByRole('textbox', { name: 'Neues To-do' })).toHaveValue('');
   // Verbindung zurück → wird von selbst gesendet (online-Ereignis)
   await context.setOffline(false);
   await expect(page.getByRole('status').filter({ hasText: 'wartet' })).toHaveCount(0);
   await expect(page.locator('li.todo', { hasText: 'Offline-Test' })).toHaveCount(1);
+});
+
+test('Offline: gleichzeitiges Senden schickt nichts doppelt, Neues bleibt in der Schlange (Review)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  await page.goto('/gebaeude/Marktplatz?reiter=todo');
+  await expect(page.getByRole('form', { name: 'Neues To-do' })).toBeVisible();
+  // langsamer Server: während des Sendens kommt ein neuer Eintrag dazu
+  await page.route('**/api/todos', async (r) => {
+    if (r.request().method() === 'POST') await new Promise((x) => setTimeout(x, 400));
+    await r.continue();
+  });
+  await page.evaluate(() => {
+    localStorage.setItem('dorf-offline-schlange', JSON.stringify([{ id: 'a', url: '/api/todos', body: { titel: 'Schlange-A' }, zeit: Date.now() }]));
+  });
+  // dreimal fast gleichzeitig auslösen (online-Ereignis + Knopf)
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event('online'));
+    window.dispatchEvent(new Event('online'));
+    setTimeout(() => {
+      const s = JSON.parse(localStorage.getItem('dorf-offline-schlange') ?? '[]');
+      s.push({ id: 'b', url: '/api/notiz', body: { text: 'nicht verlieren' }, zeit: Date.now() });
+      localStorage.setItem('dorf-offline-schlange', JSON.stringify(s));
+    }, 100);
+  });
+  await expect(page.locator('li.todo', { hasText: 'Schlange-A' })).toHaveCount(1);
+  await page.waitForTimeout(800);
+  const rest = await page.evaluate(() => JSON.parse(localStorage.getItem('dorf-offline-schlange') ?? '[]').map((e: { id: string }) => e.id));
+  expect(rest).toEqual(['b']);
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('dorf-offline-schlange'))).toBe('[]');
+  await page.reload();
+  await expect(page.locator('li.todo', { hasText: 'Schlange-A' })).toHaveCount(1);
+});
+
+test('Seite lässt sich nicht laden (nach Deploy): einmal neu laden, dann „Neu laden“ statt weißer Seite (Review)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  await page.goto('/');
+  await page.route(/\/assets\/Anleitung-[^/]+\.js$/, (r) => r.abort());
+  await page.evaluate(() => {
+    history.pushState(null, '', '/anleitung');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  });
+  await expect(page.getByRole('alert').filter({ hasText: 'Diese Seite ließ sich nicht laden' })).toBeVisible({ timeout: 15_000 });
+  await page.unroute(/\/assets\/Anleitung-[^/]+\.js$/);
+  await page.getByRole('button', { name: 'Neu laden' }).click();
+  await expect(page.getByRole('heading', { name: 'So nutzt du das Dorf' })).toBeVisible();
 });
 
 test('Anleitung: erreichbar über Befehlspalette, Links führen weiter', async ({ page }, info) => {

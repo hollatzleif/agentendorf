@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, ApiFehler } from '../api';
+import { api, ApiFehler, offlineGemerkt } from '../api';
 import { bibliothekUrl, linkKlick } from '../router';
 
 /** E95 in der App: die Tagesnotizen der letzten 7 Tage und ein Feld für die nächste */
@@ -22,6 +22,7 @@ export function NotizenAnsicht() {
       await qc.invalidateQueries({ queryKey: ['notizen'] });
     } catch (err) {
       setFehler(err instanceof ApiFehler ? err.message : String(err));
+      if (offlineGemerkt(err)) setText('');
     }
   };
   return (

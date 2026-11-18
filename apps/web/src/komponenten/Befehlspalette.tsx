@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { terminAusText, type AktionInfo, type Gebaeude, type Suchtreffer, type TodoInfo } from '@dorf/shared';
-import { api, ApiFehler } from '../api';
+import { api, ApiFehler, offlineGemerkt } from '../api';
 import { bibliothekUrl, navigieren } from '../router';
 
 /**
@@ -187,7 +187,10 @@ function Palette({ schliessen }: { schliessen: () => void }) {
         if (!r.startsWith('Eintragen?')) setQ('');
       }
     } catch (err) {
-      setMeldung(`⚠️ ${err instanceof ApiFehler ? err.message : String(err)}`);
+      if (offlineGemerkt(err)) {
+        setMeldung(`📶 ${(err as ApiFehler).message}`);
+        setQ('');
+      } else setMeldung(`⚠️ ${err instanceof ApiFehler ? err.message : String(err)}`);
     }
   };
 

@@ -32,6 +32,8 @@ export function FokusVollbild() {
   useEffect(() => {
     document.title = p && p.phase !== 'aus' ? `${dauerText(rest)} · ${PHASE[p.phase]}` : 'Fokus';
   });
+  // beim Verlassen den Reiter-Titel zurückgeben (sonst bleibt „12:34 · Fokus“ stehen, Review)
+  useEffect(() => () => void (document.title = 'Agentendorf'), []);
   const befehl = async (b: Record<string, unknown>) => {
     setFehler('');
     try {
@@ -43,7 +45,14 @@ export function FokusVollbild() {
   };
   const erledigt = async () => {
     if (!p?.einstellungen.todoPfad) return;
-    await api('/api/todos', { methode: 'PATCH', body: { pfad: p.einstellungen.todoPfad, erledigt: true } }).catch(() => undefined);
+    setFehler('');
+    try {
+      await api('/api/todos', { methode: 'PATCH', body: { pfad: p.einstellungen.todoPfad, erledigt: true } });
+    } catch (e) {
+      // nicht verschlucken: Fokus läuft weiter, Leif sieht, warum das Häkchen fehlt
+      setFehler(`To-do nicht abgehakt: ${e instanceof ApiFehler ? e.message : String(e)}`);
+      return;
+    }
     await befehl({ befehl: 'pomodoro', aktion: 'stopp' });
     await qc.invalidateQueries({ queryKey: ['liste', 'todo'] });
   };

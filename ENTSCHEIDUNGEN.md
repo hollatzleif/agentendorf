@@ -879,3 +879,28 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **Wann gemeldet wird:** Nach jedem Kursabruf (Schlusskurse, ≤ 19 Abrufe am Tag) prüft das Dorf die Grenzen. Telegram meldet „🔔 Kursalarm – 📉 All-World: 95 EUR – unter deiner Grenze 100“, und zwar **einmal je Überschreiten**. Erst wenn der Kurs wieder auf der anderen Seite war, meldet dieselbe Grenze erneut. Der Zustand liegt in `dorf_stand`. Es gilt derselbe Schalter wie für Saxo-Meldungen, und die Nachtruhe wird beachtet.
 - **Nur Information:** Die Börse handelt nie, daran ändert sich nichts.
 - **Eigene Felder bleiben:** Was Leif in `depot.md` zusätzlich an einen Wert schreibt (z. B. `notiz`), bleibt beim Speichern aus der App erhalten (wie E111).
+
+## E118 – Zweites Review: Offline-Schlange, Fehlerseite, Album-Notiz (Nacht 18./19.11.)
+
+- **Offline-Schlange abgesichert (ergänzt E114):**
+  - Jeder Eintrag hat eine ID.
+  - Gesendet wird nie zweimal gleichzeitig, auch nicht aus zwei Reitern (Web Locks).
+  - Am Ende wird die Schlange frisch gelesen, und es fallen nur die gesendeten oder verworfenen Einträge weg. Was während des Sendens dazukam, bleibt erhalten. Vorher konnte ein Eintrag doppelt ankommen oder ein neuer verloren gehen.
+- **Wann ein Eintrag verworfen wird:**
+  - Nur bei 400/404/409/413/422.
+  - Bei 401 bleibt er, und die App geht zur Anmeldung. Nach dem Anmelden wird gesendet.
+  - Bei 403/408/429/5xx bleibt er für später.
+- **Feld wird geleert:** Ist ein Eintrag offline gemerkt, leert die App das Eingabefeld (To-do-Brett, Heute, Notizen, Schnelleingabe, Befehlspalette). Sonst tippt man ihn ein zweites Mal ab.
+- **Offline-Notizen behalten ihre Uhrzeit:** Der Server übernimmt `zeit` aus der Schlange, wenn sie in den letzten 7 Tagen und nicht in der Zukunft liegt.
+- **Fehlerseite statt weißer Seite:** Nach einem Deploy fehlen die alten, nachgeladenen Seiten-Dateien.
+  - Bei `vite:preloadError` lädt die App einmal neu (Merker: 1 min, damit keine Schleife entsteht).
+  - Hilft das nicht, zeigt `SeitenFehler` „Diese Seite ließ sich nicht laden“ mit dem Knopf „Neu laden“.
+  - Beim Seitenwechsel wird der Fehler zurückgesetzt.
+- **Telegram-Album mit „notiz:“:** Telegram schickt jedes Bild einzeln, und nur eines trägt die Bildunterschrift.
+  - Die übrigen Bilder desselben Albums (`media_group_id`, innerhalb von 60 s) kommen in dieselbe Notiz, statt je einen Bürgermeister-Lauf zu starten.
+  - Anhänge tragen die `message_id` im Namen, damit gleichnamige Dateien derselben Minute sich nicht überschreiben.
+  - Einschränkung: Kommt ein Bild ohne Unterschrift *vor* dem mit Unterschrift an, gilt es als normale Nachricht. In der Praxis trägt das erste Bild die Unterschrift.
+- **Kleinigkeiten:**
+  - Zwei gleichzeitige Anlegen derselben Gewohnheit ergeben nur noch einen Eintrag, weil die Doppelt-Prüfung jetzt in der Schreib-Warteschlange läuft.
+  - Fokus-Vollbild gibt beim Verlassen den Reitertitel zurück und zeigt, wenn das To-do nicht abgehakt werden konnte.
+  - „Erste Schritte“ verschwindet nicht mehr ganz, wenn eine Abfrage scheitert. Nur der betroffene Schritt fällt weg.

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { TodoInfo } from '@dorf/shared';
-import { api, ApiFehler } from '../api';
+import { api, ApiFehler, offlineGemerkt } from '../api';
 import { bibliothekUrl, linkKlick, navigieren } from '../router';
 import { LernzeitPlaner } from './LernzeitPlaner';
 import { Stern } from '../seiten/Heute';
@@ -27,8 +27,10 @@ export function TodoBrett({ liste: name = 'todo', platzhalter = 'Neues To-do …
       await f();
     } catch (e) {
       setFehler(e instanceof ApiFehler ? e.message : String(e));
+      if (offlineGemerkt(e)) return true;
     }
     await neu();
+    return false;
   };
 
   const anlegen = (e: React.FormEvent) => {
@@ -38,6 +40,12 @@ export function TodoBrett({ liste: name = 'todo', platzhalter = 'Neues To-do …
       await api(basis, { body: { titel: titel.trim(), ...(faellig ? { faellig } : {}) } });
       setTitel('');
       setFaellig('');
+    }).then((offline) => {
+      // offline gemerkt: Feld leeren, sonst tippt man es nochmal und es kommt doppelt an
+      if (offline) {
+        setTitel('');
+        setFaellig('');
+      }
     });
   };
 
@@ -103,7 +111,7 @@ const WIEDERHOLEN_WAHL = [
   ['jährlich', '🔁 jährlich'],
 ] as const;
 
-function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: (f: () => Promise<unknown>) => Promise<void>; basis: string }) {
+function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: (f: () => Promise<unknown>) => Promise<unknown>; basis: string }) {
   const [bearbeiten, setBearbeiten] = useState(false);
   const [titel, setTitel] = useState(t.titel);
   const [faellig, setFaellig] = useState(t.faellig ?? '');

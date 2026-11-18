@@ -1124,3 +1124,7 @@ input.kurz { width: 5em; }
 .gewohnheit-bearbeiten { display: inline-flex; gap: 0.3rem; flex-wrap: wrap; }
 .gewohnheit-bearbeiten select { max-width: 9.5rem; }
 .gewohnheit-bearbeiten input[type="time"] { width: 6.5rem; }
+
+/* E118: Seite ließ sich nicht laden */
+.seiten-fehler { max-width: 36rem; margin: 2rem auto; text-align: center; }
+.seiten-fehler code { word-break: break-word; }

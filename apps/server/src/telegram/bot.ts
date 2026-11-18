@@ -58,6 +58,7 @@ interface TgNachricht {
   from?: { id: number; first_name?: string };
   text?: string;
   caption?: string;
+  media_group_id?: string;
   photo?: { file_id: string; file_size?: number }[];
   document?: { file_id: string; file_name?: string; file_size?: number };
   voice?: unknown;
@@ -471,8 +472,16 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     let text = (m.text ?? m.caption ?? '').trim();
     // E115: Foto/Datei mit Bildunterschrift „notiz: …“ → in die Tagesnotiz (Bild daneben im Vault), nicht als Aufgabe
     const bildNotiz = /^notiz\s*:\s*([\s\S]*)$/i.exec(m.caption ?? '');
-    if (bildNotiz && (m.photo?.length || m.document) && this.o.notizen && !(m.forward_origin || m.forward_from || m.forward_from_chat || m.forward_date))
+    const weitergeleitet = !!(m.forward_origin || m.forward_from || m.forward_from_chat || m.forward_date);
+    if (bildNotiz && (m.photo?.length || m.document) && this.o.notizen && !weitergeleitet) {
+      // Album: Telegram schickt jedes Bild einzeln, nur eins trägt die Bildunterschrift – die anderen gehören dazu (Review)
+      if (m.media_group_id) this.notizAlben.set(m.media_group_id, this.o.uhr.jetzt());
       return this.notizMitDatei(m, bildNotiz[1]!.trim());
+    }
+    if (m.media_group_id && !m.caption && (m.photo?.length || m.document) && this.o.notizen && !weitergeleitet) {
+      const seit = this.notizAlben.get(m.media_group_id);
+      if (seit != null && this.o.uhr.jetzt() - seit < 60_000) return this.notizMitDatei(m, '');
+    }
     // E103: „todo: …“, „notiz: …“, „ziel: …“, „einkauf: …“ wie der Befehl – nur Leifs eigene Textnachricht, nie Weitergeleitetes
     const kurz = /^(todo|notiz|ziel|einkauf)\s*:\s*(\S[\s\S]*)$/i.exec(text);
     if (kurz && m.text && !(m.forward_origin || m.forward_from || m.forward_from_chat || m.forward_date)) text = `/${kurz[1]!.toLowerCase()} ${kurz[2]!}`;
@@ -1246,13 +1255,18 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
 
   // ---- Notizen (E95) ---------------------------------------------------------------------------------
 
+  /** media_group_id → Zeitpunkt der „notiz:“-Bildunterschrift (weitere Bilder desselben Albums gehören zur Notiz) */
+  private notizAlben = new Map<string, number>();
+
   private async notizMitDatei(m: TgNachricht, text: string) {
-    const datei = m.document ?? { ...m.photo![m.photo!.length - 1]!, file_name: `foto-${m.message_id}.jpg` };
+    for (const [k, t] of this.notizAlben) if (this.o.uhr.jetzt() - t > 120_000) this.notizAlben.delete(k);
+    const datei = m.document ?? { ...m.photo![m.photo!.length - 1]!, file_name: 'foto.jpg' };
     if ((datei.file_size ?? 0) > MAX_DATEI) return this.senden('📎 Die Datei ist größer als 20 MB – so große Dateien kann ein Bot nicht laden.');
     try {
       const d = await this.o.api.dateiLaden(datei.file_id);
       const zp = zeitpunktAus(this.o.uhr.jetzt());
-      const name = dateinameBereinigen(`${zp.slice(0, 10)}_${zp.slice(11).replace(':', '')}_${datei.file_name ?? d.name}`);
+      // message_id im Namen: zwei Dateien gleichen Namens in derselben Minute überschreiben sich nicht (Review)
+      const name = dateinameBereinigen(`${zp.slice(0, 10)}_${zp.slice(11).replace(':', '')}_${m.message_id}_${datei.file_name ?? d.name}`);
       const pfad = `Rathaus/notizen/anhaenge/${name}`;
       await this.o.vault.schreiben(pfad, d.inhalt, { nurNeu: true });
       const r = await this.o.notizen!.hinzufuegen(`${text ? `${text} ` : ''}![[${pfad}]]`, 'Telegram');

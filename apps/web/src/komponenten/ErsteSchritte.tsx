@@ -17,14 +17,18 @@ export function ErsteSchritte() {
   const an = useQuery({ queryKey: ['anschluesse'], queryFn: () => api<Anschluss[]>('/api/anschluesse'), enabled: !weg });
   const noten = useQuery({ queryKey: ['uni', 'noten'], queryFn: () => api<NotenStand>('/api/uni/noten'), enabled: !weg });
   const todos = useQuery({ queryKey: ['liste', 'todo'], queryFn: () => api<TodoInfo[]>('/api/todos'), enabled: !weg });
-  if (weg || !ziele.data || !gw.data || !an.data || !noten.data || !todos.data) return null;
-  const schritte: [boolean, string, string, string][] = [
-    [ziele.data.ziele.length > 0, '🎯', 'Drei Wochenziele setzen', '#wochenziele'],
-    [gw.data.gewohnheiten.length > 0, '🔁', 'Eine Gewohnheit anlegen (z. B. „Sport 3× pro Woche“)', '#gewohnheiten'],
-    [!!an.data.find((a) => a.name === 'Google-Kalender')?.ok, '📅', 'Google-Kalender verbinden – dann gehen Tag planen, Lernplan und Prüfungs-Wächter', '/einstellungen#anschluesse'],
-    [todos.data.some((t) => t.erinnerung || t.wiederholen), '🔔', 'Ein To-do mit Erinnerung oder Wiederholung (Bearbeiten → 🔔/🔁, oder „/erinner …“ in Telegram)', '/gebaeude/Marktplatz?reiter=todo'],
-    [noten.data.faecher.length > 0, '🎓', 'Noten & ECTS eintragen', '/gebaeude/Uni?reiter=noten'],
+  if (weg) return null;
+  // erst zeigen, wenn alles geantwortet hat; ein Schritt, dessen Abfrage scheitert, fällt einfach weg (Review)
+  const alle = [ziele, gw, an, noten, todos];
+  if (alle.some((x) => x.isPending)) return null;
+  const moeglich: ([boolean, string, string, string] | null)[] = [
+    ziele.data ? [ziele.data.ziele.length > 0, '🎯', 'Drei Wochenziele setzen', '#wochenziele'] : null,
+    gw.data ? [gw.data.gewohnheiten.length > 0, '🔁', 'Eine Gewohnheit anlegen (z. B. „Sport 3× pro Woche“)', '#gewohnheiten'] : null,
+    an.data ? [!!an.data.find((a) => a.name === 'Google-Kalender')?.ok, '📅', 'Google-Kalender verbinden – dann gehen Tag planen, Lernplan und Prüfungs-Wächter', '/einstellungen#anschluesse'] : null,
+    todos.data ? [todos.data.some((t) => t.erinnerung || t.wiederholen), '🔔', 'Ein To-do mit Erinnerung oder Wiederholung (Bearbeiten → 🔔/🔁, oder „/erinner …“ in Telegram)', '/gebaeude/Marktplatz?reiter=todo'] : null,
+    noten.data ? [noten.data.faecher.length > 0, '🎓', 'Noten & ECTS eintragen', '/gebaeude/Uni?reiter=noten'] : null,
   ];
+  const schritte = moeglich.filter((x): x is [boolean, string, string, string] => x !== null);
   const offen = schritte.filter((x) => !x[0]).length;
   if (!offen) return null;
   return (

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { WETTER_TEXT, type DorfStatus, type FokusStatistik, type FreigabeInfo, type KartenFach, type KalenderAntwort, type KalenderTermin, type KirchturmZustand, type MorgenzeitungUebersicht, type PostUebersicht, type TodoInfo } from '@dorf/shared';
-import { api, ApiFehler } from '../api';
+import { api, ApiFehler, offlineGemerkt } from '../api';
 import { linkKlick } from '../router';
 import { FARBEN, ort, tagPlus } from '../komponenten/MarktKalender';
 import { dauerText, useKirchturm } from '../komponenten/KirchturmUhr';
@@ -393,6 +393,7 @@ function TodoNeu({ heute, fertig }: { heute: string; fertig: () => Promise<unkno
       setTitel('');
     } catch (err) {
       setFehler(err instanceof ApiFehler ? err.message : String(err));
+      if (offlineGemerkt(err)) setTitel('');
     } finally {
       setLaeuft(false);
     }

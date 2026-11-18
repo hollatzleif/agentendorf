@@ -817,11 +817,29 @@ describe('Telegram: Foto mit „notiz: …“ (E115)', () => {
     await d.nachricht({ caption: 'notiz: Tafelbild Statistik', photo: [{ file_id: 'K', file_size: 10 }, { file_id: 'G', file_size: 20 }] });
     expect(d.gesendet().at(-1)).toMatch(/📝 Notiert – mit Foto/);
     const n = (await d.notizen.heute()).zeilen;
-    expect(n[0]).toMatch(/^- 13:00 Tafelbild Statistik !\[\[Rathaus\/notizen\/anhaenge\/2026-11-16_1300_foto-\d+\.jpg\]\] _\(Telegram\)_$/);
+    expect(n[0]).toMatch(/^- 13:00 Tafelbild Statistik !\[\[Rathaus\/notizen\/anhaenge\/2026-11-16_1300_\d+_foto\.jpg\]\] _\(Telegram\)_$/);
     const pfad = /!\[\[(.+?)\]\]/.exec(n[0]!)![1]!;
     expect((await d.vault.lesen(pfad)).inhalt).toBe('Inhalt von G');
     expect(d.schreibtisch.liste()).toHaveLength(0);
     await d.nachricht({ caption: 'notiz: fremd', photo: [{ file_id: 'X', file_size: 10 }], forward_date: 1 });
+    await d.ruhe();
+    expect(d.schreibtisch.liste()).toHaveLength(1);
+  });
+
+  it('Album: die Bilder ohne Unterschrift gehören zur Notiz, kein Bürgermeister-Lauf; gleiche Dateinamen überschreiben sich nicht (Review)', async () => {
+    const d = await dorf();
+    await d.nachricht({ caption: 'notiz: Whiteboard', media_group_id: 'A1', document: { file_id: 'D1', file_name: 'bild.png', file_size: 5 } });
+    await d.nachricht({ media_group_id: 'A1', document: { file_id: 'D2', file_name: 'bild.png', file_size: 5 } });
+    await d.nachricht({ media_group_id: 'A1', photo: [{ file_id: 'P3', file_size: 5 }] });
+    await d.ruhe();
+    expect(d.schreibtisch.liste()).toHaveLength(0);
+    const n = (await d.notizen.heute()).zeilen;
+    expect(n).toHaveLength(3);
+    const pfade = n.map((z) => /!\[\[(.+?)\]\]/.exec(z)![1]!);
+    expect(new Set(pfade).size).toBe(3);
+    expect((await d.vault.lesen(pfade[1]!)).inhalt).toBe('Inhalt von D2');
+    // anderes Album ohne „notiz:“ geht wie bisher an den Bürgermeister
+    await d.nachricht({ media_group_id: 'B2', caption: 'schau mal', photo: [{ file_id: 'Q', file_size: 5 }] });
     await d.ruhe();
     expect(d.schreibtisch.liste()).toHaveLength(1);
   });

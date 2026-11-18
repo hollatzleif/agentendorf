@@ -22,4 +22,16 @@ describe('Schnelle Notizen (E95)', () => {
     expect(l.map((x: { tag: string }) => x.tag)).toEqual(['2026-11-17', '2026-11-16']);
     expect(l[1].zeilen).toHaveLength(2);
   });
+
+  it('Offline-Notiz behält ihre Uhrzeit (nur letzte 7 Tage, nie Zukunft)', async () => {
+    const d = await testDorf();
+    const h = await kopf(d);
+    const jetzt = d.uhr.jetzt();
+    let r = await d.app.inject({ method: 'POST', url: '/api/notiz', headers: h, payload: { text: 'unterwegs', zeit: jetzt - 14 * 3600_000 } });
+    expect(r.json()).toEqual({ pfad: 'Rathaus/notizen/2026-11-15.md', zeile: '- 23:00 unterwegs' });
+    r = await d.app.inject({ method: 'POST', url: '/api/notiz', headers: h, payload: { text: 'zukunft', zeit: jetzt + 3600_000 } });
+    expect(r.json().zeile).toBe('- 13:00 zukunft');
+    r = await d.app.inject({ method: 'POST', url: '/api/notiz', headers: h, payload: { text: 'uralt', zeit: jetzt - 30 * 86_400_000 } });
+    expect(r.json().pfad).toBe('Rathaus/notizen/2026-11-16.md');
+  });
 });

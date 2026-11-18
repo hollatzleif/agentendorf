@@ -145,7 +145,12 @@ export class Gewohnheiten {
     if (eingabe.symbol != null && eingabe.symbol !== "") neu.symbol = g.symbol;
     if (eingabe.tage != null) neu.tage = g.tage;
     if (g.uhrzeit) neu.uhrzeit = g.uhrzeit;
-    await this.schreiben((alt) => [...alt, neu]);
+    // Doppelt-Prüfung NOCHMAL in der Kette: zwei gleichzeitige Anlegen sahen oben beide noch die alte Liste (Review)
+    await this.schreiben((alt) => {
+      if (alt.some((x) => typeof x?.name === "string" && x.name.toLowerCase() === g.name.toLowerCase()))
+        throw new DorfFehler(409, "Diese Gewohnheit gibt es schon.");
+      return [...alt, neu];
+    });
   }
 
   /** Tage, Uhrzeit, Symbol ändern – im rohen Eintrag, damit eigene Felder bleiben; Häkchen hängen am Namen und bleiben */
