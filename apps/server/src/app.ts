@@ -11,6 +11,7 @@ import type { Notizen } from './notizen.js';
 import type { Noten } from './uni/noten.js';
 import { statistik, stimmungSetzen } from './statistik.js';
 import { anschluesse } from './anschluesse.js';
+import { bluete } from './bluete.js';
 import { ortszeitZuUtc } from './uni/ical.js';
 import type { GoogleKalender } from './kalender-google.js';
 import type { Corps } from './corps.js';
@@ -785,7 +786,15 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
     const b = z.object({ basisVersion: z.number().int().min(0), layout: z.unknown() }).parse(req.body);
     return a.dorfplan.speichern(b.basisVersion, b.layout);
   });
-  app.get('/api/dorf/status', async () => a.dorfplan.status());
+  app.get('/api/dorf/status', async () => {
+    const st = a.dorfplan.status();
+    if (!a.listen) return st;
+    // E112: Blüte – Fehler hier dürfen den Dorfstatus nie verhindern
+    const b = await statistik({ db: a.db, uhr: a.uhr, todos: a.listen.todo, gewohnheiten: a.gewohnheiten }, 7)
+      .then(async (s) => bluete(s, await a.wochenziele?.lesen().catch(() => undefined)))
+      .catch(() => undefined);
+    return b ? { ...st, bluete: b } : st;
+  });
   app.get('/api/anschluesse', async () => anschluesse(a.konfig, { kalenderVerbunden: !!a.googleKalender?.verbunden, saxo: a.saxo?.uebersicht() }));
 
   app.get('/api/live', { websocket: true }, (socket, req) => {

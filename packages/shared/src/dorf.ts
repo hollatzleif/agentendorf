@@ -134,6 +134,19 @@ export interface DorfStatus {
   wetter?: DorfWetter;
   /** Läufe, die in den letzten 10 Minuten geendet haben (für Ticker und Feier) */
   zuletzt?: DorfLaufEnde[];
+  /** E112: das Dorf blüht, wenn Leif produktiv ist */
+  bluete?: DorfBluete;
+}
+export interface DorfBluete {
+  /** 0–1 aus den letzten 7 Tagen */
+  wert: number;
+  stufe: 'karg' | 'gruen' | 'bluehend' | 'praechtig';
+  /** alle Wochenziele erreicht → Fahne am Rathaus */
+  fahne: boolean;
+  /** heute ≥ 5 To-dos erledigt → Feuerwerk */
+  feuerwerk: boolean;
+  /** kurze Begründung für die Anzeige */
+  gruende: string[];
 }
 export interface DorfLaufEnde {
   laufId: string;

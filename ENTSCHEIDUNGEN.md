@@ -827,3 +827,15 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **Erinnerungen in allen Listen:** Einkauf, Wunsch und Corps läuten jetzt auch, und „Erledigt“ bzw. „+1 h“ trifft die richtige Liste.
 - **Notizen:** Bei gleichzeitigem Schreiben kommt die überflüssige Konfliktkopie (nur die doppelte Notiz) in den Papierkorb.
 - **Wackelnder Test:** Der Test „Freigabe-Knöpfe“ wartet jetzt, bis die Meldung da ist, statt fest 20 ms.
+
+## E112 – Das Dorf blüht (Nacht 18./19.11.)
+
+- **Sinn der App:** Das Dorf ist nicht nur Kulisse, es spiegelt, wie es Leif geht. Neu: `bluete` im Dorfstatus. Ein Wert 0–1 aus den letzten 7 Tagen, gewichtet:
+  - aktive Tage 35 %
+  - Gewohnheiten 25 %
+  - Fokus 20 % (≈ 2 Pomodoros am Tag = voll)
+  - Erledigtes 20 % (≈ 2 am Tag = voll)
+- **Stufen:** karg, grün, blühend, prächtig.
+- **Fahne am Rathaus,** wenn alle Wochenziele erreicht sind; **Feuerwerk** an Tagen mit ≥ 5 erledigten To-dos.
+- **Wirkung im 3D-Dorf:** mehr Blumen, Laub, Licht und Leben je Stufe – wie die Wetter-Darstellung, aber aus Leifs eigenen Zahlen.
+- **Absicht:** motivieren, nicht bestrafen. Schon ein paar aktive Tage machen das Dorf grün; nichts geht kaputt, wenn eine Woche schlecht war. Ohne KI, nur aus vorhandenen Zahlen. Ein Fehler in der Berechnung verhindert den Dorfstatus nie.
