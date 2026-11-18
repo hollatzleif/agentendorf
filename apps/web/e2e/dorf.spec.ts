@@ -895,3 +895,15 @@ test('Karteikarten: Fach mit karten.md, lernen mit Leertaste und 1–4', async (
   await page.getByRole('button', { name: '← Fächer' }).click();
   await expect(k).toContainText('0 heute dran');
 });
+
+test('„Heute“ als Startseite: nach dem Haken öffnet „/“ direkt „Heute“', async ({ page }, info) => {
+  test.skip(info.project.name !== 'handy', 'am Handy am sinnvollsten');
+  await anmelden(page);
+  await page.goto('/heute');
+  await page.getByLabel('Beim Öffnen zuerst „Heute“ zeigen').check();
+  await page.goto('/');
+  await expect(page).toHaveURL(/\/heute$/);
+  await page.getByLabel('Beim Öffnen zuerst „Heute“ zeigen').uncheck();
+  await page.goto('/');
+  await expect(page).toHaveURL(/\/$/);
+});

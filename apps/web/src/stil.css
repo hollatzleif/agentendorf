@@ -794,3 +794,4 @@ input.kurz { width: 5em; }
 .karten-nochmal { border-color: #b8402f !important; }
 .karten-leicht { border-color: #3a8a5a !important; }
 .karten-ende { max-width: 720px; margin: 0 auto; text-align: center; }
+.heute-start { font-size: 0.8rem; display: inline-flex; gap: 0.2rem; align-items: center; margin-top: 0.2rem; }

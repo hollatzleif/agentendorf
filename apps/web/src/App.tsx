@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { FreigabeInfo, Ich, Konflikt } from '@dorf/shared';
 import { api } from './api';
-import { linkKlick, useOrt } from './router';
+import { linkKlick, navigieren, useOrt } from './router';
 import { useLiveVerbindung, useLiveZustand } from './live';
 import { Anmelden } from './seiten/Anmelden';
 import { Dorfplatz } from './seiten/Dorfplatz';
@@ -45,8 +45,16 @@ export function App() {
   );
 }
 
+/** Startseite: „Heute“ statt Dorf, wenn so eingestellt (nur beim ersten Aufruf von „/“ nach dem Laden) */
+let startGeprueft = false;
+
 function Rahmen() {
   const { pfad } = useOrt();
+  useEffect(() => {
+    if (startGeprueft) return;
+    startGeprueft = true;
+    if (pfad === '/' && !location.search && localStorage.getItem('dorf-start') === 'heute') navigieren('/heute', true);
+  }, [pfad]);
   const live = useLiveZustand();
   const konflikte = useQuery({ queryKey: ['konflikte'], queryFn: () => api<Konflikt[]>('/api/vault/konflikte') });
   const n = konflikte.data?.length ?? 0;

@@ -137,6 +137,7 @@ export function Heute() {
           <div>
             <p className="heute-datum">{tagText(heute, { weekday: 'long', day: 'numeric', month: 'long' })}</p>
             <h1 className="heute-gruss">{gruss(stunde)}, Leif</h1>
+            <StartSchalter />
           </div>
           {wetter && (
             <div className="heute-wetter" aria-label={`Wetter in ${wetter.ort ?? 'Konstanz'}`}>
@@ -568,5 +569,24 @@ export function Stern({ t }: { t: TodoInfo }) {
     >
       {t.wichtig ? '★' : '☆'}
     </button>
+  );
+}
+
+/** „Heute“ als Startseite (merkt sich das Gerät) */
+function StartSchalter() {
+  const [an, setAn] = useState(() => localStorage.getItem('dorf-start') === 'heute');
+  return (
+    <label className="heute-start leise">
+      <input
+        type="checkbox"
+        checked={an}
+        onChange={(e) => {
+          setAn(e.target.checked);
+          if (e.target.checked) localStorage.setItem('dorf-start', 'heute');
+          else localStorage.removeItem('dorf-start');
+        }}
+      />{' '}
+      Beim Öffnen zuerst „Heute“ zeigen
+    </label>
   );
 }
