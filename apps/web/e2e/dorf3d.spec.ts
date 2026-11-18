@@ -15,6 +15,7 @@ interface DorfTest {
   blickAufFigur(id: string, abstand?: number): void;
   figurenAnzahl(): number;
   treffer(e: { clientX: number; clientY: number }): { art: string; id?: string } | null;
+  vorspulen(sekunden: number): void;
 }
 declare global {
   interface Window {
@@ -275,10 +276,14 @@ test('Rundgang: der von selbst geweckte Bürgermeister läuft durchs Dorf und ke
   await setzeFiguren([
     { laufId: 'rundgang', chatId: 'c', gebaeude: 'Rathaus', titel: 'Rundgang', auftrag: '', motor: 'api', modell: 'm', stufe: 'mittel', status: 'laeuft', ausloeser: 'zeitplan', buergermeister: true, erstellt: new Date().toISOString(), token: 0, kostenUsd: 0 },
   ]);
-  await expect.poll(weg, { timeout: 20_000 }).toBeGreaterThan(1.5);
+  // vorspulen statt warten: in der CI schafft die Software-Grafik oft nur ein Bild pro Sekunde
+  const spulen = (sek: number) => page.evaluate((x) => window.__dorf!.vorspulen(x), sek);
+  await spulen(6);
+  expect(await weg()).toBeGreaterThan(1.5);
   // fertig: zurück zum Rathaus
   await setzeFiguren([]);
-  await expect.poll(weg, { timeout: 60_000, intervals: [1000] }).toBeLessThan(0.05);
+  await spulen(90);
+  expect(await weg()).toBeLessThan(0.05);
 });
 
 test('Agent fertig: Ticker meldet ✅ und über dem Gebäude regnet Konfetti', async ({ page }) => {

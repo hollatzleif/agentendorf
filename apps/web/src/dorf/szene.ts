@@ -1037,6 +1037,11 @@ export class DorfSzene {
     const e = this.gebaeude.get(id);
     return e ? { rot: e.rot, blasen: e.blasenSchluessel, rauch: e.rauch.length } : null;
   }
+  /** Figuren um so viele Sekunden weiterbewegen – unabhängig von der Bildrate (Tests) */
+  vorspulen(sekunden: number) {
+    for (let t = 0; t < sekunden; t += 0.1) this.figuren.tick(0.1);
+    this.schmutzig = true;
+  }
   /** Kamera auf eine Figur richten (Tests) */
   blickAufFigur(laufId: string | 'buergermeister', abstand = 12) {
     const p = this.figuren.position(laufId);
