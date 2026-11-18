@@ -12,5 +12,7 @@ cargo build -q
 AUS=$(XDG_CONFIG_HOME="$KONF" DORF_PROGRAMM_SELBSTTEST=1 timeout 60 xvfb-run -a dbus-run-session -- ./target/debug/agentendorf 2>&1 || true)
 echo "$AUS" | grep SELBSTTEST || true
 echo "$AUS" | grep -q 'SELBSTTEST zaehler 3' || { echo "FEHLER: erlaubter Befehl kam nicht an"; echo "$AUS" | tail -30; exit 1; }
+echo "$AUS" | grep -q 'SELBSTTEST glocke schlag 2' || { echo "FEHLER: Glocke kam nicht an"; echo "$AUS" | tail -30; exit 1; }
+echo "$AUS" | grep -q 'SELBSTTEST glocke_stopp' || { echo "FEHLER: glocke_stopp kam nicht an"; echo "$AUS" | tail -30; exit 1; }
 echo "$AUS" | grep -q 'SELBSTTEST zaehler 777' || { echo "FEHLER: ein verbotener Befehl war erlaubt (666) oder der Test lief nicht"; echo "$AUS" | tail -30; exit 1; }
 echo "Selbsttest bestanden: erlaubt nur, was freigegeben ist."

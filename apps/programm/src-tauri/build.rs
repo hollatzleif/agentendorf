@@ -8,6 +8,8 @@ fn main() {
         "melden",
         "zaehler_setzen",
         "schnell_schliessen",
+        "glocke",
+        "glocke_stopp",
     ])))
     .expect("tauri-build");
 }

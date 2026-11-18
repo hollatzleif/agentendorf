@@ -36,6 +36,7 @@ import { Aufwachen } from './aufwachen.js';
 import { listenAnlegen } from './todos.js';
 import { UniTodoBruecke } from './uni/todo-bruecke.js';
 import { Saxo } from './saxo.js';
+import { Kirchturm } from './kirchturm.js';
 import { Bank, datum as bankDatum } from './bank.js';
 import { Corps } from './corps.js';
 import { Boerse, eodhdKlient, ezbKurs, type BoerseKlient, type Fremdwaehrung } from './boerse.js';
@@ -66,6 +67,7 @@ const PFLICHT_DATEIEN = [
   'Corpshaus/aktionen/uebergabe.md',
   'Boerse/depot.md',
   'Boerse/aktionen/wochenbericht.md',
+  'Kirchturm/gebaeude.md',
 ];
 
 /**
@@ -306,6 +308,9 @@ export async function dorfStarten(
     fx: opt.boerseFx ?? ((w) => ezbKurs(konfig.ezbUrl, w)),
     log: (t) => console.warn(t),
   });
+  // E74: Kirchturm – Wecker, Timer, Pomodoro, Stoppuhr (Server-Takt jede Sekunde)
+  const kirchturm = new Kirchturm({ db, uhr, hub });
+  if (opt.beobachten !== false) kirchturm.starten();
   // E73: Saxo – Depotwert und Performance aus Leifs Konto, nur lesen
   const saxo = new Saxo({
     db,
@@ -367,7 +372,7 @@ export async function dorfStarten(
   const planTakt = opt.beobachten !== false ? setInterval(() => void buergermeister.faelligePlaeneAnnehmen().catch((e) => console.warn(`Pläne: ${(e as Error).message}`)), 60_000) : undefined;
   planTakt?.unref();
   const dorfplan = new Dorfplan({ db, uhr, hub, vault, uni, wetter });
-  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen, dorfplan, automatik, listen, bank, corps, boerse, saxo });
+  const app = await appBauen({ konfig, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen, dorfplan, automatik, listen, bank, corps, boerse, saxo, kirchturm });
   // Abhaken in Obsidian kommt ohne Ereignis an → zusätzlich alle 10 Minuten abgleichen
   const uniTodoTakt = opt.beobachten !== false ? setInterval(() => uniTodosAnstossen(), 600_000) : undefined;
   uniTodoTakt?.unref();
@@ -376,6 +381,7 @@ export async function dorfStarten(
     geschlossen = true;
     if (uniTodoTakt) clearInterval(uniTodoTakt);
     if (saxoTakt) clearInterval(saxoTakt);
+    kirchturm.stoppen();
     if (uniTodosZeitgeber) clearTimeout(uniTodosZeitgeber);
     uni.stoppen();
     postbote.stoppen();
@@ -390,5 +396,5 @@ export async function dorfStarten(
     await agenten.ruhe();
     db.close();
   });
-  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan, wetter, automatik, todos, listen, bank, corps, boerse, uniTodos, saxo };
+  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan, wetter, automatik, todos, listen, bank, corps, boerse, uniTodos, saxo, kirchturm };
 }

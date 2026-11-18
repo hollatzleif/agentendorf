@@ -447,3 +447,22 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
   - **Leine:** `Saxo.lesen` kennt nur GET und nur vier Pfade (clients/me, balances/me, netpositions/me, performance/timeseries). Dazu kommt die Empfehlung, eine Live-App ohne Handelsrecht anzulegen (bei Saxo „NOT enabled for trading“). Getestet sind gesperrte Pfade, Pfad-Tricks und dass nur GET vorkommt.
   - Den Stand holt das Dorf alle 30 min, die Performance (Kontowert, zeitgewichtete Rendite) einmal am Tag. Die Rendite seit Jahresbeginn wird aus der kumulierten Reihe berechnet: (1+r_jetzt)/(1+r_31.12.)−1.
 - **Offen:** Ob Saxo Schweiz die Live-API für Leifs Konto freischaltet, lässt sich nur mit seinem Login prüfen. Getestet ist gegen einen nachgebauten Server nach der Doku, die Feldnamen der Positionen stammen aus Saxos eigenem Beispielcode.
+
+## E74 – Kirchturm: Wecker, Timer, Pomodoro, Stoppuhr (18.11.)
+
+- **Alles läuft auf dem Server** (`kirchturm.ts`, Takt jede Sekunde, Zustand als JSON in `dorf_stand`). So zeigen alle Geräte dasselbe, und es klingelt auch, wenn gerade kein Fenster offen ist.
+- **Wecker:** in Ortszeit Europe/Vienna, mit Sommerzeit (über `naechsterTermin` aus `zeitplan.ts`). Wochentage einstellbar; ohne Tage klingelt er einmal und geht danach aus.
+  - Schlummern ist je Wecker einstellbar.
+  - War der Server aus, holt der Wecker höchstens 15 Minuten nach; Älteres wird übersprungen.
+- **Timer:** bis zu 20 gleichzeitig, mit Pause, Weiter, +1 min und Neustart, dazu Vorlagen (Tee, Nudeln, Powernap – anpassbar).
+- **Pomodoro, voll einstellbar:** Arbeits-, kurze und lange Pause, „lange Pause nach n Runden“, Rundenzahl, automatisch weiter oder auf Start warten, dazu ein Thema (mit Vorschlägen aus den To-dos). Pause, Überspringen und Stopp gehen jederzeit.
+- **Stoppuhr** mit Runden, ebenfalls auf dem Server.
+- **Klingeln** löst das Live-Ereignis `kirchturm.klingelt` aus:
+  - Auf **allen** Geräten erscheint ein Hinweis mit „Aus“ bzw. „Schlummern“; „Aus“ auf einem Gerät stoppt überall.
+  - **Hörbar nur im Desktop-Programm** (Leifs Wunsch). Klingeln, die keiner ausschaltet, verschwinden nach 10 min.
+- **Glocke = der einzige Ton im Dorf:**
+  - Ein Schlag für Timer, Pomodoro und (abschaltbar) Mitteilungen; ein Geläut aus zwei Glocken für den Wecker, wiederholt bis „Aus“ (Anzahl einstellbar).
+  - Die Töne sind selbst erzeugt (`apps/programm/src-tauri/toene/erzeugen.py`, additive Synthese) und im Programm eingebaut.
+  - Abgespielt wird mit Bordmitteln (macOS `afplay`, Windows `Media.SoundPlayer`, Linux `paplay`/`aplay`). Das klingt auch bei verstecktem Fenster und kommt ohne Audio-Bibliothek aus.
+  - Neue Programm-Befehle `glocke` und `glocke_stopp` nehmen nur die Namen „schlag“ und „gelaeut“ an – keine Pfade (Rust-Test + Selbsttest).
+- Kein Telegram (Leifs Wahl: nur im Programm). Agenten stellen keine Uhren.

@@ -19,6 +19,7 @@ import { TodoBrett } from '../komponenten/TodoBrett';
 import { BankUebersicht } from '../komponenten/BankUebersicht';
 import { CorpsUebersicht } from '../komponenten/CorpsUebersicht';
 import { BoerseUebersicht } from '../komponenten/BoerseUebersicht';
+import { KirchturmUhr } from '../komponenten/KirchturmUhr';
 
 const REITER = [
   ['aktionen', 'Aktionen'],
@@ -36,6 +37,7 @@ const POST_VORNE = [['eingang', 'Eingang']] as const;
 const MARKT_VORNE = [['todo', 'To-do']] as const;
 const BANK_VORNE = [['konto', 'Konto']] as const;
 const BOERSE_VORNE = [['depot', 'Depot']] as const;
+const KIRCHTURM_VORNE = [['uhr', 'Uhr']] as const;
 const CORPS_VORNE = [
   ['termine', 'Termine'],
   ['aemter', 'Ämter & Aufgaben'],
@@ -54,11 +56,11 @@ const RATHAUS_REITER = [
 
 /** Alle Reiter eines Gebäudes (Schlüssel, Titel) – auch für die Knöpfe im Dorf */
 export function reiterFuer(id: string): readonly (readonly [string, string])[] {
-  return id === 'Rathaus' ? [...RATHAUS_VORNE, ...REITER, ...RATHAUS_REITER] : id === 'Uni' ? [...UNI_VORNE, ...REITER] : id === 'Post' ? [...POST_VORNE, ...REITER] : id === 'Marktplatz' ? [...MARKT_VORNE, ...REITER] : id === 'Einkaufsladen' ? [...EINKAUF_VORNE, ...REITER] : id === 'Bank' ? [...BANK_VORNE, ...REITER] : id === 'Corpshaus' ? [...CORPS_VORNE, ...REITER] : id === 'Boerse' ? [...BOERSE_VORNE, ...REITER] : REITER;
+  return id === 'Rathaus' ? [...RATHAUS_VORNE, ...REITER, ...RATHAUS_REITER] : id === 'Uni' ? [...UNI_VORNE, ...REITER] : id === 'Post' ? [...POST_VORNE, ...REITER] : id === 'Marktplatz' ? [...MARKT_VORNE, ...REITER] : id === 'Einkaufsladen' ? [...EINKAUF_VORNE, ...REITER] : id === 'Bank' ? [...BANK_VORNE, ...REITER] : id === 'Corpshaus' ? [...CORPS_VORNE, ...REITER] : id === 'Boerse' ? [...BOERSE_VORNE, ...REITER] : id === 'Kirchturm' ? [...KIRCHTURM_VORNE, ...REITER] : REITER;
 }
 
 export function standardReiter(id: string) {
-  return id === 'Rathaus' ? 'schreibtisch' : id === 'Uni' ? 'studium' : id === 'Post' ? 'eingang' : id === 'Marktplatz' ? 'todo' : id === 'Einkaufsladen' ? 'einkauf' : id === 'Bank' ? 'konto' : id === 'Corpshaus' ? 'termine' : id === 'Boerse' ? 'depot' : 'aktionen';
+  return id === 'Rathaus' ? 'schreibtisch' : id === 'Uni' ? 'studium' : id === 'Post' ? 'eingang' : id === 'Marktplatz' ? 'todo' : id === 'Einkaufsladen' ? 'einkauf' : id === 'Bank' ? 'konto' : id === 'Corpshaus' ? 'termine' : id === 'Boerse' ? 'depot' : id === 'Kirchturm' ? 'uhr' : 'aktionen';
 }
 
 export function GebaeudeSeite({ id }: { id: string }) {
@@ -124,6 +126,7 @@ export function GebaeudeInhalt({ id, reiter, reiterWaehlen, kompakt }: { id: str
         {reiter === 'konto' && <BankUebersicht />}
         {reiter === 'termine' && <CorpsUebersicht />}
         {reiter === 'depot' && <BoerseUebersicht />}
+        {reiter === 'uhr' && <KirchturmUhr />}
         {reiter === 'aemter' && <TodoBrett liste="corps" platzhalter="Neue Aufgabe – das Amt trägst du beim Bearbeiten als Gruppe ein" gruppiert />}
         {reiter === 'corpspost' && <PostEingang fest="Corps" />}
         {reiter === 'einkauf' && <TodoBrett liste="einkauf" platzhalter="Was fehlt? z. B. 2 l Milch" gruppiert />}

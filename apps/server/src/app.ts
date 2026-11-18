@@ -1,5 +1,6 @@
 import type { Boerse } from './boerse.js';
 import type { Saxo } from './saxo.js';
+import type { Kirchturm } from './kirchturm.js';
 import type { Corps } from './corps.js';
 import type { Bank } from './bank.js';
 import { programmeRouten } from './programme.js';
@@ -71,6 +72,7 @@ export interface Abhaengigkeiten {
   corps?: Corps;
   boerse?: Boerse;
   saxo?: Saxo;
+  kirchturm?: Kirchturm;
 }
 
 /** Für Agenten-HTML: Skripte ja, aber undurchsichtiger Ursprung und kein Netz. Bilder/Schriften nur eingebettet (data:). */
@@ -372,6 +374,13 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
       await boerse.wertAendern(art, { entfernen: index });
       return boerse.uebersicht();
     });
+  }
+
+  // ---- E74: Kirchturm ----
+  if (a.kirchturm) {
+    const k = a.kirchturm;
+    app.get('/api/kirchturm', async () => k.zustand());
+    app.post('/api/kirchturm', async (req) => k.ausfuehren(req.body));
   }
 
   // ---- E73: Saxo (nur lesen) ----

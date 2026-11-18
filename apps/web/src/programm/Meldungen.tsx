@@ -3,7 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import type { ChatDetail, FreigabeInfo, LiveEreignis } from '@dorf/shared';
 import { api } from '../api';
 import { useLiveEreignis } from '../live';
-import { istProgramm, melden, zaehlerSetzen } from './desktop';
+import { glocke, istProgramm, melden as systemMeldung, zaehlerSetzen } from './desktop';
+import { useKirchturm } from '../komponenten/KirchturmUhr';
 
 const imHintergrund = () => document.hidden || !document.hasFocus();
 
@@ -13,6 +14,16 @@ const imHintergrund = () => document.hidden || !document.hasFocus();
  */
 export function ProgrammMeldungen() {
   const aktiv = istProgramm();
+  // E74: ein Glockenschlag zur Mitteilung (abschaltbar im Kirchturm)
+  const kirchturm = useKirchturm();
+  const mitTon = kirchturm.data?.toene.mitteilungen ?? true;
+  const melden = useCallback(
+    (titel: string, text: string) => {
+      if (mitTon) void glocke('schlag', 1);
+      return systemMeldung(titel, text);
+    },
+    [mitTon],
+  );
   const freigaben = useQuery({ queryKey: ['freigaben', 'offen'], queryFn: () => api<FreigabeInfo[]>('/api/freigaben?status=offen'), enabled: aktiv });
   const bekannt = useRef<Set<string> | null>(null);
 
@@ -23,7 +34,7 @@ export function ProgrammMeldungen() {
     // beim ersten Laden nichts melden – nur, was danach neu dazukommt
     if (bekannt.current && imHintergrund()) for (const f of freigaben.data) if (!bekannt.current.has(f.id)) void melden('✉️ Freigabe wartet', f.titel);
     bekannt.current = ids;
-  }, [aktiv, freigaben.data]);
+  }, [aktiv, freigaben.data, melden]);
 
   const gemeldet = useRef(new Set<string>());
   const ereignis = useCallback(
@@ -39,7 +50,7 @@ export function ProgrammMeldungen() {
         })
         .catch(() => undefined);
     },
-    [aktiv],
+    [aktiv, melden],
   );
   useLiveEreignis(ereignis);
   return null;

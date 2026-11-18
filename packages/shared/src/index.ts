@@ -79,7 +79,89 @@ export type LiveEreignis =
   | { typ: 'todos.geaendert'; liste?: string }
   | { typ: 'bank.geaendert' }
   | { typ: 'boerse.geaendert' }
+  | { typ: 'kirchturm.geaendert' }
+  | { typ: 'kirchturm.klingelt'; klingel: KirchturmKlingel }
   | AgentenEreignis;
+
+// ---- E74: Kirchturm (Wecker, Timer, Pomodoro, Stoppuhr) ------------------------------------------
+
+export interface KirchturmWecker {
+  id: string;
+  name: string;
+  /** HH:MM in Ortszeit (Europe/Vienna) */
+  zeit: string;
+  /** Wochentage 0 = So … 6 = Sa; leer = einmalig */
+  tage: number[];
+  aktiv: boolean;
+  schlummerMin: number;
+  /** nächstes Klingeln (ISO) – auch nach Schlummern */
+  naechster: string | null;
+}
+
+export interface KirchturmTimer {
+  id: string;
+  name: string;
+  dauerMs: number;
+  status: 'laeuft' | 'pause' | 'fertig';
+  /** läuft: Ende (ISO); Pause: Rest in ms */
+  ende: string | null;
+  restMs: number | null;
+}
+
+export interface PomodoroEinstellungen {
+  arbeitMin: number;
+  kurzMin: number;
+  langMin: number;
+  /** nach so vielen Arbeitsrunden kommt die lange Pause */
+  langNach: number;
+  /** Arbeitsrunden insgesamt (danach Schluss) */
+  runden: number;
+  /** nächste Phase von selbst starten */
+  autoWeiter: boolean;
+  /** optional: woran gearbeitet wird (To-do-Titel) */
+  thema?: string;
+}
+
+export interface KirchturmPomodoro {
+  einstellungen: PomodoroEinstellungen;
+  phase: 'aus' | 'arbeit' | 'kurz' | 'lang';
+  status: 'aus' | 'laeuft' | 'pause' | 'wartet';
+  ende: string | null;
+  restMs: number | null;
+  /** fertige Arbeitsrunden in dieser Sitzung */
+  erledigt: number;
+}
+
+export interface KirchturmKlingel {
+  id: string;
+  quelle: 'wecker' | 'timer' | 'pomodoro';
+  bezugId: string;
+  titel: string;
+  text: string;
+  /** gelaeut = mehrere Schläge (Wecker), schlag = kurz (Timer, Pomodoro) */
+  ton: 'gelaeut' | 'schlag';
+  seit: string;
+  /** Wecker: Schlummern möglich */
+  schlummern: boolean;
+}
+
+export interface KirchturmToene {
+  /** Glocke auch bei Mitteilungen des Programms (Freigaben, fertige Aufgaben) */
+  mitteilungen: boolean;
+  /** Wie oft das Geläut beim Wecker wiederholt wird (bis „Aus“) */
+  weckerWiederholen: number;
+}
+
+export interface KirchturmZustand {
+  jetzt: string;
+  wecker: KirchturmWecker[];
+  timer: KirchturmTimer[];
+  vorlagen: { name: string; dauerMs: number }[];
+  pomodoro: KirchturmPomodoro;
+  stoppuhr: { start: string | null; bisherMs: number; runden: number[] };
+  klingelt: KirchturmKlingel[];
+  toene: KirchturmToene;
+}
 
 /** To-do auf dem Marktplatz (E65): eine Datei in Marktplatz/todos/ */
 export interface TodoInfo {

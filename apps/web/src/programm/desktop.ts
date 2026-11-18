@@ -29,3 +29,7 @@ export const melden = (titel: string, text: string) => befehl('melden', { titel:
 export const zaehlerSetzen = (anzahl: number) => befehl('zaehler_setzen', { anzahl: Math.max(0, Math.min(999, Math.round(anzahl))) });
 /** Schnelleingabe-Fenster ausblenden */
 export const schnellSchliessen = () => befehl('schnell_schliessen');
+/** E74: Kirchturm-Glocke (nur im Programm hörbar): „schlag“ oder „gelaeut“, 1–20 Mal */
+export const glocke = (art: 'schlag' | 'gelaeut', mal = 1) => befehl('glocke', { art, mal: Math.max(1, Math.min(20, Math.round(mal))) });
+/** Glocke sofort verstummen lassen */
+export const glockeStopp = () => befehl('glocke_stopp');

@@ -12,6 +12,7 @@ import { Einstellungen } from './seiten/Einstellungen';
 import { ChatSeite } from './seiten/Chat';
 import { Schnelleingabe } from './programm/Schnelleingabe';
 import { ProgrammMeldungen } from './programm/Meldungen';
+import { KirchturmGlocke } from './programm/KirchturmGlocke';
 
 export function App() {
   const qc = useQueryClient();
@@ -35,6 +36,7 @@ export function App() {
   return (
     <>
       <ProgrammMeldungen />
+      <KirchturmGlocke />
       <Rahmen />
     </>
   );

@@ -441,3 +441,62 @@ test('Börse: ohne Schlüssel Hinweis; Position und Watchlist anlegen und entfer
   await page.getByRole('button', { name: 'Apple entfernen' }).click();
   await expect(page.getByText('AAPL.US')).toHaveCount(0);
 });
+
+test('Kirchturm: Timer klingelt überall sichtbar, im Programm mit Glocke; Wecker, Pomodoro, Stoppuhr', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  // so tun, als liefe die Seite im Desktop-Programm: Befehle mitschreiben
+  await page.addInitScript(() => {
+    const w = window as unknown as { __befehle: [string, unknown][]; __TAURI_INTERNALS__: unknown };
+    w.__befehle = [];
+    w.__TAURI_INTERNALS__ = { invoke: async (b: string, a: unknown) => void w.__befehle.push([b, a]) };
+  });
+  await anmelden(page);
+  await page.goto('/gebaeude/Kirchturm');
+  await expect(page.getByRole('button', { name: 'Uhr', exact: true })).toHaveClass(/aktiv/);
+  await expect(page.getByRole('img', { name: /Turmuhr/ })).toBeVisible();
+
+  // Timer über 1 Sekunde → klingelt
+  const t = page.getByRole('form', { name: 'Neuer Timer' });
+  await t.getByLabel('Timer-Name').fill('Ei');
+  await t.getByLabel('Minuten').fill('0');
+  await t.getByLabel('Sekunden').fill('1');
+  await t.getByRole('button', { name: '▶ Start' }).click();
+  const alarm = page.getByRole('alert');
+  await expect(alarm).toContainText('⏳ Ei', { timeout: 10_000 });
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __befehle: [string, unknown][] }).__befehle)).toContainEqual(['glocke', { art: 'schlag', mal: 1 }]);
+  await alarm.getByRole('button', { name: 'Aus' }).click();
+  await expect(alarm).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __befehle: [string, unknown][] }).__befehle.map((x) => x[0]))).toContain('glocke_stopp');
+
+  // Wecker anlegen (werktags), ausschalten
+  await page.getByRole('button', { name: '+ Wecker' }).click();
+  const w = page.getByRole('form', { name: 'Neuer Wecker' });
+  await w.getByLabel('Uhrzeit').fill('06:45');
+  await w.getByLabel('Wecker-Name').fill('Uni');
+  await w.getByRole('button', { name: 'Speichern' }).click();
+  const wecker = page.getByRole('region', { name: 'Wecker' });
+  await expect(wecker).toContainText('Uni · werktags');
+  await wecker.getByLabel('Wecker 06:45 ausschalten').click();
+  await expect(wecker.locator('li.wecker.aus')).toHaveCount(1);
+
+  // Pomodoro einstellen und starten
+  const p = page.getByRole('region', { name: 'Pomodoro' });
+  await p.getByRole('button', { name: '⚙ Einstellen' }).click();
+  await p.getByRole('button', { name: 'Lang (50/10/30)' }).click();
+  await p.getByLabel('Woran arbeitest du? (optional)').fill('Mathe III');
+  await p.getByRole('button', { name: 'Speichern' }).click();
+  await p.getByRole('button', { name: '▶ Start' }).click();
+  await expect(p).toContainText('Arbeiten');
+  await expect(p).toContainText('Runde 1 von 4 · Mathe III');
+  await expect(p.locator('.pomodoro-zeit')).toHaveText(/^(50:00|49:5\d)$/);
+  await p.getByRole('button', { name: '⏹ Stopp' }).click();
+
+  // Stoppuhr
+  const s = page.getByRole('region', { name: 'Stoppuhr' });
+  await s.getByRole('button', { name: '▶ Start' }).click();
+  await s.getByRole('button', { name: 'Runde' }).click();
+  await s.getByRole('button', { name: '⏸ Stopp' }).click();
+  await expect(s.locator('.stoppuhr-runden li')).toHaveCount(1);
+  await s.getByRole('button', { name: 'Zurücksetzen' }).click();
+  await expect(s.locator('.stoppuhr-zeit')).toHaveText('0:00,00');
+});

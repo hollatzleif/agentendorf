@@ -533,3 +533,46 @@ input::file-selector-button {
 .saxo { margin-bottom: 1.2rem; }
 .saxo-verlauf { margin: 0.6rem 0; }
 .saxo-verlauf svg { width: 100%; height: 140px; color: var(--gruen, #3a8a3a); background: rgba(0, 0, 0, 0.03); border-radius: 8px; }
+
+/* E74: Kirchturm */
+.kirchturm-kopf { display: flex; gap: 1rem; align-items: center; margin-bottom: 0.8rem; }
+.zifferblatt { width: 96px; height: 96px; flex: none; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.25)); }
+.kirchturm-zeit { font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.kirchturm-raster { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0.8rem; }
+.kirchturm-teil h3 { margin-top: 0; }
+.kirchturm-liste { list-style: none; padding: 0; margin: 0 0 0.6rem; display: grid; gap: 0.4rem; }
+.kirchturm-liste li { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.timer-zeit, .wecker-zeit { font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 4.5ch; }
+.wecker-zeit { background: none; border: none; padding: 0; cursor: pointer; color: inherit; }
+.wecker.aus { opacity: 0.55; }
+.timer.status-fertig .timer-zeit { color: #b8402f; }
+.timer.status-pause .timer-zeit { opacity: 0.6; }
+.timer-name { flex: 1; }
+.kirchturm-vorlagen { flex-wrap: wrap; margin-bottom: 0.5rem; }
+.kirchturm-vorlagen .vorlage { display: inline-flex; gap: 0.1rem; }
+input.kurz { width: 5em; }
+.kirchturm-zahlen label { flex: 1 1 8em; }
+.wochentage label { display: inline-flex; align-items: center; gap: 0.2rem; padding: 0.15rem 0.45rem; border-radius: 999px; border: 1px solid rgba(0, 0, 0, 0.2); cursor: pointer; }
+.wochentage label.an { background: rgba(80, 140, 60, 0.18); border-color: rgba(80, 140, 60, 0.6); }
+.wochentage input { display: none; }
+.pomodoro-anzeige { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.6rem; }
+.pomodoro-ring {
+  --anteil: 0;
+  width: 110px; height: 110px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  background: conic-gradient(#c8553d calc(var(--anteil) * 360deg), rgba(0, 0, 0, 0.08) 0);
+}
+.phase-kurz .pomodoro-ring, .phase-lang .pomodoro-ring { background: conic-gradient(#3a8a5a calc(var(--anteil) * 360deg), rgba(0, 0, 0, 0.08) 0); }
+.pomodoro-zeit { background: var(--karte, #fffaf0); width: 86px; height: 86px; border-radius: 50%; display: grid; place-items: center; font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pomodoro-punkte { display: flex; gap: 0.25rem; margin-top: 0.3rem; }
+.pomodoro-punkte span { width: 0.7rem; height: 0.7rem; border-radius: 50%; border: 1.5px solid #c8553d; }
+.pomodoro-punkte span.voll { background: #c8553d; }
+.stoppuhr-zeit { font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; margin-bottom: 0.4rem; }
+.stoppuhr-runden { padding-left: 0; list-style: none; max-height: 12rem; overflow: auto; font-variant-numeric: tabular-nums; }
+.stoppuhr-runden li { display: grid; grid-template-columns: 1fr auto auto; gap: 0.8rem; }
+.kirchturm-klingelt { display: grid; gap: 0.5rem; margin-bottom: 0.8rem; }
+.kirchturm-klingel { display: flex; align-items: center; gap: 0.7rem; padding: 0.6rem 0.8rem; border-radius: 10px; background: #fff3cd; border: 2px solid #e0a800; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18); }
+.kirchturm-klingel > div { flex: 1; }
+.glocke-wackelt { font-size: 1.8rem; display: inline-block; animation: glocke-wackeln 0.8s ease-in-out infinite; transform-origin: 50% 10%; }
+@keyframes glocke-wackeln { 0%, 100% { transform: rotate(-14deg); } 50% { transform: rotate(14deg); } }
+@media (prefers-reduced-motion: reduce) { .glocke-wackelt { animation: none; } }
+.kirchturm-schwebend { position: fixed; top: 0.8rem; left: 50%; transform: translateX(-50%); z-index: 1000; width: min(560px, calc(100vw - 1.6rem)); }

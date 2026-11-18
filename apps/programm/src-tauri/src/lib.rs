@@ -4,12 +4,13 @@
 //! immer vom Server – jedes Deploy ist sofort da. Dazu kommen: Systemmeldungen, Symbol in der Leiste mit der Zahl
 //! offener Freigaben, Schnelleingabe per Tastenkürzel, Autostart, automatische (signierte) Updates.
 //!
-//! Sicherheit: Die Seiten vom Server dürfen nur drei eigene Befehle aufrufen (melden, zaehler_setzen,
-//! schnell_schliessen) – freigegeben zur Laufzeit genau für den Ursprung der Dorf-Adresse. Keine Dateien, keine Shell.
+//! Sicherheit: Die Seiten vom Server dürfen nur fünf eigene Befehle aufrufen (melden, zaehler_setzen,
+//! schnell_schliessen, glocke, glocke_stopp) – freigegeben zur Laufzeit genau für den Ursprung der Dorf-Adresse. Keine Dateien, keine Shell.
 //! Fremde Links öffnen im normalen Browser.
 
 mod adresse;
 mod einstellungen;
+mod glocke;
 
 use std::net::TcpStream;
 use std::sync::Mutex;
@@ -103,7 +104,9 @@ fn dorf_oeffnen(app: &AppHandle, url: Url, sichtbar: bool) -> tauri::Result<()> 
                 .windows([HAUPT, SCHNELL])
                 .permission("allow-melden")
                 .permission("allow-zaehler-setzen")
-                .permission("allow-schnell-schliessen"),
+                .permission("allow-schnell-schliessen")
+                .permission("allow-glocke")
+                .permission("allow-glocke-stopp"),
         )?;
         *offen = Some(url.clone());
     }
@@ -207,6 +210,21 @@ fn melden(app: AppHandle, titel: String, text: String) -> Result<(), String> {
     app.notification().builder().title(titel).body(text).show().map_err(|e| e.to_string())
 }
 
+/// E74: Kirchturm-Glocke – nur „schlag“ oder „gelaeut“, 1–20 Mal
+#[tauri::command]
+fn glocke(app: AppHandle, art: String, mal: u8) -> Result<(), String> {
+    glocke::spielen(&app, &art, mal)
+}
+
+#[tauri::command]
+fn glocke_stopp(app: AppHandle) {
+    #[cfg(debug_assertions)]
+    if std::env::var("DORF_PROGRAMM_SELBSTTEST").is_ok() {
+        println!("SELBSTTEST glocke_stopp");
+    }
+    glocke::stoppen(&app);
+}
+
 #[tauri::command]
 fn zaehler_setzen(app: AppHandle, anzahl: u32) {
     #[cfg(debug_assertions)]
@@ -241,14 +259,17 @@ fn schnell_schliessen(app: AppHandle) {
 }
 
 /// Selbsttest (nur Debug): läuft in der Dorf-Seite wie deren eigenes JavaScript.
-/// Erlaubt: zaehler_setzen. Verboten: adresse_speichern (nur Einrichtungsseite), Plugin-Befehle ohne Freigabe.
+/// Erlaubt: zaehler_setzen, glocke (nur bekannte Töne). Verboten: adresse_speichern (nur Einrichtungsseite), Plugin-Befehle ohne Freigabe.
 #[cfg(debug_assertions)]
 const SELBSTTEST_JS: &str = r#"
 (async () => {
   const i = window.__TAURI_INTERNALS__;
   const darf = async (b, a) => { try { await i.invoke(b, a); return true; } catch (e) { return false; } };
   await i.invoke('zaehler_setzen', { anzahl: 3 });
+  await i.invoke('glocke', { art: 'schlag', mal: 2 });
+  await i.invoke('glocke_stopp');
   const verboten = [
+    await darf('glocke', { art: '../../etc/passwd', mal: 1 }),
     await darf('adresse_speichern', { adresse: 'https://boese.example' }),
     await darf('neu_verbinden'),
     await darf('plugin:opener|open_url', { url: 'https://boese.example' }),
@@ -361,7 +382,8 @@ pub fn run() {
                 .build(),
         )
         .manage(Zustand::default())
-        .invoke_handler(tauri::generate_handler![adresse_lesen, adresse_speichern, neu_verbinden, melden, zaehler_setzen, schnell_schliessen])
+        .manage(glocke::Glocke::default())
+        .invoke_handler(tauri::generate_handler![adresse_lesen, adresse_speichern, neu_verbinden, melden, zaehler_setzen, schnell_schliessen, glocke, glocke_stopp])
         .setup(move |app| {
             let h = app.handle().clone();
             leiste_bauen(&h)?;
