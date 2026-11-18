@@ -112,7 +112,7 @@ dorf telegram-einrichten
 
 4. Das Skript bittet dich, dem neuen Bot `/start` zu schicken, zeigt dann deinen Namen und deine Chat-ID – mit `ja` bestätigen.
 
-Danach: Eine Textnachricht an den Bot landet als Aufgabe auf dem Schreibtisch, Freigaben kommen mit Ja/Nein-Knöpfen. Schreibst du innerhalb von 60 Minuten weiter, geht das Gespräch mit dem Bürgermeister weiter. Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter. `/neu` startet eine neue Aufgabe. Welche Meldungen kommen, stellst du unter **Rathaus → Agenten-Einstellungen → Telegram** ein.
+Danach: Eine Textnachricht an den Bot landet als Aufgabe auf dem Schreibtisch, Freigaben kommen mit Ja/Nein-Knöpfen. Schreibst du innerhalb von 60 Minuten weiter, geht das Gespräch mit dem Bürgermeister weiter. Antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter. `/neu` startet eine neue Aufgabe. Weitere Befehle (auch im „/“-Menü des Bots): `/heute` (dein Tag: Wetter, Termine, Fristen), `/fristen` (7 Tage, mit Erledigt-Knöpfen), `/status`, `/freigaben`, `/moodle <Fach> [Frage]`. Nachts (22–7 Uhr) kommt nur Dringendes, der Rest um 7 Uhr gesammelt. Welche Meldungen kommen, stellst du unter **Rathaus → Agenten-Einstellungen → Telegram** ein.
 
 ## 8. Uni: Fristen, Pflichttermine und deine Fächer
 
