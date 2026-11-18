@@ -9,6 +9,8 @@ export interface FigurenWelt {
   platz(gebaeude: string, slot: number): { pos: THREE.Vector3; blick: number } | null;
   /** Weg von a nach b über die Straßen (Weltpunkte, inkl. a und b) */
   weg(a: THREE.Vector3, b: THREE.Vector3): THREE.Vector3[];
+  /** Alle Gebäude im Dorf (für den Rundgang des Bürgermeisters) */
+  gebaeude?(): string[];
 }
 
 const GESCHWINDIGKEIT = 1.6;
@@ -117,7 +119,19 @@ interface Agent extends Teile {
 export class Figuren {
   readonly gruppe = new THREE.Group();
   private agenten = new Map<string, Agent>();
-  private bm: (Teile & { arbeitet: THREE.Object3D | null; t: number; pos: THREE.Vector3 | null; blick: number; laeuft: DorfFigur | null; winken: number }) | null = null;
+  private bm:
+    | (Teile & {
+        arbeitet: THREE.Object3D | null;
+        t: number;
+        pos: THREE.Vector3 | null;
+        blick: number;
+        laeuft: DorfFigur | null;
+        winken: number;
+        /** Rundgang (von selbst geweckt): Weg zum nächsten Gebäude bzw. zurück zum Rathaus */
+        runde: THREE.Vector3[];
+        besuche: number;
+      })
+    | null = null;
   private erst = true;
   private nachts = false;
 
@@ -203,6 +217,7 @@ export class Figuren {
     }
     if (this.bm) {
       const r = this.welt.platz('Rathaus', 4);
+      this.bm.runde = [];
       if (r) {
         this.bm.pos = r.pos;
         this.bm.blick = r.blick;
@@ -217,7 +232,7 @@ export class Figuren {
     const r = this.welt.platz('Rathaus', 4);
     if (!this.bm) {
       const t = figurBauen({ hemd: '#2b2b3a', hose: '#2b2b3a', hut: 'zylinder', gegenstand: 'mappe', schaerpe: true });
-      this.bm = { ...t, arbeitet: null, t: 0, pos: null, blick: 0, laeuft: null, winken: 0 };
+      this.bm = { ...t, arbeitet: null, t: 0, pos: null, blick: 0, laeuft: null, winken: 0, runde: [], besuche: 0 };
       this.bm.obj.userData = { buergermeister: true };
       this.gruppe.add(this.bm.obj);
     }
@@ -228,6 +243,9 @@ export class Figuren {
       this.bm.obj.position.copy(r.pos);
       this.bm.obj.rotation.y = r.blick;
     }
+    // Rundgang beendet, aber unterwegs: zurück zum Rathaus laufen
+    if (this.bm.pos && (lauf?.status !== 'laeuft' || lauf.ausloeser !== 'zeitplan') && this.bm.obj.position.distanceTo(this.bm.pos) > 0.05)
+      this.bm.runde = this.reduziert ? [] : this.welt.weg(this.bm.obj.position.clone(), this.bm.pos);
     this.bm.laeuft = lauf;
     this.blaseSetzen(this.bm, lauf ? (lauf.status === 'laeuft' ? 'denken' : lauf.status === 'wartet_freigabe' ? 'brief' : 'sanduhr') : this.nachts ? 'schlafen' : null);
     // schlafend leicht zur Seite geneigt
@@ -316,14 +334,33 @@ export class Figuren {
         // Winken: rechter Arm hoch und hin und her
         aktiv = true;
         bm.winken -= dt;
-        bm.obj.position.copy(bm.pos!);
-        bm.obj.rotation.y = bm.blick;
+        // unterwegs (Rundgang) bleibt er stehen, wo er ist, und winkt von dort
+        if (!bm.runde.length) {
+          bm.obj.position.copy(bm.pos!);
+          bm.obj.rotation.y = bm.blick;
+        }
         bm.arme[1]!.rotation.x = -2.6;
         bm.arme[1]!.rotation.z = Math.sin(bm.t * 12) * 0.35;
         if (bm.winken <= 0) {
           bm.arme[1]!.rotation.x = 0;
           bm.arme[1]!.rotation.z = 0;
         }
+      } else if (bm.laeuft?.status === 'laeuft' && bm.laeuft.ausloeser === 'zeitplan' && this.welt.gebaeude && !this.reduziert) {
+        // Rundgang (stündlich von selbst geweckt): von Gebäude zu Gebäude durchs Dorf, dazwischen kurz zurück zum Rathaus
+        aktiv = true;
+        if (!bm.runde.length) {
+          const andere = this.welt.gebaeude().filter((g) => g !== 'Rathaus');
+          const heim = bm.besuche % 3 === 2 || !andere.length;
+          const ziel = heim ? { pos: bm.pos!, blick: bm.blick } : this.welt.platz(andere[Math.floor(Math.random() * andere.length)]!, 5);
+          bm.besuche++;
+          if (ziel) bm.runde = this.welt.weg(bm.obj.position.clone(), ziel.pos);
+        }
+        if (bm.runde.length) this.gehen(bm, bm.runde, dt);
+      } else if (bm.runde.length && !this.reduziert) {
+        // Rundgang vorbei: auf dem Weg zurück zum Rathaus
+        aktiv = true;
+        this.gehen(bm, bm.runde, dt);
+        if (!bm.runde.length) bm.obj.rotation.y = bm.blick;
       } else if (bm.laeuft?.status === 'laeuft' && !this.reduziert) {
         // Auf und ab gehen und nachdenken
         aktiv = true;
@@ -346,6 +383,33 @@ export class Figuren {
       }
     }
     return aktiv;
+  }
+
+  /** Eine Figur ein Stück den Weg entlang (Beine und Arme schwingen) */
+  private gehen(f: Teile & { t: number }, pfad: THREE.Vector3[], dt: number) {
+    let rest = GESCHWINDIGKEIT * dt;
+    while (rest > 0 && pfad.length) {
+      const z = pfad[0]!;
+      const d = f.obj.position.distanceTo(z);
+      if (d <= rest) {
+        f.obj.position.copy(z);
+        pfad.shift();
+        rest -= d;
+      } else {
+        const r = z.clone().sub(f.obj.position).normalize();
+        f.obj.position.addScaledVector(r, rest);
+        let diff = Math.atan2(r.x, r.z) - f.obj.rotation.y;
+        diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+        f.obj.rotation.y += diff * Math.min(1, dt * 10);
+        rest = 0;
+      }
+    }
+    const s = Math.sin(f.t * 11);
+    f.beine[0]!.rotation.x = s * 0.6;
+    f.beine[1]!.rotation.x = -s * 0.6;
+    f.arme[0]!.rotation.x = -s * 0.5;
+    f.arme[1]!.rotation.x = s * 0.5;
+    f.koerper.position.y = Math.abs(s) * 0.04;
   }
 
   treffer(ray: THREE.Raycaster): { art: 'figur'; laufId: string } | { art: 'buergermeister' } | null {

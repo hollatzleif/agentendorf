@@ -334,6 +334,7 @@ export class DorfSzene {
       {
         platz: (id, slot) => this.platz(id, slot),
         weg: (a, b) => this.weg(a, b),
+        gebaeude: () => [...this.gebaeude.keys()].filter((id) => this.daten?.layout.gebaeude[id]),
       },
       o.reduziert || this.sparsam,
     );

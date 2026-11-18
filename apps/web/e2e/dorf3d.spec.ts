@@ -240,3 +240,29 @@ test('Zeitungs-Knopf: roter Punkt bei neuer Ausgabe, öffnet die Morgenzeitung i
   await page.reload();
   await expect(page.getByRole('button', { name: 'Morgenzeitung', exact: true })).toBeVisible({ timeout: 20_000 });
 });
+
+test('Rundgang: der von selbst geweckte Bürgermeister läuft durchs Dorf und kehrt danach zum Rathaus zurück', async ({ page }) => {
+  await imDorf(page);
+  await page.goto('/?animiert');
+  await page.waitForFunction(() => !!window.__dorf?.bildschirmPunkt('gebaeude', 'Rathaus'), null, { timeout: 20_000 });
+  type Intern = { figuren: { position(id: string): { x: number; z: number } | null }; daten: { status?: DorfStatus }; setzen(d: unknown): void };
+  const wo = () => page.evaluate(() => (window.__dorf as unknown as Intern).figuren.position('buergermeister'));
+  const start = (await wo())!;
+  const weg = async () => {
+    const p = (await wo())!;
+    return Math.hypot(p.x - start.x, p.z - start.z);
+  };
+  // Status wie bei einem stündlichen Rundgang (Auslöser zeitplan) – direkt in die Szene, ohne echten Lauf
+  const setzeFiguren = (figuren: unknown[]) =>
+    page.evaluate((f) => {
+      const s = window.__dorf as unknown as Intern;
+      s.setzen({ ...s.daten, status: { ...(s.daten.status ?? { jetzt: new Date().toISOString(), gebaeude: {} }), figuren: f } });
+    }, figuren);
+  await setzeFiguren([
+    { laufId: 'rundgang', chatId: 'c', gebaeude: 'Rathaus', titel: 'Rundgang', auftrag: '', motor: 'api', modell: 'm', stufe: 'mittel', status: 'laeuft', ausloeser: 'zeitplan', buergermeister: true, erstellt: new Date().toISOString(), token: 0, kostenUsd: 0 },
+  ]);
+  await expect.poll(weg, { timeout: 20_000 }).toBeGreaterThan(1.5);
+  // fertig: zurück zum Rathaus
+  await setzeFiguren([]);
+  await expect.poll(weg, { timeout: 60_000, intervals: [1000] }).toBeLessThan(0.05);
+});
