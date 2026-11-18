@@ -10,7 +10,7 @@ const LISTEN_ANZEIGE: Record<ListenName, { symbol: string; titel: string; befehl
 };
 import { aufwachEinstellungen, istNacht } from '../aufwachen.js';
 import type { Rueckblick } from '../wochenrueckblick.js';
-import { terminAusText, type TerminAusText } from '@dorf/shared';
+import { jetztDran, minutenText, terminAusText, type KalenderTermin, type TerminAusText } from '@dorf/shared';
 import type { Karteikasten } from '../karten.js';
 import type { Gewohnheiten } from '../gewohnheiten.js';
 import type { Wochenziele } from '../wochenziele.js';
@@ -146,7 +146,7 @@ export class TelegramBot {
         freiAmTag?(tag: string): Promise<[number, number][]>;
         bloeckeEintragen?(b: unknown): Promise<unknown>;
         /** E105 Prüfungs-Wächter */
-        zeitraum?(von: number, bis: number): Promise<{ termine: { titel: string }[] }>;
+        zeitraum?(von: number, bis: number): Promise<{ termine: ({ titel: string } & Partial<KalenderTermin>)[] }>;
         lernplan?(o: { bis: number; stunden: number; dauerMin: number }): Promise<{ gewuenscht: number; bloecke: { start: string; ende: string }[] }>;
       };
       log?: (t: string) => void;
@@ -315,6 +315,7 @@ export class TelegramBot {
     { command: 'erinner', description: 'Erinnerung: /erinner morgen 9 Uhr Mama anrufen, /erinner in 30 min Wäsche' },
     { command: 'plan', description: 'Tag planen: To-dos als Blöcke in freie Lücken – /plan morgen' },
     { command: 'karten', description: 'Karteikarten wiederholen: /karten [Fach]' },
+    { command: 'jetzt', description: 'Was passt jetzt? Ein To-do für die Zeit bis zum nächsten Termin' },
     { command: 'fokus', description: 'Pomodoro starten: /fokus [Thema]' },
     { command: 'ziel', description: 'Wochenziele: /ziel <Text> setzt eins, /ziel zeigt sie zum Abhaken' },
     { command: 'gewohnheiten', description: 'Gewohnheiten heute abhaken' },
@@ -504,6 +505,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       if (b === '/ziel' || b === '/ziele') return this.zielBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/plan') return this.planBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/karten') return this.kartenBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
+      if (b === '/jetzt') return this.jetztBefehl();
       if (b === '/fokus') return this.fokusBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b !== '/neu') return this.befehl(b);
       // „/neu“ beendet das laufende Gespräch; „/neu <Text>“ legt gleich eine neue Aufgabe an
@@ -579,7 +581,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
   private async befehl(b: string) {
     if (b === '/start' || b === '/hilfe' || b === '/help')
       return this.senden(
-        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters. Weiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch); antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n<b>📅 Planen</b>\n/heute – dein Tag · /woche – die nächsten 7 Tage\n/plan [morgen] – To-dos in freie Kalenderlücken\n/fristen – Abgaben und Prüfungen (7 Tage)\n/termin &lt;wann&gt; &lt;was&gt; – Termin eintragen (mit Bestätigung)\n\n<b>✅ Erledigen</b>\n/todo [Text] – To-do-Liste bzw. neues To-do (auch „… jeden Montag“)\n/einkauf [Text] – Einkaufsliste\n/erinner &lt;wann&gt; &lt;was&gt; – Erinnerung (läutet im Kirchturm)\n/aufraeumen – Überfälliges neu einplanen\n/fokus [Thema] – Pomodoro starten\n/gewohnheiten – heute abhaken · /ziel [Text] – Wochenziele\n\n<b>🎓 Lernen</b>\n/karten [Fach] – Karteikarten · /moodle &lt;Fach&gt; [Frage] – in Moodle nachsehen\n/noten – Notenschnitt und ECTS\n\n<b>📝 Festhalten &amp; Finden</b>\n/notiz &lt;Text&gt; – Tagesnotiz · /suche &lt;Begriff&gt; – im Vault suchen\n/statistik – die letzten 7 Tage\n\n<b>🏛️ Dorf</b>\n/status – was läuft · /freigaben – offene Freigaben\n/aktion [Name] – Skill starten · /neu – nächste Nachricht = neue Aufgabe\n/hilfe – diese Hilfe\n\n<i>Tipp: „todo: …“, „notiz: …“, „ziel: …“, „einkauf: …“ gehen auch ohne Schrägstrich – ein Foto mit „notiz: …“ landet samt Bild in der Tagesnotiz.</i>`,
+        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters. Weiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch); antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n<b>📅 Planen</b>\n/heute – dein Tag · /woche – die nächsten 7 Tage\n/plan [morgen] – To-dos in freie Kalenderlücken\n/fristen – Abgaben und Prüfungen (7 Tage)\n/termin &lt;wann&gt; &lt;was&gt; – Termin eintragen (mit Bestätigung)\n\n<b>✅ Erledigen</b>\n/todo [Text] – To-do-Liste bzw. neues To-do (auch „… jeden Montag“)\n/einkauf [Text] – Einkaufsliste\n/erinner &lt;wann&gt; &lt;was&gt; – Erinnerung (läutet im Kirchturm)\n/aufraeumen – Überfälliges neu einplanen\n/jetzt – was jetzt passt (mit 🍅 Los) · /fokus [Thema] – Pomodoro starten\n/gewohnheiten – heute abhaken · /ziel [Text] – Wochenziele\n\n<b>🎓 Lernen</b>\n/karten [Fach] – Karteikarten · /moodle &lt;Fach&gt; [Frage] – in Moodle nachsehen\n/noten – Notenschnitt und ECTS\n\n<b>📝 Festhalten &amp; Finden</b>\n/notiz &lt;Text&gt; – Tagesnotiz · /suche &lt;Begriff&gt; – im Vault suchen\n/statistik – die letzten 7 Tage\n\n<b>🏛️ Dorf</b>\n/status – was läuft · /freigaben – offene Freigaben\n/aktion [Name] – Skill starten · /neu – nächste Nachricht = neue Aufgabe\n/hilfe – diese Hilfe\n\n<i>Tipp: „todo: …“, „notiz: …“, „ziel: …“, „einkauf: …“ gehen auch ohne Schrägstrich – ein Foto mit „notiz: …“ landet samt Bild in der Tagesnotiz.</i>`,
       );
     if (b === '/status') {
       const aktiv = this.o.agenten.aktiveLaeufe();
@@ -700,6 +702,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (q.data?.startsWith('sb:')) return this.schnellKnopf(q, antworten);
     if (q.data?.startsWith('wv:')) return this.vorschlagKnopf(q, antworten);
     if (q.data?.startsWith('pw:')) return this.pruefungKnopf(q, antworten);
+    if (q.data?.startsWith('jl:')) return this.jetztKnopf(q, antworten);
     if (q.data?.startsWith('sm:')) return this.stimmungKnopf(q, antworten);
     const m = /^f:([0-9a-f-]{36}):([jn]):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
     if (!m || !crypto.timingSafeEqual(Buffer.from(m[3]!), Buffer.from(this.signatur(m[1]!, m[2] as 'j' | 'n')))) {
@@ -1056,6 +1059,48 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
   }
 
   // ---- Prüfungs-Wächter (E105) -----------------------------------------------------------------------
+
+  // ---- E123: /jetzt – ein To-do für die Lücke bis zum nächsten Termin ------------------------------
+
+  private jetztDaten(k: string) {
+    return `jl:${k}:${crypto.createHmac('sha256', this.signaturSchluessel).update(`jetzt:${k}`).digest('base64url').slice(0, 16)}`;
+  }
+
+  private async jetztBefehl() {
+    if (!this.o.listen) return this.senden('Die To-do-Liste ist nicht eingerichtet.');
+    const jetzt = this.o.uhr.jetzt();
+    const teile = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Vienna', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(jetzt)).map((x) => [x.type, x.value]));
+    const heute = `${teile.year}-${teile.month}-${teile.day}`;
+    const jetztMin = Number(teile.hour) * 60 + Number(teile.minute);
+    const beginn = ortszeitZuUtc(Number(teile.year), Number(teile.month), Number(teile.day), 0, 0, 0, 'Europe/Vienna');
+    let termine: KalenderTermin[] = [];
+    if (this.o.kalender?.zeitraum) {
+      const z = await this.o.kalender.zeitraum(beginn, beginn + 86_400_000).catch(() => null);
+      termine = (z?.termine ?? []).filter((t): t is KalenderTermin => typeof t.start === 'string' && typeof t.ende === 'string' && typeof t.ganztags === 'boolean');
+    }
+    const fokus = new Map((this.o.db.prepare('SELECT todo, SUM(minuten) AS m FROM fokus_sitzungen WHERE todo IS NOT NULL GROUP BY todo').all() as { todo: string; m: number }[]).map((x) => [x.todo, Math.round(x.m)]));
+    const todos = (await this.o.listen.todo.liste()).map((t) => (fokus.get(t.pfad) ? { ...t, fokusMin: fokus.get(t.pfad) } : t));
+    const d = jetztDran({ todos, termine, jetzt, jetztMin, heute });
+    if (!d) return this.senden(jetztMin >= 22 * 60 ? '🌙 Feierabend – für heute ist nichts mehr dran.' : '👉 Gerade passt nichts Dringendes hinein (Termin läuft, zu wenig Zeit oder nichts fällig). Zeit für dich. 🌿');
+    const luecke = d.bis ? `${minutenText(d.luecke)} bis ${h(d.bis.titel)}` : `${minutenText(d.luecke)} bis 22 Uhr`;
+    return this.senden(
+      `👉 <b>Jetzt dran:</b> ${h(d.todo.titel)}${d.schritt ? `\nnächster Schritt: ${h(d.schritt)}` : ''}\n<i>${d.passt ? `passt in die ${luecke}` : `für einen 🍅 reicht's (${luecke})`}${d.todo.dauer ? ` · ⏱ ${minutenText(d.todo.dauer)}` : ''}</i>`,
+      { reply_markup: { inline_keyboard: [[{ text: '🍅 Los', callback_data: this.jetztDaten(this.todoKennung(d.todo.pfad)) }]] } },
+    );
+  }
+
+  private async jetztKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {
+    const m = /^jl:([0-9a-f]{12}):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
+    if (!m || !crypto.timingSafeEqual(Buffer.from(m[2]!), Buffer.from(this.jetztDaten(m[1]!).split(':')[2]!))) {
+      this.o.log?.('Telegram: Jetzt-Knopf mit ungültiger Signatur abgelehnt.');
+      return antworten('Ungültiger Knopf.');
+    }
+    const t = (await this.o.listen?.todo.liste())?.find((x) => this.todoKennung(x.pfad) === m[1] && !x.erledigt);
+    if (!t || !this.o.kirchturm) return antworten('Dieses To-do gibt es nicht mehr.');
+    this.o.kirchturm.ausfuehren({ befehl: 'pomodoro_fuer', titel: t.titel.slice(0, 200), ...(t.gruppe ? { gruppe: t.gruppe } : {}), pfad: t.pfad });
+    await antworten('🍅 Läuft!');
+    return this.senden(`🍅 Fokus läuft: <b>${h(t.titel)}</b> – ich halte Meldungen zurück, bis die Arbeitsphase vorbei ist.`);
+  }
 
   private pruefungDaten(k: string, std: number) {
     return `pw:${k}:${std}:${crypto.createHmac('sha256', this.signaturSchluessel).update(`pruefung:${k}:${std}`).digest('base64url').slice(0, 16)}`;

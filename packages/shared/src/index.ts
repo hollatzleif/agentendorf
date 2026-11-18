@@ -816,3 +816,4 @@ export interface Anschluss {
   befehl: string;
   hinweis?: string;
 }
+export * from './tagesbudget.js';

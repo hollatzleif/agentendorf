@@ -959,4 +959,5 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **Reihenfolge:** überfällig → heute fällig → ⭐ ohne Datum → in 3 Tagen fällig, ⭐ jeweils zuerst.
 - **Was „passt“:** Gerechnet wird mit der Restzeit, also Schätzung (E120, sonst 30 min) minus bisheriger Fokus (E122), mindestens 5 min. Passt keins ganz, reicht die Lücke aber für einen Pomodoro (≥ 25 min), wird das erste vorgeschlagen („für einen 🍅 reicht's“).
 - **Kein Vorschlag:** während eines Termins, bei weniger als 10 min Lücke, nach 22 Uhr und während ein Pomodoro läuft.
-- Rein im Code der App (`apps/web/src/tagesbudget.ts`) und nachvollziehbar, ohne KI. Getestet wird mit Server-Vitest (`test/web-tagesbudget.test.ts`) und einem Browser-Test mit fester Uhrzeit.
+- **Telegram /jetzt** liefert dasselbe mit dem signierten Knopf „🍅 Los“ (`jl:`). Termine kommen aus dem Google-Kalender, wenn er verbunden ist. Die Logik liegt in `packages/shared` und wird von App und Server gemeinsam genutzt.
+- Rein im Code und nachvollziehbar, ohne KI. Getestet wird mit Server-Vitest (`test/tagesbudget.test.ts`), die Logik liegt in `packages/shared/src/tagesbudget.ts` und einem Browser-Test mit fester Uhrzeit.

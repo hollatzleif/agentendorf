@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { KalenderAntwort, KalenderTermin, TodoInfo, WochenzieleStand } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { ort, tagPlus } from './MarktKalender';
-import { minutenText } from '../tagesbudget';
+import { minutenText } from '@dorf/shared';
 
 /**
  * E121: Wochenplan – die To-dos der Woche als Spalten Mo–So, links der Eingang (ohne Datum, Überfälliges).

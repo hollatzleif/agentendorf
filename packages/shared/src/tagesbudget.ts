@@ -1,4 +1,4 @@
-import type { KalenderTermin, TodoInfo } from '@dorf/shared';
+import type { KalenderTermin, TodoInfo } from './index.js';
 
 /**
  * E120: Passt der Tag? Summe der Schätzungen der heute dran stehenden To-dos (überfällig, heute fällig, ⭐ mit Datum

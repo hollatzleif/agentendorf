@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { KalenderTermin, TodoInfo } from '@dorf/shared';
-// reine Funktionen der App (keine DOM-Abhängigkeit) – hier mitgetestet
-import { jetztDran, tagesBudget } from '../../web/src/tagesbudget.js';
+import { jetztDran, tagesBudget } from '@dorf/shared';
 
 const todo = (titel: string, o: Partial<TodoInfo> = {}): TodoInfo => ({ pfad: `Marktplatz/todos/${titel}.md`, version: 'v', titel, erledigt: false, ...o });
 const termin = (titel: string, start: string, ende: string): KalenderTermin => ({ id: titel, kalenderId: 'k', titel, start, ende, ganztags: false, quelle: 'google', schreibbar: false }) as KalenderTermin;

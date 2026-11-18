@@ -858,3 +858,23 @@ describe('Telegram: Foto mit „notiz: …“ (E115)', () => {
     expect(d.schreibtisch.liste()).toHaveLength(1);
   });
 });
+
+describe('Telegram /jetzt (E123)', () => {
+  it('schlägt ein passendes To-do mit nächstem Schritt vor; 🍅 Los startet den Pomodoro dafür; falsche Signatur abgelehnt', async () => {
+    const d = await dorf();
+    await d.nachricht({ text: '/jetzt' });
+    expect(d.gesendet().at(-1)).toMatch(/Gerade passt nichts Dringendes/);
+    const t = await d.todos.anlegen({ titel: 'Blatt <3>', faellig: '2026-11-15', dauer: 40, notiz: '- [x] lesen\n- [ ] rechnen' }, 'Leif');
+    await d.nachricht({ text: '/jetzt' });
+    const p = d.aufrufe.filter((a) => a.m === 'sendMessage').at(-1)!.p;
+    // Montag 13:00 Wien, kein Kalender → bis 22 Uhr (9 h)
+    expect(p.text).toBe('👉 <b>Jetzt dran:</b> Blatt &lt;3&gt;\nnächster Schritt: rechnen\n<i>passt in die 9 h bis 22 Uhr · ⏱ 40 min</i>');
+    const daten = (p.reply_markup as { inline_keyboard: { callback_data: string }[][] }).inline_keyboard[0]![0]!.callback_data;
+    expect(daten.length).toBeLessThanOrEqual(64);
+    await d.knopf(daten.replace(/:[^:]+$/, ':AAAAAAAAAAAAAAAA'));
+    expect(d.kirchturm.zustand().pomodoro.phase).toBe('aus');
+    await d.knopf(daten);
+    expect(d.kirchturm.zustand().pomodoro).toMatchObject({ phase: 'arbeit', einstellungen: { thema: 'Blatt <3>', todoPfad: t.pfad } });
+    expect(d.gesendet().at(-1)).toMatch(/🍅 Fokus läuft: <b>Blatt &lt;3&gt;<\/b>/);
+  });
+});
