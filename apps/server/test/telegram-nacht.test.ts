@@ -95,3 +95,40 @@ describe('Telegram: Nachtruhe 22–7 Uhr (Linz)', () => {
     expect(texte.some((t) => t.includes('Fertig'))).toBe(true);
   });
 });
+
+describe('Telegram: Nachtsammlung robust', () => {
+  it('schlägt das Senden fehl, bleibt alles erhalten; viele lange Meldungen werden nie mitten im HTML abgeschnitten', async () => {
+    const texte: string[] = [];
+    let kaputt = true;
+    const api: TelegramSchnittstelle = {
+      async aufruf<T>(m: string, p: Record<string, unknown> = {}) {
+        if (m === 'sendMessage') {
+          if (kaputt) throw new Error('Telegram nicht erreichbar');
+          texte.push(String(p.text));
+        }
+        return { message_id: texte.length } as T;
+      },
+      async dateiLaden() {
+        return { name: 'x', inhalt: Buffer.from('') };
+      },
+    };
+    const d = await testDorf({ telegram: api, env: { TELEGRAM_CHAT_ID: '1' } });
+    const bot = d.telegram! as unknown as { proaktiv(t: string): Promise<void>; nachtNachholen(): Promise<number> };
+    d.uhr.vor(10 * STUNDE); // 23:00 Linz
+    for (let i = 0; i < 12; i++) await bot.proaktiv(`✅ <b>Fertig ${i}</b>\n${'Langer Bericht &amp; mehr '.repeat(40)}<i>Ende ${i}</i>`);
+    expect(texte).toEqual([]);
+    d.uhr.vor(9 * STUNDE); // 08:00
+    await expect(bot.nachtNachholen()).rejects.toThrow(/nicht erreichbar/);
+    kaputt = false;
+    expect(await bot.nachtNachholen()).toBe(12); // nichts verloren
+    expect(texte).toHaveLength(1);
+    const t = texte[0]!;
+    expect(t.length).toBeLessThanOrEqual(4000);
+    expect(t).toMatch(/^🌙 <b>Über Nacht<\/b> \(12\)/);
+    expect(t).toMatch(/… und \d+ weitere/);
+    // jedes geöffnete Tag ist wieder geschlossen, keine halbe Entity
+    expect((t.match(/<b>/g) ?? []).length).toBe((t.match(/<\/b>/g) ?? []).length);
+    expect(t).not.toMatch(/&[a-z]*(?![a-z;])/);
+    expect(await bot.nachtNachholen()).toBe(0);
+  });
+});

@@ -37,6 +37,10 @@ describe('Wetter (Open-Meteo)', () => {
     kaputt = true;
     expect((await w.holen())?.art).toBe('bedeckt'); // alter Stand
     expect(aufrufe).toBe(2);
+    // nach über 6 Stunden ohne Antwort: lieber kein Wetter als das von gestern
+    uhr.vor(6 * 3600_000);
+    expect(await w.holen()).toBeNull();
+    expect(w.aktuell()).toBeUndefined();
     // unbrauchbare Antwort: wird nicht übernommen
     uhr.vor(6 * 60_000);
     kaputt = false;

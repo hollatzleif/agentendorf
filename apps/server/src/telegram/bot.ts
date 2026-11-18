@@ -360,13 +360,13 @@ export class TelegramBot {
     if (b === '/fristen') {
       const jetzt = this.o.uhr.jetzt();
       const liste = (this.o.uni?.fristen() ?? [])
-        .filter((f) => (f.art === 'abgabe' || f.art === 'test') && !f.abgegeben && f.frist && Date.parse(f.frist) > jetzt - 86_400_000 && Date.parse(f.frist) < jetzt + 7 * 86_400_000)
+        .filter((f) => (f.art === 'abgabe' || f.art === 'test') && !f.abgegeben && f.frist && Date.parse(f.frist) < jetzt + 7 * 86_400_000)
         .slice(0, 10);
       if (!liste.length) return this.senden('🎉 Keine offenen Abgaben oder Prüfungen in den nächsten 7 Tagen.');
-      const zeilen = liste.map((f) => `• ${Date.parse(f.frist!) < jetzt ? '⚠️ ' : ''}<b>${h(fristText(Date.parse(f.frist!)))}</b> · ${f.art === 'test' ? 'Prüfung' : 'Abgabe'} · ${h(f.titel)}${f.kurs ? ` (${h(f.kurs)})` : ''}`);
+      const zeilen = liste.map((f) => `• <b>${h(fristText(Date.parse(f.frist!)))}</b> · ${f.art === 'test' ? 'Prüfung' : 'Abgabe'} · ${h(f.titel)}${f.kurs ? ` (${h(f.kurs)})` : ''}`);
       return this.senden(`⏰ <b>Fristen (7 Tage)</b>\n${zeilen.join('\n')}\n<a href="${this.link('/gebaeude/Uni')}">Zur Uni</a>`, {
         reply_markup: {
-          inline_keyboard: liste.map((f) => [{ text: `✅ ${f.titel.slice(0, 40)}`, callback_data: `e:${f.id}:${this.erledigtSignatur(f.id)}` }]),
+          inline_keyboard: liste.map((f) => [{ text: `✅ ${Array.from(f.titel).slice(0, 40).join('')}`, callback_data: `e:${f.id}:${this.erledigtSignatur(f.id)}` }]),
         },
       });
     }
@@ -474,13 +474,24 @@ export class TelegramBot {
   async nachtNachholen() {
     const l = this.nachtListe();
     if (!l.length || (await this.nachtruhe())) return 0;
-    this.nachtListeSetzen([]);
-    const texte = l.filter((x) => !x.freigabe).map((x) => x.text.replace(/\n<a href[^\n]*$/, ''));
+    const texte = l.filter((x) => !x.freigabe).map((x) => kuerzen(x.text.replace(/\n<a href[^\n]*$/, ''), 1200));
     if (texte.length) {
-      let t = `🌙 <b>Über Nacht</b> (${texte.length})\n\n${texte.join('\n\n')}`;
-      if (t.length > 3900) t = `${t.slice(0, 3800)}\n…\n<a href="${this.link('/gebaeude/Rathaus?reiter=alle-chats')}">Alle Chats</a>`;
-      await this.senden(t);
+      // ganze Meldungen, nie mitten in einem HTML-Tag abschneiden (sonst lehnt Telegram die Nachricht ab)
+      const kopf = `🌙 <b>Über Nacht</b> (${texte.length})`;
+      const teile: string[] = [];
+      let laenge = kopf.length;
+      for (const t of texte) {
+        if (laenge + t.length + 2 > 3600) break;
+        teile.push(t);
+        laenge += t.length + 2;
+      }
+      const rest = texte.length - teile.length;
+      await this.senden(
+        `${kopf}\n\n${teile.join('\n\n')}${rest ? `\n\n… und ${rest} weitere – <a href="${this.link('/gebaeude/Rathaus?reiter=alle-chats')}">Alle Chats</a>` : ''}`,
+      );
     }
+    // erst NACH dem Senden austragen – schlägt es fehl, bleibt alles für den nächsten Versuch; neu Dazugekommenes bleibt
+    this.nachtListeSetzen(this.nachtListe().slice(l.length));
     for (const x of l.filter((y) => y.freigabe)) {
       const f = this.o.agenten.freigaben.liste('offen').find((y) => y.id === x.freigabe);
       if (f) await this.freigabeMelden(f, true);
@@ -621,4 +632,13 @@ export class TelegramBot {
       .join('\n');
     await this.proaktiv(`🏁 <b>Aufgabe erledigt</b>: ${h(a.titel)}\n${zeilen}\n<a href="${this.link(`/chats/${a.chatId}`)}">Chat öffnen</a>`, {}, a.chatId);
   }
+}
+
+/** Lange HTML-Meldung als Klartext kürzen – ohne halbe Tags oder Entities */
+function kuerzen(t: string, max: number) {
+  if (t.length <= max) return t;
+  return `${t
+    .replace(/<[^>]+>/g, '')
+    .slice(0, max - 2)
+    .replace(/&[^;\s]*$/, '')} …`;
 }

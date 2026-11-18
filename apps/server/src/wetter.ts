@@ -19,9 +19,11 @@ const Antwort = z.object({
 
 const FRISCH = 30 * 60_000;
 const NACH_FEHLER = 5 * 60_000;
+/** älter als das: lieber kein Wetter als das von gestern (z. B. wenn Open-Meteo länger nicht antwortet) */
+const HOECHSTENS = 6 * 3600_000;
 
 export class Wetter {
-  private stand: { bis: number; wetter: DorfWetter | null } = { bis: 0, wetter: null };
+  private stand: { bis: number; wetter: DorfWetter | null; geholt: number } = { bis: 0, wetter: null, geholt: 0 };
   private laufend?: Promise<DorfWetter | null>;
 
   constructor(
@@ -41,13 +43,13 @@ export class Wetter {
   /** Für die Dorf-Ansicht (synchron): letzter bekannter Stand; ist er alt, wird im Hintergrund neu geholt. */
   aktuell(): DorfWetter | undefined {
     if (this.eingeschaltet && this.stand.bis <= this.o.uhr.jetzt()) void this.holen();
-    return this.stand.wetter ?? undefined;
+    return this.frisch() ?? undefined;
   }
 
   /** Für die Morgenzeitung: wartet auf frische Werte (oder den letzten Stand, wenn Open-Meteo nicht antwortet). */
   async holen(): Promise<DorfWetter | null> {
     if (!this.eingeschaltet) return null;
-    if (this.stand.bis > this.o.uhr.jetzt()) return this.stand.wetter;
+    if (this.stand.bis > this.o.uhr.jetzt()) return this.frisch();
     this.laufend ??= this.abrufen().finally(() => (this.laufend = undefined));
     return this.laufend;
   }
@@ -68,13 +70,17 @@ export class Wetter {
         },
         stand: a.current.time,
       };
-      this.stand = { bis: this.o.uhr.jetzt() + FRISCH, wetter };
+      this.stand = { bis: this.o.uhr.jetzt() + FRISCH, wetter, geholt: this.o.uhr.jetzt() };
       return wetter;
     } catch (e) {
       this.o.log?.(`Wetter: ${(e as Error).message.slice(0, 200)}`);
-      this.stand = { bis: this.o.uhr.jetzt() + NACH_FEHLER, wetter: this.stand.wetter };
-      return this.stand.wetter;
+      this.stand = { ...this.stand, bis: this.o.uhr.jetzt() + NACH_FEHLER };
+      return this.frisch();
     }
+  }
+
+  private frisch(): DorfWetter | null {
+    return this.stand.wetter && this.o.uhr.jetzt() - this.stand.geholt <= HOECHSTENS ? this.stand.wetter : null;
   }
 
   private async netz() {

@@ -18,15 +18,29 @@ export function hostErlaubt(url: string, hosts: string[]): boolean {
   } catch {
     return false;
   }
-  if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
   const h = u.hostname.toLowerCase();
+  // nur https – unverschlüsseltes http nur für die eigene Maschine (Tests)
+  if (u.protocol !== 'https:' && !(u.protocol === 'http:' && istLokal(h))) return false;
   return hosts.some((e) => {
     const x = e.trim().toLowerCase();
     return !!x && (h === x || h.endsWith(`.${x}`));
   });
 }
 
+export const istLokal = (h: string) => h === 'localhost' || /^127\.\d+\.\d+\.\d+$/.test(h);
+
 const OHNE_NETZ = /^(data|blob|about):/i;
+
+/** Kommt „sesskey“ irgendwo in der Abfrage vor (auch verschleiert: %73esskey, „ sesskey“, „sesskey\0x“)? */
+function mitSesskey(u: URL) {
+  let q = u.search;
+  try {
+    q = decodeURIComponent(q.replace(/\+/g, ' '));
+  } catch {
+    /* roh prüfen */
+  }
+  return /sesskey/i.test(q);
+}
 const LESEND = new Set(['get', 'fetch', 'search', 'list', 'view', 'load', 'count', 'check', 'is', 'has', 'can', 'read', 'info']);
 const SCHREIBEND = new Set(
   'submit save update delete remove create add post send set start process lock unlock revert copy duplicate upload grade reset toggle mark enrol unenrol accept decline attempt edit move write change request block unblock favourite star hide show mute unmute touch logout confirm complete answer vote rate import export'.split(' '),
@@ -51,6 +65,8 @@ function ohneKomponente(teile: string[]) {
  * Ein lesendes Wort muss vorkommen, kein schreibendes – im Zweifel gesperrt.
  */
 export function nurLesend(methodname: string): boolean {
+  // Moodle säubert Namen (PARAM_ALPHANUMEXT) – „mar k_all“ würde dort zu „mark_all“. Alles Ungewöhnliche: gesperrt.
+  if (!/^[A-Za-z0-9_]{3,120}$/.test(methodname)) return false;
   const teile = ohneKomponente(methodname.toLowerCase().split('_'));
   return teile.some((t) => LESEND.has(t)) && !teile.some((t) => SCHREIBEND.has(t));
 }
@@ -75,7 +91,9 @@ export function anfragePruefen(a: { methode: string; url: string; daten?: string
   const methode = a.methode.toUpperCase();
   if (/\/login\/logout\.php$/i.test(u.pathname)) return { ok: false, grund: 'Abmelden ist gesperrt' };
   if (methode === 'GET' || methode === 'HEAD') {
-    if (u.searchParams.has('sesskey') && !a.anmeldung) return { ok: false, grund: 'Moodle-Aktion (sesskey) ist gesperrt' };
+    if (mitSesskey(u)) return { ok: false, grund: 'Moodle-Aktion (sesskey) ist gesperrt' };
+    // Ajax-Dienst per GET (Moodle erlaubt dort Aufrufe über ?args=…) – nicht prüfbar, also gesperrt
+    if (/\/lib\/ajax\//i.test(u.pathname)) return { ok: false, grund: 'Ajax-Aufruf per GET ist gesperrt' };
     return { ok: true };
   }
   if (methode !== 'POST') return { ok: false, grund: `${methode} ist gesperrt` };

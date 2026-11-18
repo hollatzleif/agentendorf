@@ -28,7 +28,7 @@ function fakeMoodle() {
         res.end();
       };
       // wie an der JKU: Die Login-Seite leitet sofort zum Identitätsanbieter (Shibboleth) weiter …
-      if (u.pathname === '/login/index.php') return weiter('/auth/sso.php');
+      if (u.pathname === '/login/index.php') return weiter(`http://localhost:${port}/auth/sso.php`);
       // … und der schickt erst per Skript ein Formular mit Sitzungsdaten ab, dann kommt das Anmeldeformular
       if (u.pathname === '/auth/sso.php' && req.method === 'GET')
         return html(
@@ -43,7 +43,7 @@ function fakeMoodle() {
         if (f.get('j_username') === 'k12345678' && f.get('j_password') === 'sehr-geheim')
           return html(
             'Weiterleitung',
-            '<form method="post" action="/auth/shibboleth/acs"><input type="hidden" name="SAMLResponse" value="ok"></form><script>setTimeout(() => document.forms[0].submit(), 700)</script>',
+            `<form method="post" action="http://127.0.0.1:${port}/auth/shibboleth/acs"><input type="hidden" name="SAMLResponse" value="ok"></form><script>setTimeout(() => document.forms[0].submit(), 700)</script>`,
           );
         return html('JKU Login', '<div class="alert-danger">Benutzername oder Passwort falsch</div><form method="post" action="/auth/sso.php"><input type="text" name="j_username"><input type="password" name="j_password"></form>');
       }
@@ -73,8 +73,24 @@ function fakeMoodle() {
            <a href="/mod/resource/view.php?id=11">Folien Woche 1</a>
            <a href="/mod/assign/view.php?id=12">Übung 3</a>
            <a href="/course/togglecompletion.php?id=11&sesskey=abc">Als erledigt markieren</a>
-           <a href="http://localhost:${port}/fremd">Externe Seite</a>`,
+           <a href="http://127.0.0.2:${port}/fremd">Externe Seite</a>
+           <a href="/mod/quiz/view.php?id=20">Quiz mit Kennwort</a>
+           <a href="/popup.php">Popup-Seite</a>`,
         );
+      // Moodle-Seite mit Passwortfeld, die KEINE Anmeldung ist (Test-Kennwort)
+      if (u.pathname === '/mod/quiz/view.php')
+        return html('Quiz', '<p>Dieser Test hat ein Kennwort</p><form method="post" action="/mod/quiz/startattempt.php"><input type="password" name="quizpassword"><button>Test beginnen</button></form><a href="/login/logout.php?sesskey=abc">Abmelden</a>');
+      // Skript öffnet ein Popup und schickt darin ein Formular ab; dazu ein WebSocket
+      if (u.pathname === '/popup.php')
+        return html(
+          'Popup',
+          `<a href="/login/logout.php?sesskey=abc">Abmelden</a><script>
+             const w = window.open('/leer.php');
+             setTimeout(() => { try { w.document.body.innerHTML = '<form method="post" action="/mod/assign/view.php"><input name="action" value="submit"></form>'; w.document.forms[0].submit(); } catch (e) {} }, 300);
+             try { new WebSocket('ws://127.0.0.1:${port}/ws'); } catch (e) {}
+           </script>`,
+        );
+      if (u.pathname === '/leer.php') return html('Leer', '<p>leer</p>');
       if (u.pathname === '/mod/resource/view.php') return weiter('/pluginfile.php/1/mod_resource/content/1/folien1.pdf');
       if (u.pathname.startsWith('/pluginfile.php/')) {
         res.writeHead(200, { 'content-type': 'application/pdf', 'content-disposition': 'inline; filename="folien1.pdf"' });
@@ -89,6 +105,10 @@ function fakeMoodle() {
       res.writeHead(404);
       res.end('nicht da');
     });
+  });
+  server.on('upgrade', (_req, socket) => {
+    aufrufe.push('WEBSOCKET');
+    socket.destroy();
   });
   return {
     aufrufe,
@@ -110,7 +130,7 @@ describe('Moodle-Browser gegen ein nachgebautes Moodle', () => {
   let b: MoodleBrowser;
   beforeAll(async () => {
     basis = await m.starten();
-    b = new MoodleBrowser({ moodleUrl: basis, hosts: ['127.0.0.1'], benutzer: 'k12345678', passwort: 'sehr-geheim', executablePath });
+    b = new MoodleBrowser({ moodleUrl: basis, hosts: ['127.0.0.1', 'localhost'], anmeldeHosts: ['127.0.0.1', 'localhost'], benutzer: 'k12345678', passwort: 'sehr-geheim', executablePath });
   });
   afterAll(async () => {
     await b?.beenden();
@@ -170,11 +190,42 @@ describe('Moodle-Browser gegen ein nachgebautes Moodle', () => {
     expect(bild.bild.slice(0, 4)).toBe('/9j/');
   });
 
+  it('Lücken aus der Prüfung: Download mit sesskey, Popup, WebSocket, fremde Passwortfelder', async () => {
+    const kurs = await b.oeffnen('lauf4', '/course/view.php?id=7');
+    const nr = (t: string, k = kurs) => k.links.find((l) => l.text === t)!.nr;
+    // Download läuft nicht über die Seite – die Leine muss trotzdem greifen
+    await expect(b.herunterladen('lauf4', nr('Als erledigt markieren'))).rejects.toThrow(/sesskey/);
+    expect(m.aufrufe).not.toContain('GET /course/togglecompletion.php');
+    // Passwortfeld einer Moodle-Seite (Test-Kennwort) ist keine Anmeldung: kein Passwort, kein Absenden
+    const vorher = m.aufrufe.filter((x) => x.startsWith('POST')).length;
+    const quiz = await b.klicken('lauf4', nr('Quiz mit Kennwort'));
+    expect(quiz.titel).toBe('Quiz');
+    expect(m.aufrufe.filter((x) => x.startsWith('POST')).length).toBe(vorher);
+    // Popup und WebSocket: Popup wird geschlossen, sein Formular-POST nie gesendet, kein WebSocket
+    const kurs2 = await b.oeffnen('lauf4', '/course/view.php?id=7');
+    const pop = await b.klicken('lauf4', nr('Popup-Seite', kurs2));
+    await new Promise((r) => setTimeout(r, 1200));
+    expect(m.aufrufe).not.toContain('POST /mod/assign/view.php');
+    expect(m.aufrufe).not.toContain('WEBSOCKET');
+    expect(pop.titel).toBe('Popup');
+    expect((await b.seite('lauf4')).blockiert.concat(pop.blockiert).join('\n')).toMatch(/Popup/);
+  });
+
+  it('zwei Sitzungen gleichzeitig ohne Anmeldung: nur EINE Anmeldung, beide kommen an', async () => {
+    const neu = new MoodleBrowser({ moodleUrl: basis, hosts: ['127.0.0.1', 'localhost'], anmeldeHosts: ['127.0.0.1', 'localhost'], benutzer: 'k12345678', passwort: 'sehr-geheim', executablePath });
+    const vorher = m.aufrufe.filter((x) => x === 'POST /auth/shibboleth/acs').length;
+    const [a, c] = await Promise.all([neu.oeffnen('a', '/my/'), neu.oeffnen('c', '/course/view.php?id=7')]);
+    expect(a.titel).toBe('Dashboard');
+    expect(c.titel).toBe('Kurs: Computational Data Analytics');
+    expect(m.aufrufe.filter((x) => x === 'POST /auth/shibboleth/acs').length - vorher).toBe(1);
+    await neu.beenden();
+  });
+
   it('falsches Passwort und fehlende Zugangsdaten: klare Meldung', async () => {
-    const falsch = new MoodleBrowser({ moodleUrl: basis, hosts: ['127.0.0.1'], benutzer: 'k12345678', passwort: 'falsch', executablePath });
+    const falsch = new MoodleBrowser({ moodleUrl: basis, hosts: ['127.0.0.1', 'localhost'], anmeldeHosts: ['127.0.0.1', 'localhost'], benutzer: 'k12345678', passwort: 'ganz-daneben-123', executablePath });
     await expect(falsch.oeffnen('x', '/my/')).rejects.toThrow(/Anmeldung fehlgeschlagen.*Passwort falsch/);
     await falsch.beenden();
-    const ohne = new MoodleBrowser({ moodleUrl: basis, hosts: ['127.0.0.1'], executablePath });
+    const ohne = new MoodleBrowser({ moodleUrl: basis, hosts: ['127.0.0.1', 'localhost'], anmeldeHosts: ['127.0.0.1', 'localhost'], executablePath });
     await expect(ohne.oeffnen('x', '/my/')).rejects.toThrow(/Keine Moodle-Zugangsdaten/);
     await ohne.beenden();
   });

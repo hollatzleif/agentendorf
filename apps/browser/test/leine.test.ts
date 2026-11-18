@@ -34,6 +34,15 @@ describe('Leine des Moodle-Browsers', () => {
     expect(p('POST', 'https://moodle.jku.at/mod/forum/post.php', 'x')).toMatchObject({ ok: false });
     expect(p('GET', 'https://moodle.jku.at/course/togglecompletion.php?id=3&sesskey=abc')).toMatchObject({ ok: false, grund: expect.stringMatching(/sesskey/) });
     expect(p('GET', 'https://moodle.jku.at/login/logout.php?sesskey=abc')).toMatchObject({ ok: false, grund: 'Abmelden ist gesperrt' });
+    // verschleierte sesskey-Namen (PHP schneidet Leerzeichen/NUL ab) und Ajax per GET
+    for (const q of ['?%20sesskey=abc', '?sesskey%00x=abc', '?%73esskey=abc', '?SESSKEY=abc', '?a=1&+sesskey=b'])
+      expect(p('GET', `https://moodle.jku.at/course/togglecompletion.php${q}`), q).toMatchObject({ ok: false, grund: expect.stringMatching(/sesskey/) });
+    expect(p('GET', 'https://moodle.jku.at/lib/ajax/service-nologin.php?args=[{"methodname":"core_auth_request_password_reset"}]')).toMatchObject({ ok: false, grund: expect.stringMatching(/GET/) });
+    // auch während der Anmeldung keine sesskey-Links
+    expect(p('GET', 'https://moodle.jku.at/course/togglecompletion.php?sesskey=abc', null, true)).toMatchObject({ ok: false });
+    // http nur lokal
+    expect(hostErlaubt('http://moodle.jku.at/', H)).toBe(false);
+    expect(hostErlaubt('http://127.0.0.1:3000/', ['127.0.0.1'])).toBe(true);
     expect(p('PUT', 'https://moodle.jku.at/x')).toMatchObject({ ok: false });
     expect(p('DELETE', 'https://moodle.jku.at/x')).toMatchObject({ ok: false });
     const gemischt = JSON.stringify([
@@ -62,7 +71,9 @@ describe('Leine des Moodle-Browsers', () => {
       expect(nurLesend(n), n).toBe(true);
     for (const n of ['mod_assign_save_submission', 'mod_assign_submit_for_grading', 'core_user_update_user_preferences', 'mod_forum_add_discussion_post', 'mod_quiz_start_attempt', 'core_session_touch', 'mod_assign_get_and_submit', 'core_course_edit_module',
       // Komponente abgetrennt, das Verb zählt weiter
-      'block_starredcourses_set_favourite', 'core_block_add_block', 'core_enrol_submit_user_enrolment_form', 'local_x_delete_y', 'core_get_string_and_set'])
+      'block_starredcourses_set_favourite', 'core_block_add_block', 'core_enrol_submit_user_enrolment_form', 'local_x_delete_y', 'core_get_string_and_set',
+      // Moodle säubert Namen – Leerzeichen/Sonderzeichen hätten „mark“ versteckt
+      'core_message_ma rk_all_notifications_as_read', 'core_message_get_x;mark', ''])
       expect(nurLesend(n), n).toBe(false);
   });
 });
