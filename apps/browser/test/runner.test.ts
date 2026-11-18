@@ -27,9 +27,16 @@ function fakeMoodle() {
         res.writeHead(303, { location: ziel, ...extra });
         res.end();
       };
-      if (u.pathname === '/login/index.php') return html('Moodle: Anmelden', '<p>Anmelden mit</p><a href="/auth/sso.php">JKU Single Sign On</a>');
+      // wie an der JKU: Die Login-Seite leitet sofort zum Identitätsanbieter (Shibboleth) weiter …
+      if (u.pathname === '/login/index.php') return weiter('/auth/sso.php');
+      // … und der schickt erst per Skript ein Formular mit Sitzungsdaten ab, dann kommt das Anmeldeformular
       if (u.pathname === '/auth/sso.php' && req.method === 'GET')
-        return html('JKU Login', '<form method="post" action="/auth/sso.php"><input type="text" name="j_username"><input type="password" name="j_password"><button type="submit">Login</button></form>');
+        return html(
+          'Loading Session Information',
+          '<form method="post" action="/auth/sso.php?execution=e1s1"><input type="hidden" name="shib_idp_ls_supported" value="true"></form><script>document.forms[0].submit()</script>',
+        );
+      if (u.pathname === '/auth/sso.php' && req.method === 'POST' && body.includes('shib_idp_ls_supported'))
+        return html('JKU Login', '<form method="post" action="/auth/sso.php?execution=e1s2"><input type="text" name="j_username"><input type="password" name="j_password"><button type="submit">Login</button></form>');
       if (u.pathname === '/auth/sso.php' && req.method === 'POST') {
         const f = new URLSearchParams(body);
         if (f.get('j_username') === 'k12345678' && f.get('j_password') === 'sehr-geheim')
@@ -109,9 +116,9 @@ describe('Moodle-Browser gegen ein nachgebautes Moodle', () => {
     const r = await b.anmeldungPruefen();
     expect(r).toMatchObject({ ok: true, meldung: expect.stringContaining('Dashboard') });
     expect(r.meldung).not.toMatch(/Gast/);
-    // Gast-Dashboard → Login-Seite → SSO-Formular
+    // Gast-Dashboard → Login-Seite → Shibboleth (Skript-Formular) → Anmeldeformular
     expect(m.aufrufe).toContain('GET /login/index.php');
-    expect(m.aufrufe).toContain('POST /auth/sso.php');
+    expect(m.aufrufe.filter((x) => x === 'POST /auth/sso.php')).toHaveLength(2);
     expect(JSON.stringify(r)).not.toContain('sehr-geheim');
   });
 

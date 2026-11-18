@@ -224,9 +224,15 @@ export class MoodleBrowser {
     if (anmeldeseite || gast) {
       const ziel = s.page.url();
       if (gast) {
-        // von der Gast-Ansicht zur Login-Seite (dort SSO-Knopf oder Formular)
-        await s.page.goto(this.absolut('/login/index.php')).catch(() => undefined);
-        await this.warten(s.page);
+        // von der Gast-Ansicht zur Login-Seite. Die JKU leitet dort sofort zu Shibboleth weiter, und Shibboleth schickt
+        // per Skript ein Formular ab (Sitzungsdaten) – das gehört schon zur Anmeldung und muss durch die Leine dürfen.
+        this.anmeldung = true;
+        try {
+          await s.page.goto(this.absolut('/login/index.php')).catch(() => undefined);
+          await this.warten(s.page);
+        } finally {
+          this.anmeldung = false;
+        }
       }
       await this.anmelden(s.page);
       // nach der Anmeldung leitet Moodle meist zurück; sonst die ursprüngliche Seite neu öffnen
