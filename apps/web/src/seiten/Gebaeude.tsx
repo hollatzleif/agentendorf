@@ -15,6 +15,7 @@ import { Plaene } from '../komponenten/Plaene';
 import { UniUebersicht } from '../komponenten/UniUebersicht';
 import { PostEingang } from '../komponenten/PostEingang';
 import { MorgenzeitungAnsicht } from '../komponenten/MorgenzeitungAnsicht';
+import { WochenPlan } from '../komponenten/WochenPlan';
 import { TodoBrett } from '../komponenten/TodoBrett';
 import { BankUebersicht } from '../komponenten/BankUebersicht';
 import { CorpsUebersicht } from '../komponenten/CorpsUebersicht';
@@ -49,6 +50,7 @@ const UNI_VORNE = [
 const POST_VORNE = [['eingang', 'Eingang']] as const;
 const MARKT_VORNE = [
   ['todo', 'To-do'],
+  ['wochenplan', 'Wochenplan'],
   ['kalender', 'Kalender'],
 ] as const;
 const BANK_VORNE = [['konto', 'Konto']] as const;
@@ -139,6 +141,7 @@ export function GebaeudeInhalt({ id, reiter, reiterWaehlen, kompakt }: { id: str
         {reiter === 'studium' && <UniUebersicht />}
         {reiter === 'eingang' && <PostEingang />}
         {reiter === 'todo' && <TodoBrett />}
+        {reiter === 'wochenplan' && <WochenPlan />}
         {reiter === 'konto' && <BankUebersicht />}
         {reiter === 'termine' && <CorpsUebersicht />}
         {reiter === 'depot' && <BoerseUebersicht />}

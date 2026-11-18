@@ -1292,6 +1292,40 @@ test('Zeitschätzung: Dauer am To-do, „Heute“ warnt, wenn der Tag nicht reic
   await expect(page.locator('li', { hasText: 'Dauer-Test' }).getByText('⏱ 1 h 30 min')).toBeVisible();
 });
 
+test('Wochenplan: Eingang und Tage, Verschieben per Ziehen und Auswahl, Auslastung (E121)', async ({ page }, info) => {
+  await anmelden(page);
+  const o = { origin: ORIGIN };
+  const titel = `Plan-${info.project.name}-${Date.now() % 100000}`;
+  const faellig = async () => ((await (await page.request.get('/api/todos')).json()) as { titel: string; faellig?: string }[]).find((t) => t.titel === titel)?.faellig;
+  await page.request.post('/api/todos', { headers: o, data: { titel, dauer: 120 } });
+  await page.goto('/gebaeude/Marktplatz?reiter=wochenplan');
+  const plan = page.getByRole('region', { name: 'Wochenplan' });
+  const eingang = plan.getByLabel('Ohne Datum', { exact: true });
+  await expect(eingang.locator('.wplan-karte', { hasText: titel })).toBeVisible();
+  const wahl = plan.getByRole('combobox', { name: `Tag für ${titel}` });
+  const montag = await wahl.locator('option').nth(1).getAttribute('value');
+  const sonntag = await wahl.locator('option').last().getAttribute('value');
+  if (info.project.name === 'desktop') {
+    // in die Montags-Spalte ziehen
+    await eingang.locator('.wplan-karte', { hasText: titel }).dragTo(plan.locator('.wplan-spalte').nth(1), { sourcePosition: { x: 12, y: 8 } });
+    await expect(plan.locator('.wplan-spalte').nth(1).locator('.wplan-karte', { hasText: titel })).toBeVisible();
+    await expect.poll(faellig).toBe(montag);
+  }
+  // per Auswahl auf Sonntag
+  await wahl.selectOption(sonntag!);
+  const spalte = plan.locator('.wplan-spalte').last();
+  await expect(spalte.locator('.wplan-karte', { hasText: titel })).toBeVisible();
+  await expect(spalte.locator('.wplan-karte', { hasText: titel })).toContainText('⏱ 2 h');
+  await expect(spalte.locator('.wplan-summe')).toContainText(/⏱ \d+ h/);
+  await expect.poll(faellig).toBe(sonntag);
+  // zurück in den Eingang
+  await plan.getByRole('combobox', { name: `Tag für ${titel}` }).selectOption('');
+  await expect(eingang.locator('.wplan-karte', { hasText: titel })).toBeVisible();
+  await expect.poll(faellig).toBeUndefined();
+  await plan.getByRole('button', { name: 'Nächste Woche' }).click();
+  await expect(plan.getByRole('button', { name: 'Diese Woche' })).toBeVisible();
+});
+
 test('Seite lässt sich nicht laden (nach Deploy): einmal neu laden, dann „Neu laden“ statt weißer Seite (Review)', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'einmal reicht');
   await anmelden(page);

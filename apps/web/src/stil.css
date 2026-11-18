@@ -1152,3 +1152,35 @@ input.kurz { width: 5em; }
 /* E120: Zeitbudget heute */
 .heute-budget { margin: 0.3rem 0 0.4rem; font-size: 0.9rem; }
 .heute-budget.warnung { color: #9a3b1d; font-weight: 600; }
+
+/* E121: Wochenplan */
+.wplan-kopf { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.wplan-ziele { font-size: 0.85rem; color: var(--leise); flex: 1; min-width: 12rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wplan-tipp { margin: 0.3rem 0 0.6rem; font-size: 0.85rem; }
+.wplan-spalten { display: grid; grid-template-columns: repeat(8, minmax(150px, 1fr)); gap: 0.5rem; overflow-x: auto; padding-bottom: 0.5rem; }
+.wplan-spalte { background: var(--karte); border: 2px solid var(--rand); border-radius: 12px; padding: 0.45rem; min-height: 9rem; display: flex; flex-direction: column; gap: 0.3rem; transition: border-color 0.15s, background 0.15s; }
+.wplan-spalte h3 { margin: 0; font-size: 0.95rem; display: flex; gap: 0.35rem; align-items: center; }
+.wplan-spalte.heute { border-color: var(--gruen); }
+.wplan-spalte.vorbei { opacity: 0.75; }
+.wplan-spalte.eingang { background: #f6f1e4; }
+.wplan-spalte.ueber { border-color: var(--dach); border-style: dashed; background: #fff5e8; }
+.wplan-spalte ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; }
+.wplan-karte { background: #fff; border: 1px solid var(--rand); border-radius: 8px; padding: 0.35rem 0.45rem; cursor: grab; display: grid; gap: 0.2rem; font-size: 0.9rem; }
+.wplan-karte.wichtig { border-color: #e7b416; }
+.wplan-karte.ueberfaellig { border-left: 3px solid var(--rot); }
+.wplan-karte.zieht { opacity: 0.4; }
+.wplan-titel { overflow-wrap: anywhere; }
+.wplan-meta { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; font-size: 0.78rem; color: var(--leise); }
+.wplan-meta .warnung { color: var(--rot); }
+.wplan-wahl { font-size: 0.78rem; padding: 0.1rem 0.2rem; margin-left: auto; max-width: 8.5rem; }
+.wplan-last { display: flex; height: 6px; border-radius: 6px; background: rgba(0, 0, 0, 0.07); overflow: hidden; }
+.wplan-last-termine { background: #7a9cc6; }
+.wplan-last-todos { background: var(--gruen); }
+.wplan-last.voll .wplan-last-todos { background: var(--rot); }
+.wplan-summe { font-size: 0.75rem; color: var(--leise); }
+.wplan-ganztags { font-size: 0.75rem; }
+@media (max-width: 760px) {
+  .wplan-spalten { grid-template-columns: 1fr; overflow-x: visible; }
+  .wplan-spalte { min-height: 0; }
+  .wplan-karte { cursor: default; }
+}
