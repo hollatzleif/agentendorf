@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "einrichten",
+  "description": "Die lokale Einrichtungsseite (erster Start, Server nicht erreichbar): nur Adresse lesen/speichern und neu verbinden",
+  "windows": ["einrichten"],
+  "permissions": ["allow-adresse-speichern", "allow-adresse-lesen", "allow-neu-verbinden"]
+}

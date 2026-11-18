@@ -45,11 +45,134 @@ jobs:
           bash deploy/test/empfangen-test.sh
           bash deploy/test/moodle-anmelden-test.sh
       - name: Shell-Skripte prüfen
-        run: shellcheck -x -S warning deploy/dorf deploy/bootstrap.sh deploy/test/*.sh
+        run: shellcheck -x -S warning deploy/dorf deploy/bootstrap.sh deploy/programme-manifest.sh deploy/test/*.sh
+
+  # ---- Etappe 6: Programme für Mac und Windows (Tauri) ----------------------------------------------
+  programm-selbsttest:
+    name: Programm – Selbsttest der Freigaben (Linux)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @dorf/shared --filter @dorf/web build
+      - name: Linux-Bibliotheken für Tauri
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev xvfb dbus-x11
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/programm/src-tauri -> target
+      - name: Rust-Tests (Adresse prüfen)
+        run: cargo test --manifest-path apps/programm/src-tauri/Cargo.toml
+      - name: Selbsttest – Dorf-Seite darf nur die freigegebenen Befehle
+        run: |
+          (cd apps/web && bash e2e/server-starten.sh > /tmp/server.log 2>&1 &)
+          for i in $(seq 1 60); do curl -fs http://127.0.0.1:3999/api/gesundheit && break; sleep 1; done
+          bash apps/programm/test/selbsttest.sh
+
+  programme-pruefen:
+    name: Programme – schon auf dem Server?
+    runs-on: ubuntu-24.04
+    outputs:
+      kennung: ${{ steps.k.outputs.kennung }}
+      bauen: ${{ steps.k.outputs.bauen }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: k
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          HAT_SCHLUESSEL: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: |
+          # Kennung = Hash über alles, was ins Programm eingeht (+ ob signiert wird); gleich → nicht neu bauen
+          K=$( (cd apps/programm && find einrichten src-tauri/src src-tauri/capabilities src-tauri/icons -type f | sort | xargs cat; \
+                cat src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/build.rs src-tauri/tauri.conf.json package.json; echo "$HAT_SCHLUESSEL") | sha256sum | cut -c1-16)
+          echo "kennung=$K" >> "$GITHUB_OUTPUT"
+          HAT=nein
+          if [ -n "$DEPLOY_HOST" ] && [ "${{ github.ref }}" = refs/heads/main ] && [ "${{ github.event_name }}" != pull_request ]; then
+            install -m 700 -d ~/.ssh
+            printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+            printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+            HAT=$(ssh -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" "hat-programme $K" 2>/dev/null || echo nein)
+          fi
+          [ "$HAT" = ja ] || HAT=nein
+          echo "Server hat Programme $K: $HAT"
+          if [ "$HAT" = ja ] || [ "${{ github.event_name }}" = pull_request ]; then echo "bauen=nein" >> "$GITHUB_OUTPUT"; else echo "bauen=ja" >> "$GITHUB_OUTPUT"; fi
+
+  programme:
+    name: Programm bauen (${{ matrix.name }})
+    needs: [programme-pruefen, programm-selbsttest]
+    if: needs.programme-pruefen.outputs.bauen == 'ja'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Mac
+            os: macos-14
+            buendel: app,dmg
+          - name: Windows
+            os: windows-latest
+            buendel: nsis
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/programm/src-tauri -> target
+      - name: Bauen
+        working-directory: apps/programm
+        run: |
+          VERSION="0.1.${{ github.run_number }}"
+          echo "$VERSION" > /tmp/version
+          # ohne Signaturschlüssel (GitHub-Secret TAURI_SIGNING_PRIVATE_KEY) gibt es keine Update-Dateien – Installer schon
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then UPD=true; else UPD=false; echo "::warning::TAURI_SIGNING_PRIVATE_KEY fehlt – Programme ohne automatische Updates."; fi
+          npx --yes @tauri-apps/cli@2.12.5 build --ci --bundles "${{ matrix.buendel }}" \
+            --config "{\"version\":\"$VERSION\",\"bundle\":{\"createUpdaterArtifacts\":$UPD}}"
+      - name: Einsammeln
+        run: |
+          V=$(cat /tmp/version)
+          B=apps/programm/src-tauri/target/release/bundle
+          mkdir -p ausgabe && echo "$V" > ausgabe/VERSION
+          if [ "${{ matrix.name }}" = Mac ]; then
+            cp "$B/dmg/Agentendorf_${V}_aarch64.dmg" ausgabe/
+            if [ -f "$B/macos/Agentendorf.app.tar.gz" ]; then
+              cp "$B/macos/Agentendorf.app.tar.gz" "ausgabe/Agentendorf_${V}_aarch64.app.tar.gz"
+              cp "$B/macos/Agentendorf.app.tar.gz.sig" "ausgabe/Agentendorf_${V}_aarch64.app.tar.gz.sig"
+            fi
+          else
+            cp "$B/nsis/Agentendorf_${V}_x64-setup.exe" ausgabe/
+            [ ! -f "$B/nsis/Agentendorf_${V}_x64-setup.exe.sig" ] || cp "$B/nsis/Agentendorf_${V}_x64-setup.exe.sig" ausgabe/
+          fi
+          ls -l ausgabe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: programme-${{ matrix.name }}
+          path: ausgabe/
+          retention-days: 7
 
   ausliefern:
     name: Image bauen und deployen
-    needs: pruefen
+    needs: [pruefen, programme-pruefen, programme]
+    # die Programme sind ein Zusatz: scheitern sie, wird das Dorf trotzdem ausgeliefert (ohne neue Programme)
+    if: ${{ !cancelled() && needs.pruefen.result == 'success' }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -138,6 +261,12 @@ jobs:
           for i in $(seq 1 30); do curl -fs http://localhost:4000/gesundheit && break; sleep 1; done
           curl -fs http://localhost:4000/gesundheit
           docker run --rm --entrypoint claude agentendorf-werkstatt:ci --version
+      - name: Programme holen (nur wenn neu gebaut)
+        if: needs.programme.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: programme-*
+          path: programme-dl
       - name: An den Server ausliefern
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         env:
@@ -172,6 +301,11 @@ jobs:
           if [ "${{ steps.rechenraum.outputs.hat }}" != ja ]; then
             docker save "agentendorf-rechenraum:$RV" | gzip > buendel/rechenraum.tar.gz
             DATEIEN="$DATEIEN rechenraum.tar.gz"
+          fi
+          if [ -d programme-dl ] && [ -n "$(ls programme-dl 2>/dev/null)" ]; then
+            bash deploy/programme-manifest.sh programme-dl buendel/programme
+            echo "${{ needs.programme-pruefen.outputs.kennung }}" > buendel/PROGRAMME_KENNUNG
+            DATEIEN="$DATEIEN programme PROGRAMME_KENNUNG"
           fi
           # shellcheck disable=SC2086
           tar -czf buendel.tar.gz -C buendel $DATEIEN

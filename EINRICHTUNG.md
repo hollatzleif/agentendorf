@@ -174,6 +174,18 @@ Die JKU sperrt den Zugang für die Moodle-App. Deshalb holt das Dorf nur die **T
 - Alle Agenten können To-dos anlegen, abhaken, bearbeiten und löschen. Gelöschtes landet im Papierkorb des Vaults.
 - Jedes To-do ist eine Datei in `Marktplatz/todos/`, du kannst sie also auch in Obsidian bearbeiten.
 
+### Programme für Mac und Windows
+
+- **Herunterladen:** Einstellungen → Programme (Mac mit Apple Silicon, Windows).
+- **Erster Start:** Die Programme sind nicht signiert.
+  - Mac: Systemeinstellungen → Datenschutz & Sicherheit → „Dennoch öffnen“.
+  - Windows: „Weitere Informationen“ → „Trotzdem ausführen“.
+  - Danach fragt das Programm nach der Dorf-Adresse.
+- **Bedienung:** Schnelleingabe mit Strg/⌘ + Umschalt + Leertaste. Das Symbol in der Leiste öffnet das Dorf; dort schaltest du auch den Autostart.
+- **Updates kommen von selbst** – aber nur, wenn im GitHub-Repo das Secret `TAURI_SIGNING_PRIVATE_KEY` gesetzt ist. Das ist der private Update-Schlüssel, den du von Claude als Datei bekommen hast.
+  - Eintragen: GitHub → Repo → Settings → Secrets and variables → Actions → New repository secret, den Inhalt der Datei einfügen.
+  - Danach die Datei im Passwortmanager sichern und sonst löschen.
+
 ## 9. Post: Gmail verbinden (nur Lesen und Entwürfe)
 
 Das Dorf liest dein Gmail und legt höchstens **Entwürfe** an. Senden kann es nicht, weil die Anmeldung das gar nicht erlaubt.

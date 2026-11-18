@@ -323,3 +323,37 @@ Leifs Vorgaben: Protokoll eins pro Chat; Web nur pro Aktion und nie mit Fremdinh
 - **Telegram:** `/todo` zeigt die offenen To-dos mit signierten ✅-Knöpfen, ein Knopf hakt ab und aktualisiert die Nachricht. `/todo <Text>` legt ein To-do an.
 - Vorlagen `Marktplatz/gebaeude.md` und Stadtordnung werden aktualisiert, falls unverändert.
 
+**E66 – Etappe 6: Programme für Mac und Windows (Tauri v2)** (18.11., Leifs Wahl: unsigniert, Download vom Dorf-Server, alle Extras, automatische Updates)
+- **Hülle statt zweiter Oberfläche:** `apps/programm` öffnet die Dorf-Adresse in einem eigenen Fenster.
+  - Die Oberfläche kommt immer vom Server, jedes Deploy ist sofort auf allen Geräten. Fürs Handy bleibt die PWA.
+  - Die Adresse fragt das Programm beim ersten Start ab (lokale Einrichtungsseite). Erlaubt ist nur `https`, `http` nur für localhost.
+  - Gespeichert wird nur der Ursprung in `einstellungen.json` im Konfigurationsordner des Programms. Nichts Persönliches liegt im Repo.
+- **Leine im Programm:**
+  - Seiten vom Server dürfen nur `melden`, `zaehler_setzen` und `schnell_schliessen` aufrufen. Freigegeben wird das zur Laufzeit mit `add_capability` (CapabilityBuilder, `remote` = genau der Ursprung, nur Fenster `main`/`schnell`).
+  - Alle anderen Befehle und Plugin-Befehle sind gesperrt, denn seit Tauri 2.11 gilt für fremde Ursprünge immer die ACL.
+  - Die Einrichtungsseite darf nur `adresse_lesen`, `adresse_speichern` und `neu_verbinden`.
+  - Fremde Links öffnen im normalen Browser (`on_navigation`/`on_new_window`). Ein Adresswechsel startet das Programm neu, damit die alte Freigabe wegfällt.
+  - **Selbsttest** (`apps/programm/test/selbsttest.sh`, nur Debug-Build): Das Programm läuft unter Linux mit virtuellem Bildschirm gegen den e2e-Server. Die Dorf-Seite ruft einen erlaubten Befehl und vier verbotene auf; nur der erlaubte darf durchgehen. Er läuft in der CI.
+- **Extras:**
+  - Systemmeldungen für neue Freigaben und fertige oder fehlgeschlagene Aufgaben, nur wenn das Fenster nicht im Vordergrund ist. Die Web-App ruft dafür `melden`.
+  - Symbol in der Leiste mit Menü, Tooltip „N Freigaben warten“, am Mac zusätzlich Zahl und Dock-Plakette.
+  - Schnelleingabe mit `CommandOrControl+Shift+Space`: ein kleines Fenster mit `/schnell`, Aufgabe für den Bürgermeister oder To-do.
+  - Autostart: beim ersten Start eingeschaltet, umschaltbar in der Leiste. Mit `--autostart` startet das Programm unsichtbar und versucht es ohne Netz alle 30 s erneut.
+  - Ein zweiter Start zeigt das vorhandene Fenster (single-instance). Die Fenstergröße wird gemerkt.
+  - Schließen blendet das Fenster nur aus, das Programm bleibt in der Leiste.
+- **Updates:**
+  - Das Programm prüft 20 s nach dem Start und dann alle 6 h `<Dorf>/programme/latest.json`.
+  - Der Server erzeugt diese Datei aus `programme.json` und nennt dabei seine eigene Adresse.
+  - Updates sind mit einem eigenen Tauri-Schlüssel signiert: öffentlicher Teil in `tauri.conf.json`, privater als GitHub-Secret `TAURI_SIGNING_PRIVATE_KEY`.
+  - Fehlt das Secret, baut die CI die Programme ohne Update-Dateien (Warnung), und der Server bietet dann kein Update an.
+- **Download ohne Anmeldung:** `/programme/datei/*` und `latest.json` liegen nicht unter `/api`, weil der Updater keine Sitzung hat. Die Programme enthalten nichts Persönliches. Die Download-Knöpfe stehen angemeldet unter Einstellungen → Programme.
+- **Unsigniert:** Mac ist ad-hoc signiert (`signingIdentity: "-"`, empfohlen für Apple Silicon). Beim ersten Öffnen braucht es einmal „Dennoch öffnen“ bzw. „Trotzdem ausführen“; die Anleitung steht in den Einstellungen.
+- **CI:**
+  - `programm-selbsttest` (Linux) prüft das Programm.
+  - `programme-pruefen` bildet einen Hash über das Programm und fragt den Server mit `hat-programme <16 Hex>` (neuer erzwungener SSH-Befehl).
+  - Nur wenn neu, baut `programme` auf macos-14 (`app,dmg`) und windows-latest (`nsis`). Die Version ist `0.1.<Laufnummer>`, für beide gleich.
+  - `ausliefern` legt sie mit `deploy/programme-manifest.sh` ins Bündel; `dorf empfangen` ersetzt `daten/programme/` als Ganzes.
+  - Scheitert der Programmbau, wird das Dorf trotzdem ausgeliefert.
+- **Caddy:** Die CSP erlaubt zusätzlich `ipc: http://ipc.localhost` bei `connect-src`. Das ist der schnelle IPC-Weg; ohne ihn weicht Tauri auf postMessage aus.
+- **Nicht dokumentiert, darum offen:** ob Systemmeldungen eines ad-hoc-signierten Mac-Programms ohne Weiteres erscheinen. Das prüft Leif bei der Abnahme.
+

@@ -36,6 +36,10 @@ buendel() { # version [rechenraum-kennung [mit-image]]   (BROWSER=kennung[:mit] 
   fi
   echo "$1" > "$d/VERSION"; cp -r "$HIER/.." "$d/deploy"
   echo "image" | gzip > "$d/image.tar.gz"
+  if [ -n "${PROGRAMME:-}" ]; then
+    mkdir -p "$d/programme"; echo '{"version":"0.1.9"}' > "$d/programme/programme.json"; echo DMG > "$d/programme/Agentendorf_0.1.9_aarch64.dmg"
+    echo "$PROGRAMME" > "$d/PROGRAMME_KENNUNG"; dateien+=(programme PROGRAMME_KENNUNG)
+  fi
   if [ -n "${2:-}" ]; then
     echo "$2" > "$d/RECHENRAUM_VERSION"; dateien+=(RECHENRAUM_VERSION)
     if [ -n "${3:-}" ]; then printf 'rr:%s' "$2" | gzip > "$d/rechenraum.tar.gz"; dateien+=(rechenraum.tar.gz); fi
@@ -104,6 +108,17 @@ if cmd_empfangen < "$(BROWSER="$BB" buendel v15 $RC)" >/dev/null 2>&1; then fehl
 [ "$(SSH_ORIGINAL_COMMAND="hat-browser $BB" cmd_ci)" = nein ] || fehler "hat-browser $BB sollte nein sein"
 ( SSH_ORIGINAL_COMMAND="hat-browser $BA; rm -rf /" cmd_ci ) >/dev/null 2>&1 && fehler "hat-browser mit Anhang erlaubt"
 echo "Browser-Image nur bei Bedarf, hat-browser: bestanden"
+# Programme (Etappe 6): nur wenn im Bündel, landen in daten/programme mit KENNUNG; hat-programme fragt sie ab
+PK=3333333333333333
+mkdir -p "$DORF_BASIS/daten"
+[ "$(SSH_ORIGINAL_COMMAND="hat-programme $PK" cmd_ci)" = nein ] || fehler "hat-programme ohne Programme sollte nein sein"
+PROGRAMME=$PK cmd_empfangen < "$(PROGRAMME=$PK BROWSER="$BA" buendel v16 $RC)" >/dev/null || fehler "v16 mit Programmen"
+[ -f "$DORF_BASIS/daten/programme/Agentendorf_0.1.9_aarch64.dmg" ] || fehler "Programme nicht übernommen"
+[ "$(SSH_ORIGINAL_COMMAND="hat-programme $PK" cmd_ci)" = ja ] || fehler "hat-programme $PK sollte ja sein"
+BROWSER="$BA" cmd_empfangen < "$(BROWSER="$BA" buendel v17 $RC)" >/dev/null || fehler "v17 ohne Programme"
+[ -f "$DORF_BASIS/daten/programme/programme.json" ] || fehler "Programme dürfen ohne neues Bündel nicht verschwinden"
+( SSH_ORIGINAL_COMMAND="hat-programme $PK; rm -rf /" cmd_ci ) >/dev/null 2>&1 && fehler "hat-programme mit Anhang erlaubt"
+echo "Programme mitliefern, hat-programme: bestanden"
 # Compose bekommt das Profil „browser“ genau dann, wenn die Version eine BROWSER_VERSION hat
 # echte compose()-Funktion aus dem Skript wiederherstellen (oben durch eine Attrappe ersetzt)
 # shellcheck disable=SC1090

@@ -166,6 +166,7 @@ cmd_empfangen() {
     done
     rechenraum_aufraeumen
     browser_aufraeumen
+    programme_installieren "$tmp"
     gruen "Deploy von $version erfolgreich."
   else
     if [ -n "$vorher" ] && [ "$vorher" != "$ziel" ]; then
@@ -175,6 +176,22 @@ cmd_empfangen() {
     fi
     return 1
   fi
+}
+
+# Programme für Mac/Windows (Etappe 6): nur wenn im Bündel; ersetzt daten/programme als Ganzes.
+# Fehler hier brechen den Deploy nicht ab – das Dorf läuft ja schon.
+programme_installieren() {
+  local quelle="$1/programme" kennung neu daten="$BASIS/daten"
+  [ -d "$quelle" ] || return 0
+  kennung=$(tr -cd 'a-f0-9' < "$1/PROGRAMME_KENNUNG" 2>/dev/null || true)
+  [[ "$kennung" =~ ^[a-f0-9]{16}$ ]] || { rot "Ungültige PROGRAMME_KENNUNG – Programme nicht übernommen."; return 0; }
+  neu="$daten/programme.neu"
+  rm -rf "$neu" && cp -r "$quelle" "$neu" && echo "$kennung" > "$neu/KENNUNG" || { rot "Programme konnten nicht kopiert werden."; return 0; }
+  chown -R "$(stat -c %u:%g "$daten")" "$neu"
+  rm -rf "$daten/programme.alt"
+  [ ! -d "$daten/programme" ] || mv "$daten/programme" "$daten/programme.alt"
+  mv "$neu" "$daten/programme" && rm -rf "$daten/programme.alt"
+  info "Programme ($kennung) übernommen."
 }
 
 # Rechenraum-Images, die keine der behaltenen Versionen mehr braucht, entfernen (sie sind groß).
@@ -197,7 +214,8 @@ browser_aufraeumen() {
   done
 }
 
-# Erzwungener SSH-Befehl für den CI-Schlüssel: erlaubt nur "empfangen", "status", "hat-image <16 Hex>" und "hat-browser <16 Hex>".
+# Erzwungener SSH-Befehl für den CI-Schlüssel: erlaubt nur "empfangen", "status", "hat-image <16 Hex>",
+# "hat-browser <16 Hex>" und "hat-programme <16 Hex>".
 cmd_ci() {
   local befehl=${SSH_ORIGINAL_COMMAND:-}
   case "$befehl" in
@@ -211,6 +229,10 @@ cmd_ci() {
       local bv=${befehl#hat-browser }
       [[ "$bv" =~ ^[a-f0-9]{16}$ ]] || { rot "Nicht erlaubt: $befehl"; exit 1; }
       if docker image inspect "agentendorf-browser:$bv" >/dev/null 2>&1; then echo ja; else echo nein; fi ;;
+    "hat-programme "*)
+      local pv=${befehl#hat-programme }
+      [[ "$pv" =~ ^[a-f0-9]{16}$ ]] || { rot "Nicht erlaubt: $befehl"; exit 1; }
+      if [ "$(cat "$BASIS/daten/programme/KENNUNG" 2>/dev/null)" = "$pv" ]; then echo ja; else echo nein; fi ;;
     *) rot "Nicht erlaubt: $befehl"; exit 1 ;;
   esac
 }

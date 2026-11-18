@@ -73,6 +73,10 @@ apps/browser    Moodle-Browser (E57): Chromium über playwright-core + Runner (H
                 automatische Anmeldung (SSO-Knopf + Formular, ein-/zweistufig), Download mit geprüften Weiterleitungen.
                 Zugangsdaten nur in /srv/dorf/browser.env (als Datei eingebunden, nicht env_file). Compose-Profil „browser“.
                 Tests: leine (pnpm test), gegen nachgebautes Moodle mit Chromium (pnpm --filter @dorf/browser e2e).
+apps/programm  Etappe 6 (E66): Tauri-v2-Hülle für Mac/Windows. src-tauri/src/lib.rs (Fenster, Leiste, Schnelleingabe,
+                Autostart, Updater, Befehle melden/zaehler_setzen/schnell_schliessen – zur Laufzeit NUR für den Ursprung
+                der Dorf-Adresse freigegeben), adresse.rs (https-Prüfung, Tests), einrichten/ (lokale Einrichtungsseite).
+                test/selbsttest.sh: Debug-Build unter Xvfb gegen den e2e-Server, prüft die Freigaben. Gebaut in der CI.
 packages/shared Typen für HTTP und WebSocket (LiveEreignis, VaultEintrag …) + Dorf-Layout-Regeln (dorf.ts) – wird in den Server gebündelt
 vault-vorlage   Startinhalt des Vaults (Stadtordnung, gebaeude.md je Gebäude). Wird nur in einen LEEREN Vault kopiert.
 deploy          compose.yml, Caddyfile, dorf (Server-Verwaltung), bootstrap.sh (Ersteinrichtung), test/ (Backup-/Deploy-Tests)
@@ -103,6 +107,8 @@ python3 -m unittest discover -s apps/rechenraum/test   # Rechenraum-Runner
 bash deploy/test/backup-test.sh      # braucht restic, sqlite3, jq
 bash deploy/test/empfangen-test.sh
 bash deploy/test/moodle-anmelden-test.sh
+cargo test --manifest-path apps/programm/src-tauri/Cargo.toml   # Programm (braucht libwebkit2gtk-4.1-dev u. a.)
+bash apps/programm/test/selbsttest.sh   # Programm-Freigaben (laufender e2e-Server auf 3999, Xvfb)
 shellcheck -x -S warning deploy/dorf deploy/bootstrap.sh deploy/test/*.sh
 ```
 Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server über Vite-Proxy braucht das). `DORF_MOTOR_ATTRAPPE=1` ersetzt beide Motoren durch die Attrappe (Befehle in der Nachricht: `[schreibe pfad]`, `[freigabe pfad]`, `[fehler]`, `[warte ms]`, `[pause ms]` (nach den Werkzeugen), `[helfer Gebäude|Auftrag]`, `[plan Gebäude|Titel; …]`, `<<werkzeug name {json}>>`).
@@ -134,5 +140,5 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E63 (18.11.): Spiel-Look für alle Fenster, Reiter und Seiten (nur stil.css)
 - [x] E64 (18.11.): Ablehnen mit Begründung (App/Telegram → Bürgermeister), zeitplan_je (Kursübersicht montags je Fach), Frist-Wächter-Knopf
 - [x] E65 (18.11.): To-do-Brett auf dem Marktplatz (App-Reiter live, Telegram /todo, todo_* für alle Agenten)
-- [ ] Etappe 6 – Programme (Tauri)
+- [x] Etappe 6 – Programme (E66; Code fertig, Selbsttest unter Linux bestanden; Mac/Windows baut die CI – Abnahme an Leifs Geräten steht aus, Signaturschlüssel als GitHub-Secret von Leif)
 - [ ] Etappe 7 – leere Gebäude (das Marktplatz-Brett kam mit E65)
