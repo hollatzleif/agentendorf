@@ -9,6 +9,7 @@ import { BauSteuerung, type Auswahl, type Werkzeug } from './bauen';
 import { GebaeudeKnoepfe } from './Knoepfe';
 import { useLiveEreignis, useLiveText } from '../live';
 import { DorfTicker } from './Ticker';
+import { Neuigkeiten } from './Neuigkeiten';
 
 const KAMERA_SCHLUESSEL = 'dorf-kamera';
 const ZEITUNG_GELESEN = 'dorf-zeitung-gelesen';
@@ -330,6 +331,7 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
           </span>
         </div>
       )}
+      {!bauen && !panelOffen && <Neuigkeiten />}
       <div className="dorf-werkzeuge unten-rechts">
         {knopf('Nach links drehen', '⟲', () => szene.current?.drehen(-1))}
         {knopf('Nach rechts drehen', '⟳', () => szene.current?.drehen(1))}

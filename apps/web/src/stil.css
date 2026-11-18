@@ -406,3 +406,15 @@ button.schliessen { position: absolute; top: 0.5rem; right: 0.5rem; width: 2rem;
   .bau-gruppe button { padding: 0.25rem 0.5rem; }
   .deko-knopf { width: 2rem; height: 2rem; font-size: 1rem; padding: 0; }
 }
+
+/* „Neu im Dorf“ – einmal nach einem Update */
+.dorf-neuigkeiten {
+  position: absolute; left: 0.7rem; bottom: max(0.8rem, env(safe-area-inset-bottom)); z-index: 3; width: min(23rem, calc(100% - 5rem));
+  max-height: 60%; overflow: auto; padding: 0.8rem 0.9rem; border-radius: 16px; background: rgb(255 255 255 / 0.96); color: #2b3a55;
+  border: 3px solid #2b3a55; box-shadow: 0 4px 0 #2b3a55, 0 10px 24px rgb(20 40 70 / 0.3); font-size: 0.88rem;
+}
+.dorf-neuigkeiten ul { margin: 0.4rem 0 0.6rem; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.3rem; }
+.dorf-neuigkeiten .dorf-knopf { width: 100%; }
+.dorf-neuigkeiten-kopf { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.dorf-neuigkeiten-kopf .spiel-zu { position: static; transform: none; flex: none; }
+@media (max-width: 760px), (pointer: coarse) { .dorf-neuigkeiten { font-size: 0.8rem; max-height: 52%; } }

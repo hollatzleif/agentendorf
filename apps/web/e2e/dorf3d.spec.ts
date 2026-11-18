@@ -319,3 +319,17 @@ test('Wetter: Schild oben rechts, Tipp zeigt die Wetterkarte; Regen im Dorf ohne
   await expect(karte).toBeHidden();
   expect(fehler).toEqual([]);
 });
+
+test('„Neu im Dorf“ erscheint einmal und bleibt nach „Alles klar“ weg', async ({ page }) => {
+  // im Testbrowser ist die Karte sonst aus (navigator.webdriver) – hier ausdrücklich an
+  await page.addInitScript(() => Object.defineProperty(navigator, 'webdriver', { get: () => false }));
+  await imDorf(page);
+  const karte = page.getByRole('region', { name: 'Neu im Dorf' });
+  await expect(karte).toBeVisible();
+  await expect(karte).toContainText('dorf moodle-browser-zugang');
+  await karte.getByRole('button', { name: 'Alles klar' }).click();
+  await expect(karte).toBeHidden();
+  await page.reload();
+  await expect(page.getByTestId('dorf-leinwand')).toBeVisible();
+  await expect(karte).toBeHidden();
+});
