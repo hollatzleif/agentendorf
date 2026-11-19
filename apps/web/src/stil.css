@@ -693,6 +693,8 @@ input.kurz { width: 5em; }
 .heute-kopf { background: linear-gradient(135deg, #fffdf6 0%, #f3f9e9 60%, #e3f1f9 100%); padding: 1.1rem 1.3rem 1rem; }
 .heute-kopf-zeile { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
 .heute-datum { margin: 0; font-size: 0.82rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--leise); }
+/* Die Seiten-Klasse .heute darf den heutigen Tag im Kalender nicht treffen (margin: auto machte die Zelle so breit wie ihr längster Termin) */
+.kalender-tag.heute, .raster-spalte.heute, .raster-tag.heute { max-width: none; margin: 0; }
 .heute-gruss { margin: 0.1rem 0 0; font-size: 1.75rem; line-height: 1.2; }
 .heute-wetter { display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0.85rem 0.4rem 0.6rem; background: rgb(255 255 255 / 0.75); border: 2px solid var(--rand); border-radius: 14px; }
 .heute-wetter-symbol { font-size: 1.9rem; line-height: 1; }

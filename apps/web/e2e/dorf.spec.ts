@@ -529,7 +529,7 @@ test('Marktplatz-Kalender: Monat/Woche/Liste, Termin anlegen, Serie bearbeiten, 
           { id: 'feiertage', name: 'Feiertage', farbe: '#16a765', primaer: false, schreibbar: false },
         ],
         termine: [
-          { id: 'e1', kalenderId: 'leif', titel: 'Zahnarzt', start: zeit(9), ende: zeit(10), ganztags: false, ort: 'Konstanz', quelle: 'google', schreibbar: true, erinnerungen: null },
+          { id: 'e1', kalenderId: 'leif', titel: 'Zahnarzt Dr. Müller – Kontrolle 2026W344021/2/3/57/62/103/104 und Zahnreinigung', start: zeit(9), ende: zeit(10), ganztags: false, ort: 'Konstanz', quelle: 'google', schreibbar: true, erinnerungen: null },
           { id: 's_1', kalenderId: 'leif', titel: 'Training', start: zeit(18), ende: zeit(19), ganztags: false, serieId: 's', quelle: 'google', schreibbar: true, erinnerungen: [30] },
           { id: 'f1', kalenderId: 'feiertage', titel: 'Feiertag', start: heute, ende: heute.replace(/\d\d$/, (t) => String(Number(t) + 1).padStart(2, '0')), ganztags: true, quelle: 'google', schreibbar: false },
           { id: 'uni:1', kalenderId: 'uni', titel: '⏰ Mathe III: Blatt 5', start: zeit(22), ende: zeit(22), ganztags: false, quelle: 'uni', schreibbar: false },
@@ -546,6 +546,10 @@ test('Marktplatz-Kalender: Monat/Woche/Liste, Termin anlegen, Serie bearbeiten, 
   await expect(heuteZelle).toContainText('Training');
   await expect(heuteZelle).toContainText('Feiertag');
   await expect(page.getByLabel('Uni-Fristen')).toBeChecked();
+  // Der heutige Tag ist so breit wie jeder andere – lange Titel ragen nicht in die Nachbartage (19.11.)
+  const breite = async (l: import('@playwright/test').Locator) => (await l.boundingBox())!.width;
+  const andere = page.locator('.kalender-tag:not(.heute)').first();
+  expect(Math.abs((await breite(heuteZelle)) - (await breite(andere)))).toBeLessThan(2);
 
   // Kalender ausblenden
   await page.getByLabel('Feiertage').uncheck();
