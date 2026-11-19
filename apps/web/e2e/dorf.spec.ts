@@ -1866,3 +1866,16 @@ test('In Etappen planen: 🪜 zeigt die Vorschau, „Etappen anlegen“ macht ei
   // E172: Frist mit Countdown
   await expect(k).toContainText(`🏁 Frist ${frist} (in 4 Tagen)`);
 });
+
+test('Heute: Hinweis auf ein Projekt, das hinterher ist (E174)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  await page.route('**/api/projekte', (r) =>
+    r.fulfill({ json: [{ name: 'Referat', gesamt: 4, erledigt: 0, offen: 4, dieseWoche: 0, fokusMin: 0, ruhtTage: 1, hinterher: 2, frist: '2026-12-01', ruhtMelden: false, naechster: { pfad: 'Marktplatz/todos/x.md', titel: 'Referat – Etappe 1/3' } }] }),
+  );
+  await page.goto('/heute');
+  const l = page.getByRole('link', { name: /Referat – 2 Schritte hinterher/ });
+  await expect(l).toContainText('👉 Referat – Etappe 1/3');
+  await l.click();
+  await expect(page).toHaveURL(/reiter=projekte/);
+});

@@ -183,8 +183,11 @@ export class Morgenzeitung {
     // E150: wartende To-dos, deren Nachfass-Tag da ist
     const nachfassen = (dran ?? []).filter((t2) => t2.wartet && t2.titel);
     if (nachfassen.length) heuteZeilen.push(`⏳ Heute nachfassen: ${nachfassen.slice(0, 4).map((t2) => `${einzeilig(t2.titel!, 60)} (bei ${einzeilig(t2.wartet!, 40)})`).join(', ')}`);
-    // E163: ein Projekt, das seit einer Woche ruht – ein kleiner Schritt heute
-    const ruhend = ((await this.o.projekte?.().catch(() => [])) ?? []).filter((p) => p.ruhtMelden).sort((a, b) => b.ruhtTage - a.ruhtTage)[0];
+    // E163: ein Projekt, das seit einer Woche ruht – ein kleiner Schritt heute; E174: was hinterher ist, zuerst
+    const pj = (await this.o.projekte?.().catch(() => [])) ?? [];
+    const hinten = pj.filter((p) => p.offen > 0 && p.hinterher > 0).sort((a, b) => b.hinterher - a.hinterher)[0];
+    if (hinten) heuteZeilen.push(`⚠️ ${einzeilig(hinten.name, 50)}: ${hinten.hinterher} ${hinten.hinterher === 1 ? 'Schritt' : 'Schritte'} hinterher${hinten.frist ? ` (Frist ${hinten.frist})` : ''}${hinten.naechster ? ` – als Nächstes: ${einzeilig(hinten.naechster.titel, 60)}` : ''}`);
+    const ruhend = pj.filter((p) => p.ruhtMelden && p !== hinten).sort((a, b) => b.ruhtTage - a.ruhtTage)[0];
     if (ruhend) heuteZeilen.push(`💤 ${einzeilig(ruhend.name, 50)} ruht seit ${ruhend.ruhtTage} Tagen${ruhend.naechster ? ` – nächster Schritt: ${einzeilig(ruhend.naechster.titel, 60)}` : ''}`);
     abschnitte.push({ titel: 'Heute', zeilen: heuteZeilen });
 

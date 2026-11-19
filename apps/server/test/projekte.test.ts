@@ -115,3 +115,15 @@ describe('Projekte im Plan (E172)', () => {
     expect(p).toMatchObject({ frist: '2026-11-20', hinterher: 2 });
   });
 });
+
+describe('Projekt hinterher in der Morgenzeitung (E174)', () => {
+  it('nennt das Projekt mit den meisten überfälligen Schritten', async () => {
+    const { testDorf } = await import('./hilfen.js');
+    const d = await testDorf();
+    await d.todos.anlegen({ titel: 'Referat – Etappe 1/3', gruppe: 'Referat', faellig: '2026-11-14' }, 'Leif');
+    await d.todos.anlegen({ titel: 'Referat – Etappe 2/3', gruppe: 'Referat', faellig: '2026-11-15' }, 'Leif');
+    await d.todos.anlegen({ titel: 'Referat', gruppe: 'Referat', faellig: '2026-11-20' }, 'Leif');
+    const z = await d.morgenzeitung.fakten();
+    expect(z.abschnitte.find((x) => x.titel === 'Heute')!.zeilen.join('\n')).toContain('⚠️ Referat: 2 Schritte hinterher (Frist 2026-11-20) – als Nächstes: Referat – Etappe 1/3');
+  });
+});

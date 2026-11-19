@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { WETTER_TEXT, type DorfStatus, type FokusStatistik, type FreigabeInfo, type KartenFach, type KalenderAntwort, type KalenderTermin, type KirchturmZustand, type MorgenzeitungUebersicht, type PostUebersicht, type Statistik, type TodoInfo } from '@dorf/shared';
+import { WETTER_TEXT, type DorfStatus, type FokusStatistik, type FreigabeInfo, type KartenFach, type KalenderAntwort, type KalenderTermin, type KirchturmZustand, type MorgenzeitungUebersicht, type PostUebersicht, type Projekt, type Statistik, type TodoInfo } from '@dorf/shared';
 import { api, ApiFehler, offlineGemerkt } from '../api';
 import { belegtMs, istFristBlock, jetztDran, minutenText, ruht, tagesBudget, todoAusText, ueberschneidungen } from '@dorf/shared';
 import { TodoTextHinweis } from '../komponenten/TodoTextHinweis';
@@ -245,6 +245,7 @@ export function Heute() {
       <div className="heute-band">
         <PlanenHinweis />
         <AbschlussHinweis />
+        <ProjektHinweis />
       </div>
 
       {(nf > 0 || zeitungHeute) && (
@@ -796,6 +797,20 @@ function PlanenHinweis() {
 }
 
 // ---- E146: Hinweis auf den Tagesabschluss (ab 19 Uhr), solange nicht alle Schritte erledigt ----------------------
+
+// ---- E174: Projekt hinterher / ruht – ein Satz mit Link ----------------------------------------------------
+
+function ProjektHinweis() {
+  const q = useQuery({ queryKey: ['liste', 'todo', 'projekte'], queryFn: () => api<Projekt[]>('/api/projekte'), staleTime: 5 * 60_000 });
+  const p = (q.data ?? []).filter((x) => x.offen > 0 && (x.hinterher > 0 || x.ruhtMelden)).sort((a, b) => b.hinterher - a.hinterher || b.ruhtTage - a.ruhtTage)[0];
+  if (!p) return null;
+  return (
+    <a href="/gebaeude/Marktplatz?reiter=projekte" onClick={linkKlick} className="karte heute-karte planen-hinweis projekt-hinweis">
+      📁 <strong>{p.name}</strong> – {p.hinterher > 0 ? `${p.hinterher} ${p.hinterher === 1 ? 'Schritt' : 'Schritte'} hinterher` : `ruht seit ${p.ruhtTage} Tagen`}
+      {p.naechster ? ` · 👉 ${p.naechster.titel}` : ''} →
+    </a>
+  );
+}
 
 function AbschlussHinweis() {
   const stunde = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Vienna', hour: '2-digit', hourCycle: 'h23' }).format(new Date()));

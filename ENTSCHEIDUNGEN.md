@@ -1382,3 +1382,8 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **Tagesabschluss:** Überschneidungen werden über den ganzen Tag geprüft (auch vor 8 Uhr) und auch dann gemeldet, wenn morgen keine To-dos dran sind.
 - **Überschneidungen:** Termine über 24 h (Exkursion Fr–So) zählen nicht. Sonst überschneiden sie alles.
 - **Uni-Gruppe:** Bestehende Uni-To-dos, deren Gruppe noch exakt der Kursname ist, werden einmal auf den Fachnamen gezogen. Von Leif geänderte Gruppen bleiben.
+
+## E174 – Projekte auf Heute und in der Morgenzeitung (19.11.)
+
+- **Heute:** Ein Hinweis bei den Planungs-Karten, wenn ein Projekt hinterher ist oder ruht. Gezeigt wird nur eins, zuerst das mit den meisten überfälligen Schritten, mit dem nächsten Schritt und einem Link zu Marktplatz → Projekte.
+- **Morgenzeitung:** „⚠️ Referat: 2 Schritte hinterher (Frist …) – als Nächstes: …“ vor dem „💤 ruht“-Hinweis (dieser nur für ein anderes Projekt).
