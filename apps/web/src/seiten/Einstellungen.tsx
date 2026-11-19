@@ -9,6 +9,8 @@ import { bibliothekUrl, linkKlick } from '../router';
 const fehlertext = (e: unknown) => (e instanceof ApiFehler ? e.message : String(e));
 const zeit = (iso: string) => new Date(iso).toLocaleString('de-AT', { dateStyle: 'short', timeStyle: 'short' });
 
+const zeitText = (iso: string) => new Date(iso).toLocaleString('de-AT', { timeZone: 'Europe/Vienna', day: 'numeric', month: 'numeric', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+
 export function Einstellungen() {
   const qc = useQueryClient();
   const ich = useQuery({ queryKey: ['ich'], queryFn: () => api<Ich>('/api/ich') });
@@ -40,7 +42,10 @@ export function Einstellungen() {
         >
           Auf diesem Gerät abmelden
         </button>
-        <p className="leise">Version {ich.data?.version}</p>
+        {/* E179: Stand des Dorfs (Server) und dieser Seite – unterscheiden sie sich, hängt eine alte Fassung im Zwischenspeicher */}
+        <p className="leise">
+          Dorf-Stand {ich.data?.version} · diese Seite gebaut am {zeitText(__BAU_ZEIT__)}
+        </p>
       </div>
     </section>
   );
@@ -99,8 +104,8 @@ function Programme() {
       {p.data?.vorhanden && (
         <>
           <p className="leise">
-            Version {p.data.version}
-            {p.data.erstellt ? ` vom ${zeit(p.data.erstellt)}` : ''}. Das Programm öffnet dein Dorf in einem eigenen Fenster – mit Meldungen, Symbol in der Leiste,
+            Programm-Hülle Version {p.data.version}
+            {p.data.erstellt ? ` vom ${zeit(p.data.erstellt)}` : ''} – sie wird nur neu gebaut, wenn sich am Programm selbst etwas ändert; alle Inhalte kommen immer frisch vom Dorf. Das Programm öffnet dein Dorf in einem eigenen Fenster – mit Meldungen, Symbol in der Leiste,
             Schnelleingabe (Strg/⌘ + Umschalt + Leertaste) und Autostart. Updates installiert es selbst.
           </p>
           <div className="programme-knoepfe">

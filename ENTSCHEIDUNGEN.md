@@ -1410,3 +1410,13 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 ## E178 – Bürgermeister kennt /morgen, /projekte, /wartet (19.11.)
 
 - Systemkontext um die Telegram-Befehle der Nacht ergänzt, damit der Bürgermeister bei Fragen wie „was steht morgen an?“ oder „wie weit bin ich mit der BA?“ darauf verweisen kann.
+
+## E179 – Die App aktualisiert sich selbst (19.11.)
+
+- **Problem:** Der Service Worker suchte nur beim Neuladen nach einer neuen Fassung. Eine App, die am Handy aus dem Hintergrund zurückkommt oder im Programm den ganzen Tag offen ist, lädt aber nie neu. Und selbst dann lief der alte Code weiter, bis man von Hand neu lud.
+- **Lösung (`apps/web/src/aktualisierung.ts`):**
+  - Der Service Worker wird selbst registriert (`injectRegister: false`, mit `skipWaiting` und `clientsClaim`).
+  - Geprüft wird alle 30 min, beim Zurückkommen in den Vordergrund und nach jedem Wiederverbinden der Live-Verbindung (Server neu gestartet, meist ein Deploy).
+  - Zusätzlich wird das eigene Haupt-Skript mit dem aktuellen `index.html` des Servers verglichen (`?v=` umgeht den Precache). Das greift auch dort, wo kein Service Worker läuft (Programm).
+- **Neuladen ohne Datenverlust:** Ist die App im Hintergrund, lädt sie sofort neu. Sonst erscheint „🔄 Neue Version des Dorfs ist da – Jetzt neu laden“, und sie lädt beim nächsten Wechsel in den Hintergrund neu, nie mitten im Tippen.
+- **Einstellungen:** Dort stehen jetzt „Dorf-Stand <Commit> · diese Seite gebaut am …“. Ist die Bauzeit alt, obwohl der Dorf-Stand neu ist, hängt eine alte Fassung im Zwischenspeicher. Die Programm-Version heißt jetzt ausdrücklich „Programm-Hülle“ und erklärt, dass sie nur bei Änderungen am Programm selbst neu gebaut wird (z. B. 0.1.136 vom 18.11.), während die Inhalte immer frisch vom Dorf kommen.

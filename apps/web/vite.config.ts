@@ -3,10 +3,14 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  // E179: Bauzeit der Seite (Einstellungen zeigen sie neben dem Dorf-Stand)
+  define: { __BAU_ZEIT__: JSON.stringify(new Date().toISOString()) },
   plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // E179: registriert wird in src/aktualisierung.ts (mit Prüfen, Hinweis und Neuladen nur im Hintergrund)
+      injectRegister: false,
       includeAssets: ['favicon.svg'],
       manifest: {
         name: 'Agentendorf',
@@ -31,6 +35,9 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // E179: neue Fassung übernimmt sofort auch offene Seiten → controllerchange → Hinweis/Neuladen
+        clientsClaim: true,
+        skipWaiting: true,
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],
         // API-Antworten werden nie zwischengespeichert – der Server ist die einzige Quelle der Wahrheit.

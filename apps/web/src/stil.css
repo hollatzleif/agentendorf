@@ -1549,3 +1549,6 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0.05rem 0.35rem; border:
 /* E170: Etappen */
 .todo-etappen { margin-top: 0.4rem; padding: 0.5rem 0.7rem; border: 2px dashed var(--rand); border-radius: 10px; background: #fffdf6; }
 .todo-etappen ol { margin: 0.3rem 0 0.5rem 1.2rem; padding: 0; }
+
+/* E179: Neue Version */
+.neue-version { position: fixed; left: 50%; bottom: calc(1rem + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 60; display: flex; gap: 0.6rem; align-items: center; padding: 0.55rem 0.8rem; background: #fffdf0; border: 2px solid var(--rand); border-radius: 12px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18); max-width: calc(100vw - 2rem); }

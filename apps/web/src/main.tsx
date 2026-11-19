@@ -3,6 +3,9 @@ import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { App } from './App';
 import './stil.css';
+import { aktualisierungStarten } from './aktualisierung';
+
+aktualisierungStarten();
 
 // Nach einem Deploy fehlen alte Seiten-Dateien: einmal neu laden (nicht in Schleife – Merker für 1 min)
 window.addEventListener('vite:preloadError', (e) => {

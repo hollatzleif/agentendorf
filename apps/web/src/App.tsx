@@ -11,6 +11,7 @@ import { ProgrammMeldungen } from './programm/Meldungen';
 import { KirchturmGlocke } from './programm/KirchturmGlocke';
 import { Befehlspalette } from './komponenten/Befehlspalette';
 import { OfflineSchlange } from './komponenten/OfflineSchlange';
+import { NeueVersion } from './komponenten/NeueVersion';
 import { SeitenFehler } from './komponenten/SeitenFehler';
 import { Tastenkuerzel } from './komponenten/Tastenkuerzel';
 
@@ -133,6 +134,7 @@ function Rahmen() {
         </div>
       </header>
       <OfflineSchlange />
+      <NeueVersion />
       <main>
         <SeitenFehler schluessel={pfad}>
           <Suspense fallback={<p className="leise">Lade …</p>}>{seite}</Suspense>

@@ -1896,3 +1896,24 @@ test('Befehlspalette springt zu den Projekten (E177)', async ({ page }, info) =>
   await feld.press('Enter');
   await expect(page).toHaveURL(/reiter=projekte/);
 });
+
+test('Neue Version: liefert der Server ein anderes Haupt-Skript, erscheint „Neue Version“ (E179)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  await page.goto('/heute');
+  await expect(page.getByRole('heading', { name: /, Leif$/ })).toBeVisible();
+  // gleiche Fassung → kein Hinweis
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await page.waitForTimeout(500);
+  await expect(page.getByText('Neue Version des Dorfs ist da.')).toHaveCount(0);
+  // Server hat neu deployt
+  await page.route('**/index.html?v=*', (r) => r.fulfill({ contentType: 'text/html', body: '<!doctype html><script type="module" crossorigin src="/assets/index-NEU123.js"></script>' }));
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  const h = page.getByRole('status').filter({ hasText: 'Neue Version des Dorfs ist da.' });
+  await expect(h).toBeVisible();
+  await expect(h.getByRole('button', { name: 'Jetzt neu laden' })).toBeVisible();
+  // Einstellungen: Dorf-Stand und Bauzeit dieser Seite stehen nebeneinander
+  await page.unroute('**/index.html?v=*');
+  await page.goto('/einstellungen');
+  await expect(page.getByText(/Dorf-Stand .* · diese Seite gebaut am/)).toBeVisible();
+});
