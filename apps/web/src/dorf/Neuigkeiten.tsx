@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { navigieren } from '../router';
 
 /** Bei jeder neuen Ausgabe den Schlüssel ändern – dann erscheint die Karte einmal pro Gerät */
-const AUSGABE = '2026-11-19u';
+const AUSGABE = '2026-11-19v';
 const SCHLUESSEL = 'dorf-neuigkeiten-gesehen';
 
 const PUNKTE: [string, string][] = [
+  ['🪧', 'Im Dorf: Kreidetafel am Marktplatz („Heute ☑ 2/5“) und warmes Licht am Kirchturm, solange du im Fokus bist. Uni-Abgaben kommen jetzt mit Teilschritten.'],
   ['🗓️', '„Woche planen“: das Sonntags-Ritual in vier Schritten auf einer Seite (Rückblick, Ziele, verteilen, Gewohnheiten). „… jeden Montag 30 min“ geht jetzt überall, /verteilen auch in Telegram.'],
   ['✨', 'Wochenplan: „Woche verteilen“ legt den Eingang auf Tage mit freier Zeit (mit Puffer) – du übernimmst, was passt. Dazu: Filter im To-do-Brett, /jetzt in Telegram.'],
   ['👉', '„Jetzt dran“ auf Heute: ein To-do, das in die Lücke bis zum nächsten Termin passt – „🍅 Los“ startet den Fokus. Am To-do steht jetzt auch die Fokuszeit (🍅 / ⏱).'],
