@@ -1699,3 +1699,19 @@ test('Fokus: Gedanken parken → Tagesnotiz, in der Pause „→ To-do“ (E148)
   const todos = (await (await page.request.get('/api/todos')).json()) as { titel: string }[];
   expect(todos.some((t) => t.titel === `Mail an Prof ${n}`)).toBe(true);
 });
+
+test('Energie am To-do: im Brett 🧠 wählen, Abzeichen im Brett und auf Heute (E151)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  const n = Date.now() % 100000;
+  const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+  await page.request.post('/api/todos', { headers: { origin: ORIGIN }, data: { titel: `Beweis ${n}`, faellig: heute } });
+  await page.goto('/gebaeude/Marktplatz?reiter=todo');
+  await page.locator('li.todo', { hasText: `Beweis ${n}` }).getByRole('button', { name: `Beweis ${n}`, exact: true }).click();
+  const form = page.locator('li.todo.bearbeiten');
+  await form.getByLabel('Energie').selectOption('hoch');
+  await form.getByRole('button', { name: 'Speichern' }).click();
+  await expect(page.locator('li.todo', { hasText: `Beweis ${n}` }).locator('.abzeichen', { hasText: '🧠' })).toBeVisible();
+  await page.goto('/heute');
+  await expect(page.locator('.heute-todo', { hasText: `Beweis ${n}` }).locator('[title="braucht Konzentration"]')).toBeVisible();
+});

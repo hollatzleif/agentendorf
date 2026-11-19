@@ -1218,3 +1218,13 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
   - ✅ Erledigt
   - ▶️ Selbst: wartet nicht mehr, heute dran
 - **Bürgermeister:** Kennt /abschluss und das Feld `wartet` (Systemkontext).
+
+## E151 – Energie je To-do (19.11.)
+
+- **Feld `energie`:** `hoch` (🧠 braucht Konzentration) oder `niedrig` (🪶 geht nebenbei). Gesetzt wird es im To-do-Brett beim Bearbeiten oder von Agenten über `todo_anlegen`/`todo_bearbeiten`. Wiederkehrende geben es an den Nachfolger weiter.
+- **„Jetzt dran“** (Heute, /jetzt, Anstoß nach Terminen):
+  - In Leifs bester Tageszeit (E144, 4 Wochen) kommt 🧠 zuerst.
+  - Ab 19 Uhr oder in Lücken unter 30 min kommt 🪶 zuerst.
+  - Das gilt nur innerhalb derselben Dringlichkeit, Überfälliges und ⭐ bleiben vorn.
+  - Der Grund steht dabei: „🧠 deine beste Zeit“ bzw. „🪶 etwas Leichtes“.
+- **Warum:** Nicht jede Stunde ist gleich viel wert. Wer das Schwere in seine konzentrierteste Zeit legt und das Leichte in die Randzeiten, schafft mehr mit weniger Kraft. Die Daten (beste Zeit) gab es schon, jetzt werden sie genutzt.

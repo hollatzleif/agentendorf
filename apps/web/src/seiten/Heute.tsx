@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { WETTER_TEXT, type DorfStatus, type FokusStatistik, type FreigabeInfo, type KartenFach, type KalenderAntwort, type KalenderTermin, type KirchturmZustand, type MorgenzeitungUebersicht, type PostUebersicht, type TodoInfo } from '@dorf/shared';
+import { WETTER_TEXT, type DorfStatus, type FokusStatistik, type FreigabeInfo, type KartenFach, type KalenderAntwort, type KalenderTermin, type KirchturmZustand, type MorgenzeitungUebersicht, type PostUebersicht, type Statistik, type TodoInfo } from '@dorf/shared';
 import { api, ApiFehler, offlineGemerkt } from '../api';
 import { belegtMs, istFristBlock, jetztDran, minutenText, ruht, tagesBudget, todoAusText } from '@dorf/shared';
 import { TodoTextHinweis } from '../komponenten/TodoTextHinweis';
@@ -87,6 +87,8 @@ export function Heute() {
   const kartenDran = (karten.data ?? []).reduce((s2, f) => s2 + f.faellig, 0);
   const kalender = useQuery({ queryKey: ['kalender', von, bis], queryFn: () => api<KalenderAntwort>(`/api/kalender?von=${von}&bis=${bis}`), placeholderData: (alt) => alt });
   const todos = useQuery({ queryKey: ['liste', 'todo'], queryFn: () => api<TodoInfo[]>('/api/todos') });
+  // E151: beste Tageszeit (4 Wochen) für „Jetzt dran“ – dieselbe Abfrage wie Rathaus → Statistik
+  const statistik28 = useQuery({ queryKey: ['statistik', 28], queryFn: () => api<Statistik>('/api/statistik?tage=28'), staleTime: 30 * 60_000 });
   const kirchturm = useKirchturm();
   const status = useQuery({ queryKey: ['dorf-status'], queryFn: () => api<DorfStatus>('/api/dorf/status'), refetchInterval: 60_000 });
   const zeitung = useQuery({ queryKey: ['morgenzeitung'], queryFn: () => api<MorgenzeitungUebersicht>('/api/morgenzeitung') });
@@ -144,7 +146,7 @@ export function Heute() {
   // ---- Womit fange ich an? ----
   const naechsterTermin = termineHeute.find((t) => !t.ganztags && Date.parse(t.ende) > jetzt);
   const erstesTodo = ueberfaellig[0] ?? faelligHeute[0];
-  const dran = jetztDran({ todos: todos.data ?? [], termine: termineHeute, jetzt, jetztMin: ort(jetztIso).min, heute });
+  const dran = jetztDran({ todos: todos.data ?? [], termine: termineHeute, jetzt, jetztMin: ort(jetztIso).min, heute, besteZeit: statistik28.data?.besteZeit ?? null });
   const fokusLaeuft = !!k?.pomodoro && k.pomodoro.phase !== 'aus';
   const geladen = !kalender.isPending && !todos.isPending;
 
@@ -501,6 +503,11 @@ function TodoZeile({ t, heute }: { t: TodoInfo; heute: string }) {
         <input type="checkbox" checked={haken} onChange={(e) => void abhaken(e.target.checked)} aria-label={`${t.titel} erledigt`} />
         <span className="heute-todo-titel">{t.titel}</span>
       </label>
+      {t.energie && (
+        <span className="heute-todo-datum" title={t.energie === 'hoch' ? 'braucht Konzentration' : 'geht nebenbei'}>
+          {t.energie === 'hoch' ? '🧠' : '🪶'}
+        </span>
+      )}
       {t.wartet && (
         <span className="heute-todo-datum" title={t.faellig ? `wartet – ${t.faellig <= heute ? 'heute nachfassen' : `nachfassen am ${t.faellig}`}` : 'wartet – ohne Nachfass-Tag'}>
           ⏳ {t.faellig && t.faellig <= heute ? 'nachfassen: ' : ''}
@@ -744,6 +751,7 @@ function JetztDran({ d }: { d: NonNullable<ReturnType<typeof jetztDran>> }) {
         <span className="leise">
           {d.passt ? `passt in die ${lueckeText}` : `für einen 🍅 reicht's (${lueckeText})`}
           {d.todo.dauer ? ` · ⏱ ${minutenText(d.todo.dauer)}` : ''}
+          {d.energie === 'beste-zeit' ? ' · 🧠 deine beste Zeit' : d.energie === 'leicht' ? ' · 🪶 etwas Leichtes' : ''}
         </span>
       </div>
       <button type="button" className="haupt" onClick={() => void los()} aria-label={`Fokus starten: ${d.todo.titel}`}>

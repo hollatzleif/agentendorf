@@ -95,6 +95,8 @@ export const TodoNeu = z.object({
   dauer: z.number().int().min(5, 'dauer: mindestens 5 Minuten').max(600, 'dauer: höchstens 600 Minuten').optional(),
   /** E147: wartet auf (Person/Antwort); faellig = Nachfass-Tag */
   wartet: z.string().trim().min(1).max(80).optional(),
+  /** E151: Energie */
+  energie: z.enum(['hoch', 'niedrig']).optional(),
 });
 export const TodoAenderung = z.object({
   titel: z.string().trim().min(1).max(200).optional(),
@@ -110,6 +112,8 @@ export const TodoAenderung = z.object({
   dauer: z.union([z.number().int().min(5).max(600), z.literal(0)]).optional(),
   /** E147: '' = wartet nicht mehr */
   wartet: z.union([z.string().trim().min(1).max(80), z.literal('')]).optional(),
+  /** E151: '' = keine Angabe */
+  energie: z.enum(['hoch', 'niedrig', '']).optional(),
 });
 
 export { dauerAusText, wiederholungAusText, todoAusText } from '@dorf/shared';
@@ -173,6 +177,7 @@ export class TodoDienst {
       ...(typeof k.erinnert === 'string' ? { erinnert: k.erinnert } : {}),
       ...(typeof k.dauer === 'number' && Number.isInteger(k.dauer) && k.dauer >= 5 && k.dauer <= 600 ? { dauer: k.dauer } : {}),
       ...(typeof k.wartet === 'string' && k.wartet.trim() ? { wartet: k.wartet.trim().slice(0, 80) } : {}),
+      ...(k.energie === 'hoch' || k.energie === 'niedrig' ? { energie: k.energie } : {}),
       quelle: typeof k.quelle === 'string' ? k.quelle : undefined,
       erstellt: typeof k.erstellt === 'string' ? k.erstellt : k.erstellt instanceof Date ? k.erstellt.toISOString() : undefined,
       erledigtAm: typeof k.erledigt_am === 'string' ? k.erledigt_am : k.erledigt_am instanceof Date ? k.erledigt_am.toISOString() : undefined,
@@ -276,6 +281,7 @@ export class TodoDienst {
     if (e.erinnerung) daten.erinnerung = e.erinnerung;
     if (e.dauer) daten.dauer = e.dauer;
     if (e.wartet) daten.wartet = e.wartet;
+    if (e.energie) daten.energie = e.energie;
     daten.quelle = quelle;
     if (opt.fremd) daten.fremd = true;
     daten.erstellt = new Date(jetzt).toISOString();
@@ -328,6 +334,10 @@ export class TodoDienst {
       if (a.wartet) k.wartet = a.wartet;
       else delete k.wartet;
     }
+    if (a.energie !== undefined) {
+      if (a.energie) k.energie = a.energie;
+      else delete k.energie;
+    }
     if (a.erinnerung !== undefined && a.erinnerung !== k.erinnerung) {
       if (a.erinnerung) k.erinnerung = a.erinnerung;
       else delete k.erinnerung;
@@ -355,6 +365,7 @@ export class TodoDienst {
         wiederholen: regel,
         ...(monatlich ? { wiederholen_tag: urTag } : {}),
         ...(typeof k.dauer === 'number' && k.dauer >= 5 && k.dauer <= 600 ? { dauer: k.dauer } : {}),
+        ...(k.energie === 'hoch' || k.energie === 'niedrig' ? { energie: k.energie } : {}),
         ...(typeof k.erinnerung === 'string' && ZEITPUNKT.test(k.erinnerung)
           ? { erinnerung: `${datumText(k.faellig) ? naechstesDatum(regel, ab, heute, urTag) : naechstesDatum(regel, k.erinnerung.slice(0, 10), heute)}${k.erinnerung.slice(10)}` }
           : {}),
@@ -399,7 +410,7 @@ export class TodoDienst {
 
 /** Kurzer Text für Agenten und Telegram */
 export function todoZeile(t: TodoInfo) {
-  return `${t.erledigt ? '[x]' : '[ ]'} ${t.wichtig ? '⭐ ' : ''}${t.titel}${t.schritte?.length ? ` (${t.schritte.filter((s) => s.erledigt).length}/${t.schritte.length} Schritte)` : ''}${t.faellig ? ` (fällig ${t.faellig})` : ''}${t.wiederholen ? ` 🔁 ${t.wiederholen}` : ''}${t.dauer ? ` ⏱ ${t.dauer} min` : ''}${t.wartet ? ` ⏳ wartet auf ${t.wartet}` : ''}${t.gruppe ? ` [${t.gruppe}]` : ''}${t.gebaeude ? ` #${t.gebaeude}` : ''} – ${t.pfad}`;
+  return `${t.erledigt ? '[x]' : '[ ]'} ${t.wichtig ? '⭐ ' : ''}${t.titel}${t.schritte?.length ? ` (${t.schritte.filter((s) => s.erledigt).length}/${t.schritte.length} Schritte)` : ''}${t.faellig ? ` (fällig ${t.faellig})` : ''}${t.wiederholen ? ` 🔁 ${t.wiederholen}` : ''}${t.dauer ? ` ⏱ ${t.dauer} min` : ''}${t.wartet ? ` ⏳ wartet auf ${t.wartet}` : ''}${t.energie === 'hoch' ? ' 🧠' : t.energie === 'niedrig' ? ' 🪶' : ''}${t.gruppe ? ` [${t.gruppe}]` : ''}${t.gebaeude ? ` #${t.gebaeude}` : ''} – ${t.pfad}`;
 }
 
 /** Alle Listen (E65 + Etappe 7) – eine Instanz je Ordner */

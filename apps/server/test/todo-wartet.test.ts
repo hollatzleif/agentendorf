@@ -35,3 +35,19 @@ describe('Wartet auf … aus Text (E147)', () => {
     expect(todoAusText('Zahlung erwartet auf Konto', h)).toEqual({ titel: 'Zahlung erwartet auf Konto' });
   });
 });
+
+describe('Energie am To-do (E151)', () => {
+  it('setzen, entfernen, Nachfolger übernimmt sie, Textzeile zeigt 🧠', async () => {
+    const d = await testDorf();
+    const h = await kopf(d);
+    let t = (await d.app.inject({ method: 'POST', url: '/api/todos', headers: h, payload: { titel: 'Beweis', energie: 'hoch', wiederholen: 'täglich', faellig: '2026-11-16' } })).json();
+    expect(t.energie).toBe('hoch');
+    const { todoZeile } = await import('../src/todos.js');
+    expect(todoZeile(t)).toContain('🧠');
+    expect((await d.app.inject({ method: 'POST', url: '/api/todos', headers: h, payload: { titel: 'x', energie: 'mittel' } })).statusCode).toBe(400);
+    t = (await d.app.inject({ method: 'PATCH', url: '/api/todos', headers: h, payload: { pfad: t.pfad, basisVersion: t.version, erledigt: true } })).json();
+    expect((await d.todos.liste()).find((x) => !x.erledigt && x.titel === 'Beweis')!.energie).toBe('hoch');
+    t = (await d.app.inject({ method: 'PATCH', url: '/api/todos', headers: h, payload: { pfad: t.pfad, basisVersion: t.version, energie: '' } })).json();
+    expect(t.energie).toBeUndefined();
+  });
+});

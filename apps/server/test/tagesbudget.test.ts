@@ -94,3 +94,27 @@ describe('Wartet auf … (E147)', () => {
     expect(tagPlanen({ todos: [w, ohne], heute, frei: [[jetzt, jetzt + 4 * 3600_000]] })).toEqual([]);
   });
 });
+
+describe('Energie je To-do (E151)', () => {
+  it('beste Zeit → 🧠 zuerst; abends/kurze Lücke → 🪶 zuerst; Dringlichkeit bleibt vorn', () => {
+    const heute = '2026-11-16';
+    const schwer = todo('Beweis', { faellig: heute, energie: 'hoch', dauer: 20 });
+    const leicht = todo('Mails', { faellig: heute, energie: 'niedrig', dauer: 20 });
+    const egal = todo('Egal', { faellig: heute, dauer: 20 });
+    const besteZeit = { von: 9, bis: 11 };
+    const um = (h: number) => ({ jetzt: Date.parse(`2026-11-16T${String(h - 1).padStart(2, '0')}:00:00Z`), jetztMin: h * 60 });
+    const a = jetztDran({ todos: [leicht, egal, schwer], termine: [], heute, besteZeit, ...um(10) })!;
+    expect(a.todo.titel).toBe('Beweis');
+    expect(a.energie).toBe('beste-zeit');
+    const b = jetztDran({ todos: [schwer, egal, leicht], termine: [], heute, besteZeit, ...um(20) })!;
+    expect(b.todo.titel).toBe('Mails');
+    expect(b.energie).toBe('leicht');
+    // mittags ohne beste Zeit: Reihenfolge wie bisher, kein Grund
+    const c = jetztDran({ todos: [leicht, schwer], termine: [], heute, besteZeit, ...um(14) })!;
+    expect(c.todo.titel).toBe('Mails');
+    expect(c.energie).toBeUndefined();
+    // überfällig schlägt Energie
+    const alt = todo('Alt', { faellig: '2026-11-10', energie: 'niedrig', dauer: 20 });
+    expect(jetztDran({ todos: [schwer, alt], termine: [], heute, besteZeit, ...um(10) })!.todo.titel).toBe('Alt');
+  });
+});

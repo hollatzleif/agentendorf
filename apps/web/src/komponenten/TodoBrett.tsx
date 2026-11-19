@@ -191,6 +191,7 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehr
   const [erinnerung, setErinnerung] = useState(t.erinnerung ?? '');
   const [dauer, setDauer] = useState(t.dauer ? String(t.dauer) : '');
   const [wartet, setWartet] = useState(t.wartet ?? '');
+  const [energie, setEnergie] = useState<string>(t.energie ?? '');
   // Häkchen sofort zeigen; die Zeile wird mit der neuen Version vom Server ohnehin neu aufgebaut
   const [haken, setHaken] = useState(t.erledigt);
   const [planen, setPlanen] = useState(false);
@@ -215,7 +216,7 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehr
           className="formspalte"
           onSubmit={(e) => {
             e.preventDefault();
-            void aendern({ titel, faellig, notiz, gruppe, ...(wiederholen !== (t.wiederholen ?? '') ? { wiederholen } : {}), ...(erinnerung !== (t.erinnerung ?? '') ? { erinnerung: erinnerung.slice(0, 16) } : {}), ...(dauer !== (t.dauer ? String(t.dauer) : '') ? { dauer: Number(dauer) || 0 } : {}), ...(wartet.trim() !== (t.wartet ?? '') ? { wartet: wartet.trim() } : {}) }).then(() => setBearbeiten(false));
+            void aendern({ titel, faellig, notiz, gruppe, ...(wiederholen !== (t.wiederholen ?? '') ? { wiederholen } : {}), ...(erinnerung !== (t.erinnerung ?? '') ? { erinnerung: erinnerung.slice(0, 16) } : {}), ...(dauer !== (t.dauer ? String(t.dauer) : '') ? { dauer: Number(dauer) || 0 } : {}), ...(wartet.trim() !== (t.wartet ?? '') ? { wartet: wartet.trim() } : {}), ...(energie !== (t.energie ?? '') ? { energie } : {}) }).then(() => setBearbeiten(false));
           }}
         >
           <input value={titel} onChange={(e) => setTitel(e.target.value)} maxLength={200} aria-label="Titel" />
@@ -236,6 +237,14 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehr
               </option>
             ))}
           </select>
+          {basis === '/api/todos' && (
+            // E151: „Jetzt dran“ schlägt 🧠 in deiner besten Tageszeit vor, 🪶 abends und in kurzen Lücken
+            <select value={energie} onChange={(e) => setEnergie(e.target.value)} aria-label="Energie">
+              <option value="">⚡ Energie: egal</option>
+              <option value="hoch">🧠 braucht Konzentration</option>
+              <option value="niedrig">🪶 geht nebenbei</option>
+            </select>
+          )}
           <select value={wiederholen} onChange={(e) => setWiederholen(e.target.value)} aria-label="Wiederholen">
             {[...WIEDERHOLEN_WAHL, ...(wiederholen && !WIEDERHOLEN_WAHL.some(([w]) => w === wiederholen) ? [[wiederholen, `🔁 ${wiederholen}`] as const] : [])].map(([w, text]) => (
               <option key={w} value={w}>
@@ -277,6 +286,11 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehr
           {t.titel}
         </button>
         <span className="todo-meta">
+          {t.energie && !t.erledigt && (
+            <span className="abzeichen" title={t.energie === 'hoch' ? 'braucht Konzentration – „Jetzt dran“ schlägt es in deiner besten Zeit vor' : 'geht nebenbei – gut für abends und kurze Lücken'}>
+              {t.energie === 'hoch' ? '🧠' : '🪶'}
+            </span>
+          )}
           {t.wartet && !t.erledigt && (
             <span className="abzeichen wartet" title={t.faellig ? `Wartet – am ${datumText(t.faellig)} nachfassen` : 'Wartet – ohne Nachfass-Tag'}>
               ⏳ {t.wartet}

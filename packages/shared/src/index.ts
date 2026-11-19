@@ -219,6 +219,8 @@ export interface TodoInfo {
   erledigtAm?: string;
   /** E147: wartet auf jemanden/etwas (Person, Antwort); faellig = Nachfass-Tag. Bis dahin „ruht“ das To-do. */
   wartet?: string;
+  /** E151: hoch = braucht Konzentration (🧠), niedrig = geht nebenbei (🪶) */
+  energie?: 'hoch' | 'niedrig';
   notiz?: string;
 }
 

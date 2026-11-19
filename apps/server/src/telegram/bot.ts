@@ -19,7 +19,7 @@ import type { Notizen } from '../notizen.js';
 import { zeitpunktAus } from '../todo-erinnerungen.js';
 import { dateinameBereinigen } from '../vault/pfade.js';
 import { tagPlanen } from '../tagesplan.js';
-import { STIMMUNGEN, stimmungSetzen } from '../statistik.js';
+import { STIMMUNGEN, fokusNachTageszeit, stimmungSetzen } from '../statistik.js';
 import { bluete, STUFE_TEXT } from '../bluete.js';
 import { ortszeitZuUtc } from '../uni/ical.js';
 
@@ -1256,13 +1256,15 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     }
     const fokus = new Map((this.o.db.prepare('SELECT todo, SUM(minuten) AS m FROM fokus_sitzungen WHERE todo IS NOT NULL GROUP BY todo').all() as { todo: string; m: number }[]).map((x) => [x.todo, Math.round(x.m)]));
     const todos = (await this.o.listen!.todo.liste()).map((t) => (fokus.get(t.pfad) ? { ...t, fokusMin: fokus.get(t.pfad) } : t));
-    return { jetzt, heute, jetztMin, termine, d: jetztDran({ todos, termine, jetzt, jetztMin, heute }) };
+    // E151: beste Tageszeit der letzten 4 Wochen (E144) – dann zuerst, was Konzentration braucht
+    const besteZeit = fokusNachTageszeit(this.o.db, jetzt, 28).besteZeit;
+    return { jetzt, heute, jetztMin, termine, d: jetztDran({ todos, termine, jetzt, jetztMin, heute, besteZeit }) };
   }
 
   private jetztNachricht(d: NonNullable<ReturnType<typeof jetztDran>>, vorweg = '') {
     const luecke = d.bis ? `${minutenText(d.luecke)} bis ${h(d.bis.titel)}` : `${minutenText(d.luecke)} bis 22 Uhr`;
     return [
-      `${vorweg}👉 <b>Jetzt dran:</b> ${h(d.todo.titel)}${d.schritt ? `\nnächster Schritt: ${h(d.schritt)}` : ''}\n<i>${d.passt ? `passt in die ${luecke}` : `für einen 🍅 reicht's (${luecke})`}${d.todo.dauer ? ` · ⏱ ${minutenText(d.todo.dauer)}` : ''}</i>`,
+      `${vorweg}👉 <b>Jetzt dran:</b> ${h(d.todo.titel)}${d.schritt ? `\nnächster Schritt: ${h(d.schritt)}` : ''}\n<i>${d.passt ? `passt in die ${luecke}` : `für einen 🍅 reicht's (${luecke})`}${d.todo.dauer ? ` · ⏱ ${minutenText(d.todo.dauer)}` : ''}${d.energie === 'beste-zeit' ? ' · 🧠 deine beste Zeit' : d.energie === 'leicht' ? ' · 🪶 etwas Leichtes' : ''}</i>`,
       { reply_markup: { inline_keyboard: [[{ text: '🍅 Los', callback_data: this.jetztDaten(this.todoKennung(d.todo.pfad)) }]] } },
     ] as const;
   }
