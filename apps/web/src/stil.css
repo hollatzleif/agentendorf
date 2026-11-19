@@ -1545,3 +1545,7 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0.05rem 0.35rem; border:
 .statistik-einsichten li::before { content: ''; position: absolute; left: 0.25rem; top: 0.45em; width: 0.55rem; height: 0.55rem; border-radius: 50%; background: #f2b51e; box-shadow: 0 0 0 2px #fff, 0 0 0 3px #d79a10; }
 .statistik-einsichten li .leise { font-weight: 500; font-size: 0.82rem; white-space: nowrap; }
 .statistik-einsichten > p.leise { margin: 0.5rem 0 0; padding-top: 0.4rem; border-top: 1px dashed #e6cf86; font-size: 0.8rem; }
+
+/* E170: Etappen */
+.todo-etappen { margin-top: 0.4rem; padding: 0.5rem 0.7rem; border: 2px dashed var(--rand); border-radius: 10px; background: #fffdf6; }
+.todo-etappen ol { margin: 0.3rem 0 0.5rem 1.2rem; padding: 0; }

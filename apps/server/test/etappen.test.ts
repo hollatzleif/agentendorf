@@ -1,0 +1,47 @@
+import { describe, expect, it } from 'vitest';
+import { etappenPlan } from '@dorf/shared';
+import { testDorf } from './hilfen.js';
+import { kopf } from './etappe7.test.js';
+
+describe('In Etappen planen (E170)', () => {
+  it('verteilt gleich große Etappen auf die Tage vor der Frist', () => {
+    expect(etappenPlan({ titel: 'Referat', faellig: '2026-11-26', dauer: 480 }, '2026-11-16')).toEqual([
+      { titel: 'Referat – Etappe 1/8', faellig: '2026-11-16', dauer: 60 },
+      { titel: 'Referat – Etappe 2/8', faellig: '2026-11-17', dauer: 60 },
+      { titel: 'Referat – Etappe 3/8', faellig: '2026-11-18', dauer: 60 },
+      { titel: 'Referat – Etappe 4/8', faellig: '2026-11-19', dauer: 60 },
+      { titel: 'Referat – Etappe 5/8', faellig: '2026-11-21', dauer: 60 },
+      { titel: 'Referat – Etappe 6/8', faellig: '2026-11-22', dauer: 60 },
+      { titel: 'Referat – Etappe 7/8', faellig: '2026-11-23', dauer: 60 },
+      { titel: 'Referat – Etappe 8/8', faellig: '2026-11-24', dauer: 60 },
+    ]);
+    // wenige Tage → so viele Etappen wie Tage; ohne Schätzung 2 h
+    expect(etappenPlan({ titel: 'Bericht', faellig: '2026-11-19' }, '2026-11-16').map((e) => [e.faellig, e.dauer])).toEqual([
+      ['2026-11-16', 60],
+      ['2026-11-17', 60],
+    ]);
+    // Frist morgen oder ohne Frist → nichts
+    expect(etappenPlan({ titel: 'X', faellig: '2026-11-17', dauer: 300 }, '2026-11-16')).toEqual([]);
+    expect(etappenPlan({ titel: 'X', dauer: 300 }, '2026-11-16')).toEqual([]);
+  });
+
+  it('API: legt die Etappen mit gemeinsamer Gruppe an; das Original bekommt die Gruppe; Wiederkehrendes abgelehnt', async () => {
+    const d = await testDorf();
+    const h = await kopf(d);
+    const t = (await d.app.inject({ method: 'POST', url: '/api/todos', headers: h, payload: { titel: 'Referat', faellig: '2026-11-20', dauer: 180 } })).json();
+    const r = await d.app.inject({ method: 'POST', url: '/api/todos/etappen', headers: h, payload: { pfad: t.pfad, basisVersion: t.version } });
+    expect(r.statusCode).toBe(200);
+    const alle = await d.todos.liste();
+    const etappen = alle.filter((x) => x.titel.startsWith('Referat – Etappe'));
+    expect(etappen.map((x) => [x.titel, x.faellig, x.dauer, x.gruppe])).toEqual([
+      ['Referat – Etappe 1/3', '2026-11-16', 60, 'Referat'],
+      ['Referat – Etappe 2/3', '2026-11-17', 60, 'Referat'],
+      ['Referat – Etappe 3/3', '2026-11-18', 60, 'Referat'],
+    ]);
+    expect(alle.find((x) => x.pfad === t.pfad)!.gruppe).toBe('Referat');
+    // veraltete Version → 409, nichts doppelt
+    expect((await d.app.inject({ method: 'POST', url: '/api/todos/etappen', headers: h, payload: { pfad: t.pfad, basisVersion: t.version } })).statusCode).toBe(409);
+    const w = (await d.app.inject({ method: 'POST', url: '/api/todos', headers: h, payload: { titel: 'Sport', faellig: '2026-11-20', wiederholen: 'täglich' } })).json();
+    expect((await d.app.inject({ method: 'POST', url: '/api/todos/etappen', headers: h, payload: { pfad: w.pfad, basisVersion: w.version } })).statusCode).toBe(400);
+  });
+});

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { TodoInfo } from '@dorf/shared';
 import { api, ApiFehler, offlineGemerkt } from '../api';
-import { todoAusText } from '@dorf/shared';
+import { etappenPlan, todoAusText } from '@dorf/shared';
 import { TodoTextHinweis } from './TodoTextHinweis';
 import { bibliothekUrl, linkKlick, navigieren } from '../router';
 import { LernzeitPlaner } from './LernzeitPlaner';
@@ -200,6 +200,7 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehr
   // Häkchen sofort zeigen; die Zeile wird mit der neuen Version vom Server ohnehin neu aufgebaut
   const [haken, setHaken] = useState(t.erledigt);
   const [planen, setPlanen] = useState(false);
+  const [etappen, setEtappen] = useState(false);
   // die Zeile wird bei jeder neuen Version neu aufgebaut (key) – offen bleibt sie trotzdem
   const [schritteOffen, setSchritteOffenRoh] = useState(() => OFFENE_SCHRITTE.has(t.pfad));
   const setSchritteOffen = (f: (x: boolean) => boolean) =>
@@ -353,6 +354,12 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehr
               📅
             </button>
           )}
+          {basis === '/api/todos' && !t.erledigt && !t.wiederholen && (t.dauer ?? 0) >= 120 && etappenPlan(t, heute()).length > 0 && (
+            // E170: großes To-do mit Frist → Etappen auf die Tage davor
+            <button type="button" className="klein" title="In Etappen auf die Tage bis zur Frist verteilen" aria-label={`Etappen: ${t.titel}`} aria-expanded={etappen} onClick={() => setEtappen((x) => !x)}>
+              🪜
+            </button>
+          )}
           {basis === '/api/todos' && !t.erledigt && (
             <button
               type="button"
@@ -381,6 +388,30 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehr
           )}
         </span>
         {schritteOffen && <Schritte t={t} basis={basis} ausfuehren={ausfuehren} />}
+        {etappen && (
+          <div className="todo-etappen" role="group" aria-label={`Etappen für ${t.titel}`}>
+            <p className="leise">So verteilt sich „{t.titel}“ bis zur Frist – alle mit der Gruppe „{t.gruppe ?? t.titel}“ (wird ein Projekt):</p>
+            <ol>
+              {etappenPlan(t, heute()).map((e) => (
+                <li key={e.titel}>
+                  {e.titel} · {datumText(e.faellig)} · ⏱ {e.dauer} min
+                </li>
+              ))}
+            </ol>
+            <div className="zeile">
+              <button
+                type="button"
+                className="haupt klein"
+                onClick={() => void ausfuehren(() => api('/api/todos/etappen', { body: { pfad: t.pfad, basisVersion: t.version } })).then(() => setEtappen(false))}
+              >
+                Etappen anlegen
+              </button>
+              <button type="button" className="klein" onClick={() => setEtappen(false)}>
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        )}
         {planen && t.faellig && (
           // Frist = Ende des Fälligkeitstags (Linz); der Server rechnet in Ortszeit
           <LernzeitPlaner titel={t.titel.replace(/^(Abgabe|Prüfung): /, '')} bis={new Date(`${t.faellig}T23:00:00+01:00`).toISOString()} fristTag={t.faellig} schliessen={() => setPlanen(false)} />

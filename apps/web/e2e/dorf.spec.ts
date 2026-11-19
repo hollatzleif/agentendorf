@@ -1845,3 +1845,21 @@ test('Morgen im Blick warnt vor Überschneidungen (E168)', async ({ page }, info
   const k = page.getByRole('region', { name: 'Morgen im Blick' });
   await expect(k).toContainText('⚠️ Überschneidung: 10:00 Vorlesung ↔ 11:30 Zahnarzt');
 });
+
+test('In Etappen planen: 🪜 zeigt die Vorschau, „Etappen anlegen“ macht ein Projekt daraus (E170)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+  const frist = new Date(Date.parse(`${heute}T12:00:00Z`) + 4 * 86_400_000).toISOString().slice(0, 10);
+  const titel = `Referat ${Date.now() % 100000}`;
+  await page.request.post('/api/todos', { headers: { origin: ORIGIN }, data: { titel, faellig: frist, dauer: 180 } });
+  await page.goto('/gebaeude/Marktplatz?reiter=todo');
+  await page.getByRole('button', { name: `Etappen: ${titel}` }).click();
+  const g = page.getByRole('group', { name: `Etappen für ${titel}` });
+  await expect(g.locator('li')).toHaveCount(3);
+  await expect(g).toContainText(`${titel} – Etappe 1/3`);
+  await g.getByRole('button', { name: 'Etappen anlegen' }).click();
+  await expect(page.locator('li.todo', { hasText: `${titel} – Etappe 3/3` })).toBeVisible();
+  await page.goto('/gebaeude/Marktplatz?reiter=projekte');
+  await expect(page.getByRole('article', { name: `Projekt ${titel}` })).toContainText('0/4 erledigt');
+});

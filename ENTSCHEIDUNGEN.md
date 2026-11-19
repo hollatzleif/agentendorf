@@ -1345,3 +1345,16 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 
 - /abschluss → „3 · Die drei für morgen“ zeigt unter der ⭐-Auswahl die Karte „🌅 Morgen im Blick“ von Heute: dran-To-dos, Termine, freie Zeit 8–22 Uhr, „eng“ und Überschneidungen. Die Komponente ist dieselbe (`MorgenKarte`), nur exportiert.
 - Die Anleitung erklärt jetzt auch Tagesleiste, Projekte, „Was gute Tage ausmacht“ und die Überschneidungs-Warnung.
+
+## E170 – In Etappen planen (19.11.)
+
+- **Wo:** im To-do-Brett der Knopf „🪜“ bei offenen, nicht wiederkehrenden To-dos mit mindestens 2 h Schätzung und einer Frist frühestens übermorgen.
+- **Vorschau:** Die Etappen werden erst gezeigt, bevor etwas angelegt wird (`etappenPlan` in packages/shared).
+  - Je angefangene Stunde eine Etappe, mindestens 2, höchstens 8 und nicht mehr als Tage bis zur Frist.
+  - Die Etappen sind gleich groß (≥ 15 min, 5-Minuten-Schritte) und verteilen sich gleichmäßig von heute bis zum Vortag der Frist.
+  - Ohne Schätzung wird mit 2 h gerechnet.
+- **„Etappen anlegen“** (`POST /api/todos/etappen`, mit `basisVersion` und genau einmal):
+  - Das Original bekommt die Gruppe (= Titel, falls noch keine) und bleibt als Abgabe-Termin stehen.
+  - Die Etappen „Titel – Etappe i/n“ bekommen dieselbe Gruppe, also entsteht sofort ein Projekt (E161) mit Fortschritt.
+  - Gebäude und Energie werden übernommen.
+- **Warum:** Große Abgaben scheitern selten am Können, sondern daran, dass sie erst am Vorabend begonnen werden. Rückwärts geplante Etappen machen aus „Referat in 2 Wochen“ heute 1 Stunde, und „Jetzt dran“, Wochenplan und Projekte greifen automatisch.

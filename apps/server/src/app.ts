@@ -1,7 +1,7 @@
 import type { Boerse } from './boerse.js';
 import type { Saxo } from './saxo.js';
 import type { Kirchturm } from './kirchturm.js';
-import { fachPasst, fachZuordnen, projekteAus, terminAusText, type FachStand, type PruefungStand, type UniFach } from '@dorf/shared';
+import { etappenPlan, fachPasst, fachZuordnen, projekteAus, terminAusText, type FachStand, type PruefungStand, type UniFach } from '@dorf/shared';
 import { tagPlanen } from './tagesplan.js';
 import type { Wochenrueckblick } from './wochenrueckblick.js';
 import type { Karteikasten } from './karten.js';
@@ -642,6 +642,21 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
         return l.schritteHinzufuegen(b.pfad, b.schritte, b.basisVersion);
       });
     }
+    // E170: in Etappen planen – Leif hat die Vorschau gesehen; erst das Original (mit Version) gruppieren, dann anlegen
+    app.post('/api/todos/etappen', async (req) =>
+      einmalig(req, async () => {
+        const b = z.object({ pfad: z.string(), basisVersion: z.string(), anzahl: z.number().int().min(2).max(8).optional() }).parse(req.body);
+        const t = await listen.todo.holen(b.pfad);
+        if (t.erledigt || t.wiederholen) throw new DorfFehler(400, 'Nur offene, nicht wiederkehrende To-dos lassen sich in Etappen planen.');
+        const plan = etappenPlan(t, tagIn(uhr.jetzt()), b.anzahl);
+        if (!plan.length) throw new DorfFehler(400, 'Dafür braucht das To-do eine Frist frühestens übermorgen.');
+        const gruppe = (t.gruppe ?? t.titel).slice(0, 60);
+        await listen.todo.aendern(b.pfad, { gruppe }, b.basisVersion);
+        const neu = [];
+        for (const e of plan) neu.push(await listen.todo.anlegen({ ...e, gruppe, ...(t.gebaeude ? { gebaeude: t.gebaeude } : {}), ...(t.energie ? { energie: t.energie } : {}) }, 'Leif'));
+        return { angelegt: neu.length };
+      }),
+    );
     // E119: KI schlägt Schritte vor – geschrieben wird erst, wenn Leif sie übernimmt
     app.post('/api/todos/zerlegen', async (req) => {
       const { pfad } = z.object({ pfad: z.string() }).parse(req.body);

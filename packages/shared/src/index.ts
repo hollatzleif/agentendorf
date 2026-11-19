@@ -859,3 +859,4 @@ export * from './todotext.js';
 export * from './fachname.js';
 export * from './projekte.js';
 export * from './einsichten.js';
+export * from './etappen.js';
