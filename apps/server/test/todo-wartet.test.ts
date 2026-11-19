@@ -78,3 +78,21 @@ describe('Aufschiebe-Zähler (E153)', () => {
     expect((await d.todos.aendern(u.pfad, { erledigt: true, faellig: '2026-11-20' })).verschoben).toBeUndefined();
   });
 });
+
+describe('Review 7 (E160)', () => {
+  it('Aufschiebe-Zähler: Nachfassen bei Wartendem und Code-Abgleich zählen nicht; wartetSeit ab Setzen', async () => {
+    const d = await testDorf();
+    let t = await d.todos.anlegen({ titel: 'Note', faellig: '2026-11-16', wartet: 'Prof' }, 'Leif');
+    t = await d.todos.aendern(t.pfad, { faellig: '2026-11-19' });
+    expect(t.verschoben).toBeUndefined();
+    let u = await d.todos.anlegen({ titel: 'Abgabe', faellig: '2026-11-16' }, 'Leif');
+    u = await d.todos.aendern(u.pfad, { faellig: '2026-11-20' }, undefined, { abgleich: true });
+    expect(u.verschoben).toBeUndefined();
+    // heute fällig + jetzt erst „wartet“ setzen und Datum schieben → kein Aufschieben
+    let v = await d.todos.anlegen({ titel: 'Mail', faellig: '2026-11-16' }, 'Leif');
+    d.uhr.vor(3 * 86_400_000);
+    v = await d.todos.aendern(v.pfad, { wartet: 'Sekretariat', faellig: '2026-11-22' });
+    expect(v.verschoben).toBeUndefined();
+    expect(v.wartetSeit).toBe(new Date(d.uhr.jetzt()).toISOString());
+  });
+});

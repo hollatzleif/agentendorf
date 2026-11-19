@@ -9,11 +9,12 @@ type Art = 'braun' | 'rosa';
 
 function puffer(ctx: AudioContext, art: Art) {
   const laenge = ctx.sampleRate * 4;
-  const b = ctx.createBuffer(1, laenge, ctx.sampleRate);
-  const d = b.getChannelData(0);
+  // etwas länger erzeugen und das Ende in den Anfang überblenden – sonst knackt es am Schleifenpunkt (Review)
+  const ueber = Math.floor(ctx.sampleRate * 0.25);
+  const d = new Float32Array(laenge + ueber);
   let letzt = 0;
   let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
-  for (let i = 0; i < laenge; i++) {
+  for (let i = 0; i < laenge + ueber; i++) {
     const w = Math.random() * 2 - 1;
     if (art === 'braun') {
       letzt = (letzt + 0.02 * w) / 1.02;
@@ -29,6 +30,14 @@ function puffer(ctx: AudioContext, art: Art) {
       d[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362) * 0.11;
       b6 = w * 0.115926;
     }
+  }
+  const b = ctx.createBuffer(1, laenge, ctx.sampleRate);
+  const aus = b.getChannelData(0);
+  aus.set(d.subarray(0, laenge));
+  // Anfang = Mischung aus Fortsetzung des Endes (d[laenge+i]) und eigentlichem Anfang → nahtlos an aus[laenge-1]
+  for (let i = 0; i < ueber; i++) {
+    const f = i / ueber;
+    aus[i] = d[laenge + i]! * (1 - f) + d[i]! * f;
   }
   return b;
 }

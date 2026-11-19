@@ -223,6 +223,8 @@ export interface TodoInfo {
   energie?: 'hoch' | 'niedrig';
   /** E153: wie oft ein fälliges/überfälliges To-do auf später geschoben wurde */
   verschoben?: number;
+  /** E160: seit wann gewartet wird (ISO) */
+  wartetSeit?: string;
   notiz?: string;
 }
 

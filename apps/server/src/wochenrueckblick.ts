@@ -88,7 +88,8 @@ export class Wochenrueckblick {
     // E150: worauf Leif wartet – lange Wartende verdienen ein Nachfassen
     const wartend = offen.filter((t) => t.wartet).sort((a, b) => (a.erstellt ?? '').localeCompare(b.erstellt ?? ''));
     if (wartend.length) {
-      const alt = (t: (typeof wartend)[number]) => (t.erstellt ? Math.floor((jetzt - Date.parse(t.erstellt)) / 86_400_000) : 0);
+      // gezählt ab dem Setzen von „wartet“, nicht ab Anlage des To-dos (Review); ältere Einträge ohne Vermerk: kein Alter
+      const alt = (t: (typeof wartend)[number]) => (t.wartetSeit ? Math.floor((jetzt - Date.parse(t.wartetSeit)) / 86_400_000) : 0);
       z1.push(
         `⏳ ${wartend.length} wartend: ${wartend
           .slice(0, 6)

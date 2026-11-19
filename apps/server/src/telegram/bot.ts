@@ -1304,13 +1304,29 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     // gezählt wird nur, was wirklich verschickt wurde – Termine ohne Vorschlag verbrauchen keinen der drei Anstöße (Review)
     if (stand.ids.includes(vorbei.id) || stand.gesendet >= 3) return false;
     stand.ids.push(vorbei.id);
-    const merken = () => this.o.db.prepare("INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES ('telegram_luecken', ?)").run(JSON.stringify({ ...stand, ids: stand.ids.slice(-50) }));
+    // vor dem Schreiben frisch lesen: ein „📝 Nachbereiten“-Klick dazwischen (angelegt) darf nicht verloren gehen (Review)
+    const merken = () => {
+      let frisch: { tag?: string; nach?: Record<string, { angelegt?: boolean }> } = {};
+      try {
+        frisch = JSON.parse((this.o.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'telegram_luecken'").get() as { wert: string } | undefined)?.wert ?? '{}');
+      } catch {
+        /* leer */
+      }
+      const nach = Object.fromEntries(Object.entries(stand.nach).map(([k, v]) => [k, frisch.tag === stand.tag && frisch.nach?.[k]?.angelegt ? { ...v, angelegt: true } : v]));
+      this.o.db.prepare("INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES ('telegram_luecken', ?)").run(JSON.stringify({ ...stand, nach, ids: stand.ids.slice(-50) }));
+    };
     // E154: war es eine Lehrveranstaltung (Titel passt zu einem Uni-Fach)? Dann „📝 Nachbereiten“ anbieten
     const fach = this.o.uni ? fachZuordnen(this.o.uni.faecher(), (f) => [f.titel, f.name], vorbei.titel) : undefined;
     const nk = crypto.createHash('sha256').update(vorbei.id).digest('hex').slice(0, 10);
     if (fach) stand.nach = { ...Object.fromEntries(Object.entries(stand.nach).slice(-9)), [nk]: { titel: vorbei.titel.slice(0, 120), fach: fach.titel } };
     merken();
     if (!d && !fach) return false;
+    // ohne Vorschlag nur, wenn gerade wirklich Luft ist: kein laufender Termin, nächster nicht in < 10 min (Review)
+    if (!d) {
+      const laeuft = zeitig.some((t) => Date.parse(t.start) <= jetzt && jetzt < Date.parse(t.ende));
+      const bald = zeitig.some((t) => Date.parse(t.start) > jetzt && Date.parse(t.start) - jetzt < 10 * 60_000);
+      if (laeuft || bald) return false;
+    }
     const nachKnopf = { text: '📝 Nachbereiten (15 min)', callback_data: this.nachbereitenDaten(nk) };
     const [text, extra] = d
       ? this.jetztNachricht(d, `✅ <b>${h(vorbei.titel)}</b> ist vorbei.\n`)
@@ -1338,19 +1354,34 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       this.o.log?.('Telegram: Nachbereiten-Knopf mit ungültiger Signatur abgelehnt.');
       return antworten('Ungültiger Knopf.');
     }
-    const roh = (this.o.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'telegram_luecken'").get() as { wert: string } | undefined)?.wert;
-    let w: { nach?: Record<string, { titel: string; fach: string; angelegt?: boolean }> } = {};
-    try {
-      w = JSON.parse(roh ?? '{}');
-    } catch {
-      /* leer */
-    }
+    const lesen = () => {
+      try {
+        return JSON.parse((this.o.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'telegram_luecken'").get() as { wert: string } | undefined)?.wert ?? '{}') as {
+          tag?: string;
+          nach?: Record<string, { titel: string; fach: string; angelegt?: boolean }>;
+        };
+      } catch {
+        return {};
+      }
+    };
+    const w = lesen();
     const e = w.nach?.[m[1]!];
-    if (!e) return antworten('Das ist schon zu lange her – leg es bei Bedarf selbst an.');
+    // nur am selben Tag (Review)
+    if (!e || w.tag !== this.heuteTag()) return antworten('Das ist schon zu lange her – leg es bei Bedarf selbst an.');
     if (e.angelegt) return antworten('Ist schon auf der Liste.');
-    await this.o.listen.todo.anlegen({ titel: `Nachbereiten: ${e.titel}`.slice(0, 200), faellig: this.heuteTag(), dauer: 15, gruppe: e.fach.slice(0, 60), gebaeude: 'Uni' }, 'Telegram');
-    e.angelegt = true;
-    this.o.db.prepare("INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES ('telegram_luecken', ?)").run(JSON.stringify(w));
+    // sofort vermerken (gegen Doppelklick), dann anlegen; der Kalendertitel ist Fremdinhalt → fremd (Leine, Review)
+    const vermerken = (an: boolean) => {
+      const f = lesen();
+      if (f.nach?.[m[1]!]) f.nach[m[1]!]!.angelegt = an;
+      this.o.db.prepare("INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES ('telegram_luecken', ?)").run(JSON.stringify(f));
+    };
+    vermerken(true);
+    try {
+      await this.o.listen.todo.anlegen({ titel: `Nachbereiten: ${e.titel}`.slice(0, 200), faellig: this.heuteTag(), dauer: 15, gruppe: e.fach.slice(0, 60), gebaeude: 'Uni' }, 'Telegram', { fremd: true });
+    } catch (err) {
+      vermerken(false);
+      throw err;
+    }
     return antworten('📝 Für heute notiert (15 min).');
   }
 
@@ -1653,11 +1684,11 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     }
     const dienst = this.o.listen.todo;
     const t = (await dienst.liste()).find((x) => this.todoKennung(x.pfad) === m[1]);
-    if (t && !t.erledigt) {
+    if (t && !t.erledigt && (t.wartet || m[2] === 'e')) {
       const a = m[2]!;
       await dienst.aendern(t.pfad, a === 'e' ? { erledigt: true } : a === 'n' ? { faellig: this.heuteTag(3) } : { wartet: '', faellig: this.heuteTag() });
       await antworten({ n: `Nachgefasst – wieder am ${this.heuteTag(3)}.`, e: 'Erledigt.', s: 'Wartet nicht mehr – heute dran.' }[a]!);
-    } else await antworten('Schon erledigt.');
+    } else await antworten(t && !t.erledigt ? 'Wartet nicht mehr.' : 'Schon erledigt.');
     if (q.message) {
       const n = await this.wartetText();
       await this.o.api.aufruf('editMessageText', { chat_id: q.message.chat.id, message_id: q.message.message_id, text: n.text, parse_mode: 'HTML', ...n.extra }).catch(() => undefined);

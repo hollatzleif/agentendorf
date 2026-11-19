@@ -1097,6 +1097,9 @@ describe('/wartet (E150)', () => {
     expect(p.faellig).toBe('2026-11-16');
     await d.knopf(knoepfe[0]![1]!.callback_data);
     expect((await d.todos.holen(a.pfad)).erledigt).toBe(true);
+    // alter Knopf: Paket wartet nicht mehr → 📨 schiebt nichts (Review)
+    await d.knopf(knoepfe[1]![0]!.callback_data);
+    expect((await d.todos.holen(b.pfad)).faellig).toBe('2026-11-16');
   });
 });
 
@@ -1154,7 +1157,15 @@ describe('Nachbereiten nach der Vorlesung (E154)', () => {
     await druck(knopf.callback_data);
     const t = await d.todos.liste();
     expect(t).toHaveLength(1);
-    expect(t[0]).toMatchObject({ titel: 'Nachbereiten: VL Statistisches Lernen', faellig: '2026-11-16', dauer: 15, gruppe: 'Statistisches Lernen', gebaeude: 'Uni' });
+    expect(t[0]).toMatchObject({ titel: 'Nachbereiten: VL Statistisches Lernen', faellig: '2026-11-16', dauer: 15, gruppe: 'Statistisches Lernen', gebaeude: 'Uni', fremd: true });
+    // am nächsten Tag gilt der Knopf nicht mehr (Review)
+    await d.todos.loeschen(t[0]!.pfad);
+    const w = JSON.parse((d.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'telegram_luecken'").get() as { wert: string }).wert);
+    w.nach[Object.keys(w.nach)[0]!].angelegt = false;
+    w.tag = '2026-11-15';
+    d.db.prepare("UPDATE dorf_stand SET wert = ? WHERE schluessel = 'telegram_luecken'").run(JSON.stringify(w));
+    await druck(knopf.callback_data);
+    expect(await d.todos.liste()).toHaveLength(0);
   });
 });
 
@@ -1198,5 +1209,38 @@ describe('/morgen (E156)', () => {
     expect(t).toContain('🕊️ frei 8–22 Uhr ≈ 12 h');
     const knoepfe = (p.reply_markup as { inline_keyboard: { text: string }[][] }).inline_keyboard.map((z) => z[0]!.text);
     expect(knoepfe).toEqual(['☆ Referat (morgen)']);
+  });
+});
+
+describe('Nachbereiten nicht mitten im nächsten Termin (E160)', () => {
+  it('direkt anschließende Vorlesung läuft schon → kein Anstoß', async () => {
+    const n = nachbau();
+    const klient = {
+      async kalender() {
+        return [{ id: 'leif', name: 'Leif', farbe: '#000', primaer: true, schreibbar: true }];
+      },
+      async termine() {
+        return [
+          { id: 'v1', summary: 'VL Statistisches Lernen', start: { dateTime: '2026-11-16T11:00:00+01:00' }, end: { dateTime: '2026-11-16T12:55:00+01:00' } },
+          { id: 'v2', summary: 'UE Etwas anderes', start: { dateTime: '2026-11-16T12:58:00+01:00' }, end: { dateTime: '2026-11-16T14:00:00+01:00' } },
+        ];
+      },
+      async holen() {
+        throw new Error('-');
+      },
+      async anlegen() {
+        throw new Error('-');
+      },
+      async aendern() {
+        throw new Error('-');
+      },
+      async loeschen() {},
+      async verschieben() {
+        throw new Error('-');
+      },
+    };
+    const d = await testDorf({ env: { TELEGRAM_CHAT_ID: LEIF, ORIGIN: 'https://dorf.test' }, telegram: n.api, kalenderKlient: klient as never });
+    await d.uni.fachAnlegen('Statistisches Lernen');
+    expect(await d.telegram!.lueckenHinweis()).toBe(false);
   });
 });

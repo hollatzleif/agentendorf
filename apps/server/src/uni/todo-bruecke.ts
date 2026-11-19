@@ -95,7 +95,7 @@ export class UniTodoBruecke {
       if (!t) continue; // To-do gelöscht → Leifs Entscheidung, nicht neu anlegen
       // Frist verschoben → Fälligkeit nachziehen
       if (g.frist !== frist) {
-        const neu = await todos.aendern(t.pfad, { faellig: tagInWien(frist) }, t.version).catch(() => null);
+        const neu = await todos.aendern(t.pfad, { faellig: tagInWien(frist) }, t.version, { fremd: true, abgleich: true }).catch(() => null);
         merken.run(f.id, t.pfad, frist, g.erledigt);
         if (!neu) continue;
         t.version = neu.version;

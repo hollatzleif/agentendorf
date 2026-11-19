@@ -118,3 +118,14 @@ describe('Energie je To-do (E151)', () => {
     expect(jetztDran({ todos: [schwer, alt], termine: [], heute, besteZeit, ...um(10) })!.todo.titel).toBe('Alt');
   });
 });
+
+describe('Energie in kurzen Lücken (E160)', () => {
+  it('kurze Lücke in der besten Zeit → trotzdem 🪶 zuerst', () => {
+    const heute = '2026-11-16';
+    const schwer = todo('Beweis', { faellig: heute, energie: 'hoch', dauer: 10 });
+    const leicht = todo('Mails', { faellig: heute, energie: 'niedrig', dauer: 10 });
+    const termin = { id: 't', titel: 'VL', start: '2026-11-16T09:20:00.000Z', ende: '2026-11-16T10:00:00.000Z', ganztags: false } as unknown as KalenderTermin;
+    const r = jetztDran({ todos: [schwer, leicht], termine: [termin], heute, besteZeit: { von: 9, bis: 11 }, jetzt: Date.parse('2026-11-16T09:00:00Z'), jetztMin: 10 * 60 })!;
+    expect(r.todo.titel).toBe('Mails');
+  });
+});

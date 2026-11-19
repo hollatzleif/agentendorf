@@ -1267,6 +1267,7 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 ## E159 – Gewohnheiten im Tagesabschluss (19.11.)
 
 - Unter /abschluss → „1 · Geschafft“ steht die Gewohnheiten-Karte von Heute: abends abhaken, was erledigt ist, damit die Serie nicht reißt. Wie im Telegram-Tagesabschluss, nur in der App.
+
 ## E157 – Tagesleiste auf Heute (19.11.)
 
 - **Was:** In der Karte „📅 Termine“ auf /heute steht über der Liste eine schmale Leiste für heute 8–22 Uhr (Wiener Zeit): Termine mit Uhrzeit als Blöcke in ihrer Kalenderfarbe, freie Lücken ab 30 min gestrichelt (Tooltip „frei 14:00–15:30“), eine rote Jetzt-Linie, Vergangenes abgedunkelt, Stundenmarken alle 2 h.
@@ -1274,3 +1275,15 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **Regeln wie überall:** Fristen-Blöcke („⏰ … ist fällig“) und Ganztägiges sind keine Termine; frei = 14 h minus belegte Zeit (`belegtMs`, Überlappungen zählen einmal). Die Zahl gilt für den ganzen Tag, nicht ab jetzt – „frei bis 22 Uhr“ ab jetzt steht schon im Tagesbudget.
 - **Nur Anzeige:** `role="img"` mit Text („Tagesleiste: 3 Termine, frei ≈ 10 h“); bedient wird weiter über die Liste darunter. Ohne Termine ist die Leiste ganz frei; ohne verbundenen Kalender gibt es sie nicht.
 - **Eigene Komponente** `TagesLeiste.tsx`, in `Heute.tsx` nur eine Zeile – bestehende Texte und aria-labels bleiben unverändert.
+
+## E160 – Review 7 (19.11.)
+
+- **Leine:** Das Nachbereiten-To-do trägt einen Kalendertitel und wird darum als „fremd“ angelegt, wie die Uni-Brücke.
+- **Aufschiebe-Zähler:**
+  - Nachfassen bei Wartendem zählt nicht, ebenso wenig das Setzen von `wartet` zusammen mit einem späteren Datum.
+  - Code-Abgleiche (Uni-Frist verlängert, `aendern(…, { abgleich: true })`) zählen auch nicht.
+- **Nachbereiten-Anstoß ohne To-do-Vorschlag** kommt nur, wenn gerade Luft ist: kein laufender Termin, der nächste nicht in unter 10 min. Der Knopf gilt nur am selben Tag und wird vor dem Anlegen vermerkt (gegen Doppelklick). Der Tagesstand wird vor dem Schreiben frisch gelesen, damit kein Vermerk verloren geht.
+- **/wartet-Knöpfe** aus alten Nachrichten schieben nichts mehr, wenn das To-do nicht mehr wartet.
+- **„seit N Tagen“** im Wochenrückblick zählt ab dem Setzen von `wartet` (`wartet_seit`), nicht ab der Anlage des To-dos.
+- **Energie:** Eine kurze Lücke (< 30 min) schlägt die beste Zeit; dann kommt 🪶 zuerst.
+- **Rauschen:** Ende und Anfang des Puffers werden 250 ms überblendet, damit es am Schleifenpunkt nicht knackt.

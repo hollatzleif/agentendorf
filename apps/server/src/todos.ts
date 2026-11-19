@@ -177,6 +177,7 @@ export class TodoDienst {
       ...(typeof k.erinnert === 'string' ? { erinnert: k.erinnert } : {}),
       ...(typeof k.dauer === 'number' && Number.isInteger(k.dauer) && k.dauer >= 5 && k.dauer <= 600 ? { dauer: k.dauer } : {}),
       ...(typeof k.wartet === 'string' && k.wartet.trim() ? { wartet: k.wartet.trim().slice(0, 80) } : {}),
+      ...(typeof k.wartet === 'string' && k.wartet.trim() && (typeof k.wartet_seit === 'string' || k.wartet_seit instanceof Date) ? { wartetSeit: typeof k.wartet_seit === 'string' ? k.wartet_seit : k.wartet_seit.toISOString() } : {}),
       ...(k.energie === 'hoch' || k.energie === 'niedrig' ? { energie: k.energie } : {}),
       ...(typeof k.verschoben === 'number' && Number.isInteger(k.verschoben) && k.verschoben > 0 ? { verschoben: Math.min(k.verschoben, 99) } : {}),
       quelle: typeof k.quelle === 'string' ? k.quelle : undefined,
@@ -281,7 +282,10 @@ export class TodoDienst {
     if (e.wiederholen && e.wiederholen_tag) daten.wiederholen_tag = e.wiederholen_tag;
     if (e.erinnerung) daten.erinnerung = e.erinnerung;
     if (e.dauer) daten.dauer = e.dauer;
-    if (e.wartet) daten.wartet = e.wartet;
+    if (e.wartet) {
+      daten.wartet = e.wartet;
+      daten.wartet_seit = new Date(jetzt).toISOString();
+    }
     if (e.energie) daten.energie = e.energie;
     daten.quelle = quelle;
     if (opt.fremd) daten.fremd = true;
@@ -292,7 +296,7 @@ export class TodoDienst {
   }
 
   /** Ändern (auch abhaken). basisVersion: hat sich die Datei inzwischen geändert (Obsidian, anderes Gerät) → 409 */
-  async aendern(roh: string, aenderungRoh: unknown, basisVersion?: string, opt: { fremd?: boolean } = {}): Promise<TodoInfo> {
+  async aendern(roh: string, aenderungRoh: unknown, basisVersion?: string, opt: { fremd?: boolean; abgleich?: boolean } = {}): Promise<TodoInfo> {
     const pfad = this.pfadPruefen(roh);
     const a = TodoAenderung.parse(aenderungRoh);
     const d = await this.o.vault.lesen(pfad).catch(() => null);
@@ -312,7 +316,9 @@ export class TodoDienst {
       const heuteW = new Date(this.o.uhr.jetzt()).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
       const alt = datumText(k.faellig);
       const offen = !(k.status === 'erledigt' || k.status === 'fertig' || k.erledigt === true) && a.erledigt !== true;
-      if (offen && alt && alt <= heuteW && (!a.faellig || a.faellig > alt)) k.verschoben = Math.min(99, (typeof k.verschoben === 'number' ? k.verschoben : 0) + 1);
+      // nicht gezählt: Nachfassen bei Wartendem (das ist der Sinn des Datums) und Abgleiche vom Code (Uni-Frist verlängert) – Review
+      const wartend = (typeof k.wartet === 'string' && k.wartet) || a.wartet !== undefined;
+      if (offen && !wartend && !opt.abgleich && alt && alt <= heuteW && (!a.faellig || a.faellig > alt)) k.verschoben = Math.min(99, (typeof k.verschoben === 'number' ? k.verschoben : 0) + 1);
       if (a.faellig) k.faellig = a.faellig;
       else delete k.faellig;
     }
@@ -337,8 +343,14 @@ export class TodoDienst {
       else delete k.dauer;
     }
     if (a.wartet !== undefined) {
-      if (a.wartet) k.wartet = a.wartet;
-      else delete k.wartet;
+      // wartet_seit: ab wann gewartet wird (Wochenrückblick „seit N Tagen“) – bleibt beim Umbenennen der Person
+      if (a.wartet) {
+        if (!k.wartet) k.wartet_seit = new Date(this.o.uhr.jetzt()).toISOString();
+        k.wartet = a.wartet;
+      } else {
+        delete k.wartet;
+        delete k.wartet_seit;
+      }
     }
     if (a.energie !== undefined) {
       if (a.energie) k.energie = a.energie;

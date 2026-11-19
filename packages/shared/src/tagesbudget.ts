@@ -66,7 +66,8 @@ export function jetztDran(o: { todos: TodoInfo[]; termine: KalenderTermin[]; jet
   // E151: Energie – in der besten Zeit (E144) zuerst, was Konzentration braucht; abends ab 19 Uhr oder in kurzen
   // Lücken (< 30 min) zuerst Leichtes. Nur innerhalb derselben Dringlichkeit, Überfälliges bleibt vorn.
   const stunde = o.jetztMin / 60;
-  const modus: 'hoch' | 'niedrig' | null = o.besteZeit && stunde >= o.besteZeit.von && stunde < o.besteZeit.bis ? 'hoch' : o.jetztMin >= 19 * 60 || luecke < 30 ? 'niedrig' : null;
+  // kurze Lücke schlägt beste Zeit: in 15 min fängt man nichts Schweres an (Review)
+  const modus: 'hoch' | 'niedrig' | null = luecke < 30 || o.jetztMin >= 19 * 60 ? 'niedrig' : o.besteZeit && stunde >= o.besteZeit.von && stunde < o.besteZeit.bis ? 'hoch' : null;
   const vorzug = (t: TodoInfo) => (modus && t.energie === modus ? 0 : modus && t.energie && t.energie !== modus ? 2 : 1);
   const kandidaten = o.todos
     .filter((t) => !t.erledigt && !ruht(t, o.heute) && stufe(t) < 9)
