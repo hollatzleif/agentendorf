@@ -330,6 +330,7 @@ export class TelegramBot {
     { command: 'karten', description: 'Karteikarten wiederholen: /karten [Fach]' },
     { command: 'jetzt', description: 'Was passt jetzt? Ein To-do für die Zeit bis zum nächsten Termin' },
     { command: 'verteilen', description: 'To-dos ohne Datum auf die Woche verteilen (Vorschlag)' },
+    { command: 'morgen', description: 'Dein Morgen: Termine, Fälliges, freie Zeit – ⭐ setzen' },
     { command: 'wartet', description: 'Worauf du wartest – nachgefasst, angekommen oder selbst weitermachen' },
     { command: 'lernen', description: 'Lernziele der Woche je Fach – mit 🍅 starten' },
     { command: 'fokus', description: 'Pomodoro starten: /fokus [Thema]' },
@@ -528,6 +529,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       if (b === '/jetzt') return this.jetztBefehl();
       if (b === '/verteilen') return this.verteilenBefehl();
       if (b === '/wartet' || b === '/warte') return this.wartetZeigen();
+      if (b === '/morgen') return this.morgenSenden();
       if (b === '/lernen') return this.lernenBefehl();
       if (b === '/fokus') return this.fokusBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b !== '/neu') return this.befehl(b);
@@ -604,7 +606,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
   private async befehl(b: string) {
     if (b === '/start' || b === '/hilfe' || b === '/help')
       return this.senden(
-        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters. Weiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch); antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n<b>📅 Planen</b>\n/heute – dein Tag · /woche – die nächsten 7 Tage\n/plan [morgen] – To-dos in freie Kalenderlücken\n/verteilen – To-dos ohne Datum auf die Woche verteilen\n/fristen – Abgaben und Prüfungen (7 Tage)\n/termin &lt;wann&gt; &lt;was&gt; – Termin eintragen (mit Bestätigung)\n\n<b>✅ Erledigen</b>\n/todo [Text] – To-do-Liste bzw. neues To-do (auch „… jeden Montag“)\n/einkauf [Text] – Einkaufsliste\n/erinner &lt;wann&gt; &lt;was&gt; – Erinnerung (läutet im Kirchturm)\n/aufraeumen – Überfälliges neu einplanen · /wartet – worauf du wartest\n/jetzt – was jetzt passt (mit 🍅 Los) · /fokus [Thema] – Pomodoro starten\n/gewohnheiten – heute abhaken · /ziel [Text] – Wochenziele\n\n<b>🎓 Lernen</b>\n/lernen – Lernziele der Woche, 🍅 je Fach\n/karten [Fach] – Karteikarten · /moodle &lt;Fach&gt; [Frage] – in Moodle nachsehen\n/noten – Notenschnitt und ECTS\n\n<b>📝 Festhalten &amp; Finden</b>\n/notiz &lt;Text&gt; – Tagesnotiz · /suche &lt;Begriff&gt; – im Vault suchen\n/statistik – die letzten 7 Tage\n\n<b>🏛️ Dorf</b>\n/status – was läuft · /freigaben – offene Freigaben\n/aktion [Name] – Skill starten · /neu – nächste Nachricht = neue Aufgabe\n/hilfe – diese Hilfe\n\n<i>Tipp: „todo: …“, „notiz: …“, „ziel: …“, „einkauf: …“ gehen auch ohne Schrägstrich – ein Foto mit „notiz: …“ landet samt Bild in der Tagesnotiz.</i>`,
+        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters. Weiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch); antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n<b>📅 Planen</b>\n/heute – dein Tag · /morgen – der nächste Tag · /woche – die nächsten 7 Tage\n/plan [morgen] – To-dos in freie Kalenderlücken\n/verteilen – To-dos ohne Datum auf die Woche verteilen\n/fristen – Abgaben und Prüfungen (7 Tage)\n/termin &lt;wann&gt; &lt;was&gt; – Termin eintragen (mit Bestätigung)\n\n<b>✅ Erledigen</b>\n/todo [Text] – To-do-Liste bzw. neues To-do (auch „… jeden Montag“)\n/einkauf [Text] – Einkaufsliste\n/erinner &lt;wann&gt; &lt;was&gt; – Erinnerung (läutet im Kirchturm)\n/aufraeumen – Überfälliges neu einplanen · /wartet – worauf du wartest\n/jetzt – was jetzt passt (mit 🍅 Los) · /fokus [Thema] – Pomodoro starten\n/gewohnheiten – heute abhaken · /ziel [Text] – Wochenziele\n\n<b>🎓 Lernen</b>\n/lernen – Lernziele der Woche, 🍅 je Fach\n/karten [Fach] – Karteikarten · /moodle &lt;Fach&gt; [Frage] – in Moodle nachsehen\n/noten – Notenschnitt und ECTS\n\n<b>📝 Festhalten &amp; Finden</b>\n/notiz &lt;Text&gt; – Tagesnotiz · /suche &lt;Begriff&gt; – im Vault suchen\n/statistik – die letzten 7 Tage\n\n<b>🏛️ Dorf</b>\n/status – was läuft · /freigaben – offene Freigaben\n/aktion [Name] – Skill starten · /neu – nächste Nachricht = neue Aufgabe\n/hilfe – diese Hilfe\n\n<i>Tipp: „todo: …“, „notiz: …“, „ziel: …“, „einkauf: …“ gehen auch ohne Schrägstrich – ein Foto mit „notiz: …“ landet samt Bild in der Tagesnotiz.</i>`,
       );
     if (b === '/status') {
       const aktiv = this.o.agenten.aktiveLaeufe();
@@ -1571,6 +1573,41 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       const n = await this.aufraeumenText();
       await this.o.api.aufruf('editMessageText', { chat_id: q.message.chat.id, message_id: q.message.message_id, text: n.text, parse_mode: 'HTML', ...n.extra }).catch(() => undefined);
     }
+  }
+
+  // ---- /morgen (E156) ----------------------------------------------------------------------------------
+
+  /** Der nächste Tag auf einen Blick – Termine, Fristen, was dran ist (ruhendes Wartendes nicht), freie Zeit 8–22 Uhr, ⭐ setzen */
+  private async morgenSenden() {
+    if (!this.o.listen) return this.senden('Die Listen sind nicht eingerichtet.');
+    const morgen = this.heuteTag(1);
+    const [j, mo, t] = morgen.split('-').map(Number) as [number, number, number];
+    const tagVon = ortszeitZuUtc(j, mo, t, 0, 0, 0, 'Europe/Vienna');
+    const von = ortszeitZuUtc(j, mo, t, 8, 0, 0, 'Europe/Vienna');
+    const bis = ortszeitZuUtc(j, mo, t, 22, 0, 0, 'Europe/Vienna');
+    const z = this.o.kalender?.zeitraum ? await this.o.kalender.zeitraum(tagVon, tagVon + 86_400_000).catch(() => null) : null;
+    const termine = (z?.termine ?? []).filter((x): x is KalenderTermin => typeof x.start === 'string' && typeof x.ende === 'string' && typeof x.ganztags === 'boolean' && !istFristBlock(x));
+    const zeitig = termine.filter((x) => !x.ganztags && Date.parse(x.ende) > tagVon && Date.parse(x.start) < tagVon + 86_400_000).sort((a, b) => a.start.localeCompare(b.start));
+    const uhr = (iso: string) => new Date(iso).toLocaleTimeString('de-AT', { timeZone: 'Europe/Vienna', hour: '2-digit', minute: '2-digit' });
+    const alle = await this.o.listen.todo.liste();
+    const dran = alle.filter((x) => !x.erledigt && x.faellig && x.faellig <= morgen && !ruht(x, morgen)).sort((a, b) => Number(!!b.wichtig) - Number(!!a.wichtig) || (a.faellig ?? '').localeCompare(b.faellig ?? ''));
+    const fristen = (this.o.uni?.fristen() ?? []).filter((f) => (f.art === 'abgabe' || f.art === 'test') && !f.abgegeben && f.frist && tagVonJetzt(Date.parse(f.frist), 0) === morgen);
+    const frei = Math.max(0, Math.round((bis - von - belegtMs(zeitig.map((x) => [Date.parse(x.start), Date.parse(x.ende)]), von, bis)) / 60_000));
+    const geschaetzt = dran.reduce((s2, x) => s2 + (x.dauer ?? 0), 0);
+    const wochentag = new Date(`${morgen}T12:00:00Z`).toLocaleDateString('de-AT', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+    const zz = [`🌅 <b>Morgen, ${h(wochentag)}</b>`];
+    const ganz = termine.filter((x) => x.ganztags);
+    if (ganz.length) zz.push(...ganz.slice(0, 3).map((x) => `📌 ${h(x.titel)}`));
+    zz.push(zeitig.length ? zeitig.slice(0, 8).map((x) => `🕘 ${uhr(x.start)}–${uhr(x.ende)} ${h(x.titel)}`).join('\n') : '🕘 Keine Termine.');
+    if (fristen.length) zz.push(`⏰ Fällig: ${fristen.map((f) => h(f.titel)).join(', ')}`);
+    zz.push(
+      dran.length
+        ? `☑️ <b>${dran.length}</b> To-do${dran.length === 1 ? '' : 's'} dran${geschaetzt ? ` (≈ ${minutenText(geschaetzt)})` : ''}:\n${dran.slice(0, 8).map((x) => `• ${x.wichtig ? '⭐ ' : ''}${h(x.titel)}${x.wartet ? ` (⏳ nachfassen bei ${h(x.wartet)})` : ''}`).join('\n')}${dran.length > 8 ? `\n… und ${dran.length - 8} weitere` : ''}`
+        : '☑️ Nichts fällig – Zeit für Liegengebliebenes oder Pause.',
+    );
+    zz.push(`🕊️ frei 8–22 Uhr ≈ ${minutenText(frei)}${geschaetzt > frei * 0.7 ? ' – eng, vielleicht etwas verschieben' : ''}`);
+    zz.push('\n⭐ <b>Was ist morgen wichtig?</b> Tipp an:');
+    return this.senden(zz.join('\n'), { reply_markup: { inline_keyboard: this.sternAuswahl(alle.filter((x) => !ruht(x, morgen)), morgen) } });
   }
 
   // ---- /wartet (E150) ----------------------------------------------------------------------------------

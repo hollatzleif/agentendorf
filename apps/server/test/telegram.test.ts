@@ -222,7 +222,7 @@ describe('Telegram-Bot', () => {
     expect(offsets.at(-1)).toBe(51);
     // Befehlsmenü wird beim Start angemeldet
     const menue = d.aufrufe.find((x) => x.m === 'setMyCommands')?.p.commands as { command: string }[];
-    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'woche', 'noten', 'suche', 'statistik', 'aufraeumen', 'notiz', 'erinner', 'plan', 'karten', 'jetzt', 'verteilen', 'wartet', 'lernen', 'fokus', 'ziel', 'gewohnheiten', 'neu', 'hilfe']);
+    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'woche', 'noten', 'suche', 'statistik', 'aufraeumen', 'notiz', 'erinner', 'plan', 'karten', 'jetzt', 'verteilen', 'morgen', 'wartet', 'lernen', 'fokus', 'ziel', 'gewohnheiten', 'neu', 'hilfe']);
     await d.agenten.leerlauf();
   }, 15_000);
 });
@@ -1155,5 +1155,48 @@ describe('Nachbereiten nach der Vorlesung (E154)', () => {
     const t = await d.todos.liste();
     expect(t).toHaveLength(1);
     expect(t[0]).toMatchObject({ titel: 'Nachbereiten: VL Statistisches Lernen', faellig: '2026-11-16', dauer: 15, gruppe: 'Statistisches Lernen', gebaeude: 'Uni' });
+  });
+});
+
+describe('/morgen (E156)', () => {
+  it('Termine, Fälliges (ohne ruhendes Wartendes), freie Zeit, ⭐-Knöpfe', async () => {
+    const n = nachbau();
+    const klient = {
+      async kalender() {
+        return [{ id: 'leif', name: 'Leif', farbe: '#000', primaer: true, schreibbar: true }];
+      },
+      async termine() {
+        return [
+          { id: 'v1', summary: 'Vorlesung', start: { dateTime: '2026-11-17T10:00:00+01:00' }, end: { dateTime: '2026-11-17T12:00:00+01:00' } },
+          { id: 'f1', summary: '⏰ NLP: Blatt 3 ist fällig', start: { dateTime: '2026-11-17T13:00:00+01:00' }, end: { dateTime: '2026-11-17T14:00:00+01:00' } },
+        ];
+      },
+      async holen() {
+        throw new Error('-');
+      },
+      async anlegen() {
+        throw new Error('-');
+      },
+      async aendern() {
+        throw new Error('-');
+      },
+      async loeschen() {},
+      async verschieben() {
+        throw new Error('-');
+      },
+    };
+    const d = await testDorf({ env: { TELEGRAM_CHAT_ID: LEIF, ORIGIN: 'https://dorf.test' }, telegram: n.api, kalenderKlient: klient as never });
+    await d.todos.anlegen({ titel: 'Referat', faellig: '2026-11-17', dauer: 60 }, 'Leif');
+    await d.todos.anlegen({ titel: 'Note', faellig: '2026-11-20', wartet: 'Prof' }, 'Leif');
+    await d.telegram!.verarbeiten({ update_id: 1, message: { message_id: 1, chat: { id: Number(LEIF) }, text: '/morgen' } });
+    const p = n.aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p;
+    const t = String(p.text);
+    expect(t).toContain('🌅 <b>Morgen, Dienstag, 17. November</b>');
+    expect(t).toContain('🕘 10:00–12:00 Vorlesung');
+    expect(t).not.toContain('NLP');
+    expect(t).toContain('☑️ <b>1</b> To-do dran (≈ 1 h):\n• Referat');
+    expect(t).toContain('🕊️ frei 8–22 Uhr ≈ 12 h');
+    const knoepfe = (p.reply_markup as { inline_keyboard: { text: string }[][] }).inline_keyboard.map((z) => z[0]!.text);
+    expect(knoepfe).toEqual(['☆ Referat (morgen)']);
   });
 });

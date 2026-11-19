@@ -1249,3 +1249,13 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 
 - **Fokus-Vollbild:** „🔊 Rauschen“ mit braunem (tief, wie Regen) oder rosa Rauschen (heller) und einem Lautstärke-Regler. Der Ton wird im Browser über Web Audio erzeugt, ohne Datei und ohne Netz. Er startet nur auf Klick und endet beim Verlassen der Seite. Art und Lautstärke merkt sich das Gerät.
 - **Kein Klingeln:** Das ist kein Signal, sondern Hintergrund; Glocke und Wecker bleiben Sache des Kirchturms.
+
+## E156 – Telegram /morgen (19.11.)
+
+- **/morgen** zeigt den nächsten Tag auf einen Blick:
+  - Ganztägiges, Termine (ohne Fristen-Blöcke) und Fristen (Abgaben/Prüfungen, Wiener Tag)
+  - die dran-To-dos bis morgen (⭐ zuerst; ruhendes Wartendes nicht, Nachfassen schon) mit Schätzung
+  - freie Zeit 8–22 Uhr mit „eng“-Hinweis
+  - darunter die bekannten ⭐-Knöpfe aus dem Tagesabschluss (`st:`)
+- **Warum:** Der Tagesabschluss kommt um 21 Uhr. Wer früher Schluss macht oder abends noch etwas einschiebt, will den Morgen jederzeit sehen können.
+- **Bürgermeister:** Er kennt den Aufschiebe-Zähler und bietet Zerlegen an.
