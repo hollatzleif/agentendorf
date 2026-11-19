@@ -44,7 +44,10 @@ export function Anleitung() {
           Realistisch planen: am To-do <b>⏱ Dauer</b> schätzen (Telegram: „/todo Referat üben 45 min“) – „Heute“ warnt, wenn die geplanten To-dos nicht bis 22 Uhr passen.
         </li>
         <li>
-          Großes To-do, kein Anfang? <b>☑ +</b> am To-do → Teilschritte eintragen oder <b>✂️ Vorschlagen</b> lassen. „Heute“ zeigt dann nur den nächsten Schritt. Notizen werden unter Rathaus → Notizen mit <b>→ To-do</b> zur Aufgabe.
+          Am PC: <b>n</b> neues To-do, <b>f</b> Fokus, <b>g w</b> Wochenplan, <b>?</b> alle Tastenkürzel.
+        </li>
+        <li>
+                    Großes To-do, kein Anfang? <b>☑ +</b> am To-do → Teilschritte eintragen oder <b>✂️ Vorschlagen</b> lassen. „Heute“ zeigt dann nur den nächsten Schritt. Notizen werden unter Rathaus → Notizen mit <b>→ To-do</b> zur Aufgabe.
         </li>
         <li>
           Zeitgebundenes: <b>/erinner morgen 9 Uhr …</b> – der Kirchturm läutet, Telegram meldet sich.

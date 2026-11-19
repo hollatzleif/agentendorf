@@ -12,6 +12,7 @@ import { KirchturmGlocke } from './programm/KirchturmGlocke';
 import { Befehlspalette } from './komponenten/Befehlspalette';
 import { OfflineSchlange } from './komponenten/OfflineSchlange';
 import { SeitenFehler } from './komponenten/SeitenFehler';
+import { Tastenkuerzel } from './komponenten/Tastenkuerzel';
 
 // Seiten erst laden, wenn man sie öffnet – der Start (Dorf) bleibt klein
 const GebaeudeSeite = lazy(() => import('./seiten/Gebaeude').then((m) => ({ default: m.GebaeudeSeite })));
@@ -47,6 +48,7 @@ export function App() {
       <ProgrammMeldungen />
       <KirchturmGlocke />
       <Befehlspalette />
+      <Tastenkuerzel />
       <Rahmen />
     </>
   );

@@ -1480,6 +1480,32 @@ test('Uni: Lernziel je Fach pro Woche setzen, Balken erscheint (E137)', async ({
   expect(datei.inhalt).toContain(`${fach}: 4`);
 });
 
+test('Tastenkürzel: ? Übersicht, g w Wochenplan, n neues To-do, f Fokus; im Feld wirken sie nicht (E138)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'nur am PC');
+  await anmelden(page);
+  await page.goto('/heute');
+  await expect(page.getByRole('heading', { name: /, Leif$/ })).toBeVisible();
+  await page.keyboard.press('?');
+  await expect(page.getByRole('dialog', { name: 'Tastenkürzel' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Tastenkürzel' })).toHaveCount(0);
+  await page.keyboard.press('g');
+  await page.keyboard.press('w');
+  await expect(page).toHaveURL(/reiter=wochenplan$/);
+  await page.keyboard.press('n');
+  await expect(page).toHaveURL(/\/heute$/);
+  const feld = page.getByRole('textbox', { name: 'Neues To-do' }).first();
+  await expect(feld).toBeFocused();
+  // im Feld getippt: „f“ ist ein Buchstabe, keine Navigation
+  await feld.type('fg');
+  await expect(feld).toHaveValue('fg');
+  await expect(page).toHaveURL(/\/heute$/);
+  await feld.fill('');
+  await feld.blur();
+  await page.keyboard.press('f');
+  await expect(page).toHaveURL(/\/fokus$/);
+});
+
 test('Seite lässt sich nicht laden (nach Deploy): einmal neu laden, dann „Neu laden“ statt weißer Seite (Review)', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'einmal reicht');
   await anmelden(page);

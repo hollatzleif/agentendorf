@@ -1307,3 +1307,11 @@ input.kurz { width: 5em; }
 .fach-lernziel-balken span { display: block; height: 100%; background: #c8553d; border-radius: 7px; }
 .fach-lernziel.erreicht .fach-lernziel-balken span { background: var(--gruen); }
 .fach-ziel-form input { width: 5.5rem; }
+
+/* E138: Tastenkürzel */
+.tasten-hilfe { max-width: 26rem; margin: 10vh auto; padding: 1rem 1.2rem; }
+.tasten-hilfe dl { display: grid; grid-template-columns: auto 1fr; gap: 0.35rem 1rem; align-items: center; }
+.tasten-hilfe .tasten-zeile { display: contents; }
+.tasten-hilfe dd { margin: 0; }
+kbd { display: inline-block; min-width: 1.4em; padding: 0.05rem 0.35rem; border: 1px solid var(--rand); border-bottom-width: 2px; border-radius: 5px; background: #fff; font: 600 0.85rem ui-monospace, monospace; text-align: center; }
+@media (hover: none) { .tasten-hilfe { display: none; } }

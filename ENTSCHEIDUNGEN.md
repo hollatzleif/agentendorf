@@ -1078,3 +1078,11 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **Gemessen** wird die Fokuszeit (Pomodoro mit Fach als Gruppe, z. B. über „🍅 Fokus“ auf der Fach-Karte) **dieser Woche ab Montag 0:00 Wien**. Die Karte zeigt einen Balken „2 h 30 min von 6 h diese Woche“, grün sobald erreicht.
 - **Wochenrückblick:** Abschnitt „Lernziele“ mit „✓ Mathe III: 6 h 10 min von 6 h“ bzw. „✗ …“ über die letzten 7 Tage.
 - **Warum:** Fristen allein sagen nicht, ob man genug lernt. Ein Wochenziel je Fach macht Lernen planbar, auch wenn gerade keine Abgabe drückt.
+
+## E138 – Tastenkürzel am PC (Nacht 18./19.11.)
+
+- `n` neues To-do: Es nimmt das sichtbare Feld der Seite, sonst springt es nach „Heute“. Weitere Kürzel:
+  - `f` Fokus-Vollbild
+  - `g` + Buchstabe springt: `h` Heute, `d` Dorf, `t` To-dos, `w` Wochenplan, `k` Kalender, `p` Woche planen, `u` Uni, `r` Rathaus, `b` Bibliothek
+  - `?` zeigt die Übersicht
+- Die Kürzel wirken nur, wenn nicht gerade in ein Feld getippt wird und ohne Strg/Alt/⌘; Strg/⌘+K bleibt die Befehlspalette. Am Handy (ohne Hover) wird die Übersicht nicht gezeigt.
