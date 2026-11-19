@@ -19,6 +19,8 @@ const SEITEN: [string, string, string][] = [
   ['⚙️', 'Einstellungen', '/einstellungen'],
   ['📅', 'Kalender', '/gebaeude/Marktplatz?reiter=kalender'],
   ['🧺', 'To-do-Brett', '/gebaeude/Marktplatz?reiter=todo'],
+  ['📁', 'Projekte (Fortschritt, Fristen)', '/gebaeude/Marktplatz?reiter=projekte'],
+  ['🗂️', 'Wochenplan', '/gebaeude/Marktplatz?reiter=wochenplan'],
   ['🔔', 'Kirchturm (Uhr, Pomodoro)', '/gebaeude/Kirchturm'],
   ['🗓️', 'Wochenrückblick', '/gebaeude/Rathaus?reiter=woche'],
   ['📊', 'Statistik', '/gebaeude/Rathaus?reiter=statistik'],

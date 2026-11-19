@@ -1882,3 +1882,17 @@ test('Heute: Hinweis auf ein Projekt, das hinterher ist (E174)', async ({ page }
   await l.click();
   await expect(page).toHaveURL(/reiter=projekte/);
 });
+
+test('Befehlspalette springt zu den Projekten (E177)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  await page.goto('/heute');
+  await expect(page.getByRole('heading', { name: /, Leif$/ })).toBeVisible();
+  await page.keyboard.press('Control+k');
+  const p = page.getByRole('dialog', { name: 'Befehlspalette' });
+  const feld = p.getByLabel('Befehl oder Suche');
+  await feld.fill('projekte');
+  await expect(p.getByRole('option').first()).toContainText('Projekte');
+  await feld.press('Enter');
+  await expect(page).toHaveURL(/reiter=projekte/);
+});

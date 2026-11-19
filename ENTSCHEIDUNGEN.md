@@ -1402,3 +1402,7 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **Uni-Gruppe nachziehen:** Das gilt für alle offenen Uni-To-dos mit der alten Gruppe (auch Etappen). Verglichen wird mit dem getrimmten Kursnamen.
 - **Nachziehen nur einmal je Kurs:** Ein Vermerk in `dorf_stand.uni_gruppe_umgezogen` sorgt dafür, dass jeder Kurs nur einmal umgezogen wird. Das Ziel ist nie der alte Name eines anderen Kurses. Ohne das konnten sich zwei Kurse gegenseitig hin- und herschieben, und weil jede To-do-Änderung den nächsten Abgleich anstößt, lief das endlos. In den Browser-Tests hielt das den Server so beschäftigt, dass das 3D-Dorf in die Zeitüberschreitung lief.
 - **Test-Befund:** Die roten 3D-Dorf-Tests seit 05:45 UTC kamen nicht von Code-Änderungen. Der Test „Gewohnheit bearbeiten“ legte eine Gewohnheit mit Erinnerung um 06:45 an, und ab 06:45 Wiener Zeit läutete sie im Testserver. Ihr Hinweis lag dann über dem Dorf und fing die Klicks ab. Der Test räumt die Gewohnheit jetzt am Ende wieder ab.
+
+## E177 – Befehlspalette: Projekte und Wochenplan (19.11.)
+
+- Strg/⌘+K kennt jetzt „📁 Projekte“ und „🗂️ Wochenplan“ als Sprungziele.
