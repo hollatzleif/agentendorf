@@ -1508,3 +1508,13 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0.05rem 0.35rem; border:
   .tagesleiste-bahn { height: 1.7rem; }
   .tagesleiste-stunden { font-size: 0.72rem; }
 }
+
+/* E161: Projekte */
+.projekte { display: grid; gap: 0.8rem; }
+.projekt { display: grid; gap: 0.45rem; }
+.projekt.fertig { opacity: 0.75; }
+.projekt-kopf { display: flex; justify-content: space-between; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+.projekt-kopf h3 { margin: 0; }
+.projekt-balken { height: 0.6rem; border-radius: 999px; background: var(--rand); overflow: hidden; }
+.projekt-balken span { display: block; height: 100%; background: var(--gruen, #3c8d5a); border-radius: 999px; transition: width 0.3s; }
+.projekt-naechster { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; flex-wrap: wrap; }

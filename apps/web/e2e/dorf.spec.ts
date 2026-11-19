@@ -1792,3 +1792,19 @@ test('Heute: Tagesleiste 8–22 Uhr mit Terminen, freien Lücken und Jetzt-Linie
   await expect(page.getByRole('region', { name: 'Termine' })).toContainText('Noch kein Kalender eingerichtet.');
   await expect(page.locator('.tagesleiste')).toHaveCount(0);
 });
+
+test('Marktplatz → Projekte: Gruppe als Projekt mit Fortschritt und nächstem Schritt (E161)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  const g = `Projekt${Date.now() % 100000}`;
+  const o = { origin: ORIGIN };
+  const erst = (await (await page.request.post('/api/todos', { headers: o, data: { titel: `${g} Gliederung`, gruppe: g } })).json()) as { pfad: string; version: string };
+  await page.request.patch('/api/todos', { headers: o, data: { pfad: erst.pfad, basisVersion: erst.version, erledigt: true } });
+  await page.request.post('/api/todos', { headers: o, data: { titel: `${g} Kapitel 1`, gruppe: g, wichtig: true } });
+  await page.request.post('/api/todos', { headers: o, data: { titel: `${g} Kapitel 2`, gruppe: g } });
+  await page.goto('/gebaeude/Marktplatz?reiter=projekte');
+  const k = page.getByRole('article', { name: `Projekt ${g}` });
+  await expect(k).toContainText('1/3 erledigt');
+  await expect(k.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '33');
+  await expect(k).toContainText(`👉 ${g} Kapitel 1`);
+});

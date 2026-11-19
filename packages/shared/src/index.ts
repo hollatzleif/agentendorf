@@ -855,3 +855,4 @@ export interface Anschluss {
 export * from './tagesbudget.js';
 export * from './todotext.js';
 export * from './fachname.js';
+export * from './projekte.js';

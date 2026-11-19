@@ -1287,3 +1287,14 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **„seit N Tagen“** im Wochenrückblick zählt ab dem Setzen von `wartet` (`wartet_seit`), nicht ab der Anlage des To-dos.
 - **Energie:** Eine kurze Lücke (< 30 min) schlägt die beste Zeit; dann kommt 🪶 zuerst.
 - **Rauschen:** Ende und Anfang des Puffers werden 250 ms überblendet, damit es am Schleifenpunkt nicht knackt.
+
+## E161 – Projekte (19.11.)
+
+- **Ein Projekt ist eine Gruppe** im To-do-Brett (Feld „Gruppe“), sobald sie mindestens 3 To-dos insgesamt oder 2 offene hat. Es gibt kein neues Feld und keine neue Datei, nur eine Auswertung (`projekteAus` in packages/shared).
+- **Marktplatz → Projekte:** Je Projekt stehen dort:
+  - Fortschritt (erledigt/gesamt, Balken) und „+N diese Woche“
+  - die Fokuszeit
+  - der nächste Schritt (⭐ → Datum → älteste) mit „🍅 Los“
+  - „💤 Ruht seit N Tagen“, wenn eine Woche lang nichts angelegt oder erledigt wurde
+- **Wochenrückblick:** „📁 Projekte: Bachelorarbeit 4/10 (+2), Umzug …, ruht seit 12 Tagen“.
+- **Warum:** Große Vorhaben (Bachelorarbeit, Umzug, ein Corps-Amt) zerfallen in viele To-dos. In der Tagesliste sieht man nie, ob das Ganze vorankommt. Die Projektansicht zeigt genau das und stupst an, was einschläft.
