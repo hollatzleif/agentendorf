@@ -27,5 +27,5 @@ describe('Statistik (E93)', () => {
     expect(r.tage.at(-1)).toEqual({ tag: '2026-11-17', erledigt: 0, fokusMin: 0, gewohnheitenFaellig: 1, gewohnheitenErledigt: 0, stimmung: null });
     expect(r.summen).toEqual({ erledigt: 2, erledigtWoche: 2, fokusMin: 25, fokusMinWoche: 25, gewohnheitenQuote: 50, stimmungSchnitt: 4, aktiveTage: 1 });
     expect((await d.app.inject({ url: '/api/statistik?tage=3', headers: h })).statusCode).toBe(400);
-  });
+  }, 60_000); // auf der CI teils langsam (viele Vault-Lesezugriffe über 28 Tage)
 });
