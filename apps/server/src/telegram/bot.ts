@@ -137,7 +137,7 @@ export class TelegramBot {
       /** E113: /noten */
       noten?: { stand(): Promise<NotenStand> };
       /** Nacht 18./19.11.: /fokus – Pomodoro starten */
-      kirchturm?: { ausfuehren(b: unknown): unknown; fokusStatistik?(): FokusStatistik };
+      kirchturm?: { ausfuehren(b: unknown): unknown; fokusStatistik?(): FokusStatistik; zustand?(): { pomodoro: { einstellungen: { tagesZielMin?: number } } } };
       /** Nacht 18./19.11.: /termin – Termin aus Text, eingetragen erst nach Leifs Knopfdruck */
       kalender?: {
         verbunden: boolean;
@@ -1134,7 +1134,11 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     const fristen = (this.o.uni?.fristen() ?? []).filter((f) => (f.art === 'abgabe' || f.art === 'test') && !f.abgegeben && f.frist && new Date(f.frist).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' }) === morgen);
     const z = [`🌙 <b>Tagesabschluss</b>`];
     z.push(erledigt.length ? `✓ <b>${erledigt.length}</b> erledigt: ${erledigt.slice(0, 6).map((t) => h(t.titel)).join(', ')}` : '✓ Heute nichts abgehakt – morgen ist ein neuer Tag.');
-    if (fokus?.heuteMin) z.push(`🍅 ${fokus.heuteMin} min Fokus${fokus.serie > 1 ? ` · ${fokus.serie} Tage in Folge 🔥` : ''}`);
+    const ziel = this.o.kirchturm?.zustand?.().pomodoro.einstellungen.tagesZielMin ?? 0;
+    if (fokus?.heuteMin || ziel)
+      z.push(
+        `🍅 ${fokus?.heuteMin ?? 0} min Fokus${ziel ? (fokus && fokus.heuteMin >= ziel ? ` – 🎯 Ziel (${ziel} min) erreicht` : ` von ${ziel} min Ziel`) : ''}${fokus && fokus.serie > 1 ? ` · ${fokus.serie} Tage in Folge 🔥` : ''}`,
+      );
     if (karten) z.push(`🃏 ${karten} Karteikarten noch dran – /karten`);
     const ueberfaellig = alle.filter((t) => !t.erledigt && t.faellig && t.faellig < tag).length;
     if (ueberfaellig) z.push(`⚠️ ${ueberfaellig} überfällig – /aufraeumen plant sie in einer Minute neu`);

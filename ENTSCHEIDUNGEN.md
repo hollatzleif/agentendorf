@@ -1049,3 +1049,11 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **Morgenzeitung:** Der erste Schnellknopf ist **„👉 Was zuerst?“** (wie `/jetzt`, E123). Er erscheint nur, wenn etwas dran ist (⭐ oder fällig bis heute). Die Knöpfe stehen jetzt höchstens zu zweit in einer Zeile, damit am Handy nichts abgeschnitten wird.
 - **Wochenrückblick (sonntags):** Unter den 🎯-Vorschlägen steht **„🗓️ Woche verteilen“** (wie `/verteilen`, E128). Daneben verlinkt die Nachricht „🗓️ Woche planen“ (E129). So führt der Rückblick direkt in die Planung.
 - Beide Knöpfe sind signierte Schnellknöpfe (`sb:`) wie die bisherigen, ohne neue Rechte.
+
+## E134 – Fokus-Ziel pro Tag (Nacht 18./19.11.)
+
+- In den Pomodoro-Einstellungen (Kirchturm) gibt es **„Fokus-Ziel pro Tag (min)“**. 0 bedeutet kein Ziel, das ist auch der Standard.
+- **Heute:** Die Fokus-Karte zeigt einen Balken „50 min von 2 h Fokus heute“. Er wird grün mit „🎯 Ziel erreicht“, sobald das Ziel geschafft ist.
+- **Tagesabschluss (Telegram):** „🍅 65 min Fokus – 🎯 Ziel (60 min) erreicht“ bzw. „… von 60 min Ziel“.
+- **Wochenrückblick:** „🎯 Fokus-Ziel (2 h) an 4 von 7 Tagen erreicht“.
+- Die Voreinstellungen „Klassisch/Lang“ behalten jetzt Ziel, Nicht-stören und Thema. Vorher setzten sie diese still zurück.

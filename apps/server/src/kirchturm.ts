@@ -85,6 +85,8 @@ export const PomodoroSchema = z.object({
   gruppe: z.string().trim().max(60).optional(),
   todoPfad: z.string().max(300).optional(),
   nichtStoeren: z.boolean().optional(),
+  /** E134: Fokus-Ziel pro Tag in Minuten (0/fehlt = kein Ziel) */
+  tagesZielMin: z.coerce.number().int().min(0).max(720).optional(),
 });
 
 export const Befehl = z.discriminatedUnion('befehl', [

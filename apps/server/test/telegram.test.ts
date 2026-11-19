@@ -911,3 +911,24 @@ describe('Telegram /verteilen (E128)', () => {
     expect(d.aufrufe.filter((x) => x.m === 'answerCallbackQuery').at(-1)!.p.text).toBe('Schon übernommen.');
   });
 });
+
+describe('Fokus-Ziel pro Tag (E134)', () => {
+  it('Tagesabschluss nennt Ziel und ob es erreicht ist; Wochenrückblick zählt die Tage', async () => {
+    const d = await dorf();
+    const e = d.kirchturm.zustand().pomodoro.einstellungen;
+    d.kirchturm.ausfuehren({ befehl: 'pomodoro_einstellen', einstellungen: { ...e, tagesZielMin: 60 } });
+    expect(d.kirchturm.zustand().pomodoro.einstellungen.tagesZielMin).toBe(60);
+    const ins = d.db.prepare('INSERT INTO fokus_sitzungen (start, ende, minuten, thema, gruppe, todo, vollstaendig) VALUES (?, ?, ?, NULL, NULL, NULL, 1)');
+    ins.run(d.uhr.jetzt() - 25 * 60_000, d.uhr.jetzt(), 25);
+    d.uhr.vor(8 * 3_600_000 + 5 * 60_000); // 21:05 Linz
+    await d.bot.abendSenden(true);
+    expect(d.gesendet().find((t) => t.startsWith('🌙'))).toContain('🍅 25 min Fokus von 60 min Ziel');
+    ins.run(d.uhr.jetzt() - 40 * 60_000, d.uhr.jetzt(), 40);
+    await d.bot.abendSenden(true);
+    expect(d.gesendet().filter((t) => t.startsWith('🌙')).at(-1)).toContain('🍅 65 min Fokus – 🎯 Ziel (60 min) erreicht');
+    const f = (await d.wochenrueckblick.fakten()).abschnitte.find((a) => a.titel === 'Fokus')!;
+    expect(f.zeilen.at(-1)).toBe('🎯 Fokus-Ziel (1 h) an **1 von 7** Tagen erreicht');
+    // ungültiges Ziel abgelehnt
+    expect(() => d.kirchturm.ausfuehren({ befehl: 'pomodoro_einstellen', einstellungen: { ...e, tagesZielMin: 9999 } })).toThrow();
+  });
+});

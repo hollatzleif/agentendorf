@@ -110,6 +110,8 @@ export interface KirchturmTimer {
 }
 
 export interface PomodoroEinstellungen {
+  /** E134: Fokus-Ziel pro Tag in Minuten (0/fehlt = kein Ziel) */
+  tagesZielMin?: number;
   arbeitMin: number;
   kurzMin: number;
   langMin: number;

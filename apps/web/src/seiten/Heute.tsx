@@ -290,7 +290,7 @@ export function Heute() {
             )}
           </section>
 
-          <Fokus k={k} laedt={kirchturm.isPending} fehler={kirchturm.isError ? kirchturm.error.message : ''} jetzt={jetzt} />
+          <Fokus k={k} laedt={kirchturm.isPending} fehler={kirchturm.isError ? kirchturm.error.message : ''} jetzt={jetzt} heuteMin={fokus.data?.heuteMin ?? 0} />
           <GewohnheitenKarte />
           {stunde >= 17 && <StimmungZeile />}
         </div>
@@ -529,7 +529,7 @@ function TodoZeile({ t, heute }: { t: TodoInfo; heute: string }) {
 
 // ---- Fokus (Kirchturm) -----------------------------------------------------------------------------
 
-function Fokus({ k, laedt, fehler: ladeFehler, jetzt }: { k: (KirchturmZustand & { versatz: number }) | undefined; laedt: boolean; fehler: string; jetzt: number }) {
+function Fokus({ k, laedt, fehler: ladeFehler, jetzt, heuteMin }: { k: (KirchturmZustand & { versatz: number }) | undefined; laedt: boolean; fehler: string; jetzt: number; heuteMin: number }) {
   const qc = useQueryClient();
   const [fehler, setFehler] = useState('');
   const befehl = async (b: Record<string, unknown>) => {
@@ -574,6 +574,17 @@ function Fokus({ k, laedt, fehler: ladeFehler, jetzt }: { k: (KirchturmZustand &
       {laedt && <p className="leise">Lade …</p>}
       {ladeFehler && <p className="fehler">Kirchturm nicht erreichbar: {ladeFehler}</p>}
       {fehler && <p className="fehler">{fehler}</p>}
+      {e?.tagesZielMin ? (
+        // E134: Fokus-Ziel des Tages
+        <div className={`heute-fokus-ziel${heuteMin >= e.tagesZielMin ? ' erreicht' : ''}`} role="meter" aria-label="Fokus-Ziel heute" aria-valuemin={0} aria-valuemax={e.tagesZielMin} aria-valuenow={Math.min(heuteMin, e.tagesZielMin)}>
+          <div className="heute-fokus-ziel-balken" aria-hidden>
+            <span style={{ width: `${Math.min(1, heuteMin / e.tagesZielMin) * 100}%` }} />
+          </div>
+          <span className="leise">
+            {heuteMin >= e.tagesZielMin ? `🎯 Ziel erreicht – ${minutenText(heuteMin)} Fokus heute` : `${minutenText(heuteMin)} von ${minutenText(e.tagesZielMin)} Fokus heute`}
+          </span>
+        </div>
+      ) : null}
       {p && e && (
         <div className="heute-fokus-zeile">
           {p.phase === 'aus' ? (

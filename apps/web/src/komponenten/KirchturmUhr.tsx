@@ -263,6 +263,10 @@ function PomodoroEinstellen({ e, speichern }: { e: PomodoroEinstellungen; speich
         {zahl('langNach', 'Lange Pause nach … Runden', 1, 20)}
         {zahl('runden', 'Runden insgesamt', 1, 50)}
       </div>
+      <label>
+        Fokus-Ziel pro Tag (min, 0 = keins)
+        <input type="number" min={0} max={720} step={15} value={w.tagesZielMin ?? 0} onChange={(x) => setW({ ...w, tagesZielMin: Number(x.target.value) || 0 })} aria-label="Fokus-Ziel pro Tag in Minuten" />
+      </label>
       <label className="zeile">
         <input type="checkbox" checked={w.autoWeiter} onChange={(x) => setW({ ...w, autoWeiter: x.target.checked })} /> Nächste Phase automatisch starten
       </label>
@@ -285,10 +289,10 @@ function PomodoroEinstellen({ e, speichern }: { e: PomodoroEinstellungen; speich
         <button type="submit" className="haupt">
           Speichern
         </button>
-        <button type="button" onClick={() => setW({ arbeitMin: 25, kurzMin: 5, langMin: 15, langNach: 4, runden: 4, autoWeiter: false })}>
+        <button type="button" onClick={() => setW({ ...w, arbeitMin: 25, kurzMin: 5, langMin: 15, langNach: 4, runden: 4, autoWeiter: false })}>
           Klassisch (25/5/15)
         </button>
-        <button type="button" onClick={() => setW({ arbeitMin: 50, kurzMin: 10, langMin: 30, langNach: 2, runden: 4, autoWeiter: false })}>
+        <button type="button" onClick={() => setW({ ...w, arbeitMin: 50, kurzMin: 10, langMin: 30, langNach: 2, runden: 4, autoWeiter: false })}>
           Lang (50/10/30)
         </button>
       </div>

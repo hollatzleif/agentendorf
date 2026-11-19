@@ -1286,3 +1286,9 @@ input.kurz { width: 5em; }
 .planen-hinweis { display: block; text-decoration: none; background: linear-gradient(90deg, #e3f3d8, #fffdf6); }
 .planen-haken { display: inline-flex !important; flex-direction: row; align-items: center; gap: 0.4rem; font-weight: 700; }
 .planen-haken input { margin: 0; width: 1.2rem; height: 1.2rem; }
+
+/* E134: Fokus-Ziel */
+.heute-fokus-ziel { display: grid; gap: 0.2rem; margin: 0.2rem 0 0.5rem; }
+.heute-fokus-ziel-balken { height: 8px; border-radius: 8px; background: rgba(0, 0, 0, 0.08); overflow: hidden; }
+.heute-fokus-ziel-balken span { display: block; height: 100%; background: #e2553f; border-radius: 8px; transition: width 0.4s; }
+.heute-fokus-ziel.erreicht .heute-fokus-ziel-balken span { background: var(--gruen); }

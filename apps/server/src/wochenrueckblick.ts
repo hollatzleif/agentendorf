@@ -1,3 +1,4 @@
+import { minutenText } from '@dorf/shared';
 import matter from 'gray-matter';
 import { z } from 'zod';
 import type { DB } from './db.js';
@@ -59,7 +60,7 @@ export class Wochenrueckblick {
       todos: TodoDienst;
       uni: Uni;
       kalender: Terminkalender;
-      fokus?: { fokusStatistik(): FokusStatistik };
+      fokus?: { fokusStatistik(): FokusStatistik; zustand?(): { pomodoro: { einstellungen: { tagesZielMin?: number } } } };
       bank?: { zeitungsZeilen(): Promise<string[]> };
       gewohnheiten?: { wochenZeile(): Promise<string | null> };
       wochenziele?: { rueckblickZeilen(): Promise<string[]> };
@@ -89,6 +90,9 @@ export class Wochenrueckblick {
       const bester = [...f.tage].sort((a, b) => b.min - a.min)[0];
       if (bester?.min) z2.push(`Stärkster Tag: ${new Date(`${bester.tag}T12:00:00Z`).toLocaleDateString('de-AT', { weekday: 'long', timeZone: 'UTC' })} (${stunden(bester.min)})`);
       if (f.themen.length) z2.push(`Fächer/Themen: ${f.themen.map((t) => `${t.thema} ${stunden(t.min)}`).join(', ')}`);
+      // E134: Fokus-Ziel
+      const ziel = this.o.fokus?.zustand?.().pomodoro.einstellungen.tagesZielMin ?? 0;
+      if (ziel) z2.push(`🎯 Fokus-Ziel (${minutenText(ziel)}) an **${f.tage.filter((t) => t.min >= ziel).length} von ${f.tage.length}** Tagen erreicht`);
       abschnitte.push({ titel: 'Fokus', zeilen: z2 });
     } else if (f) abschnitte.push({ titel: 'Fokus', zeilen: ['Diese Woche keine Pomodoros – nächste Woche einfach mit einem 🍅 am wichtigsten To-do anfangen.'] });
 
