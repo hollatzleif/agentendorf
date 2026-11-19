@@ -14,6 +14,7 @@ const ARTEN: Record<string, string> = {
   plan_ausfuehren: 'Plan des Bürgermeisters',
   aktion_anlegen: 'Neuer Skill',
   persoenlichkeit_aendern: 'Persönlichkeit des Bürgermeisters',
+  termin_anlegen: 'Termin eintragen (Vorschlag eines Agenten)',
 };
 
 export function Freigaben() {

@@ -62,6 +62,21 @@ export interface SitzungInfo {
   aktuell: boolean;
 }
 
+/** E182: gekoppeltes Gerät (Cardputer) – meldet sich mit eigenem Schlüssel nur an der Geräte-API */
+export interface GeraetInfo {
+  id: string;
+  name: string;
+  erstellt: string;
+  zuletzt: string;
+  ip: string;
+}
+
+/** E182: Kopplungscode für ein neues Gerät (6 Ziffern, einmalig) */
+export interface GeraetKopplung {
+  code: string;
+  gueltigBis: string;
+}
+
 export interface Ich {
   angemeldet: true;
   totpAktiv: boolean;

@@ -25,6 +25,8 @@ import type { Lernziele } from './uni/lernziele.js';
 import type { Dorfplan } from './dorfplan.js';
 import { normalisieren } from './vault/pfade.js';
 import type { Automatik } from './agenten/automatik.js';
+import { einmaligBauen } from './idempotenz.js';
+import { Geraete, geraeteRouten, type Geraet } from './geraete.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
@@ -64,6 +66,8 @@ const OFFEN = new Set(['/api/gesundheit', '/api/anmeldung', '/api/anmeldung/info
 declare module 'fastify' {
   interface FastifyRequest {
     sitzung?: Sitzung;
+    /** E182: angemeldetes Gerät (nur unter /api/geraet/) */
+    geraet?: Geraet;
   }
 }
 
@@ -145,6 +149,8 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
   });
   const sitzungen = new Sitzungen(db, uhr);
   const drossel = new Drossel(db, uhr);
+  const einmaligAusfuehren = einmaligBauen(db, uhr);
+  const geraete = new Geraete({ db, uhr });
 
   await app.register(cookie);
   await app.register(multipart, { limits: { fileSize: MAX_UPLOAD_BYTES, files: 20 } });
@@ -173,6 +179,19 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
   };
 
   app.addHook('onRequest', async (req, reply) => {
+    // E182: Geräte-API (Cardputer) – NUR der Bearer-Schlüssel des Geräts, kein Cookie, keine Herkunftsprüfung (kein Browser).
+    // Umgekehrt gilt der Schlüssel nirgends sonst: alle anderen Pfade prüfen weiter nur das Sitzungs-Cookie.
+    const pfad = req.url.split('?')[0]!;
+    const route = req.routeOptions.url ?? '';
+    if (pfad.startsWith('/api/geraet/') || route.startsWith('/api/geraet/')) {
+      if (route === '/api/geraet/koppeln') return; // ohne Schlüssel, gedrosselt in der Route
+      const g = geraete.pruefen(req.headers.authorization, req.ip);
+      if (!g) return reply.status(401).send({ fehler: 'Schlüssel ungültig oder gesperrt – bitte neu koppeln.' });
+      // Pfad und Route müssen beide zur Geräte-API gehören (kein Umweg über Kodierungstricks)
+      if (!pfad.startsWith('/api/geraet/') || !route.startsWith('/api/geraet/')) return reply.status(404).send({ fehler: 'Nicht gefunden.' });
+      req.geraet = g;
+      return;
+    }
     const istWs = req.headers.upgrade?.toLowerCase() === 'websocket';
     if ((!['GET', 'HEAD', 'OPTIONS'].includes(req.method) || istWs) && !herkunftOk(req)) {
       return reply.status(403).send({ fehler: 'Anfrage von fremder Herkunft abgelehnt.' });
@@ -485,13 +504,7 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
   // E124: Idempotenz für die Offline-Schlange – gleiche Eintrags-ID (Header x-dorf-id) → gespeicherte Antwort, nichts doppelt
   const einmalig = async (req: { headers: Record<string, unknown> }, f: () => Promise<unknown>) => {
     const id = req.headers['x-dorf-id'];
-    if (typeof id !== 'string' || !/^[A-Za-z0-9._-]{8,80}$/.test(id)) return f();
-    const alt = db.prepare('SELECT antwort FROM idempotenz WHERE id = ?').get(id) as { antwort: string } | undefined;
-    if (alt) return JSON.parse(alt.antwort) as unknown;
-    const r = await f();
-    db.prepare('INSERT OR REPLACE INTO idempotenz (id, antwort, zeit) VALUES (?, ?, ?)').run(id, JSON.stringify(r ?? null), uhr.jetzt());
-    db.prepare('DELETE FROM idempotenz WHERE zeit < ?').run(uhr.jetzt() - 7 * 86_400_000);
-    return r;
+    return einmaligAusfuehren(typeof id === 'string' && /^[A-Za-z0-9._-]{8,80}$/.test(id) ? id : undefined, f);
   };
 
   if (a.notizen) {
@@ -745,6 +758,8 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
 
   // ---- Agenten (Etappe 2a) ------------------------------------------------------------------
   agentenRouten(app, { agenten: a.agenten, vault, uhr, db, hub, schreibtisch: a.schreibtisch, buergermeister: a.buergermeister, automatik: a.automatik });
+  // E182: Geräte koppeln (App) und Geräte-API (Cardputer)
+  geraeteRouten(app, a, { geraete, drossel, einmalig: einmaligAusfuehren });
 
   // ---- Telegram (Etappe 2b) -----------------------------------------------------------------
   app.get('/api/telegram/status', async () => {

@@ -1921,3 +1921,30 @@ test('Neue Version: liefert der Server ein anderes Haupt-Skript, erscheint „Ne
   await page.goto('/einstellungen');
   await expect(page.getByText(/Dorf-Stand .* · diese Seite gebaut am/)).toBeVisible();
 });
+
+test('Einstellungen: Cardputer koppeln – Code, Gerät erscheint, Sperren → Schlüssel gilt nicht mehr (E182)', async ({ page, request }, info) => {
+  await anmelden(page);
+  await page.goto('/einstellungen');
+  await page.getByRole('button', { name: 'Cardputer koppeln' }).click();
+  const code = ((await page.getByLabel('Kopplungscode').textContent()) ?? '').trim();
+  expect(code).toMatch(/^\d{6}$/);
+  await expect(page.getByText('Agentendorf → Einstellungen → Koppeln')).toBeVisible();
+  await expect(page.getByText(new URL(ORIGIN).host, { exact: true })).toBeVisible();
+  await expect(page.getByText(/noch [45]:\d\d gültig/)).toBeVisible();
+  // der Cardputer koppelt sich (eigene Anfrage, ohne Cookie und ohne Origin)
+  const name = `Cardputer ${info.project.name}`;
+  const r = await request.post('/api/geraet/koppeln', { data: { code, name } });
+  expect(r.ok()).toBe(true);
+  const { token } = (await r.json()) as { token: string };
+  const g = { authorization: `Bearer ${token}` };
+  await expect(page.getByText('Gekoppelt ✓')).toBeVisible();
+  const zeile = page.getByRole('row').filter({ hasText: name });
+  await expect(zeile).toBeVisible();
+  expect((await request.get('/api/geraet/start', { headers: g })).status()).toBe(200);
+  // derselbe Code gilt kein zweites Mal
+  expect((await request.post('/api/geraet/koppeln', { data: { code } })).status()).toBe(401);
+  page.once('dialog', (d) => d.accept());
+  await zeile.getByRole('button', { name: 'Sperren' }).click();
+  await expect(zeile).toHaveCount(0);
+  expect((await request.get('/api/geraet/start', { headers: g })).status()).toBe(401);
+});

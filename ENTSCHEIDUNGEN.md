@@ -1440,3 +1440,37 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
   - Ein Rundgang findet jetzt bei fast jedem Aufwachen statt, an dem es nichts Neues gibt, weil der Abstand mindestens `rundgang_abstand_stunden` (3) beträgt.
   - Aufgaben aus App und Telegram startet er weiterhin sofort. Nur Notizen aus Obsidian und neue Anlässe (Fristen, Freigaben, Mails) warten bis zum nächsten Aufwachen, höchstens 7 Stunden. Fristen-Erinnerungen über Telegram laufen unabhängig davon weiter.
   - Die Vorlage `aufwachen.md` hat die beiden neuen Felder bekommen. Unveränderte Fassungen aktualisiert das Dorf selbst (Hash in `dorf.ts`).
+
+## E182 – Geräte koppeln und Geräte-API für den Cardputer (19.11.)
+
+- **Wunsch (Leif):** Sein M5Stack Cardputer soll per WLAN mit dem Dorf sprechen. Der Vertrag steht in `apps/cardputer/API.md`.
+- **Anmeldung (`app.ts`, `geraete.ts`):**
+  - Unter `/api/geraet/` gilt **nur** `Authorization: Bearer <Schlüssel>`: kein Cookie, keine Herkunftsprüfung (der Cardputer ist kein Browser). Umgekehrt gilt der Schlüssel nirgends sonst – alle anderen Pfade prüfen weiter nur das Sitzungs-Cookie. Pfad **und** gefundene Route müssen beide unter `/api/geraet/` liegen, sonst 404 (kein Umweg über Kodierungstricks).
+  - Schlüssel = 32 Zufallsbytes hex, in der DB nur der sha256 (wie bei den Sitzungen). „Zuletzt gesehen“ und IP werden bei jeder Anfrage gemerkt.
+  - Sperren in der App löscht das Gerät – der Schlüssel gilt sofort nicht mehr, der Cardputer zeigt „Neu koppeln“. Höchstens 20 Geräte.
+- **Koppeln:** Einstellungen → Geräte → „Cardputer koppeln“ zeigt einen 6-stelligen Code (5 min, einmalig, mit Anleitung und Countdown). Ein neuer Code ersetzt den alten.
+  - Die Codes stehen in der DB (`geraete_kopplung`, nur als Hash), nicht im Speicher: Ein Deploy mitten in der Kopplung verliert den Code nicht, und „genau einmal“ ist eine einzige DB-Transaktion.
+  - `POST /api/geraet/koppeln` ist gedrosselt mit derselben `Drossel` wie die Anmeldung (je IP und global, 401/429 mit `Retry-After`). Zusätzlich verfällt der offene Code nach 10 Fehlversuchen von irgendwo – dann holt Leif sich einfach einen neuen.
+- **Idempotenz:** `X-Vorgang` (8–64 Zeichen) läuft über dieselbe Funktion wie `x-dorf-id` der App (`idempotenz.ts`, Tabelle `idempotenz`, 7 Tage). Geräte-IDs bekommen das Präfix `geraet:<Gerät>:`, damit sie nie mit IDs der App oder eines anderen Geräts zusammenfallen.
+- **Keine Logik doppelt:** Die Routen rufen nur die vorhandenen Dienste (To-dos, Google-Kalender, Kirchturm, Schreibtisch/Bürgermeister, Freigaben, Gewohnheiten, Notizen, Uni, Postbote). Live-Ereignisse und Telegram laufen darüber mit.
+  - „Heute“ zählt wie die App: ⭐ wichtig, überfällig, heute fällig, ohne Wartendes. Die Zeilen: Termine und Uni-Fristen nach Uhrzeit (ganztägige zuerst), dann diese To-dos, dann die heute fälligen Gewohnheiten.
+  - To-do aus Text: wie App und Telegram (`todoAusText`: Dauer, Wiederholung, „wartet auf“), dazu am Ende ein Datum (heute, morgen, übermorgen, Wochentag, „24.12.“) und „!“ = wichtig. Ein Wochentag am selben Tag heißt heute, „nächsten fr“ eine Woche später. Bewusst auch zweibuchstabig („fr“, „so“) – am Gerät tippt Leif knapp.
+  - Termine legt Leif am Gerät selbst an → direkt in den Hauptkalender wie `POST /api/kalender/termin`, ohne Einladungen.
+  - Bürgermeister: neue Nachricht = Aufgabe auf dem Schreibtisch (Quelle „app“), er startet sofort; mit `chatId` geht es im Gespräch weiter (nur Chats des Bürgermeisters). Am Gerät steht statt des langen Auftrags Leifs Aufgabe; Antworten ohne den Abschnitt „## Zusammenfassung“ (wie Telegram) und ohne Markdown.
+- **Kleine Abweichungen/Ergänzungen zum Vertrag:** Bei Timer, Wecker und Stoppuhr fehlen `phase` und `runde`. Beim Wecker ist `endeMs` das nächste Klingeln, bei der Stoppuhr ist `restMs` die gemessene Zeit. Ein Timer als `fokus` in `/start` hat `phase: null`. In der Bürgermeister-Liste steht bei älteren Chats statt der Uhrzeit der Tag („18.11.“). `tage` bei Terminen geht bis 60. Ungültige Eingaben antworten wie überall mit `{ fehler, details }`.
+
+## E183 – Agenten stellen Timer und Pomodoro, schreiben Notizen und Entwürfe; Termine nur per Freigabe (19.11.)
+
+- **Wunsch (Leif):** Bürgermeister und Helfer (beide Motoren) sollen „alles können“: To-dos, Notizen, Timer/Wecker, Pomodoro einstellen und starten, Mail-Entwürfe – direkt. Termine nur so, dass Leif bestätigt.
+- **Neue Werkzeuge (`werkzeuge.ts`, Regeln in `leine.ts`):**
+  - `kirchturm_lesen`, `kirchturm_timer` (start/pause/weiter/loeschen), `kirchturm_wecker` (stellen/loeschen, einmal/täglich/werktags/Wochenende), `pomodoro` (start – mit Titel oder To-do wie „🍅 Fokus“ –, pause, weiter, ueberspringen, stopp), `pomodoro_einstellen` (nur die angegebenen Felder), `notiz_anlegen` (Tagesnotiz mit Quelle „Bürgermeister“ bzw. „Agent <Gebäude>“). Alles über `Kirchturm.ausfuehren` bzw. `Notizen.hinzufuegen` – dieselben Wege wie App, Telegram und Cardputer.
+  - `termin_vorschlagen` legt eine Freigabe `termin_anlegen` an: Titel „Termin: <Titel> – <Tag> · <Uhrzeit> (<Dauer>)“, dazu die Vorschau im Inhalt. Erst nach Leifs Ja (App, Telegram oder Cardputer) trägt der Code über `inHauptkalender` ein – genau einmal (Freigaben sind atomar), nie mit Einladungen (`sendUpdates=none`). Ein Agent kann `termin_anlegen` nicht über `freigabe_beantragen` einschmuggeln.
+  - `post_entwurf` (Antwort auf eine bekannte Mail) passte nicht für neue Mails. Neu ist `post_entwurf_neu`: genau eine schlichte Adresse, nur Entwurf, gesendet wird nie.
+- **Wer bekommt was:**
+  - Jede Aktion und jeder freie Helfer: To-dos (wie bisher) und der ganze Alltag. Freie Helfer hatten bisher nicht einmal die To-dos – jetzt wie jede Aktion ohne Fremdinhalte.
+  - Läufe mit **Fremdinhalten** bekommen davon nur `kirchturm_lesen` und `termin_vorschlagen`. Timer-/Wecker-/Pomodoro-Namen und die Tagesnotiz liest später jeder Agent, auch einer mit Internet. Anders als bei To-dos (Markierung „fremd“) lässt sich das dort nicht abgrenzen. Termin-Vorschläge sieht Leif vor dem Eintragen, und Kalendertitel gelten ohnehin als Fremdinhalt. Die WerkzeugKiste prüft das zusätzlich selbst (doppelt gesichert).
+  - `post_entwurf_neu`: Bürgermeister immer; Aktionen mit `werkzeuge: [post]` nur ohne Fremdinhalte – ein präparierter Mailtext soll sich keinen Empfänger aussuchen können. Antworten auf Mails bleiben bei „Antwort entwerfen“.
+- **Beide Motoren:** Die Werkstatt holt die Werkzeugliste des Laufs über `intern.ts` – neue Werkzeuge kommen dort ohne Änderung an (Ende-zu-Ende-Test mit Fake-claude zeigt sie).
+- **strict-Grenzen (E180):** Die neuen Schemas haben wenige optionale Felder (ohne `minimum`/`maximum`; Zod prüft). Weil sie billiger sind, wählt `strictAuswahl` sie vor `todo_anlegen` – das läuft jetzt wie schon `todo_bearbeiten` ohne strict. Die Grenzen bleiben eingehalten.
+- **Kontext:** Der Systemprompt nennt die Werkzeuge, die der Lauf hat. Die Orientierung des Bürgermeisters sagt jetzt „Termine nie selbst eintragen, termin_vorschlagen“ statt „Einträge legt nur Leif an“ und dass er Pomodoro, Timer und Wecker selbst stellen kann, wenn Leif es will. Keine Vorlagendatei geändert (kein neuer Hash nötig).
+- **Ersetzt E75 (Teil):** „Kalendereinträge: Agenten nie“ gilt nicht mehr – Agenten nur per Freigabe.

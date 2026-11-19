@@ -50,7 +50,7 @@ import { Noten } from './uni/noten.js';
 import { mitFokus, statistik } from './statistik.js';
 import { bluete } from './bluete.js';
 import { TodoErinnerungen } from './todo-erinnerungen.js';
-import { GoogleKalender, googleKalenderKlient, type KalenderKlient } from './kalender-google.js';
+import { GoogleKalender, googleKalenderKlient, terminVorschau, type KalenderKlient } from './kalender-google.js';
 import { Bank, datum as bankDatum } from './bank.js';
 import { Corps } from './corps.js';
 import { Boerse, eodhdKlient, ezbKurs, type BoerseKlient, type Fremdwaehrung } from './boerse.js';
@@ -353,6 +353,13 @@ export async function dorfStarten(
   const gewohnheiten = new Gewohnheiten({ db, uhr, vault, hub });
   const wochenziele = new Wochenziele({ uhr, vault, hub });
   const notizen = new Notizen({ uhr, vault });
+  // E183: Agenten stellen Timer/Wecker/Pomodoro und schreiben Notizen direkt; Termine nur per Freigabe
+  agenten.kirchturm = kirchturm;
+  agenten.notizen = notizen;
+  agenten.freigaben.registrieren('termin_anlegen', async (t) => {
+    const r = await googleKalender.inHauptkalender({ titel: t.titel, ganztags: t.ganztags, start: t.start, ende: t.ende, ...(t.ort ? { ort: t.ort } : {}) });
+    return `Eingetragen: ${r.titel} (${terminVorschau(t)}) – ohne Einladungen.`;
+  });
   // E112: Blüte für Morgenzeitung und Wochenrückblick (wie im Dorfstatus)
   const blueteBerechnen = async () => bluete(await statistik({ db, uhr, todos, gewohnheiten }, 7), await wochenziele.lesen().catch(() => undefined));
   const noten = new Noten({ vault, hub, faecher: () => uni.faecher() });

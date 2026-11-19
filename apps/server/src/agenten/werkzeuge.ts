@@ -9,7 +9,12 @@ import type { VaultDienst } from '../vault/dienst.js';
 import type { Suchindex } from '../vault/suche.js';
 import { dateinameBereinigen, normalisieren } from '../vault/pfade.js';
 import { DorfFehler } from '../fehler.js';
-import { fremdinhaltHuelle, schreibenPruefen, type DorfWerkzeug } from './leine.js';
+import { fremdinhaltHuelle, NUR_OHNE_FREMDINHALT, schreibenPruefen, type DorfWerkzeug } from './leine.js';
+import type { KirchturmZustand } from '@dorf/shared';
+import type { Kirchturm } from '../kirchturm.js';
+import type { Notizen } from '../notizen.js';
+import { terminAusAngaben, terminVorschau } from '../kalender-google.js';
+import { tagIn } from '../zeit.js';
 import { ablageName, type RechenraumKlient } from './rechenraum.js';
 import type { GmailKlient } from '../post/gmail.js';
 import { AGENTEN_ARTEN, type Freigaben } from './freigaben.js';
@@ -425,6 +430,115 @@ export const WERKZEUG_DEFINITIONEN: Record<DorfWerkzeug, WerkzeugDefinition> = {
       additionalProperties: false,
     },
   },
+  // ---- E183: Alltag – Kirchturm, Notizen, Termin-Vorschläge, neue Mail-Entwürfe ----
+  kirchturm_lesen: {
+    name: 'kirchturm_lesen',
+    description: 'Zeigt, was im Kirchturm (Leifs Uhren auf dem Server) läuft: Pomodoro mit Phase, Restzeit und Einstellungen, Timer, Wecker, Stoppuhr und was gerade klingelt – mit den IDs für kirchturm_timer und kirchturm_wecker.',
+    input_schema: { type: 'object', properties: {}, required: [], additionalProperties: false },
+  },
+  kirchturm_timer: {
+    name: 'kirchturm_timer',
+    description:
+      'Timer im Kirchturm (läuft auf dem Server und klingelt in App, Programm und Cardputer). start: neuer Timer mit minuten (1–1440) und optional name. pause, weiter, loeschen: mit id aus kirchturm_lesen. Nur, wenn Leif das will.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        aktion: { type: 'string', enum: ['start', 'pause', 'weiter', 'loeschen'] },
+        minuten: { type: 'integer', description: 'Nur bei start: Dauer in Minuten' },
+        name: { type: 'string', description: 'Nur bei start: z. B. „Tee“ oder „Wäsche“' },
+        id: { type: 'string', description: 'Bei pause/weiter/loeschen: ID aus kirchturm_lesen' },
+      },
+      required: ['aktion'],
+      additionalProperties: false,
+    },
+  },
+  kirchturm_wecker: {
+    name: 'kirchturm_wecker',
+    description:
+      'Wecker im Kirchturm (Ortszeit Wien). stellen: zeit HH:MM, optional name und tage (Standard einmal); mit id wird ein bestehender Wecker geändert. loeschen: mit id aus kirchturm_lesen. Nur, wenn Leif das will.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        aktion: { type: 'string', enum: ['stellen', 'loeschen'] },
+        zeit: { type: 'string', description: 'HH:MM, z. B. „07:30“' },
+        name: { type: 'string', description: 'z. B. „Aufstehen“' },
+        tage: { type: 'string', enum: ['einmal', 'täglich', 'werktags', 'wochenende'] },
+        id: { type: 'string', description: 'Wecker-ID aus kirchturm_lesen (zum Ändern oder Löschen)' },
+      },
+      required: ['aktion'],
+      additionalProperties: false,
+    },
+  },
+  pomodoro: {
+    name: 'pomodoro',
+    description:
+      'Pomodoro im Kirchturm steuern: start (mit titel oder todo_pfad beginnt eine neue Fokusrunde genau dafür – die Fokuszeit zählt für dieses To-do), pause, weiter, ueberspringen (nächste Phase), stopp. Während der Fokusphase hält Telegram Meldungen zurück.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        aktion: { type: 'string', enum: ['start', 'pause', 'weiter', 'ueberspringen', 'stopp'] },
+        titel: { type: 'string', description: 'Nur bei start: woran Leif arbeitet' },
+        todo_pfad: { type: 'string', description: 'Nur bei start: Pfad eines To-dos aus todo_liste' },
+      },
+      required: ['aktion'],
+      additionalProperties: false,
+    },
+  },
+  pomodoro_einstellen: {
+    name: 'pomodoro_einstellen',
+    description: 'Pomodoro-Einstellungen ändern – nur die angegebenen Felder, der Rest bleibt (aktuelle Werte zeigt kirchturm_lesen). Minuten: Arbeit 1–240, kurze Pause 1–120, lange Pause 1–240.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        arbeit_min: { type: 'integer' },
+        kurz_min: { type: 'integer', description: 'kurze Pause' },
+        lang_min: { type: 'integer', description: 'lange Pause' },
+        lang_nach: { type: 'integer', description: 'lange Pause nach so vielen Runden' },
+        runden: { type: 'integer', description: 'Runden insgesamt' },
+        auto_weiter: { type: 'boolean', description: 'nächste Phase von selbst starten' },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+  },
+  notiz_anlegen: {
+    name: 'notiz_anlegen',
+    description: 'Hängt eine schnelle Notiz an Leifs Tagesnotiz Rathaus/notizen/JJJJ-MM-TT.md an („- HH:MM Text“) – für Gedanken oder Infos, die Leif festhalten will. Einzeilig, höchstens 2000 Zeichen.',
+    input_schema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'], additionalProperties: false },
+  },
+  termin_vorschlagen: {
+    name: 'termin_vorschlagen',
+    description:
+      'Schlägt Leif einen Termin für seinen Hauptkalender vor. Eingetragen wird erst, wenn Leif die Freigabe bestätigt (App, Telegram oder Cardputer) – nie mit Einladungen an andere. Ohne zeit = ganztägig, dauer_min Standard 60. Nicht auf die Antwort warten.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        titel: { type: 'string', description: 'z. B. „Lernen Statistik“' },
+        datum: { type: 'string', description: 'JJJJ-MM-TT' },
+        zeit: { type: 'string', description: 'Beginn HH:MM (Ortszeit Wien); weglassen = ganztägig' },
+        dauer_min: { type: 'integer', description: 'Dauer in Minuten (5–1440)' },
+        ort: { type: 'string' },
+        begruendung: { type: 'string', description: 'Ein Satz für Leif: warum dieser Termin?' },
+      },
+      required: ['titel', 'datum', 'begruendung'],
+      additionalProperties: false,
+    },
+  },
+  post_entwurf_neu: {
+    name: 'post_entwurf_neu',
+    description:
+      'Legt in Leifs Gmail einen NEUEN Entwurf an (ohne Bezug zu einer Mail). Gesendet wird nie – Leif prüft und schickt selbst ab. Genau eine Empfänger-Adresse. Für Antworten auf eine Mail gibt es die Aktion „Antwort entwerfen“.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        an: { type: 'string', description: 'eine Adresse, z. B. „vorname.nachname@jku.at“' },
+        betreff: { type: 'string' },
+        text: { type: 'string', description: 'Mailtext (reiner Text, mit Anrede und Gruß)' },
+      },
+      required: ['an', 'betreff', 'text'],
+      additionalProperties: false,
+    },
+  },
 };
 
 /** Führt die Sonder-Werkzeuge einer Rolle aus (Bürgermeister). */
@@ -461,6 +575,9 @@ export interface LaufKontext {
   web?: boolean;
   /** Nur Bürgermeister (E61): Fassung von Rathaus/memory.md, die er kennt (aus dem Systemprompt oder zuletzt gelesen/geschrieben) */
   wissen?: { gedaechtnisVersion: string | null };
+  /** E183: Kirchturm (Timer, Wecker, Pomodoro) und Tagesnotizen */
+  kirchturm?: Kirchturm;
+  notizen?: Notizen;
 }
 
 export interface KalenderEintrag {
@@ -513,6 +630,12 @@ export class WerkzeugKiste {
   async aufrufen(name: string, eingabe: unknown): Promise<WerkzeugAufrufErgebnis> {
     if (!(this.k.erlaubt as string[]).includes(name)) {
       const t = `Werkzeug „${name}“ ist für diese Aktion nicht erlaubt.`;
+      this.log(name, eingabe, t, false);
+      return { ok: false, text: t };
+    }
+    // E183: doppelt gesichert – auch wenn ein Werkzeug in der Liste stünde, schreibt ein Fremdinhalt-Lauf hier nichts
+    if (this.k.fremdinhalte && (NUR_OHNE_FREMDINHALT as string[]).includes(name)) {
+      const t = `Werkzeug „${name}“ gibt es in Läufen mit Fremdinhalten nicht.`;
       this.log(name, eingabe, t, false);
       return { ok: false, text: t };
     }
@@ -603,7 +726,40 @@ export class WerkzeugKiste {
         }
         case 'post_lesen':
         case 'post_entwurf':
+        case 'post_entwurf_neu':
           return await this.post(name, eingabe);
+        case 'kirchturm_lesen':
+        case 'kirchturm_timer':
+        case 'kirchturm_wecker':
+        case 'pomodoro':
+        case 'pomodoro_einstellen':
+          return await this.kirchturm(name, eingabe);
+        case 'notiz_anlegen': {
+          if (!this.k.notizen) throw new DorfFehler(503, 'Notizen sind nicht eingerichtet.');
+          const { text } = z.object({ text: z.string().trim().min(1, 'Text fehlt').max(2000) }).parse(eingabe);
+          const r = await this.k.notizen.hinzufuegen(text, this.k.wissen ? 'Bürgermeister' : `Agent ${this.k.gebaeude}`);
+          this.log(name, { zeichen: text.length }, r.zeile.slice(0, 120), true, r.pfad, 'geschrieben');
+          return { ok: true, text: `Notiz angehängt an ${r.pfad}: ${r.zeile}` };
+        }
+        case 'termin_vorschlagen': {
+          const e = z
+            .object({ titel: z.string(), datum: z.string(), zeit: z.string().optional(), dauer_min: z.number().int().optional(), ort: z.string().optional(), begruendung: z.string().max(2000).default('') })
+            .parse(eingabe);
+          const t = terminAusAngaben({ titel: e.titel, datum: e.datum, zeit: e.zeit, dauerMin: e.dauer_min, ...(e.ort?.trim() ? { ort: e.ort } : {}) });
+          if (t.start.slice(0, 10) < tagIn(this.uhr.jetzt())) throw new DorfFehler(400, `Der ${e.datum} liegt in der Vergangenheit.`);
+          const vorschau = terminVorschau(t);
+          const f = await this.freigaben.beantragen({
+            art: 'termin_anlegen',
+            titel: `Termin: ${t.titel} – ${vorschau}`,
+            begruendung: e.begruendung,
+            inhalt: { ...t, beschreibung: `📅 ${t.titel}\n${vorschau}\nIn Leifs Hauptkalender, ohne Einladungen an andere.` },
+            gebaeude: this.k.gebaeude,
+            laufId: this.k.laufId,
+            chatId: this.k.chatId,
+          });
+          this.log(name, eingabe, `Freigabe ${f.id}: ${vorschau}`, true, undefined, 'freigabe');
+          return { ok: true, text: `Termin als Freigabe ${f.id} vorgeschlagen (${t.titel}, ${vorschau}). Eingetragen wird erst nach Leifs Ja – nicht darauf warten.` };
+        }
         case 'kalender_lesen': {
           if (!this.k.kalender) throw new DorfFehler(503, 'Kein Kalender eingerichtet.');
           const e = z.object({ tage: z.number().int().min(1).max(21).default(10), ab_gestern: z.boolean().default(false) }).parse(eingabe ?? {});
@@ -657,6 +813,15 @@ export class WerkzeugKiste {
   private async post(name: string, eingabe: unknown): Promise<WerkzeugAufrufErgebnis> {
     const gmail = this.k.post;
     if (!gmail) throw new DorfFehler(503, 'Gmail ist nicht verbunden (dorf gmail-anmelden).');
+    if (name === 'post_entwurf_neu') {
+      // E183: neuer Entwurf – nur eine schlichte Adresse, gesendet wird nie
+      const e = z.object({ an: z.string().max(300), betreff: z.string().trim().min(1, 'Betreff fehlt').max(300), text: z.string().min(1).max(20_000) }).parse(eingabe);
+      const an = antwortAdresse(e.an);
+      if (!an) throw new DorfFehler(400, 'Genau eine gültige Adresse angeben, z. B. „name@beispiel.at“.');
+      const r = await gmail.entwurf({ an, betreff: e.betreff, text: e.text });
+      this.log(name, { an, betreff: e.betreff, zeichen: e.text.length }, `Entwurf ${r.id} an ${an}`, true, undefined, 'entwurf');
+      return { ok: true, text: `Neuer Entwurf in Gmail angelegt (Ordner „Entwürfe“): „${e.betreff}“ an ${an}. Gesendet wurde nichts.` };
+    }
     if (name === 'post_lesen') {
       const { mail_id } = z.object({ mail_id: z.string().min(1).max(100) }).parse(eingabe);
       this.postMail(mail_id);
@@ -786,6 +951,88 @@ export class WerkzeugKiste {
     return { ok: false, text: 'Unbekanntes Werkzeug.' };
   }
 
+  /** E183: Kirchturm – alles über Kirchturm.ausfuehren (dieselben Befehle wie App, Telegram und Cardputer) */
+  private async kirchturm(name: string, eingabe: unknown): Promise<WerkzeugAufrufErgebnis> {
+    const k = this.k.kirchturm;
+    if (!k) throw new DorfFehler(503, 'Der Kirchturm ist nicht eingerichtet.');
+    const fertig = (kurz: string, text?: string) => {
+      this.log(name, eingabe, kurz, true, undefined, name === 'kirchturm_lesen' ? 'gelesen' : 'kirchturm');
+      return { ok: true, text: text ?? `${kurz}\n\n${kirchturmText(k.zustand(), this.uhr.jetzt())}` };
+    };
+    switch (name) {
+      case 'kirchturm_lesen':
+        return fertig('Kirchturm gelesen', kirchturmText(k.zustand(), this.uhr.jetzt()));
+      case 'kirchturm_timer': {
+        const e = z.object({ aktion: z.enum(['start', 'pause', 'weiter', 'loeschen']), minuten: z.number().int().min(1).max(1440).optional(), name: z.string().trim().max(60).optional(), id: z.string().max(100).optional() }).parse(eingabe);
+        if (e.aktion === 'start') {
+          if (!e.minuten) throw new DorfFehler(400, 'minuten fehlt (1–1440).');
+          const z1 = k.ausfuehren({ befehl: 'timer_start', name: e.name ?? '', dauerMs: e.minuten * 60_000 });
+          const t = z1.timer.at(-1)!;
+          return fertig(`⏳ Timer „${t.name}“ läuft (${e.minuten} min, id ${t.id}).`);
+        }
+        if (!e.id) throw new DorfFehler(400, 'id fehlt (aus kirchturm_lesen).');
+        k.ausfuehren({ befehl: 'timer', id: e.id, aktion: e.aktion });
+        return fertig(`⏳ Timer ${e.aktion === 'loeschen' ? 'gelöscht' : e.aktion === 'pause' ? 'angehalten' : 'läuft weiter'}.`);
+      }
+      case 'kirchturm_wecker': {
+        const e = z.object({ aktion: z.enum(['stellen', 'loeschen']), zeit: z.string().trim().max(5).optional(), name: z.string().trim().max(60).optional(), tage: z.enum(['einmal', 'täglich', 'werktags', 'wochenende']).optional(), id: z.string().max(100).optional() }).parse(eingabe);
+        if (e.aktion === 'loeschen') {
+          if (!e.id) throw new DorfFehler(400, 'id fehlt (aus kirchturm_lesen).');
+          if (!k.zustand().wecker.some((w) => w.id === e.id)) throw new DorfFehler(404, 'Diesen Wecker gibt es nicht (mehr).');
+          k.ausfuehren({ befehl: 'wecker_loeschen', id: e.id });
+          return fertig('⏰ Wecker gelöscht.');
+        }
+        if (!e.zeit) throw new DorfFehler(400, 'zeit fehlt (HH:MM).');
+        const tage = { einmal: [], täglich: [0, 1, 2, 3, 4, 5, 6], werktags: [1, 2, 3, 4, 5], wochenende: [0, 6] }[e.tage ?? 'einmal'];
+        const vorher = new Set(k.zustand().wecker.map((x) => x.id));
+        const z1 = k.ausfuehren({ befehl: 'wecker_speichern', ...(e.id ? { id: e.id } : {}), name: e.name ?? '', zeit: e.zeit.padStart(5, '0'), tage });
+        const w = z1.wecker.find((x) => (e.id ? x.id === e.id : !vorher.has(x.id)))!;
+        return fertig(`⏰ Wecker ${w.zeit} gestellt${w.naechster ? ` – klingelt ${zeitText(Date.parse(w.naechster))}` : ''} (id ${w.id}).`);
+      }
+      case 'pomodoro': {
+        const e = z.object({ aktion: z.enum(['start', 'pause', 'weiter', 'ueberspringen', 'stopp']), titel: z.string().trim().max(200).optional(), todo_pfad: z.string().max(300).optional() }).parse(eingabe);
+        if (e.aktion === 'start' && (e.titel || e.todo_pfad)) {
+          let titel = e.titel ?? '';
+          let gruppe: string | undefined;
+          let pfad: string | undefined;
+          if (e.todo_pfad) {
+            const t = await this.k.listen?.todo.holen(e.todo_pfad);
+            if (!t) throw new DorfFehler(503, 'Die To-do-Liste ist nicht eingerichtet.');
+            if (this.k.web && t.fremd) throw new DorfFehler(403, 'Dieses To-do stammt aus Mails/Moodle – in Läufen mit Internet nicht nutzbar.');
+            titel ||= t.titel;
+            gruppe = t.gruppe;
+            pfad = t.pfad;
+          }
+          k.ausfuehren({ befehl: 'pomodoro_fuer', titel: titel.slice(0, 200), ...(gruppe ? { gruppe: gruppe.slice(0, 60) } : {}), ...(pfad ? { pfad } : {}) });
+          return fertig(`🍅 Fokusrunde für „${titel}“ gestartet.`);
+        }
+        const p = k.zustand().pomodoro;
+        k.ausfuehren({ befehl: 'pomodoro', aktion: e.aktion === 'weiter' && p.status === 'wartet' ? 'start' : e.aktion });
+        return fertig(`🍅 Pomodoro: ${e.aktion}.`);
+      }
+      case 'pomodoro_einstellen': {
+        const e = z
+          .object({ arbeit_min: z.number().optional(), kurz_min: z.number().optional(), lang_min: z.number().optional(), lang_nach: z.number().int().optional(), runden: z.number().int().optional(), auto_weiter: z.boolean().optional() })
+          .parse(eingabe ?? {});
+        const alt = k.zustand().pomodoro.einstellungen;
+        k.ausfuehren({
+          befehl: 'pomodoro_einstellen',
+          einstellungen: {
+            ...alt,
+            arbeitMin: e.arbeit_min ?? alt.arbeitMin,
+            kurzMin: e.kurz_min ?? alt.kurzMin,
+            langMin: e.lang_min ?? alt.langMin,
+            langNach: e.lang_nach ?? alt.langNach,
+            runden: e.runden ?? alt.runden,
+            autoWeiter: e.auto_weiter ?? alt.autoWeiter,
+          },
+        });
+        return fertig('🍅 Pomodoro-Einstellungen geändert.');
+      }
+    }
+    return { ok: false, text: 'Unbekanntes Werkzeug.' };
+  }
+
   /** To-do-Brett (E65): alles über den TodoDienst – nur Marktplatz/todos/, Löschen = Papierkorb */
   /**
    * Listen (E65/Etappe 7): alles über den TodoDienst – nur der Ordner der Liste, Löschen = Papierkorb.
@@ -881,6 +1128,39 @@ export class WerkzeugKiste {
     this.log('vault_schreiben', { pfad }, `${inhalt.length} Zeichen`, true, r.pfad, 'geschrieben');
     return { ok: true, text: `Gespeichert: ${r.pfad}` };
   }
+}
+
+const zeitText = (ms: number) => `${kalenderTag.format(new Date(ms))} ${kalenderUhr.format(new Date(ms))}`;
+const minText = (ms: number) => {
+  const m = Math.max(0, Math.round(ms / 60_000));
+  return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`;
+};
+const TAGE_NAMEN = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+
+/** E183: Kirchturm als Text für die Agenten (mit IDs) */
+export function kirchturmText(z: KirchturmZustand, jetzt: number) {
+  const p = z.pomodoro;
+  const e = p.einstellungen;
+  const zeilen: string[] = [];
+  if (p.phase === 'aus') zeilen.push('🍅 Pomodoro: aus');
+  else {
+    const rest = p.status === 'laeuft' && p.ende ? Date.parse(p.ende) - jetzt : (p.restMs ?? 0);
+    const phase = p.phase === 'arbeit' ? `Fokus, Runde ${p.erledigt + 1} von ${e.runden}` : p.phase === 'kurz' ? 'kurze Pause' : 'lange Pause';
+    const status = p.status === 'laeuft' ? 'läuft' : p.status === 'pause' ? 'angehalten' : 'wartet auf Start';
+    zeilen.push(`🍅 Pomodoro: ${phase}, noch ${minText(rest)} (${status})${e.thema ? ` – „${e.thema}“` : ''}`);
+  }
+  zeilen.push(`   Einstellungen: Arbeit ${e.arbeitMin} min, kurze Pause ${e.kurzMin} min, lange Pause ${e.langMin} min nach ${e.langNach} Runden, ${e.runden} Runden, automatisch weiter: ${e.autoWeiter ? 'ja' : 'nein'}`);
+  for (const t of z.timer) {
+    const rest = t.status === 'laeuft' && t.ende ? Date.parse(t.ende) - jetzt : (t.restMs ?? 0);
+    zeilen.push(`⏳ Timer „${t.name}“: ${t.status === 'fertig' ? 'abgelaufen' : `noch ${minText(rest)}${t.status === 'pause' ? ' (angehalten)' : ''}`} · id ${t.id}`);
+  }
+  for (const w of z.wecker) {
+    const tage = !w.tage.length ? 'einmal' : w.tage.length === 7 ? 'täglich' : w.tage.map((x) => TAGE_NAMEN[x]).join(', ');
+    zeilen.push(`⏰ Wecker ${w.zeit}${w.name ? ` „${w.name}“` : ''} (${tage})${w.aktiv && w.naechster ? ` – nächstes Mal ${zeitText(Date.parse(w.naechster))}` : ' – aus'} · id ${w.id}`);
+  }
+  if (z.stoppuhr.start || z.stoppuhr.bisherMs) zeilen.push(`⏱ Stoppuhr: ${minText(z.stoppuhr.bisherMs + (z.stoppuhr.start ? jetzt - Date.parse(z.stoppuhr.start) : 0))}${z.stoppuhr.start ? ' (läuft)' : ' (angehalten)'}`);
+  for (const k of z.klingelt) zeilen.push(`🔔 Klingelt gerade: ${k.titel}`);
+  return zeilen.join('\n');
 }
 
 /** Antwortadresse aus „Name <a@b>“ – nur eine einzelne, schlichte Adresse */

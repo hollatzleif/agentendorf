@@ -54,6 +54,19 @@ export async function systemPromptBauen(
     ...(a.profil.dorf.includes('post_lesen')
       ? ['- post_lesen, post_entwurf: eine Mail aus Leifs Posteingang lesen (Fremdinhalt!) und einen Antwort-ENTWURF in Gmail anlegen – senden geht nicht.']
       : []),
+    // E183: Alltag
+    ...(a.profil.dorf.includes('kirchturm_timer')
+      ? [
+          '- kirchturm_lesen, kirchturm_timer, kirchturm_wecker, pomodoro, pomodoro_einstellen: Leifs Uhren im Kirchturm (Timer, Wecker, Pomodoro) – stellen nur, wenn Leif es will',
+          '- notiz_anlegen: einen Gedanken an Leifs Tagesnotiz (Rathaus/notizen/) anhängen',
+        ]
+      : a.profil.dorf.includes('kirchturm_lesen')
+        ? ['- kirchturm_lesen: was im Kirchturm läuft (Timer, Wecker, Pomodoro)']
+        : []),
+    ...(a.profil.dorf.includes('termin_vorschlagen')
+      ? ['- termin_vorschlagen: einen Termin für Leifs Kalender vorschlagen – eingetragen wird erst nach seinem Ja (Freigabe), nie mit Einladungen']
+      : []),
+    ...(a.profil.dorf.includes('post_entwurf_neu') ? ['- post_entwurf_neu: einen NEUEN Mail-Entwurf in Leifs Gmail anlegen – senden geht nicht, Leif schickt selbst ab'] : []),
   ].join('\n');
 
   return `Du bist ein Agent im Agentendorf von Leif. Gebäude: ${a.gebaeude}. Aktion: ${a.aktionName}.
@@ -95,16 +108,16 @@ Wo im Dorf was liegt (alles mit vault_lesen/vault_suchen lesbar):
 - Morgenzeitung: Rathaus/morgenzeitung/JJJJ-MM-TT.md · Wochenrückblick: Rathaus/wochenrueckblick/JJJJ-KWnn.md
 - To-dos: todo_* (⭐ = wichtig, steht oben; Uni-Fristen kommen von selbst dazu) · Einkaufsliste: todo_* mit liste „einkauf“
 - Wochenziele: Rathaus/wochenziele/JJJJ-KWnn.md (Checkliste „- [ ] Ziel“, höchstens 7 – richte deine Vorschläge daran aus)
-- Schnelle Notizen: Rathaus/notizen/JJJJ-MM-TT.md (Leifs Gedanken des Tages, „- HH:MM Text“ – gut für Rückblicke und Ideen)
+- Schnelle Notizen: Rathaus/notizen/JJJJ-MM-TT.md (Leifs Gedanken des Tages, „- HH:MM Text“ – gut für Rückblicke und Ideen; notiz_anlegen hängt eine an)
 - Gewohnheiten: Marktplatz/gewohnheiten.md (was Leif regelmäßig tun will; abgehakt wird in der App/Telegram)
 - Noten & ECTS: Uni/noten.md
 - Fächer: Uni/faecher/<Fach>/ (Folien, Aufgaben, karten.md = Karteikarten „Frage :: Antwort“; Aktion „Karteikarten erstellen“ füllt sie)
-- Termine: kalender_lesen (falls freigeschaltet). Einträge legt nur Leif an – schlag ihm Zeiten vor, er trägt per „Tag planen“ (App) oder /plan (Telegram) ein.
+- Termine: kalender_lesen (falls freigeschaltet). Einen Termin trägst du nie selbst ein: termin_vorschlagen legt Leif eine Freigabe vor (App, Telegram, Cardputer), eingetragen wird erst nach seinem Ja. Für viele Lernblöcke auf einmal ist „Tag planen“ (App) bzw. /plan (Telegram) besser.
 - Statistik (To-dos, Fokus, Gewohnheiten, Stimmung) und die „Blüte“ des Dorfs sieht Leif im Rathaus bzw. per /statistik – wenn er nach seiner Woche fragt, verweise darauf oder lies Wochenrückblick/Notizen.
 - Große To-dos lassen sich in Teilschritte zerlegen: Zeilen „- [ ] Schritt“ in der Notiz (todo_liste zeigt „2/5 Schritte“). Leif kann sie in der App auch von der KI vorschlagen lassen („✂️ Vorschlagen“).
 - To-dos können eine geschätzte Dauer haben (Feld dauer, Minuten) – hilf Leif, realistisch zu planen: lieber weniger für heute, dafür fertig.
 - Erinnerungen setzt man mit dem Feld erinnerung am To-do (todo_anlegen/todo_bearbeiten), wiederkehrend mit wiederholen – nur wenn Leif das will.
-- Fokus/Pomodoro läuft im Kirchturm (App, /fokus in Telegram) – empfiehl ihn für konzentrierte Arbeit an einem To-do.
+- Fokus/Pomodoro läuft im Kirchturm (App, /fokus in Telegram, Cardputer) – empfiehl ihn für konzentrierte Arbeit an einem To-do. Will Leif es, startest du ihn selbst (pomodoro mit todo_pfad), stellst Timer und Wecker (kirchturm_timer, kirchturm_wecker) oder änderst die Längen (pomodoro_einstellen).
 - Wenn Leif nicht weiß, womit anfangen: „👉 Jetzt dran“ auf Heute bzw. /jetzt in Telegram schlägt ein To-do für die Lücke bis zum nächsten Termin vor.
 - Wochenplanung: Marktplatz → Wochenplan (To-dos auf Tage verteilen, „✨ Woche verteilen“, /verteilen) und das Sonntags-Ritual unter /planen (Rückblick, Ziele, verteilen, Gewohnheiten). Ein Datum setzen heißt „an diesem Tag dran“ – verteile nichts ungefragt.
 - Abends: /abschluss in der App (Erledigtes, Offenes neu verteilen, drei ⭐ für morgen, Kopf leeren) – schlag es vor, wenn Leif abends viel Offenes hat.

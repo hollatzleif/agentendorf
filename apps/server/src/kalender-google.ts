@@ -12,8 +12,9 @@ import { tagIn, tagPlus } from './zeit.js';
  * Kalender auf dem Marktplatz (E75): Leifs Google Calendar über die Calendar API v3 (Doku developers.google.com,
  * geprüft am 18.11.2026). Bereiche: calendar.events (Termine lesen/ändern) + calendar.calendarlist.readonly (Liste).
  *
- * Schreiben nur über die App-Routen, d. h. mit Leifs Klick. Agenten bekommen KEIN Schreibwerkzeug
- * („Kalendereinträge legt nur Leif an“). Einladungen werden nie verschickt (sendUpdates=none).
+ * Schreiben nur mit Leifs Klick: App-Routen, Telegram /termin, Cardputer (E182) – Agenten schlagen Termine nur vor
+ * (termin_vorschlagen → Freigabe, E183), eingetragen wird erst nach Leifs Ja. Einladungen werden nie verschickt
+ * (sendUpdates=none).
  * Ohne Google-Verbindung: nur lesen über die geheime iCal-Adresse (wie bisher).
  */
 export { KALENDER_BEREICHE } from './post/google-oauth.js';
@@ -472,6 +473,43 @@ export class GoogleKalender {
 }
 
 /** k Elemente möglichst gleichmäßig über die Liste verteilt (erstes und letztes inklusive); Reihenfolge bleibt */
+/** E182/E183: kurze Angaben (Cardputer, termin_vorschlagen) → Termin für den Hauptkalender */
+export const TerminAngaben = z.object({
+  titel: z.string().trim().min(1, 'Titel fehlt').max(200),
+  datum: z.string().regex(DATUM, 'Datum als JJJJ-MM-TT'),
+  /** leer/fehlt = ganztägig */
+  zeit: z
+    .string()
+    .trim()
+    .regex(/^(([01]?\d|2[0-3]):[0-5]\d)?$/, 'Uhrzeit als HH:MM')
+    .optional(),
+  dauerMin: z.number().int().min(5, 'mindestens 5 min').max(1440, 'höchstens 24 h').optional(),
+  ort: z.string().trim().max(200).optional(),
+});
+
+export function terminAusAngaben(roh: unknown): { titel: string; ganztags: boolean; start: string; ende: string; ort?: string } {
+  const a = TerminAngaben.parse(roh);
+  const [j, m, t] = a.datum.split('-').map(Number) as [number, number, number];
+  const tag = new Date(Date.UTC(j, m - 1, t));
+  if (tag.toISOString().slice(0, 10) !== a.datum) throw new DorfFehler(400, `Den Tag ${a.datum} gibt es nicht.`);
+  const ort = a.ort ? { ort: a.ort } : {};
+  if (!a.zeit) return { titel: a.titel, ganztags: true, start: a.datum, ende: tagPlus(a.datum, 1), ...ort };
+  const [h, mi] = a.zeit.split(':').map(Number) as [number, number];
+  const beginn = Date.UTC(j, m - 1, t, h, mi);
+  // reines Rechnen in Ortszeit (ohne Zone): 23:30 + 60 min = nächster Tag 00:30
+  const lokal = (ms: number) => new Date(ms).toISOString().slice(0, 16);
+  return { titel: a.titel, ganztags: false, start: lokal(beginn), ende: lokal(beginn + (a.dauerMin ?? 60) * 60_000), ...ort };
+}
+
+/** „Do 20.11.2026 · 14:00–15:00 (60 min)“ bzw. „Do 20.11.2026 · ganztägig“ – Vorschau für Freigaben */
+export function terminVorschau(t: { ganztags: boolean; start: string; ende: string; ort?: string }) {
+  const tag = new Date(`${t.start.slice(0, 10)}T12:00:00Z`).toLocaleDateString('de-AT', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
+  const wann = t.ganztags
+    ? 'ganztägig'
+    : `${t.start.slice(11, 16)}–${t.ende.slice(11, 16)} (${Math.round((Date.parse(`${t.ende}:00Z`) - Date.parse(`${t.start}:00Z`)) / 60_000)} min)`;
+  return `${tag} · ${wann}${t.ort ? ` · ${t.ort}` : ''}`;
+}
+
 export function gleichmaessigVerteilen<T>(liste: T[], k: number): T[] {
   const n = liste.length;
   if (k >= n) return liste.slice();

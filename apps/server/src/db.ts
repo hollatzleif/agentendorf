@@ -375,6 +375,12 @@ const MIGRATIONEN: string[] = [
   `
   CREATE TABLE idempotenz (id TEXT PRIMARY KEY, antwort TEXT NOT NULL, zeit INTEGER NOT NULL);
   `,
+  // 23: Geräte (E182) – gekoppelte Geräte wie der Cardputer (nur der sha256 des Schlüssels) und offene Kopplungscodes
+  //     (6 Ziffern, 5 min, einmalig; in der DB, damit ein Deploy mitten in der Kopplung den Code nicht verliert)
+  `
+  CREATE TABLE geraete (id TEXT PRIMARY KEY, name TEXT NOT NULL, token_hash TEXT NOT NULL UNIQUE, erstellt INTEGER NOT NULL, zuletzt INTEGER NOT NULL, ip TEXT NOT NULL DEFAULT '');
+  CREATE TABLE geraete_kopplung (code_hash TEXT PRIMARY KEY, gueltig_bis INTEGER NOT NULL, fehlversuche INTEGER NOT NULL DEFAULT 0);
+  `,
 ];
 
 export function dbOeffnen(datei: string): DB {

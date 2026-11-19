@@ -11,7 +11,9 @@ import { aktionLaden, eingabenAnwenden, type QuellenFn } from './aktionen.js';
 import { ablageOrdner, type RechenraumKlient } from './rechenraum.js';
 import type { MoodleBrowserKlient } from './moodle-browser.js';
 import type { GmailKlient } from '../post/gmail.js';
-import { BUERGERMEISTER_WERKZEUGE, LESE_WERKZEUGE, werkzeugprofil, type DorfWerkzeug } from './leine.js';
+import { ALLTAG_WERKZEUGE, BUERGERMEISTER_WERKZEUGE, LESE_WERKZEUGE, POST_NEU_WERKZEUG, TODO_WERKZEUGE, werkzeugprofil, type DorfWerkzeug } from './leine.js';
+import type { Kirchturm } from '../kirchturm.js';
+import type { Notizen } from '../notizen.js';
 import { kostenSchaetzen, motorenLaden, stufenLaden } from './modelle.js';
 import { anhaengeLaden, auftragMitAnhaengen, systemPromptBauen } from './kontext.js';
 import { wissenLaden } from './gedaechtnis.js';
@@ -135,6 +137,9 @@ export class AgentenDienst {
   kalender?: (von: number, bis: number) => Promise<KalenderEintrag[]>;
   /** To-do-Brett (E65) und weitere Listen (Etappe 7) */
   listen?: Record<ListenName, TodoDienst>;
+  /** E183: Kirchturm und Tagesnotizen für die Alltags-Werkzeuge (in dorf.ts gesetzt) */
+  kirchturm?: Kirchturm;
+  notizen?: Notizen;
 
   constructor(
     private db: DB,
@@ -174,7 +179,7 @@ export class AgentenDienst {
     const profil = werkzeugprofil(a); // wirft bei Widerspruch (Web + Fremdinhalte)
     const erstesFeld = Object.values(werte).find((w) => w.trim()) ?? '';
     const titel = `${a.name}${erstesFeld ? `: ${erstesFeld.replace(/\s+/g, ' ').slice(0, 60)}` : ''}`;
-    const werkzeugListe: string[] = [...profil.dorf, ...(a.rolle === 'buergermeister' ? BUERGERMEISTER_WERKZEUGE : []), ...(profil.web ? ['web'] : [])];
+    const werkzeugListe: string[] = [...new Set([...profil.dorf, ...(a.rolle === 'buergermeister' ? BUERGERMEISTER_WERKZEUGE : []), ...(profil.web ? ['web'] : [])])];
     const chatId = await this.chatAnlegen({
       gebaeude: a.gebaeude,
       aktion: a.id,
@@ -255,7 +260,8 @@ export class AgentenDienst {
    * mit Standard-Werkzeugen (lesen, schreiben im Gebäude, Freigaben) – kein Web. Motor: claude-code (zählt als Leifs Klick).
    */
   async helferStarten(o: { gebaeude: string; titel: string; auftrag: string; stufe: Stufe; ausloeser: Ausloeser; herkunft: ChatHerkunft }) {
-    const werkzeuge: DorfWerkzeug[] = [...LESE_WERKZEUGE, 'freigabe_beantragen', 'vault_schreiben'];
+    // E183: wie jede Aktion ohne Fremdinhalte auch To-dos und Alltag (Kirchturm, Notizen, Termin-Vorschläge)
+    const werkzeuge: DorfWerkzeug[] = [...LESE_WERKZEUGE, 'freigabe_beantragen', ...TODO_WERKZEUGE, ...ALLTAG_WERKZEUGE, 'vault_schreiben'];
     const chatId = await this.chatAnlegen({
       gebaeude: o.gebaeude,
       aktion: null,
@@ -414,11 +420,13 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
             this.rechenraum && profil.dorf.includes('rechenraum_befehl')
               ? { klient: this.rechenraum, ablage: ablageOrdner({ gebaeude: c.gebaeude, titel: c.titel, erstellt: c.erstellt, eingaben: JSON.parse(c.eingaben_json || '{}') }) }
               : undefined,
-          post: profil.dorf.includes('post_lesen') ? this.post : undefined,
+          post: profil.dorf.includes('post_lesen') || profil.dorf.includes(POST_NEU_WERKZEUG) ? this.post : undefined,
           moodle: this.moodleBrowser && profil.dorf.includes('moodle_oeffnen') ? this.moodleBrowser : undefined,
           kalender: profil.dorf.includes('kalender_lesen') ? this.kalender : undefined,
           wissen: wissen ? { gedaechtnisVersion: wissen.gedaechtnisVersion } : undefined,
           listen: this.listen,
+          kirchturm: this.kirchturm,
+          notizen: this.notizen,
           fremdinhalte: !!c.fremdinhalte,
           web: profil.web,
         },

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import QRCode from 'qrcode';
-import type { Anschluss, Ich, Konflikt, ProgrammeInfo, SitzungInfo } from '@dorf/shared';
+import type { Anschluss, GeraetInfo, GeraetKopplung, Ich, Konflikt, ProgrammeInfo, SitzungInfo } from '@dorf/shared';
 import { istProgramm } from '../programm/desktop';
 import { api, ApiFehler } from '../api';
 import { bibliothekUrl, linkKlick } from '../router';
@@ -28,6 +28,7 @@ export function Einstellungen() {
       <Anschluesse />
       <Konflikte />
       <Sitzungen />
+      <Geraete />
       <Zweitfaktor aktiv={!!ich.data?.totpAktiv} />
       <PasswortAendern />
       <Programme />
@@ -224,6 +225,100 @@ function Sitzungen() {
         }
       >
         Alle anderen Geräte abmelden
+      </button>
+    </div>
+  );
+}
+
+/** E182: Cardputer koppeln (Code 6 Ziffern, 5 min, einmalig) und gekoppelte Geräte sperren */
+function Geraete() {
+  const qc = useQueryClient();
+  const [kopplung, setKopplung] = useState<GeraetKopplung | null>(null);
+  const [jetzt, setJetzt] = useState(() => Date.now());
+  const [fehler, setFehler] = useState('');
+  const rest = kopplung ? Math.max(0, Math.round((Date.parse(kopplung.gueltigBis) - jetzt) / 1000)) : 0;
+  // solange ein Code angezeigt wird, nachsehen, ob das Gerät schon gekoppelt ist
+  const g = useQuery({ queryKey: ['geraete'], queryFn: () => api<GeraetInfo[]>('/api/geraete'), refetchInterval: kopplung && rest > 0 ? 3000 : false });
+  const anzahl = g.data?.length ?? 0;
+  const [anzahlBeiCode, setAnzahlBeiCode] = useState(0);
+  const gekoppelt = !!kopplung && anzahl > anzahlBeiCode;
+  useEffect(() => {
+    if (!kopplung || gekoppelt) return;
+    const t = setInterval(() => setJetzt(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [kopplung, gekoppelt]);
+  const neu = () => qc.invalidateQueries({ queryKey: ['geraete'] });
+  return (
+    <div className="karte" id="geraete">
+      <h2>Geräte</h2>
+      <p className="leise">Kleine Geräte wie der Cardputer melden sich mit einem eigenen Schlüssel an und sehen nur ihre Geräte-Schnittstelle.</p>
+      {fehler && <p className="fehler">{fehler}</p>}
+      {kopplung && !gekoppelt && rest > 0 && (
+        <div className="kopplung" role="status">
+          <div className="kopplung-code" aria-label="Kopplungscode">
+            {kopplung.code}
+          </div>
+          <div className="leise">
+            noch {Math.floor(rest / 60)}:{String(rest % 60).padStart(2, '0')} gültig, nur einmal
+          </div>
+          <p>
+            Am Cardputer: <b>Agentendorf → Einstellungen → Koppeln</b>, als Dorf-Adresse <code>{window.location.host}</code> und dann diesen Code eintippen.
+          </p>
+        </div>
+      )}
+      {kopplung && !gekoppelt && rest === 0 && <p className="leise">Der Code ist abgelaufen – hol dir einen neuen.</p>}
+      {gekoppelt && (
+        <p>
+          <span className="abzeichen gut">Gekoppelt ✓</span> Der Cardputer ist jetzt mit dem Dorf verbunden.
+        </p>
+      )}
+      {g.data && g.data.length > 0 && (
+        <table className="tabelle">
+          <thead>
+            <tr>
+              <th>Gerät</th>
+              <th>Zuletzt gesehen</th>
+              <th>IP</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {g.data.map((x) => (
+              <tr key={x.id}>
+                <td>{x.name}</td>
+                <td>{zeit(x.zuletzt)}</td>
+                <td>{x.ip}</td>
+                <td>
+                  <button
+                    className="gefahr"
+                    onClick={() => {
+                      if (!confirm(`„${x.name}“ sperren? Das Gerät muss danach neu gekoppelt werden.`)) return;
+                      api(`/api/geraete/${encodeURIComponent(x.id)}`, { methode: 'DELETE' })
+                        .then(neu)
+                        .catch((e) => setFehler(fehlertext(e)));
+                    }}
+                  >
+                    Sperren
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <button
+        onClick={() =>
+          api<GeraetKopplung>('/api/geraete/kopplung', { body: {} })
+            .then((k) => {
+              setFehler('');
+              setAnzahlBeiCode(anzahl);
+              setJetzt(Date.now());
+              setKopplung(k);
+            })
+            .catch((e) => setFehler(fehlertext(e)))
+        }
+      >
+        Cardputer koppeln
       </button>
     </div>
   );

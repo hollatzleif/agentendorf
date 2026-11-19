@@ -40,7 +40,15 @@ export type DorfWerkzeug =
   | 'todo_liste'
   | 'todo_anlegen'
   | 'todo_bearbeiten'
-  | 'todo_loeschen';
+  | 'todo_loeschen'
+  | 'kirchturm_lesen'
+  | 'kirchturm_timer'
+  | 'kirchturm_wecker'
+  | 'pomodoro'
+  | 'pomodoro_einstellen'
+  | 'notiz_anlegen'
+  | 'termin_vorschlagen'
+  | 'post_entwurf_neu';
 export const LESE_WERKZEUGE: DorfWerkzeug[] = ['vault_lesen', 'vault_liste', 'vault_suchen'];
 /** Nur Aktionen mit rolle: buergermeister bekommen diese Werkzeuge. */
 export const BUERGERMEISTER_WERKZEUGE: DorfWerkzeug[] = [
@@ -51,6 +59,8 @@ export const BUERGERMEISTER_WERKZEUGE: DorfWerkzeug[] = [
   // E61: eigenes Gedächtnis (Rathaus/memory.md) frei, Persönlichkeit (Rathaus/personality.md) nur per Freigabe
   'gedaechtnis_schreiben',
   'persoenlichkeit_vorschlagen',
+  // E183: neue Mail-Entwürfe (nie senden) – Antworten auf Mails bleiben bei „Antwort entwerfen“ (braucht die Mail = Fremdinhalt)
+  'post_entwurf_neu',
 ];
 /**
  * Nur Aktionen mit werkzeuge: [rechenraum]. Der Rechenraum hat weder Internet noch Vault – darum ist er auch
@@ -69,6 +79,11 @@ export const RECHENRAUM_WERKZEUGE: DorfWerkzeug[] = [
  */
 export const POST_WERKZEUGE: DorfWerkzeug[] = ['post_suchen', 'post_lesen', 'post_entwurf'];
 /**
+ * E183: Neuer Entwurf mit frei gewähltem Empfänger (nur Entwurf, nie senden) – Bürgermeister immer, Aktionen mit
+ * werkzeuge: [post] nur OHNE Fremdinhalte: Ein präparierter Mailtext soll sich keinen Empfänger aussuchen können.
+ */
+export const POST_NEU_WERKZEUG: DorfWerkzeug = 'post_entwurf_neu';
+/**
  * Nur Aktionen mit werkzeuge: [moodle] UND fremdinhalte: ja. Der Browser-Container liest nur (Leine dort: nur
  * JKU-Domains, kein Formular-Senden, keine sesskey-Aktionen) – Moodle-Inhalte sind Fremdinhalt. Herunterladen
  * landet nur in einem vom Code bestimmten Ordner unter Uni/.
@@ -84,6 +99,19 @@ export const KALENDER_WERKZEUGE: DorfWerkzeug[] = ['kalender_lesen'];
  * löschen – nur über den TodoDienst (nur Marktplatz/todos/), Löschen = Papierkorb (wiederherstellbar).
  */
 export const TODO_WERKZEUGE: DorfWerkzeug[] = ['todo_liste', 'todo_anlegen', 'todo_bearbeiten', 'todo_loeschen'];
+/**
+ * Alltag (E183, Leifs Wunsch: „die Agenten sollen alles können“): Kirchturm (Timer, Wecker, Pomodoro), schnelle Notizen
+ * direkt; Termine nur als Vorschlag (Freigabe, eingetragen erst nach Leifs Ja). Nichts davon wirkt nach außen.
+ */
+export const ALLTAG_WERKZEUGE: DorfWerkzeug[] = ['kirchturm_lesen', 'kirchturm_timer', 'kirchturm_wecker', 'pomodoro', 'pomodoro_einstellen', 'notiz_anlegen', 'termin_vorschlagen'];
+/**
+ * Was Läufe mit Fremdinhalten davon NICHT bekommen: alles, was freien Text an Stellen schreibt, die später jeder Agent
+ * liest – auch einer mit Internet (Tagesnotiz, Namen im Kirchturm). Anders als To-dos (Markierung „fremd“) lässt sich
+ * das dort nicht abgrenzen. Termin-Vorschläge bleiben: die sieht Leif vor dem Eintragen, und Kalendertitel gelten
+ * ohnehin als Fremdinhalt.
+ */
+export const NUR_OHNE_FREMDINHALT: DorfWerkzeug[] = ['kirchturm_timer', 'kirchturm_wecker', 'pomodoro', 'pomodoro_einstellen', 'notiz_anlegen', POST_NEU_WERKZEUG];
+export const alltagWerkzeuge = (fremdinhalte: boolean) => ALLTAG_WERKZEUGE.filter((w) => !fremdinhalte || !NUR_OHNE_FREMDINHALT.includes(w));
 /** Höchstens so viele Helfer pro Plan */
 export const MAX_HELFER_PRO_PLAN = 10;
 /** So viele Helfer darf der Bürgermeister pro Aufgabe ohne Plan starten (Leifs Vorgabe: ab 2 Helfern nur mit Plan) */
@@ -107,10 +135,10 @@ export function aktionPruefen(a: { werkzeuge: AktionsWerkzeug[]; fremdinhalte: b
 export function werkzeugprofil(a: { werkzeuge: AktionsWerkzeug[]; fremdinhalte: boolean }): Werkzeugprofil {
   const fehler = aktionPruefen(a);
   if (fehler) throw new DorfFehler(400, fehler);
-  const dorf: DorfWerkzeug[] = [...LESE_WERKZEUGE, 'freigabe_beantragen', ...TODO_WERKZEUGE];
+  const dorf: DorfWerkzeug[] = [...LESE_WERKZEUGE, 'freigabe_beantragen', ...TODO_WERKZEUGE, ...alltagWerkzeuge(a.fremdinhalte)];
   if (a.werkzeuge.includes('vault_schreiben')) dorf.push('vault_schreiben');
   if (a.werkzeuge.includes('rechenraum')) dorf.push(...RECHENRAUM_WERKZEUGE);
-  if (a.werkzeuge.includes('post')) dorf.push(...POST_WERKZEUGE);
+  if (a.werkzeuge.includes('post')) dorf.push(...POST_WERKZEUGE, ...(a.fremdinhalte ? [] : [POST_NEU_WERKZEUG]));
   if (a.werkzeuge.includes('moodle')) dorf.push(...MOODLE_WERKZEUGE);
   if (a.werkzeuge.includes('kalender')) dorf.push(...KALENDER_WERKZEUGE);
   return { dorf, web: a.werkzeuge.includes('web') && !a.fremdinhalte };

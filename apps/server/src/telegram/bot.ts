@@ -87,6 +87,7 @@ const ARTEN: Record<string, string> = {
   plan_ausfuehren: 'Plan ausführen',
   aktion_anlegen: '🧩 Neuer Skill',
   persoenlichkeit_aendern: '🎭 Persönlichkeit',
+  termin_anlegen: '📅 Termin eintragen',
 };
 
 /**

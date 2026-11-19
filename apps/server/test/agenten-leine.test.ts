@@ -47,7 +47,8 @@ describe('Leine: Schreibregeln', () => {
     expect(aktionPruefen({ werkzeuge: ['web'], fremdinhalte: true })).toMatch(/schließen sich aus/);
     expect(() => werkzeugprofil({ werkzeuge: ['web'], fremdinhalte: true })).toThrow();
     expect(werkzeugprofil({ werkzeuge: ['vault_lesen'], fremdinhalte: true })).toEqual({
-      dorf: ['vault_lesen', 'vault_liste', 'vault_suchen', 'freigabe_beantragen', 'todo_liste', 'todo_anlegen', 'todo_bearbeiten', 'todo_loeschen'],
+      // E183: mit Fremdinhalten vom Alltag nur Kirchturm lesen und Termin-Vorschläge (Freigabe)
+      dorf: ['vault_lesen', 'vault_liste', 'vault_suchen', 'freigabe_beantragen', 'todo_liste', 'todo_anlegen', 'todo_bearbeiten', 'todo_loeschen', 'kirchturm_lesen', 'termin_vorschlagen'],
       web: false,
     });
     expect(werkzeugprofil({ werkzeuge: ['vault_schreiben', 'web'], fremdinhalte: false }).web).toBe(true);

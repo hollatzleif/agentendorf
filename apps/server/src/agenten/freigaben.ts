@@ -24,6 +24,8 @@ export const FREIGABE_ARTEN = {
   aktion_anlegen: z.object({ pfad: z.string(), markdown: z.string(), entwurf: z.unknown() }),
   // Neue personality.md des Bürgermeisters (E61): wird nur geschrieben, wenn die Datei noch der Fassung beim Vorschlag entspricht
   persoenlichkeit_aendern: z.object({ pfad: z.string(), inhalt: z.string(), basisVersion: z.string().nullable() }),
+  // E183: Termin-Vorschlag eines Agenten (termin_vorschlagen) – eingetragen wird erst nach Leifs Ja, ohne Einladungen
+  termin_anlegen: z.object({ titel: z.string().min(1), ganztags: z.boolean(), start: z.string(), ende: z.string(), ort: z.string().optional(), beschreibung: z.string() }),
 } as const;
 export type FreigabeArt = keyof typeof FREIGABE_ARTEN;
 /** Arten, die ein Agent beantragen darf (lauf_starten legt nur das Dorf selbst an). */

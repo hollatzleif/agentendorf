@@ -165,6 +165,10 @@ mark { background: color-mix(in srgb, var(--dach) 35%, transparent); color: inhe
 .formzeile { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .formzeile input { flex: 1; min-width: 160px; }
 .formspalte { display: flex; flex-direction: column; gap: 0.5rem; max-width: 420px; }
+/* E182: Cardputer koppeln – Code groß zum Abtippen */
+.kopplung { background: var(--gruen-hell); border: 2px solid var(--rand); border-radius: 12px; padding: 0.8rem 1rem; margin-bottom: 0.8rem; text-align: center; }
+.kopplung-code { font-size: 2.6rem; font-weight: 900; letter-spacing: 0.35em; font-variant-numeric: tabular-nums; padding-left: 0.35em; }
+.kopplung p { margin: 0.5rem 0 0; }
 
 @media (max-width: 760px) {
   .kopf { gap: 0.5rem; padding-left: 0.6rem; padding-right: 0.6rem; }
@@ -689,12 +693,12 @@ input.kurz { width: 5em; }
 
 /* ---- E77: „Mein Tag“ (/heute) ---- */
 .heute { max-width: 1080px; margin: 0 auto; }
+/* Die Seiten-Klasse .heute darf den heutigen Tag im Kalender nicht treffen (margin: auto machte die Zelle so breit wie ihr längster Termin) */
+.kalender-tag.heute, .raster-spalte.heute, .raster-tag.heute { max-width: none; margin: 0; }
 .heute .karte { margin-bottom: 0; }
 .heute-kopf { background: linear-gradient(135deg, #fffdf6 0%, #f3f9e9 60%, #e3f1f9 100%); padding: 1.1rem 1.3rem 1rem; }
 .heute-kopf-zeile { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
 .heute-datum { margin: 0; font-size: 0.82rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--leise); }
-/* Die Seiten-Klasse .heute darf den heutigen Tag im Kalender nicht treffen (margin: auto machte die Zelle so breit wie ihr längster Termin) */
-.kalender-tag.heute, .raster-spalte.heute, .raster-tag.heute { max-width: none; margin: 0; }
 .heute-gruss { margin: 0.1rem 0 0; font-size: 1.75rem; line-height: 1.2; }
 .heute-wetter { display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0.85rem 0.4rem 0.6rem; background: rgb(255 255 255 / 0.75); border: 2px solid var(--rand); border-radius: 14px; }
 .heute-wetter-symbol { font-size: 1.9rem; line-height: 1; }
