@@ -1699,3 +1699,11 @@ Ein unabhängiger Review hat neun Fehler gefunden. Jeder ist behoben und hat ein
 - `POST /api/geraet/sprache` (nur mit dem Geräte-Schlüssel): WAV im Körper (16 kHz, mono, 16 Bit, höchstens 2 MB ≈ 60 s) → `{ text }`.
 - Abgeschrieben wird mit whisper.cpp im Rechenraum über `/umwandeln` (E190), ohne Cloud. Das Dorf gibt nur den Transkript-Abschnitt zurück, ohne Geräusch-Marken. Die Aufnahme wird nicht gespeichert.
 - Fehler: 503 ohne Rechenraum, 400 kein WAV, 413 zu groß. Die Firmware (1.2) fügt den Text an der Schreibmarke ein, abgeschickt wird erst mit Enter.
+- **Firmware 1.2:**
+  - **Bedienung:** In jeder Texteingabe startet `Tab` die Aufnahme, `Tab` oder `Enter` stoppt, `Esc` verwirft. Es wird umgeschaltet statt gehalten, weil `fn`+Leertaste kein Zeichen liefert und die App keine Loslass-Ereignisse bekommt. Passwort-, Netznamen- und Adressfelder haben keine Sprache.
+  - **Nichts geht von selbst raus:** Der Text wird ans Feld gehängt, abgeschickt wird erst mit Enter. Neu auf der Startseite: „Sprechen → Bürgermeister“.
+  - **Mikrofon:** Cardputer Adv mit Codec ES8311 über I2S (M5Unified 0.2.29, Beispiel `mic_wav_record`). Mikrofon und Lautsprecher teilen sich Leitungen, deshalb ist der Lautsprecher während der Aufnahme aus.
+  - **Speicher:** Aufgenommen wird in eine Datei statt ins RAM (drei Puffer, SD-Karte, sonst LittleFS mit etwa 40 s), danach stückweise hochgeladen. Höchstens 60 s.
+  - **Upload:** direkt über TLS mit 120 s Wartezeit (`HTTPClient` bricht nach 65 s ab).
+  - **Einstellungen bleiben:** NVS-Schlüssel, Formate und Partitionen sind unverändert, neu ist nur `mikro`. Update mit der Nur-Programm-Datei an 0x10000.
+  - **Tests:** Host-Test mit 177 Prüfungen, das Mikrofon ist als WAV-Datei nachgestellt. Nie am Gerät erprobt.

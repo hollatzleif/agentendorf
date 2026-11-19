@@ -810,7 +810,7 @@ public:
 protected:
     std::string kopfRechts(App&, uint32_t now) override {
         if (sendet_) return "sendet \xE2\x80\xA6";
-        if (status_ == "laeuft") return std::string("denkt ") + ((now / 500) % 3 == 0 ? "." : (now / 500) % 3 == 1 ? ".." : "...");
+        if (status_ == "laeuft") return (now / 500) % 3 == 0 ? "\xC2\xB7" : (now / 500) % 3 == 1 ? "\xC2\xB7 \xC2\xB7" : "\xC2\xB7 \xC2\xB7 \xC2\xB7";      // "denkt nach" steht im Text
         if (fragt_ && nachrichten_ == 0) return LAEDT;
         return "";
     }
@@ -1421,6 +1421,12 @@ public:
         l.right = d.lautstaerke == 1 ? "leise" : d.lautstaerke == 3 ? "laut" : "mittel";
         l.action = 5;
         rows.push_back(l);
+        Row m;
+        m.style = Row::Value;
+        m.text = "Mikrofon";
+        m.right = d.mikro == 1 ? "leise" : d.mikro == 3 ? "laut" : "normal";
+        m.action = 7;
+        rows.push_back(m);
         add(6, "Zum Startmen\xC3\xBC", "Neustart");
         Row h;
         h.style = Row::Header;
@@ -1453,6 +1459,7 @@ public:
                 app.platform.play(Sound::Test, app.dorf.lautstaerke);
                 break;
             case 6: zumStartmenue(app); break;
+            case 7: app.dorf.mikroSetzen(app.dorf.mikro % 3 + 1); break;
             default: break;
         }
     }
@@ -1461,6 +1468,10 @@ public:
         if (r && r->action == 5 && (k == K::Left || k == K::Right)) {
             app.dorf.lautstaerkeSetzen(app.dorf.lautstaerke + (k == K::Right ? 1 : -1));
             app.platform.play(Sound::Test, app.dorf.lautstaerke);
+            return true;
+        }
+        if (r && r->action == 7 && (k == K::Left || k == K::Right)) {      // Verstaerkung fuer die Spracheingabe
+            app.dorf.mikroSetzen(app.dorf.mikro + (k == K::Right ? 1 : -1));
             return true;
         }
         return false;
@@ -1555,6 +1566,7 @@ public:
         add(7, "Fristen", "");
         add(8, "Gewohnheiten", da && s.gewohnheitenOffen > 0 ? std::to_string(s.gewohnheitenOffen) + " offen" : "");
         add(9, "Notiz", "");
+        add(12, "Sprechen", std::string(ARROW_R) + " B\xC3\xBCrgermeister", col::ACCENT);
         add(10, "Post", "");
         const WlanZustand z = d.wlanZustand();
         add(11, "Einstellungen", z == WlanZustand::Verbunden ? d.wlanName() : "kein WLAN", z == WlanZustand::Verbunden ? col::GREY : col::AMBER);
@@ -1581,6 +1593,14 @@ public:
                     }, false, 300)));
                 break;
             case 10: app.push(neu(new PostView())); break;
+            case 12: {      // gleich aufnehmen; der erkannte Text steht dann zum Korrigieren da, Enter schickt ihn ab
+                TextInputView* v = new TextInputView("Neues Gespr\xC3\xA4" "ch", "Was soll der B\xC3\xBCrgermeister tun?", "",
+                    "Enter schickt ab. Er f\xC3\xA4ngt sofort an.",
+                    [](App& a, const std::string& text, uint32_t) { a.push(neu(new BmChatView("", text))); }, false, 400);
+                v->gleichSprechen();
+                app.push(neu(v));
+                break;
+            }
             default: break;
         }
     }

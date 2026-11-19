@@ -1,4 +1,4 @@
-# Agentendorf auf dem Cardputer (Firmware 1.1)
+# Agentendorf auf dem Cardputer (Firmware 1.2)
 
 Firmware für den **M5Stack Cardputer Adv** (ESP32-S3, 8 MB Flash, kein PSRAM, 240×135-Display).
 Hervorgegangen aus „HaloOS 0.3“. Das Startmenü bietet:
@@ -57,6 +57,18 @@ docs/bilder/              Bildschirmfotos aus dem PC-Test
   Vorrangs wird höchstens alle 3 min und nur im Leerlauf gesucht; ein besseres bekanntes Netz ab −75 dBm
   wird übernommen (schlägt das fehl: zurück, nächste Prüfung erst nach 15 min). Am Netz mit dem höchsten Vorrang und
   nach einer Wahl von Hand wird nie gesucht. „Anderes Netz“ (Name getippt) wird als versteckt gemerkt.
+- **Spracheingabe (1.2).** In jeder `TextInputView` (außer Passwort-/Adressfeldern) startet und stoppt `Tab` die
+  Aufnahme; der erkannte Text wird ans Ende des Feldes gehängt, nie abgeschickt. Umschalten statt Halten, weil
+  die App nur Tastendrücke bekommt und `fn`+Leertaste in der Tastatur-Bibliothek kein Zeichen liefert (die
+  fn-Ebene der Leertaste ist `KEY_NONE`); `Tab` meldet sie als eigenes Feld.
+  Mikrofon am Cardputer Adv laut M5Unified 0.2.29 (`M5Unified.inl`, `board_M5CardputerADV`): Codec ES8311 über
+  I2S (Daten G46, WS G43, BCK G41), WS/BCK teilt es sich mit dem Lautsprecher – deshalb wie im Beispiel
+  `mic_wav_record` der M5Cardputer-Bibliothek `Speaker.end()` → `Mic.begin()` → aufnehmen → `Mic.end()` →
+  `Speaker.begin()`; Töne sind solange aus. Kein PSRAM: Eine Aufgabe reicht drei 256-ms-Puffer reihum an
+  `Mic.record()` und schreibt den fertigen in `/haloos/sprache.wav` (16 kHz, mono, 16 Bit; SD-Karte, sonst
+  LittleFS – dort begrenzt der freie Platz die Dauer auf rund 40 s). Hochgeladen wird die Datei in 2-KB-Stücken
+  von Hand über `WiFiClientSecure` (der Zeitrahmen von `HTTPClient` endet bei 65 s; hier 120 s), danach
+  gelöscht. `Platform::aufnahme*` kapselt das; im PC-Test ist das Mikrofon eine WAV-Datei.
 - **Netz in eigener Aufgabe.** Ein TLS-Handshake dauert auf dem ESP32-S3 1–3 s, bei schwachem Hotspot länger.
   Blockierend in `loop()` stünden so lange Tasten, Kirchturm-Uhr und Läuten. Deshalb bearbeitet eine
   FreeRTOS-Aufgabe (Kern 0) genau eine Anfrage; die Oberfläche fragt nur ab (`Net::poll`) und zeigt „lädt …“.
@@ -89,14 +101,14 @@ PATH="$W/venv/bin:$PATH" ARDUINO_CLI=$W/bin/arduino-cli ARDUINO_CONFIG=$W/arduin
 
 Core `esp32:esp32@2.0.17`, Board „ESP32S3 Dev Module“ (8 MB, DIO, `default_8MB`, USB-CDC), Bibliotheken
 M5Unified 0.2.29, M5GFX 0.2.36, NimBLE-Arduino 2.5.2 und M5Cardputer 1.2.0 (nur als Git-Tag erhältlich; die
-`library.properties` darin nennt noch 1.1.1). Ergebnis: `release/agentendorf-cardputer-1.1.bin` (für `0x0`),
+`library.properties` darin nennt noch 1.1.1). Ergebnis: `release/agentendorf-cardputer-1.2.bin` (für `0x0`),
 `…-nur-programm.bin` (für `0x10000`) und `SHA256.txt`. Bei gleichen Pfaden entsteht Bit für Bit dieselbe Datei.
 
-Stand 1.1: Programm 1 551 885 Bytes (46 % von 3,3 MB), feste Variablen 122 968 Bytes (davon 64 800 der
+Stand 1.2: Programm 1 568 237 Bytes (46 % von 3,3 MB), feste Variablen 123 096 Bytes (davon 64 800 der
 Bildspeicher). Eigener Code ohne Warnungen (`--warnings all`, Warnung = Abbruch); die sechs Warnungen im
 Protokoll stammen aus NimBLE-Arduino selbst (`BLE_HS_HCI_ERR`, wie schon bei HaloOS).
 
-`tools/zip.sh` packt danach `release/agentendorf-cardputer-1.1.zip` für Leif (ANLEITUNG.md, beide `.bin`,
+`tools/zip.sh` packt danach `release/agentendorf-cardputer-1.2.zip` für Leif (ANLEITUNG.md, beide `.bin`,
 `SHA256.txt`, `bilder/`); die ZIP steht in `.gitignore`.
 
 ## Tests
@@ -108,7 +120,8 @@ test/host-test.sh      # braucht nur g++ und python3
 Übersetzt `core/` für den PC (`-Wall -Wextra -Werror`), startet den Testserver und spielt die App per
 Tastendruck durch: Startmenü, WLAN einrichten (falsches/richtiges Passwort), koppeln (falscher/richtiger Code),
 Startseite, bekannte Netze (verstecktes Netz ohne Suche, Vorrang, sehr schwaches Netz, Wechsel ins Heimnetz,
-falsches gespeichertes Passwort, keine Dauerschleife ohne Netz), To-dos (anlegen, abhaken, Teilschritt, löschen, heute), Bürgermeister (Polling bis „fertig“,
+falsches gespeichertes Passwort, keine Dauerschleife ohne Netz), Spracheingabe (To-do, Bürgermeister, Notiz,
+Abbruch, 60-s-Grenze, wenig Speicher, 503/413, ohne Netz, Passwortfelder ohne Sprache), To-dos (anlegen, abhaken, Teilschritt, löschen, heute), Bürgermeister (Polling bis „fertig“,
 Weiterreden), Kirchturm (Pomodoro, Pause, nächste Phase, Einstellungen, Wecker, Timer, Läuten im Hintergrund,
 Quittieren), Kalender, Freigaben (Ja/Nein mit Begründung), Heute, Fristen, Gewohnheiten, Post, Notiz, Offline
 (letzter Stand, Warteschlange, Funkloch mit verlorener Antwort → genau einmal), Neustart mit automatischem
@@ -121,9 +134,9 @@ Von Hand ausprobieren: `python3 test/testserver.py 8123`, dann `build/dorf-host`
 
 | Wo | Was |
 |---|---|
-| NVS `dorf` | `wlan` (bis zu 8 Netze mit Passwort, Reihenfolge = Vorrang, Merker „versteckt“), `adresse`, `token`, `laut`, `modus` – unverschlüsselt |
+| NVS `dorf` | `wlan` (bis zu 8 Netze mit Passwort, Reihenfolge = Vorrang, Merker „versteckt“), `adresse`, `token`, `laut`, `modus`, neu in 1.2: `mikro` – unverschlüsselt. Format seit 1.0/1.1 unverändert (Update mit `…-nur-programm.bin` an `0x10000` behält alles) |
 | NVS `haloos` | `fb` – Einstellungen der Fernbedienung (wie HaloOS 0.3) |
-| `/haloos/` auf SD-Karte, sonst LittleFS | `dorf-warten.txt` (Warteschlange), `c-*.json` (letzter Stand), `cardo.txt` (Hub-Abgleich) |
+| `/haloos/` auf SD-Karte, sonst LittleFS | `dorf-warten.txt` (Warteschlange), `c-*.json` (letzter Stand), `sprache.wav` (nur während einer Spracheingabe), `cardo.txt` (Hub-Abgleich) |
 
 ## Nicht enthalten
 

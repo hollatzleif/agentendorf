@@ -1,4 +1,49 @@
-# Agentendorf auf dem Cardputer Adv – Firmware 1.1
+# Agentendorf auf dem Cardputer Adv – Firmware 1.2
+
+## Update von 1.1 auf 1.2 (Einstellungen bleiben)
+
+Du hast schon 1.1 auf dem Cardputer? Dann nur diese vier Blöcke – **WLAN-Netze, Kopplung mit dem Dorf und alle
+anderen Einstellungen bleiben erhalten**, weil nur das Programm ersetzt wird. Cardputer per USB-C an den PC,
+einschalten, PowerShell öffnen. Jeden Block einzeln kopieren, einfügen, Enter.
+
+**1. Neue ZIP auspacken** (in denselben Ordner wie beim letzten Mal; `agentendorf-cardputer-1.2.zip` liegt in „Downloads“)
+
+```powershell
+$zip = Get-ChildItem "$HOME\Downloads\agentendorf-cardputer-1.2*.zip" | Sort-Object LastWriteTime | Select-Object -Last 1; Unblock-File $zip.FullName; Expand-Archive -Force $zip.FullName "$HOME\Agentendorf-Cardputer"; cd "$HOME\Agentendorf-Cardputer"; dir
+```
+
+**2. Prüfsumme der Update-Datei** – erwartet: `True`
+
+```powershell
+cd "$HOME\Agentendorf-Cardputer"; (Get-FileHash agentendorf-cardputer-1.2-nur-programm.bin -Algorithm SHA256).Hash.ToLower() -eq ((Get-Content SHA256.txt)[1] -split ' ')[0]
+```
+
+**3. Verbindung prüfen** (das Flash-Werkzeug ist vom letzten Mal noch da; fehlt der Ordner `.venv`, zuerst
+Teil 1, Schritt 3)
+
+```powershell
+cd "$HOME\Agentendorf-Cardputer"; .\.venv\Scripts\python.exe -m esptool --chip esp32s3 flash_id
+```
+
+Erwartet: `Chip is ESP32-S3`. Kommt `Failed to connect`: Download-Modus (Cardputer aus, **G0** gedrückt halten,
+einschalten, loslassen) und den Befehl wiederholen.
+
+**4. Nur das Programm aufspielen** – an die Adresse `0x10000`, **nicht** `0x0`:
+
+```powershell
+cd "$HOME\Agentendorf-Cardputer"; .\.venv\Scripts\python.exe -m esptool --chip esp32s3 write_flash 0x10000 agentendorf-cardputer-1.2-nur-programm.bin
+```
+
+Erwartet: `Hash of data verified.` und `Hard resetting`. Der Cardputer startet neu, oben steht
+„HaloOS · Agentendorf 1.2“. `2` drücken – er verbindet sich mit deinem WLAN und ist weiter gekoppelt.
+(Deine Sicherung vom ersten Mal, `cardputer-sicherung-vor-agentendorf.bin`, gilt weiter.)
+
+**Nicht** für das Update verwenden: `agentendorf-cardputer-1.2.bin` an `0x0` – das ist das volle Abbild für
+die Erstinstallation (Teil 1) und löscht WLAN-Netze und Kopplung.
+
+---
+
+## Was der Cardputer kann
 
 Beim Einschalten zeigt der Cardputer ein Startmenü:
 
@@ -7,7 +52,12 @@ Beim Einschalten zeigt der Cardputer ein Startmenü:
    **Kirchturm** (Pomodoro, Timer, Wecker), **Kalender**, **Freigaben**, **Fristen**, **Gewohnheiten**,
    **Notiz**, **Post**. Alles als Listen – das 3D-Dorf gibt es hier nicht.
 
-**Neu in 1.1 – bekannte Netze:** Der Cardputer merkt sich bis zu acht WLANs (Heimnetz, Handy-Hotspot, …)
+**Neu in 1.2 – Spracheingabe:** In jeder Texteingabe (To-do, Nachricht an den Bürgermeister, Notiz, Termin,
+Begründung, Timer-Name …) **`tab` drücken, sprechen, nochmal `tab`** – der Cardputer nimmt auf, das Dorf
+schreibt ab, und der Text steht im Feld. Du kannst ihn korrigieren; erst `Enter` schickt ihn ab. Auf der
+Startseite gibt es dazu „Sprechen → Bürgermeister“.
+
+**Seit 1.1 – bekannte Netze:** Der Cardputer merkt sich bis zu acht WLANs (Heimnetz, Handy-Hotspot, …)
 und verbindet sich von selbst mit dem, das gerade da ist. Die Reihenfolge in der Liste ist der Vorrang.
 Er findet auch Netze, die in der Suche nicht auftauchen (iPhone-Hotspot, versteckte Netze), und wechselt
 unterwegs vom Hotspot zurück ins Heimnetz, sobald es auftaucht.
@@ -20,25 +70,27 @@ Punkt ist beim nächsten Einschalten vorgewählt.
 
 ---
 
-## Teil 1: Aufspielen (Windows-PC, PowerShell)
+## Teil 1: Erstinstallation (Windows-PC, PowerShell)
 
-Du brauchst: den Cardputer, ein USB-C-**Daten**kabel und `agentendorf-cardputer-1.1.zip` im Ordner
+Nur für einen Cardputer, auf dem noch **keine** Agentendorf-Firmware ist. Von 1.1 kommend: siehe ganz oben.
+
+Du brauchst: den Cardputer, ein USB-C-**Daten**kabel und `agentendorf-cardputer-1.2.zip` im Ordner
 „Downloads“. Python ist auf dem PC schon da. PowerShell öffnen (Windows-Taste, „PowerShell“ tippen, Enter).
 **Jeden Block einzeln kopieren, einfügen, Enter.**
 
 **1. Auspacken** – nach `Agentendorf-Cardputer` in deinem Benutzerordner:
 
 ```powershell
-$zip = Get-ChildItem "$HOME\Downloads\agentendorf-cardputer-1.1*.zip" | Sort-Object LastWriteTime | Select-Object -Last 1; Unblock-File $zip.FullName; Expand-Archive -Force $zip.FullName "$HOME\Agentendorf-Cardputer"; cd "$HOME\Agentendorf-Cardputer"; dir
+$zip = Get-ChildItem "$HOME\Downloads\agentendorf-cardputer-1.2*.zip" | Sort-Object LastWriteTime | Select-Object -Last 1; Unblock-File $zip.FullName; Expand-Archive -Force $zip.FullName "$HOME\Agentendorf-Cardputer"; cd "$HOME\Agentendorf-Cardputer"; dir
 ```
 
-Du siehst: `ANLEITUNG.md`, `agentendorf-cardputer-1.1.bin`, `agentendorf-cardputer-1.1-nur-programm.bin`,
+Du siehst: `ANLEITUNG.md`, `agentendorf-cardputer-1.2.bin`, `agentendorf-cardputer-1.2-nur-programm.bin`,
 `SHA256.txt` und den Ordner `bilder`.
 
 **2. Prüfsumme** – ist die Datei heil angekommen? Erwartet: `True`
 
 ```powershell
-cd "$HOME\Agentendorf-Cardputer"; (Get-FileHash agentendorf-cardputer-1.1.bin -Algorithm SHA256).Hash.ToLower() -eq ((Get-Content SHA256.txt)[0] -split ' ')[0]
+cd "$HOME\Agentendorf-Cardputer"; (Get-FileHash agentendorf-cardputer-1.2.bin -Algorithm SHA256).Hash.ToLower() -eq ((Get-Content SHA256.txt)[0] -split ' ')[0]
 ```
 
 **3. Flash-Werkzeug einrichten** (einmalig, ca. 1 Minute; landet nur in diesem Ordner)
@@ -74,13 +126,13 @@ Prüfen – es muss genau `8388608` herauskommen:
 **6. Agentendorf aufspielen**
 
 ```powershell
-cd "$HOME\Agentendorf-Cardputer"; .\.venv\Scripts\python.exe -m esptool --chip esp32s3 write_flash 0x0 agentendorf-cardputer-1.1.bin
+cd "$HOME\Agentendorf-Cardputer"; .\.venv\Scripts\python.exe -m esptool --chip esp32s3 write_flash 0x0 agentendorf-cardputer-1.2.bin
 ```
 
 Erwartet am Ende: `Hash of data verified.` und `Hard resetting`.
 
 **7. Neustart.** Der Cardputer startet von selbst neu und zeigt das Startmenü, oben steht
-„HaloOS · Agentendorf 1.1“. Bleibt der Bildschirm dunkel (nach Download-Modus von Hand): einmal aus- und
+„HaloOS · Agentendorf 1.2“. Bleibt der Bildschirm dunkel (nach Download-Modus von Hand): einmal aus- und
 einschalten.
 
 Was beim Aufspielen verloren geht: die im Cardputer gespeicherten **Einstellungen der Fernbedienung** (der Hub
@@ -165,11 +217,32 @@ Geräte), zeigt er „Neu koppeln“.
 | `,` (Pfeil links) | zurück · Einstellungen: Wert − · WLAN: Vorrang höher |
 | `` ` `` (Esc) | zurück · auf der Agentendorf-Startseite: zum Startmenü (mit Rückfrage, Neustart) |
 | del | löschen bzw. stoppen (mit Rückfrage) · im Textfeld: Zeichen löschen |
-| tab | To-dos: zwischen „offen“ und „heute“ wechseln · Kirchturm: Menü · WLAN: Passwort neu |
+| tab | **in jeder Texteingabe: Spracheingabe starten/stoppen** · To-dos: zwischen „offen“ und „heute“ wechseln · Kirchturm: Menü · WLAN: Passwort neu |
 | opt + a / o / u / s | ä ö ü ß (mit Shift: Ä Ö Ü) · opt + e = € |
 | einfach lostippen | To-dos: neues To-do · Bürgermeister: neue Nachricht |
 | irgendeine Taste, wenn der Kirchturm läutet | Klingeln quittieren |
 | Seitentaste | Bildschirm wecken · im Fernbedienungs-Modus 3 s halten: Startmenü |
+
+**Spracheingabe.** Geht in jeder Texteingabe außer bei WLAN-Name, Passwort und Dorf-Adresse; unten steht
+dort „Tab sprechen“.
+
+![Aufnahme](docs/bilder/17-sprache-aufnahme.png)
+
+1. `tab` – die Aufnahme läuft: Sekunden, Höchstdauer und ein Pegel-Balken (schlägt er kaum aus, näher
+   herangehen oder unter Einstellungen → **Mikrofon** auf „laut“ stellen; ist er dauernd rot: „leise“).
+2. Sprechen. Das Mikrofon sitzt im Gehäuse – ob genug ankommt, zeigt der Pegel-Balken.
+3. `tab` oder `Enter` – fertig. Es erscheint „Schreibe ab …“; das dauert etwa so lang wie die Aufnahme, bei
+   langen Aufnahmen länger. `Esc` bricht ab (während der Aufnahme: verwirft sie).
+4. Der Text wird **hinten an das angehängt, was schon im Feld steht** – nichts wird von selbst abgeschickt.
+   Korrigieren mit `del` und Tippen, dann `Enter`.
+
+- Höchstens **60 Sekunden** je Aufnahme; danach stoppt sie von selbst und wird abgeschrieben. **Ohne
+  SD-Karte** ist der interne Speicher die Grenze – dann sind es etwa 40 Sekunden (die Anzeige nennt die Zahl).
+- Braucht **WLAN und das Dorf** („Spracheingabe braucht Verbindung“). Die Aufnahme wird nicht aufgehoben:
+  Der Cardputer löscht sie nach dem Hochladen, das Dorf nach dem Abschreiben; abgeschrieben wird im Dorf
+  selbst, nicht in einer Cloud.
+- Während der Aufnahme ist der Lautsprecher stumm (Kirchturm-Töne kommen danach wieder).
+- Startseite → **„Sprechen → Bürgermeister“** nimmt sofort auf und schlägt den Text als neue Nachricht vor.
 
 **To-dos.** Text tippen und `Enter` – das Dorf deutet ihn wie in der App: „Mathe Übung 3 morgen !“ wird
 ein wichtiges To-do für morgen (`morgen`, `fr`, `24.12.`, `30 min`, `!`). `Enter` hakt ab, `/` zeigt die
@@ -227,13 +300,12 @@ cd "$HOME\Agentendorf-Cardputer"; .\.venv\Scripts\python.exe -m esptool --chip e
 
 ### Spätere Versionen aufspielen, ohne neu einzurichten
 
-Das volle Abbild (Teil 1, Schritt 6) löscht auch die gespeicherten WLAN-Netze und die Kopplung. Ist schon
-eine Agentendorf-Firmware auf dem Cardputer, reicht für eine neuere Fassung die **Nur-Programm-Datei** – WLAN,
-Kopplung und Warteschlange bleiben. Neue ZIP wie in Schritt 1 auspacken, dann (Versionsnummer der neuen
-Datei einsetzen):
+Immer wie ganz oben („Update von 1.1 auf 1.2“): neue ZIP auspacken und die **Nur-Programm-Datei** an `0x10000`
+schreiben – WLAN, Kopplung und Warteschlange bleiben. Das volle Abbild (Teil 1, Schritt 6) löscht sie.
+Versionsnummer der neuen Datei einsetzen:
 
 ```powershell
-cd "$HOME\Agentendorf-Cardputer"; .\.venv\Scripts\python.exe -m esptool --chip esp32s3 write_flash 0x10000 agentendorf-cardputer-1.1-nur-programm.bin
+cd "$HOME\Agentendorf-Cardputer"; .\.venv\Scripts\python.exe -m esptool --chip esp32s3 write_flash 0x10000 agentendorf-cardputer-1.2-nur-programm.bin
 ```
 
 Nur verwenden, wenn schon eine Agentendorf-Firmware drauf ist – sonst Schritt 6.
@@ -245,12 +317,21 @@ Nur verwenden, wenn schon eine Agentendorf-Firmware drauf ist – sonst Schritt 
 - **Geprüft (am PC, mit genau dem Code, der auf dem Cardputer läuft):** Startmenü, WLAN-Einrichtung, Koppeln,
   alle Ansichten und Abläufe oben, die Warteschlange ohne Netz (auch: Antwort geht verloren, es kommt trotzdem
   nur einmal an; Neustart dazwischen), „offline, Stand …“, das Läuten im Hintergrund, 401 → „Neu koppeln“.
-  Neu in 1.1: falsches Passwort, verstecktes Netz wird ohne Suche gefunden, Vorrang bei mehreren Netzen, sehr
-  schwaches Netz wird übergangen, Wechsel ins Heimnetz, keine Dauerschleife ohne Netz. 140 Prüfungen gegen
-  einen nachgebauten Server und ein **nachgestelltes** WLAN. Die Bilder stammen aus diesem Test.
+  Seit 1.1: falsches Passwort, verstecktes Netz wird ohne Suche gefunden, Vorrang bei mehreren Netzen, sehr
+  schwaches Netz wird übergangen, Wechsel ins Heimnetz, keine Dauerschleife ohne Netz. Neu in 1.2: Sprache in
+  To-do, Bürgermeister und Notiz, Text landet im Feld und wird nicht abgeschickt, Abbruch, 60-Sekunden-Grenze,
+  Fehler vom Dorf, ohne Netz. 177 Prüfungen gegen einen nachgebauten Server, ein **nachgestelltes** WLAN und
+  ein **nachgestelltes** Mikrofon (eine Tondatei). Die Bilder stammen aus diesem Test.
 - **Übersetzt** mit der offiziellen ESP32-S3-Werkzeugkette (Arduino-Core 2.0.17), eigener Code ohne Warnungen;
   das Programm belegt 46 % des Platzes.
+- **Das Update lässt die Einstellungen in Ruhe:** Startlader und Aufteilung des Speichers sind in 1.2 Bit für
+  Bit dieselben wie in 1.1 (verglichen), das Programm liegt an derselben Stelle (`0x10000`, 1,6 von 3,3 MB),
+  und die gespeicherten Werte haben dasselbe Format; neu ist nur ein zusätzlicher Wert für das Mikrofon.
 - **Noch nie auf einem echten Cardputer gelaufen.** Am PC nicht prüfbar und deshalb zuerst ansehen:
+  - **Mikrofon:** Der Weg ist aus dem Quelltext der M5Stack-Bibliothek abgelesen (Codec ES8311, Lautsprecher
+    aus → Mikrofon an → zurück), aber nie am Gerät gehört. Zuerst eine kurze Aufnahme probieren: Schlägt der
+    Pegel aus? Kommt sinnvoller Text? Geht danach der Ton wieder (Einstellungen → Lautstärke piept)? Wenn
+    der Text Lücken hat, kommt der interne Speicher beim Mitschreiben nicht nach – dann hilft eine SD-Karte.
   - **WLAN am echten Funkchip:** Verbindet er sich mit Heimnetz und Hotspot? Findet er den iPhone-Hotspot
     ohne offene Hotspot-Seite (das hängt auch vom iPhone ab)? Klappt der Wechsel Hotspot → Heimnetz? Meldet
     er ein falsches Passwort zügig?

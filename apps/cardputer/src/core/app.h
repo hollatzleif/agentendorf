@@ -18,7 +18,7 @@
 
 namespace haloos {
 
-constexpr const char* FIRMWARE_VERSION = "1.1";
+constexpr const char* FIRMWARE_VERSION = "1.2";
 
 enum class Sound { FocusStart, ShortBreak, LongBreak, BreakEnd, AllDone, Test };
 
@@ -38,10 +38,18 @@ public:
     virtual bool readFile(const std::string& name, std::string& out) = 0;
     virtual bool writeFile(const std::string& name, const std::string& data) = 0;
     virtual std::string storageName() const = 0;         // "SD-Karte" oder "intern"
+    virtual void removeFile(const std::string& name) = 0;
     virtual uint32_t freeHeap() const { return 0; }      // freier Arbeitsspeicher in Bytes (0 = unbekannt)
+    // Mikrofon (Spracheingabe): nimmt als WAV (PCM 16 Bit, mono, 16 kHz) direkt in eine Datei auf - nie ins RAM.
+    // Waehrend der Aufnahme bleibt der Lautsprecher stumm (beide haengen am selben Codec).
+    virtual int aufnahmeMaxSek() = 0;                             // wie lange Platz ist (0 = kein Mikrofon/kein Platz)
+    virtual bool aufnahmeStart(const std::string& name) = 0;
+    virtual int aufnahmePegel() = 0;                              // 0..100, laufender Pegel
+    virtual bool aufnahmeStopp(bool behalten) = 0;                // Datei abschliessen (false = verwerfen/Fehler)
+    virtual void mikroStufe(int stufe) = 0;                       // Verstaerkung 1 leise, 2 normal, 3 laut
 };
 
-enum class K { Char, Enter, Del, Esc, Up, Down, Left, Right, Tab };
+enum class K { Char, Enter, Del, Esc, Up, Down, Left, Right, Tab };   // Tab = in Textfeldern: Spracheingabe
 struct Input {
     K k;
     std::string ch;   // bei K::Char das Zeichen (UTF-8)
@@ -57,6 +65,7 @@ public:
     virtual void draw(Gfx& g, App& app, uint32_t now) = 0;
     virtual void key(const Input& in, App& app, uint32_t now) = 0;
     virtual bool animated() const { return false; }    // zweimal je Sekunde neu zeichnen
+    virtual bool wach() const { return false; }        // Bildschirm hell halten (Aufnahme laeuft)
     virtual void tick(App&, uint32_t) {}               // nur fuer die oberste Ansicht
     virtual void netz(App&, const Ergebnis&, uint32_t) {}   // Antwort auf eine eigene Anfrage
     virtual std::string auswahl() const { return ""; }    // Text der gewaehlten Zeile (fuer Tests)

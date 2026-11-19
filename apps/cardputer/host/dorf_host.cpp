@@ -18,6 +18,9 @@
 //   WLAN <name>|<rssi>|<passwort oder - fuer offen>[|versteckt];...   Netze in Reichweite festlegen
 //                       (versteckt = verbindbar, fehlt aber in der Suche - wie ein iPhone-Hotspot)
 //   WLANWEG             WLAN-Verbindung bricht ab
+//   MIKRO <datei.wav>   Mikrofon nachstellen: diese WAV-Datei (16 kHz mono 16 Bit) wird "gehoert"; MIKRO aus = keins
+//   PLATZ <sekunden>    so viele Sekunden Aufnahme passen in den Speicher (Vorgabe 60)
+//   EINST mikrostufe    (Sonderfall) eingestellte Mikrofon-Verstaerkung ausgeben
 //   EINST <key>         gespeicherte Einstellung ausgeben
 //   SETZE <key> <wert>  Einstellung vorgeben
 //   DATEI <name>        Datei ausgeben (zwischen DATEI-BEGIN und DATEI-END)
@@ -25,7 +28,7 @@
 //   REMOTESHOT <datei> <verbunden 0|1>   Bildschirm des Fernbedienungs-Modus speichern
 //   BRIGHT              Helligkeit ausgeben
 //   Q
-// Ausgaben: "SCAN" je WLAN-Suche, "VERBINDE <name>" je Verbindungsversuch, "PLAY <ton> <lautstaerke>", "REMOTE" (Menuepunkt 1), "DORF" (Menuepunkt 2), "RESTART",
+// Ausgaben: "AUFNAHME start|fertig|verworfen", "SCAN" je WLAN-Suche, "VERBINDE <name>" je Verbindungsversuch, "PLAY <ton> <lautstaerke>", "REMOTE" (Menuepunkt 1), "DORF" (Menuepunkt 2), "RESTART",
 // "HTTP <methode> <pfad> <status>" je Anfrage und ". " am Ende jedes Befehls.
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -33,6 +36,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
@@ -73,8 +77,57 @@ public:
         dateien[name] = data;
         return true;
     }
+    void removeFile(const std::string& name) override { dateien.erase(name); }
     std::string storageName() const override { return "intern"; }
     uint32_t freeHeap() const override { return 187u * 1024u; }
+
+    // Nachgestelltes Mikrofon: Quelle ist eine WAV-Datei (16 kHz mono 16 Bit), die im Kreis "abgehoert" wird
+    std::string quelle;            // nur die Abtastwerte (ohne Kopf); leer = kein Mikrofon
+    int platzSek = 60;             // so viel passt in den Speicher
+    uint32_t jetzt = 0, aufnahmeSeit = 0;
+    bool nimmtAuf = false;
+    int stufe = 2;
+    std::string aufnahmeName;
+    int aufnahmeMaxSek() override { return quelle.empty() ? 0 : platzSek; }
+    bool aufnahmeStart(const std::string& name) override {
+        if (quelle.empty()) return false;
+        nimmtAuf = true;
+        aufnahmeSeit = jetzt;
+        aufnahmeName = name;
+        std::cout << "AUFNAHME start\n";
+        return true;
+    }
+    int aufnahmePegel() override {
+        if (!nimmtAuf) return 0;
+        const size_t n = quelle.size() / 2;
+        size_t pos = (static_cast<size_t>(jetzt - aufnahmeSeit) * 16) % n;
+        int peak = 0;
+        for (size_t i = 0; i < 1600; ++i) {
+            const size_t k = ((pos + i) % n) * 2;
+            const int v = static_cast<int16_t>(static_cast<uint8_t>(quelle[k]) | (static_cast<uint8_t>(quelle[k + 1]) << 8));
+            peak = std::max(peak, v < 0 ? -v : v);
+        }
+        return peak * 100 / 32768;
+    }
+    bool aufnahmeStopp(bool behalten) override {
+        if (!nimmtAuf) return false;
+        nimmtAuf = false;
+        std::cout << "AUFNAHME " << (behalten ? "fertig" : "verworfen") << "\n";
+        if (!behalten) return false;
+        const uint32_t bytes = (jetzt - aufnahmeSeit) * 32;      // 16000 Werte/s, 2 Bytes je Wert
+        std::string wav = "RIFF";
+        auto u32 = [&](uint32_t v) { for (int i = 0; i < 4; ++i) wav += static_cast<char>((v >> (8 * i)) & 0xFF); };
+        auto u16 = [&](uint32_t v) { for (int i = 0; i < 2; ++i) wav += static_cast<char>((v >> (8 * i)) & 0xFF); };
+        u32(36 + bytes);
+        wav += "WAVEfmt ";
+        u32(16); u16(1); u16(1); u32(16000); u32(32000); u16(2); u16(16);
+        wav += "data";
+        u32(bytes);
+        while (wav.size() < 44 + bytes) wav += quelle.substr(0, std::min<size_t>(quelle.size(), 44 + bytes - wav.size()));
+        dateien[aufnahmeName] = wav;
+        return true;
+    }
+    void mikroStufe(int s) override { stufe = s; }
 };
 
 struct SimNetz {
@@ -86,6 +139,7 @@ struct SimNetz {
 
 class HostNetz : public Net {
 public:
+    HostPlatform* plattform = nullptr;      // fuer das Hochladen von Dateien
     enum class Modus { An, Aus, Stumm };
     Modus modus = Modus::An;
     std::vector<SimNetz> sichtbar;
@@ -166,9 +220,14 @@ private:
         std::string req = std::string(a.post ? "POST " : "GET ") + a.pfad + " HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\nAccept: application/json\r\n";
         if (!a.token.empty()) req += "Authorization: Bearer " + a.token + "\r\n";
         if (!a.vorgang.empty()) req += "X-Vorgang: " + a.vorgang + "\r\n";
-        if (a.post) req += "Content-Type: application/json\r\nContent-Length: " + std::to_string(a.koerper.size()) + "\r\n";
+        std::string koerper = a.koerper, typ = "application/json";
+        if (!a.datei.empty()) {      // Datei hochladen (auf dem Geraet stueckweise, hier am Stueck)
+            if (!plattform || !plattform->readFile(a.datei, koerper)) return;
+            typ = a.inhaltTyp;
+        }
+        if (a.post) req += "Content-Type: " + typ + "\r\nContent-Length: " + std::to_string(koerper.size()) + "\r\n";
         req += "\r\n";
-        if (a.post) req += a.koerper;
+        if (a.post) req += koerper;
         size_t gesendet = 0;
         while (gesendet < req.size()) {
             const ssize_t n = send(fd, req.data() + gesendet, req.size() - gesendet, 0);
@@ -215,11 +274,13 @@ static Gfx g_gfx;
 int main() {
     HostPlatform plat;
     HostNetz netz;
+    netz.plattform = &plat;
     Clock clock;
     std::unique_ptr<App> app(new App(plat, netz, clock));
     uint32_t now = 1000;
     app->begin(now);
     auto takt = [&]() {
+        plat.jetzt = now;
         app->tick(now);
         if (plat.neustart) {      // wie ESP.restart(): alles Fluechtige ist weg
             plat.neustart = false;
@@ -252,6 +313,7 @@ int main() {
             in >> n;
             K k = n == "enter" ? K::Enter : n == "del" ? K::Del : n == "esc" ? K::Esc : n == "up" ? K::Up :
                   n == "down" ? K::Down : n == "left" ? K::Left : n == "right" ? K::Right : K::Tab;
+            plat.jetzt = now;
             app->input(Input{k, ""}, now);
             takt();
         } else if (cmd == "C") {
@@ -304,12 +366,26 @@ int main() {
                 s.offen = s.passwort == "-";
                 netz.sichtbar.push_back(s);
             }
+        } else if (cmd == "MIKRO") {      // MIKRO <datei.wav> | MIKRO aus
+            std::string p;
+            in >> p;
+            plat.quelle.clear();
+            if (p != "aus") {
+                std::ifstream f(p, std::ios::binary);
+                std::stringstream ss;
+                ss << f.rdbuf();
+                const std::string roh = ss.str();
+                if (roh.size() > 44) plat.quelle = roh.substr(44, (roh.size() - 44) & ~static_cast<size_t>(1));
+            }
+        } else if (cmd == "PLATZ") {
+            in >> plat.platzSek;
         } else if (cmd == "WLANWEG") {
             netz.wlanTrennen();
         } else if (cmd == "EINST") {
             std::string k;
             in >> k;
-            std::cout << "EINST " << plat.setting(k) << "\n";
+            if (k == "mikrostufe") std::cout << "EINST " << plat.stufe << "\n";
+            else std::cout << "EINST " << plat.setting(k) << "\n";
         } else if (cmd == "SETZE") {
             std::string k, v;
             in >> k;

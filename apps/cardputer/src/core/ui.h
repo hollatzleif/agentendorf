@@ -103,21 +103,36 @@ using YesCb = std::function<void(App&, uint32_t)>;
 
 class TextInputView : public View {
 public:
-    // roh = Passwort-Feld: das Zeichen ` wird getippt (abbrechen nur mit Esc = fn + `), nichts wird gekuerzt
+    // roh = Passwort-Feld: das Zeichen ` wird getippt (abbrechen nur mit Esc = fn + `), nichts wird gekuerzt,
+    // keine Spracheingabe
     TextInputView(std::string title, std::string label, std::string text, std::string hint, TextCb cb,
                   bool allowEmpty = false, size_t maxLen = 120, bool roh = false)
         : title_(std::move(title)), label_(std::move(label)), text_(std::move(text)), hint_(std::move(hint)),
           cb_(std::move(cb)), allowEmpty_(allowEmpty), maxLen_(maxLen), roh_(roh) {}
     bool animated() const override { return true; }
+    bool wach() const override { return sprache_ != Sprache::Aus; }
     void draw(Gfx& g, App& app, uint32_t now) override;
     void key(const Input& in, App& app, uint32_t now) override;
+    void tick(App& app, uint32_t now) override;
+    void netz(App& app, const Ergebnis& e, uint32_t now) override;
+    void gleichSprechen() { sofort_ = true; }      // Aufnahme startet beim Oeffnen
 
 private:
+    // Spracheingabe (Tab): aufnehmen -> hochladen -> der erkannte Text wird an der Schreibmarke (= am Ende)
+    // eingefuegt, nicht abgeschickt.
+    enum class Sprache { Aus, Aufnahme, Abschreiben };
+    void spracheStart(App& app, uint32_t now);
+    void spracheStopp(App& app, uint32_t now);
+    void einfuegen(const std::string& t);
     std::string title_, label_, text_, hint_;
     TextCb cb_;
     bool allowEmpty_;
     size_t maxLen_;
     bool roh_;
+    Sprache sprache_ = Sprache::Aus;
+    uint32_t spracheSeit_ = 0;
+    int maxSek_ = 0, lauf_ = 0, pegel_ = 0;
+    bool sofort_ = false;
 };
 
 class ChoiceView : public ListView {

@@ -149,14 +149,130 @@ void TextInputView::draw(Gfx& g, App& app, uint32_t now) {
         shown.erase(0, i);
     }
     const int w = g.text(FONT_BODY, 16, 68, shown, col::WHITE);
-    if ((now / 500) % 2 == 0) g.fill(17 + w, 56, 2, 15, col::ACCENT);
+    if (sprache_ == Sprache::Aus && (now / 500) % 2 == 0) g.fill(17 + w, 56, 2, 15, col::ACCENT);
+    if (sprache_ == Sprache::Aufnahme) {
+        const int sek = static_cast<int>((now - spracheSeit_) / 1000);
+        if ((now / 500) % 2 == 0) g.disc(16, 92, 5, col::RED);
+        g.text(FONT_BODY, 28, 97, "Aufnahme " + std::to_string(sek / 60) + ":" + two(sek % 60) + " / " +
+               std::to_string(maxSek_ / 60) + ":" + two(maxSek_ % 60), col::WHITE);
+        // Pegel
+        g.rrect(10, 104, 220, 6, 3, col::LINE);
+        const int p = std::max(0, std::min(100, pegel_));
+        if (p > 0) g.rrect(10, 104, std::max(6, 220 * p / 100), 6, 3, p > 90 ? col::RED : col::GREEN);
+        app.footer(g, "Tab oder Enter = fertig" + std::string(DOT) + "Esc verwerfen", col::AMBER);
+        return;
+    }
+    if (sprache_ == Sprache::Abschreiben) {
+        const int sek = static_cast<int>((now - spracheSeit_) / 1000);
+        g.text(FONT_BODY, 10, 97, "Schreibe ab \xE2\x80\xA6 " + std::to_string(sek) + " s", col::AMBER);
+        g.text(FONT_SMALL, 10, 111, "Dauert etwa so lang wie die Aufnahme.", col::TEXT2, Align::Left, 222);
+        app.footer(g, "Esc abbrechen", col::AMBER);
+        return;
+    }
     const auto lines = wrapText(FONT_SMALL, hint_, 222, 2);
     for (size_t i = 0; i < lines.size(); ++i) g.text(FONT_SMALL, 10, 93 + static_cast<int>(i) * 13, lines[i], col::TEXT2);
-    app.footer(g, "Enter OK" + std::string(DOT) + "Esc abbrechen" + DOT + (roh_ ? "Esc = fn + `" : "opt+a = \xC3\xA4"));
+    if (roh_) app.footer(g, "Enter OK" + std::string(DOT) + "Esc abbrechen" + DOT + "Esc = fn + `");
+    else app.footer(g, "Enter OK" + std::string(DOT) + "Esc" + DOT + "Tab sprechen" + DOT + "opt+a = \xC3\xA4");
+}
+
+void TextInputView::spracheStart(App& app, uint32_t now) {
+    Dorf& d = app.dorf;
+    if (!d.aktiv() || !d.verbunden() || !d.gekoppelt() || d.gesperrt()) {
+        app.toast("Spracheingabe braucht Verbindung", now);
+        return;
+    }
+    if (d.spracheLaeuft()) { app.toast("Letzte Aufnahme wird noch \xC3\xBC" "bertragen", now); return; }
+    maxSek_ = std::min(60, app.platform.aufnahmeMaxSek());
+    if (maxSek_ < 3) { app.toast("Kein Mikrofon oder kein Speicherplatz", now); return; }
+    if (!app.platform.aufnahmeStart(Dorf::SPRACH_DATEI)) { app.toast("Mikrofon l\xC3\xA4sst sich nicht starten", now); return; }
+    sprache_ = Sprache::Aufnahme;
+    spracheSeit_ = now;
+    pegel_ = 0;
+}
+
+void TextInputView::spracheStopp(App& app, uint32_t now) {
+    const uint32_t dauer = now - spracheSeit_;
+    sprache_ = Sprache::Aus;
+    if (dauer < 600) {
+        app.platform.aufnahmeStopp(false);
+        app.toast("Zu kurz \xE2\x80\x93 Tab, sprechen, Tab", now);
+        return;
+    }
+    if (!app.platform.aufnahmeStopp(true)) { app.toast("Aufnahme fehlgeschlagen (Speicher?)", now); return; }
+    if (!app.dorf.verbunden()) {      // Netz waehrend der Aufnahme verloren
+        app.platform.removeFile(Dorf::SPRACH_DATEI);
+        app.toast("Spracheingabe braucht Verbindung", now);
+        return;
+    }
+    sprache_ = Sprache::Abschreiben;
+    spracheSeit_ = now;
+    app.dorf.spracheSenden(kennung, ++lauf_);
+}
+
+void TextInputView::einfuegen(const std::string& t0) {
+    std::string t = t0;
+    for (auto& c : t)
+        if (c == '\n') c = ' ';
+    while (!t.empty() && t.back() == ' ') t.pop_back();
+    while (!t.empty() && t.front() == ' ') t.erase(0, 1);
+    if (!text_.empty() && text_.back() != ' ') t = " " + t;
+    for (size_t i = 0; i < t.size() && charCount(text_) < maxLen_;) {
+        const size_t st = i;
+        nextChar(t, i);
+        text_ += t.substr(st, i - st);
+    }
+}
+
+void TextInputView::tick(App& app, uint32_t now) {
+    if (sofort_) {
+        sofort_ = false;
+        spracheStart(app, now);
+    }
+    if (sprache_ != Sprache::Aufnahme) return;
+    pegel_ = app.platform.aufnahmePegel();
+    if (now - spracheSeit_ >= static_cast<uint32_t>(maxSek_) * 1000u) {
+        app.toast("H\xC3\xB6" "chstdauer erreicht", now);
+        spracheStopp(app, now);
+    }
+}
+
+void TextInputView::netz(App& app, const Ergebnis& e, uint32_t now) {
+    if (sprache_ != Sprache::Abschreiben || e.marke != lauf_) return;      // abgebrochen: Antwort verfaellt
+    sprache_ = Sprache::Aus;
+    if (!e.ok) {
+        app.toast(e.status == 0 ? "Keine Verbindung \xE2\x80\x93 Aufnahme verworfen" :
+                  e.status == 413 ? "Aufnahme zu lang" :
+                  e.status == 503 ? "Spracherkennung nicht verf\xC3\xBCgbar" : e.fehler, now);
+        return;
+    }
+    const std::string t = e.j["text"].text();
+    bool leer = true;
+    for (char c : t) leer = leer && (c == ' ' || c == '\n');
+    if (leer) { app.toast("Nichts verstanden", now); return; }
+    einfuegen(t);
 }
 
 void TextInputView::key(const Input& in, App& app, uint32_t now) {
-    if (in.k == K::Esc || (!roh_ && in.k == K::Char && in.ch == "`")) { app.pop(); return; }
+    const bool esc = in.k == K::Esc || (!roh_ && in.k == K::Char && in.ch == "`");
+    if (sprache_ == Sprache::Aufnahme) {
+        if (esc) {
+            sprache_ = Sprache::Aus;
+            app.platform.aufnahmeStopp(false);
+            app.toast("Aufnahme verworfen", now);
+        } else if (in.k == K::Tab || in.k == K::Enter) {
+            spracheStopp(app, now);
+        }
+        return;
+    }
+    if (sprache_ == Sprache::Abschreiben) {
+        if (esc) {
+            sprache_ = Sprache::Aus;
+            app.toast("Abgebrochen", now);
+        }
+        return;
+    }
+    if (esc) { app.pop(); return; }
+    if (in.k == K::Tab && !roh_) { spracheStart(app, now); return; }
     if (in.k == K::Del) { popChar(text_); return; }
     if (in.k == K::Enter) {
         std::string t = text_;
@@ -596,7 +712,7 @@ bool App::needsRender(uint32_t now) {
 
 int App::brightness(uint32_t now) const {
     const uint32_t idle = now - lastInput_;
-    if (dorf.alarm()) return 100;
+    if (dorf.alarm() || (!stack_.empty() && stack_.back()->wach())) return 100;
     if (idle < 30000 || static_cast<int32_t>(wakeUntil_ - now) > 0) return 100;
     if (idle < 120000) return 25;
     return 0;
@@ -615,10 +731,12 @@ void App::render(Gfx& g, uint32_t now) {
             g.text(FONT_TITLE, 120, 68 + static_cast<int>(i) * 18, lines[i], col::WHITE, Align::Center);
         g.text(FONT_SMALL, 120, 102, "beliebige Taste = leise", col::TEXT2, Align::Center);
     } else if (!toast_.empty()) {
-        const int w = std::min(228, Gfx::width(FONT_BODY, toast_) + 28);
+        // lange Meldungen in der kleinen Schrift, damit nichts abgeschnitten wird
+        const Font& f = Gfx::width(FONT_BODY, toast_) + 28 <= 228 ? FONT_BODY : FONT_SMALL;
+        const int w = std::min(228, Gfx::width(f, toast_) + 28);
         g.rrect(120 - w / 2, 98, w, 24, 8, col::SEL_BG);
         g.frame(120 - w / 2, 98, w, 24, 8, col::ACCENT);
-        g.text(FONT_BODY, 120, 114, toast_, col::WHITE, Align::Center, w - 16);
+        g.text(f, 120, 114, toast_, col::WHITE, Align::Center, w - 16);
     }
     lastDraw_ = now;
     dirty_ = false;

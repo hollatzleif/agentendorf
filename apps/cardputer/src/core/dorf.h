@@ -121,6 +121,14 @@ public:
     // Schreiben, das auch ohne Netz klappt: kommt in die Warteschlange und wird nachgeschickt.
     // Rueckgabe false = Warteschlange voll. text = kurze Beschreibung fuer die Anzeige.
     bool einreihen(const std::string& pfad, const std::string& koerper, const std::string& text, uint32_t now);
+    // Spracheingabe: Aufnahme-Datei hochladen, Antwort { text } geht an die Ansicht. Braucht Netz (keine
+    // Warteschlange). Die Datei loescht der Kern, sobald die Antwort da ist.
+    static constexpr const char* SPRACH_DATEI = "sprache.wav";
+    static constexpr uint32_t SPRACH_FRIST_MS = 120000;      // Abschreiben dauert ~1,5 x Aufnahmelaenge
+    void spracheSenden(uint32_t besitzer, int marke);
+    bool spracheLaeuft() const;
+    int mikro = 2;                         // Mikrofon-Verstaerkung 1..3 (NVS "mikro")
+    void mikroSetzen(int v);
     const std::deque<Wartend>& wartend() const { return wartend_; }
     uint32_t schreibStand() const { return schreibStand_; }   // zaehlt hoch, wenn etwas beim Server ankam
     void schreibStandErhoehen() { ++schreibStand_; }

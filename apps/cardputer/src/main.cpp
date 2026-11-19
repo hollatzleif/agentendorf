@@ -1,4 +1,4 @@
-// Agentendorf-Firmware fuer den M5Stack Cardputer Adv - Version 1.0 (auf Basis von HaloOS 0.3).
+// Agentendorf-Firmware fuer den M5Stack Cardputer Adv - Version 1.2 (auf Basis von HaloOS 0.3).
 //
 // Beim Einschalten erscheint ein Startmenue:
 //   1 Fernbedienung  - wie HaloOS 0.3: meldet Tasten, Akku und Bewegung per Bluetooth an den Hub der Brille
@@ -146,7 +146,155 @@ void queueSound(Sound s) {
     g_next_note = 0;
 }
 
+// ------------------------------------------------------------------ Mikrofon (Spracheingabe)
+// Cardputer Adv: Mikrofon und Lautsprecher haengen am selben Codec (ES8311) und teilen sich die I2S-Leitungen
+// BCK = G41 und WS = G43 (M5Unified.inl: board_M5CardputerADV, _microphone_enabled_cb_cardputer_adv setzt den
+// Codec zurueck und schaltet den ADC ein). Deshalb wie im Beispiel der Bibliothek (M5Cardputer/examples/Basic/
+// mic_wav_record): Speaker.end() -> Mic.begin() -> aufnehmen -> Mic.end() -> Speaker.begin(). Toene sind solange aus.
+//
+// Kein PSRAM: Es wird nie die ganze Aufnahme im RAM gehalten. Eine eigene Aufgabe reicht drei Puffer zu je
+// 4096 Werten (256 ms) reihum an Mic.record() - die Bibliothek fuellt immer einen und haelt einen in Reserve -
+// und schreibt den jeweils fertigen in die WAV-Datei. So darf ein Schreibvorgang bis ~250 ms haengen, ohne dass
+// Ton verloren geht. Der WAV-Kopf wird am Ende mit der wahren Laenge ueberschrieben.
+constexpr size_t AUFN_WERTE = 4096;
+constexpr uint32_t AUFN_RATE = 16000;
+constexpr uint32_t AUFN_BYTES_JE_SEK = AUFN_RATE * 2;
+
+struct Aufnahme {
+    volatile bool laeuft = false, stoppen = false, fertig = false, fehler = false;
+    volatile int pegel = 0;
+    volatile uint32_t bytes = 0;
+    int16_t* puffer[3] = {nullptr, nullptr, nullptr};
+    File datei;
+    std::string pfad;
+};
+Aufnahme g_aufn;
+uint8_t g_mikro_faktor = 16;      // mic_config_t::magnification (Vorgabe der Bibliothek: 16)
+
+void wavKopf(File& f, uint32_t datenBytes) {
+    uint8_t k[44];
+    auto u32 = [&](int at, uint32_t v) { for (int i = 0; i < 4; ++i) k[at + i] = static_cast<uint8_t>(v >> (8 * i)); };
+    auto u16 = [&](int at, uint16_t v) { k[at] = static_cast<uint8_t>(v); k[at + 1] = static_cast<uint8_t>(v >> 8); };
+    memcpy(k, "RIFF", 4);
+    u32(4, 36 + datenBytes);
+    memcpy(k + 8, "WAVEfmt ", 8);
+    u32(16, 16);
+    u16(20, 1);                     // PCM
+    u16(22, 1);                     // mono
+    u32(24, AUFN_RATE);
+    u32(28, AUFN_BYTES_JE_SEK);
+    u16(32, 2);
+    u16(34, 16);
+    memcpy(k + 36, "data", 4);
+    u32(40, datenBytes);
+    f.write(k, sizeof k);
+}
+
+void aufnahmeSchreiben(const int16_t* p) {
+    int peak = 0;
+    for (size_t i = 0; i < AUFN_WERTE; ++i) {
+        const int v = p[i] < 0 ? -p[i] : p[i];
+        if (v > peak) peak = v;
+    }
+    g_aufn.pegel = peak * 100 / 32768;
+    const size_t n = AUFN_WERTE * sizeof(int16_t);
+    if (g_aufn.datei.write(reinterpret_cast<const uint8_t*>(p), n) != n) g_aufn.fehler = true;   // Speicher voll?
+    else g_aufn.bytes = g_aufn.bytes + n;
+}
+
+void aufnahmeAufgabe(void*) {
+    size_t i = 0;
+    while (!g_aufn.stoppen && !g_aufn.fehler) {
+        // wartet, solange beide Plaetze der Bibliothek belegt sind; danach ist der Puffer von vor zwei Runden voll
+        if (!M5Cardputer.Mic.record(g_aufn.puffer[i % 3], AUFN_WERTE, AUFN_RATE)) {
+            g_aufn.fehler = true;
+            break;
+        }
+        if (i >= 2) aufnahmeSchreiben(g_aufn.puffer[(i - 2) % 3]);
+        ++i;
+    }
+    while (M5Cardputer.Mic.isRecording()) vTaskDelay(pdMS_TO_TICKS(5));     // die beiden letzten Puffer fertig fuellen
+    if (!g_aufn.fehler && i >= 2) aufnahmeSchreiben(g_aufn.puffer[(i - 2) % 3]);
+    if (!g_aufn.fehler && i >= 1) aufnahmeSchreiben(g_aufn.puffer[(i - 1) % 3]);
+    M5Cardputer.Mic.end();
+    if (!g_aufn.datei.seek(0)) g_aufn.fehler = true;
+    else wavKopf(g_aufn.datei, g_aufn.bytes);
+    g_aufn.datei.close();
+    M5Cardputer.Speaker.begin();      // Lautsprecher wieder an (Codec zurueck auf Wiedergabe)
+    g_aufn.fertig = true;
+    vTaskDelete(nullptr);
+}
+
+void aufnahmeAufraeumen() {
+    for (auto& p : g_aufn.puffer) {
+        free(p);
+        p = nullptr;
+    }
+    g_aufn.laeuft = false;
+}
+
+bool aufnahmeStart(const std::string& pfad) {
+    if (g_aufn.laeuft || !g_fs || !M5Cardputer.Mic.isEnabled()) return false;
+    g_notes.clear();
+    for (auto& p : g_aufn.puffer) p = static_cast<int16_t*>(malloc(AUFN_WERTE * sizeof(int16_t)));
+    if (!g_aufn.puffer[0] || !g_aufn.puffer[1] || !g_aufn.puffer[2]) { aufnahmeAufraeumen(); return false; }
+    if (g_fs->exists(pfad.c_str())) g_fs->remove(pfad.c_str());
+    g_aufn.datei = g_fs->open(pfad.c_str(), FILE_WRITE);
+    if (!g_aufn.datei) { aufnahmeAufraeumen(); return false; }
+    wavKopf(g_aufn.datei, 0);         // Platzhalter, wird am Ende ueberschrieben
+    M5Cardputer.Speaker.end();
+    auto cfg = M5Cardputer.Mic.config();
+    cfg.magnification = g_mikro_faktor;
+    M5Cardputer.Mic.config(cfg);
+    if (!M5Cardputer.Mic.begin()) {
+        g_aufn.datei.close();
+        g_fs->remove(pfad.c_str());
+        M5Cardputer.Speaker.begin();
+        aufnahmeAufraeumen();
+        return false;
+    }
+    g_aufn.pfad = pfad;
+    g_aufn.stoppen = g_aufn.fertig = g_aufn.fehler = false;
+    g_aufn.bytes = 0;
+    g_aufn.pegel = 0;
+    g_aufn.laeuft = true;
+    if (xTaskCreatePinnedToCore(aufnahmeAufgabe, "aufnahme", 4096, nullptr, 2, nullptr, 1) != pdPASS) {
+        M5Cardputer.Mic.end();
+        g_aufn.datei.close();
+        g_fs->remove(pfad.c_str());
+        M5Cardputer.Speaker.begin();
+        aufnahmeAufraeumen();
+        return false;
+    }
+    return true;
+}
+
+// Haelt die Oberflaeche kurz an (bis die letzten ~0,5 s Ton geschrieben sind)
+bool aufnahmeStopp(bool behalten) {
+    if (!g_aufn.laeuft) return false;
+    g_aufn.stoppen = true;
+    const uint32_t seit = millis();
+    while (!g_aufn.fertig && millis() - seit < 5000) delay(5);
+    const bool ok = g_aufn.fertig && !g_aufn.fehler && g_aufn.bytes > 0;
+    if (g_aufn.fertig) aufnahmeAufraeumen();      // sonst haengt die Aufgabe noch: Puffer lieber nicht freigeben
+    else g_aufn.laeuft = false;
+    if ((!ok || !behalten) && g_fs) g_fs->remove(g_aufn.pfad.c_str());
+    return ok && behalten;
+}
+
+// Wie viele Sekunden passen in den Speicher? Intern (LittleFS, 1,5 MB) reicht es fuer rund 40 s, mit SD-Karte fuer 60.
+int aufnahmeMaxSek() {
+    if (!g_fs || !M5Cardputer.Mic.isEnabled()) return 0;
+    if (g_sd) return 60;              // freien Platz auf grossen Karten zu zaehlen dauert Sekunden; Schreibfehler faengt die Aufnahme ab
+    const size_t gesamt = LittleFS.totalBytes(), belegt = LittleFS.usedBytes();
+    const size_t frei = gesamt > belegt ? gesamt - belegt : 0;
+    const size_t reserve = 96 * 1024;      // fuer Warteschlange, Zwischenspeicher und die Verwaltung des Dateisystems
+    if (frei <= reserve) return 0;
+    return static_cast<int>(std::min<size_t>(60, (frei - reserve) / AUFN_BYTES_JE_SEK));
+}
+
 void pumpSound(uint32_t now) {
+    if (g_aufn.laeuft) return;
     if (g_notes.empty() || static_cast<int32_t>(now - g_next_note) < 0) return;
     const Note n = g_notes.front();
     g_notes.pop_front();
@@ -190,6 +338,91 @@ private:
 
 QueueHandle_t g_netz_ein = nullptr, g_netz_aus = nullptr;
 
+// Datei hochladen (Spracheingabe) - von Hand ueber die TLS-Verbindung statt mit HTTPClient: dessen Zeitrahmen
+// ist ein uint16_t (hoechstens 65 s), das Abschreiben einer langen Aufnahme dauert laenger. Die Datei geht in
+// 2-KB-Stuecken raus, nie ganz in den Speicher. Eigene Verbindung (Connection: close).
+void hochladen(WiFiClientSecure& tls, const Anfrage& a, const std::string& host, uint16_t port, Antwort& r) {
+    if (!g_fs) { r.grund = "kein Speicher"; return; }
+    File f = g_fs->open((std::string(DIR) + "/" + a.datei).c_str(), FILE_READ);
+    if (!f) { r.grund = "Datei fehlt"; return; }
+    const size_t groesse = f.size();
+    if (!tls.connect(host.c_str(), port, VERBINDEN_MS)) {
+        f.close();
+        r.grund = "keine Verbindung";
+        return;
+    }
+    std::string kopf = "POST " + a.pfad + " HTTP/1.1\r\nHost: " + host + "\r\nAccept: application/json\r\nConnection: close\r\n";
+    if (!a.token.empty()) kopf += "Authorization: Bearer " + a.token + "\r\n";
+    kopf += "Content-Type: " + a.inhaltTyp + "\r\nContent-Length: " + std::to_string(groesse) + "\r\n\r\n";
+    bool ok = tls.write(reinterpret_cast<const uint8_t*>(kopf.data()), kopf.size()) == kopf.size();
+    uint8_t* stueck = static_cast<uint8_t*>(malloc(2048));
+    size_t gesendet = 0;
+    while (ok && stueck && gesendet < groesse) {
+        const int n = f.read(stueck, 2048);
+        if (n <= 0) break;
+        ok = tls.write(stueck, static_cast<size_t>(n)) == static_cast<size_t>(n);
+        gesendet += static_cast<size_t>(n);
+    }
+    free(stueck);
+    f.close();
+    if (!ok || gesendet != groesse) {
+        tls.stop();
+        r.grund = "Hochladen abgebrochen";
+        return;
+    }
+    // Antwort lesen: Geduld bis fristMs (der Server schreibt erst ab), dann Kopf und Text
+    const uint32_t frist = a.fristMs ? a.fristMs : LESEN_MS;
+    const uint32_t seit = millis();
+    std::string roh;
+    size_t kopfEnde = std::string::npos;
+    long laenge = -1;
+    while (millis() - seit < frist && roh.size() < MAX_ANTWORT) {
+        const int da = tls.available();
+        if (da > 0) {
+            char buf[256];
+            const int n = tls.read(reinterpret_cast<uint8_t*>(buf), std::min<int>(da, sizeof buf));
+            if (n > 0) roh.append(buf, static_cast<size_t>(n));
+            if (kopfEnde == std::string::npos) {
+                kopfEnde = roh.find("\r\n\r\n");
+                if (kopfEnde != std::string::npos) {
+                    std::string klein = roh.substr(0, kopfEnde);
+                    for (auto& c : klein) c = static_cast<char>(tolower(c));
+                    const size_t cl = klein.find("content-length:");
+                    if (cl != std::string::npos) laenge = atol(klein.c_str() + cl + 15);
+                    const size_t ra = klein.find("retry-after:");
+                    if (ra != std::string::npos) r.wartenSek = atoi(klein.c_str() + ra + 12);
+                }
+            }
+            if (kopfEnde != std::string::npos && laenge >= 0 && roh.size() >= kopfEnde + 4 + static_cast<size_t>(laenge)) break;
+        } else if (!tls.connected()) {
+            break;
+        } else {
+            vTaskDelay(pdMS_TO_TICKS(20));
+        }
+    }
+    tls.stop();
+    if (kopfEnde == std::string::npos || roh.size() < 12 || roh.compare(0, 5, "HTTP/") != 0) {
+        r.grund = "keine Antwort";
+        return;
+    }
+    r.status = atoi(roh.c_str() + 9);
+    std::string text = roh.substr(kopfEnde + 4);
+    if (laenge < 0 && !text.empty() && text[0] != '{') {      // ohne Laengenangabe gestueckelt (chunked): zusammensetzen
+        std::string ganz;
+        size_t i = 0;
+        while (i < text.size()) {
+            const size_t z = text.find("\r\n", i);
+            if (z == std::string::npos) break;
+            const size_t n = strtoul(text.c_str() + i, nullptr, 16);
+            if (n == 0 || z + 2 + n > text.size()) break;
+            ganz.append(text, z + 2, n);
+            i = z + 2 + n + 2;
+        }
+        text = ganz;
+    }
+    r.koerper = text;
+}
+
 void netzAufgabe(void*) {
     static WiFiClientSecure tls;
     static HTTPClient http;
@@ -220,9 +453,14 @@ void netzAufgabe(void*) {
                 tls.stop();
                 verbundenMit = host;
             }
+            if (!a->datei.empty()) {            // Spracheingabe: Datei hochladen, lange auf die Antwort warten
+                http.end();
+                tls.stop();
+                hochladen(tls, *a, host, port, *r);
+            }
             // Zweiter Versuch nur, wenn eine offen gehaltene Verbindung inzwischen tot war. Gefahrlos:
             // Lesen sowieso, Schreiben traegt X-Vorgang (der Server fuehrt nichts doppelt aus).
-            const int versuche = (!a->post || !a->vorgang.empty()) ? 2 : 1;
+            const int versuche = !a->datei.empty() ? 0 : (!a->post || !a->vorgang.empty()) ? 2 : 1;
             for (int v = 0; v < versuche; ++v) {
                 const bool warOffen = tls.connected();
                 http.setReuse(true);
@@ -375,6 +613,7 @@ void startRemote();
 class DevicePlatform : public Platform {
 public:
     void play(Sound s, int volume) override {
+        if (g_aufn.laeuft) return;      // waehrend der Aufnahme gehoert der Codec dem Mikrofon
         M5Cardputer.Speaker.setVolume(volume <= 1 ? 70 : volume >= 3 ? 230 : 150);
         queueSound(s);
     }
@@ -412,8 +651,20 @@ public:
         const std::string pfad = std::string(DIR) + "/" + name;
         return writeFileSafe(pfad.c_str(), (pfad + ".tmp").c_str(), nullptr, data);
     }
+    void removeFile(const std::string& name) override {
+        const std::string pfad = std::string(DIR) + "/" + name;
+        if (g_fs && g_fs->exists(pfad.c_str())) g_fs->remove(pfad.c_str());
+    }
     std::string storageName() const override { return g_sd ? "SD-Karte" : "intern"; }
     uint32_t freeHeap() const override { return ESP.getFreeHeap(); }
+    int aufnahmeMaxSek() override {
+        removeFile(Dorf::SPRACH_DATEI);      // ein liegengebliebener Rest zaehlt nicht als belegt
+        return ::aufnahmeMaxSek();
+    }
+    bool aufnahmeStart(const std::string& name) override { return ::aufnahmeStart(std::string(DIR) + "/" + name); }
+    int aufnahmePegel() override { return g_aufn.laeuft ? g_aufn.pegel : 0; }
+    bool aufnahmeStopp(bool behalten) override { return ::aufnahmeStopp(behalten); }
+    void mikroStufe(int stufe) override { g_mikro_faktor = stufe <= 1 ? 8 : stufe >= 3 ? 32 : 16; }
 };
 
 DevicePlatform g_platform;

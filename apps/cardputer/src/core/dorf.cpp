@@ -58,6 +58,9 @@ void Dorf::laden() {
     }
     const std::string laut = platform_.setting("laut");
     if (laut == "1" || laut == "2" || laut == "3") lautstaerke = laut[0] - '0';
+    const std::string mik = platform_.setting("mikro");
+    if (mik == "1" || mik == "2" || mik == "3") mikro = mik[0] - '0';
+    platform_.mikroStufe(mikro);
     wartend_.clear();
     std::string text;
     if (platform_.readFile(DATEI_SCHLANGE, text)) {
@@ -87,6 +90,33 @@ void Dorf::schlangeSpeichern() {
 void Dorf::lautstaerkeSetzen(int v) {
     lautstaerke = std::max(1, std::min(3, v));
     platform_.setSetting("laut", std::to_string(lautstaerke));
+}
+
+void Dorf::mikroSetzen(int v) {
+    mikro = std::max(1, std::min(3, v));
+    platform_.setSetting("mikro", std::to_string(mikro));
+    platform_.mikroStufe(mikro);
+}
+
+void Dorf::spracheSenden(uint32_t besitzer, int marke) {
+    Offen o;
+    o.besitzer = besitzer;
+    o.marke = marke;
+    o.a.post = true;
+    o.a.basis = basis();
+    o.a.pfad = "/api/geraet/sprache";
+    o.a.token = token_;
+    o.a.datei = SPRACH_DATEI;
+    o.a.inhaltTyp = "audio/wav";
+    o.a.fristMs = SPRACH_FRIST_MS;
+    einstellen(o);
+}
+
+bool Dorf::spracheLaeuft() const {
+    if (laeuft_ && !aktuell_.a.datei.empty()) return true;
+    for (const auto& o : offen_)
+        if (!o.a.datei.empty()) return true;
+    return false;
 }
 
 const WlanEintrag* Dorf::netz(const std::string& ssid) const {
@@ -470,7 +500,7 @@ void Dorf::abschicken(App& app, uint32_t now) {
             laeuft_ = false;
             const Offen o = std::move(aktuell_);
             antwort(app, o, r, now);
-        } else if (now - gestartet_ > ZEITLIMIT_MS) {
+        } else if (now - gestartet_ > ZEITLIMIT_MS + (aktuell_.a.fristMs ? aktuell_.a.fristMs + 30000 : 0)) {
             laeuft_ = false;
             const Offen o = std::move(aktuell_);
             r.id = o.a.id;
@@ -483,6 +513,10 @@ void Dorf::abschicken(App& app, uint32_t now) {
     Offen o = std::move(offen_.front());
     offen_.pop_front();
     if (o.art == Art::Ansicht && !o.a.post && !app.lebt(o.besitzer)) return;   // Ansicht schon zu
+    if (!o.a.datei.empty() && !app.lebt(o.besitzer)) {                         // Eingabe abgebrochen: nicht mehr hochladen
+        platform_.removeFile(o.a.datei);
+        return;
+    }
     Antwort r;
     r.id = o.a.id;
     if (o.art != Art::Koppeln && (o.a.token.empty() || gesperrt_)) {
@@ -512,6 +546,7 @@ void Dorf::abschicken(App& app, uint32_t now) {
 }
 
 void Dorf::antwort(App& app, const Offen& o, const Antwort& r, uint32_t now) {
+    if (!o.a.datei.empty()) platform_.removeFile(o.a.datei);      // Aufnahme nie aufbewahren
     const Json j = r.koerper.empty() ? Json() : Json::lesen(r.koerper);
     const bool ok = r.status >= 200 && r.status < 300 && j.gueltig();
     const bool verb = net_.wlanZustand() == WlanZustand::Verbunden;
@@ -742,7 +777,8 @@ void Dorf::kirchturmTick(App& app, uint32_t now) {
         abgelaufen_.push_back(key);
         app.wake(now, 15000);
         kirchturmFaellig_ = now + 700;       // gleich nachsehen, was der Server dazu sagt
-        if (net_.wlanZustand() != WlanZustand::Verbunden) {   // ohne Netz wenigstens selbst melden
+        // ohne Netz - oder wenn gerade eine Aufnahme abgeschrieben wird und der Abgleich wartet - selbst melden
+        if (net_.wlanZustand() != WlanZustand::Verbunden || spracheLaeuft()) {
             platform_.play(Sound::BreakEnd, lautstaerke);
             letzterTon_ = now;
             app.toast((u.titel.empty() ? std::string("Zeit") : u.titel) + " abgelaufen", now);

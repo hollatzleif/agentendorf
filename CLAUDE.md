@@ -125,7 +125,8 @@ apps/cardputer  E184/E193: Firmware für den M5Stack Cardputer Adv (aus HaloOS 0
                 Warteschlange mit X-Vorgang). Logik in src/core/ (läuft auch am PC: host/), Hardware in src/main.cpp.
                 Vertrag: API.md. Tests: test/host-test.sh (g++ + Nachbau-Server), test/vertrag_test.py (gegen den echten
                 e2e-Server). Bauen: tools/werkzeug.sh + tools/build.sh → release/*.bin, tools/zip.sh → ZIP für Leif (nicht im Repo).
-                WLAN (E193): bis 8 Netze mit Vorrang, versteckte Netze direkt versuchen, Wechsel ins Heimnetz. Anleitung: ANLEITUNG.md.
+                WLAN (E193): bis 8 Netze mit Vorrang, versteckte Netze direkt versuchen, Wechsel ins Heimnetz. Spracheingabe (E194): Tab in
+                jeder Texteingabe, Aufnahme als WAV in Datei (kein PSRAM), Upload an /api/geraet/sprache. Anleitung: ANLEITUNG.md.
 apps/coding     Codehaus (E191), eigener Container: openvscode-server (3000) + Runner der Werkstatt im Profil „coding“ (4000:
                 claude mit Bash/Edit/Write, bypassPermissions, /arbeit/<projekt>, Vault rw) + git, gh, Node, Python, Compiler. Netz
                 „codingnetz“ (Internet, erreicht nur Dorf und Caddy). Geheimnisse nur aus /srv/dorf/coding.env. Compose-Profil „coding“.
@@ -211,3 +212,4 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E190 (19.11.): Anhänge in allen Formaten – Chat/Schreibtisch/Telegram (auch Sprachnachrichten), Umwandlung nur im Rechenraum (Office, Mail, Archive, Bilder, OCR, Audio-Transkript, Video-Standbilder), Bürgermeister erzeugt Dateien (Rathaus/dateien/) – Abnahme mit echten Dateien auf dem Server steht aus
 - [x] E191 (19.11.): Codehaus – VS Code im Browser (code.<Dorf-Adresse>, nur über die Dorf-Anmeldung), Coding-Agenten mit Shell, Internet, GitHub und beschreibbarem Vault (Motor coding, nur im Gebäude Codehaus); Abnahme auf dem Server steht aus (`dorf coding-einrichten`, Image kommt mit dem zweiten Deploy)
 - [x] E194 (19.11., Server): Spracheingabe für Geräte – `POST /api/geraet/sprache` (WAV → Text über whisper.cpp im Rechenraum, nichts gespeichert)
+- [x] E194 (19.11., Firmware): Cardputer 1.2 – Spracheingabe überall (Tab), Update ohne Neu-Einrichten (Nur-Programm-Datei); Host-Test grün (177), Mikrofon nie am Gerät erprobt

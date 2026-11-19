@@ -27,6 +27,10 @@ struct Anfrage {
     std::string token;     // leer = ohne Authorization (nur beim Koppeln)
     std::string koerper;   // JSON bei POST
     std::string vorgang;   // X-Vorgang (leer = keine)
+    // Hochladen einer Datei statt koerper (Spracheingabe): Name wie bei Platform::readFile. Die Netz-Schicht
+    // schickt sie stueckweise (nie ganz im Speicher) mit diesem Content-Type.
+    std::string datei, inhaltTyp;
+    uint32_t fristMs = 0;  // so lange darf die Antwort auf sich warten lassen (0 = ueblich, ~10 s)
 };
 
 struct Antwort {
@@ -50,7 +54,7 @@ public:
     virtual std::string wlanName() = 0;                              // verbundenes Netz oder ""
 
     // HTTP: start() nimmt eine Anfrage an (false = es laeuft noch eine), poll() liefert die Antwort.
-    // Die Umsetzung garantiert eine Antwort nach spaetestens ~20 s (status 0 bei Fehler).
+    // Die Umsetzung garantiert eine Antwort nach spaetestens ~20 s bzw. fristMs + ~30 s (status 0 bei Fehler).
     virtual bool start(const Anfrage& a) = 0;
     virtual bool poll(Antwort& out) = 0;
     virtual bool nurHttps() const { return true; }                   // PC-Test: false

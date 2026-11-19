@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+import struct
 import sys
 import threading
 from datetime import datetime, timedelta, timezone
@@ -85,6 +86,11 @@ class Dorf:
         self.laufend: list[dict] = []
         self.klingelt: list[dict] = []
         self.termine_neu: list[dict] = []
+        # Spracheingabe (E194): der Nachbau "erkennt" immer den Text, den der Test vorgibt
+        self.sprache_text = "Das ist ein Test"
+        self.sprache_fehler = 0                 # 503 = Spracherkennung nicht verfügbar
+        self.sprache_max = 2 * 1024 * 1024      # höchstens 2 MB
+        self.sprache_aufnahmen: list[float] = []   # Länge jeder angenommenen Aufnahme in Sekunden
 
     # ---- Hilfen für den Test
     def anfragen(self, methode: str, pfad_teil: str) -> list[tuple[str, str, dict | None, str | None]]:
@@ -98,6 +104,24 @@ class Dorf:
         with self.sperre:
             self.code = code
             self.fehlversuche = 0
+
+    # ---- Spracheingabe
+    def sprache(self, typ: str, roh: bytes) -> tuple[int, dict]:
+        if len(roh) > self.sprache_max:
+            return 413, {"fehler": "Aufnahme zu lang"}
+        if self.sprache_fehler:
+            return self.sprache_fehler, {"fehler": "Spracherkennung gerade nicht verfügbar"}
+        # WAV prüfen: RIFF/WAVE, fmt = PCM, mono, 16 kHz, 16 Bit, data-Länge passt zur Datei
+        if not typ.startswith("audio/wav") or len(roh) < 44 or roh[:4] != b"RIFF" or roh[8:16] != b"WAVEfmt ":
+            return 400, {"fehler": "Kein gültiges WAV"}
+        riff, = struct.unpack("<I", roh[4:8])
+        fmt_len, art, kanaele, rate, byterate, block, bits = struct.unpack("<IHHIIHH", roh[16:36])
+        daten, = struct.unpack("<I", roh[40:44])
+        if (fmt_len, art, kanaele, rate, byterate, block, bits) != (16, 1, 1, 16000, 32000, 2, 16) or roh[36:40] != b"data" \
+                or daten != len(roh) - 44 or riff != len(roh) - 8 or daten % 2:
+            return 400, {"fehler": "Kein gültiges WAV"}
+        self.sprache_aufnahmen.append(daten / 32000)
+        return 200, {"text": self.sprache_text}
 
     # ---- Kirchturm
     def uhren_weiter(self) -> None:
@@ -377,6 +401,14 @@ def handler_fuer(dorf: Dorf):
 
         def do_POST(self) -> None:
             laenge = int(self.headers.get("Content-Length", "0"))
+            if self.path == "/api/geraet/sprache":      # Körper ist eine WAV-Datei, kein JSON
+                roh = self.rfile.read(laenge)
+                with dorf.sperre:
+                    dorf.protokoll.append(("POST", self.path, {"bytes": len(roh)}, self.headers.get("X-Vorgang")))
+                    if not self.angemeldet():
+                        return self.antworten(401, {"fehler": "Schlüssel ungültig"})
+                    status, daten = dorf.sprache(self.headers.get("Content-Type", ""), roh)
+                return self.antworten(status, daten)
             try:
                 k = json.loads(self.rfile.read(laenge).decode("utf-8") or "{}")
             except ValueError:
