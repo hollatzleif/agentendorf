@@ -164,15 +164,24 @@ export async function dorfStarten(
   const db = dbOeffnen(path.join(konfig.datenDir, 'dorf.db'));
   const vault = new VaultDienst(konfig.vaultDir, uhr);
   const angelegt = await vault.ausVorlage(konfig.vorlageDir);
+  // E195: Ein Problem an EINER Vorlagendatei (z. B. ein Symlink dort – dem folgt das Dorf nicht mehr) darf den Start nie verhindern
   for (const p of PFLICHT_DATEIEN) {
     const quelle = path.join(konfig.vorlageDir, p);
-    if (!(await vault.existiert(p)) && fs.existsSync(quelle)) await vault.schreiben(p, fs.readFileSync(quelle, 'utf8'), { nurNeu: true });
+    try {
+      if (!(await vault.existiert(p)) && fs.existsSync(quelle)) await vault.schreiben(p, fs.readFileSync(quelle, 'utf8'), { nurNeu: true });
+    } catch (e) {
+      console.warn(`Vorlage ${p} nicht ergänzt: ${(e as Error).message}`);
+    }
   }
   for (const [p, fassungen] of Object.entries(VORLAGE_FRUEHERE_FASSUNGEN)) {
     const quelle = path.join(konfig.vorlageDir, p);
-    if (!fs.existsSync(quelle) || !(await vault.existiert(p))) continue;
-    const jetzt = await vault.lesen(p);
-    if (fassungen.includes(jetzt.version)) await vault.schreiben(p, fs.readFileSync(quelle, 'utf8'), { basisVersion: jetzt.version });
+    try {
+      if (!fs.existsSync(quelle) || !(await vault.existiert(p))) continue;
+      const jetzt = await vault.lesen(p);
+      if (fassungen.includes(jetzt.version)) await vault.schreiben(p, fs.readFileSync(quelle, 'utf8'), { basisVersion: jetzt.version });
+    } catch (e) {
+      console.warn(`Vorlage ${p} nicht aktualisiert: ${(e as Error).message}`);
+    }
   }
   const suche = new Suchindex(db, vault);
   await suche.vollIndex();

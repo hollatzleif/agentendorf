@@ -182,3 +182,18 @@ describe('Symlinks im Vault werden nie verfolgt (E195)', () => {
     expect(abgewiesen).toBeGreaterThan(5);
   }, 20_000);
 });
+
+describe('Start trotz Symlink an einer Vorlagendatei (E195, Review 2)', () => {
+  it('Symlink an Rathaus/aktionen/buergermeister.md → Dorf startet trotzdem (nur Warnung)', async () => {
+    const { testDorf } = await import('./hilfen.js');
+    const { dorfStarten } = await import('../src/dorf.js');
+    const d = await testDorf();
+    await d.app.close();
+    const ziel = path.join(d.vault.wurzel, 'Rathaus/aktionen/buergermeister.md');
+    fs.rmSync(ziel);
+    fs.symlinkSync('/etc/hostname', ziel);
+    const d2 = await dorfStarten(d.konfig, { beobachten: false });
+    expect(fs.lstatSync(ziel).isSymbolicLink()).toBe(true); // nicht angefasst, nicht gefolgt
+    await d2.app.close();
+  });
+});
