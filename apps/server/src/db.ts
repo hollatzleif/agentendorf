@@ -410,6 +410,11 @@ const MIGRATIONEN: string[] = [
   ALTER TABLE laeufe ADD COLUMN anhaenge_json TEXT NOT NULL DEFAULT '[]';
   ALTER TABLE chat_warteschlange ADD COLUMN anhaenge_json TEXT NOT NULL DEFAULT '[]';
   `,
+  // 28: E195 – hat dieses Gespräch Inhalte von außen gesehen (Auftrag mit Fremdinhalt, hochgeladene/umgewandelte Anhänge,
+  // gelesene Mails/Web/Moodle/Kalender/Fremdinhalt-Dateien)? Coding-Helfer starten daraus nur mit Leifs Freigabe (E191).
+  `
+  ALTER TABLE chats ADD COLUMN fremd_beruehrt INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
 
 export function dbOeffnen(datei: string): DB {

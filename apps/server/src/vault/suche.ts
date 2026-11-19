@@ -1,4 +1,3 @@
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { Suchtreffer } from '@dorf/shared';
 import type { DB } from '../db.js';
@@ -41,10 +40,10 @@ export class Suchindex {
 
   async aktualisieren(rel: string) {
     if (!istText(rel)) return;
-    const abs = this.vault.abs(rel);
-    const st = await fs.stat(abs).catch(() => null);
+    // E195: nur über den VaultDienst (folgt keinem Symlink) – sonst läse der Index fremde Dateien in die Suche
+    const st = await this.vault.stat(rel, { versteckteErlaubt: true }).catch(() => null);
     if (!st || !st.isFile()) return this.entfernen(rel);
-    const inhalt = st.size > MAX_INDEX_BYTES ? '' : await fs.readFile(abs, 'utf8');
+    const inhalt = st.size > MAX_INDEX_BYTES ? '' : ((await this.vault.text(rel, { versteckteErlaubt: true, max: MAX_INDEX_BYTES }).catch(() => null)) ?? '');
     const titel = path.posix.basename(rel).replace(/\.[^.]+$/, '');
     this.db.transaction(() => {
       this.db.prepare('DELETE FROM suche WHERE pfad = ?').run(rel);

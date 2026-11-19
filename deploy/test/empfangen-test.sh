@@ -139,6 +139,14 @@ echo "Programme mitliefern, hat-programme, Teil-Bau: bestanden"
 # Codehaus (E191): Image nur bei Bedarf, fehlendes Image stoppt, alte Images werden aufgeräumt, hat-coding
 CA=4444444444444444; CB=5555555555555555; CC=6666666666666666
 [ ! -f "$AKTUELL/CODING_VERSION" ] || fehler "ohne Codehaus-Image darf es keine CODING_VERSION geben"
+# E195: Codehaus nicht eingerichtet (kein CODING_AN=ja) → „aus“: die CI baut und schickt das Image nicht. Kommt doch eines
+# (ältere CI), wird es weder geladen noch übernommen.
+[ "$(SSH_ORIGINAL_COMMAND="hat-coding $CA" cmd_ci)" = aus ] || fehler "hat-coding ohne Einrichtung sollte aus sein: $(SSH_ORIGINAL_COMMAND="hat-coding $CA" cmd_ci)"
+BROWSER="$BA" CODING="$CA:mit" cmd_empfangen < "$(BROWSER="$BA" CODING="$CA:mit" buendel v18c $RC)" >/dev/null || fehler "v18c (Codehaus-Image, aber nicht eingerichtet)"
+[ ! -e "$BILDER/c-$CA" ] || fehler "Codehaus-Image geladen, obwohl das Codehaus nicht eingerichtet ist"
+[ ! -f "$AKTUELL/CODING_VERSION" ] || fehler "CODING_VERSION übernommen, obwohl das Codehaus nicht eingerichtet ist"
+[ "$(cat "$AKTUELL/VERSION")" = v18c ] || fehler "v18c nicht aktiv"
+echo "CODING_AN=ja" >> "$DORF_BASIS/.env"
 [ "$(SSH_ORIGINAL_COMMAND="hat-coding $CA" cmd_ci)" = nein ] || fehler "hat-coding $CA sollte nein sein"
 BROWSER="$BA" CODING="$CA:mit" cmd_empfangen < "$(BROWSER="$BA" CODING="$CA:mit" buendel v19 $RC)" >/dev/null || fehler "v19 mit Codehaus-Image"
 [ "$(cat "$AKTUELL/CODING_VERSION")" = $CA ] || fehler "CODING_VERSION nicht übernommen"
@@ -163,7 +171,9 @@ source <(sed -n '/^compose() {/,/^}/p' "$HIER/../dorf")
 # shellcheck disable=SC1090
 source <(sed -n '/^coding_an() {/p' "$HIER/../dorf")
 docker() { [ "$1" = compose ] && echo "BV=$BROWSER_VERSION PROFIL=$COMPOSE_PROFILES"; }
-# Codehaus-Image da, aber nicht eingerichtet (kein CODING_AN) → kein Profil coding
+# Codehaus-Image da, aber nicht eingerichtet (kein CODING_AN) → kein Profil coding, und hat-coding meldet „aus“
+sed -i '/^CODING_AN=/d' "$DORF_BASIS/.env"
+[ "$(SSH_ORIGINAL_COMMAND="hat-coding $CC" cmd_ci)" = aus ] || fehler "hat-coding nach dem Ausschalten sollte aus sein"
 [ "$(compose ps)" = "BV=$BA PROFIL=browser" ] || fehler "Compose-Profil fehlt: $(compose ps)"
 echo "CODING_AN=ja" >> "$DORF_BASIS/.env"
 [ "$(compose ps)" = "BV=$BA PROFIL=browser,coding" ] || fehler "Profil coding fehlt trotz Schalter: $(compose ps)"

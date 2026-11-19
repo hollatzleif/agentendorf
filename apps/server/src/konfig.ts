@@ -19,6 +19,11 @@ const Schema = z.object({
     .string()
     .default('false')
     .transform((w) => w === 'true'),
+  // E195: nur diesen Absendern wird X-Forwarded-For geglaubt (Namen im Docker-Netz oder IP-Adressen, mit Komma getrennt)
+  VERTRAUTER_PROXY: z
+    .string()
+    .default('')
+    .transform((w) => w.split(',').map((x) => x.trim()).filter(Boolean)),
   DORF_VERSION: z.string().default('entwicklung'),
   LOG_LEVEL: z.string().default('info'),
   ANTHROPIC_API_KEY: z.string().optional(),
@@ -76,6 +81,8 @@ export interface Konfig {
   origins: string[];
   cookieSicher: boolean;
   hinterProxy: boolean;
+  /** E195: wem X-Forwarded-For geglaubt wird (leer + hinterProxy = nur der eigene Rechner) */
+  vertrauterProxy: string[];
   version: string;
   logLevel: string;
   motorAttrappe: boolean;
@@ -125,6 +132,7 @@ export function konfigLaden(env: NodeJS.ProcessEnv = process.env): Konfig {
     origins: e.ORIGIN.split(',').map((o) => o.trim().replace(/\/$/, '')).filter(Boolean),
     cookieSicher: e.COOKIE_SICHER,
     hinterProxy: e.HINTER_PROXY,
+    vertrauterProxy: e.VERTRAUTER_PROXY,
     version: e.DORF_VERSION,
     logLevel: e.LOG_LEVEL,
     motorAttrappe: e.DORF_MOTOR_ATTRAPPE,

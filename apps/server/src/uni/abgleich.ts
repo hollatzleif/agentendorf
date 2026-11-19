@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
-import fs from 'node:fs';
 import matter from 'gray-matter';
 import type Database from 'better-sqlite3';
 import type { AktionQuelle, QuellenOption, UniAbgleich, UniFach, UniFrist, UniKurs, UniUebersicht } from '@dorf/shared';
@@ -499,7 +498,7 @@ export class Uni {
     const basis = wunsch.slice(0, wunsch.length - ext.length);
     let p = wunsch;
     for (let i = 2; ; i++) {
-      const belegt = fs.existsSync(this.o.vault.abs(p)) || !!this.o.db.prepare('SELECT 1 FROM moodle_dateien WHERE pfad = ?').get(p);
+      const belegt = this.o.vault.statJetzt(p) !== null || !!this.o.db.prepare('SELECT 1 FROM moodle_dateien WHERE pfad = ?').get(p);
       if (!belegt) return p;
       p = `${basis} (${i})${ext}`;
     }
@@ -658,11 +657,10 @@ export class Uni {
 
   /** Fächer = Ordner unter Uni/faecher/ (selbst angelegt oder aus Moodle); Anzeigename aus Moodle, wenn bekannt */
   faecher(): UniFach[] {
-    const wurzel = this.o.vault.abs(UNI_FAECHER);
-    const eintraege = fs.existsSync(wurzel) ? fs.readdirSync(wurzel, { withFileTypes: true }) : [];
+    const eintraege = this.o.vault.namenJetzt(UNI_FAECHER);
     const moodle = new Map(this.kurse(false).map((k) => [k.ordner, k]));
     return eintraege
-      .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
+      .filter((d) => d.ordner)
       .map((d) => {
         const ordner = `${UNI_FAECHER}/${d.name}`;
         const k = moodle.get(ordner);
@@ -683,11 +681,9 @@ export class Uni {
     );
     const aus: { wert: string; titel: string; fach: string; frist: number | null; geaendert: number }[] = [];
     for (const f of this.faecher()) {
-      const ordner = this.o.vault.abs(`${f.ordner}/aufgaben`);
-      if (!fs.existsSync(ordner)) continue;
-      for (const d of fs.readdirSync(ordner, { withFileTypes: true })) {
-        if (d.name.startsWith('.') || /^(erledigt|abgegeben)$/i.test(d.name)) continue;
-        if (!d.isDirectory() && !(d.isFile() && /\.pdf$/i.test(d.name))) continue;
+      for (const d of this.o.vault.namenJetzt(`${f.ordner}/aufgaben`)) {
+        if (/^(erledigt|abgegeben)$/i.test(d.name)) continue;
+        if (!d.ordner && !/\.pdf$/i.test(d.name)) continue;
         const pfad = `${f.ordner}/aufgaben/${d.name}`;
         const m = ausMoodle.get(pfad);
         if (m?.abgegeben) continue;
@@ -696,7 +692,7 @@ export class Uni {
           titel: m?.titel ?? d.name.replace(/\.pdf$/i, ''),
           fach: f.titel,
           frist: m?.frist ?? null,
-          geaendert: fs.statSync(this.o.vault.abs(pfad)).mtimeMs,
+          geaendert: this.o.vault.statJetzt(pfad)?.mtimeMs ?? 0,
         });
       }
     }

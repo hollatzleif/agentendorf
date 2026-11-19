@@ -423,6 +423,21 @@ describe('Spracheingabe am Gerät (E194)', () => {
     expect(r.json()).toEqual({ text: 'Milch kaufen morgen' });
     expect(gesehen).toEqual([{ name: 'sprache.wav', groesse: 44 + 32_000 }]);
     expect((await post(Buffer.from('kein wav, nur Text, lang genug für den Kopf …………………'))).statusCode).toBe(400);
+    // E195: nicht transkribiert (whisper fehlt / abgestürzt / Zeitlimit) → 503 statt 200 mit leerem Text
+    const mit = (antwort: () => Promise<unknown>) => (d.agenten.rechenraum = { umwandeln: antwort } as unknown as NonNullable<typeof d.agenten.rechenraum>);
+    mit(async () => ({ version: '1', typ: 'audio', text: '## Datei\n- Dauer: 1 s', bilder: [], hinweise: ['Transkription ist im Rechenraum nicht eingerichtet (whisper-cli/Modell fehlt) – nur Metadaten.'] }));
+    expect((await post(wav(1))).statusCode).toBe(503);
+    mit(async () => ({ version: '1', typ: 'audio', text: '## Datei\n- Dauer: 1 s', bilder: [], hinweise: ['Transkription fehlgeschlagen: Illegal instruction'] }));
+    expect((await post(wav(1))).statusCode).toBe(503);
+    mit(async () => {
+      throw new Error('Rechenraum nicht erreichbar');
+    });
+    expect((await post(wav(1))).statusCode).toBe(503);
+    // transkribiert, aber nichts gesagt → 200 mit leerem Text
+    mit(async () => ({ version: '1', typ: 'audio', text: '## Datei\n- Dauer: 1 s\n\n## Transkript (automatisch, kann Hörfehler enthalten)\n(keine Sprache erkannt)', bilder: [], hinweise: [] }));
+    const leer = await post(wav(1));
+    expect(leer.statusCode).toBe(200);
+    expect(leer.json()).toEqual({ text: '' });
     expect((await post(wav(70))).statusCode).toBe(413);
     expect((await post(wav(1), {})).statusCode).toBe(401);
   });

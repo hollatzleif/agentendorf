@@ -1,6 +1,5 @@
 import type { ListenName, TodoDienst } from '../todos.js';
 import crypto from 'node:crypto';
-import fsSync from 'node:fs';
 import type { Ausloeser, ChatDetail, DateiKarte, ChatInfo, LaufInfo, LaufStatus, Motor as MotorName, Stufe } from '@dorf/shared';
 import type { DB } from '../db.js';
 import type { Uhr } from '../uhr.js';
@@ -12,7 +11,7 @@ import { aktionLaden, eingabenAnwenden, type QuellenFn } from './aktionen.js';
 import { ablageOrdner, type RechenraumKlient } from './rechenraum.js';
 import type { MoodleBrowserKlient } from './moodle-browser.js';
 import type { GmailKlient } from '../post/gmail.js';
-import { BUERGERMEISTER_WERKZEUGE, RECHENRAUM_WERKZEUGE, werkzeugeAktuell, werkzeugprofil, type DorfWerkzeug, type HelferFaehigkeit } from './leine.js';
+import { BUERGERMEISTER_WERKZEUGE, istHochgeladen, RECHENRAUM_WERKZEUGE, werkzeugeAktuell, werkzeugprofil, type DorfWerkzeug, type HelferFaehigkeit } from './leine.js';
 import { Rueckgaengig } from './rueckgaengig.js';
 import type { Kontakte } from '../kontakte.js';
 import type { GoogleKalender } from '../kalender-google.js';
@@ -45,6 +44,7 @@ interface ChatZeile {
   anhaenge_json: string;
   eingaben_json: string;
   fremdinhalte: number;
+  fremd_beruehrt: number;
   spiegel_pfad: string | null;
   protokoll_pfad: string | null;
   rolle: string | null;
@@ -86,8 +86,8 @@ function dateiKarten(vault: VaultDienst, pfade: string[], nurVorhandene = false)
   for (const pfad of pfade) {
     let groesse: number | undefined;
     try {
-      const st = fsSync.statSync(vault.abs(pfad));
-      if (st.isFile()) groesse = st.size;
+      const st = vault.statJetzt(pfad);
+      if (st?.isFile()) groesse = st.size;
     } catch {
       /* gelöscht oder verschoben */
     }
@@ -120,6 +120,15 @@ export function laufInfo(l: LaufZeile): LaufInfo {
 }
 
 /** Zusätzliche Verknüpfungen eines Chats (Bürgermeister, Helfer, Pläne) */
+/**
+ * E195: Trägt der Auftrag eine Fremdinhalt-Hülle? Ausgenommen sind die Ergebnisse eigener Helfer und Plan-Vorgänger –
+ * ob DIE fremd sind, entscheidet deren eigener Chat (aufgabeFremdBeruehrt, planWeiter), sonst bräuchte jeder zweite
+ * Schritt eine Freigabe.
+ */
+export function fremdImAuftrag(text: string) {
+  return /<fremdinhalt quelle="(?!helfer-ergebnisse"|plan-vorgaenger")/.test(text);
+}
+
 export interface ChatHerkunft {
   schreibtischId?: string;
   elternChatId?: string;
@@ -612,6 +621,7 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
     let fehler: string | null = null;
     const l = this.laufZeile(laufId);
     const c = this.chatZeile(l.chat_id);
+    let kisteOffen: WerkzeugKiste | undefined;
     try {
       const stufen = await stufenLaden(this.vault);
       const s = stufen.stufen[c.stufe];
@@ -622,7 +632,7 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
       const profil = { dorf: werkzeugListe.filter((w) => w !== 'web') as DorfWerkzeug[], web: werkzeugListe.includes('web') };
       // Bürgermeister (E61): Gedächtnis und Persönlichkeit einmal lesen – für den Prompt und als bekannte Fassung
       const wissen = c.rolle === 'buergermeister' ? await wissenLaden(this.vault, this.meineTodos) : null;
-      const kiste = new WerkzeugKiste(
+      const kiste = (kisteOffen = new WerkzeugKiste(
         this.db,
         this.uhr,
         this.vault,
@@ -654,7 +664,7 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
           rueckfrage: (f) => this.rueckfrageStellen(f),
         },
         c.rolle === 'buergermeister' ? this.rollenWerkzeuge : undefined,
-      );
+      ));
       kiste.beiAufruf = (name, erlaubt, kurz) => this.hub.senden({ typ: 'lauf.werkzeug', laufId, chatId: c.id, name, erlaubt, kurz });
 
       const aktionName = c.aktion ? c.aktion.split('/')[1]! : c.eltern_chat_id ? 'Helfer des Bürgermeisters' : 'Chat';
@@ -670,11 +680,16 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
       } else if (l.nummer === 1 && c.fremdinhalte) {
         nachricht = auftragMitAnhaengen(l.auftrag, [], [], true);
       }
+      // E195: Das Gespräch gilt als „von außen berührt“, sobald der Auftrag selbst Fremdes trägt – nicht erst, wenn ein
+      // Werkzeug etwas liest: weitergeleitete Schreibtisch-Notiz und hochgeladene/umgewandelte Anhänge (kommen als Anhang
+      // in der Hülle), Lagebericht/Rundgang/Rückschau beim Aufwachen, Bezug aus Telegram (Hülle im Auftragstext).
+      if (c.fremdinhalte || fremdImAuftrag(l.auftrag) || anhaenge.some((a) => istHochgeladen(a.pfad) || a.umgewandelt || a.text?.includes('<fremdinhalt'))) this.fremdMerken(c.id);
       const verlauf = this.verlaufFuer(c, l.motor);
 
       for await (const e of motor.starten({ laufId, chatId: c.id, modell: c.modell, aufwand: s.aufwand, system, nachricht, anhaenge, verlauf, werkzeuge: kiste, web: profil.web, projekt: l.motor === 'coding' ? codingProjekt(c.eingaben_json) : undefined, signal: ac.signal, nachschub: () => {
         const z = this.schlangeNehmen(c.id);
         nachschubOffen.push(...z);
+        if (z.some((x) => fremdImAuftrag(x.text))) this.fremdMerken(c.id);
         // E190: Anhänge im Nachschub als Pfade – vault_lesen versteht jedes Format
         return z.map((x) => (x.anhaenge.length ? `${x.text}\n\nAngehängt (lies sie mit vault_lesen):\n${x.anhaenge.map((p) => `- ${p}`).join('\n')}` : x.text));
       }, liveText: (text) => this.hub.senden({ typ: 'lauf.text', laufId, chatId: c.id, text }) })) {
@@ -736,6 +751,8 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
       }
       this.db.prepare('UPDATE laeufe SET status = ?, fehler = ?, ende = ? WHERE id = ?').run(status, fehler, this.uhr.jetzt(), laufId);
       this.db.prepare('UPDATE chats SET geaendert = ? WHERE id = ?').run(this.uhr.jetzt(), c.id);
+      // E195: was der Lauf über Werkzeuge an Fremdem gelesen hat (auch Fremdinhalt-Dateien und Anhänge), gilt fürs ganze Gespräch
+      if (kisteOffen?.hatFremdesGelesen) this.fremdMerken(c.id);
       // Browser-Seite dieses Laufs schließen (die Moodle-Anmeldung bleibt im Browser erhalten)
       if (this.moodleBrowser && (JSON.parse(c.werkzeuge_json) as string[]).includes('moodle_oeffnen')) void this.moodleBrowser.schliessen(laufId);
       try {
@@ -768,6 +785,46 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
       this.hub.senden({ typ: 'verbrauch.geaendert' });
       this.anstossen();
     }
+  }
+
+  // ---- E195: „von außen berührt“ ------------------------------------------------------------------
+
+  fremdMerken(chatId: string) {
+    this.db.prepare('UPDATE chats SET fremd_beruehrt = 1 WHERE id = ? AND fremd_beruehrt = 0').run(chatId);
+  }
+
+  /**
+   * Hat dieser Chat Inhalte von außen gesehen? Merker am Chat (Auftrag, Anhänge, Werkzeuge) – dazu das werkzeug_log,
+   * weil der Motor claude-code sein Web selbst ausführt und Läufe vor E195 keinen Merker haben.
+   */
+  istFremdBeruehrt(chatId: string): boolean {
+    const c = this.db.prepare('SELECT fremdinhalte, fremd_beruehrt FROM chats WHERE id = ?').get(chatId) as { fremdinhalte: number; fremd_beruehrt: number } | undefined;
+    if (!c) return false;
+    if (c.fremdinhalte || c.fremd_beruehrt) return true;
+    return !!this.db
+      .prepare(
+        `SELECT 1 FROM werkzeug_log WHERE chat_id = ? AND erlaubt = 1
+           AND (art = 'web' OR werkzeug IN ('WebSearch', 'WebFetch', 'kalender_lesen') OR werkzeug LIKE 'post!_%' ESCAPE '!' OR werkzeug LIKE 'moodle!_%' ESCAPE '!') LIMIT 1`,
+      )
+      .get(chatId);
+  }
+
+  /**
+   * Wie istFremdBeruehrt, aber für die ganze Aufgabe: der Chat selbst und alle seine Helfer (auch die aus Plänen und die
+   * anderen Chats derselben Schreibtisch-Aufgabe) – deren Ergebnisse landen als Nachricht wieder bei ihm.
+   * Coding-Helfer zählen dabei nicht: Sie haben Shell, Internet und GitHub schon selbst – ein weiterer Coding-Helfer
+   * gibt einem dort eingeschleusten Text nichts, was er nicht schon hat. Geschützt wird der Schritt VON Agenten ohne Shell
+   * ZU einem mit Shell.
+   */
+  aufgabeFremdBeruehrt(chatId: string): boolean {
+    if (this.istFremdBeruehrt(chatId)) return true;
+    const c = this.chatZeile(chatId);
+    const andere = (
+      c.schreibtisch_id
+        ? this.db.prepare("SELECT id FROM chats WHERE (schreibtisch_id = ? OR eltern_chat_id = ?) AND id != ? AND motor != 'coding'").all(c.schreibtisch_id, chatId, chatId)
+        : this.db.prepare("SELECT id FROM chats WHERE eltern_chat_id = ? AND motor != 'coding'").all(chatId)
+    ) as { id: string }[];
+    return andere.some((x) => this.istFremdBeruehrt(x.id));
   }
 
   /** Verlauf für den Motor: unveränderte API-Nachrichten bzw. claude-code-Sitzung; bei Motorwechsel als Text. */

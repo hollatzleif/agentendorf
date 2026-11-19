@@ -222,14 +222,17 @@ jobs:
           echo "Server hat agentendorf-browser:$BV: $HATB"
           echo "browser_hat=$HATB" >> "$GITHUB_OUTPUT"
           # Codehaus (E191): großes Image (VS Code, Compiler) – Kennung über alles, was hineingeht (auch den Runner der
-          # Werkstatt); ältere dorf-Skripte kennen hat-coding nicht → „nein“
+          # Werkstatt). Antwort des Servers: ja (hat es) · nein (eingerichtet, Image fehlt → bauen und mitschicken) ·
+          # aus (Codehaus dort nicht eingerichtet). Alles andere – auch ältere dorf-Skripte ohne hat-coding – zählt als
+          # „aus“: Das große Image wird nur gebaut und übertragen, wenn der Server es wirklich will (E195).
           CV=$(cat apps/coding/Dockerfile apps/coding/start.sh apps/coding/gesund.sh apps/werkstatt/package.json apps/werkstatt/bauen.mjs apps/werkstatt/src/*.ts | sha256sum | cut -c1-16)
           echo "coding_kennung=$CV" >> "$GITHUB_OUTPUT"
+          # ohne Deploy-Schlüssel (Prüfläufe): bauen und rauchtesten wie bisher, damit das Rezept geprüft bleibt
           HATC=nein
           if [ -f ~/.ssh/id_ed25519 ]; then
-            HATC=$(ssh -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" "hat-coding $CV" 2>/dev/null || echo nein)
+            HATC=$(ssh -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" "hat-coding $CV" 2>/dev/null || echo aus)
+            case "$HATC" in ja|nein) ;; *) HATC=aus ;; esac
           fi
-          [ "$HATC" = ja ] || HATC=nein
           echo "Server hat agentendorf-coding:$CV: $HATC"
           echo "coding_hat=$HATC" >> "$GITHUB_OUTPUT"
       - name: Images bauen
@@ -269,9 +272,9 @@ jobs:
           grep -q 'Keine Moodle-Zugangsdaten\|nicht erreichbar\|Seite lädt nicht' /tmp/pruefen.txt
           docker logs br
           docker rm -f br
-      - name: Codehaus-Image bauen und rauchtesten (nur wenn der Server es nicht hat; Fehler blockieren den Deploy nicht)
+      - name: Codehaus-Image bauen und rauchtesten (nur wenn der Server es will und nicht hat; Fehler blockieren den Deploy nicht)
         id: codingbau
-        if: steps.rechenraum.outputs.coding_hat != 'ja'
+        if: steps.rechenraum.outputs.coding_hat == 'nein'
         continue-on-error: true
         run: |
           BILD="agentendorf-coding:${{ steps.rechenraum.outputs.coding_kennung }}"
@@ -328,7 +331,7 @@ jobs:
           CV="${{ steps.rechenraum.outputs.coding_kennung }}"
           MIT_CODING=nein
           if [ "${{ steps.rechenraum.outputs.coding_hat }}" = ja ]; then MIT_CODING=vorhanden
-          elif [ "${{ steps.codingbau.outcome }}" = success ]; then MIT_CODING=bild; fi
+          elif [ "${{ steps.rechenraum.outputs.coding_hat }}" = nein ] && [ "${{ steps.codingbau.outcome }}" = success ]; then MIT_CODING=bild; fi
           [ "$MIT_CODING" = nein ] || echo "$CV" > buendel/CODING_VERSION
           echo "Codehaus: $MIT_CODING"
           docker tag agentendorf:ci "agentendorf:$VERSION"

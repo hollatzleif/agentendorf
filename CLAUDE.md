@@ -7,7 +7,10 @@ Persönliche Agenten-Zentrale für **Leif** (einziger Nutzer). Oberfläche, Vaul
 ```
 apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts, Zusammenbau: src/dorf.ts, Routen: src/app.ts
   src/auth/       Passwort (Argon2id), Sitzungen (Cookie, nur Hash in DB), Drossel, TOTP (eigene RFC-6238-Implementierung)
-  src/vault/      VaultDienst (einziger Weg zu den Dateien), Pfadregeln, Gebäude-Erkennung, Suche (FTS5), Dateiwächter
+  src/vault/      VaultDienst (einziger Weg zu den Dateien), Pfadregeln, Gebäude-Erkennung, Suche (FTS5), Dateiwächter.
+                  pfade.ts (E195): sicherOeffnen/ordnerGriff – jeder Zugriff Ordner für Ordner über Deskriptoren mit O_NOFOLLOW,
+                  Symlinks im Vault werden NIE verfolgt (ein Agent mit Shell schreibt dort). Nie readFile(vault.abs(…)) –
+                  immer vault.lesen/puffer/text/stat/namen (bzw. statJetzt/namenJetzt)
   src/agenten/    Agenten-Kern (Etappe 2a):
     aktionen.ts     Aktionen = Markdown-Skills in <Gebäude>/aktionen/ (Zod-Frontmatter, Fehler sichtbar; zeitplan, ablage, standard – E60)
     automatik.ts    Zeitplaner (jede Minute, genau einmal je Termin, Auslöser automatik = Motor der Aktion) + Ablage mit Archiv
@@ -108,7 +111,7 @@ apps/werkstatt  eigener Container: unverändertes claude-CLI (Version im Dockerf
 apps/rechenraum eigener Container: pdflatex (texlive), Python (numpy/sympy/scipy/matplotlib), poppler; runner.py nur
                 Standardbibliothek. Internes Netz ohne Internet, kein Vault, Arbeitsordner pro Chat, 120 s pro Befehl.
                 Image-Kennung = Hash(Dockerfile+runner.py), wird nur ausgeliefert, wenn der Server es nicht hat.
-                /umwandeln (E190): fremde Dateien → Text/Bilder in eigenem Kindprozess (420 s, 1,5 GB, Zip-Bomben-Grenzen); dazu ffmpeg,
+                /umwandeln (E190): fremde Dateien → Text/Bilder in eigenem Kindprozess (420 s, 1024 MB Adressraum – kleiner geht nicht, Messwerte in runner.py; Zip-Bomben-Grenzen); dazu ffmpeg,
                 whisper.cpp (base-q5_1, im Image), tesseract deu+eng, rsvg, heif-convert, catdoc, xlrd, olefile; python-docx/openpyxl/python-pptx/odfpy.
 apps/browser    Moodle-Browser (E57): Chromium über playwright-core + Runner (HTTP, Bearer-Geheimnis). leine.ts = DIE Regeln
                 (nur Domains aus BROWSER_HOSTS, GET ja außer sesskey/Abmelden, POST nur Anmeldeformular als Seiten-
@@ -127,9 +130,11 @@ apps/cardputer  E184/E193: Firmware für den M5Stack Cardputer Adv (aus HaloOS 0
                 e2e-Server). Bauen: tools/werkzeug.sh + tools/build.sh → release/*.bin, tools/zip.sh → ZIP für Leif (nicht im Repo).
                 WLAN (E193): bis 8 Netze mit Vorrang, versteckte Netze direkt versuchen, Wechsel ins Heimnetz. Spracheingabe (E194): Tab in
                 jeder Texteingabe, Aufnahme als WAV in Datei (kein PSRAM), Upload an /api/geraet/sprache. Anleitung: ANLEITUNG.md.
-apps/coding     Codehaus (E191), eigener Container: openvscode-server (3000) + Runner der Werkstatt im Profil „coding“ (4000:
+apps/coding     Codehaus (E191), eigener Container: openvscode-server (nur lokal, 3100; nach außen das Tor im Runner auf 3000 – so
+                kappt das Dorf beim Abmelden offene Verbindungen, E195) + Runner der Werkstatt im Profil „coding“ (4000:
                 claude mit Bash/Edit/Write, bypassPermissions, /arbeit/<projekt>, Vault rw) + git, gh, Node, Python, Compiler. Netz
-                „codingnetz“ (Internet, erreicht nur Dorf und Caddy). Geheimnisse nur aus /srv/dorf/coding.env. Compose-Profil „coding“.
+                „codingnetz“ (Internet, erreicht nur Dorf und Caddy). Geheimnisse nur aus /srv/dorf/coding.env (als Datei eingehängt,
+                start.sh liest sie). Compose-Profil „coding“; Image nur an Server mit CODING_AN=ja (hat-coding: ja/nein/aus).
                 Tests: test/start-test.sh, test/rauchtest.sh <image> (CI), deploy/test/coding-zugang-test.sh (echter Caddyfile).
 packages/shared Typen für HTTP und WebSocket (LiveEreignis, VaultEintrag …) + Dorf-Layout-Regeln (dorf.ts) – wird in den Server gebündelt
 vault-vorlage   Startinhalt des Vaults (Stadtordnung, gebaeude.md je Gebäude). Wird nur in einen LEEREN Vault kopiert.
@@ -140,11 +145,12 @@ deploy          compose.yml, Caddyfile, dorf (Server-Verwaltung), bootstrap.sh (
 - Der Server ist die einzige Quelle der Wahrheit. Jede Änderung (auch aus Obsidian über Syncthing) läuft über den Dateiwächter → `LiveHub` → alle Clients invalidieren ihre Queries.
 - Alle Dateizugriffe gehen durch `VaultDienst`: Pfadnormalisierung (kein `..`, keine versteckten Segmente, keine Symlinks nach draußen), atomares Schreiben, **Konfliktkopie statt Überschreiben** (`basisVersion` = sha256), Löschen = Papierkorb (`.papierkorb/`).
 - Ein Gebäude = Ordner auf oberster Ebene mit `gebaeude.md` (Frontmatter per Zod geprüft; Fehler werden angezeigt, nicht verschluckt).
+- `X-Forwarded-For` gilt nur von `VERTRAUTER_PROXY` (im Server `caddy`, `src/proxy.ts`, E195) – Werkstatt, Codehaus, Rechenraum und Browser erreichen `dorf:3000` direkt und zählen mit ihrer echten Adresse.
 - Schreibende Anfragen und WebSocket brauchen passende `Origin` (CSRF-Schutz) und ein gültiges Sitzungs-Cookie (`HttpOnly`, `Secure`, `SameSite=Strict`). Einzige Ausnahme: `/api/geraet/*` (E182) – dort gilt nur der Bearer-Schlüssel eines gekoppelten Geräts, und der gilt nirgends sonst.
 - Rohdateien aus dem Vault werden mit `Content-Security-Policy: sandbox` ausgeliefert, HTML/SVG nur als Download (Vault-Inhalte können aus fremden Quellen stammen). Anzeigen lässt sich `.html` nur über `/api/vault/seite`: Skripte ja, aber undurchsichtiger Ursprung und kein Netz (E36).
 - Geheimnisse nur auf dem Server – nie im Repo, nie im Vault: `/srv/dorf/.env` (Dorf: ANTHROPIC_API_KEY, EODHD_API_KEY, WERKSTATT_GEHEIMNIS, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, GOOGLE_FRISTEN_ICS, GOOGLE_PFLICHT_ICS, GOOGLE_TERMINE_ICS, GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN, MOODLE_KALENDER_URL, MOODLE_URL, MOODLE_TOKEN, RECHENRAUM_GEHEIMNIS), `/srv/dorf/rechenraum.env` (nur RECHENRAUM_GEHEIMNIS), `/srv/dorf/browser.env` (nur Browser-Container: BROWSER_GEHEIMNIS, MOODLE_BENUTZER, MOODLE_PASSWORT, BROWSER_HOSTS, MOODLE_WEB_URL) und `/srv/dorf/werkstatt.env` (Werkstatt: CLAUDE_CODE_OAUTH_TOKEN, WERKSTATT_GEHEIMNIS). Der API-Schlüssel erreicht die Werkstatt nie, das Abo-Token das Dorf nie.
 - **Die Leine sitzt im Code** (`agenten/leine.ts`, `werkzeuge.ts`, Werkstatt-Argumente): Agenten haben kein eingebautes Schreiben/Shell. Senden, Abgeben, Zahlen gibt es nicht (nur Entwürfe). Seit E185 gilt Leifs Regel „bestätigen nur, wenn ich einen Plan will“: Was sich zurückholen lässt (Termin im eigenen Kalender, Skill ohne Zeitplan, Datei im eigenen Gebäude), tun Agenten direkt, und Leif bekommt „Rückgängig“ (`rueckgaengig.ts`, App + Telegram). Freigaben (`freigaben.ts`, Ausführung erst nach Leifs Klick) bleiben für Dateien außerhalb des eigenen Gebäudes, Termine mit Gästen, Skills mit Zeitplan, die Persönlichkeit und gewünschte oder große Pläne. Web darf mit Post/Moodle/Kalender/Fremdinhalten zusammen laufen – Leif hat das Abfluss-Risiko bewusst in Kauf genommen (E185); jeder Web-Abruf steht im `werkzeug_log`, die Fremdinhalt-Hülle bleibt. Zeitgesteuerte Läufe des Bürgermeisters laufen über `api` mit Tagesbudget (`00_Stadtordnung/aufwachen.md`); Helfer, die er startet, über den Motor ihrer Aktion – meist claude-code/Abo (E56, ersetzt E51); Notschalter `alle_auf` übersteuert alles.
-- **Ausnahme Codehaus (E191, Leifs Entscheidung):** Der Motor `coding` läuft im Coding-Container mit Shell, Internet, GitHub (auch pushen/mergen) und beschreibbarem Vault – dort gilt die Leine nur für die Dorf-Werkzeuge, nicht für Bash/Edit/Write. Darum: `motor: coding` nur im Gebäude Codehaus, kein Coding-Skill über App/`aktion_anlegen`, Notschalter nie „coding“, Coding-Helfer des Bürgermeisters nach Fremdinhalten nur mit Leifs Freigabe. VS Code hat eine eigene Adresse (eigener Ursprung, eigenes Cookie); das Sitzungs-Cookie des Dorfs erreicht den Container nie. `coding.env` (CODING_GEHEIMNIS, VSCODE_TOKEN, CLAUDE_CODE_OAUTH_TOKEN, GH_TOKEN, GIT_NAME, GIT_EMAIL) – nichts aus `.env` erreicht das Codehaus.
+- **Ausnahme Codehaus (E191, Leifs Entscheidung):** Der Motor `coding` läuft im Coding-Container mit Shell, Internet, GitHub (auch pushen/mergen) und beschreibbarem Vault – dort gilt die Leine nur für die Dorf-Werkzeuge, nicht für Bash/Edit/Write. Darum: `motor: coding` nur im Gebäude Codehaus, kein Coding-Skill über App/`aktion_anlegen`, Notschalter nie „coding“, Coding-Helfer des Bürgermeisters nach Fremdinhalten nur mit Leifs Freigabe (E195: Merker `chats.fremd_beruehrt` – Auftrag mit Hülle, hochgeladene/umgewandelte Anhänge, gelesenes Fremdes, Helfer derselben Aufgabe, Plan-Vorgänger; Coding-Helfer selbst zählen nicht). VS Code hat eine eigene Adresse (eigener Ursprung, eigenes Cookie); das Sitzungs-Cookie des Dorfs erreicht den Container nie. `coding.env` (CODING_GEHEIMNIS, VSCODE_TOKEN, CLAUDE_CODE_OAUTH_TOKEN, GH_TOKEN, GIT_NAME, GIT_EMAIL) – nichts aus `.env` erreicht das Codehaus.
 - api-Verlauf wird **nur angehängt**, Antworten unverändert zurückgeschickt (Opus 5.5/Fable 5.2 prüfen das).
 
 ## Befehle
@@ -213,3 +219,4 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E191 (19.11.): Codehaus – VS Code im Browser (code.<Dorf-Adresse>, nur über die Dorf-Anmeldung), Coding-Agenten mit Shell, Internet, GitHub und beschreibbarem Vault (Motor coding, nur im Gebäude Codehaus); Abnahme auf dem Server steht aus (`dorf coding-einrichten`, Image kommt mit dem zweiten Deploy)
 - [x] E194 (19.11., Server): Spracheingabe für Geräte – `POST /api/geraet/sprache` (WAV → Text über whisper.cpp im Rechenraum, nichts gespeichert)
 - [x] E194 (19.11., Firmware): Cardputer 1.2 – Spracheingabe überall (Tab), Update ohne Neu-Einrichten (Nur-Programm-Datei); Host-Test grün (177), Mikrofon nie am Gerät erprobt
+- [x] E195 (19.11.): Review zu E190–E194 – Vault folgt keinen Symlinks mehr (wettlauf-sicher), Coding-Freigabe nicht mehr umgehbar, X-Forwarded-For nur von Caddy, Abmelden kappt VS Code, Rechenraum-Speicher gemessen, Codehaus-Image nur auf Wunsch

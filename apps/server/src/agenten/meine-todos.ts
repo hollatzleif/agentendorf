@@ -1,5 +1,4 @@
 import crypto from 'node:crypto';
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import matter from 'gray-matter';
 import { z } from 'zod';
@@ -131,8 +130,7 @@ export class MeineTodos {
   }
 
   private async alle() {
-    const ordner = this.o.vault.abs(MEINE_TODOS_ORDNER);
-    const namen = (await fs.readdir(ordner).catch(() => [] as string[])).filter((n) => n.endsWith('.md') && !n.startsWith('.') && !/\.(sync-conflict-|konflikt-)/.test(n));
+    const namen = (await this.o.vault.namen(MEINE_TODOS_ORDNER)).filter((n) => n.datei).map((n) => n.name).filter((n) => n.endsWith('.md') && !n.startsWith('.') && !/\.(sync-conflict-|konflikt-)/.test(n));
     return (await Promise.all(namen.map((n) => this.lesenEines(`${MEINE_TODOS_ORDNER}/${n}`)))).filter((t): t is NonNullable<typeof t> => !!t);
   }
 

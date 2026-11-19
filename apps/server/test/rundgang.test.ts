@@ -403,6 +403,33 @@ describe('Aufwachen: eigene To-dos, Lagebericht, Katalog (E192)', () => {
     expect(await x.d.aufwachen.aufwachen()).toMatchObject({ budgetErreicht: true, rundgang: null, eigeneTodos: 0, aktivitaeten: [] });
   });
 
+  it('E195: scheitert die Prüfung einer Aktivität (Fehler im Code/Netz), ist das kein Anlass – nur geprüft und gemeldet', async () => {
+    const { d } = await aufbau();
+    await d.todos.anlegen({ titel: 'Steuererklärung', faellig: '2026-11-05' }, 'Leif'); // echter Anlass für „todos-ueberfaellig“
+    const meldungen: string[] = [];
+    d.aufwachen.rundgang.ergaenzen({ log: (t) => meldungen.push(t) });
+    const original = KATALOG.map((a) => a.fakten);
+    try {
+      for (const a of KATALOG)
+        a.fakten = async () => {
+          throw new Error('Kalender nicht erreichbar');
+        };
+      const wahl = await d.aufwachen.rundgang.waehlen({ restbudget: 10, tagesbudget: 10, nacht: false });
+      // früher: jede gescheiterte Prüfung galt als Anlass (leere Fakten) – die KI lief ohne Grund los
+      expect(wahl).toEqual([]);
+      expect(meldungen.length).toBeGreaterThan(0);
+      expect(meldungen[0]).toMatch(/Rundgang: Prüfung „.+“ fehlgeschlagen: Kalender nicht erreichbar/);
+      expect(d.aufwachen.rundgang.zuletzt()).toEqual({});
+    } finally {
+      KATALOG.forEach((a, i) => (a.fakten = original[i]));
+    }
+    // als geprüft gemerkt: gleich danach wird nicht noch einmal geprüft, nach der Frist (20 h) wieder – jetzt mit Anlass
+    expect(await d.aufwachen.rundgang.waehlen({ restbudget: 10, tagesbudget: 10, nacht: false })).toEqual([]);
+    d.uhr.vor(21 * STUNDE);
+    expect((await d.aufwachen.rundgang.waehlen({ restbudget: 10, tagesbudget: 10, nacht: false })).map((x) => x.aktivitaet.id)).toContain('todos-ueberfaellig');
+    await d.app.close();
+  });
+
   it('Rundgang mit der Attrappe: Katalog nach Fälligkeit, Budget und Nacht; abgeschaltet = nie; Protokoll, Sammelmeldung, kein Telegram', async () => {
     const x = await aufbau({ api: mitAntwort((t) => t.replace('## Zusammenfassung', 'Für Leif: Zwei überfällige To-dos in kleine Schritte zerlegt.\n\n## Zusammenfassung')) });
     const { d } = x;

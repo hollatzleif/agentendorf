@@ -153,7 +153,17 @@ def seite(raum_dir, pdf, nr, dpi):
 
 UMWANDLUNG_VERSION = "1"
 UMWANDELN_ZEITLIMIT = int(os.environ.get("UMWANDELN_ZEITLIMIT_S", "420"))
-UMWANDELN_SPEICHER = int(os.environ.get("UMWANDELN_SPEICHER_MB", "1536")) * 1024 * 1024
+# Speicher (E195) – gemessen im Image (whisper.cpp v1.8.7, ggml-base-q5_1 = 56 MB Datei; 1 Thread; 40–120 s Ton):
+#   whisper-cli: 197–208 MB wirklich belegt (VmHWM), 707–715 MB Adressraum (VmPeak)
+#   ffmpeg:       58 MB wirklich belegt,             690–738 MB Adressraum
+# RLIMIT_AS begrenzt den ADRESSRAUM, nicht den belegten Speicher: Unter ~740 MB bricht whisper sofort ab und ffmpeg
+# bleibt hängen (MALLOC_ARENA_MAX und kleinere Stapel ändern daran nichts – ausprobiert). Die Grenze ist deshalb nur ein
+# Riegel gegen Ausreißer (1024 MB = Bedarf + ~40 %). Was wirklich zählt, ist mem_limit des Containers
+# (deploy/compose.yml, dort die Rechnung): Reißt eine Umwandlung es, trifft der Kernel genau sie (_grenzen_setzen
+# setzt oom_score_adj) – nie den Runner oder einen Befehl nebenan.
+UMWANDELN_SPEICHER = int(os.environ.get("UMWANDELN_SPEICHER_MB", "1024")) * 1024 * 1024
+# So viel belegt eine Umwandlung im Normalfall höchstens (Transkription + Python-Kind), in MB – für die Rechnung in compose.yml
+UMWANDELN_BELEGT_MB = 260
 UMWANDELN_GLEICHZEITIG = threading.BoundedSemaphore(int(os.environ.get("UMWANDELN_GLEICHZEITIG", "2")))
 MAX_UMWANDELN = 25 * 1024 * 1024
 MAX_TEXT = 150_000
@@ -1317,6 +1327,10 @@ def transkribieren(pfad, erg, dauer):
     except subprocess.TimeoutExpired:
         erg.hinweise.append("Transkription dauerte zu lange und wurde abgebrochen.")
         return
+    if r.returncode < 0:
+        # vom Kernel beendet (Speicher knapp, SIGKILL) oder abgestürzt – vorübergehend: das Dorf merkt sich so ein Ergebnis nicht
+        erg.hinweise.append(f"Transkription abgestürzt (Signal {-r.returncode}) – vermutlich zu wenig Speicher; später noch einmal versuchen.")
+        return
     if r.returncode != 0 or not os.path.isfile(aus + ".txt"):
         erg.hinweise.append("Transkription fehlgeschlagen: " + r.stderr.decode("utf-8", "replace")[-300:])
         return
@@ -1443,6 +1457,13 @@ def umwandeln_kind(pfad, name):
 def _grenzen_setzen():
     import resource
     os.setsid()
+    # Wird der Speicher des Containers knapp, soll der Kernel diese Umwandlung (und ihre Werkzeuge – das vererbt sich)
+    # beenden, nicht den Runner: höchste Punktzahl. Hochsetzen darf jeder Prozess ohne Rechte.
+    try:
+        with open("/proc/self/oom_score_adj", "w") as f:
+            f.write("1000")
+    except OSError:
+        pass
     resource.setrlimit(resource.RLIMIT_AS, (UMWANDELN_SPEICHER, UMWANDELN_SPEICHER))
     resource.setrlimit(resource.RLIMIT_FSIZE, (300 * 1024 * 1024, 300 * 1024 * 1024))
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))

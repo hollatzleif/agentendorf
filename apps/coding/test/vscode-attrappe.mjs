@@ -28,6 +28,12 @@ const server = http.createServer((req, res) => {
 });
 server.on('upgrade', (req, socket) => {
   if (!hatToken(req)) return socket.end('HTTP/1.1 403 Forbidden\r\n\r\n');
-  socket.end('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n');
+  const kopf = 'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n';
+  // /offen: Verbindung bleibt bestehen (wie Editor und Terminal im echten VS Code) – für den Test „Abmelden kappt sie“
+  if ((req.url ?? '').startsWith('/offen')) {
+    socket.on('error', () => {});
+    return void socket.write(kopf);
+  }
+  socket.end(kopf);
 });
 server.listen(Number(wert('--port')), host === '0.0.0.0' ? '127.0.0.1' : host);

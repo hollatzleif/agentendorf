@@ -30,6 +30,8 @@ services:
     environment:
       ORIGIN: https://${DORF_DOMAIN}
       HINTER_PROXY: "true"
+      # E195: X-Forwarded-For nur von Caddy glauben – nicht von Werkstatt, Codehaus, Rechenraum oder Browser (alle erreichen dorf:3000)
+      VERTRAUTER_PROXY: caddy
       DORF_VERSION: ${DORF_VERSION:-unbekannt}
       WERKSTATT_URL: http://werkstatt:4000
       CODING_URL: http://coding:4000
@@ -99,7 +101,12 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
-    mem_limit: 1g
+    # E195 – Rechnung in MB (tmpfs zählt zum Speicher des Containers; Messwerte in runner.py):
+    #   /tmp 256 + /arbeit 384 (beide voll) + 2 Umwandlungen gleichzeitig × 260 (whisper base-q5_1 belegt ~208, dazu
+    #   das Python-Kind) + Runner und ein LaTeX-/Python-Befehl ~120 = 1280.
+    # Die Adressraum-Grenze je Umwandlung (1024 MB) liegt darüber – sie kann nicht kleiner sein (runner.py). Belegt eine
+    # Umwandlung wirklich so viel, beendet der Kernel genau sie (oom_score_adj 1000), der Runner läuft weiter.
+    mem_limit: 1280m
     cpus: 1.0
     pids_limit: 256
 
@@ -131,7 +138,7 @@ services:
     pids_limit: 512
 
   coding:
-    # Codehaus (E191): VS Code im Browser (openvscode-server, Port 3000) + Runner für Coding-Agenten (Port 4000, claude-CLI
+    # Codehaus (E191): VS Code im Browser (openvscode-server, nach außen über das Tor im Runner auf Port 3000 – E195) + Runner für Coding-Agenten (Port 4000, claude-CLI
     # mit Bash/Edit/Write). Leifs Entscheidung: Internet, GitHub (klonen/pushen/PR/mergen) und der Vault LES- UND SCHREIBBAR.
     # Dafür streng getrennt: eigenes Netz (erreicht nur Dorf und Caddy, nicht Werkstatt/Syncthing/Rechenraum/Browser),
     # eigene Geheimnisse (coding.env: Abo-Token, GitHub-Token, Git-Name – NICHTS aus /srv/dorf/.env), kein root, keine
@@ -139,12 +146,12 @@ services:
     profiles: [coding]
     image: agentendorf-coding:${CODING_VERSION:-fehlt}
     restart: unless-stopped
-    # fehlt die Datei noch (vor dem ersten `dorf deploy` dieser Fassung), darf das den Start des Dorfs nicht verhindern
-    env_file:
-      - path: /srv/dorf/coding.env
-        required: false
+    # Geheimnisse: /srv/dorf/coding.env wird als DATEI eingehängt und von start.sh gelesen (wie beim Moodle-Browser) –
+    # kein env_file: Die Form mit „required: false“ braucht Docker Compose ≥ 2.24, und die einfache Form ließe ältere
+    # Fassungen schon am Fehlen der Datei scheitern (erster Deploy dieser Fassung, Codehaus gar nicht eingerichtet).
     environment:
       DORF_INTERN_URL: http://dorf:3001
+      CODING_KONFIG: /geheim/coding.env
       TZ: Europe/Vienna
     user: "${DORF_UID:-1000}:${DORF_UID:-1000}"
     read_only: true
@@ -154,6 +161,7 @@ services:
       - /srv/dorf/coding:/arbeit
       - /srv/dorf/vault:/vault
       - /srv/dorf/claude-coding:/claude-konfig
+      - /srv/dorf/coding.env:/geheim/coding.env:ro
       - type: tmpfs
         target: /tmp
         tmpfs: { mode: 01777, size: 268435456 }

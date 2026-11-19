@@ -24,6 +24,62 @@ def freier_port():
     return p
 
 
+class SpeicherTest(unittest.TestCase):
+    """E195: Speichergrenzen der Umwandlung passen zum Container (deploy/compose.yml)."""
+
+    def _runner(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("rr_runner", RUNNER)
+        m = importlib.util.module_from_spec(spec)
+        alt = dict(os.environ)
+        os.environ.pop("UMWANDELN_SPEICHER_MB", None)
+        os.environ.pop("UMWANDELN_GLEICHZEITIG", None)
+        os.environ.setdefault("RECHENRAUM_GEHEIMNIS", GEHEIM)
+        os.environ["ARBEIT_DIR"] = tempfile.mkdtemp()
+        schreiben = sys.dont_write_bytecode
+        sys.dont_write_bytecode = True  # kein __pycache__ neben runner.py
+        try:
+            spec.loader.exec_module(m)
+        finally:
+            sys.dont_write_bytecode = schreiben
+            os.environ.clear()
+            os.environ.update(alt)
+        return m
+
+    def test_grenzen_passen_zum_container(self):
+        import re
+        m = self._runner()
+        with open(os.path.join(os.path.dirname(RUNNER), "..", "..", "deploy", "compose.yml"), encoding="utf-8") as f:
+            compose = f.read()
+        teil = compose[compose.index("\n  rechenraum:"):compose.index("\n  browser:")]
+        mem = re.search(r"^    mem_limit: (\d+)([mg])$", teil, re.M)
+        limit_mb = int(mem.group(1)) * (1024 if mem.group(2) == "g" else 1)
+        tmpfs_mb = sum(int(x) for x in re.findall(r"size: (\d+) }", teil)) // (1024 * 1024)
+        gleichzeitig = m.UMWANDELN_GLEICHZEITIG._initial_value
+        # früher: 2 × 1536 MB Adressraum gegen 1 GB – und die tmpfs-Ordner (640 MB) waren gar nicht eingerechnet
+        self.assertGreaterEqual(limit_mb, tmpfs_mb + gleichzeitig * m.UMWANDELN_BELEGT_MB + 100)
+        # der Riegel je Umwandlung: über dem gemessenen Adressraum von whisper/ffmpeg (~740 MB), aber unter dem Container
+        self.assertGreaterEqual(m.UMWANDELN_SPEICHER, 800 * 1024 * 1024)
+        self.assertLess(m.UMWANDELN_SPEICHER, limit_mb * 1024 * 1024)
+
+    @unittest.skipUnless(os.path.exists("/proc/self/oom_score_adj"), "nur Linux")
+    def test_umwandlung_ist_das_opfer_bei_speichernot(self):
+        code = (
+            "import importlib.util,os,sys\n"
+            "sys.dont_write_bytecode=True\n"
+            f"spec=importlib.util.spec_from_file_location('rr_runner',{RUNNER!r});m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)\n"
+            "import subprocess\n"
+            "p=subprocess.run(['cat','/proc/self/oom_score_adj'],capture_output=True,preexec_fn=m._grenzen_setzen)\n"
+            "print(p.stdout.decode().strip(), open('/proc/self/oom_score_adj').read().strip())\n"
+        )
+        env = dict(os.environ, RECHENRAUM_GEHEIMNIS=GEHEIM, ARBEIT_DIR=tempfile.mkdtemp())
+        aus = subprocess.run([sys.executable, "-c", code], capture_output=True, env=env, timeout=30)
+        self.assertEqual(aus.returncode, 0, aus.stderr.decode())
+        kind, runner = aus.stdout.decode().split()
+        self.assertEqual(kind, "1000")       # die Umwandlung (und was sie startet) trifft es zuerst
+        self.assertNotEqual(runner, "1000")  # der Runner selbst bleibt unverändert
+
+
 class RunnerTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

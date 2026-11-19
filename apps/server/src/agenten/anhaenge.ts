@@ -112,6 +112,8 @@ export class DateiVerstehen {
   cacheOrdner: string | null = null;
   /** höchstens so viele Einträge im Zwischenspeicher (älteste fliegen raus) */
   cacheMax = 400;
+  /** E195: … und zusammen höchstens so viele Bytes (ein Eintrag kann mit Bildern etliche MB haben – 400 × das füllte die Platte) */
+  cacheMaxBytes = 300 * 1024 * 1024;
 
   constructor(
     private vault: VaultDienst,
@@ -126,24 +128,25 @@ export class DateiVerstehen {
     const name = path.posix.basename(pfad);
     const ext = path.posix.extname(name).toLowerCase();
     const basis: Verstanden = { pfad, name, typ: typText(name), groesse: 0, art: 'unbekannt', bilder: [], hinweise: [] };
-    const abs = this.vault.abs(pfad);
-    const st = await fs.stat(abs).catch(() => null);
+    // E195: Größe und Inhalt nur über den VaultDienst (ein Deskriptor, kein Symlink) – nie über einen Pfad
+    const st = await this.vault.stat(pfad).catch(() => null);
     if (!st?.isFile()) return { ...basis, hinweise: ['Datei nicht gefunden.'] };
     basis.groesse = st.size;
-
-    if (TEXT_ENDUNGEN.has(ext) && st.size <= MAX_ANHANG_BYTES) {
-      const b = await fs.readFile(abs);
-      const t = textDekodieren(b);
-      if (t !== null) return { ...basis, art: 'text', text: t.length > MAX_TEXT ? `${t.slice(0, MAX_TEXT)}\n[… gekürzt – ${t.length} Zeichen]` : t };
-    }
-    if (ext === '.pdf' && o.pdfNativ && st.size <= PDF_NATIV_MAX) return { ...basis, art: 'pdf', mime: 'application/pdf', base64: (await fs.readFile(abs)).toString('base64') };
-    if (BILD_NATIV[ext] && o.bildNativ && st.size <= BILD_NATIV_MAX) return { ...basis, art: 'bild', mime: BILD_NATIV[ext], base64: (await fs.readFile(abs)).toString('base64') };
-
     if (st.size > MAX_ANHANG_BYTES)
       return { ...basis, hinweise: [`Zu groß zum Umwandeln (${groesseText(st.size)}, höchstens ${groesseText(MAX_ANHANG_BYTES)}).`] };
+    const inhalt = (await this.vault.puffer(pfad, { max: MAX_ANHANG_BYTES }).catch(() => null))?.inhalt;
+    if (!inhalt) return { ...basis, hinweise: ['Datei nicht gefunden.'] };
+    basis.groesse = inhalt.length;
+
+    if (TEXT_ENDUNGEN.has(ext)) {
+      const t = textDekodieren(inhalt);
+      if (t !== null) return { ...basis, art: 'text', text: t.length > MAX_TEXT ? `${t.slice(0, MAX_TEXT)}\n[… gekürzt – ${t.length} Zeichen]` : t };
+    }
+    if (ext === '.pdf' && o.pdfNativ && inhalt.length <= PDF_NATIV_MAX) return { ...basis, art: 'pdf', mime: 'application/pdf', base64: inhalt.toString('base64') };
+    if (BILD_NATIV[ext] && o.bildNativ && inhalt.length <= BILD_NATIV_MAX) return { ...basis, art: 'bild', mime: BILD_NATIV[ext], base64: inhalt.toString('base64') };
+
     const rr = this.rechenraum();
     if (!rr) return { ...basis, hinweise: ['Umwandlung nicht verfügbar – der Rechenraum ist auf diesem Server nicht eingerichtet.'] };
-    const inhalt = await fs.readFile(abs);
     let e: UmwandelErgebnis;
     try {
       e = await this.umwandeln(rr, name, inhalt);
@@ -185,7 +188,7 @@ export class DateiVerstehen {
       const tmp = `${datei}.${process.pid}.tmp`;
       await fs.writeFile(tmp, JSON.stringify(e));
       await fs.rename(tmp, datei);
-      void this.aufraeumen();
+      await this.aufraeumen().catch(() => undefined);
     }
     return e;
   }
@@ -193,10 +196,22 @@ export class DateiVerstehen {
   private async aufraeumen() {
     if (!this.cacheOrdner) return;
     const namen = (await fs.readdir(this.cacheOrdner).catch(() => [] as string[])).filter((n) => n.endsWith('.json'));
-    if (namen.length <= this.cacheMax) return;
-    const mitZeit = await Promise.all(namen.map(async (n) => ({ n, t: (await fs.stat(path.join(this.cacheOrdner!, n)).catch(() => null))?.mtimeMs ?? 0 })));
-    mitZeit.sort((a, b) => a.t - b.t);
-    for (const { n } of mitZeit.slice(0, namen.length - this.cacheMax)) await fs.rm(path.join(this.cacheOrdner, n), { force: true });
+    const alle = await Promise.all(
+      namen.map(async (n) => {
+        const st = await fs.stat(path.join(this.cacheOrdner!, n)).catch(() => null);
+        return { n, t: st?.mtimeMs ?? 0, groesse: st?.size ?? 0 };
+      }),
+    );
+    // älteste zuerst weg, bis Anzahl UND Gesamtgröße passen (zuletzt benutzte bleiben – ein Treffer setzt die Zeit neu)
+    alle.sort((a, b) => a.t - b.t);
+    let anzahl = alle.length;
+    let bytes = alle.reduce((s, x) => s + x.groesse, 0);
+    for (const x of alle) {
+      if (anzahl <= this.cacheMax && bytes <= this.cacheMaxBytes) break;
+      await fs.rm(path.join(this.cacheOrdner, x.n), { force: true });
+      anzahl--;
+      bytes -= x.groesse;
+    }
   }
 }
 

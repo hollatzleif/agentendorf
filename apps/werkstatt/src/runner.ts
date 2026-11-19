@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
@@ -87,6 +88,11 @@ async function behandeln(req: http.IncomingMessage, res: http.ServerResponse) {
     return ende(200, { ok: true });
   }
 
+  // Coding (E195): alle offenen Verbindungen zu VS Code kappen – das Dorf ruft das, wenn eine Sitzung endet (Abmelden).
+  // VS Code im Browser verbindet sich von selbst neu; wer noch angemeldet ist, merkt kaum etwas (Terminals laufen weiter),
+  // wer abgemeldet ist, scheitert an der Prüfung in Caddy.
+  if (CODING && req.method === 'POST' && req.url === '/vscode/trennen') return ende(200, { getrennt: torTrennen() });
+
   // Coding: Projektliste für das Codehaus (nur Ordnernamen direkt unter /arbeit, keine Inhalte)
   if (CODING && req.method === 'GET' && req.url === '/projekte') return ende(200, { projekte: projekteListe() });
 
@@ -163,10 +169,41 @@ function projekteListe() {
   return aus.sort((a, b) => b.geaendert - a.geaendert).slice(0, 200);
 }
 
+// ---- Tor vor VS Code (nur Codehaus, E195) ----------------------------------------------------------
+// VS Code lauscht nur auf 127.0.0.1 (VSCODE_INTERN_PORT); nach außen (Caddy) geht alles durch dieses Tor: reine
+// Durchleitung der Bytes, aber der Runner kennt so jede offene Verbindung und kann sie auf Zuruf des Dorfs schließen.
+// Ohne das blieben offene WebSockets (Editor, Terminal) nach dem Abmelden bestehen, bis sie von selbst neu verbinden.
+const torOffen = new Set<net.Socket>();
+function torTrennen() {
+  const n = torOffen.size;
+  for (const s of torOffen) s.destroy();
+  return n;
+}
+const TOR_INTERN = Number(process.env.VSCODE_INTERN_PORT ?? 0);
+const tor =
+  CODING && TOR_INTERN
+    ? net
+        .createServer((aussen) => {
+          const innen = net.connect(TOR_INTERN, '127.0.0.1');
+          for (const s of [aussen, innen]) {
+            torOffen.add(s);
+            s.on('error', () => {});
+            s.on('close', () => torOffen.delete(s));
+          }
+          aussen.on('close', () => innen.destroy());
+          innen.on('close', () => aussen.destroy());
+          aussen.pipe(innen);
+          innen.pipe(aussen);
+        })
+        .listen(Number(process.env.VSCODE_PORT ?? 3000), '0.0.0.0')
+    : null;
+
 server.listen(PORT, '0.0.0.0', () => console.log(`${CODING ? 'Codehaus-Runner' : 'Werkstatt'} bereit auf Port ${PORT}`));
 for (const sig of ['SIGTERM', 'SIGINT'] as const)
   process.on(sig, () => {
     for (const p of laufend.values()) p.kill('SIGINT');
+    tor?.close();
+    torTrennen();
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 15_000).unref();
   });

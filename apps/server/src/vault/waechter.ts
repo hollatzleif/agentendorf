@@ -9,6 +9,8 @@ import type { AenderungsArt } from './dienst.js';
 export function vaultBeobachten(wurzel: string, melden: (rel: string, art: AenderungsArt) => void): FSWatcher {
   const w = watch(wurzel, {
     ignoreInitial: true,
+    // E195: Symlinks im Vault nie verfolgen (ein Agent mit Shell könnte sonst fremde Ordner beobachten lassen)
+    followSymlinks: false,
     ignored: (p: string) => {
       const rel = path.relative(wurzel, p);
       return rel !== '' && rel.split(path.sep).some((t) => t.startsWith('.'));

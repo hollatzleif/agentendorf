@@ -165,11 +165,17 @@ cmd_empfangen() {
   if [ -f "$tmp/CODING_VERSION" ]; then
     cv=$(tr -cd 'a-f0-9' < "$tmp/CODING_VERSION")
     [[ "$cv" =~ ^[a-f0-9]{16}$ ]] || { rot "Ungültige CODING_VERSION"; return 1; }
-    if [ -f "$tmp/coding.tar.gz" ]; then
-      info "Lade Codehaus-Image $cv …"
-      gunzip -c "$tmp/coding.tar.gz" | docker load
+    if ! coding_an; then
+      # E195: nicht eingerichtet → das große Image nicht laden und die Kennung nicht übernehmen (Platte, Zeit)
+      info "Codehaus ist auf diesem Server nicht eingerichtet – Image wird nicht geladen. (dorf coding-einrichten)"
+      cv=""
+    else
+      if [ -f "$tmp/coding.tar.gz" ]; then
+        info "Lade Codehaus-Image $cv …"
+        gunzip -c "$tmp/coding.tar.gz" | docker load
+      fi
+      docker image inspect "agentendorf-coding:$cv" >/dev/null 2>&1 || { rot "Codehaus-Image $cv fehlt auf dem Server und war nicht im Bündel."; return 1; }
     fi
-    docker image inspect "agentendorf-coding:$cv" >/dev/null 2>&1 || { rot "Codehaus-Image $cv fehlt auf dem Server und war nicht im Bündel."; return 1; }
   fi
   if [ -f "$tmp/BROWSER_VERSION" ]; then
     bv=$(tr -cd 'a-f0-9' < "$tmp/BROWSER_VERSION")
@@ -299,9 +305,12 @@ cmd_ci() {
       [[ "$bv" =~ ^[a-f0-9]{16}$ ]] || { rot "Nicht erlaubt: $befehl"; exit 1; }
       if docker image inspect "agentendorf-browser:$bv" >/dev/null 2>&1; then echo ja; else echo nein; fi ;;
     "hat-coding "*)
+      # E195: „aus“ = Codehaus hier nicht eingerichtet (kein CODING_AN=ja) → die CI baut und schickt das große Image gar
+      # nicht erst. „nein“ = gewünscht, aber dieses Image fehlt → bitte mitschicken. „ja“ = schon da.
       local cv=${befehl#hat-coding }
       [[ "$cv" =~ ^[a-f0-9]{16}$ ]] || { rot "Nicht erlaubt: $befehl"; exit 1; }
-      if docker image inspect "agentendorf-coding:$cv" >/dev/null 2>&1; then echo ja; else echo nein; fi ;;
+      if ! coding_an; then echo aus
+      elif docker image inspect "agentendorf-coding:$cv" >/dev/null 2>&1; then echo ja; else echo nein; fi ;;
     "hat-programme "*)
       local pv=${befehl#hat-programme }
       [[ "$pv" =~ ^[a-f0-9]{16}$ ]] || { rot "Nicht erlaubt: $befehl"; exit 1; }
@@ -570,7 +579,6 @@ cmd_moodle_browser_zugang() {
 # In den Coding-Container kommt NICHTS aus /srv/dorf/.env. Erneut ausführen = Angaben ändern (Enter behält Bisheriges).
 cmd_coding_einrichten() {
   local datei="$BASIS/coding.env" domain code abo neu gh gh_alt antwort login name mail name_alt mail_alt g uid code_http
-  [ -f "$AKTUELL/CODING_VERSION" ] || { rot "Diese Version hat noch kein Codehaus-Image – nach dem nächsten Deploy erneut versuchen."; return 1; }
   geheimnisse_sicherstellen
   domain=$(grep -E '^DORF_DOMAIN=' "$ENV_DATEI" | cut -d= -f2)
   code=$(grep -E '^CODING_DOMAIN=' "$ENV_DATEI" | cut -d= -f2 || true)
@@ -665,6 +673,13 @@ cmd_coding_einrichten() {
     rot "andere Adresse als CODING_DOMAIN=… in $ENV_DATEI ein und führe 'dorf coding-einrichten' noch einmal aus."
   fi
 
+  # E195: Das Image (rund 0,5 GB Übertragung) kommt erst, wenn das Codehaus hier eingeschaltet ist – mit dem nächsten Deploy.
+  if [ ! -f "$AKTUELL/CODING_VERSION" ]; then
+    compose up -d --force-recreate dorf
+    gruen "Eingerichtet. Das Codehaus-Image ist noch nicht auf diesem Server – es kommt mit dem nächsten Deploy:"
+    info 'GitHub → Actions → „Prüfen und ausliefern“ → Run workflow (oder der nächste Push). Danach startet das Codehaus von selbst.'
+    return 0
+  fi
   info "Starte das Codehaus (das Dorf startet dabei kurz neu) …"
   compose up -d --force-recreate coding dorf
   if gesund_warten; then

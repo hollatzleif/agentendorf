@@ -232,7 +232,21 @@ export class Aufwachen {
     return aus;
   }
 
-  async aufwachen(): Promise<AufwachBericht> {
+  private laufendesAufwachen: Promise<AufwachBericht> | null = null;
+
+  /**
+   * E195: nie zwei Aufwachen gleichzeitig (Zeitgeber und „Jetzt wecken“ in der App können zusammenfallen – beide sähen
+   * dieselben neuen Anlässe und starteten zwei Lageberichte/Rundgänge). Ein zweiter Aufruf wartet auf das laufende
+   * Aufwachen und bekommt dessen Bericht.
+   */
+  aufwachen(): Promise<AufwachBericht> {
+    this.laufendesAufwachen ??= this.aufwachenEinmal().finally(() => {
+      this.laufendesAufwachen = null;
+    });
+    return this.laufendesAufwachen;
+  }
+
+  private async aufwachenEinmal(): Promise<AufwachBericht> {
     const { uhr, schreibtisch, buergermeister } = this.o;
     const jetzt = uhr.jetzt();
     const e = await aufwachEinstellungen(this.o.vault);

@@ -1,4 +1,3 @@
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import matter from 'gray-matter';
 import { z } from 'zod';
@@ -144,10 +143,10 @@ export async function aktionenListe(vault: VaultDienst, nurGebaeude?: string): P
   const aus: Aktion[] = [];
   for (const g of await gebaeudeListe(vault)) {
     if (nurGebaeude && g.id !== nurGebaeude) continue;
-    const ordner = path.join(vault.wurzel, g.id, 'aktionen');
-    const dateien = await fs.readdir(ordner).catch(() => [] as string[]);
-    for (const d of dateien.filter((n) => n.endsWith('.md') && !n.startsWith('.')).sort((a, b) => a.localeCompare(b, 'de'))) {
-      aus.push(zuInfo(g.id, d, await fs.readFile(path.join(ordner, d), 'utf8')));
+    const dateien = (await vault.namen(`${g.id}/aktionen`)).filter((n) => n.datei).map((n) => n.name);
+    for (const d of dateien.filter((n) => n.endsWith('.md')).sort((a, b) => a.localeCompare(b, 'de'))) {
+      const roh = await vault.text(`${g.id}/aktionen/${d}`).catch(() => null);
+      if (roh !== null) aus.push(zuInfo(g.id, d, roh));
     }
   }
   return aus;

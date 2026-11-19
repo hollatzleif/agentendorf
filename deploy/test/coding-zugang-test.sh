@@ -22,7 +22,10 @@ ok() { printf '  ✓ %s\n' "$*"; }
 fehler() { printf '  ✗ %s\n' "$*" >&2; for f in caddy.log dorf.log vscode.log; do [ ! -f "$TMP/$f" ] || { echo "--- $f" >&2; tail -20 "$TMP/$f" >&2; }; done; exit 1; }
 
 P=$((18000 + RANDOM % 1500))
-PC=$P; PD=$((P + 1)); PI=$((P + 2)); PV=$((P + 3))
+PC=$P; PD=$((P + 1)); PI=$((P + 2)); PV=$((P + 3)); PVI=$((P + 4)); PR=$((P + 5))
+GEHEIMNIS=zugangstest-geheimnis-zugangstest-geheimnis
+RUNNER="$WURZEL/apps/werkstatt/dist/runner.js"
+[ -f "$RUNNER" ] || { echo "Erst bauen: pnpm --filter @dorf/werkstatt build" >&2; exit 1; }
 DORF="http://dorf.test:$PC"; CODE="http://code.dorf.test:$PC"
 PW='zugangstest-Passwort-lang-1'
 TOKEN=vscode-token-vscode-token-vscode-token-12
@@ -31,18 +34,22 @@ NAV=(-H 'Sec-Fetch-Mode: navigate' -H 'Sec-Fetch-Dest: document')
 WS=(-H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' -H "Origin: $CODE")
 status() { curl -s -o /dev/null -m 10 -w '%{http_code}' "${AUF[@]}" "$@" || true; }
 
-# --- VS Code (Attrappe oder echt) ---
+# --- VS Code (Attrappe oder echt) – wie im Container nur lokal; nach außen führt das Tor im Runner (E195) ---
 printf '%s' "$TOKEN" > "$TMP/tkn"; chmod 600 "$TMP/tkn"
-setsid "${OPENVSCODE_BIN:-$WURZEL/apps/coding/test/vscode-attrappe.mjs}" --host 127.0.0.1 --port "$PV" --connection-token-file "$TMP/tkn" \
+setsid "${OPENVSCODE_BIN:-$WURZEL/apps/coding/test/vscode-attrappe.mjs}" --host 127.0.0.1 --port "$PVI" --connection-token-file "$TMP/tkn" \
   --server-data-dir "$TMP/vscode" --telemetry-level off > "$TMP/vscode.log" 2>&1 &
+PIDS+=("$!")
+mkdir -p "$TMP/arbeit"
+RUNNER_PROFIL=coding PORT="$PR" VSCODE_PORT="$PV" VSCODE_INTERN_PORT="$PVI" CODING_GEHEIMNIS="$GEHEIMNIS" ARBEIT_DIR="$TMP/arbeit" LAUF_DIR="$TMP/laeufe" \
+  setsid node "$RUNNER" > "$TMP/runner.log" 2>&1 &
 PIDS+=("$!")
 
 # --- Dorf (echter Server, leerer Vault) ---
 (
   cd "$WURZEL/apps/server"
   export DATEN_DIR="$TMP/daten" VAULT_DIR="$TMP/daten/vault" LOG_LEVEL=warn HOST=127.0.0.1 PORT="$PD" INTERN_PORT="$PI" \
-    ORIGIN="$DORF" COOKIE_SICHER=false HINTER_PROXY=true DORF_MOTOR_ATTRAPPE=1 WEB_DIR="$TMP/kein-web" DORF_VERSION=zugangstest \
-    CODING_URL="http://127.0.0.1:1" CODING_GEHEIMNIS=zugangstest-geheimnis-zugangstest-geheimnis CODING_ADRESSE="$CODE" CODING_VSCODE_TOKEN="$TOKEN"
+    ORIGIN="$DORF" COOKIE_SICHER=false HINTER_PROXY=true VERTRAUTER_PROXY=127.0.0.1 DORF_MOTOR_ATTRAPPE=1 WEB_DIR="$TMP/kein-web" DORF_VERSION=zugangstest \
+    CODING_URL="http://127.0.0.1:$PR" CODING_GEHEIMNIS="$GEHEIMNIS" CODING_ADRESSE="$CODE" CODING_VSCODE_TOKEN="$TOKEN"
   echo -n "$PW" | npx tsx src/cli.ts passwort --stdin > /dev/null
   exec setsid npx tsx src/start.ts
 ) > "$TMP/dorf.log" 2>&1 &
@@ -122,8 +129,19 @@ code_cookie=$(awk -F'\t' '$6 == "dorf_coding" { print $7 }' "$JAR")
 [ "$(status -b "$JAR" -X POST -H "Origin: $CODE" -H 'content-type: application/json' -d '{}' "$DORF/api/abmeldung")" = 403 ] || fehler "Dorf nimmt Schreibendes vom Code-Host an"
 ok "Code-Cookie öffnet das Dorf nicht; das Dorf lehnt Schreibendes mit der Herkunft des Code-Hosts ab"
 
-# 7. Abmelden im Dorf sperrt VS Code sofort
+# 7. Abmelden im Dorf sperrt VS Code sofort – auch eine schon OFFENE Verbindung (Editor/Terminal) wird gekappt (E195)
+curl -s -o /dev/null -m 25 "${AUF[@]}" -b "$JAR" "${WS[@]}" "$CODE/offen" &
+OFFEN=$!
+sleep 1.5
+OFFEN_DA=nein; kill -0 "$OFFEN" 2>/dev/null && OFFEN_DA=ja
+# (die Attrappe hält /offen sicher offen; ein echtes VS Code kann eine Verbindung ohne sein Protokoll von selbst schließen)
+[ "$OFFEN_DA" = ja ] || [ -n "${OPENVSCODE_BIN:-}" ] || fehler "die offene WebSocket-Verbindung hält nicht"
 [ "$(status -b "$JAR" -X POST -H "Origin: $DORF" -H 'content-type: application/json' -d '{}' "$DORF/api/abmeldung")" = 200 ] || fehler "Abmelden"
+if [ "$OFFEN_DA" = ja ]; then
+  for _ in $(seq 1 40); do kill -0 "$OFFEN" 2>/dev/null || break; sleep 0.1; done
+  if kill -0 "$OFFEN" 2>/dev/null; then kill "$OFFEN" 2>/dev/null || true; fehler "offene WebSocket-Verbindung zu VS Code besteht nach dem Abmelden weiter"; fi
+  ok "Abmelden kappt auch schon offene Verbindungen zu VS Code (Tor im Runner)"
+fi
 [ "$(status -b "$JAR" "$CODE/")" = 401 ] || fehler "VS Code nach dem Abmelden noch erreichbar"
 [ "$(status -b "$JAR" "${WS[@]}" "$CODE/")" = 401 ] || fehler "WebSocket nach dem Abmelden noch möglich"
 ok "Abmelden im Dorf sperrt VS Code (Seiten und neue WebSockets)"

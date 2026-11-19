@@ -342,9 +342,9 @@ Der Befehl fragt der Reihe nach:
 2. **GitHub-Token:** einfügen (unsichtbar). Der Befehl prüft es bei GitHub und zeigt dein Konto.
 3. **Name und E-Mail für Commits:** Enter übernimmt Name und die `…@users.noreply.github.com`-Adresse deines GitHub-Kontos.
 
-Danach startet das Codehaus; das Dorf startet dabei kurz neu.
+Das Dorf startet dabei kurz neu.
 
-> Meldet der Befehl „Diese Version hat noch kein Codehaus-Image“: Das Image kommt erst mit dem **zweiten** Deploy nach dieser Änderung (beim ersten kennt der Server den neuen Empfang noch nicht). GitHub → Actions → *Prüfen und ausliefern* → *Run workflow*, danach `dorf coding-einrichten` wiederholen.
+**Beim ersten Mal fehlt noch das Image** (VS Code, Compiler – rund 0,5 GB). Es wird nur an Server geschickt, auf denen das Codehaus eingeschaltet ist; der Befehl sagt dann „Das Codehaus-Image … kommt mit dem nächsten Deploy“. Also einmal ausliefern: GitHub → Actions → *Prüfen und ausliefern* → *Run workflow* (oder einfach der nächste Push). Danach startet das Codehaus von selbst – `dorf coding-einrichten` musst du nicht wiederholen. Ist das Image schon da, startet das Codehaus sofort.
 
 **Schritt 3 – ausprobieren**
 
@@ -364,9 +364,9 @@ gh repo clone <dein-konto>/<repository> /arbeit/<repository>
 **Gut zu wissen**
 
 - Projekte liegen auf dem Server unter `/srv/dorf/coding/` (im Container `/arbeit/<projekt>`). Sie sind in der täglichen Sicherung – ohne `node_modules`, `.venv` und Zwischenspeicher.
-- Lesezeichen für VS Code: `https://dorf.deine-domain.de/api/coding/oeffnen` (führt über deine Dorf-Anmeldung hinein). Meldest du dich im Dorf ab, ist auch VS Code zu.
+- Lesezeichen für VS Code: `https://dorf.deine-domain.de/api/coding/oeffnen` (führt über deine Dorf-Anmeldung hinein). Meldest du dich im Dorf ab (oder meldest du ein Gerät ab), ist auch VS Code zu – auch schon offene Fenster verlieren sofort die Verbindung. Auf deinen anderen Geräten verbindet sich VS Code dabei kurz neu; Terminals laufen weiter.
 - Erweiterungen kommen von [open-vsx.org](https://open-vsx.org) (nicht aus Microsofts Marketplace); einige Microsoft-Erweiterungen gibt es dort nicht.
-- Der Bürgermeister startet Coding-Helfer von sich aus. Hat er im selben Gespräch vorher Mails, Webseiten, Moodle oder den Kalender gelesen, fragt dich das Dorf einmal (App/Telegram: „Aktion starten: Programmieren …“) – so kann kein eingeschleuster Text einen Agenten mit Shell und GitHub-Zugang losschicken.
+- Der Bürgermeister startet Coding-Helfer von sich aus. Hat die Aufgabe aber Inhalte von außen gesehen – Mails, Webseiten, Moodle, Kalender, eine weitergeleitete Nachricht, hochgeladene Dateien, sein Lagebericht beim Aufwachen oder das Ergebnis eines Helfers, der so etwas gelesen hat –, fragt dich das Dorf einmal (App/Telegram: „Aktion starten: Programmieren …“). So kann kein eingeschleuster Text einen Agenten mit Shell und GitHub-Zugang losschicken. Schreibst du ihm selbst „bau im Codehaus …“, startet der Helfer sofort.
 - Wie viele Coding-Agenten gleichzeitig laufen: Rathaus → Agenten-Einstellungen → „Gleichzeitig coding“ (Standard 1, 0 = aus).
 - Speicher: Das Codehaus darf 2 GB nutzen. Mehr oder weniger: `CODING_MEM=3g` in `/srv/dorf/.env`, dann `dorf deploy`.
 - Andere Adresse für VS Code: `CODING_DOMAIN=…` in `/srv/dorf/.env`, dann `dorf coding-einrichten`.

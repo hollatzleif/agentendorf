@@ -578,7 +578,19 @@ export function geraeteRouten(app: FastifyInstance, a: Abhaengigkeiten, o: { ger
     const wav = req.body;
     if (!Buffer.isBuffer(wav) || wav.length < 44 || wav.toString('ascii', 0, 4) !== 'RIFF' || wav.toString('ascii', 8, 12) !== 'WAVE')
       throw new DorfFehler(400, 'Keine gültige WAV-Aufnahme.');
-    const e = await rr.umwandeln('sprache.wav', wav);
+    // E195: 503, wenn NICHT transkribiert wurde (whisper/Modell fehlt, Prozessor ohne AVX2, Zeitlimit, Rechenraum weg) –
+    // ein leerer Text mit 200 hieße für das Gerät „nichts verstanden“, und Leif spräche umsonst noch einmal.
+    let e: Awaited<ReturnType<typeof rr.umwandeln>>;
+    try {
+      e = await rr.umwandeln('sprache.wav', wav);
+    } catch (err) {
+      console.warn(`Spracheingabe: Rechenraum – ${(err as Error).message}`);
+      throw new DorfFehler(503, 'Die Spracherkennung ist gerade nicht verfügbar.');
+    }
+    if (!hatTranskript(e.text)) {
+      console.warn(`Spracheingabe: keine Transkription – ${e.hinweise.join(' | ').slice(0, 500) || 'kein Hinweis'}`);
+      throw new DorfFehler(503, 'Die Spracherkennung ist gerade nicht verfügbar.');
+    }
     return { text: transkriptAus(e.text) };
   });
 
@@ -631,6 +643,11 @@ export function geraeteRouten(app: FastifyInstance, a: Abhaengigkeiten, o: { ger
 export const SPRACHE_MAX_BYTES = 2 * 1024 * 1024;
 
 /** Nur das Transkript aus dem Umwandeln-Ergebnis (ohne Metadaten-Abschnitte und Hinweis-Zeilen) */
+/** Hat der Rechenraum wirklich transkribiert? (Abschnitt vorhanden – auch „(keine Sprache erkannt)“ zählt) */
+export function hatTranskript(md: string): boolean {
+  return /^## Transkript/m.test(md);
+}
+
 export function transkriptAus(md: string): string {
   const m = /## Transkript[^\n]*\n([\s\S]*?)(?=\n## |$)/.exec(md);
   const t = (m?.[1] ?? '').trim();

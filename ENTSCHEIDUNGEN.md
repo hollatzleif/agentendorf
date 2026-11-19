@@ -1672,7 +1672,7 @@ Ein unabhängiger Review hat neun Fehler gefunden. Jeder ist behoben und hat ein
   - Der Notschalter `alle_auf` ist nie „coding“ und verlegt Coding-Läufe nicht.
 - **Bürgermeister:**
   - Startet Coding-Helfer über die Aktion `programmieren`.
-  - Hat sein Gespräch etwas von außen gelesen (Web/Post/Moodle/Kalender laut `werkzeug_log`), startet der Helfer erst nach Leifs Klick. Ein Plan mit Coding-Teil wird dann vorgelegt und nicht automatisch angenommen.
+  - Hat die Aufgabe etwas von außen gesehen, startet der Helfer erst nach Leifs Klick. Ein Plan mit Coding-Teil wird dann vorgelegt und nicht automatisch angenommen. Was als „von außen“ zählt, steht seit dem Review in E195.
   - Grund: „präparierte Mail → Bürgermeister → Shell mit Vault und GitHub“ soll nicht ohne Rückfrage durchgehen. Ohne Fremdinhalte startet er sofort.
 - **Zugang `code.<Dorf-Adresse>`:**
   - Eigener Ursprung: Das Sitzungs-Cookie des Dorfs erreicht den Container nie.
@@ -1686,13 +1686,13 @@ Ein unabhängiger Review hat neun Fehler gefunden. Jeder ist behoben und hat ein
 - **Gebäude:** `Codehaus/` mit den Aktionen `programmieren`, `repo-klonen` und `pr-pruefen`, ergänzt über `PFLICHT_DATEIEN`. Die App zeigt Projekte, „VS Code öffnen“ und die Coding-Chats. Das Codehaus hat ein eigenes 3D-Modell.
 - **Deploy:**
   - Compose-Profil `coding`, aktiv nur mit `CODING_VERSION` und `CODING_AN=ja` (gesetzt von `dorf coding-einrichten`; `dorf coding-aus` hält an).
-  - Das Image wird nur ausgeliefert, wenn der Server es nicht hat (`hat-coding`).
+  - Das Image wird nur gebaut und ausgeliefert, wenn das Codehaus auf dem Server eingeschaltet ist und das Image dort fehlt (`hat-coding`: ja / nein / aus, E195).
   - Fehler im Codehaus blockieren weder den Deploy noch die Gesundheitsprüfung.
   - `/srv/dorf/coding` ist in der Sicherung.
 - **Offen:**
-  - `trustProxy` auf Caddy beschränken: Der Coding-Container erreicht `dorf:3000` direkt und kann `X-Forwarded-For` fälschen.
   - Vorschau von Dev-Servern.
   - Speicherbedarf auf dem echten Server messen.
+  - (`trustProxy` ist mit E195 erledigt.)
 
 ## E194 – Spracheingabe am Cardputer: Server-Teil (19.11.)
 
@@ -1707,3 +1707,45 @@ Ein unabhängiger Review hat neun Fehler gefunden. Jeder ist behoben und hat ein
   - **Upload:** direkt über TLS mit 120 s Wartezeit (`HTTPClient` bricht nach 65 s ab).
   - **Einstellungen bleiben:** NVS-Schlüssel, Formate und Partitionen sind unverändert, neu ist nur `mikro`. Update mit der Nur-Programm-Datei an 0x10000.
   - **Tests:** Host-Test mit 177 Prüfungen, das Mikrofon ist als WAV-Datei nachgestellt. Nie am Gerät erprobt.
+
+## E195 – Review zu E190–E194 (19.11.)
+
+Ein unabhängiger Review hat Lücken gefunden. Jede ist behoben und hat einen Test, der den Fehler vorher zeigt.
+
+- **Symlink-Wettlauf im Vault (kritisch):**
+  - **Lücke:** `absolut()` prüfte einen Pfad einmal, danach folgten `stat`/`readFile` Symlinks. Seit E191 schreibt ein Agent mit Shell in den Vault: Er konnte eine Datei in einer Schleife gegen einen Symlink auf `/proc/self/environ` tauschen und per `vault_lesen` die Schlüssel des Dorfs lesen, oder beim Schreiben einen Ordner nach draußen umbiegen.
+  - **Lösung (`vault/pfade.ts`):** Jeder Zugriff geht Ordner für Ordner über Dateideskriptoren mit `O_NOFOLLOW` (auf Linux über `/proc/self/fd/<fd>/<name>`, das leistet dasselbe wie openat). Gelesen wird nur über den Deskriptor; geschrieben wird im geöffneten Zielordner (temporäre Datei mit `O_EXCL`, dann rename).
+  - **Folge:** Symlinks im Vault werden nie mehr verfolgt, auch keine, die im Vault bleiben.
+  - **Umgestellt:** alle Wege, die früher `vault.abs()` lasen: VaultDienst (lesen, roh, schreiben, verschieben, löschen, hochladen, Baum, Konflikte, Vorlage ergänzen), Anhänge, Suchindex, Gebäude- und Aktionsliste, Protokolle, Bank, Karteikarten, To-dos, Uni-Ordner, Rundgang. Der Dateiwächter folgt keinen Symlinks mehr.
+  - **Nicht abgedeckt:** Hardlinks lassen sich so nicht erkennen. Sie gehen aber nur innerhalb desselben Dateisystems, und der Coding-Container sieht vom Server nur `/vault` und `/arbeit`. Die Werkstatt liest den Vault mit dem `Read` des claude-CLI, das Symlinks folgt; dort liegen aber nur ihr Abo-Token und ihr Runner-Geheimnis, kein Dorf-Schlüssel.
+  - **Test:** `vault-symlink.test.ts` tauscht in einem eigenen Prozess pausenlos Datei bzw. Ordner gegen Symlinks. Mit dem alten Code kam das Geheimnis nach 38 ms heraus, und draußen entstanden 169 Dateien.
+- **Freigabe vor Coding-Helfern ließ sich umgehen:**
+  - **Lücke:** „Fremd“ galt nur, wenn ein Werkzeug des Bürgermeister-Chats etwas gelesen hatte. Nicht erfasst: weitergeleitete Telegram-Nachricht, Lagebericht/Rundgang beim Aufwachen, hochgeladene Anhänge, Ergebnisse von Helfern, Plan-Kette Web-Schritt → Coding-Schritt.
+  - **Lösung:** neuer Merker `chats.fremd_beruehrt` (Migration 28). Gesetzt beim Laufstart, wenn der Auftrag eine Fremdinhalt-Hülle trägt oder ein Anhang hochgeladen, umgewandelt oder Fremdinhalt ist; und am Laufende, wenn ein Werkzeug Fremdes gelesen hat.
+  - Für den Bürgermeister zählt die ganze Aufgabe: sein Chat und alle Helfer derselben Aufgabe.
+  - Im Plan wartet ein Coding-Schritt auf Leif, wenn ein Vorgänger (auch über mehrere Stufen) Fremdes gesehen hat.
+  - **Ausnahme, bewusst:** Coding-Helfer machen eine Aufgabe nicht „fremd“. Sie haben Shell, Internet und GitHub schon selbst; geschützt wird der Schritt von Agenten ohne Shell zu einem mit Shell. Sonst bräuchte jeder zweite Coding-Schritt einen Klick.
+  - **Folge für Leif:** Beim Aufwachen startet der Bürgermeister Coding-Helfer nur noch mit Freigabe (der Lagebericht enthält Mail-Zusammenfassungen).
+- **Hochgeladene Textdateien** (`…/anhaenge/…`) kommen über `vault_lesen` jetzt wie jedes andere Format in der Fremdinhalt-Hülle und stempeln den Lauf.
+- **Speicher im Rechenraum:**
+  - **Gemessen im Image** (whisper.cpp 1.8.7, `ggml-base-q5_1` = 56 MB Datei, 1 Thread): whisper belegt 197–208 MB und braucht 707–715 MB Adressraum; ffmpeg belegt 58 MB und braucht 690–738 MB Adressraum.
+  - `RLIMIT_AS` begrenzt den Adressraum, nicht den belegten Speicher. Unter rund 740 MB bricht whisper ab und ffmpeg bleibt hängen. Die vorgeschlagenen 400–450 MB gehen deshalb nicht.
+  - **Lösung:** Riegel je Umwandlung 1024 MB (statt 1536). `mem_limit` des Containers 1280 MB (statt 1 GB), gerechnet aus dem, was wirklich belegt wird: tmpfs 256 + 384, zwei Umwandlungen × 260, Runner und ein Befehl 120.
+  - Reißt eine Umwandlung die Grenze, beendet der Kernel genau sie (`oom_score_adj` 1000), nie den Runner. Das Ergebnis gilt als vorübergehend und wird nicht gemerkt.
+- **Rundgang:** Scheitert die Prüfung einer Aktivität, ist das kein Anlass mehr. Sie gilt nur als geprüft und wird gemeldet.
+- **Aufwachen:** nie zwei gleichzeitig. Ein zweiter Aufruf (Zeitgeber + „Jetzt wecken“) wartet auf das laufende und bekommt dessen Bericht.
+- **Spracheingabe:** 503, wenn nicht transkribiert wurde (whisper/Modell fehlt, Absturz, Zeitlimit, Rechenraum weg). 200 mit leerem Text nur, wenn wirklich nichts gesagt wurde.
+- **Zwischenspeicher der Umwandlungen:** zusätzlich nach Größe begrenzt (300 MB), die ältesten Einträge fliegen zuerst.
+- **X-Forwarded-For nur noch von Caddy:**
+  - **Lücke:** `trustProxy: true` glaubte jedem. Werkstatt, Rechenraum, Browser und Coding-Container erreichen `dorf:3000` direkt und konnten so die Login-Drossel je IP umgehen oder Leifs Adresse aussperren.
+  - **Lösung:** `VERTRAUTER_PROXY=caddy` (compose). Der Name wird über den DNS des Docker-Netzes aufgelöst, alle 30 s erneuert und bei einer unbekannten Adresse sofort nachgesehen (`proxy.ts`). Alle anderen zählen mit ihrer echten Adresse im Docker-Netz; die lässt sich dort ohne `CAP_NET_RAW` nicht fälschen.
+  - Verworfen: ein eigenes Netz mit festem Adressbereich (kann mit vorhandenen Netzen des Servers zusammenstoßen).
+- **Abmelden kappt offene VS-Code-Verbindungen:**
+  - VS Code lauscht nur noch im Container selbst (Port 3100). Nach außen führt ein Tor im Runner (Port 3000, reine Durchleitung), das alle Verbindungen kennt.
+  - Endet eine Sitzung, die VS Code geöffnet hatte, ruft das Dorf `POST /vscode/trennen`. Wer noch angemeldet ist, verbindet sich von selbst neu; Terminals laufen weiter.
+  - Nicht erfasst: Sitzungen, die durch Zeitablauf oder über die Konsole (`dorf sitzungen-beenden`) enden. Dort hält eine offene Verbindung bis zum nächsten Neuverbinden.
+- **Deploy:**
+  - `hat-coding` antwortet „aus“, solange `CODING_AN=ja` fehlt. Die CI baut und überträgt das Image dann nicht; ältere dorf-Skripte zählen ebenfalls als „aus“. `dorf empfangen` lädt ein mitgeschicktes Image nicht, wenn das Codehaus aus ist.
+  - `dorf coding-einrichten` geht jetzt ohne Image: Es richtet alles ein und sagt, dass das Image mit dem nächsten Deploy kommt. Danach startet das Codehaus von selbst.
+  - `coding.env` wird als Datei eingehängt und von `start.sh` gelesen (nur die sechs bekannten Namen, Werte wörtlich). Die frühere Form `env_file` mit `required: false` braucht Compose ≥ 2.24; ob der Server das hat, ließ sich von hier nicht prüfen.
+

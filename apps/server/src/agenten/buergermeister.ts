@@ -74,6 +74,8 @@ const ENDSTATUS = new Set(['fertig', 'fehler', 'abgebrochen']);
 /** E191: Begründung der Freigabe, wenn ein Coding-Helfer aus einem Gespräch mit Fremdinhalten starten soll */
 export const CODING_FREIGABE_GRUND =
   'Der Bürgermeister will einen Coding-Helfer starten (Shell, Internet, GitHub, Vault beschreibbar) – in diesem Gespräch wurden aber Inhalte von außen gelesen (Mail, Web, Moodle, Kalender). Bitte prüfen, ob der Auftrag wirklich von dir kommt.';
+export const CODING_FREIGABE_GRUND_PLAN =
+  'Ein Coding-Helfer (Shell, Internet, GitHub, Vault beschreibbar) soll auf Ergebnissen früherer Schritte dieses Plans aufbauen, die Inhalte von außen gelesen haben (Web, Mail, Moodle, Kalender, Anhänge). Bitte prüfen, ob der Auftrag wirklich von dir kommt.';
 
 export class Buergermeister implements RollenHandler {
   /** Zuhörer für erledigte Aufgaben (Telegram) */
@@ -294,17 +296,12 @@ export class Buergermeister implements RollenHandler {
   }
 
   /**
-   * E191: Hat dieses Gespräch Inhalte von außen gelesen? Jetzt in diesem Lauf (k.fremdinhalte, vom Werkzeugkasten) oder
-   * in einem früheren Lauf desselben Chats (Web, Post, Moodle, Kalender laut werkzeug_log).
+   * E191/E195: Hat diese Aufgabe Inhalte von außen gesehen? Jetzt in diesem Lauf (k.fremdinhalte, vom Werkzeugkasten),
+   * schon im Auftrag (weitergeleitete Notiz, hochgeladene Anhänge, Lagebericht/Rundgang beim Aufwachen), in einem
+   * früheren Lauf – oder bei einem Helfer derselben Aufgabe, dessen Ergebnis hier wieder ankommt (dienst.ts).
    */
   private fremdBeruehrt(k: LaufKontext): boolean {
-    if (k.fremdinhalte) return true;
-    return !!this.db
-      .prepare(
-        `SELECT 1 FROM werkzeug_log WHERE chat_id = ? AND erlaubt = 1
-           AND (art = 'web' OR werkzeug IN ('WebSearch', 'WebFetch', 'kalender_lesen') OR werkzeug LIKE 'post!_%' ESCAPE '!' OR werkzeug LIKE 'moodle!_%' ESCAPE '!') LIMIT 1`,
-      )
-      .get(k.chatId);
+    return !!k.fremdinhalte || this.agenten.aufgabeFremdBeruehrt(k.chatId);
   }
 
   private async planVorlegen(eingabe: unknown, k: LaufKontext): Promise<WerkzeugAufrufErgebnis> {
@@ -436,7 +433,13 @@ export class Buergermeister implements RollenHandler {
         this.planStartet.add(marke);
         try {
           const zusatz = nach.length ? this.vorgaengerErgebnisse(nach.map((v) => ({ nr: v, titel: teile[v - 1]!.titel, chatId: laeuft.get(v)! }))) : undefined;
-          const s = await this.teilaufgabeStarten(t, { schreibtischId: p.schreibtisch_id ?? undefined, elternChatId: p.chat_id, planId, zusatz });
+          // E195: Coding-Schritt, der auf Ergebnissen von Schritten mit Fremdinhalten aufbaut (Web, Post, Moodle, Anhänge …;
+          // auch über mehrere Stufen) → erst nach Leifs Klick. Coding-Vorgänger zählen nicht (haben die Shell schon selbst).
+          const vor = new Set<number>();
+          const sammeln = (nrn: number[]) => nrn.forEach((v) => !vor.has(v) && (vor.add(v), sammeln(teile[v - 1]?.nach ?? [])));
+          sammeln(nach);
+          const fremdVor = t.motor === 'coding' && [...vor].some((v) => teile[v - 1]?.motor !== 'coding' && laeuft.has(v) && this.agenten.istFremdBeruehrt(laeuft.get(v)!));
+          const s = await this.teilaufgabeStarten(t, { schreibtischId: p.schreibtisch_id ?? undefined, elternChatId: p.chat_id, planId, zusatz, freigabeNoetig: fremdVor ? CODING_FREIGABE_GRUND_PLAN : undefined });
           this.db.prepare('INSERT INTO plan_helfer (plan_id, nr, chat_id) VALUES (?, ?, ?)').run(planId, nr, s.chatId);
           gestartet.push(t.titel);
         } catch (e) {

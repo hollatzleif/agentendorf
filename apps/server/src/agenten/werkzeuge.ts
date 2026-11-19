@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
 import { auszugText, type MoodleBrowserKlient, type SeitenAuszug } from './moodle-browser.js';
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import matter from 'gray-matter';
 import { z } from 'zod';
@@ -10,7 +9,7 @@ import type { VaultDienst } from '../vault/dienst.js';
 import type { Suchindex } from '../vault/suche.js';
 import { dateinameBereinigen, normalisieren } from '../vault/pfade.js';
 import { DorfFehler } from '../fehler.js';
-import { fremdinhaltHuelle, HELFER_FAEHIGKEITEN, pflegePruefen, schreibenPruefen, type DorfWerkzeug } from './leine.js';
+import { fremdinhaltHuelle, istHochgeladen, HELFER_FAEHIGKEITEN, pflegePruefen, schreibenPruefen, type DorfWerkzeug } from './leine.js';
 import type { Rueckgaengig, RueckgaengigArt } from './rueckgaengig.js';
 import { kontaktZeile, KONTAKTE_PFAD, type Kontakte } from '../kontakte.js';
 import { dateiStempel } from './hilfen.js';
@@ -750,6 +749,11 @@ export class WerkzeugKiste {
   private fremd: boolean;
   private rueckfrageGestellt = false;
 
+  /** E195: Stand jetzt – der Dienst merkt es am Chat, damit es auch für spätere Läufe und für Helfer gilt */
+  get hatFremdesGelesen() {
+    return this.fremd;
+  }
+
   constructor(
     private db: DB,
     private uhr: Uhr,
@@ -947,7 +951,7 @@ export class WerkzeugKiste {
             return { ok: false, text: `Verweigert: ${grund}` };
           }
           const von = normalisieren(e.von);
-          const st = await fs.stat(this.vault.abs(von)).catch(() => null);
+          const st = await this.vault.stat(von);
           if (!st?.isFile()) throw new DorfFehler(404, `Datei gibt es nicht: ${von}`);
           const nach = await this.vault.verschieben(von, e.nach);
           await this.merken('datei_verschoben', `Datei verschoben: ${von} → ${nach}`, { von, nach }, true);
@@ -1025,11 +1029,11 @@ export class WerkzeugKiste {
     let summe = 0;
     for (const roh of pfade) {
       const pfad = normalisieren(roh);
-      const st = await fs.stat(this.vault.abs(pfad)).catch(() => null);
-      if (!st?.isFile()) throw new DorfFehler(404, `Anhang gibt es nicht: ${pfad}`);
-      summe += st.size;
+      const d = await this.vault.puffer(pfad, { max: 15 * 1024 * 1024 });
+      if (!d) throw new DorfFehler(404, `Anhang gibt es nicht: ${pfad}`);
+      summe += d.inhalt.length;
       if (summe > 15 * 1024 * 1024) throw new DorfFehler(413, 'Anhänge zusammen höchstens 15 MB.');
-      aus.push({ name: dateinameBereinigen(path.posix.basename(pfad)) || 'anhang', mime: MIME[path.posix.extname(pfad).toLowerCase()] ?? 'application/octet-stream', daten: await fs.readFile(this.vault.abs(pfad)) });
+      aus.push({ name: dateinameBereinigen(path.posix.basename(pfad)) || 'anhang', mime: MIME[path.posix.extname(pfad).toLowerCase()] ?? 'application/octet-stream', daten: d.inhalt });
     }
     return aus;
   }
@@ -1268,11 +1272,13 @@ export class WerkzeugKiste {
       case 'rechenraum_vault_kopieren': {
         const e = z.object({ vault_pfad: z.string(), ziel: z.string().optional() }).parse(eingabe);
         const pfad = normalisieren(e.vault_pfad);
-        const st = await fs.stat(this.vault.abs(pfad)).catch(() => null);
+        const st = await this.vault.stat(pfad);
         if (!st?.isFile()) throw new DorfFehler(404, `Gibt es nicht: ${pfad}`);
         if (st.size > 50 * 1024 * 1024) throw new DorfFehler(413, 'Datei zu groß (max. 50 MB).');
         const ziel = e.ziel || path.posix.basename(pfad);
-        await r.klient.schreiben(raum, ziel, await fs.readFile(this.vault.abs(pfad)));
+        const d = await this.vault.puffer(pfad, { max: 50 * 1024 * 1024 });
+        if (!d) throw new DorfFehler(404, `Gibt es nicht: ${pfad}`);
+        await r.klient.schreiben(raum, ziel, d.inhalt);
         this.log(name, eingabe, `→ ${ziel}`, true, pfad, 'gelesen');
         return { ok: true, text: `Kopiert nach ${ziel} (${Math.round(st.size / 1024)} KB).` };
       }
@@ -1448,7 +1454,7 @@ export class WerkzeugKiste {
     const pfad = normalisieren(roh);
     const ext = path.posix.extname(pfad).toLowerCase();
     if (!['.md', '.txt', '.csv', '.json', '.markdown', '.yaml', '.yml'].includes(ext)) {
-      const st = await fs.stat(this.vault.abs(pfad)).catch(() => null);
+      const st = await this.vault.stat(pfad);
       if (!st?.isFile()) throw new DorfFehler(404, `Gibt es nicht: ${pfad}`);
       if (!this.k.dateien) {
         const t = `${pfad} ist keine Textdatei (${ext || 'ohne Endung'}, ${Math.round(st.size / 1024)} KB). PDFs und Bilder bitte als Anhang der Aktion verwenden.`;
@@ -1457,7 +1463,7 @@ export class WerkzeugKiste {
       }
       // E190: jedes Format – Text direkt, Bilder als Bild, alles andere über den Rechenraum (Fremdinhalt → Hülle)
       const v = await this.k.dateien.verstehen(pfad, { pdfNativ: false, bildNativ: true });
-      const fremd = v.art === 'umgewandelt' || v.art === 'bild' || /(^|\/)anhaenge\//.test(pfad);
+      const fremd = v.art === 'umgewandelt' || v.art === 'bild' || istHochgeladen(pfad);
       if (fremd) this.fremd = true;
       const kopf = `${pfad} – ${anhangKopf(v)}`;
       let text = kopf;
@@ -1473,7 +1479,8 @@ export class WerkzeugKiste {
     // Bürgermeister liest sein Gedächtnis neu → diese Fassung kennt er jetzt (z. B. nach Leifs Änderung)
     if (this.k.wissen && pfad === GEDAECHTNIS_PFAD) this.k.wissen.gedaechtnisVersion = d.version;
     let inhalt = d.inhalt.length > MAX_LESEN ? `${d.inhalt.slice(0, MAX_LESEN)}\n\n[… gekürzt, Datei ist ${d.inhalt.length} Zeichen lang]` : d.inhalt;
-    if (istFremdinhalt(d.inhalt)) {
+    // E195: auch hochgeladene Textdateien (…/anhaenge/…) sind fremd – Hülle und Stempel wie bei jedem anderen Format
+    if (istFremdinhalt(d.inhalt) || istHochgeladen(pfad)) {
       inhalt = fremdinhaltHuelle(pfad, inhalt);
       this.fremd = true;
     }

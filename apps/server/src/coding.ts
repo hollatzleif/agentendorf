@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { CodingUebersicht } from '@dorf/shared';
-import { tokenHash } from './auth/sitzungen.js';
+import { tokenHash, type Sitzungen } from './auth/sitzungen.js';
 import type { DB } from './db.js';
 import { DorfFehler } from './fehler.js';
 import type { Konfig } from './konfig.js';
@@ -70,6 +70,14 @@ export class CodingZugang {
     return !!z && z.ablauf > this.uhr.jetzt() && this.sitzungGueltig(z.sitzung);
   }
 
+  /** E195: Zugänge beendeter Sitzungen löschen; true, wenn eine davon VS Code geöffnet hatte (dann Verbindungen kappen) */
+  sitzungenBeendet(ids: string[]): boolean {
+    let n = 0;
+    for (const id of ids) n += this.db.prepare('DELETE FROM coding_zugang WHERE sitzung = ?').run(id).changes;
+    for (const [k, v] of this.karten) if (ids.includes(v.sitzung)) this.karten.delete(k);
+    return n > 0;
+  }
+
   private sitzungGueltig(id: string) {
     const s = this.db.prepare('SELECT ablauf FROM sitzungen WHERE id = ?').get(id) as { ablauf: number } | undefined;
     return !!s && s.ablauf > this.uhr.jetzt();
@@ -89,10 +97,21 @@ export function codingEingerichtet(k: Konfig) {
   return !!(k.codingGeheimnis && k.codingAdresse && k.codingVscodeToken);
 }
 
-export function codingRouten(app: FastifyInstance, d: { konfig: Konfig; db: DB; uhr: Uhr; holen?: typeof fetch }) {
+export function codingRouten(app: FastifyInstance, d: { konfig: Konfig; db: DB; uhr: Uhr; holen?: typeof fetch; sitzungen?: Sitzungen }) {
   const { konfig } = d;
   const holen = d.holen ?? fetch;
   const zugang = new CodingZugang(d.db, d.uhr);
+  // E195: Endet eine Dorf-Sitzung, die VS Code geöffnet hatte, kappt der Coding-Container alle offenen Verbindungen zu
+  // VS Code (Tor im Runner). Neue Anfragen scheitern ohnehin an der Prüfung für Caddy – so bleiben auch schon offene
+  // WebSockets (Editor, Terminal) nicht bestehen. Wer noch angemeldet ist, verbindet sich von selbst neu.
+  d.sitzungen?.beiEnde.push((ids) => {
+    if (!zugang.sitzungenBeendet(ids) || !konfig.codingGeheimnis) return;
+    void holen(`${konfig.codingUrl}/vscode/trennen`, { method: 'POST', headers: { 'x-werkstatt-geheimnis': konfig.codingGeheimnis }, signal: AbortSignal.timeout(4000) })
+      .then((r) => {
+        if (!r.ok) throw new Error(`Antwort ${r.status}`);
+      })
+      .catch((e: Error) => console.warn(`Codehaus: offene VS-Code-Verbindungen ließen sich nicht kappen (${e.message}) – sie enden beim nächsten Neuverbinden.`));
+  });
   const codeHost = () => {
     try {
       return new URL(konfig.codingAdresse ?? '').host;

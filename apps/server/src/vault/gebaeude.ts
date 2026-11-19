@@ -1,4 +1,3 @@
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import matter from 'gray-matter';
 import { z } from 'zod';
@@ -18,15 +17,11 @@ export const GebaeudeKopf = z.object({
 /** Ein Gebäude ist jeder Ordner auf oberster Ebene, der eine gebaeude.md enthält. */
 export async function gebaeudeListe(vault: VaultDienst): Promise<Gebaeude[]> {
   const aus: Gebaeude[] = [];
-  for (const e of await fs.readdir(vault.wurzel, { withFileTypes: true })) {
-    if (!e.isDirectory() || e.name.startsWith('.') || e.name.startsWith('00_')) continue;
-    const datei = path.join(vault.wurzel, e.name, 'gebaeude.md');
-    const roh = await fs.readFile(datei, 'utf8').catch(() => null);
+  for (const e of await vault.namen('')) {
+    if (!e.ordner || e.name.startsWith('00_')) continue;
+    const roh = await vault.text(`${e.name}/gebaeude.md`).catch(() => null);
     if (roh === null) continue;
-    const aktionen = await fs
-      .readdir(path.join(vault.wurzel, e.name, 'aktionen'))
-      .then((l) => l.filter((n) => n.endsWith('.md') && !n.startsWith('.')).length)
-      .catch(() => 0);
+    const aktionen = (await vault.namen(`${e.name}/aktionen`)).filter((n) => n.datei && n.name.endsWith('.md')).length;
     try {
       const kopf = GebaeudeKopf.parse(matter(roh).data);
       aus.push({ id: e.name, ...kopf, aktionen });

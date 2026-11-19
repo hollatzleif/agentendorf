@@ -60,13 +60,30 @@ export class Sitzungen {
     return this.db.prepare('SELECT * FROM sitzungen ORDER BY zuletzt DESC').all() as Sitzung[];
   }
 
+  /** E195: Zuhörer für beendete Sitzungen (Abmelden, „Gerät abmelden“, „alle abmelden“) – z. B. VS-Code-Verbindungen kappen */
+  beiEnde: ((ids: string[]) => void)[] = [];
+
+  private endeMelden(ids: string[]) {
+    if (!ids.length) return;
+    for (const fn of this.beiEnde) {
+      try {
+        fn(ids);
+      } catch (e) {
+        console.error('Zuhörer für Sitzungsende fehlgeschlagen', e);
+      }
+    }
+  }
+
   beenden(id: string) {
-    return this.db.prepare('DELETE FROM sitzungen WHERE id = ?').run(id).changes > 0;
+    const weg = this.db.prepare('DELETE FROM sitzungen WHERE id = ?').run(id).changes > 0;
+    if (weg) this.endeMelden([id]);
+    return weg;
   }
 
   alleAusserBeenden(behalten: string | null): string[] {
     const ids = (this.db.prepare('SELECT id FROM sitzungen WHERE id != ?').all(behalten ?? '') as { id: string }[]).map((r) => r.id);
     this.db.prepare('DELETE FROM sitzungen WHERE id != ?').run(behalten ?? '');
+    this.endeMelden(ids);
     return ids;
   }
 }

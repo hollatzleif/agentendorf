@@ -35,12 +35,6 @@ CURL
 chmod +x "$ATTRAPPEN/docker" "$ATTRAPPEN/curl"
 dorf() { PATH="$ATTRAPPEN:$PATH" DORF_TEST=1 DORF_BASIS="$BASIS" bash "$HIER/../dorf" "$@"; }
 
-# Ohne Codehaus-Image in dieser Version: klare Meldung, nichts geändert
-if printf '\n%s\n\n\n' "$GH_GUT" | dorf coding-einrichten > "$ATTRAPPEN/aus" 2>&1; then fehler "ohne CODING_VERSION angenommen"; fi
-grep -q 'noch kein Codehaus-Image' "$ATTRAPPEN/aus" || fehler "Meldung zum fehlenden Image fehlt"
-[ ! -f "$BASIS/coding.env" ] || fehler "coding.env ohne Image angelegt"
-echo "Ohne Image: bestanden"
-
 echo 1234567890abcdef > "$BASIS/app/current/CODING_VERSION"
 echo v1 > "$BASIS/app/current/VERSION"
 cp "$HIER/../compose.yml" "$BASIS/app/current/deploy/compose.yml"
@@ -124,4 +118,21 @@ echo "CODING_AN=ja" >> "$BASIS/.env"; rm "$BASIS/app/current/CODING_VERSION"
 : > "$AUFRUFE"; dorf status > /dev/null 2>&1 || true
 grep -q '^PROFIL= CV=fehlt compose' "$AUFRUFE" || fehler "Profil ohne CODING_VERSION gesetzt: $(cat "$AUFRUFE")"
 echo "Ausschalten und Profil-Schalter: bestanden"
+
+# E195: Einrichten OHNE Image auf dem Server (so ist es beim ersten Mal – das große Image kommt erst, wenn der Schalter
+# gesetzt ist): alles wird eingerichtet, nur das Dorf startet neu, klare Meldung, wie das Image kommt.
+sed -i '/^CODING_AN=/d' "$BASIS/.env"
+: > "$AUFRUFE"
+aus=$(printf '\n\n\n\n' | dorf coding-einrichten 2>&1) || fehler "coding-einrichten ohne Image endet mit Fehler: $aus"
+grep -q 'kommt mit dem nächsten Deploy' <<<"$aus" || fehler "Hinweis auf den nächsten Deploy fehlt: $aus"
+grep -qx 'CODING_AN=ja' "$BASIS/.env" || fehler "Schalter ohne Image nicht gesetzt (die CI würde das Image nie schicken)"
+grep -qxF "GH_TOKEN=$GH_GUT" "$C" || fehler "coding.env ohne Image nicht geschrieben"
+grep -q '^PROFIL= CV=fehlt compose .* up -d --force-recreate dorf$' "$AUFRUFE" || fehler "ohne Image soll nur das Dorf neu starten: $(cat "$AUFRUFE")"
+! grep -q 'recreate coding' "$AUFRUFE" || fehler "Codehaus ohne Image gestartet"
+echo "Einrichten ohne Image (kommt mit dem nächsten Deploy): bestanden"
+
+# Compose: coding.env wird als Datei eingehängt – kein env_file (die Form mit required braucht Compose ≥ 2.24)
+! grep -qE '^\s+required:' "$HIER/../compose.yml" || fehler "compose.yml nutzt env_file mit required (zu neu für ältere Compose-Fassungen)"
+grep -q '/srv/dorf/coding.env:/geheim/coding.env:ro' "$HIER/../compose.yml" || fehler "coding.env wird nicht als Datei eingehängt"
+echo "Compose ohne env_file/required: bestanden"
 echo "ALLE CODEHAUS-EINRICHTEN-TESTS BESTANDEN"

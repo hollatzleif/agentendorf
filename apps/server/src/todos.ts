@@ -1,4 +1,3 @@
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import matter from 'gray-matter';
 import { z } from 'zod';
@@ -247,8 +246,7 @@ export class TodoDienst {
 
   /** Offene zuerst (fällige nach Datum, dann neueste), danach Erledigtes der letzten 14 Tage */
   async liste(opt: { alleErledigten?: boolean } = {}): Promise<TodoInfo[]> {
-    const ordner = this.o.vault.abs(this.ordner);
-    const namen = (await fs.readdir(ordner).catch(() => [] as string[])).filter((n) => n.endsWith('.md') && !n.startsWith('.') && !/\.(sync-conflict-|konflikt-)/.test(n));
+    const namen = (await this.o.vault.namen(this.ordner)).filter((n) => n.datei).map((n) => n.name).filter((n) => n.endsWith('.md') && !n.startsWith('.') && !/\.(sync-conflict-|konflikt-)/.test(n));
     const alle = (await Promise.all(namen.map((n) => this.lesenEines(`${this.ordner}/${n}`)))).filter((t): t is TodoInfo => !!t);
     const grenze = this.o.uhr.jetzt() - ERLEDIGT_TAGE * 86_400_000;
     const offen = alle

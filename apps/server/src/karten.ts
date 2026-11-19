@@ -1,5 +1,4 @@
 import crypto from 'node:crypto';
-import fs from 'node:fs';
 import type { KarteFaellig, KartenFach } from '@dorf/shared';
 import type { DB } from './db.js';
 import type { Uhr } from './uhr.js';
@@ -84,14 +83,11 @@ export class Karteikasten {
   constructor(private o: { db: DB; uhr: Uhr; vault: VaultDienst; hub: LiveHub }) {}
 
   private faecher(): string[] {
-    const w = this.o.vault.abs(UNI);
-    return fs.existsSync(w)
-      ? fs
-          .readdirSync(w, { withFileTypes: true })
-          .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
-          .map((d) => d.name)
-          .sort((a, b) => a.localeCompare(b, 'de'))
-      : [];
+    return this.o.vault
+      .namenJetzt(UNI)
+      .filter((d) => d.ordner)
+      .map((d) => d.name)
+      .sort((a, b) => a.localeCompare(b, 'de'));
   }
 
   async karten(fach: string): Promise<Karte[]> {

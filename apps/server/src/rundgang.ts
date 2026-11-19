@@ -1,5 +1,4 @@
 import crypto from 'node:crypto';
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import matter from 'gray-matter';
 import { z } from 'zod';
@@ -45,6 +44,7 @@ export interface RundgangQuellen {
   todos?: TodoDienst;
   bank?: { zeitungsZeilen(): Promise<string[]> };
   kalender?: (von: number, bis: number) => Promise<KalenderEintrag[]>;
+  log?: (text: string) => void;
 }
 
 export interface Aktivitaet {
@@ -80,10 +80,9 @@ export async function vaultBefund(vault: VaultDienst, max = 5000): Promise<Vault
   const alle: string[] = [];
   const laufen = async (rel: string) => {
     if (alle.length >= max) return;
-    for (const n of await fs.readdir(vault.abs(rel), { withFileTypes: true }).catch(() => [])) {
-      if (n.name.startsWith('.')) continue;
+    for (const n of await vault.namen(rel).catch(() => [])) {
       const k = rel ? `${rel}/${n.name}` : n.name;
-      if (n.isDirectory()) {
+      if (n.ordner) {
         if (!AUSGELASSEN.has(n.name)) await laufen(k);
       } else alle.push(k);
     }
@@ -99,9 +98,9 @@ export async function vaultBefund(vault: VaultDienst, max = 5000): Promise<Vault
       continue;
     }
     if (!p.endsWith('.md')) continue;
-    const st = await fs.stat(vault.abs(p)).catch(() => null);
-    if (!st || st.size > 300_000) continue;
-    const text = await fs.readFile(vault.abs(p), 'utf8').catch(() => '');
+    const st = await vault.stat(p).catch(() => null);
+    if (!st?.isFile() || st.size > 300_000) continue;
+    const text = (await vault.text(p, { max: 300_000 }).catch(() => null)) ?? '';
     const rumpf = text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '').trim();
     if (!rumpf && !p.startsWith(`${MEINE_TODOS_ORDNER}/`) && !/\/(todos|liste|wunschliste|aufgaben)\//.test(p)) b.leer.push(p);
     if (rumpf.length >= 200) {
@@ -434,9 +433,9 @@ Gibt es nichts wirklich Neues, schreib das Gedächtnis NICHT neu.`,
     fakten: async (q) => {
       const z: string[] = [];
       for (const f of q.uni.faecher()) {
-        const folien = (await fs.readdir(q.vault.abs(`${f.ordner}/folien`)).catch(() => [])).filter((n) => !n.startsWith('.')).length;
+        const folien = (await q.vault.namen(`${f.ordner}/folien`).catch(() => [])).length;
         if (!folien) continue;
-        const karten = await fs.stat(q.vault.abs(`${f.ordner}/karten.md`)).catch(() => null);
+        const karten = await q.vault.stat(`${f.ordner}/karten.md`).catch(() => null);
         if (!karten || karten.size < 300) z.push(`${kurz(f.name, 60)}: ${folien} Datei(en) in folien/, ${karten ? 'kaum Karten' : 'keine karten.md'}`);
       }
       return z.length ? z.slice(0, 8) : null;
@@ -483,7 +482,7 @@ Gibt es nichts wirklich Neues, schreib das Gedächtnis NICHT neu.`,
     auftrag:
       'Lies die Wochenziele dieser Woche (die genannte Datei) und vergleiche sie mit Leifs To-dos (todo_liste) und dem Kalender der restlichen Woche. Zu welchem offenen Ziel gibt es noch kein To-do und keinen Termin? Nenn in „Für Leif“ höchstens ZWEI solche Ziele mit je einem konkreten ersten Schritt. Du hakst keine Ziele ab und legst dafür keine To-dos an.',
     fakten: async (q) => {
-      const ordner = await fs.readdir(q.vault.abs('Rathaus/wochenziele')).catch(() => [] as string[]);
+      const ordner = (await q.vault.namen('Rathaus/wochenziele').catch(() => [])).map((n) => n.name);
       const neueste = ordner.filter((n) => /^\d{4}-KW\d{2}\.md$/.test(n)).sort().at(-1);
       if (!neueste) return null;
       const text = (await q.vault.lesen(`Rathaus/wochenziele/${neueste}`).catch(() => null))?.inhalt ?? '';
@@ -711,7 +710,14 @@ export class Rundgang {
     for (const x of faellig) {
       // nur so viele prüfen, wie überhaupt gewählt werden könnten – der Rest bleibt fällig für das nächste Mal
       if (budgetWahl(mitAnlass, { ...a, max: e.aktivitaeten_je_rundgang }).length >= e.aktivitaeten_je_rundgang) break;
-      const f = x.fakten ? await x.fakten(this.q, zuletzt[x.id] ?? 0).catch(() => [] as string[]) : [];
+      // E195: Scheitert die Prüfung des Codes (Kalender nicht erreichbar, Datei kaputt …), ist das KEIN Anlass –
+      // sonst liefe die KI ohne Fakten los. Nur als geprüft merken (nächster Versuch nach der üblichen Frist) und melden.
+      const f = x.fakten
+        ? await x.fakten(this.q, zuletzt[x.id] ?? 0).catch((err: unknown) => {
+            (this.q.log ?? console.error)(`Rundgang: Prüfung „${x.id}“ fehlgeschlagen: ${(err as Error)?.message ?? err}`);
+            return null;
+          })
+        : [];
       if (f === null) geprueft[x.id] = jetzt;
       else {
         fakten.set(x.id, f);

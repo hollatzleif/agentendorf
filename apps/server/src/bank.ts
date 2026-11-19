@@ -1,5 +1,4 @@
 import crypto from 'node:crypto';
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import matter from 'gray-matter';
 import { z } from 'zod';
@@ -307,13 +306,12 @@ export class Bank {
 
   /** Alle Dateien in Bank/auszuege/ einlesen, die neu oder geändert sind. Gibt die Zahl neuer Buchungen zurück. */
   async einlesen(): Promise<{ neu: number; dateien: number }> {
-    const ordner = this.o.vault.abs(BANK_ORDNER);
-    const namen = (await fs.readdir(ordner).catch(() => [] as string[])).filter((n) => /\.(csv|txt)$/i.test(n) && !n.startsWith('.'));
+    const namen = (await this.o.vault.namen(BANK_ORDNER)).filter((n) => n.datei && /\.(csv|txt)$/i.test(n.name)).map((n) => n.name);
     let neu = 0;
     let dateien = 0;
     for (const n of namen) {
       const pfad = `${BANK_ORDNER}/${n}`;
-      const roh = await fs.readFile(this.o.vault.abs(pfad)).catch(() => null);
+      const roh = (await this.o.vault.puffer(pfad).catch(() => null))?.inhalt ?? null;
       if (!roh) continue;
       const version = crypto.createHash('sha256').update(roh).digest('hex');
       const vorher = this.o.db.prepare('SELECT version FROM bank_importe WHERE datei = ?').get(pfad) as { version: string } | undefined;

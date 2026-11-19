@@ -232,6 +232,11 @@ export function schreibenPruefen(p: SchreibPruefung): string | null {
   return null;
 }
 
+/** Fremd ist alles, was hochgeladen wurde (…/anhaenge/…: Chat-Anhänge, Telegram-Dateien) – egal in welchem Format */
+export function istHochgeladen(p: string) {
+  return /(^|\/)anhaenge\//.test(p);
+}
+
 /** Packt fremde Inhalte so ein, dass sie als Daten erkennbar sind und die Hülle nicht vorzeitig schließen können. */
 export function fremdinhaltHuelle(quelle: string, inhalt: string) {
   const sicher = inhalt.replace(/<\/?fremdinhalt/gi, (m) => m.replace('<', '‹'));

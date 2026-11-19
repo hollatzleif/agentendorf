@@ -39,6 +39,7 @@ import { MAX_UPLOAD_BYTES, type Ich, type SitzungInfo } from '@dorf/shared';
 import type { Konfig } from './konfig.js';
 import type { DB } from './db.js';
 import type { Uhr } from './uhr.js';
+import { proxyVertrauen } from './proxy.js';
 import { DorfFehler } from './fehler.js';
 import { Drossel } from './auth/drossel.js';
 import { Sitzungen, SITZUNG_DAUER_MS, type Sitzung } from './auth/sitzungen.js';
@@ -141,14 +142,19 @@ const MIME: Record<string, string> = {
 
 export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
   const { konfig, db, uhr, vault, suche, hub } = a;
+  // E195: X-Forwarded-For gilt nur von benannten Proxys (im Server: caddy) – nie von jedem, der dorf:3000 erreicht
+  const proxy = konfig.hinterProxy ? proxyVertrauen(konfig.vertrauterProxy.length ? konfig.vertrauterProxy : ['127.0.0.1', '::1'], { log: (t) => console.warn(t) }) : null;
+  if (proxy) await proxy.erneuern();
+  if (konfig.hinterProxy && !konfig.vertrauterProxy.length) console.warn('HINTER_PROXY ohne VERTRAUTER_PROXY: X-Forwarded-For gilt nur vom eigenen Rechner (127.0.0.1).');
   const app = Fastify({
-    trustProxy: konfig.hinterProxy,
+    trustProxy: proxy ? (adresse: string) => proxy.pruefen(adresse) : false,
     bodyLimit: 10 * 1024 * 1024,
     logger:
       konfig.logLevel === 'silent'
         ? false
         : { level: konfig.logLevel, redact: ['req.headers.cookie', 'req.headers.authorization', 'res.headers["set-cookie"]'] },
   });
+  if (proxy) app.addHook('onClose', async () => proxy.stoppen());
   const sitzungen = new Sitzungen(db, uhr);
   const drossel = new Drossel(db, uhr);
   const einmaligAusfuehren = einmaligBauen(db, uhr);
@@ -621,7 +627,7 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
 
   // ---- Etappe 6: Programme für Mac und Windows ----
   programmeRouten(app, { ordner: path.join(konfig.datenDir, 'programme'), ursprung: konfig.origins[0] ?? '' });
-  codingRouten(app, { konfig, db, uhr });
+  codingRouten(app, { konfig, db, uhr, sitzungen });
 
   // ---- E65: To-do-Brett (Marktplatz) ----
   // Etappe 7: alle Listen unter /api/listen/<name>; /api/todos bleibt für die To-do-Liste

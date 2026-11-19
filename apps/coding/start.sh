@@ -11,6 +11,19 @@ RUNNER=${RUNNER_JS:-/app/runner.js}
 
 fehler() { echo "Codehaus: $*" >&2; exit 1; }
 
+# Geheimnisse aus der eingehängten Datei (CODING_KONFIG, im Server /geheim/coding.env = /srv/dorf/coding.env) – nur die
+# sechs bekannten Namen, der Wert unverändert bis zum Zeilenende (nichts wird als Shell ausgewertet).
+if [ -n "${CODING_KONFIG:-}" ]; then
+  [ -r "$CODING_KONFIG" ] || fehler "$CODING_KONFIG ist nicht lesbar – auf dem Server: dorf coding-einrichten"
+  while IFS= read -r zeile || [ -n "$zeile" ]; do
+    zeile=${zeile%$'\r'}
+    case "${zeile%%=*}" in
+      CODING_GEHEIMNIS|VSCODE_TOKEN|CLAUDE_CODE_OAUTH_TOKEN|GH_TOKEN|GIT_NAME|GIT_EMAIL)
+        [ "$zeile" != "${zeile%%=*}" ] && export "${zeile%%=*}=${zeile#*=}" ;;
+    esac
+  done < "$CODING_KONFIG"
+fi
+
 geheimnis=${CODING_GEHEIMNIS:-}
 [ "${#geheimnis}" -ge 32 ] || fehler "CODING_GEHEIMNIS fehlt oder ist zu kurz – auf dem Server: dorf coding-einrichten"
 # Ohne Verbindungs-Token startet VS Code nie (kein --without-connection-token): auch im Docker-Netz geht ohne Token nichts.
@@ -38,8 +51,11 @@ printf '%s' "$VSCODE_TOKEN" > "$TOKEN_DATEI"
 
 # VS Code und sein Terminal kennen weder das Runner-Geheimnis noch das Verbindungs-Token als Variable.
 # Die Startmeldung nennt das Token („…?tkn=“) – das gehört nicht ins Protokoll.
-env -u CODING_GEHEIMNIS -u VSCODE_TOKEN -u RUNNER_PROFIL -u PORT \
-  "$VSCODE" --host 0.0.0.0 --port "${VSCODE_PORT:-3000}" --connection-token-file "$TOKEN_DATEI" \
+# E195: VS Code lauscht nur im Container selbst; nach außen (Caddy) führt das Tor im Runner auf VSCODE_PORT – so kann
+# das Dorf beim Abmelden alle offenen Verbindungen kappen (POST /vscode/trennen).
+export VSCODE_INTERN_PORT=${VSCODE_INTERN_PORT:-3100}
+env -u CODING_GEHEIMNIS -u VSCODE_TOKEN -u RUNNER_PROFIL -u PORT -u VSCODE_INTERN_PORT -u CODING_KONFIG \
+  "$VSCODE" --host 127.0.0.1 --port "$VSCODE_INTERN_PORT" --connection-token-file "$TOKEN_DATEI" \
   --server-data-dir "$HOME/.openvscode-server" --telemetry-level off --default-folder "$ARBEIT" \
   > >(sed -u 's/tkn=[A-Za-z0-9_-]*/tkn=(verborgen)/g') 2>&1 &
 VSCODE_PID=$!

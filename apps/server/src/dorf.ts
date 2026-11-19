@@ -326,7 +326,7 @@ export async function dorfStarten(
   const meineTodos = new MeineTodos({ db, vault, uhr });
   meineTodos.beiAenderung = () => hub.gebuendelt({ typ: 'schreibtisch.geaendert' });
   agenten.meineTodos = meineTodos;
-  const rundgang = new Rundgang({ db, uhr, vault, uni, postbote, meineTodos, todos: listen.todo, kalender: agenten.kalender });
+  const rundgang = new Rundgang({ db, uhr, vault, uni, postbote, meineTodos, todos: listen.todo, kalender: agenten.kalender, log: (t) => console.warn(t) });
   // Nach jedem Bürgermeister-Lauf: Offenes aus der Zusammenfassung übernehmen (wenn er es nicht selbst eingetragen hat), Rundgang protokollieren
   agenten.beiLaufEnde.push(async (e) => {
     await meineTodos.nachLauf(e).catch((x) => console.warn(`Eigene To-dos: ${(x as Error).message}`));

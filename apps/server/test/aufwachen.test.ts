@@ -127,6 +127,18 @@ describe('Aufwachen des Bürgermeisters', () => {
     expect((await d.aufwachen.aufwachen()).anlaesse).toBe(0);
   });
 
+  it('E195: Zeitgeber und „Jetzt wecken“ gleichzeitig → EIN Aufwachen, ein Lagebericht (der zweite Aufruf wartet und bekommt denselben Bericht)', async () => {
+    const { d } = await aufbau(kal(ev('a', '⏰ CDA: Übung 3 ist fällig', '20261117T225900Z')));
+    const [a, b] = await Promise.all([d.aufwachen.aufwachen(), d.aufwachen.aufwachen()]);
+    expect(a.lagebericht).not.toBeNull();
+    expect(b).toBe(a);
+    await d.agenten.leerlauf();
+    expect(d.schreibtisch.liste().filter((x) => x.quelle === 'aufwachen')).toHaveLength(1);
+    // danach ist die Sperre wieder frei
+    expect((await d.aufwachen.aufwachen()).lagebericht).toBeNull();
+    await d.app.close();
+  });
+
   it('startet er beim Aufwachen einen Helfer, läuft der über Leifs Abo (claude-code) – und dann kommt eine Meldung', async () => {
     // Die Attrappe führt [helfer …] aus, das hier im (fremden!) Titel steht – der echte Bürgermeister würde das nicht tun;
     // hier geht es nur darum, mit welchem Motor ein Helfer aus einem automatischen Lauf läuft (E56).

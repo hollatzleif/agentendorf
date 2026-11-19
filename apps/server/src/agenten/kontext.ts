@@ -1,8 +1,6 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import type { VaultDienst } from '../vault/dienst.js';
 import { normalisieren } from '../vault/pfade.js';
-import { fremdinhaltHuelle, type DorfWerkzeug, type Werkzeugprofil } from './leine.js';
+import { fremdinhaltHuelle, istHochgeladen, type DorfWerkzeug, type Werkzeugprofil } from './leine.js';
 import { istFremdinhalt } from './werkzeuge.js';
 import type { Anhang } from './motor.js';
 import { anhangKopf, DateiVerstehen } from './anhaenge.js';
@@ -145,13 +143,13 @@ So gehst du mit Persönlichkeit und Gedächtnis um:
 }
 
 async function neuesteProtokolle(vault: VaultDienst, gebaeude: string) {
-  const ordner = path.join(vault.wurzel, gebaeude, 'protokolle');
-  const namen = (await fs.readdir(ordner).catch(() => [] as string[])).filter((n) => n.endsWith('.md') && !n.startsWith('.'));
-  const mitZeit = await Promise.all(namen.map(async (n) => ({ n, t: (await fs.stat(path.join(ordner, n))).mtimeMs })));
+  const ordner = `${gebaeude}/protokolle`;
+  const namen = (await vault.namen(ordner)).filter((n) => n.datei && n.name.endsWith('.md')).map((n) => n.name);
+  const mitZeit = await Promise.all(namen.map(async (n) => ({ n, t: (await vault.stat(`${ordner}/${n}`))?.mtimeMs ?? 0 })));
   const neueste = mitZeit.sort((a, b) => b.t - a.t).slice(0, MAX_PROTOKOLLE);
   const teile: string[] = [];
   for (const { n } of neueste) {
-    const t = await fs.readFile(path.join(ordner, n), 'utf8');
+    const t = (await vault.text(`${ordner}/${n}`).catch(() => null)) ?? '';
     teile.push(`### ${gebaeude}/protokolle/${n}\n${t.length > MAX_PROTOKOLL_ZEICHEN ? `${t.slice(-MAX_PROTOKOLL_ZEICHEN)}\n[… Anfang gekürzt]` : t}`);
   }
   return teile.join('\n\n');
@@ -160,10 +158,6 @@ async function neuesteProtokolle(vault: VaultDienst, gebaeude: string) {
 /** Gesamtgröße nativer Anhänge (PDF/Bilder, base64) je Lauf – die API nimmt höchstens 32 MB je Anfrage */
 const MAX_BINAER_SUMME = 22 * 1024 * 1024;
 
-/** Fremd ist alles, was hochgeladen wurde (…/anhaenge/…) oder als Fremdinhalt markiert ist – und jede Umwandlung */
-function istHochgeladen(p: string) {
-  return /(^|\/)anhaenge\//.test(p);
-}
 
 /**
  * Löst Anhang-Muster (Pfad, Ordner oder Ordner/**) zu Dateien auf und lädt sie (E190: jedes Format – siehe anhaenge.ts).
@@ -186,7 +180,7 @@ export async function anhaengeLaden(
       fehlend.push(m);
       continue;
     }
-    const st = await fs.stat(vault.abs(basis)).catch(() => null);
+    const st = await vault.stat(basis).catch(() => null);
     if (!st) {
       fehlend.push(m);
       continue;
