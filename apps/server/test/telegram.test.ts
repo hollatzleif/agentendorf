@@ -888,27 +888,46 @@ describe('Telegram /verteilen (E128)', () => {
     const d = await dorf();
     await d.nachricht({ text: '/verteilen' });
     expect(d.gesendet().at(-1)).toMatch(/deine Woche ist verteilt/);
-    // Mo 16.11. → Rest der Woche Mo–So, 70 % von 14 h = 588 min Platz je Tag
+    // Mo 16.11. 13:00 → Rest der Woche Mo–So; heute nur ab jetzt: 70 % von 9 h = 378 min, sonst 588 min
     const a = await d.todos.anlegen({ titel: 'Großes <Projekt>', wichtig: true, dauer: 500 }, 'Leif');
     const b = await d.todos.anlegen({ titel: 'Noch eins', dauer: 200 }, 'Leif');
     const c = await d.todos.anlegen({ titel: 'Alt', faellig: '2026-11-10', dauer: 60 }, 'Leif');
     await d.nachricht({ text: '/verteilen' });
     const p = d.aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p;
     expect(p.text).toContain('<b>Vorschlag: Rest der Woche</b>');
-    expect(p.text).toContain('• Mo., 16.11. – Großes &lt;Projekt&gt; <i>(⏱ 8 h 20 min)</i>');
+    expect(p.text).toContain('• Di., 17.11. – Großes &lt;Projekt&gt; <i>(⏱ 8 h 20 min)</i>');
     expect(p.text).toContain('• Mo., 16.11. – Alt <i>(⏱ 1 h)</i>');
-    expect(p.text).toContain('• Di., 17.11. – Noch eins <i>(⏱ 3 h 20 min)</i>');
+    expect(p.text).toContain('• Mo., 16.11. – Noch eins <i>(⏱ 3 h 20 min)</i>');
     const tasten = (p.reply_markup as { inline_keyboard: { text: string; callback_data: string }[][] }).inline_keyboard;
     expect(tasten.every((z) => z[0]!.callback_data.length <= 64)).toBe(true);
     await d.knopf(tasten[0]![0]!.callback_data.replace(/:[^:]+$/, ':AAAAAAAAAAAAAAAA'));
     expect((await d.todos.holen(a.pfad)).faellig).toBeUndefined();
     await d.knopf(tasten[0]![0]!.callback_data);
-    expect((await d.todos.holen(a.pfad)).faellig).toBe('2026-11-16');
+    expect((await d.todos.holen(a.pfad)).faellig).toBe('2026-11-17');
+    // inzwischen in der App geändert → der alte Vorschlag überschreibt es nicht (Review)
+    await d.todos.aendern(b.pfad, { faellig: '2026-11-20' });
     await d.knopf(tasten.at(-1)![0]!.callback_data); // Alle übernehmen
-    expect((await d.todos.holen(b.pfad)).faellig).toBe('2026-11-17');
+    expect((await d.todos.holen(b.pfad)).faellig).toBe('2026-11-20');
     expect((await d.todos.holen(c.pfad)).faellig).toBe('2026-11-16');
+    expect(d.aufrufe.filter((x) => x.m === 'answerCallbackQuery').at(-1)!.p.text).toMatch(/^1 von 2 eingeplant/);
     await d.knopf(tasten.at(-1)![0]!.callback_data);
-    expect(d.aufrufe.filter((x) => x.m === 'answerCallbackQuery').at(-1)!.p.text).toBe('Schon übernommen.');
+    expect(d.aufrufe.filter((x) => x.m === 'answerCallbackQuery').at(-1)!.p.text).toMatch(/eingeplant|Schon übernommen/);
+  });
+
+  it('wiederkehrende bleiben, wo sie sind; spät abends ist heute voll; alte Vorschläge setzen keine vergangenen Tage (Review)', async () => {
+    const d = await dorf();
+    await d.todos.anlegen({ titel: 'Wäsche', faellig: '2026-11-10', wiederholen: 'wöchentlich' }, 'Leif');
+    await d.nachricht({ text: '/verteilen' });
+    expect(d.gesendet().at(-1)).toMatch(/deine Woche ist verteilt/);
+    d.uhr.vor(9 * 3_600_000 + 30 * 60_000); // Mo 22:30 Linz
+    const t = await d.todos.anlegen({ titel: 'Spät', dauer: 30 }, 'Leif');
+    await d.nachricht({ text: '/verteilen' });
+    const p = d.aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p;
+    expect(p.text).toContain('• Di., 17.11. – Spät');
+    const knopf = (p.reply_markup as { inline_keyboard: { callback_data: string }[][] }).inline_keyboard[0]![0]!.callback_data;
+    d.uhr.vor(30 * 3_600_000); // Mi 04:30 – Dienstag ist vorbei
+    await d.knopf(knopf);
+    expect((await d.todos.holen(t.pfad)).faellig).toBeUndefined();
   });
 });
 

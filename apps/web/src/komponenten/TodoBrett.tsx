@@ -61,22 +61,6 @@ export function TodoBrett({ liste: name = 'todo', platzhalter = 'Neues To-do …
   // E125: Filter – Text, ⭐, heute/überfällig, ohne Datum, je Gruppe/Gebäude (nur Anzeige)
   const h0 = heute();
   const gruppen = [...new Set(alleOffen.flatMap((t) => [t.gruppe, t.gebaeude]).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'de'));
-  const passt = (t: TodoInfo) => {
-    if (suche.trim()) {
-      const q = suche.trim().toLowerCase();
-      if (!`${t.titel} ${t.notiz ?? ''} ${t.gruppe ?? ''} ${t.gebaeude ?? ''}`.toLowerCase().includes(q)) return false;
-    }
-    if (filter === 'stern') return !!t.wichtig;
-    if (filter === 'heute') return !!t.faellig && t.faellig <= h0;
-    if (filter === 'ohne') return !t.faellig;
-    if (filter.startsWith('g:')) return t.gruppe === filter.slice(2) || t.gebaeude === filter.slice(2);
-    return true;
-  };
-  const gefiltert = !!suche.trim() || filter !== 'alle';
-  const offen = alleOffen.filter(passt);
-  // Einkaufsliste: nach Abteilung sortiert, damit man im Laden der Reihe nach abhakt
-  if (gruppiert) offen.sort((a, b) => (a.gruppe ?? 'zzz').localeCompare(b.gruppe ?? 'zzz', 'de') || a.titel.localeCompare(b.titel, 'de'));
-  const erledigt = (liste.data?.filter((t) => t.erledigt) ?? []).filter((t) => !suche.trim() || passt(t));
   const chips: [string, string][] = [
     ['alle', 'Alle'],
     ...(alleOffen.some((t) => t.wichtig) ? [['stern', '⭐'] as [string, string]] : []),
@@ -84,6 +68,27 @@ export function TodoBrett({ liste: name = 'todo', platzhalter = 'Neues To-do …
     ...(alleOffen.some((t) => !t.faellig) && alleOffen.some((t) => t.faellig) ? [['ohne', 'Ohne Datum'] as [string, string]] : []),
     ...gruppen.map((g) => [`g:${g}`, g] as [string, string]),
   ];
+  // gewählter Chip verschwunden (z. B. letztes ⭐ erledigt) → wie „Alle“ (Review)
+  const filterJetzt = chips.some(([x]) => x === filter) ? filter : 'alle';
+  // Filter wirkt nur, solange die Leiste sichtbar ist – sonst gäbe es keinen Weg zurück (Review)
+  const leiste = alleOffen.length > 5;
+  const passt = (t: TodoInfo) => {
+    if (!leiste) return true;
+    if (suche.trim()) {
+      const q = suche.trim().toLowerCase();
+      if (!`${t.titel} ${t.notiz ?? ''} ${t.gruppe ?? ''} ${t.gebaeude ?? ''}`.toLowerCase().includes(q)) return false;
+    }
+    if (filterJetzt === 'stern') return !!t.wichtig;
+    if (filterJetzt === 'heute') return !!t.faellig && t.faellig <= h0;
+    if (filterJetzt === 'ohne') return !t.faellig;
+    if (filterJetzt.startsWith('g:')) return t.gruppe === filterJetzt.slice(2) || t.gebaeude === filterJetzt.slice(2);
+    return true;
+  };
+  const gefiltert = leiste && (!!suche.trim() || filterJetzt !== 'alle');
+  const offen = alleOffen.filter(passt);
+  // Einkaufsliste: nach Abteilung sortiert, damit man im Laden der Reihe nach abhakt
+  if (gruppiert) offen.sort((a, b) => (a.gruppe ?? 'zzz').localeCompare(b.gruppe ?? 'zzz', 'de') || a.titel.localeCompare(b.titel, 'de'));
+  const erledigt = (liste.data?.filter((t) => t.erledigt) ?? []).filter((t) => !suche.trim() || passt(t));
   return (
     <div className="todo-brett">
       <form className="todo-neu" onSubmit={anlegen} aria-label="Neues To-do">
@@ -96,12 +101,12 @@ export function TodoBrett({ liste: name = 'todo', platzhalter = 'Neues To-do …
       {name === 'todo' && <TodoTextHinweis text={titel} heute={heute()} />}
       {fehler && <p className="fehler">{fehler}</p>}
       {liste.isLoading && <p className="leise">Lade …</p>}
-      {alleOffen.length > 5 && (
+      {leiste && (
         <div className="todo-filter" role="group" aria-label="Filter">
           <input type="search" value={suche} onChange={(e) => setSuche(e.target.value)} placeholder="Filtern …" aria-label="To-dos filtern" />
           {chips.length > 1 &&
             chips.map(([k, text]) => (
-              <button key={k} type="button" className={`klein${filter === k ? ' an' : ''}`} aria-pressed={filter === k} onClick={() => setFilter(filter === k && k !== 'alle' ? 'alle' : k)}>
+              <button key={k} type="button" className={`klein${filterJetzt === k ? ' an' : ''}`} aria-pressed={filterJetzt === k} onClick={() => setFilter(filterJetzt === k && k !== 'alle' ? 'alle' : k)}>
                 {text}
               </button>
             ))}

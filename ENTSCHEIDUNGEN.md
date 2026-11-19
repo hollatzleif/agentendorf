@@ -1057,3 +1057,12 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **Tagesabschluss (Telegram):** „🍅 65 min Fokus – 🎯 Ziel (60 min) erreicht“ bzw. „… von 60 min Ziel“.
 - **Wochenrückblick:** „🎯 Fokus-Ziel (2 h) an 4 von 7 Tagen erreicht“.
 - Die Voreinstellungen „Klassisch/Lang“ behalten jetzt Ziel, Nicht-stören und Thema. Vorher setzten sie diese still zurück.
+
+## E135 – Viertes Review: Woche verteilen, Filter (Nacht 18./19.11.)
+
+- **/verteilen, alter Vorschlag:** Ein Knopf von gestern setzt kein Datum mehr in die Vergangenheit und überschreibt kein Datum, das Leif inzwischen in der App geändert hat (`basisVersion` je Vorschlag). Die Antwort sagt dann ehrlich „1 von 2 eingeplant – der Rest wurde inzwischen geändert oder der Tag ist vorbei“.
+- **Heute zählt nur ab jetzt:** In App und Telegram rechnet „Woche verteilen“ für heute die freie Zeit ab jetzt (frühestens 8 Uhr) bis 22 Uhr, abzüglich der Termine ab jetzt. Um 22:30 landet nichts mehr auf heute.
+- **Wiederkehrende To-dos werden nicht verteilt:** Die Serie rechnet vom Fälligkeitsdatum weiter, ein Verschieben würde sie dauerhaft auf einen anderen Wochentag legen.
+- **/verteilen** zeigt und übernimmt höchstens 12 Vorschläge. Der Rest zählt zu „passen nicht mehr hinein“, nichts fällt still weg.
+- **Wochenplan:** „✨ Woche verteilen“ ist gesperrt, bis der Kalender geladen ist. Sonst sähen alle Tage frei aus.
+- **To-do-Brett-Filter:** Der Filter wirkt nur, solange die Leiste sichtbar ist (ab 6 offenen). Ist der gewählte Chip verschwunden (z. B. das letzte ⭐ erledigt), gilt „Alle“. Vorher blieb die Liste ohne Weg zurück gefiltert.

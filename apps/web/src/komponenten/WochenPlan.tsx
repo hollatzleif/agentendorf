@@ -14,7 +14,7 @@ const TAG_MIN = 14 * 60; // 8–22 Uhr
 const wochentag = (tag: string) => (new Date(`${tag}T12:00:00Z`).getUTCDay() + 6) % 7;
 const tagKurz = (tag: string) => new Date(`${tag}T12:00:00Z`).toLocaleDateString('de-AT', { weekday: 'short', day: 'numeric', month: 'numeric', timeZone: 'UTC' });
 
-function terminMinuten(termine: KalenderTermin[], tag: string) {
+function terminMinuten(termine: KalenderTermin[], tag: string, abMin = 8 * 60) {
   // nur Termine mit Uhrzeit, auf 8–22 Uhr des Tages begrenzt; überlappende zählen einmal (Review)
   const iv: [number, number][] = [];
   for (const t of termine) {
@@ -24,7 +24,7 @@ function terminMinuten(termine: KalenderTermin[], tag: string) {
     if (a.tag > tag || b.tag < tag) continue;
     iv.push([a.tag < tag ? 0 : a.min, b.tag > tag ? 24 * 60 : b.min]);
   }
-  return belegtMs(iv, 8 * 60, 22 * 60);
+  return belegtMs(iv, abMin, 22 * 60);
 }
 
 export function WochenPlan({ startVersatz = 0 }: { startVersatz?: number } = {}) {
@@ -177,12 +177,16 @@ export function WochenPlan({ startVersatz = 0 }: { startVersatz?: number } = {})
           type="button"
           className="klein wplan-verteilen"
           title="Vorschlag: To-dos aus dem Eingang auf Tage mit freier Zeit verteilen (70 % Puffer) – du entscheidest"
+          disabled={kalender.isPending}
           onClick={() => {
+            const jetztMin = ort(new Date().toISOString()).min;
             // E126: Platz je Tag aus Terminen und schon geplanten To-dos (ohne Schätzung: 30 min)
             const v = wocheVerteilen({
-              eingang,
+              // wiederkehrende nicht verschieben – die Serie rechnet vom Fälligkeitsdatum weiter (Review)
+              eingang: eingang.filter((t) => !t.faellig || !t.wiederholen),
               heute,
-              tage: tage.map((tag) => ({ tag, freiMin: TAG_MIN - terminMinuten(termine, tag), geplantMin: amTag(tag).reduce((s2, t) => s2 + Math.max(5, (t.dauer ?? 30) - (t.fokusMin ?? 0)), 0) })),
+              // heute zählt nur die Zeit ab jetzt (frühestens 8 Uhr), Termine nur ab jetzt (Review)
+              tage: tage.map((tag) => ({ tag, freiMin: tag === heute ? Math.max(0, 22 * 60 - Math.max(8 * 60, jetztMin) - terminMinuten(termine, tag, Math.max(8 * 60, jetztMin))) : TAG_MIN - terminMinuten(termine, tag), geplantMin: amTag(tag).reduce((s2, t) => s2 + Math.max(5, (t.dauer ?? 30) - (t.fokusMin ?? 0)), 0) })),
             });
             setVorschlag(v.map((x) => ({ ...x, an: true })));
           }}

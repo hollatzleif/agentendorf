@@ -956,7 +956,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
 
   // ---- E128: /verteilen – „Woche verteilen“ (E126) am Handy -----------------------------------------
 
-  private verteilenWartend(): Record<string, { v: { pfad: string; titel: string; tag: string; dauer: number }[]; uebernommen: number[]; zeit: number }> {
+  private verteilenWartend(): Record<string, { v: { pfad: string; titel: string; tag: string; dauer: number; version?: string }[]; uebernommen: number[]; zeit: number }> {
     const w = (this.o.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'telegram_verteilen'").get() as { wert: string } | undefined)?.wert;
     return w ? JSON.parse(w) : {};
   }
@@ -992,17 +992,25 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     }
     const iv = termine.filter((t) => !t.ganztags).map((t) => [Date.parse(t.start), Date.parse(t.ende)] as [number, number]);
     const todos = (await this.o.listen.todo.liste()).filter((t) => !t.erledigt);
-    const eingang = todos.filter((t) => !t.faellig || t.faellig < heute);
+    // wiederkehrende To-dos nicht verschieben – die Serie rechnet vom Fälligkeitsdatum weiter (Review)
+    const eingang = todos.filter((t) => !t.faellig || (t.faellig < heute && !t.wiederholen));
     if (!eingang.length) return this.senden('📥 Nichts ohne Datum oder überfällig – deine Woche ist verteilt. 🎉');
     const v = wocheVerteilen({
       eingang,
       heute,
-      tage: tage.map((tag) => ({
-        tag,
-        freiMin: 14 * 60 - Math.round(belegtMs(iv, grenze(tag, 8), grenze(tag, 22)) / 60_000),
-        geplantMin: todos.filter((t) => t.faellig === tag).reduce((s2, t) => s2 + (t.dauer ?? 30), 0),
-      })),
-    });
+      tage: tage.map((tag) => {
+        // heute zählt nur die Zeit ab jetzt (frühestens 8 Uhr) – um 22:30 ist nichts mehr frei (Review)
+        const von = Math.max(grenze(tag, 8), tag === heute ? jetzt : 0);
+        const bis = grenze(tag, 22);
+        return {
+          tag,
+          freiMin: Math.max(0, Math.round((bis - von - belegtMs(iv, von, bis)) / 60_000)),
+          geplantMin: todos.filter((t) => t.faellig === tag).reduce((s2, t) => s2 + (t.dauer ?? 30), 0),
+        };
+      }),
+    })
+      .slice(0, 12)
+      .map((x) => ({ ...x, version: todos.find((t) => t.pfad === x.pfad)?.version }));
     if (!v.length) return this.senden(`📥 ${eingang.length} To-dos warten, aber ${wt === 6 ? 'nächste Woche' : 'diese Woche'} ist kein Platz mehr frei (70 % der freien Zeit sind schon verplant). Lieber etwas streichen oder später einplanen.`);
     const id = crypto.randomBytes(6).toString('hex');
     const p = { v, uebernommen: [] as number[], zeit: jetzt };
@@ -1034,7 +1042,9 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     for (const i of nr) {
       const x = p.v[i]!;
       try {
-        await this.o.listen.todo.aendern(x.pfad, { faellig: x.tag });
+        // abgelaufener Vorschlag (Tag vorbei) oder inzwischen geändert (basisVersion → 409): nicht anwenden (Review)
+        if (x.tag < tagVonJetzt(this.o.uhr.jetzt(), 0)) throw new Error('Tag ist schon vorbei');
+        await this.o.listen.todo.aendern(x.pfad, { faellig: x.tag }, x.version);
         ok++;
       } catch (e) {
         p.uebernommen = p.uebernommen.filter((j) => j !== i);
@@ -1042,7 +1052,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       }
     }
     this.verteilenWartendSetzen(alle);
-    await antworten(ok === nr.length ? (ok === 1 ? 'Eingeplant.' : `${ok} eingeplant.`) : `${ok} von ${nr.length} eingeplant – der Rest wurde inzwischen geändert.`);
+    await antworten(ok === nr.length ? (ok === 1 ? 'Eingeplant.' : `${ok} eingeplant.`) : `${ok} von ${nr.length} eingeplant – der Rest wurde inzwischen geändert oder der Tag ist vorbei. /verteilen macht einen neuen Vorschlag.`);
     if (q.message)
       await this.o.api
         .aufruf('editMessageReplyMarkup', { chat_id: q.message.chat.id, message_id: q.message.message_id, reply_markup: { inline_keyboard: this.verteilenTastatur(m[1]!, p) } })
