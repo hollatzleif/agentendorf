@@ -1104,3 +1104,9 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - Knöpfe: **„🍅 Lernen“** startet den Pomodoro fürs Fach und öffnet das Fokus-Vollbild. **„📅 Lernplan“** öffnet den Lernzeit-Planer bis zur Prüfung (E79/E96).
 - Der Prüfungs-Countdown auf „Heute“ führt dorthin.
 - Es gibt keine neuen Daten, nur eine Sicht auf vorhandene (`GET /api/uni/pruefungen`). Der Fach-Abgleich ist derselbe ungefähre Namensvergleich wie bei den Fach-Karten.
+
+## E141 – Morgen im Blick (Nacht 18./19.11.)
+
+- **Tagesabschluss (Telegram, 21 Uhr):** „🌅 Morgen: 3 To-dos (≈ 2 h 30 min) · 2 Termine · frei ≈ 9 h“. Wird es eng (mehr als 70 % der freien Zeit verplant), steht dahinter „eng, vielleicht etwas verschieben“. Mitgezählt wird auch Überfälliges, weil es morgen sonst einfach mitwandert.
+- **„Heute“ ab 18 Uhr:** Die Karte „🌅 Morgen“ zeigt dasselbe, dazu die ersten 5 To-dos und einen Link zum Wochenplan.
+- **Warum:** Ein kurzer Blick auf morgen ist der beste Feierabend-Abschluss. Man legt den Tag gedanklich ab und startet morgens ohne Überraschung.

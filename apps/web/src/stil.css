@@ -1326,3 +1326,8 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0.05rem 0.35rem; border:
 .pruefung-tage span { font-size: 0.75rem; }
 .pruefung.bald .pruefung-tage { background: #fde3dc; border-color: var(--rot); }
 .pruefung-stand { list-style: none; margin: 0.5rem 0; padding: 0; display: grid; gap: 0.2rem; }
+
+/* E141: Morgen im Blick */
+.morgen-karte p { margin: 0.2rem 0; }
+.morgen-liste { margin: 0.3rem 0 0; padding-left: 1.1rem; }
+.warnung-text { color: #9a3b1d; font-weight: 600; }

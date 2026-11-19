@@ -1186,6 +1186,20 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     const ueberfaellig = alle.filter((t) => !t.erledigt && t.faellig && t.faellig < tag).length;
     if (ueberfaellig) z.push(`⚠️ ${ueberfaellig} überfällig – /aufraeumen plant sie in einer Minute neu`);
     if (fristen.length) z.push(`⏰ Morgen fällig: ${fristen.map((f) => h(f.titel)).join(', ')}`);
+    // E141: Morgen im Blick – To-dos (inkl. Überfälligem, das mitwandert) gegen die freie Zeit 8–22 Uhr
+    const morgenTodos = alle.filter((t) => !t.erledigt && t.faellig && t.faellig <= morgen);
+    if (morgenTodos.length) {
+      const [j2, mo2, t2] = morgen.split('-').map(Number) as [number, number, number];
+      const von = ortszeitZuUtc(j2, mo2, t2, 8, 0, 0, 'Europe/Vienna');
+      const bis = ortszeitZuUtc(j2, mo2, t2, 22, 0, 0, 'Europe/Vienna');
+      const z2 = this.o.kalender?.zeitraum ? await this.o.kalender.zeitraum(von, bis).catch(() => null) : null;
+      const termine = (z2?.termine ?? []).filter((t): t is KalenderTermin => typeof t.start === 'string' && typeof t.ende === 'string' && !t.ganztags);
+      const frei = Math.max(0, Math.round((bis - von - belegtMs(termine.map((t) => [Date.parse(t.start), Date.parse(t.ende)]), von, bis)) / 60_000));
+      const geschaetzt = morgenTodos.reduce((s2, t) => s2 + (t.dauer ?? 0), 0);
+      z.push(
+        `🌅 Morgen: ${morgenTodos.length} To-do${morgenTodos.length === 1 ? '' : 's'}${geschaetzt ? ` (≈ ${minutenText(geschaetzt)})` : ''}${termine.length ? ` · ${termine.length} Termin${termine.length === 1 ? '' : 'e'}` : ''} · frei ≈ ${minutenText(frei)}${geschaetzt > frei * 0.7 ? ' – eng, vielleicht etwas verschieben' : ''}`,
+      );
+    }
     z.push('\n⭐ <b>Was ist morgen wichtig?</b> Tipp an, was oben auf deiner Liste stehen soll:');
     const t = this.sternAuswahl(alle, morgen);
     const ok = !!(await this.senden(z.join('\n'), { reply_markup: { inline_keyboard: t } }));

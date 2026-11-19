@@ -1528,6 +1528,21 @@ test('Uni → Prüfungen: Cockpit mit Countdown, Schritten, Fokus, Karten; Lernp
   await expect(k.getByRole('group', { name: 'Lernzeit für NLP' })).toBeVisible();
 });
 
+test('Heute ab 18 Uhr: „Morgen im Blick“ mit To-dos und freier Zeit (E141)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+  const morgen = new Date(Date.parse(`${heute}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+  await page.clock.setFixedTime(new Date(`${heute}T19:00:00+01:00`));
+  await page.route('**/api/kalender?*', (r) => r.fulfill({ json: { modus: 'aus', kalender: [], termine: [] } }));
+  const titel = `Morgen-Test ${Date.now() % 100000}`;
+  await page.request.post('/api/todos', { headers: { origin: ORIGIN }, data: { titel, faellig: morgen, dauer: 45 } });
+  await page.goto('/heute');
+  const k = page.getByRole('region', { name: 'Morgen im Blick' });
+  await expect(k).toContainText(titel);
+  await expect(k).toContainText('frei ≈ 14 h');
+});
+
 test('Seite lässt sich nicht laden (nach Deploy): einmal neu laden, dann „Neu laden“ statt weißer Seite (Review)', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'einmal reicht');
   await anmelden(page);

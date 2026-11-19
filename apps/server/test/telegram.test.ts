@@ -978,3 +978,15 @@ describe('Telegram /lernen und Morgenzeitung „Lernen diese Woche“ (E139)', (
     expect(d.kirchturm.zustand().pomodoro.phase).toBe('aus');
   });
 });
+
+describe('Tagesabschluss: Morgen im Blick (E141)', () => {
+  it('To-dos bis morgen mit Schätzung gegen freie Zeit; eng → Hinweis', async () => {
+    const d = await dorf();
+    await d.todos.anlegen({ titel: 'Referat', faellig: '2026-11-17', dauer: 600 }, 'Leif');
+    await d.todos.anlegen({ titel: 'Alt', faellig: '2026-11-10', dauer: 60 }, 'Leif');
+    await d.todos.anlegen({ titel: 'Übermorgen', faellig: '2026-11-18', dauer: 60 }, 'Leif');
+    d.uhr.vor(8 * 3_600_000 + 5 * 60_000); // Mo 21:05 Linz
+    await d.bot.abendSenden(true);
+    expect(d.gesendet().find((t) => t.startsWith('🌙'))).toContain('🌅 Morgen: 2 To-dos (≈ 11 h) · frei ≈ 14 h – eng, vielleicht etwas verschieben');
+  });
+});

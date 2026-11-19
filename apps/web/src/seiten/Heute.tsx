@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { WETTER_TEXT, type DorfStatus, type FokusStatistik, type FreigabeInfo, type KartenFach, type KalenderAntwort, type KalenderTermin, type KirchturmZustand, type MorgenzeitungUebersicht, type PostUebersicht, type TodoInfo } from '@dorf/shared';
 import { api, ApiFehler, offlineGemerkt } from '../api';
-import { jetztDran, minutenText, tagesBudget, todoAusText } from '@dorf/shared';
+import { belegtMs, jetztDran, minutenText, tagesBudget, todoAusText } from '@dorf/shared';
 import { TodoTextHinweis } from '../komponenten/TodoTextHinweis';
 import { linkKlick, navigieren } from '../router';
 import { FARBEN, ort, tagPlus } from '../komponenten/MarktKalender';
@@ -293,6 +293,7 @@ export function Heute() {
           <Fokus k={k} laedt={kirchturm.isPending} fehler={kirchturm.isError ? kirchturm.error.message : ''} jetzt={jetzt} heuteMin={fokus.data?.heuteMin ?? 0} />
           <GewohnheitenKarte />
           {stunde >= 17 && <StimmungZeile />}
+          {stunde >= 18 && todos.data && <MorgenKarte todos={todos.data} termine={termineMorgen} morgen={morgen} />}
         </div>
 
         <div className="heute-spalte">
@@ -752,5 +753,49 @@ function PlanenHinweis() {
     <a href="/planen" onClick={linkKlick} className="karte heute-karte planen-hinweis">
       🗓️ <strong>Zeit für die Wochenplanung</strong> – 10 Minuten, vier Schritte{fertig ? ` (${fertig}/4)` : ''} →
     </a>
+  );
+}
+
+// ---- E141: Morgen im Blick (ab 18 Uhr) ----------------------------------------------------------------
+
+function MorgenKarte({ todos, termine, morgen }: { todos: TodoInfo[]; termine: KalenderTermin[]; morgen: string }) {
+  const dran = todos.filter((t) => !t.erledigt && t.faellig && t.faellig <= morgen);
+  const zeitig = termine.filter((t) => !t.ganztags);
+  // 8–22 Uhr morgen (Ortszeit) minus Termine; Minuten des Tages über ort()
+  const iv = zeitig.map((t) => {
+    const a = ort(t.start);
+    const b = ort(t.ende);
+    return [a.tag < morgen ? 0 : a.min, b.tag > morgen ? 24 * 60 : b.min] as [number, number];
+  });
+  const frei = Math.max(0, 14 * 60 - belegtMs(iv, 8 * 60, 22 * 60));
+  const geschaetzt = dran.reduce((s, t) => s + (t.dauer ?? 0), 0);
+  if (!dran.length && !zeitig.length) return null;
+  return (
+    <section className="karte heute-karte morgen-karte" aria-label="Morgen im Blick">
+      <div className="heute-karte-kopf">
+        <h2>🌅 Morgen</h2>
+        <a href="/gebaeude/Marktplatz?reiter=wochenplan" onClick={linkKlick} className="heute-mehr">
+          Wochenplan →
+        </a>
+      </div>
+      <p>
+        {dran.length} To-do{dran.length === 1 ? '' : 's'}
+        {geschaetzt ? ` (≈ ${minutenText(geschaetzt)})` : ''}
+        {zeitig.length ? ` · ${zeitig.length} Termin${zeitig.length === 1 ? '' : 'e'}` : ''} · frei ≈ {minutenText(frei)}
+      </p>
+      {geschaetzt > frei * 0.7 && <p className="warnung-text">Eng – vielleicht etwas auf später verschieben.</p>}
+      {dran.length > 0 && (
+        <ul className="morgen-liste">
+          {dran.slice(0, 5).map((t) => (
+            <li key={t.pfad}>
+              {t.wichtig ? '⭐ ' : ''}
+              {t.titel}
+              {t.dauer ? <span className="leise"> · ⏱ {minutenText(t.dauer)}</span> : null}
+            </li>
+          ))}
+          {dran.length > 5 && <li className="leise">… und {dran.length - 5} weitere</li>}
+        </ul>
+      )}
+    </section>
   );
 }
