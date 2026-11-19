@@ -1491,3 +1491,20 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0.05rem 0.35rem; border:
 .fokus-rauschen:hover, .fokus-rauschen:focus-within { opacity: 1; }
 .fokus-rauschen button.an { background: var(--gruen, #3c8d5a); color: #fff; }
 .fokus-rauschen input[type='range'] { width: 8rem; }
+
+/* E157: Tagesleiste */
+.tagesleiste { margin: 0.1rem 0 0.7rem; }
+.tagesleiste-bahn { position: relative; height: 1.5rem; border: 2px solid var(--navy); border-radius: 9px; background: #f3f6ee; box-shadow: 0 2px 0 var(--navy); overflow: hidden; }
+.tagesleiste-bahn > span { position: absolute; top: 0; bottom: 0; }
+.tagesleiste-frei { margin: 3px 2px; border: 1.5px dashed color-mix(in srgb, var(--gruen) 55%, transparent); border-radius: 5px; background: color-mix(in srgb, var(--gruen-hell) 70%, transparent); }
+.tagesleiste-block { min-width: 4px; background: var(--farbe, #4a86e8); opacity: 0.88; box-shadow: inset 0 -3px 0 rgb(0 0 0 / 0.14), inset 0 0 0 1px rgb(255 255 255 / 0.35); }
+.tagesleiste-vorbei { left: 0; background: rgb(43 58 85 / 0.22); pointer-events: none; }
+.tagesleiste-jetzt { width: 3px; margin-left: -1.5px; background: var(--rot); box-shadow: 0 0 0 1px #fff; }
+.tagesleiste-stunden { position: relative; height: 1rem; margin: 0.25rem 2px 0; font-size: 0.68rem; font-weight: 700; line-height: 1; color: var(--leise); font-variant-numeric: tabular-nums; }
+.tagesleiste-stunden > span { position: absolute; transform: translateX(-50%); }
+.tagesleiste-stunden > span:first-child { transform: none; }
+.tagesleiste-stunden > span:last-child { transform: translateX(-100%); }
+@media (max-width: 600px) {
+  .tagesleiste-bahn { height: 1.7rem; }
+  .tagesleiste-stunden { font-size: 0.72rem; }
+}

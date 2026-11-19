@@ -8,6 +8,7 @@ import { linkKlick, navigieren } from '../router';
 import { FARBEN, ort, tagPlus } from '../komponenten/MarktKalender';
 import { dauerText, useKirchturm } from '../komponenten/KirchturmUhr';
 import { TagPlanen } from '../komponenten/TagPlanen';
+import { TagesLeiste } from '../komponenten/TagesLeiste';
 import { GewohnheitenKarte } from '../komponenten/GewohnheitenKarte';
 import { WochenzieleKarte } from '../komponenten/WochenzieleKarte';
 import { StimmungZeile } from '../komponenten/StimmungZeile';
@@ -327,7 +328,8 @@ export function Heute() {
                   <p className="leise">{kalender.data.hinweis ?? 'Noch kein Kalender eingerichtet.'}</p>
                 ) : (
                   <>
-                    <TerminGruppe titel="Heute" termine={termineHeute} farbe={farbe} vorbei={vorbei} laeuft={laeuft} leer="Heute steht nichts im Kalender." />
+                    <TagesLeiste termine={termineHeute} heute={heute} jetztMin={ort(jetztIso).min} farbe={farbe} />
+                    <TerminGruppe titel="Heute"termine={termineHeute} farbe={farbe} vorbei={vorbei} laeuft={laeuft} leer="Heute steht nichts im Kalender." />
                     {termineMorgen.length > 0 && (
                       <TerminGruppe titel={`Morgen · ${tagText(morgen, { weekday: 'long' })}`} termine={termineMorgen} farbe={farbe} vorbei={() => false} laeuft={() => false} />
                     )}

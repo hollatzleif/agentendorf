@@ -1267,3 +1267,10 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 ## E159 – Gewohnheiten im Tagesabschluss (19.11.)
 
 - Unter /abschluss → „1 · Geschafft“ steht die Gewohnheiten-Karte von Heute: abends abhaken, was erledigt ist, damit die Serie nicht reißt. Wie im Telegram-Tagesabschluss, nur in der App.
+## E157 – Tagesleiste auf Heute (19.11.)
+
+- **Was:** In der Karte „📅 Termine“ auf /heute steht über der Liste eine schmale Leiste für heute 8–22 Uhr (Wiener Zeit): Termine mit Uhrzeit als Blöcke in ihrer Kalenderfarbe, freie Lücken ab 30 min gestrichelt (Tooltip „frei 14:00–15:30“), eine rote Jetzt-Linie, Vergangenes abgedunkelt, Stundenmarken alle 2 h.
+- **Warum:** Die Liste zeigt, *was* ansteht, aber nicht, *wo Platz ist*. Die Leiste macht die freien Fenster auf einen Blick sichtbar – ohne Rechnen und ohne den Kalender zu öffnen.
+- **Regeln wie überall:** Fristen-Blöcke („⏰ … ist fällig“) und Ganztägiges sind keine Termine; frei = 14 h minus belegte Zeit (`belegtMs`, Überlappungen zählen einmal). Die Zahl gilt für den ganzen Tag, nicht ab jetzt – „frei bis 22 Uhr“ ab jetzt steht schon im Tagesbudget.
+- **Nur Anzeige:** `role="img"` mit Text („Tagesleiste: 3 Termine, frei ≈ 10 h“); bedient wird weiter über die Liste darunter. Ohne Termine ist die Leiste ganz frei; ohne verbundenen Kalender gibt es sie nicht.
+- **Eigene Komponente** `TagesLeiste.tsx`, in `Heute.tsx` nur eine Zeile – bestehende Texte und aria-labels bleiben unverändert.

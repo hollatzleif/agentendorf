@@ -1750,3 +1750,45 @@ test('Fokus: Rauschen an und aus, Art wählbar (E155)', async ({ page }, info) =
   await expect(r.getByRole('button', { name: '🔊 Rauschen' })).toBeVisible();
   await page.request.post('/api/kirchturm', { headers: { origin: ORIGIN }, data: { befehl: 'pomodoro', aktion: 'stopp' } });
 });
+
+test('Heute: Tagesleiste 8–22 Uhr mit Terminen, freien Lücken und Jetzt-Linie (E157)', async ({ page }, info) => {
+  await anmelden(page);
+  const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+  await page.clock.setFixedTime(new Date(`${heute}T11:00:00+01:00`));
+  const termin = (id: string, titel: string, von: string, bis: string) => ({ id, kalenderId: 'k', titel, start: `${heute}T${von}:00+01:00`, ende: `${heute}T${bis}:00+01:00`, ganztags: false, ort: null, quelle: 'google', farbe: null });
+  const termine = [termin('a', 'Analysis VO', '09:00', '10:30'), termin('b', 'Mittag mit Jonas', '12:00', '13:00'), termin('c', 'Sport', '18:00', '19:30'), termin('d', '⏰ Übung 3 ist fällig', '15:00', '15:30')];
+  let antwort: object = { modus: 'google', kalender: [{ id: 'k', name: 'Leif', farbe: '#4a86e8' }], termine };
+  await page.route('**/api/kalender?*', (r) => r.fulfill({ json: antwort }));
+  await page.goto('/heute');
+  const karte = page.getByRole('region', { name: 'Termine' });
+  // 14 h − (1,5 + 1 + 1,5) h; der Fristen-Block zählt nicht
+  const leiste = karte.getByRole('img', { name: 'Tagesleiste: 3 Termine, frei ≈ 10 h' });
+  await expect(leiste).toBeVisible();
+  await expect(leiste.locator('.tagesleiste-block')).toHaveCount(3);
+  await expect(leiste.locator('.tagesleiste-block').first()).toHaveAttribute('title', '09:00–10:30 Analysis VO');
+  await expect(leiste.locator('.tagesleiste-frei')).toHaveCount(4);
+  await expect(leiste.locator('.tagesleiste-frei').nth(2)).toHaveAttribute('title', 'frei 13:00–18:00');
+  await expect(leiste.locator('.tagesleiste-jetzt')).toHaveCount(1);
+  await expect(leiste.locator('.tagesleiste-stunden span')).toHaveCount(8);
+  await karte.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: info.outputPath('tagesleiste.png') });
+  // die Leiste ragt (auch am Handy) nicht über die Karte hinaus
+  const [kb, lb] = [await karte.boundingBox(), await leiste.boundingBox()];
+  expect(lb!.x).toBeGreaterThanOrEqual(kb!.x);
+  expect(lb!.x + lb!.width).toBeLessThanOrEqual(kb!.x + kb!.width);
+
+  // nach 22 Uhr: keine Jetzt-Linie; ohne Termine ganz frei
+  antwort = { modus: 'google', kalender: [], termine: [] };
+  await page.clock.setFixedTime(new Date(`${heute}T22:30:00+01:00`));
+  await page.goto('/heute');
+  const leer = page.getByRole('img', { name: 'Tagesleiste: keine Termine, frei ≈ 14 h' });
+  await expect(leer).toBeVisible();
+  await expect(leer.locator('.tagesleiste-jetzt')).toHaveCount(0);
+  await expect(leer.locator('.tagesleiste-frei')).toHaveAttribute('title', 'frei 08:00–22:00');
+
+  // Kalender nicht verbunden: keine Leiste
+  antwort = { modus: 'aus', kalender: [], termine: [] };
+  await page.goto('/heute');
+  await expect(page.getByRole('region', { name: 'Termine' })).toContainText('Noch kein Kalender eingerichtet.');
+  await expect(page.locator('.tagesleiste')).toHaveCount(0);
+});
