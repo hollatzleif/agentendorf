@@ -137,6 +137,8 @@ export class TelegramBot {
       /** E113: /noten */
       noten?: { stand(): Promise<NotenStand> };
       /** Nacht 18./19.11.: /fokus – Pomodoro starten */
+      /** E139: Lernziele dieser Woche */
+      lernStand?: () => Promise<{ fach: string; zielMin: number; istMin: number }[]>;
       kirchturm?: { ausfuehren(b: unknown): unknown; fokusStatistik?(): FokusStatistik; zustand?(): { pomodoro: { einstellungen: { tagesZielMin?: number } } } };
       /** Nacht 18./19.11.: /termin – Termin aus Text, eingetragen erst nach Leifs Knopfdruck */
       kalender?: {
@@ -327,6 +329,7 @@ export class TelegramBot {
     { command: 'karten', description: 'Karteikarten wiederholen: /karten [Fach]' },
     { command: 'jetzt', description: 'Was passt jetzt? Ein To-do für die Zeit bis zum nächsten Termin' },
     { command: 'verteilen', description: 'To-dos ohne Datum auf die Woche verteilen (Vorschlag)' },
+    { command: 'lernen', description: 'Lernziele der Woche je Fach – mit 🍅 starten' },
     { command: 'fokus', description: 'Pomodoro starten: /fokus [Thema]' },
     { command: 'ziel', description: 'Wochenziele: /ziel <Text> setzt eins, /ziel zeigt sie zum Abhaken' },
     { command: 'gewohnheiten', description: 'Gewohnheiten heute abhaken' },
@@ -518,6 +521,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       if (b === '/karten') return this.kartenBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/jetzt') return this.jetztBefehl();
       if (b === '/verteilen') return this.verteilenBefehl();
+      if (b === '/lernen') return this.lernenBefehl();
       if (b === '/fokus') return this.fokusBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b !== '/neu') return this.befehl(b);
       // „/neu“ beendet das laufende Gespräch; „/neu <Text>“ legt gleich eine neue Aufgabe an
@@ -593,7 +597,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
   private async befehl(b: string) {
     if (b === '/start' || b === '/hilfe' || b === '/help')
       return this.senden(
-        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters. Weiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch); antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n<b>📅 Planen</b>\n/heute – dein Tag · /woche – die nächsten 7 Tage\n/plan [morgen] – To-dos in freie Kalenderlücken\n/verteilen – To-dos ohne Datum auf die Woche verteilen\n/fristen – Abgaben und Prüfungen (7 Tage)\n/termin &lt;wann&gt; &lt;was&gt; – Termin eintragen (mit Bestätigung)\n\n<b>✅ Erledigen</b>\n/todo [Text] – To-do-Liste bzw. neues To-do (auch „… jeden Montag“)\n/einkauf [Text] – Einkaufsliste\n/erinner &lt;wann&gt; &lt;was&gt; – Erinnerung (läutet im Kirchturm)\n/aufraeumen – Überfälliges neu einplanen\n/jetzt – was jetzt passt (mit 🍅 Los) · /fokus [Thema] – Pomodoro starten\n/gewohnheiten – heute abhaken · /ziel [Text] – Wochenziele\n\n<b>🎓 Lernen</b>\n/karten [Fach] – Karteikarten · /moodle &lt;Fach&gt; [Frage] – in Moodle nachsehen\n/noten – Notenschnitt und ECTS\n\n<b>📝 Festhalten &amp; Finden</b>\n/notiz &lt;Text&gt; – Tagesnotiz · /suche &lt;Begriff&gt; – im Vault suchen\n/statistik – die letzten 7 Tage\n\n<b>🏛️ Dorf</b>\n/status – was läuft · /freigaben – offene Freigaben\n/aktion [Name] – Skill starten · /neu – nächste Nachricht = neue Aufgabe\n/hilfe – diese Hilfe\n\n<i>Tipp: „todo: …“, „notiz: …“, „ziel: …“, „einkauf: …“ gehen auch ohne Schrägstrich – ein Foto mit „notiz: …“ landet samt Bild in der Tagesnotiz.</i>`,
+        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters. Weiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch); antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n<b>📅 Planen</b>\n/heute – dein Tag · /woche – die nächsten 7 Tage\n/plan [morgen] – To-dos in freie Kalenderlücken\n/verteilen – To-dos ohne Datum auf die Woche verteilen\n/fristen – Abgaben und Prüfungen (7 Tage)\n/termin &lt;wann&gt; &lt;was&gt; – Termin eintragen (mit Bestätigung)\n\n<b>✅ Erledigen</b>\n/todo [Text] – To-do-Liste bzw. neues To-do (auch „… jeden Montag“)\n/einkauf [Text] – Einkaufsliste\n/erinner &lt;wann&gt; &lt;was&gt; – Erinnerung (läutet im Kirchturm)\n/aufraeumen – Überfälliges neu einplanen\n/jetzt – was jetzt passt (mit 🍅 Los) · /fokus [Thema] – Pomodoro starten\n/gewohnheiten – heute abhaken · /ziel [Text] – Wochenziele\n\n<b>🎓 Lernen</b>\n/lernen – Lernziele der Woche, 🍅 je Fach\n/karten [Fach] – Karteikarten · /moodle &lt;Fach&gt; [Frage] – in Moodle nachsehen\n/noten – Notenschnitt und ECTS\n\n<b>📝 Festhalten &amp; Finden</b>\n/notiz &lt;Text&gt; – Tagesnotiz · /suche &lt;Begriff&gt; – im Vault suchen\n/statistik – die letzten 7 Tage\n\n<b>🏛️ Dorf</b>\n/status – was läuft · /freigaben – offene Freigaben\n/aktion [Name] – Skill starten · /neu – nächste Nachricht = neue Aufgabe\n/hilfe – diese Hilfe\n\n<i>Tipp: „todo: …“, „notiz: …“, „ziel: …“, „einkauf: …“ gehen auch ohne Schrägstrich – ein Foto mit „notiz: …“ landet samt Bild in der Tagesnotiz.</i>`,
       );
     if (b === '/status') {
       const aktiv = this.o.agenten.aktiveLaeufe();
@@ -706,6 +710,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (q.data?.startsWith('k:')) return this.terminKnopf(q, antworten);
     if (q.data?.startsWith('p:')) return this.planKnopf(q, antworten);
     if (q.data?.startsWith('vt:')) return this.verteilenKnopf(q, antworten);
+    if (q.data?.startsWith('lf:')) return this.lernenKnopf(q, antworten);
     if (q.data?.startsWith('kk:')) return this.karteKnopf(q, antworten);
     if (q.data?.startsWith('st:')) return this.sternKnopf(q, antworten);
     if (q.data?.startsWith('gw:')) return this.gewohnheitKnopf(q, antworten);
@@ -952,6 +957,34 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       await this.o.api
         .aufruf('editMessageReplyMarkup', { chat_id: q.message.chat.id, message_id: q.message.message_id, reply_markup: { inline_keyboard: this.planTastatur(m[1]!, p) } })
         .catch(() => undefined);
+  }
+
+  // ---- E139: /lernen – Lernziele der Woche, Pomodoro je Fach ----------------------------------------
+
+  private lernenDaten(i: number, fach: string) {
+    return `lf:${i}:${crypto.createHmac('sha256', this.signaturSchluessel).update(`lernen:${fach}`).digest('base64url').slice(0, 16)}`;
+  }
+
+  private async lernenBefehl() {
+    const l = (await this.o.lernStand?.()) ?? [];
+    if (!l.length) return this.senden(`🎓 Noch keine Lernziele. In der App unter <a href="${this.link('/gebaeude/Uni')}">Uni → Studium</a> beim Fach auf 🎯 tippen (Stunden pro Woche).`);
+    const balken = (x: number) => '▰'.repeat(Math.round(Math.min(1, x) * 8)) + '▱'.repeat(8 - Math.round(Math.min(1, x) * 8));
+    const zeilen = l.map((x) => `${x.istMin >= x.zielMin ? '✅' : '📚'} <b>${h(x.fach)}</b>\n<code>${balken(x.istMin / x.zielMin)}</code> ${minutenText(x.istMin)} von ${minutenText(x.zielMin)}`);
+    const knoepfe = l.slice(0, 8).map((x, i) => [{ text: knopfText(`🍅 ${x.fach}`), callback_data: this.lernenDaten(i, x.fach) }]);
+    return this.senden(`🎓 <b>Lernen diese Woche</b>\n\n${zeilen.join('\n\n')}`, { reply_markup: { inline_keyboard: knoepfe } });
+  }
+
+  private async lernenKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {
+    const m = /^lf:(\d{1,2}):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
+    const x = m ? ((await this.o.lernStand?.()) ?? [])[Number(m[1])] : undefined;
+    if (!m || !x || !crypto.timingSafeEqual(Buffer.from(m[2]!), Buffer.from(this.lernenDaten(Number(m[1]), x.fach).split(':')[2]!))) {
+      this.o.log?.('Telegram: Lernen-Knopf ungültig oder Lernziele inzwischen geändert.');
+      return antworten('Dieser Knopf passt nicht mehr – /lernen zeigt den aktuellen Stand.');
+    }
+    if (!this.o.kirchturm) return antworten('Der Kirchturm ist nicht eingerichtet.');
+    this.o.kirchturm.ausfuehren({ befehl: 'pomodoro_fuer', titel: `Lernen: ${x.fach}`.slice(0, 200), gruppe: x.fach.slice(0, 60) });
+    await antworten('🍅 Läuft!');
+    return this.senden(`🍅 Fokus läuft: <b>Lernen: ${h(x.fach)}</b> – zählt für dein Lernziel.`);
   }
 
   // ---- E128: /verteilen – „Woche verteilen“ (E126) am Handy -----------------------------------------

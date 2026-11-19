@@ -49,6 +49,6 @@ describe('Lernziele im Wochenrückblick (E137)', () => {
     await d.lernziele.setzen('Statistik', 2.5);
     d.db.prepare('INSERT INTO fokus_sitzungen (start, ende, minuten, thema, gruppe, todo, vollstaendig) VALUES (?, ?, ?, NULL, ?, NULL, 1)').run(d.uhr.jetzt() - 3600_000, d.uhr.jetzt() - 3000_000, 70, 'Mathe III');
     const a = (await d.wochenrueckblick.fakten()).abschnitte.find((x) => x.titel === 'Lernziele')!;
-    expect(a.zeilen).toEqual(['✓ Mathe III: 1 h 10 min von 1 h', '✗ Statistik: 0 min von 2,5 h']);
+    expect(a.zeilen).toEqual(['✓ Mathe III: 1 h 10 min von 1 h', '✗ Statistik: 0 min von 2 h 30 min']);
   });
 });

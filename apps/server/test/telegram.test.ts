@@ -222,7 +222,7 @@ describe('Telegram-Bot', () => {
     expect(offsets.at(-1)).toBe(51);
     // Befehlsmenü wird beim Start angemeldet
     const menue = d.aufrufe.find((x) => x.m === 'setMyCommands')?.p.commands as { command: string }[];
-    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'woche', 'noten', 'suche', 'statistik', 'aufraeumen', 'notiz', 'erinner', 'plan', 'karten', 'jetzt', 'verteilen', 'fokus', 'ziel', 'gewohnheiten', 'neu', 'hilfe']);
+    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'woche', 'noten', 'suche', 'statistik', 'aufraeumen', 'notiz', 'erinner', 'plan', 'karten', 'jetzt', 'verteilen', 'lernen', 'fokus', 'ziel', 'gewohnheiten', 'neu', 'hilfe']);
     await d.agenten.leerlauf();
   }, 15_000);
 });
@@ -949,5 +949,32 @@ describe('Fokus-Ziel pro Tag (E134)', () => {
     expect(f.zeilen.at(-1)).toBe('🎯 Fokus-Ziel (1 h) an **1 von 7** Tagen erreicht');
     // ungültiges Ziel abgelehnt
     expect(() => d.kirchturm.ausfuehren({ befehl: 'pomodoro_einstellen', einstellungen: { ...e, tagesZielMin: 9999 } })).toThrow();
+  });
+});
+
+describe('Telegram /lernen und Morgenzeitung „Lernen diese Woche“ (E139)', () => {
+  it('Stand je Lernziel ab Montag, 🍅-Knopf startet Pomodoro mit Fach; nach Änderung der Ziele passt der Knopf nicht mehr', async () => {
+    const d = await dorf();
+    await d.nachricht({ text: '/lernen' });
+    expect(d.gesendet().at(-1)).toMatch(/Noch keine Lernziele/);
+    await d.lernziele.setzen('Mathe III', 2);
+    // Sonntag (letzte Woche) zählt nicht, Montag schon – TestUhr: Mo 16.11. 13:00 Wien
+    const ins = d.db.prepare('INSERT INTO fokus_sitzungen (start, ende, minuten, thema, gruppe, todo, vollstaendig) VALUES (?, ?, ?, NULL, ?, NULL, 1)');
+    ins.run(d.uhr.jetzt() - 26 * 3600_000, d.uhr.jetzt() - 25 * 3600_000, 60, 'Mathe III');
+    ins.run(d.uhr.jetzt() - 3600_000, d.uhr.jetzt() - 3000_000, 30, 'Mathe III');
+    await d.nachricht({ text: '/lernen' });
+    const p = d.aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p;
+    expect(p.text).toBe('🎓 <b>Lernen diese Woche</b>\n\n📚 <b>Mathe III</b>\n<code>▰▰▱▱▱▱▱▱</code> 30 min von 2 h');
+    const knopf = (p.reply_markup as { inline_keyboard: { callback_data: string }[][] }).inline_keyboard[0]![0]!.callback_data;
+    expect(knopf.length).toBeLessThanOrEqual(64);
+    await d.knopf(knopf);
+    expect(d.kirchturm.zustand().pomodoro).toMatchObject({ phase: 'arbeit', einstellungen: { thema: 'Lernen: Mathe III', gruppe: 'Mathe III' } });
+    expect((await d.morgenzeitung.fakten()).abschnitte.find((a) => a.titel === 'Lernen diese Woche')?.zeilen).toEqual(['Mathe III: 30 min von 2 h']);
+    // Ziele geändert (anderes Fach an Stelle 0) → alter Knopf wird abgelehnt
+    await d.lernziele.setzen('Mathe III', 0);
+    await d.lernziele.setzen('Analysis', 1);
+    d.kirchturm.ausfuehren({ befehl: 'pomodoro', aktion: 'stopp' });
+    await d.knopf(knopf);
+    expect(d.kirchturm.zustand().pomodoro.phase).toBe('aus');
   });
 });

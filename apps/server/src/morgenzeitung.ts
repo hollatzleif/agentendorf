@@ -66,6 +66,8 @@ export class Morgenzeitung {
       gewohnheiten?: { heuteZeilen(): Promise<string[]> };
       /** E91: Wochenziele */
       wochenziele?: { zeitungsZeilen(): Promise<string[]> };
+      /** E139: Lernziele dieser Woche („Mathe III: 2 h von 6 h“) */
+      lernen?: () => Promise<string[]>;
       /** E120: heute dran stehende To-dos (überfällig + heute fällig) mit Schätzung */
       todosHeute?: () => Promise<{ dauer?: number }[]>;
       /** E112: wie es dem Dorf geht */
@@ -244,6 +246,8 @@ export class Morgenzeitung {
     if (b) abschnitte.push({ titel: 'Dein Dorf', zeilen: [blueteZeile(b)] });
     const gw = await this.o.gewohnheiten?.heuteZeilen().catch(() => [] as string[]);
     if (gw?.length) abschnitte.push({ titel: 'Gewohnheiten heute', zeilen: gw });
+    const lernen = await this.o.lernen?.().catch(() => []);
+    if (lernen?.length) abschnitte.push({ titel: 'Lernen diese Woche', zeilen: lernen });
 
     return { datum, einleitung: null, abschnitte };
   }

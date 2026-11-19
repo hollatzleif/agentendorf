@@ -1086,3 +1086,10 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
   - `g` + Buchstabe springt: `h` Heute, `d` Dorf, `t` To-dos, `w` Wochenplan, `k` Kalender, `p` Woche planen, `u` Uni, `r` Rathaus, `b` Bibliothek
   - `?` zeigt die Übersicht
 - Die Kürzel wirken nur, wenn nicht gerade in ein Feld getippt wird und ohne Strg/Alt/⌘; Strg/⌘+K bleibt die Befehlspalette. Am Handy (ohne Hover) wird die Übersicht nicht gezeigt.
+
+## E139 – Lernziele in Morgenzeitung und Telegram (/lernen) (Nacht 18./19.11.)
+
+- **Morgenzeitung:** Der Abschnitt „Lernen diese Woche“ zeigt je Lernziel (E137) „Mathe III: 2 h von 6 h“, erreichte Ziele mit ✓. Gezählt wird ab Montag 0:00 Wien.
+- **`/lernen`:** zeigt je Fach einen Balken und „30 min von 2 h“. Dazu gibt es je Fach einen Knopf **„🍅 Mathe III“**, der einen Pomodoro mit dem Fach als Gruppe startet. Diese Zeit zählt fürs Lernziel.
+- Die Knöpfe sind signiert über den Fachnamen. Ändern sich die Ziele inzwischen, passt der alte Knopf nicht mehr und wird abgelehnt, statt ein falsches Fach zu starten.
+- Stand je Fach (`lernStand` in `dorf.ts`) ist eine Rechnung für Morgenzeitung, Telegram und Wochenrückblick (dort über 7 Tage).

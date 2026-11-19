@@ -41,7 +41,8 @@ import { Wochenrueckblick } from './wochenrueckblick.js';
 import { Karteikasten } from './karten.js';
 import { Gewohnheiten } from './gewohnheiten.js';
 import { Wochenziele } from './wochenziele.js';
-import { tagIn } from './zeit.js';
+import { tagIn, tagPlus } from './zeit.js';
+import { ortszeitZuUtc } from './uni/ical.js';
 import { Lernziele } from './uni/lernziele.js';
 import { minutenText } from '@dorf/shared';
 import { Notizen } from './notizen.js';
@@ -363,22 +364,31 @@ export async function dorfStarten(
   if (opt.beobachten !== false) erinnerungen.starten();
   // Nacht 18./19.11.: Wochenrückblick sonntags 18:30
   const lernziele = new Lernziele({ vault, hub });
-  // E137: Lernziele je Fach gegen die Fokuszeit der letzten 7 Tage (Gruppe = Fach, ungefährer Namensvergleich)
-  const lernzielZeilen = async () => {
+  // E137/E139: Stand je Lernziel – Fokuszeit (Gruppe = Fach, ungefährer Namensvergleich) seit einem Zeitpunkt
+  const lernStand = async (seit: number) => {
     const ziele = await lernziele.lesen();
-    const fokus = [...kirchturm.fokusJeGruppe(uhr.jetzt() - 7 * 86_400_000).entries()];
+    const fokus = [...kirchturm.fokusJeGruppe(seit).entries()];
     const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9äöüß]/g, '');
-    return Object.entries(ziele).map(([fach, h]) => {
-      const m = fokus.filter(([k]) => norm(k) === norm(fach) || (norm(fach).length >= 4 && norm(k).includes(norm(fach)))).reduce((s2, [, x]) => s2 + x, 0);
-      return `${m >= h * 60 ? '✓' : '✗'} ${fach}: ${minutenText(m)} von ${String(h).replace('.', ',')} h`;
-    });
+    return Object.entries(ziele).map(([fach, h]) => ({
+      fach,
+      zielMin: Math.round(h * 60),
+      istMin: fokus.filter(([k]) => norm(k) === norm(fach) || (norm(fach).length >= 4 && norm(k).includes(norm(fach)))).reduce((s2, [, x]) => s2 + x, 0),
+    }));
   };
+  const seitMontag = () => {
+    const heute = tagIn(uhr.jetzt());
+    const montag = tagPlus(heute, -((new Date(`${heute}T12:00:00Z`).getUTCDay() + 6) % 7));
+    return ortszeitZuUtc(...(montag.split('-').map(Number) as [number, number, number]), 0, 0, 0, 'Europe/Vienna');
+  };
+  const lernzielZeilen = async () =>
+    (await lernStand(uhr.jetzt() - 7 * 86_400_000)).map((l) => `${l.istMin >= l.zielMin ? '✓' : '✗'} ${l.fach}: ${minutenText(l.istMin)} von ${minutenText(l.zielMin)}`);
   const wochenrueckblick = new Wochenrueckblick({ db, uhr, vault, hub, ki, todos, uni, kalender, lernziele: lernzielZeilen, fokus: kirchturm, bank, gewohnheiten, wochenziele, bluete: () => blueteBerechnen(), log: (t) => console.warn(t) });
-  const morgenzeitung = new Morgenzeitung({ db, uhr, vault, hub, ki, freigaben: agenten.freigaben, schreibtisch, uni, postbote, kalender, wetter, bank, boerse: depotZeilen, fokus: kirchturm, gewohnheiten, wochenziele, bluete: () => blueteBerechnen(), todosHeute: async () => { const h = tagIn(uhr.jetzt()); return (await todos.liste()).filter((t) => !t.erledigt && t.faellig && t.faellig <= h); }, wichtig: async () => (await todos.liste()).filter((t) => !t.erledigt && t.wichtig).slice(0, 5).map((t) => `**${t.titel}**${t.faellig ? ` (fällig ${t.faellig})` : ''}`), log: (t) => console.warn(t) });
+  const morgenzeitung = new Morgenzeitung({ db, uhr, vault, hub, ki, freigaben: agenten.freigaben, schreibtisch, uni, postbote, kalender, wetter, bank, boerse: depotZeilen, fokus: kirchturm, gewohnheiten, wochenziele, bluete: () => blueteBerechnen(), lernen: async () => (await lernStand(seitMontag())).map((l) => `${l.istMin >= l.zielMin ? '✓ ' : ''}${l.fach}: ${minutenText(l.istMin)} von ${minutenText(l.zielMin)}`), todosHeute: async () => { const h = tagIn(uhr.jetzt()); return (await todos.liste()).filter((t) => !t.erledigt && t.faellig && t.faellig <= h); }, wichtig: async () => (await todos.liste()).filter((t) => !t.erledigt && t.wichtig).slice(0, 5).map((t) => `**${t.titel}**${t.faellig ? ` (fällig ${t.faellig})` : ''}`), log: (t) => console.warn(t) });
   let telegram: TelegramBot | undefined;
   if ((konfig.telegramToken || opt.telegram) && konfig.telegramChatId) {
     telegram = new TelegramBot({
       uhr,
+      lernStand: () => lernStand(seitMontag()),
       api: opt.telegram ?? telegramApi(konfig.telegramToken!, konfig.telegramApiUrl),
       chatId: konfig.telegramChatId,
       geheimnis: konfig.werkstattGeheimnis ?? konfig.telegramToken ?? 'test',
