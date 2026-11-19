@@ -24,7 +24,7 @@ function AufwachZeile() {
   const qc = useQueryClient();
   const q = useQuery({
     queryKey: ['aufwachen'],
-    queryFn: () => api<{ naechste: string | null; anlaesse: string[]; verbrauchHeute: number; tagesbudget: number; eigeneAufgaben: boolean }>('/api/aufwachen'),
+    queryFn: () => api<{ naechste: string | null; anlaesse: string[]; verbrauchHeute: number; tagesbudget: number; eigeneAufgaben: boolean; abstandVon?: number; abstandBis?: number }>('/api/aufwachen'),
   });
   const [laeuft, setLaeuft] = useState(false);
   const [meldung, setMeldung] = useState('');
@@ -51,7 +51,7 @@ function AufwachZeile() {
   };
   return (
     <p className="leise aufwachen">
-      ⏰ Der Bürgermeister ist rund um die Uhr wach (jede Stunde){q.data?.naechste ? ` – nächstes Mal ${uhrzeit.format(new Date(q.data.naechste))}` : ''}.
+      ⏰ Der Bürgermeister wacht rund um die Uhr zu zufälligen Zeiten auf (alle {q.data?.abstandVon ?? 3}–{q.data?.abstandBis ?? 7} Stunden){q.data?.naechste ? ` – nächstes Mal ${uhrzeit.format(new Date(q.data.naechste))}` : ''}.
       {q.data && ` Heute ${q.data.verbrauchHeute.toFixed(2)} $ von ${q.data.tagesbudget.toFixed(2)} $ für KI ohne deinen Klick.`}
       {q.data && q.data.anlaesse.length > 0 && ` Gerade ${q.data.anlaesse.length} Anlass/Anlässe.`}{' '}
       <button className="klein" onClick={() => void wecken()} disabled={laeuft}>

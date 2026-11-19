@@ -905,6 +905,8 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
       verbrauchHeute: a.aufwachen.verbrauchHeute(),
       tagesbudget: e.tagesbudget_usd,
       eigeneAufgaben: e.eigene_aufgaben,
+      abstandVon: Math.min(e.abstand_von_stunden, e.abstand_bis_stunden),
+      abstandBis: Math.max(e.abstand_von_stunden, e.abstand_bis_stunden),
     };
   });
   app.post('/api/aufwachen/jetzt', async () => a.aufwachen.aufwachen());

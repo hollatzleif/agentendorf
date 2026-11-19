@@ -1429,3 +1429,14 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
   - Werkzeuge mit wenigen optionalen Feldern kommen zuerst dran, die übrigen laufen ohne strict. Ihre Eingaben prüft die WerkzeugKiste ohnehin mit Zod.
   - Die Reihenfolge der Werkzeuge bleibt gleich, die Auswahl ist pro Werkzeugliste fest. Damit bleibt der Cache stabil.
 - **Test:** Alle Werkzeuge auf einmal (schlimmster Fall) und die Bürgermeister-Werkzeuge bleiben unter den Grenzen. Der bisherige Motor-Test prüft jetzt auch die Summe. Er hätte den Fehler früher zeigen können, prüfte aber nur „strict-tauglich“, nicht „wie viele“.
+
+## E181 – Der Bürgermeister wacht zu zufälligen Zeiten auf (19.11.)
+
+- **Wunsch (Leif):** Der Bürgermeister soll wirklich zufällig aufwachen, nicht mehr zur vollen Stunde, sondern nach einer zufälligen Zeit von 3 bis 7 Stunden.
+- **Umsetzung (`aufwachen.ts`):**
+  - Nach jedem Aufwachen wird der nächste Termin zufällig zwischen `abstand_von_stunden` und `abstand_bis_stunden` gewählt (Standard 3 und 7, einstellbar in `00_Stadtordnung/aufwachen.md`), auf die Minute genau.
+  - Der Termin steht in `dorf_stand` (`aufwachen_naechste`), damit ein Deploy oder Neustart ihn nicht ständig neu würfelt und verschiebt. War der Server zum Termin aus, wacht er eine Minute nach dem Start auf.
+- **Folgen:**
+  - Ein Rundgang findet jetzt bei fast jedem Aufwachen statt, an dem es nichts Neues gibt, weil der Abstand mindestens `rundgang_abstand_stunden` (3) beträgt.
+  - Aufgaben aus App und Telegram startet er weiterhin sofort. Nur Notizen aus Obsidian und neue Anlässe (Fristen, Freigaben, Mails) warten bis zum nächsten Aufwachen, höchstens 7 Stunden. Fristen-Erinnerungen über Telegram laufen unabhängig davon weiter.
+  - Die Vorlage `aufwachen.md` hat die beiden neuen Felder bekommen. Unveränderte Fassungen aktualisiert das Dorf selbst (Hash in `dorf.ts`).

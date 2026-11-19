@@ -99,7 +99,7 @@ const VORLAGE_FRUEHERE_FASSUNGEN: Record<string, string[]> = {
   'Post/gebaeude.md': ['313622cda22bc8ff13c0a644fab2c49f1bdf84c57eb2702231a70f2ac1e9a076'], // bis Etappe 3
   '00_Stadtordnung/aktion-vorlage.md': ['b0d3e48a90aa554a0e7ceb234edc1b026e285424313cc2654431b5b9c683f671'], // E60
   'Uni/aktionen/kursuebersicht.md': ['f525448be2f08c6d74635be2a96d4c89b0c1c98f5d0d21b42211da403833a8cf'], // E60
-  '00_Stadtordnung/aufwachen.md': ['231a442ce4d7e593e65f27a057d4c5392521cd0da0b139c8c045a2d38c6efbd2'], // bis E61
+  '00_Stadtordnung/aufwachen.md': ['231a442ce4d7e593e65f27a057d4c5392521cd0da0b139c8c045a2d38c6efbd2', '126158d2f1587d9fa31f98a0bbef6aa09e7c95121cc98ebf85baa1bdad4363c8'], // bis E61, bis E180
   // E61: Gedächtnis/Persönlichkeit des Bürgermeisters
   'Rathaus/aktionen/buergermeister.md': ['653aace36ae47d42bc847eda934c819312ceb446d1d624ba92f8ff528eb37084'],
   'Rathaus/gebaeude.md': ['7dd8c996765e716a804cafdaa4734c16aa4f97afb94e20ae69a6b0cda615b130'],

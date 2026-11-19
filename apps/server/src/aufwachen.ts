@@ -13,8 +13,8 @@ import matter from 'gray-matter';
 import { z } from 'zod';
 import type { VaultDienst } from './vault/dienst.js';
 
-/** Weckzeiten (volle Stunde, Linzer Zeit): rund um die Uhr, jede Stunde (Leif, E56) */
-export const WECKZEITEN = Array.from({ length: 24 }, (_, i) => i);
+/** E181: Er wacht zu zufälligen Zeiten auf – rund um die Uhr, alle 3–7 Stunden (Leif), nicht zur vollen Stunde */
+export const ABSTAND_STANDARD = { von: 3, bis: 7 } as const;
 
 export const AUFWACHEN_PFAD = '00_Stadtordnung/aufwachen.md';
 const JaNein = z.preprocess((w) => (w === 'ja' ? true : w === 'nein' ? false : w), z.boolean());
@@ -22,6 +22,9 @@ const EinstellungenSchema = z.object({
   tagesbudget_usd: z.number().min(0).max(100).default(5),
   eigene_aufgaben: JaNein.default(true),
   rundgang_abstand_stunden: z.number().min(1).max(48).default(3),
+  // E181: zufälliger Abstand zwischen zwei Aufwachen (Stunden)
+  abstand_von_stunden: z.number().min(0.5).max(48).default(ABSTAND_STANDARD.von),
+  abstand_bis_stunden: z.number().min(0.5).max(48).default(ABSTAND_STANDARD.bis),
   nachtruhe: JaNein.default(true),
   // E62: Pläne ohne Antwort nach so vielen Minuten automatisch annehmen (0 = nie, Leif entscheidet immer selbst)
   plan_automatisch_nach_minuten: z.number().int().min(0).max(1440).default(10),
@@ -70,6 +73,7 @@ const uhrFormat = new Intl.DateTimeFormat('de-AT', { timeZone: 'Europe/Vienna', 
 export class Aufwachen {
   private zeitgeber?: NodeJS.Timeout;
   private naechste: number | null = null;
+  private gestartet = false;
 
   constructor(
     private o: {
@@ -83,6 +87,7 @@ export class Aufwachen {
       postbote: Postbote;
       vault: VaultDienst;
       log?: (t: string) => void;
+      zufall?: () => number; // Tests: fester Zufall
     },
   ) {}
 
@@ -106,36 +111,62 @@ export class Aufwachen {
     this.o.db.prepare('INSERT INTO dorf_stand (schluessel, wert) VALUES (?, ?) ON CONFLICT(schluessel) DO UPDATE SET wert = excluded.wert').run(s, w);
   }
 
-  static naechsteWeckzeit(ab: number) {
-    for (let tag = 0; tag < 3; tag++) {
-      const [j, mo, t] = tagFormat.format(new Date(ab + tag * 24 * STUNDE)).split('-').map(Number) as [number, number, number];
-      for (const h of WECKZEITEN) {
-        const z = ortszeitZuUtc(j, mo, t, h, 0, 0, 'Europe/Vienna');
-        if (z > ab) return z;
-      }
-    }
-    throw new Error('keine Weckzeit gefunden');
+  /**
+   * E181: nächstes Aufwachen zufällig zwischen von und bis Stunden nach `ab`, auf die Minute gerundet
+   * (also auch mitten in der Stunde). Vertauschte Grenzen werden gedreht.
+   */
+  static naechsteWeckzeit(ab: number, von: number = ABSTAND_STANDARD.von, bis: number = ABSTAND_STANDARD.bis, zufall: () => number = Math.random) {
+    const [a, b] = von <= bis ? [von, bis] : [bis, von];
+    const ms = (a + zufall() * (b - a)) * STUNDE;
+    return Math.max(ab + 60_000, Math.round((ab + ms) / 60_000) * 60_000);
+  }
+
+  /**
+   * Plant das nächste Aufwachen. Der Termin steht in dorf_stand, damit ein Neustart (Deploy) ihn nicht verschiebt:
+   * Liegt er noch in der Zukunft und im erlaubten Rahmen, gilt er weiter; ist er während einer Pause verstrichen,
+   * wacht er eine Minute nach dem Start auf.
+   */
+  private async planen(nachAufwachen: boolean) {
+    const jetzt = this.o.uhr.jetzt();
+    const e = await aufwachEinstellungen(this.o.vault);
+    const bis = Math.max(e.abstand_von_stunden, e.abstand_bis_stunden);
+    const gemerkt = Number(this.stand('aufwachen_naechste') ?? 0);
+    let z: number;
+    if (!nachAufwachen && gemerkt > jetzt && gemerkt <= jetzt + bis * STUNDE + 60_000) z = gemerkt;
+    else if (!nachAufwachen && gemerkt && gemerkt <= jetzt) z = jetzt + 60_000;
+    else z = Aufwachen.naechsteWeckzeit(jetzt, e.abstand_von_stunden, e.abstand_bis_stunden, this.o.zufall);
+    this.naechste = z;
+    this.standSetzen('aufwachen_naechste', String(z));
+    return z;
   }
 
   starten() {
-    if (this.zeitgeber) return;
-    const planen = () => {
-      const jetzt = this.o.uhr.jetzt();
-      this.naechste = Aufwachen.naechsteWeckzeit(jetzt);
-      this.zeitgeber = setTimeout(() => {
-        void this.aufwachen()
-          .catch((e) => this.o.log?.(`Aufwachen: ${(e as Error).message}`))
-          .finally(() => {
+    if (this.zeitgeber || this.gestartet) return;
+    this.gestartet = true;
+    const takt = (nachAufwachen: boolean) => {
+      void this.planen(nachAufwachen)
+        .catch((e) => {
+          this.o.log?.(`Aufwachen planen: ${(e as Error).message}`);
+          return this.o.uhr.jetzt() + ABSTAND_STANDARD.von * STUNDE;
+        })
+        .then((z) => {
+          if (!this.gestartet) return;
+          this.zeitgeber = setTimeout(() => {
             this.zeitgeber = undefined;
-            planen();
-          });
-      }, this.naechste - jetzt);
-      this.zeitgeber.unref();
+            void this.aufwachen()
+              .catch((e) => this.o.log?.(`Aufwachen: ${(e as Error).message}`))
+              .finally(() => {
+                if (this.gestartet) takt(true);
+              });
+          }, Math.max(0, z - this.o.uhr.jetzt()));
+          this.zeitgeber.unref();
+        });
     };
-    planen();
+    takt(false);
   }
 
   stoppen() {
+    this.gestartet = false;
     if (this.zeitgeber) clearTimeout(this.zeitgeber);
     this.zeitgeber = undefined;
   }
@@ -241,7 +272,7 @@ ${fremdinhaltHuelle('lagebericht', zeilen)}${this.rueckschauTeil(jetzt)}`;
         this.o.log?.(`Aufwachen: Lagebericht: ${(e as Error).message}`);
       }
     }
-    // Gesehenes merken (begrenzt), damit derselbe Anlass die KI nicht jede Stunde weckt
+    // Gesehenes merken (begrenzt), damit derselbe Anlass die KI nicht bei jedem Aufwachen weckt
     const alle = [...new Set([...gesehen, ...anlaesse.map((a) => a.schluessel)])].slice(-1000);
     this.standSetzen('aufwachen_gesehen', JSON.stringify(alle));
     this.standSetzen('aufwachen_zeit', String(jetzt));

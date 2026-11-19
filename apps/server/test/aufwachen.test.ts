@@ -26,15 +26,59 @@ async function aufbau(fristen: string, einstellungen = 'eigene_aufgaben: nein') 
 }
 
 describe('Aufwachen des Bürgermeisters', () => {
-  it('Weckzeiten: jede volle Stunde, rund um die Uhr (Linzer Zeit)', () => {
-    // 16.11.2026 12:00 UTC = 13:00 Linz → 14:00 Linz = 13:00 UTC
-    expect(new Date(Aufwachen.naechsteWeckzeit(Date.UTC(2026, 10, 16, 12))).toISOString()).toBe('2026-11-16T13:00:00.000Z');
-    // 21:30 Linz → 22:00 Linz (auch nachts)
-    expect(new Date(Aufwachen.naechsteWeckzeit(Date.UTC(2026, 10, 16, 20, 30))).toISOString()).toBe('2026-11-16T21:00:00.000Z');
-    // 03:20 Linz → 04:00 Linz
-    expect(new Date(Aufwachen.naechsteWeckzeit(Date.UTC(2026, 10, 17, 2, 20))).toISOString()).toBe('2026-11-17T03:00:00.000Z');
-    // Sommerzeit: 06:00 UTC = 08:00 Linz → 09:00 Linz = 07:00 UTC
-    expect(new Date(Aufwachen.naechsteWeckzeit(Date.UTC(2026, 6, 1, 6))).toISOString()).toBe('2026-07-01T07:00:00.000Z');
+  it('Weckzeiten: zufällig 3–7 Stunden später, auf die Minute, nicht zur vollen Stunde (E181)', () => {
+    const ab = Date.UTC(2026, 10, 16, 12);
+    expect(new Date(Aufwachen.naechsteWeckzeit(ab, 3, 7, () => 0)).toISOString()).toBe('2026-11-16T15:00:00.000Z');
+    expect(new Date(Aufwachen.naechsteWeckzeit(ab, 3, 7, () => 0.999999)).toISOString()).toBe('2026-11-16T19:00:00.000Z');
+    // 3 h + 0,37 × 4 h = 4 h 28,8 min → 16:29 UTC
+    expect(new Date(Aufwachen.naechsteWeckzeit(ab, 3, 7, () => 0.37)).toISOString()).toBe('2026-11-16T16:29:00.000Z');
+    // vertauschte Grenzen werden gedreht
+    expect(Aufwachen.naechsteWeckzeit(ab, 7, 3, () => 0)).toBe(ab + 3 * 3_600_000);
+    // echter Zufall: immer im Rahmen, ganze Minuten, und nicht alle gleich
+    const z = Array.from({ length: 200 }, () => Aufwachen.naechsteWeckzeit(ab));
+    for (const x of z) {
+      expect(x).toBeGreaterThanOrEqual(ab + 3 * 3_600_000);
+      expect(x).toBeLessThanOrEqual(ab + 7 * 3_600_000);
+      expect(x % 60_000).toBe(0);
+    }
+    expect(new Set(z).size).toBeGreaterThan(50);
+    expect(z.filter((x) => x % 3_600_000 !== 0).length).toBeGreaterThan(150);
+  });
+
+  it('nächstes Aufwachen übersteht einen Neustart; verpasster Termin → eine Minute nach dem Start (E181)', async () => {
+    const { d } = await aufbau(kal());
+    const jetzt = d.uhr.jetzt();
+    const stand = (w?: string) =>
+      w === undefined
+        ? (d.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'aufwachen_naechste'").get() as { wert: string } | undefined)?.wert
+        : d.db.prepare("INSERT INTO dorf_stand (schluessel, wert) VALUES ('aufwachen_naechste', ?) ON CONFLICT(schluessel) DO UPDATE SET wert = excluded.wert").run(w);
+    const neu = () => new Aufwachen({ ...(d.aufwachen as unknown as { o: ConstructorParameters<typeof Aufwachen>[0] }).o, zufall: () => 0.5 });
+    const warte = async (a: Aufwachen) => {
+      for (let i = 0; i < 50 && a.naechsteZeit == null; i++) await new Promise((r) => setTimeout(r, 10));
+      a.stoppen();
+      return a.naechsteZeit!;
+    };
+    // nichts gemerkt → neu ausgewürfelt (Mitte: 5 h)
+    d.db.prepare("DELETE FROM dorf_stand WHERE schluessel = 'aufwachen_naechste'").run();
+    const a1 = neu();
+    a1.starten();
+    expect(await warte(a1)).toBe(Math.round((jetzt + 5 * 3_600_000) / 60_000) * 60_000);
+    expect(Number(stand())).toBe(a1.naechsteZeit);
+    // gemerkter Termin in der Zukunft bleibt (Deploy verschiebt nichts)
+    stand(String(jetzt + 2 * 3_600_000 + 17 * 60_000));
+    const a2 = neu();
+    a2.starten();
+    expect(await warte(a2)).toBe(jetzt + 2 * 3_600_000 + 17 * 60_000);
+    // verpasst (Server war aus) → gleich nach dem Start
+    stand(String(jetzt - 3_600_000));
+    const a3 = neu();
+    a3.starten();
+    expect(await warte(a3)).toBe(jetzt + 60_000);
+    // unsinnig weit weg (z. B. alte Einstellung) → neu ausgewürfelt
+    stand(String(jetzt + 30 * 3_600_000));
+    const a4 = neu();
+    a4.starten();
+    expect(await warte(a4)).toBe(Math.round((jetzt + 5 * 3_600_000) / 60_000) * 60_000);
   });
 
   it('nichts los und keine eigenen Aufgaben: keine KI, kein Lauf, keine Meldung', async () => {

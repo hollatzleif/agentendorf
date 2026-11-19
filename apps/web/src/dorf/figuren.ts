@@ -355,7 +355,7 @@ export class Figuren {
         this.welt.gebaeude().some((g) => g !== 'Rathaus') &&
         !this.reduziert
       ) {
-        // Rundgang (stündlich von selbst geweckt): von Gebäude zu Gebäude durchs Dorf, dazwischen kurz zurück zum Rathaus
+        // Rundgang (alle 3–7 Stunden zufällig von selbst geweckt): von Gebäude zu Gebäude durchs Dorf, dazwischen kurz zurück zum Rathaus
         aktiv = true;
         if (!bm.runde.length) {
           const andere = this.welt.gebaeude().filter((g) => g !== 'Rathaus');

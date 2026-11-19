@@ -271,7 +271,7 @@ test('Etappe 4: Morgenzeitung drucken, Bürgermeister wecken, Post ohne Gmail', 
   await expect(page.getByText(/Erscheint jeden Morgen um 06:30/)).toBeVisible();
 
   await page.goto('/gebaeude/Rathaus?reiter=schreibtisch');
-  await expect(page.getByText(/rund um die Uhr wach/)).toBeVisible();
+  await expect(page.getByText(/rund um die Uhr zu zufälligen Zeiten auf \(alle 3–7 Stunden\)/)).toBeVisible();
   await page.getByRole('button', { name: 'Jetzt aufwachen' }).click();
   await expect(page.getByText(/^Aufgewacht:|Aufgewacht:/).first()).toBeVisible();
 

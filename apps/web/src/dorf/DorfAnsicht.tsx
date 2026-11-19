@@ -691,7 +691,7 @@ function BuergermeisterRuht() {
   const letzte = tisch.data?.find((a) => a.quelle === 'aufwachen');
   return (
     <>
-      <p>Ruht gerade. Er ist rund um die Uhr im Dienst: jede Stunde schaut er nach, ob es Neues gibt, alle paar Stunden geht er seine Runde durchs Dorf.</p>
+      <p>Ruht gerade. Er ist rund um die Uhr im Dienst: zu zufälligen Zeiten (alle 3–7 Stunden) wacht er auf, schaut nach Neuem und geht seine Runde durchs Dorf.</p>
       <dl>
         {letzte && (
           <>

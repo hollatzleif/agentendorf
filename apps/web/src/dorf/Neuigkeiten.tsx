@@ -68,7 +68,7 @@ const PUNKTE: [string, string][] = [
   ['🔁', 'Nach deinem Ja zu einer Freigabe und wenn seine Helfer fertig sind, macht er von selbst weiter.'],
   ['🧩', 'Eigene Skills: Gebäude → Aktionen → „+ Neue Aktion“ – auch mit Zeitplan (z. B. täglich 06:00) und Ergebnis-Datei mit Archiv. Oder den Bürgermeister fragen.'],
   ['✅', 'Checkliste: jeden Morgen um 06:00 frisch in der Bibliothek (00_Checkliste.html), deine Häkchen bleiben gespeichert. Kursübersicht in der Uni: Folien + Übersicht je Kurs.'],
-  ['🎩', 'Der Bürgermeister ist rund um die Uhr wach: stündlich geht er seine Runde durchs Dorf, nachts schläft er (Zz), wenn nichts los ist.'],
+  ['🎩', 'Der Bürgermeister ist rund um die Uhr wach: alle 3–7 Stunden, zu zufälligen Zeiten, geht er seine Runde durchs Dorf, nachts schläft er (Zz), wenn nichts los ist.'],
   ['🧭', 'Schickt er Helfer los, laufen sie als Figuren mit Rucksack zu ihrem Gebäude. Sind sie fertig, gibt es Konfetti.'],
   ['🔘', 'Gebäude antippen: runde Knöpfe wie im Spiel, dazu Schnellknöpfe (Uni: Moodle, Lernen · Post: Antworten).'],
   ['🌦️', 'Wetter wie in Konstanz (Tipp aufs Schild), Jahreszeiten, Tag und Nacht nach der Uhr.'],
