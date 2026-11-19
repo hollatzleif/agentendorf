@@ -1315,3 +1315,14 @@ input.kurz { width: 5em; }
 .tasten-hilfe dd { margin: 0; }
 kbd { display: inline-block; min-width: 1.4em; padding: 0.05rem 0.35rem; border: 1px solid var(--rand); border-bottom-width: 2px; border-radius: 5px; background: #fff; font: 600 0.85rem ui-monospace, monospace; text-align: center; }
 @media (hover: none) { .tasten-hilfe { display: none; } }
+
+/* E140: Prüfungs-Cockpit */
+.pruefungen { display: grid; gap: 0.7rem; }
+.pruefung-kopf { display: flex; gap: 0.8rem; align-items: center; }
+.pruefung-kopf h3 { margin: 0; }
+.pruefung-kopf p { margin: 0.1rem 0 0; }
+.pruefung-tage { display: grid; place-items: center; min-width: 3.6rem; padding: 0.35rem 0.5rem; border-radius: 12px; background: var(--gruen-hell); border: 2px solid var(--gruen); line-height: 1.05; }
+.pruefung-tage strong { font-size: 1.5rem; }
+.pruefung-tage span { font-size: 0.75rem; }
+.pruefung.bald .pruefung-tage { background: #fde3dc; border-color: var(--rot); }
+.pruefung-stand { list-style: none; margin: 0.5rem 0; padding: 0; display: grid; gap: 0.2rem; }

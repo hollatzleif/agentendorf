@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { navigieren } from '../router';
 
 /** Bei jeder neuen Ausgabe den Schlüssel ändern – dann erscheint die Karte einmal pro Gerät */
-const AUSGABE = '2026-11-19v';
+const AUSGABE = '2026-11-19w';
 const SCHLUESSEL = 'dorf-neuigkeiten-gesehen';
 
 const PUNKTE: [string, string][] = [
+  ['🎓', 'Uni: Lernziel je Fach pro Woche (🎯 auf der Fach-Karte, /lernen in Telegram) und das Prüfungs-Cockpit (Uni → Prüfungen). Am PC: Tastenkürzel – drück „?“.'],
   ['🪧', 'Im Dorf: Kreidetafel am Marktplatz („Heute ☑ 2/5“) und warmes Licht am Kirchturm, solange du im Fokus bist. Uni-Abgaben kommen jetzt mit Teilschritten.'],
   ['🗓️', '„Woche planen“: das Sonntags-Ritual in vier Schritten auf einer Seite (Rückblick, Ziele, verteilen, Gewohnheiten). „… jeden Montag 30 min“ geht jetzt überall, /verteilen auch in Telegram.'],
   ['✨', 'Wochenplan: „Woche verteilen“ legt den Eingang auf Tage mit freier Zeit (mit Puffer) – du übernimmst, was passt. Dazu: Filter im To-do-Brett, /jetzt in Telegram.'],

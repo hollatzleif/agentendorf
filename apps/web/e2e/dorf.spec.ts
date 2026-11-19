@@ -1506,6 +1506,28 @@ test('Tastenkürzel: ? Übersicht, g w Wochenplan, n neues To-do, f Fokus; im Fe
   await expect(page).toHaveURL(/\/fokus$/);
 });
 
+test('Uni → Prüfungen: Cockpit mit Countdown, Schritten, Fokus, Karten; Lernplan öffnet (E140)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await page.route('**/api/uni/pruefungen', (r) =>
+    r.fulfill({
+      json: [
+        { id: 'p1', titel: 'Short Exam 2', fach: 'NLP', frist: new Date(Date.now() + 2 * 86_400_000).toISOString(), tage: 2, todo: { pfad: 'Marktplatz/todos/x.md', titel: 'Prüfung: Short Exam 2', schritteFertig: 1, schritte: 5, naechster: 'Lernplan anlegen' }, fokus14Tage: 95, karten: { gesamt: 40, gelernt: 12, faellig: 6 }, lernzielMin: 180 },
+      ],
+    }),
+  );
+  await anmelden(page);
+  await page.goto('/gebaeude/Uni?reiter=pruefungen');
+  const k = page.getByRole('article', { name: 'Prüfung Short Exam 2' });
+  await expect(k.getByLabel('in 2 Tagen')).toBeVisible();
+  await expect(k).toContainText('Schritte 1/5');
+  await expect(k).toContainText('als Nächstes: Lernplan anlegen');
+  await expect(k).toContainText('1 h 35 min gelernt (14 Tage)');
+  await expect(k).toContainText('Ziel 6 h');
+  await expect(k).toContainText('12/40 Karten sitzen');
+  await k.getByRole('button', { name: '📅 Lernplan' }).click();
+  await expect(k.getByRole('group', { name: 'Lernzeit für NLP' })).toBeVisible();
+});
+
 test('Seite lässt sich nicht laden (nach Deploy): einmal neu laden, dann „Neu laden“ statt weißer Seite (Review)', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'einmal reicht');
   await anmelden(page);

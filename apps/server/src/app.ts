@@ -1,7 +1,7 @@
 import type { Boerse } from './boerse.js';
 import type { Saxo } from './saxo.js';
 import type { Kirchturm } from './kirchturm.js';
-import { terminAusText, type FachStand } from '@dorf/shared';
+import { terminAusText, type FachStand, type PruefungStand } from '@dorf/shared';
 import { tagPlanen } from './tagesplan.js';
 import type { Wochenrueckblick } from './wochenrueckblick.js';
 import type { Karteikasten } from './karten.js';
@@ -785,6 +785,48 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
         })(),
       };
     });
+  });
+  // E140: Prüfungs-Cockpit – je anstehende Prüfung: Countdown, Schritte des To-dos, Fokus 14 Tage aufs Fach, Karteikarten
+  app.get('/api/uni/pruefungen', async (): Promise<PruefungStand[]> => {
+    const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9äöüß]/g, '');
+    const passt = (x0: string, y0: string) => {
+      const x = norm(x0);
+      const y = norm(y0);
+      return x.length >= 2 && y.length >= 2 && (x === y || (Math.min(x.length, y.length) >= 4 && (x.includes(y) || y.includes(x))));
+    };
+    const jetzt = uhr.jetzt();
+    const heute = tagIn(jetzt);
+    const pruefungen = a.uni
+      .fristen()
+      .filter((f) => f.art === 'test' && f.frist && Date.parse(f.frist) > jetzt - 3 * 3600_000)
+      .sort((x, y) => x.frist!.localeCompare(y.frist!))
+      .slice(0, 8);
+    const faecher = a.uni.faecher();
+    const fokus = [...(a.kirchturm?.fokusJeGruppe(jetzt - 14 * 86_400_000) ?? new Map<string, number>()).entries()];
+    const karten = (await a.karten?.uebersicht().catch(() => [])) ?? [];
+    const ziele = (await a.lernziele?.lesen()) ?? {};
+    const todoPfad = db.prepare('SELECT pfad FROM uni_todos WHERE frist_id = ?');
+    const aus: PruefungStand[] = [];
+    for (const f of pruefungen) {
+      const fach = faecher.find((x) => passt(f.kurs, x.titel) || passt(f.kurs, x.name));
+      const namen = [f.kurs, fach?.titel, fach?.name].filter((x): x is string => !!x);
+      const pfad = (todoPfad.get(f.id) as { pfad: string } | undefined)?.pfad;
+      const todo = pfad && a.listen ? await a.listen.todo.holen(pfad).catch(() => null) : null;
+      const k = karten.find((x) => namen.some((n) => passt(x.fach, n)));
+      const zielH = Object.entries(ziele).find(([n]) => namen.some((m) => passt(n, m)))?.[1];
+      aus.push({
+        id: f.id,
+        titel: f.titel,
+        fach: fach?.titel ?? f.kurs,
+        frist: f.frist!,
+        tage: Math.round((Date.parse(`${tagIn(Date.parse(f.frist!))}T12:00:00Z`) - Date.parse(`${heute}T12:00:00Z`)) / 86_400_000),
+        ...(todo && !todo.erledigt ? { todo: { pfad: todo.pfad, titel: todo.titel, schritteFertig: todo.schritte?.filter((x) => x.erledigt).length ?? 0, schritte: todo.schritte?.length ?? 0, naechster: todo.schritte?.find((x) => !x.erledigt)?.text } } : {}),
+        fokus14Tage: fokus.filter(([n]) => namen.some((m) => passt(n, m))).reduce((s2, [, m]) => s2 + m, 0),
+        ...(k ? { karten: { gesamt: k.gesamt, gelernt: k.gelernt, faellig: k.faellig } } : {}),
+        ...(zielH ? { lernzielMin: Math.round(zielH * 60) } : {}),
+      });
+    }
+    return aus;
   });
   app.post('/api/uni/lernziel', async (req) => {
     if (!a.lernziele) throw new DorfFehler(503, 'Lernziele sind nicht eingerichtet.');

@@ -1093,3 +1093,14 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **`/lernen`:** zeigt je Fach einen Balken und „30 min von 2 h“. Dazu gibt es je Fach einen Knopf **„🍅 Mathe III“**, der einen Pomodoro mit dem Fach als Gruppe startet. Diese Zeit zählt fürs Lernziel.
 - Die Knöpfe sind signiert über den Fachnamen. Ändern sich die Ziele inzwischen, passt der alte Knopf nicht mehr und wird abgelehnt, statt ein falsches Fach zu starten.
 - Stand je Fach (`lernStand` in `dorf.ts`) ist eine Rechnung für Morgenzeitung, Telegram und Wochenrückblick (dort über 7 Tage).
+
+## E140 – Prüfungs-Cockpit (Nacht 18./19.11.)
+
+- Der neue Reiter **Uni → Prüfungen** zeigt je anstehende Prüfung (aus den Uni-Fristen, Art „test“, höchstens 8):
+  - die Tage bis zur Prüfung (ab 3 Tagen rot), Fach und Uhrzeit
+  - die Teilschritte des Uni-To-dos (E130) mit dem nächsten Schritt
+  - die Fokuszeit der letzten 14 Tage aufs Fach, gegen das Lernziel (E137 × 2 Wochen)
+  - den Stand der Karteikarten (sitzen / heute dran)
+- Knöpfe: **„🍅 Lernen“** startet den Pomodoro fürs Fach und öffnet das Fokus-Vollbild. **„📅 Lernplan“** öffnet den Lernzeit-Planer bis zur Prüfung (E79/E96).
+- Der Prüfungs-Countdown auf „Heute“ führt dorthin.
+- Es gibt keine neuen Daten, nur eine Sicht auf vorhandene (`GET /api/uni/pruefungen`). Der Fach-Abgleich ist derselbe ungefähre Namensvergleich wie bei den Fach-Karten.

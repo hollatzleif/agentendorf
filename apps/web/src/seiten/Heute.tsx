@@ -211,9 +211,9 @@ export function Heute() {
           {erledigtHeute > 0 && <span className="heute-zahl gruen">✓ {erledigtHeute} erledigt</span>}
           {(fokus.data?.heuteMin ?? 0) > 0 && <span className="heute-zahl">🍅 {fokus.data!.heuteMin} min Fokus</span>}
           {naechstePruefung && (
-            <span className={`heute-zahl${naechstePruefung.tage <= 3 ? ' rot' : ''}`} title={`Prüfung am ${naechstePruefung.faellig}`}>
+            <a href="/gebaeude/Uni?reiter=pruefungen" onClick={linkKlick} className={`heute-zahl${naechstePruefung.tage <= 3 ? ' rot' : ''}`} title={`Prüfung am ${naechstePruefung.faellig} – Prüfungs-Cockpit öffnen`}>
               📝 {naechstePruefung.name} {naechstePruefung.tage === 0 ? 'heute' : naechstePruefung.tage === 1 ? 'morgen' : `in ${naechstePruefung.tage} Tagen`}
-            </span>
+            </a>
           )}
           {antworten > 0 && (
             <a className="heute-zahl" href="/gebaeude/Post" onClick={linkKlick} title="Mails der letzten 3 Tage, die eine Antwort brauchen">

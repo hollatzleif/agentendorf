@@ -92,6 +92,9 @@ export function Anleitung() {
       <h2>🎓 Im Semester</h2>
       <ul>
         <li>
+          Je Fach ein <b>Lernziel pro Woche</b> (🎯 auf der Fach-Karte) – <b>/lernen</b> in Telegram startet den Pomodoro dafür. Vor Prüfungen: <L href="/gebaeude/Uni?reiter=pruefungen">Prüfungs-Cockpit</L>.
+        </li>
+        <li>
           Uni-Fristen kommen von selbst als To-dos; <b>📅 am To-do</b> plant Lernzeit oder einen ganzen Lernplan bis zur Prüfung.
         </li>
         <li>

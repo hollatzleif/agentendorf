@@ -16,6 +16,7 @@ import { UniUebersicht } from '../komponenten/UniUebersicht';
 import { PostEingang } from '../komponenten/PostEingang';
 import { MorgenzeitungAnsicht } from '../komponenten/MorgenzeitungAnsicht';
 import { WochenPlan } from '../komponenten/WochenPlan';
+import { PruefungsCockpit } from '../komponenten/PruefungsCockpit';
 import { TodoBrett } from '../komponenten/TodoBrett';
 import { BankUebersicht } from '../komponenten/BankUebersicht';
 import { CorpsUebersicht } from '../komponenten/CorpsUebersicht';
@@ -44,6 +45,7 @@ const RATHAUS_VORNE = [
 ] as const;
 const UNI_VORNE = [
   ['studium', 'Studium'],
+  ['pruefungen', 'Prüfungen'],
   ['karten', 'Karteikarten'],
   ['noten', 'Noten'],
 ] as const;
@@ -139,6 +141,7 @@ export function GebaeudeInhalt({ id, reiter, reiterWaehlen, kompakt }: { id: str
         {reiter === 'dateien' && <Dateibaum wurzel={id} />}
         {reiter === 'schreibtisch' && <Schreibtisch />}
         {reiter === 'studium' && <UniUebersicht />}
+        {reiter === 'pruefungen' && <PruefungsCockpit />}
         {reiter === 'eingang' && <PostEingang />}
         {reiter === 'todo' && <TodoBrett />}
         {reiter === 'wochenplan' && <WochenPlan />}

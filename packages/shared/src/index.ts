@@ -744,6 +744,20 @@ export interface FachStand {
   lernzielMin?: number;
 }
 
+/** E140: Prüfungs-Cockpit – eine anstehende Prüfung mit allem, was zur Vorbereitung zählt */
+export interface PruefungStand {
+  id: string;
+  titel: string;
+  fach: string;
+  frist: string;
+  /** Kalendertage bis zur Prüfung (Wien), 0 = heute */
+  tage: number;
+  todo?: { pfad: string; titel: string; schritteFertig: number; schritte: number; naechster?: string };
+  fokus14Tage: number;
+  karten?: { gesamt: number; gelernt: number; faellig: number };
+  lernzielMin?: number;
+}
+
 /** Karteikarten (Nacht 18./19.11.) */
 export interface KartenFach {
   fach: string;
