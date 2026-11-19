@@ -1624,7 +1624,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     const balken = (a: number) => '▰'.repeat(Math.round(a * 8)) + '▱'.repeat(8 - Math.round(a * 8));
     const zeilen = p.slice(0, 8).map(
       (x) =>
-        `📁 <b>${h(x.name)}</b> ${balken(x.erledigt / x.gesamt)} ${x.erledigt}/${x.gesamt}${x.dieseWoche ? ` (+${x.dieseWoche})` : ''}${x.ruhtMelden ? ` · 💤 ${x.ruhtTage} Tage` : ''}${x.naechster ? `\n   👉 ${h(x.naechster.titel)}` : ''}`,
+        `📁 <b>${h(x.name)}</b> ${balken(x.erledigt / x.gesamt)} ${x.erledigt}/${x.gesamt}${x.dieseWoche ? ` (+${x.dieseWoche})` : ''}${x.ruhtMelden ? ` · 💤 ${x.ruhtTage} Tage` : ''}${x.hinterher ? ` · ⚠️ ${x.hinterher} hinterher` : ''}${x.frist ? ` · 🏁 ${h(x.frist)}` : ''}${x.naechster ? `\n   👉 ${h(x.naechster.titel)}` : ''}`,
     );
     const knoepfe = p
       .slice(0, 8)

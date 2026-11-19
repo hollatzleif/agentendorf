@@ -1387,3 +1387,7 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 
 - **Heute:** Ein Hinweis bei den Planungs-Karten, wenn ein Projekt hinterher ist oder ruht. Gezeigt wird nur eins, zuerst das mit den meisten überfälligen Schritten, mit dem nächsten Schritt und einem Link zu Marktplatz → Projekte.
 - **Morgenzeitung:** „⚠️ Referat: 2 Schritte hinterher (Frist …) – als Nächstes: …“ vor dem „💤 ruht“-Hinweis (dieser nur für ein anderes Projekt).
+
+## E175 – /projekte mit Frist und „hinterher“ (19.11.)
+
+- Telegram /projekte zeigt je Projekt „⚠️ N hinterher“ und „🏁 Frist“ (E172), wie die App.

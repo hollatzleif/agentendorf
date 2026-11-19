@@ -127,3 +127,17 @@ describe('Projekt hinterher in der Morgenzeitung (E174)', () => {
     expect(z.abschnitte.find((x) => x.titel === 'Heute')!.zeilen.join('\n')).toContain('⚠️ Referat: 2 Schritte hinterher (Frist 2026-11-20) – als Nächstes: Referat – Etappe 1/3');
   });
 });
+
+describe('/projekte mit Frist und hinterher (E175)', () => {
+  it('zeigt 🏁 und ⚠️', async () => {
+    const { testDorf } = await import('./hilfen.js');
+    const aufrufe: { m: string; p: Record<string, unknown> }[] = [];
+    const api = { aufruf: async (m: string, p: Record<string, unknown> = {}) => (aufrufe.push({ m, p }), m === 'sendMessage' ? { message_id: 1 } : true), dateiLaden: async () => ({ daten: Buffer.alloc(0), name: 'x' }) };
+    const d = await testDorf({ env: { TELEGRAM_CHAT_ID: '42', ORIGIN: 'https://dorf.test' }, telegram: api as never });
+    await d.todos.anlegen({ titel: 'Etappe 1', gruppe: 'Referat', faellig: '2026-11-14' }, 'Leif');
+    await d.todos.anlegen({ titel: 'Etappe 2', gruppe: 'Referat', faellig: '2026-11-17' }, 'Leif');
+    await d.todos.anlegen({ titel: 'Abgabe', gruppe: 'Referat', faellig: '2026-11-20' }, 'Leif');
+    await d.telegram!.verarbeiten({ update_id: 1, message: { message_id: 1, chat: { id: 42 }, text: '/projekte' } });
+    expect(String(aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p.text)).toContain('0/3 · ⚠️ 1 hinterher · 🏁 2026-11-20');
+  });
+});
