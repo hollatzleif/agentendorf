@@ -49,6 +49,7 @@ public:
     void disc(int cx, int cy, int r, Color c);                      // gefuellter Kreis (geglaettet)
     void ring(int cx, int cy, int r, Color c);                      // Kreislinie (geglaettet)
     void check(int x, int y, int s, Color c);                       // Haekchen in einem s*s-Feld
+    void star(int cx, int cy, int r, Color c);                      // gefuellter Stern (geglaettet)
 
     // Text: y ist die Grundlinie. Gibt die Breite zurueck. maxw > 0 kuerzt mit "…".
     int text(const Font& f, int x, int y, const std::string& s, Color c, Align a = Align::Left,

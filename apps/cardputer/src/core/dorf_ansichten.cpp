@@ -1162,7 +1162,9 @@ public:
     bool animated() const override { return true; }
     std::string hint(App& app, uint32_t) override {
         if (app.dorf.versuch() == Dorf::Versuch::Laeuft) return "verbinde mit " + app.dorf.versuchSsid() + " \xE2\x80\xA6";
-        return "Enter verbinden" + std::string(DOT) + "Del vergessen" + DOT + "Esc";
+        const Row* r = current();
+        if (r && r->action == 1) return ", / Vorrang" + std::string(DOT) + "Del vergessen" + DOT + "Tab Passwort";
+        return "Enter verbinden" + std::string(DOT) + "Esc zur\xC3\xBC" "ck";
     }
     Color hintColor(App& app) override { return app.dorf.versuch() == Dorf::Versuch::Laeuft ? col::AMBER : col::GREY; }
     void tick(App& app, uint32_t now) override {
@@ -1184,18 +1186,19 @@ public:
         if (!d.netze.empty()) {
             Row h;
             h.style = Row::Header;
-            h.text = "Gespeichert";
+            h.text = "Gespeichert \xE2\x80\x93 oben = Vorrang";
             rows.push_back(h);
         }
-        for (const auto& e : d.netze) {
+        for (const auto& e : d.netze) {      // Stern = gespeichert, gruen = gerade verbunden
             Row r;
+            r.style = Row::Star;
             r.text = e.ssid;
             r.key = e.ssid;
             r.action = 1;
-            bool da = false;
-            for (const auto& f : d.funde) da = da || f.ssid == e.ssid;
+            const int rssi = d.rssi(e.ssid);
             if (e.ssid == aktuell) { r.right = "verbunden"; r.rightColor = col::GREEN; }
-            else if (da) r.right = "in Reichweite";
+            else if (rssi != 0) r.right = rssi < Dorf::RSSI_SCHWACH ? "sehr schwach" : "in Reichweite";
+            else if (e.versteckt) r.right = "versteckt";
             rows.push_back(r);
         }
         Row h;
@@ -1229,27 +1232,28 @@ public:
         s.action = 5;
         rows.push_back(s);
     }
-    static void passwortFragen(App& app, const std::string& ssid) {
+    static void passwortFragen(App& app, const std::string& ssid, bool versteckt) {
         app.push(neu(new TextInputView("WLAN-Passwort", ssid, "", "Gro\xC3\x9F-/Kleinschreibung beachten. Leer = offenes Netz.",
-            [ssid](App& a, const std::string& pw, uint32_t t) { a.dorf.wlanVersuchen(ssid, pw, t); }, true, 63, true)));
+            [ssid, versteckt](App& a, const std::string& pw, uint32_t t) { a.dorf.wlanVersuchen(ssid, pw, t, versteckt); }, true, 63, true)));
     }
     void activate(App& app, const Row& r, uint32_t now) override {
         if (app.dorf.versuch() == Dorf::Versuch::Laeuft) return;
         if (r.action == 1) {
             const WlanEintrag* e = app.dorf.netz(r.key);
-            if (e) app.dorf.wlanVersuchen(e->ssid, e->passwort, now);
+            if (e) app.dorf.wlanVersuchen(e->ssid, e->passwort, now, e->versteckt);
         } else if (r.action == 2) {
-            passwortFragen(app, r.key);
+            passwortFragen(app, r.key, false);
         } else if (r.action == 3) {
             app.dorf.wlanVersuchen(r.key, "", now);
         } else if (r.action == 4) {
+            // Von Hand getippt: gilt als "versteckt" - wird kuenftig auch ohne Suche direkt versucht
             app.push(neu(new TextInputView("Anderes Netz", "Name des WLANs (SSID)", "", "Genau so, wie es am Handy oder Router hei\xC3\x9Ft.",
-                [](App& a, const std::string& ssid, uint32_t) { passwortFragen(a, ssid); }, false, 32, true)));
+                [](App& a, const std::string& ssid, uint32_t) { passwortFragen(a, ssid, true); }, false, 32, true)));
         } else if (r.action == 5) {
             app.dorf.wlanSuchen(now);
         }
     }
-    bool other(App& app, const Input& in, const Row* r, uint32_t) override {
+    bool other(App& app, const Input& in, const Row* r, uint32_t now) override {
         if (!r || r->action != 1) return false;
         const std::string ssid = r->key;
         if (in.k == K::Del) {
@@ -1259,7 +1263,19 @@ public:
             })));
             return true;
         }
-        if (nav(in) == K::Right) { passwortFragen(app, ssid); return true; }   // Passwort neu eingeben
+        if (in.k == K::Tab) {      // Passwort neu eingeben
+            const WlanEintrag* e = app.dorf.netz(ssid);
+            passwortFragen(app, ssid, e && e->versteckt);
+            return true;
+        }
+        const K k = nav(in);
+        if (k == K::Left || k == K::Right) {      // Vorrang: , = nach oben, / = nach unten (die Auswahl wandert mit)
+            if (app.dorf.netzVerschieben(ssid, k == K::Left ? -1 : 1)) {
+                sel += k == K::Left ? -1 : 1;
+                app.toast(k == K::Left ? "Vorrang h\xC3\xB6her" : "Vorrang tiefer", now);
+            }
+            return true;
+        }
         return false;
     }
 
@@ -1467,10 +1483,11 @@ public:
         const std::string warten = n ? std::string(DOT) + std::to_string(n) + (n == 1 ? " wartet" : " warten") : "";
         const WlanZustand z = d.wlanZustand();
         if (z != WlanZustand::Verbunden)
-            return (z == WlanZustand::Verbindet ? "WLAN verbindet \xE2\x80\xA6" : d.start.bekannt ? "offline, Stand " + d.start.stand : "offline \xE2\x80\x93 kein WLAN") + warten;
+            return (z == WlanZustand::Verbindet || d.wlanAutomatik() || d.sucht() ? "WLAN: suche bekannte Netze \xE2\x80\xA6" : d.start.bekannt ? "offline, Stand " + d.start.stand : "offline \xE2\x80\x93 kein WLAN") + warten;
         if (d.gekoppelt() && d.start.offline) return "Dorf nicht erreichbar, Stand " + d.start.stand + warten;
         if (n) return std::to_string(n) + (n == 1 ? " \xC3\x84nderung wartet" : " \xC3\x84nderungen warten") + " auf Versand";
-        return std::string(ARROW_UD) + " w\xC3\xA4hlen" + DOT + "Enter OK" + DOT + "Esc Startmen\xC3\xBC";
+        // Normalfall: zeigen, mit welchem Netz er verbunden ist
+        return "WLAN " + Gfx::fit(FONT_SMALL, d.wlanName(), 110) + DOT + "Esc Startmen\xC3\xBC";
     }
     Color hintColor(App& app) override {
         Dorf& d = app.dorf;

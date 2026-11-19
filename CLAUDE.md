@@ -108,11 +108,12 @@ apps/programm  Etappe 6 (E66): Tauri-v2-Hülle für Mac/Windows. src-tauri/src/l
                 Autostart, Updater, Befehle melden/zaehler_setzen/schnell_schliessen/glocke/glocke_stopp – zur Laufzeit NUR für den Ursprung
                 der Dorf-Adresse freigegeben), adresse.rs (https-Prüfung, Tests), einrichten/ (lokale Einrichtungsseite).
                 test/selbsttest.sh: Debug-Build unter Xvfb gegen den e2e-Server, prüft die Freigaben. Gebaut in der CI.
-apps/cardputer  E184: Firmware für den M5Stack Cardputer Adv (aus HaloOS 0.3, Arduino-ESP32 2.0.17): Startmenü 1 Fernbedienung
+apps/cardputer  E184/E193: Firmware für den M5Stack Cardputer Adv (aus HaloOS 0.3, Arduino-ESP32 2.0.17): Startmenü 1 Fernbedienung
                 (unverändert) · 2 Agentendorf (WLAN/HTTPS mit eingebetteten Root-CAs, Listen-App über /api/geraet/*, Offline-
                 Warteschlange mit X-Vorgang). Logik in src/core/ (läuft auch am PC: host/), Hardware in src/main.cpp.
                 Vertrag: API.md. Tests: test/host-test.sh (g++ + Nachbau-Server), test/vertrag_test.py (gegen den echten
-                e2e-Server). Bauen: tools/werkzeug.sh + tools/build.sh → release/*.bin. Anleitung für Leif: ANLEITUNG.md.
+                e2e-Server). Bauen: tools/werkzeug.sh + tools/build.sh → release/*.bin, tools/zip.sh → ZIP für Leif (nicht im Repo).
+                WLAN (E193): bis 8 Netze mit Vorrang, versteckte Netze direkt versuchen, Wechsel ins Heimnetz. Anleitung: ANLEITUNG.md.
 packages/shared Typen für HTTP und WebSocket (LiveEreignis, VaultEintrag …) + Dorf-Layout-Regeln (dorf.ts) – wird in den Server gebündelt
 vault-vorlage   Startinhalt des Vaults (Stadtordnung, gebaeude.md je Gebäude). Wird nur in einen LEEREN Vault kopiert.
 deploy          compose.yml, Caddyfile, dorf (Server-Verwaltung), bootstrap.sh (Ersteinrichtung), test/ (Backup-/Deploy-Tests)
@@ -186,3 +187,4 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E183 (19.11.): Agenten stellen Timer/Wecker/Pomodoro, schreiben Notizen und neue Mail-Entwürfe; Termine nur per Freigabe
 - [x] E184 (19.11.): Cardputer-Firmware 1.0 (Fernbedienung + Agentendorf, `apps/cardputer/`) – Host-Test und Vertragsprüfung grün, nie auf echter Hardware gelaufen
 - [x] E185–E188 (19.11.): Agenten nehmen Arbeit ab – Freigaben ausgedünnt + „Rückgängig“, Web auch mit Privatem (Leifs Entscheidung), Bürgermeister erledigt Kurzes selbst (Mail in einem Lauf, Adressbuch, Rückfrage), Pläne mit Reihenfolge, Nachrichten-Warteschlange im Chat, Termine direkt, Entwürfe mit Anhang/ändern, vault_aendern/verschieben (ersetzt den Freigabe-Teil von E183)
+- [x] E193 (19.11.): Cardputer-Firmware 1.1 – bekannte Netze automatisch (Vorrang, versteckte Netze, Wechsel ins Heimnetz), ZIP mit Anleitung; Host-Test grün (140), nie auf echter Hardware gelaufen

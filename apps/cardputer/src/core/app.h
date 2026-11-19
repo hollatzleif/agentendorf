@@ -18,7 +18,7 @@
 
 namespace haloos {
 
-constexpr const char* FIRMWARE_VERSION = "1.0";
+constexpr const char* FIRMWARE_VERSION = "1.1";
 
 enum class Sound { FocusStart, ShortBreak, LongBreak, BreakEnd, AllDone, Test };
 

@@ -144,6 +144,30 @@ void Gfx::check(int x, int y, int s, Color c) {
         }
 }
 
+void Gfx::star(int cx, int cy, int r, Color c) {
+    // fuenf Zacken; Abdeckung je Pixel ueber 4x4 Stichproben (Punkt-im-Vieleck)
+    float px_[10], py_[10];
+    for (int i = 0; i < 10; ++i) {
+        const float a = -1.5707963f + i * 0.6283185f;
+        const float rr = (i % 2 == 0) ? r : r * 0.45f;
+        px_[i] = cx + 0.5f + rr * std::cos(a);
+        py_[i] = cy + 0.5f + rr * std::sin(a);
+    }
+    for (int y = cy - r - 1; y <= cy + r + 1; ++y)
+        for (int x = cx - r - 1; x <= cx + r + 1; ++x) {
+            int n = 0;
+            for (int sy = 0; sy < 4; ++sy)
+                for (int sx = 0; sx < 4; ++sx) {
+                    const float fx = x + (sx + 0.5f) / 4, fy = y + (sy + 0.5f) / 4;
+                    bool in = false;
+                    for (int i = 0, j = 9; i < 10; j = i++)
+                        if ((py_[i] > fy) != (py_[j] > fy) && fx < (px_[j] - px_[i]) * (fy - py_[i]) / (py_[j] - py_[i]) + px_[i]) in = !in;
+                    n += in ? 1 : 0;
+                }
+            blend(x, y, c, n);
+        }
+}
+
 int Gfx::width(const Font& f, const std::string& s) {
     int w = 0;
     for (size_t i = 0; i < s.size();) {

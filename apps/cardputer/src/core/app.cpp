@@ -86,6 +86,10 @@ void ListView::draw(Gfx& g, App& app, uint32_t now) {
                 tx = 29;
                 tc = col::GREY;
                 break;
+            case Row::Star:       // Farbe des Sterns = rightColor (gruen: verbunden)
+                g.star(17, y + 8, 6, r.rightColor == col::GREY ? (on ? col::ACCENT : col::ACCENT_DIM) : r.rightColor);
+                tx = 29;
+                break;
             case Row::Plus:
                 g.text(FONT_TITLE, 12, base + 1, "+", col::ACCENT);
                 tx = 29;
@@ -349,7 +353,8 @@ class MenuView : public View {
 public:
     explicit MenuView(int sel) : sel_(sel) {}
     void draw(Gfx& g, App& app, uint32_t now) override {
-        g.text(FONT_TITLE, 8, 17, "HaloOS", col::ACCENT);
+        const int w = g.text(FONT_TITLE, 8, 17, "HaloOS", col::ACCENT);
+        g.text(FONT_SMALL, 8 + w + 8, 17, std::string("Agentendorf ") + FIRMWARE_VERSION, col::GREY);
         app.header(g, "", now);
         card(g, 30, 1, "Fernbedienung", "f\xC3\xBCr die Brille \xE2\x80\x93 sucht den Hub", sel_ == 0);
         card(g, 74, 2, "Agentendorf", "To-dos, B\xC3\xBCrgermeister, Kirchturm", sel_ == 1);

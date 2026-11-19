@@ -1,4 +1,4 @@
-# Agentendorf auf dem Cardputer (Firmware 1.0)
+# Agentendorf auf dem Cardputer (Firmware 1.1)
 
 Firmware für den **M5Stack Cardputer Adv** (ESP32-S3, 8 MB Flash, kein PSRAM, 240×135-Display).
 Hervorgegangen aus „HaloOS 0.3“. Das Startmenü bietet:
@@ -32,7 +32,7 @@ include/haloos_protocol.h Bluetooth-Protokoll der Fernbedienung
 host/dorf_host.cpp        dieselbe App als PC-Programm (Tasten über stdin, Netz über Sockets, WLAN nachgestellt)
 host/fernbedienung_host.cpp  Simulator-Brücke der Fernbedienung (aus HaloOS)
 test/                     testserver.py (bildet API.md nach), host_test.py, host-test.sh
-tools/                    build.sh, werkzeug.sh, zertifikate.py, fontgen.py
+tools/                    build.sh, werkzeug.sh, zip.sh, zertifikate.py, fontgen.py
 fonts/                    Inter (SIL Open Font License 1.1, fonts/LICENSE-Inter.txt)
 release/                  fertige Firmware + SHA256.txt
 docs/bilder/              Bildschirmfotos aus dem PC-Test
@@ -49,6 +49,14 @@ docs/bilder/              Bildschirmfotos aus dem PC-Test
   `/haloos/cardo.txt`, zeigt sie nur nicht mehr an). Entfernen hätte das Verhalten gegenüber dem Hub geändert,
   den ich hier nicht testen kann – drinlassen ist das kleinere Risiko. Einziger Unterschied: Die Datei wird
   erst beim Start der Fernbedienung geladen, nicht schon im Startmenü.
+- **Bekannte Netze (1.1).** Bis zu acht WLANs im NVS, Reihenfolge = Vorrang (in der WLAN-Ansicht mit `,` / `/`
+  änderbar). Die Automatik in `core/dorf.cpp` (das Auto-Reconnect des Arduino-Cores ist aus):
+  Suche → Kandidaten = gesehene Netze nach Vorrang (unter −85 dBm hintan), danach die **nicht gesehenen direkt**
+  (`WiFi.begin` ohne Suche, je 8 s – iPhone-Hotspots und versteckte Netze fehlen oft in der Suche) → nach
+  einer erfolglosen Runde Pause, die sich verdoppelt (15 s … 5 min). Verbunden mit einem Netz niedrigeren
+  Vorrangs wird höchstens alle 3 min und nur im Leerlauf gesucht; ein besseres bekanntes Netz ab −75 dBm
+  wird übernommen (schlägt das fehl: zurück, nächste Prüfung erst nach 15 min). Am Netz mit dem höchsten Vorrang und
+  nach einer Wahl von Hand wird nie gesucht. „Anderes Netz“ (Name getippt) wird als versteckt gemerkt.
 - **Netz in eigener Aufgabe.** Ein TLS-Handshake dauert auf dem ESP32-S3 1–3 s, bei schwachem Hotspot länger.
   Blockierend in `loop()` stünden so lange Tasten, Kirchturm-Uhr und Läuten. Deshalb bearbeitet eine
   FreeRTOS-Aufgabe (Kern 0) genau eine Anfrage; die Oberfläche fragt nur ab (`Net::poll`) und zeigt „lädt …“.
@@ -81,12 +89,15 @@ PATH="$W/venv/bin:$PATH" ARDUINO_CLI=$W/bin/arduino-cli ARDUINO_CONFIG=$W/arduin
 
 Core `esp32:esp32@2.0.17`, Board „ESP32S3 Dev Module“ (8 MB, DIO, `default_8MB`, USB-CDC), Bibliotheken
 M5Unified 0.2.29, M5GFX 0.2.36, NimBLE-Arduino 2.5.2 und M5Cardputer 1.2.0 (nur als Git-Tag erhältlich; die
-`library.properties` darin nennt noch 1.1.1). Ergebnis: `release/agentendorf-cardputer-1.0.bin` (für `0x0`),
+`library.properties` darin nennt noch 1.1.1). Ergebnis: `release/agentendorf-cardputer-1.1.bin` (für `0x0`),
 `…-nur-programm.bin` (für `0x10000`) und `SHA256.txt`. Bei gleichen Pfaden entsteht Bit für Bit dieselbe Datei.
 
-Stand 1.0: Programm 1 544 601 Bytes (46 % von 3,3 MB), feste Variablen 122 912 Bytes (davon 64 800 der
+Stand 1.1: Programm 1 551 885 Bytes (46 % von 3,3 MB), feste Variablen 122 968 Bytes (davon 64 800 der
 Bildspeicher). Eigener Code ohne Warnungen (`--warnings all`, Warnung = Abbruch); die sechs Warnungen im
 Protokoll stammen aus NimBLE-Arduino selbst (`BLE_HS_HCI_ERR`, wie schon bei HaloOS).
+
+`tools/zip.sh` packt danach `release/agentendorf-cardputer-1.1.zip` für Leif (ANLEITUNG.md, beide `.bin`,
+`SHA256.txt`, `bilder/`); die ZIP steht in `.gitignore`.
 
 ## Tests
 
@@ -96,7 +107,8 @@ test/host-test.sh      # braucht nur g++ und python3
 
 Übersetzt `core/` für den PC (`-Wall -Wextra -Werror`), startet den Testserver und spielt die App per
 Tastendruck durch: Startmenü, WLAN einrichten (falsches/richtiges Passwort), koppeln (falscher/richtiger Code),
-Startseite, To-dos (anlegen, abhaken, Teilschritt, löschen, heute), Bürgermeister (Polling bis „fertig“,
+Startseite, bekannte Netze (verstecktes Netz ohne Suche, Vorrang, sehr schwaches Netz, Wechsel ins Heimnetz,
+falsches gespeichertes Passwort, keine Dauerschleife ohne Netz), To-dos (anlegen, abhaken, Teilschritt, löschen, heute), Bürgermeister (Polling bis „fertig“,
 Weiterreden), Kirchturm (Pomodoro, Pause, nächste Phase, Einstellungen, Wecker, Timer, Läuten im Hintergrund,
 Quittieren), Kalender, Freigaben (Ja/Nein mit Begründung), Heute, Fristen, Gewohnheiten, Post, Notiz, Offline
 (letzter Stand, Warteschlange, Funkloch mit verlorener Antwort → genau einmal), Neustart mit automatischem
@@ -109,7 +121,7 @@ Von Hand ausprobieren: `python3 test/testserver.py 8123`, dann `build/dorf-host`
 
 | Wo | Was |
 |---|---|
-| NVS `dorf` | `wlan` (bis zu 8 Netze mit Passwort), `adresse`, `token`, `laut`, `modus` – unverschlüsselt |
+| NVS `dorf` | `wlan` (bis zu 8 Netze mit Passwort, Reihenfolge = Vorrang, Merker „versteckt“), `adresse`, `token`, `laut`, `modus` – unverschlüsselt |
 | NVS `haloos` | `fb` – Einstellungen der Fernbedienung (wie HaloOS 0.3) |
 | `/haloos/` auf SD-Karte, sonst LittleFS | `dorf-warten.txt` (Warteschlange), `c-*.json` (letzter Stand), `cardo.txt` (Hub-Abgleich) |
 

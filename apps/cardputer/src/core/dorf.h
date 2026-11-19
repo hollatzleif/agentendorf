@@ -19,6 +19,7 @@ class Platform;
 
 struct WlanEintrag {
     std::string ssid, passwort;
+    bool versteckt = false;   // von Hand angelegt (taucht in der Suche evtl. nie auf): ohne Suche direkt versuchen
 };
 
 // Was eine Ansicht auf ihre Anfrage zurueckbekommt
@@ -70,6 +71,10 @@ public:
     static constexpr size_t MAX_NETZE = 8;
     static constexpr size_t MAX_WARTEND = 40;
     static constexpr uint32_t KIRCHTURM_MS = 30000, KIRCHTURM_SCHNELL_MS = 15000;
+    static constexpr int RSSI_SCHWACH = -85;              // schwaecher: ein anderes bekanntes Netz geht vor
+    static constexpr int RSSI_WECHSEL = -75;              // so gut muss ein besseres Netz sein, damit gewechselt wird
+    static constexpr uint32_t WECHSEL_PRUEFEN_MS = 180000;   // hoechstens alle 3 min nach einem besseren Netz sehen
+    static constexpr uint32_t RUNDEN_PAUSE_MAX_MS = 300000;
 
     Dorf(Platform& p, Net& n, Clock& c);
 
@@ -82,13 +87,17 @@ public:
     std::vector<WlanEintrag> netze;        // gespeichert (Reihenfolge = Vorrang)
     std::vector<WlanNetz> funde;           // Ergebnis der letzten Suche
     bool sucht() const { return sucht_; }
-    void wlanSuchen(uint32_t now);
-    void wlanVersuchen(const std::string& ssid, const std::string& passwort, uint32_t now);   // von Hand
+    void wlanSuchen(uint32_t now);         // von Hand (WLAN-Ansicht); weckt auch die Automatik wieder auf
+    // von Hand verbinden. versteckt = Name wurde getippt ("Anderes Netz")
+    void wlanVersuchen(const std::string& ssid, const std::string& passwort, uint32_t now, bool versteckt = false);
     enum class Versuch { Keiner, Laeuft, Ok, Fehler };
     Versuch versuch() const { return versuch_; }
     const std::string& versuchSsid() const { return versuchSsid_; }
     void versuchFertig() { versuch_ = Versuch::Keiner; }
     void netzVergessen(const std::string& ssid);
+    bool netzVerschieben(const std::string& ssid, int richtung);   // -1 = hoeherer Vorrang, +1 = tiefer
+    int rssi(const std::string& ssid) const;                       // aus der letzten Suche; 0 = nicht gesehen
+    bool wlanAutomatik() const { return !kandidaten_.empty(); }    // probiert gerade bekannte Netze durch
     const WlanEintrag* netz(const std::string& ssid) const;
     bool verbunden() { return net_.wlanZustand() == WlanZustand::Verbunden; }
     std::string wlanName() { return net_.wlanName(); }
@@ -163,9 +172,23 @@ private:
     bool gesperrt_ = false;
 
     // WLAN
-    bool sucht_ = false, autoSuche_ = false;
-    uint32_t naechsteSuche_ = 0, verbindetSeit_ = 0;
+    // Automatik: Suche -> Kandidaten (gesehene nach Vorrang, dann nicht gesehene direkt) der Reihe nach,
+    // danach Pause (wird laenger: 15 s ... 5 min), damit der Akku ohne bekanntes Netz nicht leergefunkt wird.
+    struct Kandidat {
+        std::string ssid;
+        uint32_t frist;       // so lange darf der Versuch dauern
+    };
+    void rundeBeginnen(uint32_t now);                 // Kandidaten aus der letzten Suche bauen
+    void naechsterKandidat(uint32_t now);
+    void rundeVorbei(uint32_t now);
+    int vorrang(const std::string& ssid) const;       // Platz in netze, -1 = unbekannt
+    bool sucht_ = false, autoSuche_ = false, wechselSuche_ = false;
+    uint32_t naechsteSuche_ = 0, verbindetSeit_ = 0, suchtSeit_ = 0, rundenPause_ = 15000, wechselFaellig_ = 0;
     bool verbindet_ = false, warVerbunden_ = false;
+    std::vector<Kandidat> kandidaten_;
+    size_t kandidatPos_ = 0;
+    std::string vonHand_;     // von Hand gewaehltes Netz: solange verbunden, kein automatischer Wechsel
+    bool versuchVersteckt_ = false;
     Versuch versuch_ = Versuch::Keiner;
     std::string versuchSsid_, versuchPasswort_;
     uint32_t versuchSeit_ = 0;

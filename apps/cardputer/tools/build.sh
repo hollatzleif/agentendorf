@@ -14,7 +14,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 F="$PWD"
-VERSION="1.0"
+VERSION="1.1"
 NAME="agentendorf-cardputer-$VERSION"
 CLI=("${ARDUINO_CLI:-arduino-cli}")
 if [ -n "${ARDUINO_CONFIG:-}" ]; then CLI+=(--config-file "$ARDUINO_CONFIG"); fi

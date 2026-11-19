@@ -11,7 +11,9 @@ namespace {
 
 const char* const DATEI_SCHLANGE = "dorf-warten.txt";
 constexpr uint32_t ZEITLIMIT_MS = 30000;      // Sicherheitsnetz, falls die Netz-Schicht nie antwortet
-constexpr uint32_t WLAN_VERSUCH_MS = 20000;
+constexpr uint32_t WLAN_VERSUCH_MS = 20000;       // von Hand
+constexpr uint32_t WLAN_GESEHEN_MS = 15000;       // Automatik: Netz war in der Suche
+constexpr uint32_t WLAN_DIREKT_MS = 8000;         // Automatik: Netz nicht gesehen, direkt versuchen
 
 bool faellig(uint32_t now, uint32_t t) { return static_cast<int32_t>(now - t) >= 0; }
 
@@ -50,7 +52,8 @@ void Dorf::laden() {
         size_t e = w.find('\n', st);
         if (e == std::string::npos) e = w.size();
         const auto f = splitFields(w.substr(st, e - st));
-        if (f.size() >= 2 && !f[0].empty() && netze.size() < MAX_NETZE) netze.push_back({f[0], f[1]});
+        if (f.size() >= 2 && !f[0].empty() && netze.size() < MAX_NETZE)
+            netze.push_back({f[0], f[1], f.size() >= 3 && f[2] == "v"});
         st = e + 1;
     }
     const std::string laut = platform_.setting("laut");
@@ -71,7 +74,7 @@ void Dorf::laden() {
 
 void Dorf::netzeSpeichern() {
     std::string w;
-    for (const auto& e : netze) w += joinFields({e.ssid, e.passwort}) + "\n";
+    for (const auto& e : netze) w += joinFields({e.ssid, e.passwort, e.versteckt ? "v" : ""}) + "\n";
     platform_.setSetting("wlan", w);
 }
 
@@ -96,6 +99,26 @@ void Dorf::netzVergessen(const std::string& ssid) {
     netze.erase(std::remove_if(netze.begin(), netze.end(), [&](const WlanEintrag& e) { return e.ssid == ssid; }), netze.end());
     netzeSpeichern();
     if (net_.wlanName() == ssid) net_.wlanTrennen();
+}
+
+bool Dorf::netzVerschieben(const std::string& ssid, int richtung) {
+    const int i = vorrang(ssid), j = i + richtung;
+    if (i < 0 || j < 0 || j >= static_cast<int>(netze.size())) return false;
+    std::swap(netze[static_cast<size_t>(i)], netze[static_cast<size_t>(j)]);
+    netzeSpeichern();
+    return true;
+}
+
+int Dorf::vorrang(const std::string& ssid) const {
+    for (size_t i = 0; i < netze.size(); ++i)
+        if (netze[i].ssid == ssid) return static_cast<int>(i);
+    return -1;
+}
+
+int Dorf::rssi(const std::string& ssid) const {
+    for (const auto& f : funde)
+        if (f.ssid == ssid) return f.rssi;
+    return 0;
 }
 
 std::string Dorf::adresseBereinigen(const std::string& eingabe) const {
@@ -167,26 +190,68 @@ void Dorf::starten(uint32_t now) {
 }
 
 void Dorf::wlanSuchen(uint32_t now) {
+    rundenPause_ = 15000;      // der Mensch schaut hin: Automatik wieder munter
+    if (net_.wlanZustand() != WlanZustand::Verbunden && kandidaten_.empty()) naechsteSuche_ = now + 3000;
     // Waehrend ein Verbindungsaufbau laeuft, kann der Funkchip nicht suchen - dann bleibt die alte Liste
     if (sucht_ || verbindet_ || versuch_ == Versuch::Laeuft) return;
     sucht_ = true;
-    naechsteSuche_ = now + 20000;
+    suchtSeit_ = now;
     net_.wlanSuchen();
 }
 
-void Dorf::wlanVersuchen(const std::string& ssid, const std::string& passwort, uint32_t now) {
+void Dorf::wlanVersuchen(const std::string& ssid, const std::string& passwort, uint32_t now, bool versteckt) {
     versuch_ = Versuch::Laeuft;
     versuchSsid_ = ssid;
     versuchPasswort_ = passwort;
+    versuchVersteckt_ = versteckt;
     versuchSeit_ = now;
     verbindet_ = false;
+    kandidaten_.clear();
     net_.wlanVerbinden(ssid, passwort);
+}
+
+// Reihenfolge der Versuche: bekannte Netze, die die Suche gesehen hat, nach Vorrang (sehr schwache hintan),
+// danach die nicht gesehenen direkt (iPhone-Hotspots und versteckte Netze fehlen oft in der Suche).
+void Dorf::rundeBeginnen(uint32_t now) {
+    kandidaten_.clear();
+    kandidatPos_ = 0;
+    for (const auto& e : netze)
+        if (rssi(e.ssid) != 0 && rssi(e.ssid) >= RSSI_SCHWACH) kandidaten_.push_back({e.ssid, WLAN_GESEHEN_MS});
+    for (const auto& e : netze)
+        if (rssi(e.ssid) != 0 && rssi(e.ssid) < RSSI_SCHWACH) kandidaten_.push_back({e.ssid, WLAN_GESEHEN_MS});
+    for (const auto& e : netze)
+        if (rssi(e.ssid) == 0) kandidaten_.push_back({e.ssid, WLAN_DIREKT_MS});
+    verbindet_ = false;
+    naechsterKandidat(now);
+}
+
+void Dorf::naechsterKandidat(uint32_t now) {
+    while (kandidatPos_ < kandidaten_.size()) {
+        const WlanEintrag* e = netz(kandidaten_[kandidatPos_].ssid);
+        if (!e) { ++kandidatPos_; continue; }      // inzwischen vergessen
+        net_.wlanVerbinden(e->ssid, e->passwort);
+        verbindet_ = true;
+        verbindetSeit_ = now;
+        return;
+    }
+    rundeVorbei(now);
+}
+
+void Dorf::rundeVorbei(uint32_t now) {
+    kandidaten_.clear();
+    kandidatPos_ = 0;
+    verbindet_ = false;
+    net_.wlanTrennen();                    // Funkchip hoert auf zu suchen
+    naechsteSuche_ = now + rundenPause_;   // naechste Runde erst nach einer Pause, die immer laenger wird
+    rundenPause_ = std::min<uint32_t>(RUNDEN_PAUSE_MAX_MS, rundenPause_ * 2);
 }
 
 void Dorf::wlanTick(uint32_t now) {
     if (sucht_) {
         std::vector<WlanNetz> n;
-        if (net_.wlanGefunden(n)) {
+        const bool fertig = net_.wlanGefunden(n);
+        if (!fertig && now - suchtSeit_ > 20000) { sucht_ = autoSuche_ = wechselSuche_ = false; }
+        if (fertig) {
             sucht_ = false;
             std::stable_sort(n.begin(), n.end(), [](const WlanNetz& a, const WlanNetz& b) { return a.rssi > b.rssi; });
             funde.clear();
@@ -195,69 +260,105 @@ void Dorf::wlanTick(uint32_t now) {
                 for (const auto& g : funde) da = da || g.ssid == f.ssid;
                 if (!da && funde.size() < 20) funde.push_back(f);
             }
-            if (autoSuche_) {
-                autoSuche_ = false;
-                if (versuch_ != Versuch::Laeuft && net_.wlanZustand() != WlanZustand::Verbunden) {
-                    for (const auto& e : netze) {      // das erste bekannte Netz, das gerade da ist
-                        bool da = false;
-                        for (const auto& f : funde) da = da || f.ssid == e.ssid;
-                        if (!da) continue;
-                        net_.wlanVerbinden(e.ssid, e.passwort);
-                        verbindet_ = true;
-                        verbindetSeit_ = now;
-                        break;
-                    }
+            const bool verb = net_.wlanZustand() == WlanZustand::Verbunden;
+            if (autoSuche_ && versuch_ != Versuch::Laeuft && !verb) rundeBeginnen(now);
+            if (wechselSuche_ && versuch_ != Versuch::Laeuft && verb && !laeuft_ && offen_.empty()) {
+                // Ein bekanntes Netz mit hoeherem Vorrang ist gut zu empfangen: dorthin wechseln.
+                // Klappt das nicht, steht das bisherige Netz gleich dahinter in der Reihe.
+                const std::string jetzt = net_.wlanName();
+                const int platz = vorrang(jetzt);
+                for (int i = 0; i < platz; ++i) {
+                    const WlanEintrag& e = netze[static_cast<size_t>(i)];
+                    if (rssi(e.ssid) == 0 || rssi(e.ssid) < RSSI_WECHSEL) continue;
+                    kandidaten_.clear();
+                    kandidaten_.push_back({e.ssid, WLAN_GESEHEN_MS});
+                    kandidaten_.push_back({jetzt, WLAN_GESEHEN_MS});
+                    kandidatPos_ = 0;
+                    warVerbunden_ = false;
+                    naechsterKandidat(now);
+                    break;
                 }
             }
+            autoSuche_ = wechselSuche_ = false;
         }
     }
     const WlanZustand z = net_.wlanZustand();
     if (versuch_ == Versuch::Laeuft) {
         if (z == WlanZustand::Verbunden && net_.wlanName() == versuchSsid_) {
             versuch_ = Versuch::Ok;
+            vonHand_ = versuchSsid_;
             bool da = false;
             for (auto& e : netze)
                 if (e.ssid == versuchSsid_) { e.passwort = versuchPasswort_; da = true; }
             if (!da) {
                 if (netze.size() >= MAX_NETZE) netze.pop_back();
-                netze.push_back({versuchSsid_, versuchPasswort_});
+                netze.push_back({versuchSsid_, versuchPasswort_, versuchVersteckt_});
             }
             netzeSpeichern();
             versuchPasswort_.clear();
+            warVerbunden_ = true;
+            rundenPause_ = 15000;
+            wechselFaellig_ = now + WECHSEL_PRUEFEN_MS;
             kirchturmFaellig_ = now + 500;
             schlangeFaellig_ = now + 500;
+            schlangePause_ = 5000;
         } else if (z == WlanZustand::Fehler || now - versuchSeit_ > WLAN_VERSUCH_MS) {
             versuch_ = Versuch::Fehler;
             versuchPasswort_.clear();
             net_.wlanTrennen();
+            warVerbunden_ = false;
             naechsteSuche_ = now + 3000;
         }
         return;
     }
-    if (z == WlanZustand::Verbunden) {
-        if (verbindet_) {              // gerade (wieder) verbunden: gleich nachholen
-            kirchturmFaellig_ = now + 500;
+    if (verbindet_) {                      // die Automatik probiert gerade einen Kandidaten
+        const Kandidat& k = kandidaten_[kandidatPos_];
+        if (z == WlanZustand::Verbunden && net_.wlanName() == k.ssid) {
+            // Kam er erst ueber einen spaeteren Kandidaten rein (ein besseres Netz hat abgelehnt), seltener pruefen
+            wechselFaellig_ = now + (kandidatPos_ > 0 ? 5 * WECHSEL_PRUEFEN_MS : WECHSEL_PRUEFEN_MS);
+            kandidaten_.clear();
+            kandidatPos_ = 0;
+            verbindet_ = false;
+            warVerbunden_ = true;
+            vonHand_.clear();
+            rundenPause_ = 15000;
+            kirchturmFaellig_ = now + 500;     // gerade (wieder) verbunden: gleich nachholen
             schlangeFaellig_ = now + 500;
             schlangePause_ = 5000;
+        } else if (z == WlanZustand::Fehler || now - verbindetSeit_ > k.frist) {
+            ++kandidatPos_;
+            naechsterKandidat(now);
         }
-        verbindet_ = false;
+        return;
+    }
+    if (z == WlanZustand::Verbunden) {
         warVerbunden_ = true;
+        // Unterwegs: haengt er an einem Netz mit niedrigerem Vorrang, ab und zu (und nur in einem ruhigen
+        // Moment) nachsehen, ob ein besseres bekanntes Netz aufgetaucht ist. Am besten Netz: nie suchen.
+        if (faellig(now, wechselFaellig_)) {
+            wechselFaellig_ = now + WECHSEL_PRUEFEN_MS;
+            const std::string jetzt = net_.wlanName();
+            if (vorrang(jetzt) > 0 && jetzt != vonHand_ && !sucht_ && !laeuft_ && offen_.empty()) {
+                wechselSuche_ = true;
+                sucht_ = true;
+                suchtSeit_ = now;
+                net_.wlanSuchen();
+            }
+        }
         return;
     }
     if (warVerbunden_) {               // Verbindung verloren: bald nach bekannten Netzen sehen
         warVerbunden_ = false;
+        vonHand_.clear();
+        rundenPause_ = 15000;
         naechsteSuche_ = now + 1500;
     }
-    if (verbindet_) {
-        if (z == WlanZustand::Fehler || now - verbindetSeit_ > WLAN_VERSUCH_MS) {
-            verbindet_ = false;
-            naechsteSuche_ = now + 5000;
-        }
-        return;
-    }
     if (!netze.empty() && !sucht_ && faellig(now, naechsteSuche_)) {
+        naechsteSuche_ = now + 30000;      // falls die Suche nie antwortet
         autoSuche_ = true;
-        wlanSuchen(now);
+        sucht_ = true;
+        suchtSeit_ = now;
+        net_.wlanSuchen();
     }
 }
 

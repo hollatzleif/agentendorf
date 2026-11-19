@@ -1563,3 +1563,17 @@ Ein unabhängiger Review hat neun Fehler gefunden. Jeder ist behoben und hat ein
 - **Nachschub ohne Antwort:** Scheitert oder endet ein api-Lauf, bevor das Modell auf den Nachschub geantwortet hat, kommt er zurück an den Anfang der Schlange und es gibt einen Folgelauf.
 - **Zurücknehmen:** Ein Skill wird nur zurückgenommen, wenn er seither unverändert ist (wie bei Dateien). Scheitert das Zurücknehmen, bleibt der Eintrag offen und nennt den Grund – ein späterer Versuch ist möglich.
 - **`vault_aendern`** schreibt mit `basisVersion`: Ändert jemand die Datei zwischen Lesen und Schreiben, entsteht eine Konfliktkopie statt eines Überschreibens. **Stempel:** `fremdinhalt: true` wird nur noch bei neu angelegten Dateien gesetzt, als eine eingefügte Zeile; das übrige Frontmatter bleibt Zeichen für Zeichen (kein Neuaufbau über gray-matter). `vault_aendern` stempelt bestehende Dateien nicht mehr. Ersetzt die Aussage in E185, auch `vault_aendern` stemple.
+
+## E193 – Cardputer 1.1: bekannte Netze automatisch (19.11.)
+
+- **Wunsch (Leif):** Heim-WLAN, Hotspot und andere bekannte Netze von selbst erkennen und verbinden.
+- **Vorrang statt Signalstärke:** Die Reihenfolge der bis zu acht gespeicherten Netze ist der Vorrang (in der WLAN-Ansicht mit `,` / `/` änderbar). Sind mehrere sichtbar, gewinnt das obere, außer es kommt mit weniger als −85 dBm an. Zu Hause soll das Heimnetz gewinnen, auch wenn der Hotspot in der Tasche stärker ist.
+- **Nicht gesehene Netze direkt versuchen:** iPhone-Hotspots und versteckte Netze fehlen oft in der Suche. Nach den gesehenen versucht die Automatik deshalb die gespeicherten, aber nicht gesehenen Netze der Reihe nach ohne Suche (je 8 s). Von Hand getippte Netze („Anderes Netz“) werden als versteckt gemerkt.
+- **Akku vor Eile:** Nach einer erfolglosen Runde wächst die Pause von 15 s auf höchstens 5 min. „Neu suchen“ oder ein Verbindungsabriss setzen sie zurück. Am Netz mit dem höchsten Vorrang wird nie gesucht.
+- **Wechsel unterwegs:**
+  - Am Netz mit niedrigerem Vorrang sucht er höchstens alle 3 min und nur ohne laufende Anfrage. Ein besseres bekanntes Netz ab −75 dBm wird übernommen.
+  - Scheitert der Wechsel, geht er zurück und prüft erst nach 15 min wieder.
+  - Ein von Hand gewähltes Netz wird nicht automatisch verlassen.
+  - Grenze: Ein versteckt sendendes besseres Netz löst keinen Wechsel aus.
+- **Steuerung im Kern:** Das Auto-Reconnect des Arduino-Core bleibt aus. Die Automatik sitzt in `core/dorf.cpp` und ist damit am PC prüfbar (Host-Test: 140 Prüfungen, WLAN nachgestellt). Nie auf echter Hardware gelaufen.
+- **Auslieferung:** `tools/zip.sh` packt die ZIP (Anleitung, beide `.bin`, SHA256, Bilder). Sie liegt nicht im Repo, und die Dorf-Adresse steht nicht in der Anleitung.

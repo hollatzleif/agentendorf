@@ -62,7 +62,7 @@ void battery(Gfx& g, int x, int y, int pct);
 
 // ------------------------------------------------------------------ Listen
 struct Row {
-    enum Style { Plain, Open, Done, Plus, Header, Value, Note };   // Header und Note sind nicht waehlbar
+    enum Style { Plain, Open, Done, Plus, Header, Value, Note, Star };   // Header und Note sind nicht waehlbar; Star = gespeichertes WLAN
     Style style = Plain;
     std::string text, right, left, key;
     Color rightColor = col::GREY;

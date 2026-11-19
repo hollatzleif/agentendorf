@@ -15,7 +15,8 @@
 //   AUSWAHL             Text der gewaehlten Listenzeile ausgeben
 //   TEXT                alle Texte auf dem Bildschirm ausgeben (zwischen TEXT-BEGIN und TEXT-END)
 //   NETZ an|aus|stumm   Internet da / weg / Anfrage geht raus, aber die Antwort geht verloren
-//   WLAN <name>|<rssi>|<passwort oder - fuer offen>;...   sichtbare Netze festlegen
+//   WLAN <name>|<rssi>|<passwort oder - fuer offen>[|versteckt];...   Netze in Reichweite festlegen
+//                       (versteckt = verbindbar, fehlt aber in der Suche - wie ein iPhone-Hotspot)
 //   WLANWEG             WLAN-Verbindung bricht ab
 //   EINST <key>         gespeicherte Einstellung ausgeben
 //   SETZE <key> <wert>  Einstellung vorgeben
@@ -24,7 +25,7 @@
 //   REMOTESHOT <datei> <verbunden 0|1>   Bildschirm des Fernbedienungs-Modus speichern
 //   BRIGHT              Helligkeit ausgeben
 //   Q
-// Ausgaben: "PLAY <ton> <lautstaerke>", "REMOTE" (Menuepunkt 1), "DORF" (Menuepunkt 2), "RESTART",
+// Ausgaben: "SCAN" je WLAN-Suche, "VERBINDE <name>" je Verbindungsversuch, "PLAY <ton> <lautstaerke>", "REMOTE" (Menuepunkt 1), "DORF" (Menuepunkt 2), "RESTART",
 // "HTTP <methode> <pfad> <status>" je Anfrage und ". " am Ende jedes Befehls.
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -80,6 +81,7 @@ struct SimNetz {
     std::string ssid, passwort;
     int rssi;
     bool offen;
+    bool versteckt;      // sendet, taucht aber in der Suche nicht auf
 };
 
 class HostNetz : public Net {
@@ -91,11 +93,15 @@ public:
     std::string name;
     bool sucheFertig = false;
 
-    void wlanSuchen() override { sucheFertig = true; }
+    void wlanSuchen() override {
+        sucheFertig = true;
+        std::cout << "SCAN\n";
+    }
     bool wlanGefunden(std::vector<WlanNetz>& netze) override {
         if (!sucheFertig) return false;
         sucheFertig = false;
         for (const auto& s : sichtbar) {
+            if (s.versteckt) continue;
             WlanNetz n;
             n.ssid = s.ssid;
             n.rssi = s.rssi;
@@ -105,6 +111,7 @@ public:
         return true;
     }
     void wlanVerbinden(const std::string& ssid, const std::string& passwort) override {
+        std::cout << "VERBINDE " << ssid << "\n";
         zustand = WlanZustand::Fehler;
         name.clear();
         for (const auto& s : sichtbar)
@@ -291,6 +298,9 @@ int main() {
                 s.ssid = eins.substr(0, a);
                 s.rssi = std::atoi(eins.substr(a + 1, b - a - 1).c_str());
                 s.passwort = eins.substr(b + 1);
+                const size_t c = s.passwort.find('|');
+                s.versteckt = c != std::string::npos && s.passwort.substr(c + 1) == "versteckt";
+                if (c != std::string::npos) s.passwort.erase(c);
                 s.offen = s.passwort == "-";
                 netz.sichtbar.push_back(s);
             }
