@@ -809,7 +809,7 @@ test('Mein Tag (/heute): Termine aus dem Kalender, To-do anlegen und abhaken, Fo
   await expect(page).toHaveURL(/\/heute$/);
   await expect(page.getByRole('link', { name: 'Heute', exact: true })).toHaveClass(/aktiv/);
   await expect(page.getByRole('heading', { name: /, Leif$/ })).toBeVisible();
-  await expect(page.getByTestId('heute-naechstes')).toBeVisible();
+  await expect(page.getByTestId('heute-naechstes').or(page.getByRole('region', { name: 'Jetzt dran' })).first()).toBeVisible();
 
   // Termine: heute (mit Uhrzeit in Wiener Zeit und ganztags), morgen die Uni-Frist
   const termine = page.getByRole('region', { name: 'Termine' });

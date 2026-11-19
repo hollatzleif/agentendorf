@@ -46,7 +46,8 @@ export function WochenPlan({ startVersatz = 0 }: { startVersatz?: number } = {})
 
   const offen = (todos.data ?? []).filter((t) => !t.erledigt);
   // Überfälliges aus früheren Wochen landet im Eingang; was in dieser Woche liegt, steht (rot) in seiner Spalte
-  const eingang = offen.filter((t) => !t.faellig || (versatz === 0 && t.faellig < heute && t.faellig < tage[0]!)).sort((a, b) => Number(!!b.wichtig) - Number(!!a.wichtig) || (a.faellig ?? '9').localeCompare(b.faellig ?? '9'));
+  // (auch beim Planen der nächsten Woche – sonntags – gehört Überfälliges in den Eingang)
+  const eingang = offen.filter((t) => !t.faellig || (versatz >= 0 && t.faellig < heute && t.faellig < tage[0]!)).sort((a, b) => Number(!!b.wichtig) - Number(!!a.wichtig) || (a.faellig ?? '9').localeCompare(b.faellig ?? '9'));
   const amTag = (tag: string) => offen.filter((t) => t.faellig === tag);
   const erledigtAm = (tag: string) => (todos.data ?? []).filter((t) => t.erledigt && t.erledigtAm && ort(t.erledigtAm).tag === tag).length;
   const aus = (() => {
@@ -230,7 +231,7 @@ export function WochenPlan({ startVersatz = 0 }: { startVersatz?: number } = {})
       {todos.isError && <p className="fehler">To-dos nicht erreichbar: {todos.error.message}</p>}
       <div className="wplan-spalten">
         <div className={`wplan-spalte eingang${ueber === '' ? ' ueber' : ''}`} {...zone('')} aria-label="Ohne Datum">
-          <h3>📥 Ohne Datum{versatz === 0 ? ' & Überfälliges' : ''}</h3>
+          <h3>📥 Ohne Datum{versatz >= 0 ? ' & Überfälliges' : ''}</h3>
           <ul>{eingang.map(karte)}</ul>
           {todos.data && !eingang.length && <p className="leise">Leer – alles eingeplant.</p>}
         </div>

@@ -173,7 +173,8 @@ export function Heute() {
           )}
         </div>
 
-        {geladen && (
+        {/* ohne anstehenden Termin sagt „Jetzt dran“ dasselbe (und mehr) – nicht doppelt zeigen */}
+        {geladen && !(dran && !fokusLaeuft && !naechsterTermin) && (
           <div className="heute-naechstes" data-testid="heute-naechstes">
             <span className="heute-naechstes-marke">Als Nächstes</span>
             {naechsterTermin ? (
@@ -703,11 +704,11 @@ function JetztDran({ d }: { d: NonNullable<ReturnType<typeof jetztDran>> }) {
   };
   const lueckeText = d.luecke === Infinity ? '' : d.bis ? `${minutenText(d.luecke)} bis ${d.bis.titel}` : `${minutenText(d.luecke)} bis 22 Uhr`;
   return (
-    <div className="heute-jetzt" role="region" aria-label="Jetzt dran">
-      <span className="heute-jetzt-marke">👉 Jetzt dran</span>
-      <div className="heute-jetzt-text">
+    <div className="heute-jetztdran" role="region" aria-label="Jetzt dran">
+      <span className="heute-jetztdran-marke">👉 Jetzt dran</span>
+      <div className="heute-jetztdran-text">
         <strong>{d.todo.titel}</strong>
-        {d.schritt && <span className="heute-jetzt-schritt">nächster Schritt: {d.schritt}</span>}
+        {d.schritt && <span className="heute-jetztdran-schritt">nächster Schritt: {d.schritt}</span>}
         <span className="leise">
           {d.passt ? `passt in die ${lueckeText}` : `für einen 🍅 reicht's (${lueckeText})`}
           {d.todo.dauer ? ` · ⏱ ${minutenText(d.todo.dauer)}` : ''}

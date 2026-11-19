@@ -1027,3 +1027,9 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
   - **Prüfung:** Stoff und Altklausuren sammeln → Lernplan anlegen → Karteikarten → Probeklausur unter Zeitdruck → am Vortag Ort, Zeit, Ausweis, Hilfsmittel.
 - **Eigene Vorlage:** `Uni/vorlagen/schritte-abgabe.md` bzw. `schritte-pruefung.md` mit Zeilen „- [ ] Schritt“. Übernommen wird nur der Text, nicht das Häkchen. Eine Datei ohne solche Zeilen schaltet die Schritte ab.
 - Das gilt nur für **neu** angelegte Uni-To-dos; bestehende bleiben, wie sie sind.
+
+## E132 – Feinschliff nach Screenshot-Durchsicht (Nacht 18./19.11.)
+
+- **„Jetzt dran“:** Der Name `heute-jetzt` war schon für das „jetzt“-Abzeichen laufender Termine vergeben. Die Box erbte dadurch weiße Großbuchstaben auf hellem Grund und war unlesbar. Sie heißt jetzt `heute-jetztdran`.
+- **Nichts doppelt:** Steht kein Termin an, zeigt „Heute“ das To-do nicht zusätzlich unter „Als Nächstes“; „Jetzt dran“ sagt dasselbe und mehr.
+- **Wochenplanung:** Plant man sonntags die nächste Woche, liegt Überfälliges auch dann im Eingang. Die Häkchen „erledigt“ stehen in einer Zeile.
