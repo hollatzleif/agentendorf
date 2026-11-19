@@ -350,6 +350,20 @@ export interface ChatNachricht {
 export interface ChatDetail extends ChatInfo {
   nachrichten: ChatNachricht[];
   laeufe: LaufInfo[];
+  /** E185: Nachrichten, die Leif während eines Laufs nachgeschoben hat – werden nach dem aktuellen Schritt übergeben */
+  wartend: { id: number; text: string; erstellt: string }[];
+}
+
+/** E185: etwas, das ein Agent ohne Rückfrage getan hat und das Leif mit einem Klick zurücknehmen kann */
+export interface RueckgaengigInfo {
+  id: string;
+  chatId?: string;
+  gebaeude: string;
+  art: string;
+  titel: string;
+  status: 'offen' | 'zurueckgenommen' | 'fehlgeschlagen';
+  erstellt: string;
+  ergebnis?: string;
 }
 
 export type FreigabeStatus = 'offen' | 'abgelehnt' | 'angenommen' | 'ausgefuehrt' | 'fehlgeschlagen';
@@ -439,6 +453,10 @@ export interface PlanTeilaufgabe {
   motor: Motor;
   modell: string;
   kostenUsd: number; // nur api-Motor, sonst 0
+  /** E185: Nummern (ab 1) der Teilaufgaben, die vorher fertig sein müssen – ihre Ergebnisse bekommt der Helfer mit */
+  nach?: number[];
+  /** E185: Zusatz-Fähigkeiten eines freien Helfers (web, post, kalender, moodle, rechenraum) */
+  faehigkeiten?: string[];
 }
 export interface PlanInhalt {
   planId: string;
@@ -449,6 +467,8 @@ export interface PlanInhalt {
   hinweis: string;
   /** Ohne Entscheidung wird der Plan zu diesem Zeitpunkt automatisch angenommen (E62); fehlt → nie */
   automatischUm?: string;
+  /** E185: ohne Leifs Klick gestartet (er bestätigt nur Pläne, die er selbst wollte, und sehr große) */
+  ohneFreigabe?: boolean;
 }
 export interface PlanInfo extends PlanInhalt {
   status: 'wartet' | 'abgelehnt' | 'laeuft' | 'fertig';
@@ -457,6 +477,8 @@ export interface PlanInfo extends PlanInhalt {
   vaultPfad?: string;
   erstellt: string;
   helfer: { nr: number; chatId: string; titel: string; status?: LaufStatus }[];
+  /** E185: Teilaufgaben, die nicht gestartet wurden, weil ein Vorgänger gescheitert ist */
+  uebersprungen?: { nr: number; grund: string }[];
 }
 
 export interface TelegramStatus {

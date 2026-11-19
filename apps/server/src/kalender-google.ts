@@ -12,9 +12,9 @@ import { tagIn, tagPlus } from './zeit.js';
  * Kalender auf dem Marktplatz (E75): Leifs Google Calendar über die Calendar API v3 (Doku developers.google.com,
  * geprüft am 18.11.2026). Bereiche: calendar.events (Termine lesen/ändern) + calendar.calendarlist.readonly (Liste).
  *
- * Schreiben nur mit Leifs Klick: App-Routen, Telegram /termin, Cardputer (E182) – Agenten schlagen Termine nur vor
- * (termin_vorschlagen → Freigabe, E183), eingetragen wird erst nach Leifs Ja. Einladungen werden nie verschickt
- * (sendUpdates=none).
+ * Schreiben: Leif über App-Routen, Telegram /termin und Cardputer (E182). Agenten tragen in Leifs EIGENEN Kalender
+ * direkt ein, ändern und löschen dort (termin_anlegen/_aendern/_loeschen, E185 – mit „Rückgängig“-Meldung); Termine mit
+ * Gästen nur per Freigabe. Einladungen werden nie verschickt (sendUpdates=none).
  * Ohne Google-Verbindung: nur lesen über die geheime iCal-Adresse (wie bisher).
  */
 export { KALENDER_BEREICHE } from './post/google-oauth.js';
@@ -423,6 +423,16 @@ export class GoogleKalender {
     return this.anlegen({ kalenderId: k.id, titel: `📚 ${b.titel}`, start: lokal(b.start), ende: lokal(b.ende), erinnerungen: [10], ...(b.notiz ? { beschreibung: b.notiz } : {}) });
   }
 
+  /** E185: Googles Termine eines Kalendertags (Wien) aus den schreibbaren Kalendern, mit IDs – für termin_aendern/_loeschen der Agenten */
+  async amTag(datum: string): Promise<KalenderTermin[]> {
+    if (!DATUM.test(datum)) throw new DorfFehler(400, 'Datum als JJJJ-MM-TT');
+    const [j, m, t] = datum.split('-').map(Number) as [number, number, number];
+    const von = ortszeitZuUtc(j, m, t, 0, 0, 0, ZONE);
+    const kalender = (await this.liste()).filter((k) => k.schreibbar);
+    const alle = (await Promise.all(kalender.map(async (k) => (await this.klient().termine(k.id, von, von + 25 * 3_600_000)).map((e) => vonGoogle(e, k))))).flat();
+    return alle.filter((x) => (x.ganztags ? x.start <= datum && datum < x.ende : tagIn(Date.parse(x.start)) === datum));
+  }
+
   private klient() {
     if (!this.o.klient) throw new DorfFehler(409, 'Zum Bearbeiten muss der Google-Kalender verbunden sein (dorf gmail-anmelden).');
     return this.o.klient;
@@ -473,7 +483,7 @@ export class GoogleKalender {
 }
 
 /** k Elemente möglichst gleichmäßig über die Liste verteilt (erstes und letztes inklusive); Reihenfolge bleibt */
-/** E182/E183: kurze Angaben (Cardputer, termin_vorschlagen) → Termin für den Hauptkalender */
+/** E182/E183: kurze Angaben (Cardputer, termin_anlegen der Agenten) → Termin für den Hauptkalender */
 export const TerminAngaben = z.object({
   titel: z.string().trim().min(1, 'Titel fehlt').max(200),
   datum: z.string().regex(DATUM, 'Datum als JJJJ-MM-TT'),
@@ -499,6 +509,16 @@ export function terminAusAngaben(roh: unknown): { titel: string; ganztags: boole
   // reines Rechnen in Ortszeit (ohne Zone): 23:30 + 60 min = nächster Tag 00:30
   const lokal = (ms: number) => new Date(ms).toISOString().slice(0, 16);
   return { titel: a.titel, ganztags: false, start: lokal(beginn), ende: lokal(beginn + (a.dauerMin ?? 60) * 60_000), ...ort };
+}
+
+/** ISO-Zeitpunkt → Ortszeit Wien „JJJJ-MM-TTTHH:MM“ (so erwartet TerminEingabe Start und Ende) */
+export function ortszeitText(iso: string) {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', { timeZone: ZONE, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+      .formatToParts(new Date(iso))
+      .map((x) => [x.type, x.value]),
+  );
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
 }
 
 /** „Do 20.11.2026 · 14:00–15:00 (60 min)“ bzw. „Do 20.11.2026 · ganztägig“ – Vorschau für Freigaben */

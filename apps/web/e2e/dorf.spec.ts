@@ -125,6 +125,36 @@ test('Aktion starten, Chat live, fortsetzen, Freigabe annehmen, Verbrauch', asyn
   await expect(page.getByLabel('Modell gross')).toHaveValue('claude-fable-5-2');
 });
 
+test('E185 Chat: während der Agent arbeitet weiterschreiben – Nachrichten warten als graue Blasen und kommen danach dran', async ({ page }) => {
+  test.setTimeout(90_000);
+  await anmelden(page);
+  await page.goto('/gebaeude/Rathaus?reiter=aktionen');
+  await page.getByRole('button', { name: /Frage stellen/ }).click();
+  await page.getByLabel(/Deine Frage/).fill('Bitte in Ruhe überlegen [warte 6000]');
+  await page.getByRole('button', { name: 'Starten' }).click();
+  await expect(page).toHaveURL(/\/chats\//);
+  // das Textfeld bleibt offen
+  const feld = page.getByPlaceholder(/Noch etwas vergessen\?/);
+  await expect(feld).toBeEnabled();
+  await feld.fill('Ach ja: bitte auf Englisch');
+  await page.getByRole('button', { name: 'Dazuschreiben' }).click();
+  await feld.fill('Das hier doch nicht');
+  await page.getByRole('button', { name: 'Dazuschreiben' }).click();
+  const wartend = page.locator('.nachricht.wartend');
+  await expect(wartend).toHaveCount(2);
+  await expect(wartend.first()).toContainText('wartet – kommt nach dem aktuellen Schritt dran');
+  await expect(wartend.first()).toContainText('Ach ja: bitte auf Englisch');
+  // eine wieder herausnehmen
+  await wartend.nth(1).getByRole('button', { name: 'Wartende Nachricht entfernen' }).click();
+  await expect(wartend).toHaveCount(1);
+  // nach dem Lauf: die wartende Nachricht wird ein zweiter Lauf, die Blase ist weg
+  await expect(page.getByText(/Lauf 2: fertig/)).toBeVisible({ timeout: 45_000 });
+  await expect(wartend).toHaveCount(0);
+  await expect(page.locator('.nachricht.nutzer', { hasText: 'Ach ja: bitte auf Englisch' })).toHaveCount(1);
+  await expect(page.getByText('Das hier doch nicht')).toHaveCount(0);
+  await expect(page.getByPlaceholder('Weiter im Gespräch …')).toBeVisible();
+});
+
 test('Schreibtisch: Aufgabe hinlegen, Plan freigeben, Helfer arbeiten, Aufgabe erledigt', async ({ page }, info) => {
   test.setTimeout(120_000); // Helfer laufen im Hintergrund – die CI ist langsamer
   await anmelden(page);

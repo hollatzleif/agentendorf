@@ -12,13 +12,17 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
     aktionen.ts     Aktionen = Markdown-Skills in <Gebäude>/aktionen/ (Zod-Frontmatter, Fehler sichtbar; zeitplan, ablage, standard – E60)
     automatik.ts    Zeitplaner (jede Minute, genau einmal je Termin, Auslöser automatik = Motor der Aktion) + Ablage mit Archiv
     zeitplan.ts     „täglich 06:00“, „werktags 07:00, 18:00“, „mo, mi 08:00“ → Termine (Europe/Vienna)
-    skills.ts       Skill anlegen (App-Formular, aktion_vorschlagen des Bürgermeisters nach Freigabe) – geprüft wie jede Aktion
+    skills.ts       Skill anlegen/ersetzen (App-Formular, aktion_anlegen des Bürgermeisters – direkt, nur mit Zeitplan per Freigabe) – geprüft wie jede Aktion
     modelle.ts      Stufen klein/mittel/gross + Motoren/Notschalter aus 00_Stadtordnung/{modelle,motoren}.md
-    leine.ts        DIE Stelle für Regeln: Werkzeugprofil, Schreibregeln, Web vs. Fremdinhalte, Fremdinhalt-Hülle, Alltag ohne Fremdinhalt (E183)
-    werkzeuge.ts    vault_lesen/liste/suchen/schreiben, freigabe_beantragen, kalender_lesen, post_suchen, todo_*, Alltag (E183: kirchturm_*,
-                    pomodoro*, notiz_anlegen, termin_vorschlagen → Freigabe termin_anlegen, post_entwurf_neu) – mit Leine und werkzeug_log
-    freigaben.ts    Anträge, atomar genau einmal entscheiden, Ausführer, Spiegel in Rathaus/freigaben/
-    dienst.ts       Chats, Läufe, Warteschlange (Obergrenzen je Motor), Ausführung, Verlauf je Motor
+    leine.ts        DIE Stelle für Regeln: Werkzeugprofil, Schreibregeln, Fremdinhalt-Hülle, Obergrenzen (Helfer, Pläne); seit E185 keine
+                    verbotenen Kombinationen mehr (Web darf mit Post/Moodle/Kalender/Fremdinhalten laufen – Leifs Entscheidung)
+    werkzeuge.ts    alle Dorf-Werkzeuge mit Leine und werkzeug_log: Vault (lesen/schreiben/aendern/verschieben), Post (lesen, Entwürfe mit
+                    Anhang/ändern, nie senden), Termine direkt (termin_*, E185), Adressbuch (kontakt_*), rueckfrage, todo_*, Kirchturm,
+                    Notizen; stempelt fremdinhalt: true, sobald der Lauf Fremdes gelesen hat
+    freigaben.ts    Anträge, atomar genau einmal entscheiden, Ausführer, Spiegel in Rathaus/freigaben/ – nur noch echte Außenwirkung + Regeln (E185)
+    rueckgaengig.ts „Rückgängig“ statt Freigabe (E185): direkte Taten mit Rückweg (Termin, Skill, Datei) merken, genau einmal zurücknehmen
+    dienst.ts       Chats, Läufe, Warteschlange (Obergrenzen je Motor), Ausführung, Verlauf je Motor; Nachrichten-Warteschlange je Chat
+                    (E187: nachrichtSenden reiht ein, wenn ein Lauf läuft; Übergabe danach, im api-Motor auch zwischen Werkzeug-Runden)
     kontext.ts      Systemprompt (Stadtordnung, gebaeude.md, neueste Protokolle), Anhänge
     protokolle.ts   Protokoll pro Chat (Fakten aus DB/Log) + Chat-Spiegel in <Gebäude>/chats/
     motor-api.ts    api-Motor: eigene Streaming-Schleife, Beta-Endpunkt (Ausweichmodelle), Verlauf nur anhängen
@@ -28,12 +32,14 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
     moodle-browser.ts Klient für den Moodle-Browser + Seitenauszug-Text; Werkzeuge moodle_* (werkzeuge.ts), nur mit werkzeuge: [moodle] + fremdinhalte
     rechenraum.ts   Klient für den Rechenraum + Ablage-Ordner (vom Code bestimmt) + erlaubte Endungen (.pdf/.tex)
     gedaechtnis.ts  Rathaus/memory.md (Bürgermeister pflegt selbst, Archiv, Version) + personality.md (nur per Freigabe) – E61
-    buergermeister.ts     Bürgermeister (Etappe 2b): aktionen_liste, helfer_starten (max. 1 ohne Plan), plan_vorlegen (max. 10),
-                          Plan-Ausführung durch den CODE nach Freigabe, Abschluss genau einmal, Status der Schreibtisch-Aufgabe
+    buergermeister.ts     Bürgermeister (Etappe 2b, E185/E186): erledigt Kurzes selbst; aktionen_liste, helfer_starten (max. 5 je Aufgabe),
+                          plan_vorlegen (max. 10, Reihenfolge über `nach`, startet sofort – Freigabe nur auf Leifs Wunsch oder wenn groß/teuer),
+                          Plan-Ausführung durch den CODE, Abschluss genau einmal, Status der Schreibtisch-Aufgabe
   src/bank.ts     Etappe 7 (E68): Kontoauszüge (CSV-Erkennung, Zuordnung je Format, PDF per Skill), Kategorien (Regeln, Leif, KI),
                   Abos, Budget/Sparziele aus Bank/einstellungen.md, Warnungen; Rechnungen aus Mails → To-do (dorf.ts)
   src/boerse.ts   Etappe 7 (E70): Depot/Watchlist (Boerse/depot.md), EODHD-Schlusskurse (≤ 19 Abrufe/Tag, ISIN → Kürzel gemerkt), EZB Euro/Dollar
   src/corps.ts    Etappe 7 (E69): Corps-Termine (Hauptkalender per Stichwort), Absenderliste für den Postboten (Corpshaus/einstellungen.md)
+  src/kontakte.ts Adressbuch (E186): Rathaus/kontakte.md + Absender im Posteingang + gesendete Mails (kontakt_suchen/kontakt_merken)
   src/todos.ts    To-do-Brett (E65): eine Datei je To-do in Marktplatz/todos/, Version/409, Löschen = Papierkorb, wiederholen (E92), Teilschritte (E119, KI-Vorschlag todo-schritte.ts); App, Telegram /todo, todo_* für alle Agenten
   src/schreibtisch.ts  Aufgaben = Notizen in Rathaus/schreibtisch/ (DB führt Status, Frontmatter spiegelt ihn); App/Telegram starten
                        den Bürgermeister sofort, Notizen aus Obsidian/von Agenten werden nur aufgenommen
@@ -48,7 +54,7 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
                   postbote.ts (Abruf alle 10 min, Einordnung ohne Werkzeuge, Post/eingang/JJJJ-MM-TT.md, keine Mailtexte)
   src/kalender.ts      Hauptkalender (geheime iCal-Adresse) – nur lesen, nie speichern
   src/kalender-google.ts E75: Marktplatz-Kalender über die Google Calendar API (Leif schreibt per App/Telegram/Cardputer, nie Einladungen;
-                       Agenten nur per Freigabe – termin_vorschlagen, E183); lernplan (E96)
+                       Agenten tragen in Leifs eigenen Kalender direkt ein – termin_*, E185, mit „Rückgängig“; mit Gästen per Freigabe); lernplan (E96)
   src/kirchturm.ts     E74: Wecker/Timer/Pomodoro/Stoppuhr auf dem Server (Takt 1 s), Klingeln = Live-Ereignis; Glocke nur im Programm
   src/saxo.ts          E73: Saxo OpenAPI nur lesen (Code-Flow, Refresh-Token-Rotation in dorf_stand, nur 4 GET-Pfade)
   src/uni/todo-bruecke.ts E71: Uni-Fristen → To-dos, Abhaken in beide Richtungen (uni_todos); Teilschritte aus Vorlage (E130)
@@ -119,7 +125,7 @@ deploy          compose.yml, Caddyfile, dorf (Server-Verwaltung), bootstrap.sh (
 - Schreibende Anfragen und WebSocket brauchen passende `Origin` (CSRF-Schutz) und ein gültiges Sitzungs-Cookie (`HttpOnly`, `Secure`, `SameSite=Strict`). Einzige Ausnahme: `/api/geraet/*` (E182) – dort gilt nur der Bearer-Schlüssel eines gekoppelten Geräts, und der gilt nirgends sonst.
 - Rohdateien aus dem Vault werden mit `Content-Security-Policy: sandbox` ausgeliefert, HTML/SVG nur als Download (Vault-Inhalte können aus fremden Quellen stammen). Anzeigen lässt sich `.html` nur über `/api/vault/seite`: Skripte ja, aber undurchsichtiger Ursprung und kein Netz (E36).
 - Geheimnisse nur auf dem Server – nie im Repo, nie im Vault: `/srv/dorf/.env` (Dorf: ANTHROPIC_API_KEY, EODHD_API_KEY, WERKSTATT_GEHEIMNIS, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, GOOGLE_FRISTEN_ICS, GOOGLE_PFLICHT_ICS, GOOGLE_TERMINE_ICS, GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN, MOODLE_KALENDER_URL, MOODLE_URL, MOODLE_TOKEN, RECHENRAUM_GEHEIMNIS), `/srv/dorf/rechenraum.env` (nur RECHENRAUM_GEHEIMNIS), `/srv/dorf/browser.env` (nur Browser-Container: BROWSER_GEHEIMNIS, MOODLE_BENUTZER, MOODLE_PASSWORT, BROWSER_HOSTS, MOODLE_WEB_URL) und `/srv/dorf/werkstatt.env` (Werkstatt: CLAUDE_CODE_OAUTH_TOKEN, WERKSTATT_GEHEIMNIS). Der API-Schlüssel erreicht die Werkstatt nie, das Abo-Token das Dorf nie.
-- **Die Leine sitzt im Code** (`agenten/leine.ts`, `werkzeuge.ts`, Werkstatt-Argumente): Agenten haben kein eingebautes Schreiben/Shell, Außenwirkung nur über `freigabe_beantragen`, Ausführung erst nach Leifs Klick (`freigaben.ts`). Direkt dürfen sie nur Harmloses im Dorf: To-dos, Kirchturm (Timer/Wecker/Pomodoro), Notizen, Mail-ENTWÜRFE (nie senden); Kalendereinträge nur per Freigabe (E183). Läufe mit Fremdinhalten bekommen davon nur To-dos (markiert), Kirchturm lesen und Termin-Vorschläge. Zeitgesteuerte Läufe des Bürgermeisters laufen über `api` mit Tagesbudget (`00_Stadtordnung/aufwachen.md`); Helfer, die er startet, über den Motor ihrer Aktion – meist claude-code/Abo (E56, ersetzt E51); Notschalter `alle_auf` übersteuert alles.
+- **Die Leine sitzt im Code** (`agenten/leine.ts`, `werkzeuge.ts`, Werkstatt-Argumente): Agenten haben kein eingebautes Schreiben/Shell. Senden, Abgeben, Zahlen gibt es nicht (nur Entwürfe). Seit E185 gilt Leifs Regel „bestätigen nur, wenn ich einen Plan will“: Was sich zurückholen lässt (Termin im eigenen Kalender, Skill ohne Zeitplan, Datei im eigenen Gebäude), tun Agenten direkt, und Leif bekommt „Rückgängig“ (`rueckgaengig.ts`, App + Telegram). Freigaben (`freigaben.ts`, Ausführung erst nach Leifs Klick) bleiben für Dateien außerhalb des eigenen Gebäudes, Termine mit Gästen, Skills mit Zeitplan, die Persönlichkeit und gewünschte oder große Pläne. Web darf mit Post/Moodle/Kalender/Fremdinhalten zusammen laufen – Leif hat das Abfluss-Risiko bewusst in Kauf genommen (E185); jeder Web-Abruf steht im `werkzeug_log`, die Fremdinhalt-Hülle bleibt. Zeitgesteuerte Läufe des Bürgermeisters laufen über `api` mit Tagesbudget (`00_Stadtordnung/aufwachen.md`); Helfer, die er startet, über den Motor ihrer Aktion – meist claude-code/Abo (E56, ersetzt E51); Notschalter `alle_auf` übersteuert alles.
 - api-Verlauf wird **nur angehängt**, Antworten unverändert zurückgeschickt (Opus 5.5/Fable 5.2 prüfen das).
 
 ## Befehle
@@ -143,7 +149,7 @@ bash apps/cardputer/test/host-test.sh   # Cardputer-App am PC (g++, python3)
 python3 apps/cardputer/test/vertrag_test.py http://127.0.0.1:3999 'e2e-Passwort-sehr-lang-1'   # Geräte-API vs. Firmware (laufender e2e-Server)
 shellcheck -x -S warning deploy/dorf deploy/bootstrap.sh deploy/test/*.sh
 ```
-Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server über Vite-Proxy braucht das). `DORF_MOTOR_ATTRAPPE=1` ersetzt beide Motoren durch die Attrappe (Befehle in der Nachricht: `[schreibe pfad]`, `[freigabe pfad]`, `[fehler]`, `[warte ms]`, `[pause ms]` (nach den Werkzeugen), `[helfer Gebäude|Auftrag]`, `[plan Gebäude|Titel; …]`, `<<werkzeug name {json}>>`).
+Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server über Vite-Proxy braucht das). `DORF_MOTOR_ATTRAPPE=1` ersetzt beide Motoren durch die Attrappe (Befehle in der Nachricht: `[schreibe pfad]`, `[freigabe pfad]`, `[fehler]`, `[warte ms]`, `[pause ms]` (nach den Werkzeugen), `[helfer Gebäude|Auftrag]`, `[plan Gebäude|Titel; …]` (mit Freigabe), `[los Gebäude|Titel; Gebäude|Titel|1]` (Plan ohne Freigabe, dritter Teil = `nach`), `[nachschub]`, `<<werkzeug name {json}>>`).
 
 **Auf dem Server:** `dorf hilfe`. Deploy = Push auf `main` → GitHub Actions testet, baut das Image, schickt ein Bündel per SSH (erzwungener Befehl `empfangen`) → `dorf empfangen` schaltet um, prüft Gesundheit, rollt bei Fehler zurück.
 
@@ -179,3 +185,4 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E182 (19.11.): Cardputer koppeln + Geräte-API (`/api/geraet/*`, Vertrag `apps/cardputer/API.md`) – Abnahme mit dem echten Gerät steht aus
 - [x] E183 (19.11.): Agenten stellen Timer/Wecker/Pomodoro, schreiben Notizen und neue Mail-Entwürfe; Termine nur per Freigabe
 - [x] E184 (19.11.): Cardputer-Firmware 1.0 (Fernbedienung + Agentendorf, `apps/cardputer/`) – Host-Test und Vertragsprüfung grün, nie auf echter Hardware gelaufen
+- [x] E185–E188 (19.11.): Agenten nehmen Arbeit ab – Freigaben ausgedünnt + „Rückgängig“, Web auch mit Privatem (Leifs Entscheidung), Bürgermeister erledigt Kurzes selbst (Mail in einem Lauf, Adressbuch, Rückfrage), Pläne mit Reihenfolge, Nachrichten-Warteschlange im Chat, Termine direkt, Entwürfe mit Anhang/ändern, vault_aendern/verschieben (ersetzt den Freigabe-Teil von E183)

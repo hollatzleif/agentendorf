@@ -289,12 +289,18 @@ describe('Telegram: Gesprächszusammenhang', () => {
     expect(d.schreibtisch.liste()).toHaveLength(2); // nicht ins laufende Gespräch
   });
 
-  it('läuft im Gespräch noch etwas, kommt ein Hinweis statt eines Fehlers', async () => {
+  it('E185: läuft im Gespräch noch etwas, wird die Nachricht notiert und kommt nach dem aktuellen Schritt dran', async () => {
     const d = await dorf();
-    await d.nachricht({ text: 'Lange Aufgabe [warte 1500]' });
-    await new Promise((r) => setTimeout(r, 200));
+    await d.nachricht({ text: 'Lange Aufgabe [warte 600]' });
+    await new Promise((r) => setTimeout(r, 150));
     await d.nachricht({ text: 'Noch was' });
-    expect(d.gesendet().at(-1)).toMatch(/^⏳ Im Gespräch „Bürgermeister: Lange Aufgabe \[warte 1500\]“ wird gerade noch gearbeitet/);
+    expect(d.gesendet().at(-1)).toMatch(/^📝 Notiert – kommt nach dem aktuellen Schritt dran: <b>Bürgermeister: Lange Aufgabe \[warte 600\]<\/b>/);
+    await d.nachricht({ text: 'Und noch was' });
+    expect(d.gesendet().at(-1)).toMatch(/\(2 Nachrichten warten\)/);
+    expect(d.schreibtisch.liste()).toHaveLength(1); // keine neue Aufgabe
+    await d.agenten.leerlauf();
+    const chat = d.agenten.chatListe().find((c) => c.rolle === 'buergermeister')!;
+    expect(d.agenten.chatDetail(chat.id).laeufe.map((l) => l.auftrag.slice(0, 22))).toEqual([expect.any(String), 'Nachricht 1:\nNoch was\n']);
     await d.ruhe();
   });
 });

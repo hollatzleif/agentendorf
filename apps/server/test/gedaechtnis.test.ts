@@ -149,23 +149,24 @@ describe('Gedächtnis und Persönlichkeit des Bürgermeisters', () => {
 
   it('nach einem angenommenen Skill-Vorschlag macht der Bürgermeister weiter; abgelehnt → nur ein Hinweis', async () => {
     const d = await testDorf();
-    const entwurf = { gebaeude: 'Uni', name: 'Fächer anlegen', anweisung: 'Lege für jeden Kurs einen Ordner an.', werkzeuge: ['vault_lesen', 'vault_schreiben'] };
-    const ja = await buergermeister(d, werkzeug('aktion_vorschlagen', entwurf));
+    // E185: nur Skills mit Zeitplan brauchen noch Leifs Ja
+    const entwurf = { gebaeude: 'Uni', name: 'Fächer anlegen', anweisung: 'Lege für jeden Kurs einen Ordner an.', werkzeuge: ['vault_lesen', 'vault_schreiben'], zeitplan: 'mo 07:00' };
+    const ja = await buergermeister(d, werkzeug('aktion_anlegen', entwurf));
     const f = d.agenten.freigaben.liste('offen').find((x) => x.art === 'aktion_anlegen')!;
     await d.agenten.freigaben.entscheiden(f.id, true);
     await d.agenten.leerlauf();
     const l = d.agenten.chatDetail(ja.chatId).laeufe;
     expect(l).toHaveLength(2);
-    expect(l[1]!.auftrag).toMatch(/Neuer Skill: Fächer anlegen \(Uni\)“ angenommen\. Ergebnis: Neuer Skill angelegt: Uni\/aktionen\/faecher-anlegen\.md/);
+    expect(l[1]!.auftrag).toMatch(/Neuer Skill mit Zeitplan: Fächer anlegen \(Uni\)“ angenommen\. Ergebnis: Neuer Skill angelegt: Uni\/aktionen\/faecher-anlegen\.md/);
     expect(l[1]!.auftrag).toContain('helfer_starten');
 
-    const nein = await buergermeister(d, werkzeug('aktion_vorschlagen', { ...entwurf, name: 'Noch ein Skill' }));
+    const nein = await buergermeister(d, werkzeug('aktion_anlegen', { ...entwurf, name: 'Noch ein Skill' }));
     const f2 = d.agenten.freigaben.liste('offen').find((x) => x.art === 'aktion_anlegen')!;
     await d.agenten.freigaben.entscheiden(f2.id, false);
     await d.agenten.leerlauf();
     const c = d.agenten.chatDetail(nein.chatId);
     expect(c.laeufe).toHaveLength(1);
-    expect(c.nachrichten.filter((n) => n.rolle === 'hinweis').map((n) => n.text)).toContain('❌ Freigabe abgelehnt: Neuer Skill: Noch ein Skill (Uni)');
+    expect(c.nachrichten.filter((n) => n.rolle === 'hinweis').map((n) => n.text)).toContain('❌ Freigabe abgelehnt: Neuer Skill mit Zeitplan: Noch ein Skill (Uni)');
   });
 
   it('Rückschau: Ergebnisse von Helfern, abgelehnte Pläne/Freigaben landen beim nächsten Aufwachen im Auftrag – genau einmal', async () => {
@@ -210,8 +211,8 @@ describe('Gedächtnis und Persönlichkeit des Bürgermeisters', () => {
     const { werkzeugTexte } = await buergermeister(
       d,
       [
-        werkzeug('plan_vorlegen', { zusammenfassung: 'Unbekannt', begruendung: 'x', teilaufgaben: [teil('gibt-es-nicht')] }),
-        werkzeug('plan_vorlegen', { zusammenfassung: 'Kursübersichten', begruendung: 'x', teilaufgaben: [teil('mathe-3')] }),
+        werkzeug('plan_vorlegen', { zusammenfassung: 'Unbekannt', begruendung: 'x', bestaetigen: true, teilaufgaben: [teil('gibt-es-nicht')] }),
+        werkzeug('plan_vorlegen', { zusammenfassung: 'Kursübersichten', begruendung: 'x', bestaetigen: true, teilaufgaben: [teil('mathe-3')] }),
       ].join('\n'),
     );
     const t = werkzeugTexte();

@@ -68,7 +68,7 @@ const uhrFormat = new Intl.DateTimeFormat('de-AT', { timeZone: 'Europe/Vienna', 
 /**
  * Aufwachen des Bürgermeisters: Der CODE prüft ohne KI Schreibtisch, Fristen, Freigaben, Läufe und Mails.
  * Nur wenn es etwas NEUES gibt, startet ein Bürgermeister-Lauf (Auslöser zeitplan → Motor api) mit einem Lagebericht.
- * Er bleibt an der Leine: höchstens ein Helfer ohne Plan, sonst Plan zur Freigabe.
+ * Er bleibt an der Leine (E185): Kurzes erledigt er selbst, Helfer nur für große Arbeit; senden/abgeben/zahlen gibt es nicht.
  */
 export class Aufwachen {
   private zeitgeber?: NodeJS.Timeout;
@@ -253,10 +253,10 @@ export class Aufwachen {
       const text = `Aufwachen ${uhrFormat.format(new Date(jetzt))} – Lagebericht
 
 Du bist von selbst aufgewacht (kein Auftrag von Leif). Prüfe die Punkte und sorge innerhalb der Leine dafür, dass etwas passiert:
-- Du darfst höchstens EINEN Helfer starten; für mehr lege einen Plan zur Freigabe vor (Leif entscheidet).
-- Abgaben und Prüfungen: nicht selbst „Abgabe bearbeiten“ oder „Lernen“ starten – schlag es per Plan vor, wenn es sinnvoll ist.
-- Mails mit „Antwort nötig“: biete per Plan einen Entwurf an (Aktion „Antwort entwerfen“ mit der mail_id).
-- Fehlgeschlagene oder hängende Läufe: Ursache kurz einschätzen; einen neuen Versuch nur per Plan.
+- Kurzes erledigst du selbst (To-do, Notiz, Termin, Mail-Entwurf). Höchstens EINEN Helfer starten, und nur für große Arbeit.
+- Abgaben und Prüfungen: nicht ungefragt „Abgabe bearbeiten“ oder „Lernen“ starten – das kostet viel; leg Leif lieber ein To-do an oder frag (rueckfrage).
+- Mails mit „Antwort nötig“: nur wenn klar ist, was Leif antworten würde, einen Entwurf anlegen (post_lesen, post_entwurf) – gesendet wird nie.
+- Fehlgeschlagene oder hängende Läufe: Ursache kurz einschätzen; höchstens einen neuen Versuch.
 - Prüfe vorher, ob es dafür schon einen Chat oder Plan gibt – nichts doppelt starten.
 - Ist nichts zu tun, antworte nur „Nichts zu tun.“ und starte nichts.
 

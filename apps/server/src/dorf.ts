@@ -1,3 +1,4 @@
+import { Kontakte } from './kontakte.js';
 import { Dorfplan } from './dorfplan.js';
 import { Wetter } from './wetter.js';
 import type { KalenderEintrag } from './agenten/werkzeuge.js';
@@ -97,11 +98,11 @@ const VORLAGE_FRUEHERE_FASSUNGEN: Record<string, string[]> = {
   'Uni/aktionen/abgabe-bearbeiten.md': ['28289a20e8f718a2b45d16b34ab2a578350078df696a855dccd52e6857259b11'],
   'Uni/aktionen/lernen.md': ['fe2283fc7e878ffd5f7f6a01ec776f50e49b6f96446c28db7cfcec36f48f1dd1'],
   'Post/gebaeude.md': ['313622cda22bc8ff13c0a644fab2c49f1bdf84c57eb2702231a70f2ac1e9a076'], // bis Etappe 3
-  '00_Stadtordnung/aktion-vorlage.md': ['b0d3e48a90aa554a0e7ceb234edc1b026e285424313cc2654431b5b9c683f671'], // E60
+  '00_Stadtordnung/aktion-vorlage.md': ['b0d3e48a90aa554a0e7ceb234edc1b026e285424313cc2654431b5b9c683f671', '7c7e1c394868de4de10cf6c85ce03f9578b452291e36259be9b9cf54ad368940'], // E60, bis E184
   'Uni/aktionen/kursuebersicht.md': ['f525448be2f08c6d74635be2a96d4c89b0c1c98f5d0d21b42211da403833a8cf'], // E60
   '00_Stadtordnung/aufwachen.md': ['231a442ce4d7e593e65f27a057d4c5392521cd0da0b139c8c045a2d38c6efbd2', '126158d2f1587d9fa31f98a0bbef6aa09e7c95121cc98ebf85baa1bdad4363c8'], // bis E61, bis E180
   // E61: Gedächtnis/Persönlichkeit des Bürgermeisters
-  'Rathaus/aktionen/buergermeister.md': ['653aace36ae47d42bc847eda934c819312ceb446d1d624ba92f8ff528eb37084'],
+  'Rathaus/aktionen/buergermeister.md': ['653aace36ae47d42bc847eda934c819312ceb446d1d624ba92f8ff528eb37084', '7deb8d2e528b9f2bee7d39619be317cc6043c7ab2269fdc532ebff7b83e2c952'], // bis E60, E61–E184
   'Rathaus/gebaeude.md': ['7dd8c996765e716a804cafdaa4734c16aa4f97afb94e20ae69a6b0cda615b130'],
   '00_Stadtordnung/stadtordnung.md': [
     'b25ae8f9443f9001f0d9fe78ede22016e41ff8839e073540172b22768507c95e', // Etappe 1
@@ -109,6 +110,7 @@ const VORLAGE_FRUEHERE_FASSUNGEN: Record<string, string[]> = {
     '495a9ae689adcec68c4878b0fddf28b5c5909de8893b72aed438da2ad66b3bc6', // Etappe 2b
     'd7caf198ce646fe65d2fafa29e6ddd63bae6f21ccdd527b1a9dec63ec517aba9', // Etappe 3 bis E60
     'ff3beab8cf394168ff1cfc9e3d4e91fb9c6f9eced1152b31f2db5373547043e3', // E61–E64
+    '77990f31c7ba34481767fb0ee51234ed6ec6f17da46c5f3b2d71d6a0f56d5b64', // E65–E184
   ],
   'Boerse/gebaeude.md': ['15a5f5dae8854563d65c806e7b84b429d733826e38e1d35dc9a68a92b8779948'], // geschlossen bis Etappe 7
   'Corpshaus/gebaeude.md': ['b7604d37957b279a6581562ed10640efb0993ca228cbdd47fb191e599a753427'], // leer bis Etappe 7
@@ -353,13 +355,43 @@ export async function dorfStarten(
   const gewohnheiten = new Gewohnheiten({ db, uhr, vault, hub });
   const wochenziele = new Wochenziele({ uhr, vault, hub });
   const notizen = new Notizen({ uhr, vault });
-  // E183: Agenten stellen Timer/Wecker/Pomodoro und schreiben Notizen direkt; Termine nur per Freigabe
+  // E183: Agenten stellen Timer/Wecker/Pomodoro und schreiben Notizen direkt (termin_anlegen als Freigabe-Art bleibt für alte Anträge)
   agenten.kirchturm = kirchturm;
   agenten.notizen = notizen;
   agenten.freigaben.registrieren('termin_anlegen', async (t) => {
     const r = await googleKalender.inHauptkalender({ titel: t.titel, ganztags: t.ganztags, start: t.start, ende: t.ende, ...(t.ort ? { ort: t.ort } : {}) });
     return `Eingetragen: ${r.titel} (${terminVorschau(t)}) – ohne Einladungen.`;
   });
+  // E185: Termine im EIGENEN Kalender tragen Agenten direkt ein (Meldung mit „Rückgängig“); nur Termine mit Gästen per Freigabe
+  agenten.termine = googleKalender;
+  agenten.kontakte = new Kontakte({ db, vault, post: () => agenten.post });
+  agenten.freigaben.registrieren('termin_aendern', async (t) => {
+    const r = await googleKalender.aendern(t.id, t.eingabe);
+    return `Geändert: ${r.titel} (${terminVorschau(t.eingabe)}) – niemand wurde benachrichtigt.`;
+  });
+  agenten.freigaben.registrieren('termin_loeschen', async (t) => {
+    await googleKalender.loeschen(t.kalenderId, t.id);
+    return 'Termin gelöscht – niemand wurde benachrichtigt.';
+  });
+  agenten.rueckgaengig.registrieren('termin_angelegt', async (t: { kalenderId: string; id: string }) => {
+    await googleKalender.loeschen(t.kalenderId, t.id);
+    return 'Termin wieder aus dem Kalender genommen.';
+  });
+  agenten.rueckgaengig.registrieren('termin_geaendert', async (t: { id: string; vorher: { kalenderId: string } }) => {
+    await googleKalender.aendern(t.id, t.vorher);
+    return 'Termin steht wieder wie vorher im Kalender.';
+  });
+  agenten.rueckgaengig.registrieren('termin_geloescht', async (t: { eingabe: unknown }) => {
+    await googleKalender.anlegen(t.eingabe);
+    return 'Termin wieder eingetragen.';
+  });
+  agenten.rueckgaengig.registrieren('datei_geaendert', async (x: { pfad: string; archiv: string; version: string }) => {
+    const jetzt = await vault.lesen(x.pfad).catch(() => null);
+    if (jetzt && jetzt.version !== x.version) throw new Error(`${x.pfad} wurde seither wieder geändert – die alte Fassung liegt in ${x.archiv}.`);
+    await vault.schreiben(x.pfad, (await vault.lesen(x.archiv)).inhalt);
+    return `Alte Fassung wiederhergestellt: ${x.pfad}`;
+  });
+  agenten.rueckgaengig.registrieren('datei_verschoben', async (x: { von: string; nach: string }) => `Zurück verschoben: ${await vault.verschieben(x.nach, x.von)}`);
   // E112: Blüte für Morgenzeitung und Wochenrückblick (wie im Dorfstatus)
   const blueteBerechnen = async () => bluete(await statistik({ db, uhr, todos, gewohnheiten }, 7), await wochenziele.lesen().catch(() => undefined));
   const noten = new Noten({ vault, hub, faecher: () => uni.faecher() });

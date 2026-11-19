@@ -108,7 +108,7 @@ export function Schreibtisch() {
             rows={4}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Was soll erledigt werden? Einfache Fragen beantwortet er direkt, für größere Aufgaben legt er dir einen Plan vor."
+            placeholder="Was soll erledigt werden? Kurzes erledigt er selbst (Mail-Entwurf, Termin, To-do); für Großes schickt er Helfer los."
             onKeyDown={(e) => {
               if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void ablegen(e);
             }}

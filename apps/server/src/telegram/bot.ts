@@ -27,10 +27,10 @@ type PlanBlock = { titel: string; grund: string; start: string; ende: string };
 import type { FokusStatistik, NotenStand, Statistik, Suchtreffer, TodoInfo } from '@dorf/shared';
 import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
-import type { FreigabeInfo, PlanInhalt, TelegramStatus } from '@dorf/shared';
+import type { FreigabeInfo, PlanInhalt, RueckgaengigInfo, TelegramStatus } from '@dorf/shared';
 import type { DB } from '../db.js';
 import type { VaultDienst } from '../vault/dienst.js';
-import type { AgentenDienst, LaufEnde } from '../agenten/dienst.js';
+import type { AgentenDienst, LaufEnde, RueckfrageInfo } from '../agenten/dienst.js';
 import type { Buergermeister } from '../agenten/buergermeister.js';
 import type { Schreibtisch } from '../schreibtisch.js';
 import { DorfFehler } from '../fehler.js';
@@ -88,6 +88,8 @@ const ARTEN: Record<string, string> = {
   aktion_anlegen: '🧩 Neuer Skill',
   persoenlichkeit_aendern: '🎭 Persönlichkeit',
   termin_anlegen: '📅 Termin eintragen',
+  termin_aendern: '📅 Termin mit Gästen ändern',
+  termin_loeschen: '🗑 Termin mit Gästen löschen',
 };
 
 /**
@@ -159,6 +161,9 @@ export class TelegramBot {
     // Meldungen – nie blockierend: Fehler beim Senden landen nur im Log.
     o.agenten.freigaben.beiNeu.push((f) => void this.freigabeMelden(f).catch((e) => this.fehler(e)));
     o.agenten.freigaben.beiEntscheidung.push((f) => void this.freigabeAktualisieren(f).catch((e) => this.fehler(e)));
+    // E185: ohne Rückfrage getan → Meldung mit „Rückgängig“; Rückfragen der Agenten mit Antwort-Knöpfen
+    o.agenten.rueckgaengig.beiNeu.push((r) => void this.getanMelden(r).catch((e) => this.fehler(e)));
+    o.agenten.beiRueckfrage.push((r) => void this.rueckfrageSenden(r).catch((e) => this.fehler(e)));
     o.agenten.beiLaufEnde.push((e) => void this.laufMelden(e).catch((x) => this.fehler(x)));
     o.buergermeister.beiAbschluss.push((a) => void this.abschlussMelden(a).catch((x) => this.fehler(x)));
     o.uni?.beiAbgleich.push((e) => this.moodleMelden(e).catch((x) => this.fehler(x)));
@@ -567,14 +572,16 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     } catch {
       return this.neueAufgabe(m, text);
     }
+    let wartend = 0;
     try {
-      this.o.agenten.nachrichtSenden(chatId, text, 'klick');
+      wartend = this.o.agenten.nachrichtSenden(chatId, text, 'klick').wartend ?? 0;
     } catch (e) {
-      if (e instanceof DorfFehler && e.status === 409)
-        return this.senden(`⏳ Im Gespräch „${h(c.titel)}“ wird gerade noch gearbeitet. Schick deine Nachricht gleich nochmal – oder <code>/neu …</code> für eine neue Aufgabe.`);
       return this.senden(`⚠️ Konnte die Nachricht nicht weitergeben: ${h((e as Error).message)}`);
     }
     this.verlaufMerken(m.message_id, chatId);
+    // E185: läuft dort gerade etwas, wartet die Nachricht in der Schlange – nichts geht verloren
+    if (wartend)
+      return this.senden(`📝 Notiert – kommt nach dem aktuellen Schritt dran${wartend > 1 ? ` (${wartend} Nachrichten warten)` : ''}: <b>${h(c.titel)}</b>\n<i>/neu startet eine neue Aufgabe</i>`, {}, chatId);
     await this.senden(`↪️ Weiter im Gespräch: <b>${h(c.titel)}</b> · <a href="${this.link(`/chats/${chatId}`)}">Chat öffnen</a>\n<i>/neu startet eine neue Aufgabe</i>`, {}, chatId);
   }
 
@@ -736,6 +743,8 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (q.data?.startsWith('pw:')) return this.pruefungKnopf(q, antworten);
     if (q.data?.startsWith('jl:')) return this.jetztKnopf(q, antworten);
     if (q.data?.startsWith('sm:')) return this.stimmungKnopf(q, antworten);
+    if (q.data?.startsWith('u:')) return this.rueckgaengigKnopf(q, antworten);
+    if (q.data?.startsWith('q:')) return this.rueckfrageKnopf(q, antworten);
     const m = /^f:([0-9a-f-]{36}):([jn]):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
     if (!m || !crypto.timingSafeEqual(Buffer.from(m[3]!), Buffer.from(this.signatur(m[1]!, m[2] as 'j' | 'n')))) {
       this.o.log?.('Telegram: Knopf mit ungültiger Signatur abgelehnt.');
@@ -750,6 +759,70 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
         await antworten('Diese Freigabe wurde schon entschieden.');
         await this.freigabeAktualisieren(this.o.agenten.freigaben.holen(m[1]!));
       } else await antworten(`Fehler: ${(e as Error).message}`.slice(0, 190));
+    }
+  }
+
+  // ---- E185: „Rückgängig“ statt Freigabe, Rückfragen -------------------------------------------
+
+  rueckgaengigSignatur(id: string) {
+    return crypto.createHmac('sha256', this.signaturSchluessel).update(`rueckgaengig:${id}`).digest('base64url').slice(0, 16);
+  }
+
+  /** Ein Agent hat etwas ohne Rückfrage getan (Termin, Skill) – Leif erfährt es und kann es mit einem Knopf zurücknehmen */
+  private async getanMelden(r: RueckgaengigInfo) {
+    if (!(await einstellungenLaden(this.o.vault)).freigaben) return;
+    await this.proaktiv(
+      `✅ <b>Ohne Rückfrage erledigt</b> (${h(r.gebaeude)})\n${h(r.titel)}`,
+      { reply_markup: { inline_keyboard: [[{ text: '↩️ Rückgängig', callback_data: `u:${r.id}:${this.rueckgaengigSignatur(r.id)}` }]] } },
+      r.chatId,
+    );
+  }
+
+  private async rueckgaengigKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {
+    const m = /^u:([0-9a-f-]{36}):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
+    if (!m || !crypto.timingSafeEqual(Buffer.from(m[2]!), Buffer.from(this.rueckgaengigSignatur(m[1]!)))) return antworten('Ungültiger Knopf.');
+    let text: string;
+    try {
+      const r = await this.o.agenten.rueckgaengig.zuruecknehmen(m[1]!);
+      text = r.status === 'zurueckgenommen' ? `↩️ Zurückgenommen: ${r.ergebnis ?? ''}` : `⚠️ Ging nicht: ${r.ergebnis ?? ''}`;
+    } catch (e) {
+      text = e instanceof DorfFehler && e.status === 409 ? 'Das wurde schon zurückgenommen.' : `Fehler: ${(e as Error).message}`;
+    }
+    await antworten(text.slice(0, 190));
+    if (q.message)
+      await this.o.api
+        .aufruf('editMessageText', { chat_id: q.message.chat.id, message_id: q.message.message_id, text: `${h((q.message.text ?? '').slice(0, 3000))}\n\n<b>${h(text)}</b>`, parse_mode: 'HTML', link_preview_options: { is_disabled: true } })
+        .catch(() => undefined);
+  }
+
+  rueckfrageSignatur(id: string, nr: number) {
+    return crypto.createHmac('sha256', this.signaturSchluessel).update(`rueckfrage:${id}:${nr}`).digest('base64url').slice(0, 16);
+  }
+
+  /** Rückfrage eines Agenten: Antwort-Knöpfe; eine getippte Antwort setzt das Gespräch ohnehin fort */
+  private async rueckfrageSenden(r: RueckfrageInfo) {
+    const c = this.o.agenten.chatZeile(r.chatId);
+    const knoepfe = r.optionen.map((o, i) => [{ text: knopfText(o), callback_data: `q:${r.id}:${i}:${this.rueckfrageSignatur(r.id, i)}` }]);
+    // nachts (Bürgermeister ist von selbst aufgewacht) wartet die Frage wie jede Meldung bis zum Morgen
+    await (await this.nachtruhe() ? this.proaktiv.bind(this) : this.senden.bind(this))(
+      `❓ <b>Rückfrage</b> – ${h(c.titel)}\n${h(r.frage)}\n<i>Tipp eine Antwort${knoepfe.length ? ' oder wähl aus' : ''}.</i>`,
+      knoepfe.length ? { reply_markup: { inline_keyboard: knoepfe } } : {},
+      r.chatId,
+    );
+  }
+
+  private async rueckfrageKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {
+    const m = /^q:([0-9a-f-]{12}):(\d):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
+    if (!m || !crypto.timingSafeEqual(Buffer.from(m[3]!), Buffer.from(this.rueckfrageSignatur(m[1]!, Number(m[2]))))) return antworten('Ungültiger Knopf.');
+    try {
+      const r = this.o.agenten.rueckfrageBeantworten(m[1]!, Number(m[2]));
+      await antworten(`Antwort: ${r.antwort}`.slice(0, 190));
+      if (q.message)
+        await this.o.api
+          .aufruf('editMessageText', { chat_id: q.message.chat.id, message_id: q.message.message_id, text: `${h((q.message.text ?? '').slice(0, 3000))}\n\n<b>↪️ ${h(r.antwort)}</b>`, parse_mode: 'HTML' })
+          .catch(() => undefined);
+    } catch (e) {
+      await antworten(e instanceof DorfFehler && e.status === 409 ? 'Schon beantwortet.' : `Fehler: ${(e as Error).message}`.slice(0, 190));
     }
   }
 
@@ -2234,7 +2307,7 @@ Magst du kurz sagen, warum? Antworte einfach mit einem Satz – ${f.chatId ? 'de
     if (c.rolle === 'buergermeister' && c.schreibtisch_id) {
       const quelle = (this.o.db.prepare('SELECT quelle FROM schreibtisch WHERE id = ?').get(c.schreibtisch_id) as { quelle: string } | undefined)?.quelle;
       const getan = this.o.db
-        .prepare("SELECT 1 FROM werkzeug_log WHERE lauf_id = ? AND erlaubt = 1 AND werkzeug IN ('helfer_starten', 'plan_vorlegen', 'vault_schreiben', 'freigabe_beantragen') LIMIT 1")
+        .prepare("SELECT 1 FROM werkzeug_log WHERE lauf_id = ? AND erlaubt = 1 AND werkzeug IN ('helfer_starten', 'plan_vorlegen', 'vault_schreiben', 'vault_aendern', 'freigabe_beantragen', 'post_entwurf', 'post_entwurf_neu', 'termin_anlegen', 'termin_aendern', 'termin_loeschen', 'aktion_anlegen', 'rueckfrage') LIMIT 1")
         .get(e.laufId);
       if (quelle === 'aufwachen' && !getan) return;
     }

@@ -45,9 +45,7 @@ export function NeueAktion({ gebaeude, fertig }: { gebaeude: string; fertig: (id
   const umschalten = (w: Werkzeug) =>
     setWerkzeuge((alt) => {
       if (alt.includes(w)) return alt.filter((x) => x !== w);
-      // Internet und Fremdinhalte schließen sich aus
-      if (w === 'web') return [...alt.filter((x) => !WERKZEUGE.find((y) => y.id === x)?.fremd), w];
-      if (WERKZEUGE.find((y) => y.id === w)?.fremd) return [...alt.filter((x) => x !== 'web'), w];
+      // E185: Internet darf mit Mails, Moodle und Kalender zusammen laufen (Leifs Entscheidung)
       return [...alt, w];
     });
 
@@ -131,7 +129,7 @@ export function NeueAktion({ gebaeude, fertig }: { gebaeude: string; fertig: (id
             <input type="checkbox" checked={werkzeuge.includes(w.id)} onChange={() => umschalten(w.id)} /> {w.text}
           </label>
         ))}
-        {fremd && <p className="leise">Liest Fremdes (Mails, Moodle, Kalender) → wird als Fremdinhalt behandelt, Internet ist dann aus.</p>}
+        {fremd && <p className="leise">Liest Fremdes (Mails, Moodle, Kalender) → wird als Fremdinhalt behandelt (Daten, keine Anweisungen).</p>}
       </fieldset>
       <div className="zeile">
         <label>

@@ -165,7 +165,10 @@ Die JKU sperrt den Zugang für die Moodle-App. Deshalb holt das Dorf nur die **T
 - `Rathaus/memory.md`: Hier hält er fest, was er gelernt hat. Du kannst mitschreiben, und alte Fassungen liegen in `Rathaus/archiv/memory/`.
 - `Rathaus/personality.md`: So tritt er auf. Änderungen schlägt er nur als Freigabe vor, du kannst sie aber jederzeit selbst bearbeiten.
 - Nach deinem Ja zu einer seiner Freigaben und wenn seine Helfer fertig sind, arbeitet er im selben Chat von selbst weiter.
-- **Pläne** nimmt das Dorf automatisch an, wenn du nicht innerhalb von 10 Minuten entscheidest. Einstellbar über `plan_automatisch_nach_minuten` in `00_Stadtordnung/aufwachen.md` (0 = nie). Alle anderen Freigaben warten immer auf dich.
+- **Was du noch bestätigst (E185):** nur Pläne, die du selbst wolltest („plan mir …“) oder die sehr groß sind (mehr als 5 Helfer, über 2 $), Skills mit Zeitplan, Termine mit Gästen, Dateien außerhalb des Gebäudes eines Agenten und die Persönlichkeit. Alles andere tut er direkt – unter Rathaus → Freigaben → „Ohne Rückfrage erledigt“ und in Telegram kannst du es mit „↩️ Rückgängig“ zurücknehmen.
+- **Im Chat weiterschreiben:** Fällt dir etwas ein, während er arbeitet, schreib es dazu. Es wartet als graue Blase und kommt nach dem aktuellen Schritt dran.
+- **Adressbuch:** `Rathaus/kontakte.md` (eine Zeile je Kontakt: `- Name <adresse> · Rolle`). Die Agenten suchen dort, im Posteingang und in deinen gesendeten Mails und tragen neue Adressen selbst ein.
+- **Vorgelegte Pläne** nimmt das Dorf automatisch an, wenn du nicht innerhalb von 10 Minuten entscheidest. Einstellbar über `plan_automatisch_nach_minuten` in `00_Stadtordnung/aufwachen.md` (0 = nie). Alle anderen Freigaben warten immer auf dich.
 
 ### To-do-Brett (Marktplatz)
 

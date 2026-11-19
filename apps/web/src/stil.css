@@ -211,6 +211,10 @@ label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.92rem;
 .nachricht { background: var(--karte); border: 2px solid var(--navy); border-radius: var(--radius); padding: 0.6rem 0.9rem; box-shadow: 0 3px 0 var(--navy); }
 .nachricht.nutzer { background: #e3f3d8; border-color: #1f5a1d; box-shadow: 0 3px 0 #1f5a1d; align-self: flex-end; max-width: 85%; }
 .nachricht.nutzer .nutzertext { white-space: pre-wrap; margin: 0; }
+/* E185: nachgeschobene Nachrichten, die noch warten – graue Blasen */
+.nachricht.nutzer.wartend { background: #ececec; border-color: var(--leise); border-style: dashed; box-shadow: none; opacity: 0.85; }
+.nachricht.nutzer.wartend button.klein { padding: 0 0.4rem; min-height: 0; font-size: 0.8rem; }
+.chatliste.getan button { margin-left: 0.3rem; }
 .nachricht.werkzeug { background: rgb(255 255 255 / 0.6); border-style: dashed; border-color: var(--leise); box-shadow: none; font-size: 0.85rem; }
 .nachricht.werkzeug pre { white-space: pre-wrap; word-break: break-word; margin: 0.4rem 0 0; }
 .nachricht.hinweis { background: none; border: none; padding: 0; box-shadow: none; }

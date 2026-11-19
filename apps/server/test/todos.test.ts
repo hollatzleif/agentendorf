@@ -88,8 +88,8 @@ describe('Weitere Listen (Etappe 7): Einkauf, Wunsch, Corps', () => {
   });
 });
 
-describe('Leine für die Listen: Internet nie mit Fremdinhalten', () => {
-  it('Einträge aus Fremdinhalt-Läufen sind markiert; Läufe mit Internet sehen und ändern sie nicht', async () => {
+describe('Listen: Einträge aus Fremdinhalt-Läufen bleiben markiert (E185: nur noch Kennzeichen)', () => {
+  it('Einträge aus Fremdinhalt-Läufen sind markiert; seit E185 sehen auch Läufe mit Internet sie – in der Hülle', async () => {
     const d = await testDorf();
     const w = (n: string, e: unknown) => `<<werkzeug ${n} ${JSON.stringify(e)}>>`;
     const werkzeugTexte = (chatId: string) => d.agenten.chatDetail(chatId).nachrichten.filter((n) => n.rolle === 'werkzeug').map((n) => n.text);
@@ -110,9 +110,8 @@ describe('Leine für die Listen: Internet nie mit Fremdinhalten', () => {
     await d.agenten.leerlauf();
     const t = werkzeugTexte(r.chatId);
     expect(t[0]).toContain('Kopfhörer');
-    expect(t[0]).not.toContain('boese.example');
-    expect(t[0]).toContain('1 Einträge aus Mails/Moodle sind in Läufen mit Internet ausgeblendet');
-    expect(t[1]).toMatch(/verweigert.*nicht änderbar/);
+    expect(t[0]).toMatch(/<fremdinhalt quelle="wunsch">[\s\S]*boese\.example[\s\S]*<\/fremdinhalt>/);
+    expect(t[1]).toMatch(/^todo_bearbeiten: Eintrag geändert/);
     // nur abhaken durch einen Fremdinhalt-Lauf markiert Leifs Eintrag nicht
     const kopfhoerer = (await d.listen.wunsch.liste()).find((x) => x.titel === 'Kopfhörer')!;
     await d.listen.wunsch.aendern(kopfhoerer.pfad, { erledigt: true }, undefined, { fremd: true });

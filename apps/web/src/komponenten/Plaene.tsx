@@ -23,7 +23,10 @@ export function PlanTabelle({ p }: { p: PlanInhalt }) {
         {p.teilaufgaben.map((t, i) => (
           <tr key={i}>
             <td>{i + 1}</td>
-            <td title={t.auftrag}>{t.titel}</td>
+            <td title={t.auftrag}>
+              {t.titel}
+              {!!t.nach?.length && <span className="leise"> (nach {t.nach.join(', ')})</span>}
+            </td>
             <td>{t.gebaeude}</td>
             <td>{t.aktion ?? 'freier Helfer'}</td>
             <td>
@@ -40,7 +43,7 @@ export function PlanTabelle({ p }: { p: PlanInhalt }) {
 export function Plaene() {
   const q = useQuery({ queryKey: ['plaene'], queryFn: () => api<PlanInfo[]>('/api/plaene') });
   if (q.isPending) return <p className="leise">Lade …</p>;
-  if (!q.data?.length) return <p className="leise">Noch keine Pläne. Der Bürgermeister legt einen vor, wenn eine Aufgabe zwei oder mehr Helfer braucht.</p>;
+  if (!q.data?.length) return <p className="leise">Noch keine Pläne. Der Bürgermeister macht einen, wenn eine Aufgabe mehrere Helfer braucht – bestätigen musst du nur, wenn du selbst einen Plan sehen wolltest.</p>;
   return (
     <div>
       {q.data.map((p) => (
@@ -61,7 +64,19 @@ export function Plaene() {
           </div>
           <h4>{p.zusammenfassung}</h4>
           <PlanTabelle p={p} />
-          <p className="leise">{p.hinweis}</p>
+          <p className="leise">
+            {p.hinweis}
+            {p.ohneFreigabe ? ' Ohne Rückfrage gestartet.' : ''}
+          </p>
+          {!!p.uebersprungen?.length && (
+            <ul className="chatliste">
+              {p.uebersprungen.map((u) => (
+                <li key={u.nr}>
+                  {u.nr}. ⏭️ nicht gestartet – {u.grund}
+                </li>
+              ))}
+            </ul>
+          )}
           {p.helfer.length > 0 && (
             <ul className="chatliste">
               {p.helfer.map((h) => (

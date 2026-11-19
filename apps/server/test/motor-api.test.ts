@@ -5,6 +5,7 @@ import type { BetaMessage } from '@anthropic-ai/sdk/resources/beta/messages/mess
 import { apiMotor, schemaZaehlen, type ModellKlient } from '../src/agenten/motor-api.js';
 import { attrappe } from '../src/agenten/motor-attrappe.js';
 import { testDorf } from './hilfen.js';
+import { werkzeugprofil } from '../src/agenten/leine.js';
 
 type Antwort = Partial<BetaMessage> & { content: BetaMessage['content']; stop_reason: BetaMessage['stop_reason'] };
 
@@ -75,7 +76,7 @@ describe('api-Motor', () => {
     const p = d.anfragen[0]!;
     expect(p).toMatchObject({ fallbacks: 'default', betas: ['server-side-fallback-2026-07-01'], cache_control: { type: 'ephemeral' }, output_config: { effort: 'high' }, model: 'claude-opus-5-5' });
     expect(p.tool_choice).toBeUndefined();
-    expect((p.tools as { name: string; strict?: boolean }[]).map((t) => t.name)).toEqual(['vault_lesen', 'vault_liste', 'vault_suchen', 'freigabe_beantragen', 'todo_liste', 'todo_anlegen', 'todo_bearbeiten', 'todo_loeschen', 'kirchturm_lesen', 'kirchturm_timer', 'kirchturm_wecker', 'pomodoro', 'pomodoro_einstellen', 'notiz_anlegen', 'termin_vorschlagen', 'vault_schreiben']);
+    expect((p.tools as { name: string; strict?: boolean }[]).map((t) => t.name)).toEqual(werkzeugprofil({ werkzeuge: ['vault_lesen', 'vault_suchen', 'vault_schreiben'], fremdinhalte: false }).dorf);
     // Regel der echten API: Bei strict muss JEDES Objekt im Schema additionalProperties: false haben
     // (am 17.11.2026 hat die API genau das für freigabe_beantragen mit 400 abgelehnt).
     const objekteOhneFesteFelder = (s: unknown): boolean => {
@@ -87,21 +88,13 @@ describe('api-Motor', () => {
     for (const t of p.tools as { name: string; strict?: boolean; input_schema: unknown }[]) {
       if (t.strict) expect(objekteOhneFesteFelder(t.input_schema), `${t.name} ist strict, aber nicht strict-tauglich`).toBe(false);
     }
-    expect((p.tools as { name: string; strict?: boolean }[]).filter((t) => t.strict).map((t) => t.name)).toEqual([
-      'vault_lesen',
-      'vault_liste',
-      'vault_suchen',
-      'todo_liste',
-      'todo_loeschen',
-      'kirchturm_lesen',
-      'kirchturm_timer',
-      'kirchturm_wecker',
-      'pomodoro',
-      'pomodoro_einstellen',
-      'notiz_anlegen',
-      'termin_vorschlagen',
-      'vault_schreiben',
-    ]);
+    // welche Werkzeuge strict sind, wählt strictAuswahl (billige zuerst) – die Lese-Werkzeuge und vault_schreiben gehören dazu,
+    // die Werkzeuge mit vielen optionalen Feldern nicht; höchstens 20 (E180, seit E185 gibt es mehr Werkzeuge als Plätze)
+    const strikt = (p.tools as { name: string; strict?: boolean }[]).filter((t) => t.strict).map((t) => t.name);
+    expect(strikt).toEqual(expect.arrayContaining(['vault_lesen', 'vault_liste', 'vault_suchen', 'vault_schreiben', 'todo_liste', 'kirchturm_lesen', 'notiz_anlegen', 'kontakt_suchen']));
+    expect(strikt).not.toContain('todo_anlegen');
+    expect(strikt).not.toContain('todo_bearbeiten');
+    expect(strikt.length).toBeLessThanOrEqual(20);
     // E180: zusammen höchstens 24 optionale Felder in strict-Werkzeugen (sonst 400) – todo_bearbeiten und (seit E183)
     // todo_anlegen laufen ohne strict, ihre Eingaben prüft die WerkzeugKiste mit Zod
     const optional = (p.tools as { strict?: boolean; input_schema: unknown }[]).filter((t) => t.strict).reduce((n, t) => n + schemaZaehlen(t.input_schema).optional, 0);

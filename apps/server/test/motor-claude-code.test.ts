@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { claudeCodeMotor, CcParser, fehlerErklaeren } from '../src/agenten/motor-claude-code.js';
 import { attrappe } from '../src/agenten/motor-attrappe.js';
 import { testDorf, tempOrdner } from './hilfen.js';
+import { werkzeugprofil } from '../src/agenten/leine.js';
 
 const WERKSTATT = path.resolve(import.meta.dirname, '../../werkstatt');
 const GEHEIMNIS = 'test-geheimnis-test-geheimnis-test-geheimnis';
@@ -89,7 +90,7 @@ describe('claude-code-Motor über die Werkstatt', () => {
     const c = d.agenten.chatDetail(chatId);
     expect(c.laeufe[0]).toMatchObject({ status: 'fertig', motor: 'claude-code', modell: 'claude-fable-5-2', einToken: 500, ausToken: 60 });
     const b = bericht(c.nachrichten.at(-1)!.text);
-    expect(b.werkzeuge.sort()).toEqual(['freigabe_beantragen', 'kirchturm_lesen', 'kirchturm_timer', 'kirchturm_wecker', 'notiz_anlegen', 'pomodoro', 'pomodoro_einstellen', 'termin_vorschlagen', 'todo_anlegen', 'todo_bearbeiten', 'todo_liste', 'todo_loeschen', 'vault_lesen', 'vault_liste', 'vault_schreiben', 'vault_suchen']);
+    expect(b.werkzeuge.sort()).toEqual([...werkzeugprofil({ werkzeuge: ['vault_lesen', 'vault_suchen', 'vault_schreiben'], fremdinhalte: false }).dorf].sort());
     expect(b.r1Fehler).toBe(false);
     expect(b.r2Fehler).toBe(true);
     expect(b.r2).toMatch(/Verweigert/);

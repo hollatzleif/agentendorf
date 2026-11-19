@@ -50,7 +50,8 @@ describe('Aktionen mit Zeitplan und Ablage', () => {
     expect(nach('falsch').fehler).toMatch(/irgendwann/);
     expect(nach('eingabe').fehler).toMatch(/standard-Wert/);
     expect(nach('fremd').fehler).toMatch(/im eigenen Gebäude/);
-    expect(nach('kalender').fehler).toMatch(/fremdinhalte/);
+    // E185: Kalender braucht kein „fremdinhalte: ja“ mehr
+    expect(nach('kalender').fehler).toBeUndefined();
   });
 
   it('Zeitplaner: neue Zeitpläne zählen ab jetzt, jeder Termin genau einmal, über den Motor der Aktion (nicht api), nachholen bis 3 h', async () => {
@@ -205,25 +206,56 @@ describe('Skills anlegen', () => {
     expect(liste.find((a) => a.id === 'Bibliothek/wochenplan')!.fehler).toBeUndefined();
 
     expect((await neu(entwurf)).statusCode).toBe(409);
-    const kaputt = await neu({ ...entwurf, name: 'Moodle ohne Fremd', werkzeuge: ['moodle'], fremdinhalte: false });
+    // E185: keine verbotenen Kombinationen mehr (Moodle ohne „fremdinhalte“, mit Web)
+    expect((await neu({ ...entwurf, name: 'Moodle mit Web', werkzeuge: ['moodle', 'web'], fremdinhalte: false })).statusCode).toBe(200);
+    const kaputt = await neu({ ...entwurf, name: 'Kaputter Zeitplan', zeitplan: 'irgendwann' });
     expect(kaputt.statusCode).toBe(400);
-    expect(kaputt.json().fehler).toMatch(/fremdinhalte/);
-    expect(await d.vault.existiert('Bibliothek/aktionen/moodle-ohne-fremd.md')).toBe(false);
+    expect(await d.vault.existiert('Bibliothek/aktionen/kaputter-zeitplan.md')).toBe(false);
     expect((await neu({ ...entwurf, name: 'X1', gebaeude: 'Gibtsnicht' })).statusCode).toBe(400);
     expect((await neu({ ...entwurf, name: 'Fremde Ablage', ablage: 'Rathaus/x.md' })).statusCode).toBe(400);
   });
 
-  it('Bürgermeister schlägt vor (Freigabe); erst nach Leifs Ja gibt es die Datei', async () => {
+  it('E185: Skill MIT Zeitplan bleibt eine Freigabe; erst nach Leifs Ja gibt es die Datei', async () => {
     const d = await testDorf();
-    const befehl = `<<werkzeug aktion_vorschlagen ${JSON.stringify({ ...entwurf, name: 'Wochenplan vom BM' })}>>`;
+    const befehl = `<<werkzeug aktion_anlegen ${JSON.stringify({ ...entwurf, name: 'Wochenplan vom BM' })}>>`;
     await d.agenten.aktionStarten('Rathaus/buergermeister', { aufgabe: befehl });
     await d.agenten.leerlauf();
     const f = d.agenten.freigaben.liste('offen').find((x) => x.art === 'aktion_anlegen')!;
-    expect(f.titel).toBe('Neuer Skill: Wochenplan vom BM (Bibliothek)');
+    expect(f.titel).toBe('Neuer Skill mit Zeitplan: Wochenplan vom BM (Bibliothek)');
     expect((f.inhalt as { markdown: string }).markdown).toContain('name: Wochenplan vom BM');
     expect(await d.vault.existiert('Bibliothek/aktionen/wochenplan-vom-bm.md')).toBe(false);
+    expect(d.agenten.rueckgaengig.liste()).toEqual([]);
     await d.agenten.freigaben.entscheiden(f.id, true);
     expect(await d.vault.existiert('Bibliothek/aktionen/wochenplan-vom-bm.md')).toBe(true);
+  });
+
+  it('E185: Skill OHNE Zeitplan legt der Bürgermeister direkt an und ersetzt ihn (Archiv); Leif nimmt beides mit einem Klick zurück', async () => {
+    const d = await testDorf();
+    const { zeitplan: _z, ...ohne } = entwurf;
+    const bm = async (e: object) => {
+      const r = await d.agenten.aktionStarten('Rathaus/buergermeister', { aufgabe: `<<werkzeug aktion_anlegen ${JSON.stringify(e)}>>` });
+      await d.agenten.leerlauf();
+      return d.agenten.chatDetail(r.chatId).nachrichten.find((n) => n.rolle === 'werkzeug')!.text;
+    };
+    const pfad = 'Bibliothek/aktionen/mail-entwerfen.md';
+    expect(await bm({ ...ohne, name: 'Mail entwerfen', anweisung: 'Erste Fassung der Anweisung.' })).toMatch(/^aktion_anlegen: Skill angelegt: Bibliothek\/mail-entwerfen\./);
+    expect((await d.vault.lesen(pfad)).inhalt).toContain('Erste Fassung');
+    expect(d.agenten.freigaben.liste('offen')).toEqual([]);
+    // gleicher Name ohne „ersetzen“ → abgelehnt; mit „ersetzen“ → alte Fassung ins Archiv
+    expect(await bm({ ...ohne, name: 'Mail entwerfen', anweisung: 'Zweite Fassung der Anweisung.' })).toMatch(/\(verweigert\) Es gibt schon eine Aktion/);
+    expect(await bm({ ...ohne, name: 'Mail entwerfen', anweisung: 'Zweite Fassung der Anweisung.', ersetzen: true })).toMatch(/Skill ersetzt \(alte Fassung: Bibliothek\/archiv\/aktionen\/.+_mail-entwerfen\.md\)/);
+    expect((await d.vault.lesen(pfad)).inhalt).toContain('Zweite Fassung');
+    // seine eigene Aktion ersetzt er nicht
+    expect(await bm({ ...ohne, gebaeude: 'Rathaus', ablage: 'Rathaus/00_x.md', name: 'Buergermeister', anweisung: 'Ich darf jetzt alles.', ersetzen: true })).toMatch(/\(verweigert\) Die Aktion des Bürgermeisters ändert nur Leif/);
+    expect((await d.vault.lesen('Rathaus/aktionen/buergermeister.md')).inhalt).toContain('rolle: buergermeister');
+    // Rückgängig: erst die Änderung (alte Fassung zurück), dann das Anlegen (Papierkorb) – je genau einmal
+    const [geaendert, neuAngelegt] = d.agenten.rueckgaengig.liste();
+    expect([geaendert!.titel, neuAngelegt!.titel]).toEqual(['Skill geändert: Mail entwerfen (Bibliothek)', 'Neuer Skill: Mail entwerfen (Bibliothek)']);
+    expect((await d.agenten.rueckgaengig.zuruecknehmen(geaendert!.id)).status).toBe('zurueckgenommen');
+    expect((await d.vault.lesen(pfad)).inhalt).toContain('Erste Fassung');
+    expect((await d.agenten.rueckgaengig.zuruecknehmen(neuAngelegt!.id)).ergebnis).toMatch(/In den Papierkorb gelegt/);
+    expect(await d.vault.existiert(pfad)).toBe(false);
+    await expect(d.agenten.rueckgaengig.zuruecknehmen(neuAngelegt!.id)).rejects.toThrow(/schon zurückgenommen/);
   });
 });
 

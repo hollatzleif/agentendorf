@@ -24,7 +24,20 @@ export interface GmailKlient {
   seit(startHistoryId: string): Promise<{ ids: string[]; historyId: string } | null>;
   nachricht(id: string): Promise<Mail>;
   /** Legt einen ENTWURF an – gesendet wird nie */
-  entwurf(e: { an: string; betreff: string; text: string; threadId?: string; antwortAuf?: { messageId: string; referenzen: string } }): Promise<{ id: string }>;
+  entwurf(e: EntwurfEingabe): Promise<{ id: string }>;
+  /** E185: ersetzt einen bestehenden ENTWURF (drafts.update) – gesendet wird nie */
+  entwurfAendern?(id: string, e: EntwurfEingabe): Promise<{ id: string }>;
+}
+
+export interface EntwurfEingabe {
+  an: string;
+  cc?: string;
+  betreff: string;
+  text: string;
+  threadId?: string;
+  antwortAuf?: { messageId: string; referenzen: string };
+  /** E185: Dateien aus dem Vault als Anhang */
+  anhaenge?: { name: string; mime: string; daten: Buffer }[];
 }
 
 export class GmailFehler extends Error {
@@ -65,22 +78,28 @@ function kopfKodieren(w: string) {
   return /^[\x20-\x7e]*$/.test(w) ? w : `=?UTF-8?B?${Buffer.from(w, 'utf8').toString('base64')}?=`;
 }
 
-/** Baut die Rohnachricht (RFC 5322) für einen Entwurf */
-export function rohNachricht(e: { an: string; betreff: string; text: string; antwortAuf?: { messageId: string; referenzen: string } }) {
-  if (/[\r\n]/.test(e.an) || /[\r\n]/.test(e.betreff)) throw new Error('Empfänger und Betreff dürfen keine Zeilenumbrüche enthalten.');
-  const koepfe = [
-    `To: ${e.an}`,
-    `Subject: ${kopfKodieren(e.betreff)}`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=UTF-8',
-    'Content-Transfer-Encoding: base64',
-  ];
+/** Baut die Rohnachricht (RFC 5322) für einen Entwurf – mit Anhängen als multipart/mixed */
+export function rohNachricht(e: EntwurfEingabe) {
+  if (/[\r\n]/.test(e.an) || /[\r\n]/.test(e.betreff) || /[\r\n]/.test(e.cc ?? '')) throw new Error('Empfänger und Betreff dürfen keine Zeilenumbrüche enthalten.');
+  const b64 = (b: Buffer) => b.toString('base64').replace(/.{76}/g, '$&\r\n');
+  const koepfe = [`To: ${e.an}`, ...(e.cc ? [`Cc: ${e.cc}`] : []), `Subject: ${kopfKodieren(e.betreff)}`, 'MIME-Version: 1.0'];
   if (e.antwortAuf?.messageId) {
     koepfe.push(`In-Reply-To: ${e.antwortAuf.messageId}`);
     koepfe.push(`References: ${`${e.antwortAuf.referenzen} ${e.antwortAuf.messageId}`.trim()}`);
   }
-  const rumpf = Buffer.from(e.text, 'utf8').toString('base64').replace(/.{76}/g, '$&\r\n');
-  return Buffer.from(`${koepfe.join('\r\n')}\r\n\r\n${rumpf}\r\n`, 'utf8').toString('base64url');
+  const textKopf = ['Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: base64'];
+  const rumpf = b64(Buffer.from(e.text, 'utf8'));
+  if (!e.anhaenge?.length) return Buffer.from(`${[...koepfe, ...textKopf].join('\r\n')}\r\n\r\n${rumpf}\r\n`, 'utf8').toString('base64url');
+  const grenze = `dorf-${Buffer.from(`${e.betreff}${e.anhaenge.length}${e.text.length}`).toString('hex').slice(0, 24)}-teil`;
+  const teile = [
+    `--${grenze}\r\n${textKopf.join('\r\n')}\r\n\r\n${rumpf}\r\n`,
+    ...e.anhaenge.map((a) => {
+      const name = a.name.replace(/[^A-Za-z0-9._-]/g, '_');
+      if (!/^[\w.+-]+\/[\w.+-]+$/.test(a.mime)) throw new Error('Ungültiger Dateityp.');
+      return `--${grenze}\r\nContent-Type: ${a.mime}; name="${name}"\r\nContent-Disposition: attachment; filename="${name}"\r\nContent-Transfer-Encoding: base64\r\n\r\n${b64(a.daten)}\r\n`;
+    }),
+  ];
+  return Buffer.from(`${[...koepfe, `Content-Type: multipart/mixed; boundary="${grenze}"`].join('\r\n')}\r\n\r\n${teile.join('')}--${grenze}--\r\n`, 'utf8').toString('base64url');
 }
 
 export function gmailKlient(zugang: GoogleZugang, basis = 'https://gmail.googleapis.com'): GmailKlient {
@@ -161,6 +180,10 @@ export function gmailKlient(zugang: GoogleZugang, basis = 'https://gmail.googlea
     },
     async entwurf(e) {
       const r = await anfrage<{ id: string }>('/drafts', { method: 'POST', body: JSON.stringify({ message: { raw: rohNachricht(e), ...(e.threadId ? { threadId: e.threadId } : {}) } }) });
+      return { id: r.id };
+    },
+    async entwurfAendern(id, e) {
+      const r = await anfrage<{ id: string }>(`/drafts/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify({ message: { raw: rohNachricht(e), ...(e.threadId ? { threadId: e.threadId } : {}) } }) });
       return { id: r.id };
     },
   };

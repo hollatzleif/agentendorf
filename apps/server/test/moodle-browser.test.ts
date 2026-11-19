@@ -69,13 +69,13 @@ function fakeBrowser() {
 }
 
 describe('Moodle-Browser im Dorf', () => {
-  it('Leine: Moodle-Werkzeuge nur mit werkzeuge: [moodle] und fremdinhalte: ja, nie zusammen mit web', () => {
+  it('Leine: Moodle-Werkzeuge nur mit werkzeuge: [moodle]; seit E185 auch zusammen mit Web (Leifs Entscheidung)', () => {
     expect(werkzeugprofil({ werkzeuge: ['vault_lesen', 'moodle'], fremdinhalte: true }).dorf).toEqual(
       expect.arrayContaining(['moodle_oeffnen', 'moodle_klicken', 'moodle_seite', 'moodle_zurueck', 'moodle_bild', 'moodle_herunterladen']),
     );
     expect(werkzeugprofil({ werkzeuge: ['vault_lesen'], fremdinhalte: true }).dorf).not.toContain('moodle_oeffnen');
-    expect(aktionPruefen({ werkzeuge: ['moodle'], fremdinhalte: false })).toMatch(/fremdinhalte: ja/);
-    expect(aktionPruefen({ werkzeuge: ['moodle', 'web'], fremdinhalte: true })).toMatch(/schließen sich aus/);
+    expect(aktionPruefen({ werkzeuge: ['moodle'], fremdinhalte: false })).toBeNull();
+    expect(werkzeugprofil({ werkzeuge: ['moodle', 'web'], fremdinhalte: true })).toMatchObject({ web: true });
   });
 
   it('Seiten kommen in der Fremdinhalt-Hülle; Download nur in den Fach-Ordner, nie überschreiben; Sitzung wird geschlossen', async () => {

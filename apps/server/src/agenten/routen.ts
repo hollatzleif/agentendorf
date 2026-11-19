@@ -58,6 +58,12 @@ export function agentenRouten(
     const { text } = z.object({ text: z.string().max(100_000) }).parse(req.body);
     return agenten.nachrichtSenden(id, text);
   });
+  // E185: wartende Nachricht wieder herausnehmen
+  app.delete('/api/chats/:id/wartend/:nr', async (req) => {
+    const p = z.object({ id: z.string(), nr: z.coerce.number().int() }).parse(req.params);
+    agenten.wartendeLoeschen(p.id, p.nr);
+    return { ok: true };
+  });
   app.post('/api/laeufe/:id/abbrechen', async (req) => {
     agenten.abbrechen(z.object({ id: z.string() }).parse(req.params).id);
     return { ok: true };
@@ -73,6 +79,10 @@ export function agentenRouten(
     const { annehmen, grund } = z.object({ annehmen: z.boolean(), grund: z.string().max(2000).optional() }).parse(req.body);
     return agenten.freigaben.entscheiden(id, annehmen, 'leif', grund);
   });
+
+  // E185: was Agenten ohne Rückfrage getan haben – und der Knopf, der es genau einmal zurücknimmt
+  app.get('/api/rueckgaengig', async () => agenten.rueckgaengig.liste());
+  app.post('/api/rueckgaengig/:id', async (req) => agenten.rueckgaengig.zuruecknehmen(z.object({ id: z.string() }).parse(req.params).id));
 
   app.get('/api/verbrauch', async () => verbrauchAuswerten(d.db, d.uhr.jetzt()));
 

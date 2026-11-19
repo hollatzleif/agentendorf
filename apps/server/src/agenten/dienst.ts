@@ -11,13 +11,16 @@ import { aktionLaden, eingabenAnwenden, type QuellenFn } from './aktionen.js';
 import { ablageOrdner, type RechenraumKlient } from './rechenraum.js';
 import type { MoodleBrowserKlient } from './moodle-browser.js';
 import type { GmailKlient } from '../post/gmail.js';
-import { ALLTAG_WERKZEUGE, BUERGERMEISTER_WERKZEUGE, LESE_WERKZEUGE, POST_NEU_WERKZEUG, TODO_WERKZEUGE, werkzeugprofil, type DorfWerkzeug } from './leine.js';
+import { BUERGERMEISTER_WERKZEUGE, werkzeugeAktuell, werkzeugprofil, type DorfWerkzeug, type HelferFaehigkeit } from './leine.js';
+import { Rueckgaengig } from './rueckgaengig.js';
+import type { Kontakte } from '../kontakte.js';
+import type { GoogleKalender } from '../kalender-google.js';
 import type { Kirchturm } from '../kirchturm.js';
 import type { Notizen } from '../notizen.js';
 import { kostenSchaetzen, motorenLaden, stufenLaden } from './modelle.js';
 import { anhaengeLaden, auftragMitAnhaengen, systemPromptBauen } from './kontext.js';
 import { wissenLaden } from './gedaechtnis.js';
-import { WerkzeugKiste, type KalenderEintrag, type RollenHandler } from './werkzeuge.js';
+import { WERKZEUG_DEFINITIONEN, WerkzeugKiste, type KalenderEintrag, type RollenHandler } from './werkzeuge.js';
 import type { Ablage } from './automatik.js';
 import { Freigaben } from './freigaben.js';
 import { AbbruchFehler, type Anhang, type Motor, type Verlauf } from './motor.js';
@@ -99,6 +102,16 @@ export interface ChatHerkunft {
   planId?: string;
   /** zusätzliche Anhänge (z. B. die Notiz vom Schreibtisch) */
   extraAnhaenge?: string[];
+  /** E185: Zusatz zum Auftrag einer Aktion (Auftrag des Bürgermeisters, Ergebnisse der Vorgänger im Plan) */
+  zusatz?: string;
+}
+
+/** E185: Rückfrage eines Agenten an Leif (Antwort-Knöpfe in Telegram, Antwort landet als Nachricht im Chat) */
+export interface RueckfrageInfo {
+  id: string;
+  chatId: string;
+  frage: string;
+  optionen: string[];
 }
 
 export interface LaufEnde {
@@ -140,6 +153,11 @@ export class AgentenDienst {
   /** E183: Kirchturm und Tagesnotizen für die Alltags-Werkzeuge (in dorf.ts gesetzt) */
   kirchturm?: Kirchturm;
   notizen?: Notizen;
+  /** E185: Termine direkt (Google-Kalender), Adressbuch, „Rückgängig“ statt Freigabe, Rückfragen */
+  termine?: GoogleKalender;
+  kontakte?: Kontakte;
+  readonly rueckgaengig: Rueckgaengig;
+  readonly beiRueckfrage: ((r: RueckfrageInfo) => void | Promise<void>)[] = [];
 
   constructor(
     private db: DB,
@@ -151,6 +169,8 @@ export class AgentenDienst {
   ) {
     this.freigaben = new Freigaben(db, uhr, vault);
     this.freigaben.beiAenderung = () => hub.senden({ typ: 'freigaben.geaendert' });
+    this.rueckgaengig = new Rueckgaengig(db, uhr);
+    this.rueckgaengig.beiAenderung = () => hub.senden({ typ: 'freigaben.geaendert' });
     this.freigaben.registrieren('lauf_starten', async ({ laufId }) => {
       const r = this.db.prepare("UPDATE laeufe SET status = 'wartend' WHERE id = ? AND status = 'wartet_freigabe'").run(laufId);
       if (r.changes !== 1) throw new Error('Lauf wartet nicht (mehr) auf Freigabe.');
@@ -175,11 +195,14 @@ export class AgentenDienst {
     const { prompt: rohPrompt, anhaenge, werte, ablage } = eingabenAnwenden(a, eingaben, this.quellen);
     // Ablage (E60): Entwurfsname und Hinweise vom Code; der Tausch passiert erst nach erfolgreichem Lauf
     const abl = this.ablage?.vorbereiten(a, ablage) ?? null;
-    const prompt = abl ? `${rohPrompt}\n${abl.zusatz}` : rohPrompt;
-    const profil = werkzeugprofil(a); // wirft bei Widerspruch (Web + Fremdinhalte)
+    const mitZusatz = herkunft.zusatz?.trim() ? `${rohPrompt}\n\n---\nZusatz vom Bürgermeister zu diesem Auftrag:\n${herkunft.zusatz.trim()}` : rohPrompt;
+    const prompt = abl ? `${mitZusatz}\n${abl.zusatz}` : mitZusatz;
+    const profil = werkzeugprofil(a);
     const erstesFeld = Object.values(werte).find((w) => w.trim()) ?? '';
     const titel = `${a.name}${erstesFeld ? `: ${erstesFeld.replace(/\s+/g, ' ').slice(0, 60)}` : ''}`;
-    const werkzeugListe: string[] = [...new Set([...profil.dorf, ...(a.rolle === 'buergermeister' ? BUERGERMEISTER_WERKZEUGE : []), ...(profil.web ? ['web'] : [])])];
+    // E185: Der Bürgermeister erledigt Kurzes selbst – Post, Kalender, Adressbuch und Web hat er immer (unabhängig von der Aktionsdatei)
+    const bm = a.rolle === 'buergermeister';
+    const werkzeugListe: string[] = [...new Set([...profil.dorf, ...(bm ? BUERGERMEISTER_WERKZEUGE : []), ...(profil.web || bm ? ['web'] : [])])];
     const chatId = await this.chatAnlegen({
       gebaeude: a.gebaeude,
       aktion: a.id,
@@ -256,12 +279,13 @@ export class AgentenDienst {
   }
 
   /**
-   * Freier Helfer (ohne Aktionsdatei): arbeitet im Zielgebäude nach dessen Arbeitsanweisung,
-   * mit Standard-Werkzeugen (lesen, schreiben im Gebäude, Freigaben) – kein Web. Motor: claude-code (zählt als Leifs Klick).
+   * Freier Helfer (ohne Aktionsdatei): arbeitet im Zielgebäude nach dessen Arbeitsanweisung – Vault, To-dos, Alltag;
+   * mit `faehigkeiten` zusätzlich Web, Post, Kalender, Moodle oder Rechenraum (E185). Motor: claude-code.
    */
-  async helferStarten(o: { gebaeude: string; titel: string; auftrag: string; stufe: Stufe; ausloeser: Ausloeser; herkunft: ChatHerkunft }) {
-    // E183: wie jede Aktion ohne Fremdinhalte auch To-dos und Alltag (Kirchturm, Notizen, Termin-Vorschläge)
-    const werkzeuge: DorfWerkzeug[] = [...LESE_WERKZEUGE, 'freigabe_beantragen', ...TODO_WERKZEUGE, ...ALLTAG_WERKZEUGE, 'vault_schreiben'];
+  async helferStarten(o: { gebaeude: string; titel: string; auftrag: string; stufe: Stufe; ausloeser: Ausloeser; herkunft: ChatHerkunft; faehigkeiten?: HelferFaehigkeit[] }) {
+    const f = o.faehigkeiten ?? [];
+    const profil = werkzeugprofil({ werkzeuge: ['vault_lesen', 'vault_suchen', 'vault_schreiben', ...f], fremdinhalte: false });
+    const werkzeuge: string[] = [...profil.dorf, ...(profil.web ? ['web'] : [])];
     const chatId = await this.chatAnlegen({
       gebaeude: o.gebaeude,
       aktion: null,
@@ -278,7 +302,7 @@ export class AgentenDienst {
 
 Auftrag: ${o.titel}
 
-${o.auftrag}
+${o.auftrag}${o.herkunft.zusatz?.trim() ? `\n\n${o.herkunft.zusatz.trim()}` : ''}
 
 Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab und nenne den Pfad in deiner Zusammenfassung.`;
     const laufId = this.laufAnlegen(chatId, prompt, o.ausloeser, false);
@@ -298,15 +322,78 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
     this.hub.senden({ typ: 'chat.geaendert', chatId, gebaeude: c.gebaeude });
   }
 
-  /** Setzt einen Chat mit einer neuen Nachricht von Leif fort. */
-  nachrichtSenden(chatId: string, text: string, ausloeser: Ausloeser = 'klick') {
+  /**
+   * Setzt einen Chat mit einer neuen Nachricht fort. Läuft dort gerade etwas, kommt sie in die Warteschlange (E185) und
+   * wird nach dem aktuellen Schritt übergeben – nichts geht verloren, weder Leifs Nachschub noch Meldungen des Dorfs.
+   */
+  nachrichtSenden(chatId: string, text: string, ausloeser: Ausloeser = 'klick'): { laufId?: string; wartend?: number } {
     const c = this.chatZeile(chatId);
     if (!text.trim()) throw new DorfFehler(400, 'Nachricht ist leer.');
-    const offen = this.db.prepare("SELECT 1 FROM laeufe WHERE chat_id = ? AND status IN ('wartet_freigabe', 'wartend', 'laeuft')").get(chatId);
-    if (offen) throw new DorfFehler(409, 'In diesem Chat läuft gerade noch etwas.');
+    if (this.offenerLauf(chatId)) {
+      this.db.prepare('INSERT INTO chat_warteschlange (chat_id, text, ausloeser, erstellt) VALUES (?, ?, ?, ?)').run(chatId, text, ausloeser, this.uhr.jetzt());
+      this.hub.senden({ typ: 'chat.geaendert', chatId, gebaeude: c.gebaeude });
+      return { wartend: this.wartend(chatId).length };
+    }
     const laufId = this.laufAnlegen(c.id, text, ausloeser, false);
     this.anstossen();
     return { laufId };
+  }
+
+  private offenerLauf(chatId: string) {
+    return !!this.db.prepare("SELECT 1 FROM laeufe WHERE chat_id = ? AND status IN ('wartet_freigabe', 'wartend', 'laeuft')").get(chatId);
+  }
+
+  wartend(chatId: string) {
+    return (this.db.prepare('SELECT id, text, erstellt FROM chat_warteschlange WHERE chat_id = ? ORDER BY id').all(chatId) as { id: number; text: string; erstellt: number }[]).map((w) => ({
+      id: w.id,
+      text: w.text,
+      erstellt: iso(w.erstellt)!,
+    }));
+  }
+
+  /** Eine wartende Nachricht wieder herausnehmen (Leif hat es sich anders überlegt) */
+  wartendeLoeschen(chatId: string, id: number) {
+    const c = this.chatZeile(chatId);
+    const r = this.db.prepare('DELETE FROM chat_warteschlange WHERE chat_id = ? AND id = ?').run(chatId, id);
+    if (r.changes !== 1) throw new DorfFehler(404, 'Diese Nachricht wartet nicht mehr – sie wurde schon übergeben.');
+    this.hub.senden({ typ: 'chat.geaendert', chatId, gebaeude: c.gebaeude });
+  }
+
+  /** Nimmt alles Wartende eines Chats heraus (atomar) – für den nächsten Lauf oder als Nachschub in den laufenden */
+  private schlangeNehmen(chatId: string) {
+    return this.db.transaction(() => {
+      const z = this.db.prepare('SELECT id, text, ausloeser FROM chat_warteschlange WHERE chat_id = ? ORDER BY id').all(chatId) as { id: number; text: string; ausloeser: Ausloeser }[];
+      if (z.length) this.db.prepare('DELETE FROM chat_warteschlange WHERE chat_id = ?').run(chatId);
+      return z;
+    })();
+  }
+
+  /** Nach einem Lauf: Wartendes gesammelt als EINEN neuen Lauf übergeben */
+  private schlangeUebergeben(chatId: string) {
+    if (this.offenerLauf(chatId)) return;
+    const z = this.schlangeNehmen(chatId);
+    if (!z.length) return;
+    const text = z.length === 1 ? z[0]!.text : z.map((x, i) => `Nachricht ${i + 1}:\n${x.text}`).join('\n\n---\n\n');
+    this.laufAnlegen(chatId, text, z.some((x) => x.ausloeser !== 'zeitplan') ? 'klick' : 'zeitplan', false);
+  }
+
+  /** E185: Rückfrage eines Agenten – als Hinweis im Chat, Zuhörer (Telegram) schicken Knöpfe */
+  async rueckfrageStellen(f: { chatId: string; frage: string; optionen: string[] }) {
+    const id = crypto.randomUUID().slice(0, 12);
+    this.db.prepare('INSERT INTO rueckfragen (id, chat_id, frage, optionen_json, erstellt) VALUES (?, ?, ?, ?, ?)').run(id, f.chatId, f.frage, JSON.stringify(f.optionen), this.uhr.jetzt());
+    await this.hinweisSchreiben(f.chatId, `❓ **Rückfrage:** ${f.frage}${f.optionen.length ? `\n\n${f.optionen.map((o) => `- ${o}`).join('\n')}` : ''}\n\n_Antworte einfach hier im Chat._`);
+    for (const fn of this.beiRueckfrage) await Promise.resolve(fn({ id, ...f })).catch((e) => console.error('Rückfrage-Zuhörer fehlgeschlagen', e));
+  }
+
+  /** Antwort per Knopf: genau einmal, landet als Leifs Nachricht im Chat */
+  rueckfrageBeantworten(id: string, nr: number) {
+    const z = this.db.prepare('SELECT chat_id, optionen_json FROM rueckfragen WHERE id = ?').get(id) as { chat_id: string; optionen_json: string } | undefined;
+    const antwort = z ? (JSON.parse(z.optionen_json) as string[])[nr] : undefined;
+    if (!z || antwort === undefined) throw new DorfFehler(404, 'Diese Rückfrage gibt es nicht.');
+    const r = this.db.prepare('UPDATE rueckfragen SET antwort = ? WHERE id = ? AND antwort IS NULL').run(antwort, id);
+    if (r.changes !== 1) throw new DorfFehler(409, 'Schon beantwortet.');
+    this.nachrichtSenden(z.chat_id, antwort, 'klick');
+    return { chatId: z.chat_id, antwort };
   }
 
   abbrechen(laufId: string) {
@@ -314,6 +401,8 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
     if (l.status === 'wartend' || l.status === 'wartet_freigabe') {
       this.db.prepare("UPDATE laeufe SET status = 'abgebrochen', ende = ? WHERE id = ?").run(this.uhr.jetzt(), laufId);
       this.statusMelden(laufId);
+      this.schlangeUebergeben(l.chat_id);
+      this.anstossen();
       return;
     }
     if (l.status !== 'laeuft') throw new DorfFehler(409, 'Dieser Lauf ist schon beendet.');
@@ -401,7 +490,7 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
       // Das Modell steht im Chat fest; der Aufwand kommt aus der aktuellen Stufe.
       this.db.prepare('UPDATE laeufe SET aufwand = ?, modell = ? WHERE id = ?').run(s.aufwand, c.modell, laufId);
       const motor = this.motoren[l.motor];
-      const werkzeugListe = JSON.parse(c.werkzeuge_json) as string[];
+      const werkzeugListe = werkzeugeAktuell(JSON.parse(c.werkzeuge_json) as string[], (n) => n in WERKZEUG_DEFINITIONEN);
       const profil = { dorf: werkzeugListe.filter((w) => w !== 'web') as DorfWerkzeug[], web: werkzeugListe.includes('web') };
       // Bürgermeister (E61): Gedächtnis und Persönlichkeit einmal lesen – für den Prompt und als bekannte Fassung
       const wissen = c.rolle === 'buergermeister' ? await wissenLaden(this.vault) : null;
@@ -420,7 +509,7 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
             this.rechenraum && profil.dorf.includes('rechenraum_befehl')
               ? { klient: this.rechenraum, ablage: ablageOrdner({ gebaeude: c.gebaeude, titel: c.titel, erstellt: c.erstellt, eingaben: JSON.parse(c.eingaben_json || '{}') }) }
               : undefined,
-          post: profil.dorf.includes('post_lesen') || profil.dorf.includes(POST_NEU_WERKZEUG) ? this.post : undefined,
+          post: profil.dorf.includes('post_lesen') || profil.dorf.includes('post_entwurf_neu') ? this.post : undefined,
           moodle: this.moodleBrowser && profil.dorf.includes('moodle_oeffnen') ? this.moodleBrowser : undefined,
           kalender: profil.dorf.includes('kalender_lesen') ? this.kalender : undefined,
           wissen: wissen ? { gedaechtnisVersion: wissen.gedaechtnisVersion } : undefined,
@@ -429,6 +518,10 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
           notizen: this.notizen,
           fremdinhalte: !!c.fremdinhalte,
           web: profil.web,
+          termine: this.termine,
+          kontakte: this.kontakte,
+          rueckgaengig: this.rueckgaengig,
+          rueckfrage: (f) => this.rueckfrageStellen(f),
         },
         c.rolle === 'buergermeister' ? this.rollenWerkzeuge : undefined,
       );
@@ -448,7 +541,7 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
       }
       const verlauf = this.verlaufFuer(c, l.motor);
 
-      for await (const e of motor.starten({ laufId, chatId: c.id, modell: c.modell, aufwand: s.aufwand, system, nachricht, anhaenge, verlauf, werkzeuge: kiste, web: profil.web, signal: ac.signal, liveText: (text) => this.hub.senden({ typ: 'lauf.text', laufId, chatId: c.id, text }) })) {
+      for await (const e of motor.starten({ laufId, chatId: c.id, modell: c.modell, aufwand: s.aufwand, system, nachricht, anhaenge, verlauf, werkzeuge: kiste, web: profil.web, signal: ac.signal, nachschub: () => this.schlangeNehmen(c.id).map((x) => x.text), liveText: (text) => this.hub.senden({ typ: 'lauf.text', laufId, chatId: c.id, text }) })) {
         switch (e.typ) {
           case 'text':
             this.hub.senden({ typ: 'lauf.text', laufId, chatId: c.id, text: e.text });
@@ -510,6 +603,12 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
       }
       this.laufend.delete(laufId);
       this.statusMelden(laufId);
+      // E185: was Leif (oder das Dorf) während des Laufs nachgeschoben hat, kommt jetzt dran
+      try {
+        this.schlangeUebergeben(c.id);
+      } catch (e) {
+        console.error('Warteschlange übergeben fehlgeschlagen', e);
+      }
       this.hub.senden({ typ: 'chat.geaendert', chatId: c.id, gebaeude: c.gebaeude });
       this.hub.senden({ typ: 'verbrauch.geaendert' });
       this.anstossen();
@@ -597,7 +696,7 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
         erstellt: number;
       }[]
     ).map((n) => ({ id: n.id, laufId: n.lauf_id ?? undefined, rolle: n.rolle, text: n.text, erstellt: iso(n.erstellt)! }));
-    return { ...this.chatInfo(c, laeufe.at(-1)?.status), nachrichten, laeufe };
+    return { ...this.chatInfo(c, laeufe.at(-1)?.status), nachrichten, laeufe, wartend: this.wartend(id) };
   }
 
   aktiveLaeufe(): LaufInfo[] {

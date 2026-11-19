@@ -100,13 +100,66 @@ describe('Läufe, Chats, Protokolle', () => {
     expect(d.agenten.chatDetail(chatId).laeufe[0]!.status).toBe('fertig');
   });
 
-  it('Fortsetzen ist gesperrt, solange noch ein Lauf offen ist; Web+Fremdinhalt-Aktionen starten nicht', async () => {
+  it('E185 Warteschlange: Nachrichten während eines Laufs warten und kommen danach gesammelt als EIN Lauf dran; Löschen geht, solange sie warten', async () => {
     const d = await dorfMitAktion();
-    const { chatId } = await d.agenten.aktionStarten('Uni/test', { auftrag: '[warte 200]' });
-    expect(() => d.agenten.nachrichtSenden(chatId, 'noch was')).toThrow(/läuft gerade/);
+    const { chatId } = await d.agenten.aktionStarten('Uni/test', { auftrag: '[warte 250]' });
+    expect(d.agenten.nachrichtSenden(chatId, 'noch was')).toEqual({ wartend: 1 });
+    expect(d.agenten.nachrichtSenden(chatId, 'das hier doch nicht')).toEqual({ wartend: 2 });
+    expect(d.agenten.nachrichtSenden(chatId, 'und der Betreff soll kürzer sein')).toEqual({ wartend: 3 });
+    const wartend = d.agenten.chatDetail(chatId).wartend;
+    expect(wartend.map((w) => w.text)).toEqual(['noch was', 'das hier doch nicht', 'und der Betreff soll kürzer sein']);
+    // noch kein zweiter Lauf, nichts im Verlauf
+    expect(d.agenten.chatDetail(chatId).laeufe).toHaveLength(1);
+    d.agenten.wartendeLoeschen(chatId, wartend[1]!.id);
+    expect(() => d.agenten.wartendeLoeschen(chatId, wartend[1]!.id)).toThrow(/wartet nicht mehr/);
     await d.agenten.leerlauf();
-    fs.writeFileSync(path.join(d.vault.wurzel, 'Uni/aktionen/web.md'), '---\nname: Web\nwerkzeuge: [web]\nfremdinhalte: ja\n---\nx');
-    await expect(d.agenten.aktionStarten('Uni/web', {})).rejects.toThrow(/fehlerhaft/);
+    const c = d.agenten.chatDetail(chatId);
+    expect(c.wartend).toEqual([]);
+    expect(c.laeufe.map((l) => l.status)).toEqual(['fertig', 'fertig']);
+    expect(c.laeufe[1]).toMatchObject({ ausloeser: 'klick', auftrag: 'Nachricht 1:\nnoch was\n\n---\n\nNachricht 2:\nund der Betreff soll kürzer sein' });
+    // ist der Chat frei, startet eine Nachricht wie bisher sofort einen Lauf
+    expect(d.agenten.nachrichtSenden(chatId, 'danke')).toEqual({ laufId: expect.any(String) });
+    await d.agenten.leerlauf();
+    expect(d.agenten.chatDetail(chatId).laeufe[2]!.auftrag).toBe('danke');
+    expect(() => d.agenten.nachrichtSenden(chatId, '   ')).toThrow(/leer/);
+  });
+
+  it('E185 Warteschlange: auch nach Abbruch und Fehler geht nichts verloren; Nachschub in den laufenden Lauf, wenn der Motor es kann', async () => {
+    const d = await dorfMitAktion();
+    // Abbruch: Leif bricht ab, um zu korrigieren – die Korrektur läuft danach
+    const a = await d.agenten.aktionStarten('Uni/test', { auftrag: '[warte 5000]' });
+    await new Promise((r) => setTimeout(r, 30));
+    d.agenten.nachrichtSenden(a.chatId, 'anders: bitte an Frau Leemhuis');
+    d.agenten.abbrechen(a.laufId);
+    await d.agenten.leerlauf();
+    expect(d.agenten.chatDetail(a.chatId).laeufe.map((l) => [l.status, l.auftrag.slice(0, 30)])).toEqual([
+      ['abgebrochen', '[warte 5000]'],
+      ['fertig', 'anders: bitte an Frau Leemhuis'],
+    ]);
+    // Fehler im Lauf
+    const f = await d.agenten.aktionStarten('Uni/test', { auftrag: '[warte 100] [fehler]' });
+    d.agenten.nachrichtSenden(f.chatId, 'trotzdem weiter');
+    await d.agenten.leerlauf();
+    expect(d.agenten.chatDetail(f.chatId).laeufe.map((l) => l.status)).toEqual(['fehler', 'fertig']);
+    // Nachschub: der Motor holt Wartendes zwischen den Schritten – dann gibt es KEINEN zweiten Lauf
+    const n = await d.agenten.aktionStarten('Uni/test', { auftrag: '[pause 200] [nachschub]' });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(d.agenten.nachrichtSenden(n.chatId, 'ach ja: mit Anhang')).toEqual({ wartend: 1 });
+    await d.agenten.leerlauf();
+    const c = d.agenten.chatDetail(n.chatId);
+    expect(c.laeufe).toHaveLength(1);
+    expect(c.wartend).toEqual([]);
+    expect(c.nachrichten.filter((x) => x.rolle === 'nutzer').map((x) => x.text)).toEqual(['[pause 200] [nachschub]', 'ach ja: mit Anhang']);
+  });
+
+  it('E185: Web + Fremdinhalte ist erlaubt (Leifs Entscheidung) – der Lauf bekommt Web, jeder Web-Abruf steht im werkzeug_log', async () => {
+    const d = await dorfMitAktion();
+    fs.writeFileSync(path.join(d.vault.wurzel, 'Uni/aktionen/web.md'), '---\nname: Web\nwerkzeuge: [web, post]\nfremdinhalte: ja\n---\nx');
+    const { chatId } = await d.agenten.aktionStarten('Uni/web', {});
+    await d.agenten.leerlauf();
+    expect(d.agenten.chatDetail(chatId).laeufe[0]!.status).toBe('fertig');
+    const werkzeuge = JSON.parse((d.db.prepare('SELECT werkzeuge_json FROM chats WHERE id = ?').get(chatId) as { werkzeuge_json: string }).werkzeuge_json) as string[];
+    expect(werkzeuge).toEqual(expect.arrayContaining(['web', 'post_lesen', 'post_entwurf_neu']));
   });
 
   it('nach einem Neustart gelten hängende Läufe als fehlgeschlagen', async () => {

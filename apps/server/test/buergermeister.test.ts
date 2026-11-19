@@ -41,12 +41,103 @@ describe('Schreibtisch und Bürgermeister', () => {
     expect(hinweise[0]!.text).toContain(`(/chats/${helfer[0]!.id})`);
   });
 
-  it('ab 2 Helfern nur mit Plan: der zweite helfer_starten wird verweigert', async () => {
+  it('E185: mehrere Helfer ohne Plan und ohne Freigabe – aber höchstens 5 je Aufgabe', async () => {
     const d = await dorf();
-    const { a, chat } = await d.aufgabe('Zwei Dinge [helfer Bibliothek|Eins] [helfer Uni|Zwei]');
-    expect(d.helferVon(a.chatId!)).toHaveLength(1);
+    const sieben = Array.from({ length: 7 }, (_, i) => `[helfer Bibliothek|Teil ${i + 1}]`).join(' ');
+    const { a, chat } = await d.aufgabe(`Viele Dinge ${sieben}`);
+    expect(d.helferVon(a.chatId!)).toHaveLength(5);
+    expect(d.agenten.freigaben.liste('offen')).toEqual([]);
     const werkzeug = chat().nachrichten.filter((n) => n.rolle === 'werkzeug').map((n) => n.text);
-    expect(werkzeug[1]).toMatch(/plan_vorlegen/);
+    expect(werkzeug[4]).toMatch(/^helfer_starten: Helfer gestartet/);
+    expect(werkzeug[5]).toMatch(/schon 5 Helfer – mehr startet das Dorf nicht/);
+    expect(d.schreibtisch.holen(a.id).status).toBe('erledigt');
+  });
+
+  it('E185: Plan ohne Leifs Wunsch startet sofort – keine Freigabe; Abschluss genau einmal, Bürgermeister erfährt die Ergebnisse', async () => {
+    const d = await dorf();
+    const { a, chat } = await d.aufgabe('Mach das [los Bibliothek|Übersicht; Uni|Lernplan]');
+    expect(d.agenten.freigaben.liste()).toEqual([]);
+    const plan = d.buergermeister.plaene()[0]!;
+    expect(plan).toMatchObject({ status: 'fertig', ohneFreigabe: true, uebersprungen: [] });
+    expect(plan.helfer.map((h) => h.status)).toEqual(['fertig', 'fertig']);
+    expect(d.schreibtisch.holen(a.id).status).toBe('erledigt');
+    const texte = chat().nachrichten.map((n) => n.text);
+    expect(texte.find((t) => t.startsWith('plan_vorlegen:'))).toMatch(/Plan gestartet, ohne Rückfrage \(2 Helfer gestartet\)/);
+    expect(texte.filter((t) => t.includes('✅ Plan gestartet – 2 Helfer gestartet.'))).toHaveLength(1);
+    expect(texte.filter((t) => t.includes('Alle Helfer sind fertig'))).toHaveLength(1);
+    // früher ging die Meldung des Dorfs verloren, wenn der Bürgermeister noch lief – jetzt bekommt er sie (Warteschlange)
+    expect(chat().laeufe.map((l) => l.auftrag.slice(0, 90))).toEqual([expect.stringContaining('Mach das'), expect.stringContaining('[Nachricht vom Dorf] Deine Helfer sind fertig (Plan abgeschlossen)')]);
+    expect((await d.vault.lesen(plan.vaultPfad!)).inhalt).toContain('Ohne Rückfrage gestartet');
+  });
+
+  it('E185: große Pläne (mehr als 5 Helfer) legt das Dorf trotzdem vor', async () => {
+    const d = await dorf();
+    const sechs = Array.from({ length: 6 }, (_, i) => `Bibliothek|T${i}`).join('; ');
+    const { a, chat } = await d.aufgabe(`Viel [los ${sechs}]`);
+    expect(d.schreibtisch.holen(a.id).status).toBe('plan_wartet');
+    expect(d.helferVon(a.chatId!)).toHaveLength(0);
+    expect(d.agenten.freigaben.liste('offen')).toMatchObject([{ art: 'plan_ausfuehren' }]);
+    expect(chat().nachrichten.find((n) => n.text.startsWith('plan_vorlegen:'))!.text).toMatch(/so große Pläne bestätigt Leif/);
+  });
+
+  it('E185 Reihenfolge: „nach“ startet erst, wenn der Vorgänger fertig ist, und bekommt dessen Ergebnis und Dateien mit', async () => {
+    const d = await dorf();
+    const { a } = await d.aufgabe('Mail an Frau Leemhuis [los Rathaus|Adresse suchen {warte 150} {schreibe Rathaus/2026-11-16_1300_adresse.md}; Post|Mail entwerfen|1; Bibliothek|Unabhängig]');
+    const plan = d.buergermeister.plaene()[0]!;
+    expect(plan.teilaufgaben.map((t) => t.nach)).toEqual([undefined, [1], undefined]);
+    expect(plan.status).toBe('fertig');
+    const lauf = (nr: number) => d.agenten.chatDetail(plan.helfer.find((h) => h.nr === nr)!.chatId).laeufe[0]!;
+    // 3 wartet auf niemanden und startet vor 2; 2 erst nach dem Ende von 1 (TestUhr steht – darum die Reihenfolge in der DB)
+    const reihenfolge = (d.db.prepare('SELECT id FROM laeufe ORDER BY rowid').all() as { id: string }[]).map((l) => l.id);
+    expect(reihenfolge.indexOf(lauf(3).id)).toBeLessThan(reihenfolge.indexOf(lauf(2).id));
+    expect(reihenfolge.indexOf(lauf(1).id)).toBeLessThan(reihenfolge.indexOf(lauf(3).id));
+    expect(lauf(2).auftrag).toMatch(/Dein Auftrag baut auf diesen Ergebnissen früherer Teilaufgaben auf[\s\S]*<fremdinhalt quelle="plan-vorgaenger">\n### Teilaufgabe 1: Adresse suchen[\s\S]*Abgelegte Dateien: Rathaus\/2026-11-16_1300_adresse\.md/);
+    expect(lauf(3).auftrag).not.toContain('plan-vorgaenger');
+    expect(d.schreibtisch.holen(a.id).status).toBe('erledigt');
+    expect(d.agenten.chatDetail(a.chatId!).nachrichten.filter((n) => n.text.includes('Alle Helfer sind fertig'))).toHaveLength(1);
+    expect(d.agenten.chatDetail(a.chatId!).nachrichten.find((n) => n.text.includes('✅ Plan gestartet'))!.text).toContain('2 Helfer gestartet, 1 warten auf ihre Vorgänger');
+  });
+
+  it('E185 Reihenfolge: scheitert der Vorgänger, fallen die Abhängigen aus (auch Ketten) – der Plan endet trotzdem genau einmal', async () => {
+    const d = await dorf();
+    const { a, chat } = await d.aufgabe('Kette [los Rathaus|Suchen {fehler}; Post|Entwerfen|1; Post|Nachfassen|2; Bibliothek|Daneben]');
+    const plan = d.buergermeister.plaene()[0]!;
+    expect(plan.status).toBe('fertig');
+    expect(plan.helfer.map((h) => [h.nr, h.status])).toEqual([
+      [1, 'fehler'],
+      [4, 'fertig'],
+    ]);
+    expect(plan.uebersprungen).toEqual([
+      { nr: 2, grund: 'Teilaufgabe 1 („Suchen“) ist nicht fertig geworden.' },
+      { nr: 3, grund: 'Teilaufgabe 2 („Entwerfen“) ist nicht fertig geworden.' },
+    ]);
+    expect(d.helferVon(a.chatId!)).toHaveLength(2);
+    const abschluss = chat().nachrichten.filter((n) => n.text.includes('Alle Helfer sind fertig'));
+    expect(abschluss).toHaveLength(1);
+    expect(abschluss[0]!.text).toContain('⏭️ Entwerfen (nicht gestartet: Teilaufgabe 1 („Suchen“) ist nicht fertig geworden.)');
+    // „nach“ darf nur nach vorn zeigen (keine Kreise, keine Selbstbezüge)
+    const v = await d.aufgabe('Kreis [los Rathaus|A|2; Post|B]');
+    expect(v.chat().nachrichten.find((n) => n.text.startsWith('plan_vorlegen:'))!.text).toMatch(/„nach“ darf nur auf frühere Teilaufgaben zeigen/);
+    expect(d.buergermeister.plaene()).toHaveLength(1);
+  });
+
+  it('E185: Aktionen bekommen den Auftrag des Bürgermeisters als Zusatz (früher ging er verloren); freie Helfer bekommen Fähigkeiten', async () => {
+    const d = await dorf();
+    const w = (n: string, e: unknown) => `<<werkzeug ${n} ${JSON.stringify(e)}>>`;
+    const { a } = await d.aufgabe(
+      `Zwei ${w('helfer_starten', { gebaeude: 'Rathaus', aktion: 'frage-stellen', eingaben: { frage: 'Wer ist Frau Leemhuis?' }, auftrag: 'Die Adresse lautet x@jku.at – nimm sie.', stufe: 'klein' })} ${w('helfer_starten', { gebaeude: 'Post', auftrag: 'Such im Web und in der Post', stufe: 'klein', faehigkeiten: ['web', 'post'] })} ${w('helfer_starten', { gebaeude: 'Post', auftrag: 'x', stufe: 'klein', faehigkeiten: ['bash'] })}`,
+    );
+    const [aktion, frei] = d.helferVon(a.chatId!).sort((x, y) => x.erstellt.localeCompare(y.erstellt) || (x.aktion ? -1 : 1));
+    expect(d.helferVon(a.chatId!)).toHaveLength(2);
+    const mitAktion = d.helferVon(a.chatId!).find((h) => h.aktion === 'Rathaus/frage-stellen')!;
+    expect(d.agenten.chatDetail(mitAktion.id).laeufe[0]!.auftrag).toMatch(/Zusatz vom Bürgermeister zu diesem Auftrag:\nDie Adresse lautet x@jku\.at – nimm sie\./);
+    const freier = d.helferVon(a.chatId!).find((h) => !h.aktion)!;
+    const hw = JSON.parse((d.db.prepare('SELECT werkzeuge_json FROM chats WHERE id = ?').get(freier.id) as { werkzeuge_json: string }).werkzeuge_json) as string[];
+    expect(hw).toEqual(expect.arrayContaining(['web', 'post_suchen', 'post_lesen', 'post_entwurf_neu', 'vault_schreiben']));
+    expect(hw).not.toContain('moodle_oeffnen');
+    void aktion;
+    void frei;
+    expect(d.agenten.chatDetail(a.chatId!).nachrichten.filter((n) => n.rolle === 'werkzeug')[2]!.text).toMatch(/\(verweigert\)|Ungültige Eingabe/);
   });
 
   it('Plan: erst nach Okay starten genau N Helfer, Abschluss genau einmal', async () => {

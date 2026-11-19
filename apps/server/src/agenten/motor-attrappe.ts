@@ -9,7 +9,10 @@ import { AbbruchFehler } from './motor.js';
  *   [fehler]           → wirft einen Fehler
  *   [warte <ms>]       → wartet (abbrechbar)
  *   [helfer Gebäude|Auftrag]              → Bürgermeister: helfer_starten (freier Helfer; {warte ms} im Auftrag → [warte ms])
- *   [plan Gebäude|Titel; Gebäude|Titel]   → Bürgermeister: plan_vorlegen
+ *   [plan Gebäude|Titel; Gebäude|Titel]   → Bürgermeister: plan_vorlegen mit bestaetigen (Leif wollte einen Plan → Freigabe)
+ *   [los Gebäude|Titel; Gebäude|Titel|1]  → plan_vorlegen ohne Rückfrage; dritter Teil = nach (Nummern der Vorgänger);
+ *                                           {warte ms} / {fehler} / {schreibe pfad} im Titel → der Helfer wartet, scheitert bzw. schreibt
+ *   [nachschub]                           → nach der Pause: nimmt Leifs nachgeschobene Nachrichten in den laufenden Lauf (wie der api-Motor)
  *   <<werkzeug name {json}>>              → beliebiges Werkzeug mit JSON-Eingabe
  *   [pause ms]                            → nach den Werkzeugen warten (abbrechbar)
  */
@@ -45,12 +48,14 @@ export function attrappe(name: 'api' | 'claude-code'): Motor {
         const r = await a.werkzeuge.aufrufen('helfer_starten', { gebaeude, auftrag: (auftrag ?? 'Auftrag').replace(/\{(warte \d+)\}/g, '[$1]'), stufe: 'klein' });
         yield { typ: 'nachricht', rolle: 'werkzeug', text: `helfer_starten: ${r.text}` };
       }
-      for (const [, inhalt] of m.matchAll(/\[plan ([^\]]+)\]/g)) {
+      // [plan …] = Leif wollte einen Plan sehen (Freigabe); [los …] = der Bürgermeister plant von sich aus (startet sofort, E185)
+      for (const [, art, inhalt] of m.matchAll(/\[(plan|los) ([^\]]+)\]/g)) {
         const teilaufgaben = inhalt!.split(';').map((t) => {
-          const [gebaeude, titel] = t.trim().split('|');
-          return { gebaeude, titel: titel ?? 'Teil', auftrag: `Bitte erledigen: ${titel}`, stufe: 'klein' };
+          const [gebaeude, titel, nach] = t.trim().split('|');
+          const befehle = (titel ?? '').replace(/\{(warte \d+|fehler|schreibe [^}]+)\}/g, '[$1]');
+          return { gebaeude, titel: (titel ?? 'Teil').replace(/\s*\{[^}]*\}/g, ''), auftrag: `Bitte erledigen: ${befehle}`, stufe: 'klein', ...(nach ? { nach: nach.split(',').map(Number) } : {}) };
         });
-        const r = await a.werkzeuge.aufrufen('plan_vorlegen', { zusammenfassung: 'Testplan', begruendung: 'Test', teilaufgaben });
+        const r = await a.werkzeuge.aufrufen('plan_vorlegen', { zusammenfassung: 'Testplan', begruendung: 'Test', teilaufgaben, ...(art === 'plan' ? { bestaetigen: true } : {}) });
         yield { typ: 'nachricht', rolle: 'werkzeug', text: `plan_vorlegen: ${r.text}` };
       }
       for (const [, name, json] of m.matchAll(/<<werkzeug (\w+) (\{.*?\})>>/g)) {
@@ -68,6 +73,7 @@ export function attrappe(name: 'api' | 'claude-code'): Motor {
           });
         });
       }
+      if (m.includes('[nachschub]')) for (const n of a.nachschub?.() ?? []) yield { typ: 'nachricht', rolle: 'nutzer', text: n };
       const teile = ['Erledigt. ', `(${name}, ${a.modell}, ${a.anhaenge.length} Anhänge, Verlauf: ${a.verlauf.apiNachrichten.length})`];
       for (const t of teile) yield { typ: 'text', text: t };
       const antwort = `${teile.join('')}\n\n## Zusammenfassung\n### Auftrag\n${m.slice(0, 80)}\n### Getan\nTest-Lauf.\n### Entschieden\n–\n### Offen\nNichts.\n### Auffälligkeiten\n–`;

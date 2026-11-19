@@ -8,7 +8,8 @@ import { normalisieren } from '../vault/pfade.js';
 import { DorfFehler } from '../fehler.js';
 
 /**
- * Freigaben: Alles mit Außenwirkung oder ohne Rückweg beantragt ein Agent nur.
+ * Freigaben: Alles mit Außenwirkung oder ohne Rückweg beantragt ein Agent nur (seit E185 nur noch das – was sich
+ * zurückholen lässt, tut er direkt, siehe rueckgaengig.ts).
  * Ausgeführt wird erst nach Leifs Klick – vom Dorf selbst, nie vom Agenten.
  * Jede Freigabe kann genau einmal entschieden werden.
  */
@@ -21,15 +22,21 @@ export const FREIGABE_ARTEN = {
   // Inhalt enthält zusätzlich den ganzen Plan (für Anzeige in App und Telegram)
   plan_ausfuehren: z.object({ planId: z.string() }).passthrough(),
   // Skill-Vorschlag des Bürgermeisters: der fertige Entwurf (wird beim Ausführen erneut geprüft)
-  aktion_anlegen: z.object({ pfad: z.string(), markdown: z.string(), entwurf: z.unknown() }),
+  aktion_anlegen: z.object({ pfad: z.string(), markdown: z.string(), entwurf: z.unknown(), ersetzen: z.boolean().optional() }),
   // Neue personality.md des Bürgermeisters (E61): wird nur geschrieben, wenn die Datei noch der Fassung beim Vorschlag entspricht
   persoenlichkeit_aendern: z.object({ pfad: z.string(), inhalt: z.string(), basisVersion: z.string().nullable() }),
-  // E183: Termin-Vorschlag eines Agenten (termin_vorschlagen) – eingetragen wird erst nach Leifs Ja, ohne Einladungen
+  // E183: Termin-Vorschlag eines Agenten – seit E185 tragen Agenten direkt ein (termin_anlegen); die Art bleibt für alte, noch offene Anträge
   termin_anlegen: z.object({ titel: z.string().min(1), ganztags: z.boolean(), start: z.string(), ende: z.string(), ort: z.string().optional(), beschreibung: z.string() }),
+  // E185: Termine mit Gästen ändern/löschen – die einzigen Termin-Freigaben (eigene Termine trägt der Agent direkt ein)
+  termin_aendern: z.object({ kalenderId: z.string(), id: z.string(), eingabe: z.object({ kalenderId: z.string(), titel: z.string(), ganztags: z.boolean(), start: z.string(), ende: z.string() }), beschreibung: z.string() }),
+  termin_loeschen: z.object({ kalenderId: z.string(), id: z.string(), beschreibung: z.string() }),
 } as const;
 export type FreigabeArt = keyof typeof FREIGABE_ARTEN;
-/** Arten, die ein Agent beantragen darf (lauf_starten legt nur das Dorf selbst an). */
-export const AGENTEN_ARTEN = ['datei_loeschen', 'datei_ueberschreiben', 'sonstiges'] as const;
+/**
+ * Arten, die ein Agent selbst beantragen darf. „sonstiges“ gibt es seit E185 nicht mehr (der Ausführer tat nichts –
+ * was Leif selbst tun muss, wird ein To-do); alte Einträge bleiben lesbar.
+ */
+export const AGENTEN_ARTEN = ['datei_loeschen', 'datei_ueberschreiben'] as const;
 
 type Ausfuehrer = (inhalt: never) => Promise<string>;
 

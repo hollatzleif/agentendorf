@@ -33,6 +33,11 @@ export interface LaufAuftrag {
   werkzeuge: WerkzeugKiste;
   web: boolean;
   signal: AbortSignal;
+  /**
+   * E185: Nachrichten, die Leif während des Laufs nachgeschoben hat (werden dabei aus der Warteschlange genommen).
+   * Ein Motor, der das kann, gibt sie zwischen zwei Werkzeug-Runden weiter; sonst kommen sie nach dem Lauf dran.
+   */
+  nachschub?: () => string[];
   /** Textstücke live an die Oberfläche (während das Modell schreibt) */
   liveText: (text: string) => void;
 }

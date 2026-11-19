@@ -5,8 +5,9 @@ import { DorfFehler } from '../fehler.js';
 
 /**
  * Die Leine: EINE Stelle im Code, die festlegt, was Agenten dürfen – für beide Motoren.
- * Grundsatz: Lesen überall, Schreiben nur im eigenen Gebäude (ohne Anweisungen, Protokolle, Chats),
- * nie überschreiben, was nicht aus demselben Chat stammt, Außenwirkung nur per Freigabe-Antrag.
+ * Grundsatz (E185): Lesen überall (Vault, Post, Moodle, Kalender, Web – auch zusammen, Leifs Entscheidung), Schreiben nur
+ * dorthin, wo Leif es vor einer Außenwirkung sieht (eigenes Gebäude, Entwurf, To-do, Notiz, eigener Kalender – mit
+ * „Rückgängig“). Senden, Abgeben, Zahlen gibt es nicht. Freigaben nur noch für echte Außenwirkung und die Regeln selbst.
  */
 
 /** Werkzeuge, die ein Agent überhaupt bekommen kann (Namen wie im Modell sichtbar). */
@@ -15,6 +16,8 @@ export type DorfWerkzeug =
   | 'vault_liste'
   | 'vault_suchen'
   | 'vault_schreiben'
+  | 'vault_aendern'
+  | 'vault_verschieben'
   | 'freigabe_beantragen'
   | 'aktionen_liste'
   | 'helfer_starten'
@@ -27,6 +30,7 @@ export type DorfWerkzeug =
   | 'post_lesen'
   | 'post_suchen'
   | 'post_entwurf'
+  | 'post_entwurf_aendern'
   | 'moodle_oeffnen'
   | 'moodle_klicken'
   | 'moodle_seite'
@@ -34,7 +38,7 @@ export type DorfWerkzeug =
   | 'moodle_bild'
   | 'moodle_herunterladen'
   | 'kalender_lesen'
-  | 'aktion_vorschlagen'
+  | 'aktion_anlegen'
   | 'gedaechtnis_schreiben'
   | 'persoenlichkeit_vorschlagen'
   | 'todo_liste'
@@ -47,24 +51,39 @@ export type DorfWerkzeug =
   | 'pomodoro'
   | 'pomodoro_einstellen'
   | 'notiz_anlegen'
-  | 'termin_vorschlagen'
+  | 'termin_anlegen'
+  | 'termin_aendern'
+  | 'termin_loeschen'
+  | 'freie_zeiten'
+  | 'kontakt_suchen'
+  | 'kontakt_merken'
+  | 'rueckfrage'
   | 'post_entwurf_neu';
 export const LESE_WERKZEUGE: DorfWerkzeug[] = ['vault_lesen', 'vault_liste', 'vault_suchen'];
-/** Nur Aktionen mit rolle: buergermeister bekommen diese Werkzeuge. */
+/**
+ * Nur Aktionen mit werkzeuge: [post]: Mails aus dem Posteingang (dem Dorf bekannt) suchen und lesen, Entwürfe anlegen
+ * und eigene Entwürfe ändern. Senden gibt es nicht – Leif schickt selbst ab.
+ */
+export const POST_WERKZEUGE: DorfWerkzeug[] = ['post_suchen', 'post_lesen', 'post_entwurf', 'post_entwurf_neu', 'post_entwurf_aendern'];
+/** Nur Aktionen mit werkzeuge: [kalender]: Hauptkalender + Uni-Kalender lesen (Titel sind Fremdinhalt). */
+export const KALENDER_WERKZEUGE: DorfWerkzeug[] = ['kalender_lesen'];
+/**
+ * Nur Aktionen mit rolle: buergermeister. E185: Kurzes erledigt er selbst – darum hat er Post, Kalender, Adressbuch
+ * und Web direkt (dienst.ts gibt ihm Web immer). Gedächtnis frei, Persönlichkeit nur per Freigabe (E61).
+ */
 export const BUERGERMEISTER_WERKZEUGE: DorfWerkzeug[] = [
   'aktionen_liste',
   'helfer_starten',
   'plan_vorlegen',
-  'aktion_vorschlagen',
-  // E61: eigenes Gedächtnis (Rathaus/memory.md) frei, Persönlichkeit (Rathaus/personality.md) nur per Freigabe
+  'aktion_anlegen',
   'gedaechtnis_schreiben',
   'persoenlichkeit_vorschlagen',
-  // E183: neue Mail-Entwürfe (nie senden) – Antworten auf Mails bleiben bei „Antwort entwerfen“ (braucht die Mail = Fremdinhalt)
-  'post_entwurf_neu',
+  ...POST_WERKZEUGE,
+  ...KALENDER_WERKZEUGE,
 ];
 /**
- * Nur Aktionen mit werkzeuge: [rechenraum]. Der Rechenraum hat weder Internet noch Vault – darum ist er auch
- * mit Fremdinhalten erlaubt. Heraus kommt nur, was rechenraum_ablegen in den vom Code bestimmten Ordner legt.
+ * Nur Aktionen mit werkzeuge: [rechenraum]. Der Rechenraum hat weder Internet noch Vault. Heraus kommt nur, was
+ * rechenraum_ablegen in den vom Code bestimmten Ordner legt.
  */
 export const RECHENRAUM_WERKZEUGE: DorfWerkzeug[] = [
   'rechenraum_befehl',
@@ -74,74 +93,79 @@ export const RECHENRAUM_WERKZEUGE: DorfWerkzeug[] = [
   'rechenraum_ablegen',
 ];
 /**
- * Nur Aktionen mit werkzeuge: [post]. Lesen nur von Mails aus dem Posteingang (dem Dorf bekannt),
- * Entwurf nur als Antwort auf genau so eine Mail – kein frei wählbarer Empfänger, Senden gibt es nicht.
- */
-export const POST_WERKZEUGE: DorfWerkzeug[] = ['post_suchen', 'post_lesen', 'post_entwurf'];
-/**
- * E183: Neuer Entwurf mit frei gewähltem Empfänger (nur Entwurf, nie senden) – Bürgermeister immer, Aktionen mit
- * werkzeuge: [post] nur OHNE Fremdinhalte: Ein präparierter Mailtext soll sich keinen Empfänger aussuchen können.
- */
-export const POST_NEU_WERKZEUG: DorfWerkzeug = 'post_entwurf_neu';
-/**
- * Nur Aktionen mit werkzeuge: [moodle] UND fremdinhalte: ja. Der Browser-Container liest nur (Leine dort: nur
- * JKU-Domains, kein Formular-Senden, keine sesskey-Aktionen) – Moodle-Inhalte sind Fremdinhalt. Herunterladen
- * landet nur in einem vom Code bestimmten Ordner unter Uni/.
+ * Nur Aktionen mit werkzeuge: [moodle]. Der Browser-Container liest nur (Leine dort: nur JKU-Domains, kein
+ * Formular-Senden, keine sesskey-Aktionen). Herunterladen landet nur in einem vom Code bestimmten Ordner unter Uni/.
  */
 export const MOODLE_WERKZEUGE: DorfWerkzeug[] = ['moodle_oeffnen', 'moodle_klicken', 'moodle_seite', 'moodle_zurueck', 'moodle_bild', 'moodle_herunterladen'];
-/**
- * Nur Aktionen mit werkzeuge: [kalender] UND fremdinhalte: ja. Liest Leifs Hauptkalender und die Uni-Kalender
- * (Fristen, Pflichttermine) – nur lesen, nichts wird gespeichert. Kalendertitel können von außen stammen (Einladungen).
- */
-export const KALENDER_WERKZEUGE: DorfWerkzeug[] = ['kalender_lesen'];
 /**
  * To-do-Brett (E65, Leifs Wunsch: „für alle Agenten“): jeder Agent darf To-dos lesen, anlegen, bearbeiten/abhaken und
  * löschen – nur über den TodoDienst (nur Marktplatz/todos/), Löschen = Papierkorb (wiederherstellbar).
  */
 export const TODO_WERKZEUGE: DorfWerkzeug[] = ['todo_liste', 'todo_anlegen', 'todo_bearbeiten', 'todo_loeschen'];
 /**
- * Alltag (E183, Leifs Wunsch: „die Agenten sollen alles können“): Kirchturm (Timer, Wecker, Pomodoro), schnelle Notizen
- * direkt; Termine nur als Vorschlag (Freigabe, eingetragen erst nach Leifs Ja). Nichts davon wirkt nach außen.
+ * Alltag für jeden Agenten (E183, E185): Kirchturm (Timer, Wecker, Pomodoro), Notizen, Termine in Leifs EIGENEM
+ * Kalender (direkt, ohne Einladungen, mit „Rückgängig“; Termine mit Gästen nur per Freigabe), freie Zeiten,
+ * Adressbuch, Dateien im eigenen Gebäude ändern/verschieben (alte Fassung ins Archiv) und höchstens eine Rückfrage.
  */
-export const ALLTAG_WERKZEUGE: DorfWerkzeug[] = ['kirchturm_lesen', 'kirchturm_timer', 'kirchturm_wecker', 'pomodoro', 'pomodoro_einstellen', 'notiz_anlegen', 'termin_vorschlagen'];
-/**
- * Was Läufe mit Fremdinhalten davon NICHT bekommen: alles, was freien Text an Stellen schreibt, die später jeder Agent
- * liest – auch einer mit Internet (Tagesnotiz, Namen im Kirchturm). Anders als To-dos (Markierung „fremd“) lässt sich
- * das dort nicht abgrenzen. Termin-Vorschläge bleiben: die sieht Leif vor dem Eintragen, und Kalendertitel gelten
- * ohnehin als Fremdinhalt.
- */
-export const NUR_OHNE_FREMDINHALT: DorfWerkzeug[] = ['kirchturm_timer', 'kirchturm_wecker', 'pomodoro', 'pomodoro_einstellen', 'notiz_anlegen', POST_NEU_WERKZEUG];
-export const alltagWerkzeuge = (fremdinhalte: boolean) => ALLTAG_WERKZEUGE.filter((w) => !fremdinhalte || !NUR_OHNE_FREMDINHALT.includes(w));
+export const ALLTAG_WERKZEUGE: DorfWerkzeug[] = [
+  'kirchturm_lesen',
+  'kirchturm_timer',
+  'kirchturm_wecker',
+  'pomodoro',
+  'pomodoro_einstellen',
+  'notiz_anlegen',
+  'termin_anlegen',
+  'termin_aendern',
+  'termin_loeschen',
+  'freie_zeiten',
+  'kontakt_suchen',
+  'kontakt_merken',
+  'rueckfrage',
+];
+/** Dateien im eigenen Gebäude ändern/verschieben – nur für Läufe, die auch schreiben dürfen */
+export const VAULT_PFLEGE_WERKZEUGE: DorfWerkzeug[] = ['vault_aendern', 'vault_verschieben'];
 /** Höchstens so viele Helfer pro Plan */
 export const MAX_HELFER_PRO_PLAN = 10;
-/** So viele Helfer darf der Bürgermeister pro Aufgabe ohne Plan starten (Leifs Vorgabe: ab 2 Helfern nur mit Plan) */
-export const MAX_HELFER_OHNE_PLAN = 1;
+/** E185: So viele Helfer darf der Bürgermeister je Aufgabe ohne Plan starten (Schutz vor Ausreißern, keine Freigabe) */
+export const MAX_HELFER_JE_AUFGABE = 5;
+/** E185: Pläne starten ohne Leifs Klick – außer er wollte einen Plan sehen, oder der Plan ist größer/teurer als das */
+export const PLAN_OHNE_FRAGE_MAX_HELFER = 5;
+export const PLAN_OHNE_FRAGE_MAX_USD = 2;
+
+/** Was ein freier Helfer zusätzlich bekommen kann (helfer_starten, Plan-Teilaufgaben) */
+export const HELFER_FAEHIGKEITEN = ['web', 'post', 'kalender', 'moodle', 'rechenraum'] as const;
+export type HelferFaehigkeit = (typeof HELFER_FAEHIGKEITEN)[number];
 
 export interface Werkzeugprofil {
   dorf: DorfWerkzeug[];
   web: boolean;
 }
 
-/** Fehler in der Kombination von Aktionseinstellungen (wird an der Aktion angezeigt, die Aktion startet dann nicht). */
-export function aktionPruefen(a: { werkzeuge: AktionsWerkzeug[]; fremdinhalte: boolean }): string | null {
-  if (a.fremdinhalte && a.werkzeuge.includes('web'))
-    return 'Web-Werkzeuge und Fremdinhalte schließen sich aus (Stadtordnung, Abschnitt 5): Sonst könnte ein präparierter Inhalt Daten über eine Web-Adresse nach außen schicken.';
-  if (a.werkzeuge.includes('moodle') && !a.fremdinhalte) return 'Moodle-Werkzeuge nur mit „fremdinhalte: ja“ – Moodle-Seiten stammen von außen.';
-  if (a.werkzeuge.includes('moodle') && a.werkzeuge.includes('web')) return 'Moodle-Werkzeuge und Web-Werkzeuge schließen sich aus.';
-  if (a.werkzeuge.includes('kalender') && !a.fremdinhalte) return 'Kalender nur mit „fremdinhalte: ja“ – Termintitel können von außen stammen (Einladungen).';
+/**
+ * Fehler in der Kombination von Aktionseinstellungen. Seit E185 gibt es keine verbotenen Kombinationen mehr: Leif hat
+ * entschieden, dass Web auch zusammen mit Post, Moodle, Kalender und Fremdinhalten laufen darf (Risiko bewusst in Kauf
+ * genommen, siehe ENTSCHEIDUNGEN.md). Die Funktion bleibt als die eine Stelle für künftige Regeln.
+ */
+export function aktionPruefen(_a: { werkzeuge: AktionsWerkzeug[]; fremdinhalte: boolean }): string | null {
   return null;
 }
 
 export function werkzeugprofil(a: { werkzeuge: AktionsWerkzeug[]; fremdinhalte: boolean }): Werkzeugprofil {
   const fehler = aktionPruefen(a);
   if (fehler) throw new DorfFehler(400, fehler);
-  const dorf: DorfWerkzeug[] = [...LESE_WERKZEUGE, 'freigabe_beantragen', ...TODO_WERKZEUGE, ...alltagWerkzeuge(a.fremdinhalte)];
-  if (a.werkzeuge.includes('vault_schreiben')) dorf.push('vault_schreiben');
+  const dorf: DorfWerkzeug[] = [...LESE_WERKZEUGE, 'freigabe_beantragen', ...TODO_WERKZEUGE, ...ALLTAG_WERKZEUGE];
+  if (a.werkzeuge.includes('vault_schreiben')) dorf.push('vault_schreiben', ...VAULT_PFLEGE_WERKZEUGE);
   if (a.werkzeuge.includes('rechenraum')) dorf.push(...RECHENRAUM_WERKZEUGE);
-  if (a.werkzeuge.includes('post')) dorf.push(...POST_WERKZEUGE, ...(a.fremdinhalte ? [] : [POST_NEU_WERKZEUG]));
+  if (a.werkzeuge.includes('post')) dorf.push(...POST_WERKZEUGE);
   if (a.werkzeuge.includes('moodle')) dorf.push(...MOODLE_WERKZEUGE);
   if (a.werkzeuge.includes('kalender')) dorf.push(...KALENDER_WERKZEUGE);
-  return { dorf, web: a.werkzeuge.includes('web') && !a.fremdinhalte };
+  return { dorf, web: a.werkzeuge.includes('web') };
+}
+
+/** Frühere Werkzeugnamen in gespeicherten Chats (werkzeuge_json) → heutige; Unbekanntes fällt weg. */
+const FRUEHERE_NAMEN: Record<string, DorfWerkzeug> = { termin_vorschlagen: 'termin_anlegen', aktion_vorschlagen: 'aktion_anlegen' };
+export function werkzeugeAktuell(liste: string[], bekannt: (n: string) => boolean): string[] {
+  return [...new Set(liste.map((n) => FRUEHERE_NAMEN[n] ?? n))].filter((n) => n === 'web' || bekannt(n));
 }
 
 /** Namensschema für Dateien, die Agenten anlegen: JJJJ-MM-TT_HHMM_kurztitel.endung */
@@ -180,7 +204,7 @@ export function schreibenPruefen(p: SchreibPruefung): string | null {
     return `Dateiname „${name}“ passt nicht zum Schema JJJJ-MM-TT_HHMM_kurztitel.md (nur Kleinbuchstaben, Ziffern, Bindestriche).`;
   if (path.posix.extname(name) === '') return 'Dateiendung fehlt.';
   if (p.existiert && !p.vonDiesemChat)
-    return 'Diese Datei gibt es schon und sie stammt nicht aus diesem Chat. Lege eine neue Fassung an (anderer Name) oder beantrage das Überschreiben mit freigabe_beantragen (art: datei_ueberschreiben).';
+    return 'Diese Datei gibt es schon und sie stammt nicht aus diesem Chat. Lege eine neue Fassung an (anderer Name) – oder ändere sie mit vault_aendern (alte Fassung kommt ins Archiv).';
   return null;
 }
 
@@ -189,4 +213,22 @@ export function fremdinhaltHuelle(quelle: string, inhalt: string) {
   const sicher = inhalt.replace(/<\/?fremdinhalt/gi, (m) => m.replace('<', '‹'));
   const q = quelle.replace(/["<>]/g, '');
   return `<fremdinhalt quelle="${q}">\n${sicher}\n</fremdinhalt>`;
+}
+
+/**
+ * vault_aendern / vault_verschieben: nur bestehende bzw. neue Pfade im eigenen Gebäude, nie die geschützten Bereiche.
+ * Gibt null zurück, wenn erlaubt, sonst den Grund.
+ */
+export function pflegePruefen(gebaeude: string, pfad: string): string | null {
+  let rel: string;
+  try {
+    rel = normalisieren(pfad);
+  } catch (e) {
+    return (e as Error).message;
+  }
+  const teile = rel.split('/');
+  if (teile[0] !== gebaeude || teile.length < 2) return `Ändern und Verschieben geht nur im eigenen Gebäude (${gebaeude}/…).`;
+  if (GESCHUETZT_IM_GEBAEUDE.includes(teile[1]!)) return `${gebaeude}/${teile[1]} wird nur vom Dorf bzw. von Leif geschrieben.`;
+  if (rel === 'Rathaus/memory.md' || rel === 'Rathaus/personality.md') return 'Gedächtnis und Persönlichkeit haben eigene Werkzeuge.';
+  return null;
 }

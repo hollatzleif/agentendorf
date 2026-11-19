@@ -211,9 +211,14 @@ export function apiMotor(klientFabrik: () => ModellKlient): Motor {
           ergebnisse.push({ type: 'tool_result', tool_use_id: t.id, content: inhalt, ...(r.ok ? {} : { is_error: true }) });
           kurz.push(`${t.name}${r.ok ? '' : ' (verweigert)'}: ${r.text.slice(0, 200)}`);
         }
+        // E185: Hat Leif während des Laufs etwas nachgeschoben, bekommt das Modell es gleich mit den Werkzeug-Ergebnissen
+        // (Textblock hinter den tool_result-Blöcken derselben Nutzer-Nachricht – der Verlauf bleibt „nur angehängt“).
+        const nachschub = a.nachschub?.() ?? [];
+        if (nachschub.length) ergebnisse.push({ type: 'text', text: `Neu eingetroffen, während du arbeitest (berücksichtige es ab jetzt):\n\n${nachschub.join('\n\n---\n\n')}` });
         const werkzeugNachricht: BetaMessageParam = { role: 'user', content: ergebnisse };
         nachrichten.push(werkzeugNachricht);
         yield { typ: 'nachricht', rolle: 'werkzeug', text: kurz.join('\n'), roh: werkzeugNachricht };
+        for (const n of nachschub) yield { typ: 'nachricht', rolle: 'nutzer', text: n };
       }
       throw new Error(`Abgebrochen nach ${MAX_RUNDEN} Werkzeug-Runden.`);
     },

@@ -28,11 +28,14 @@ export function ChatSeite({ id }: { id: string }) {
     e.preventDefault();
     if (!text.trim()) return;
     setFehler('');
+    // Feld sofort leeren (E187): Leif tippt gleich die nächste Nachricht – die darf die Antwort des Servers nicht wegwischen
+    const gesendet = text;
+    setText('');
     try {
-      await api(`/api/chats/${id}/nachricht`, { body: { text } });
-      setText('');
+      await api(`/api/chats/${id}/nachricht`, { body: { text: gesendet } });
       await qc.invalidateQueries({ queryKey: ['chat', id] });
     } catch (err) {
+      setText((jetzt) => jetzt || gesendet);
       setFehler(err instanceof ApiFehler ? err.message : String(err));
     }
   };
@@ -82,6 +85,28 @@ export function ChatSeite({ id }: { id: string }) {
             {live ? <Markdown inhalt={live} pfad="" /> : <p className="leise">{aktiv.status === 'laeuft' ? 'Der Agent arbeitet …' : laufStatusText(aktiv.status)}</p>}
           </div>
         )}
+        {/* E185: nachgeschobene Nachrichten warten sichtbar, bis der aktuelle Schritt fertig ist */}
+        {(c.wartend ?? []).map((w) => (
+          <div key={`w${w.id}`} className="nachricht nutzer wartend">
+            <div className="leise">
+              ⏳ wartet – kommt nach dem aktuellen Schritt dran{' '}
+              <button
+                type="button"
+                className="klein"
+                title="Diese Nachricht doch nicht schicken"
+                aria-label="Wartende Nachricht entfernen"
+                onClick={() =>
+                  api(`/api/chats/${id}/wartend/${w.id}`, { methode: 'DELETE' })
+                    .then(() => qc.invalidateQueries({ queryKey: ['chat', id] }))
+                    .catch((e: Error) => setFehler(e.message))
+                }
+              >
+                ✕
+              </button>
+            </div>
+            <p className="nutzertext">{w.text}</p>
+          </div>
+        ))}
         <div ref={unten} />
       </div>
 
@@ -98,16 +123,15 @@ export function ChatSeite({ id }: { id: string }) {
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder={aktiv ? 'Warte, bis der Agent fertig ist …' : 'Weiter im Gespräch …'}
-          disabled={!!aktiv}
+          placeholder={aktiv ? 'Noch etwas vergessen? Schreib es dazu – es kommt nach dem aktuellen Schritt dran …' : 'Weiter im Gespräch …'}
           rows={3}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void senden(e);
           }}
         />
         <div className="werkzeuge">
-          <button type="submit" className="haupt" disabled={!!aktiv || !text.trim()}>
-            Senden
+          <button type="submit" className="haupt" disabled={!text.trim()}>
+            {aktiv ? 'Dazuschreiben' : 'Senden'}
           </button>
           {aktiv && (
             <button type="button" className="gefahr" onClick={() => api(`/api/laeufe/${aktiv.id}/abbrechen`, { body: {} }).catch((e: Error) => setFehler(e.message))}>

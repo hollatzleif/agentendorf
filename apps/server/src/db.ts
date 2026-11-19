@@ -381,6 +381,17 @@ const MIGRATIONEN: string[] = [
   CREATE TABLE geraete (id TEXT PRIMARY KEY, name TEXT NOT NULL, token_hash TEXT NOT NULL UNIQUE, erstellt INTEGER NOT NULL, zuletzt INTEGER NOT NULL, ip TEXT NOT NULL DEFAULT '');
   CREATE TABLE geraete_kopplung (code_hash TEXT PRIMARY KEY, gueltig_bis INTEGER NOT NULL, fehlversuche INTEGER NOT NULL DEFAULT 0);
   `,
+  // 24: E185 – Nachrichten-Warteschlange je Chat (Leif schiebt nach, während ein Lauf läuft), „Rückgängig“ statt Freigabe,
+  //     Rückfragen der Agenten (Antwort-Knöpfe in Telegram) und Plan-Teilaufgaben, die wegen eines gescheiterten Vorgängers ausfallen
+  `
+  CREATE TABLE chat_warteschlange (id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id TEXT NOT NULL, text TEXT NOT NULL, ausloeser TEXT NOT NULL, erstellt INTEGER NOT NULL);
+  CREATE INDEX chat_warteschlange_chat ON chat_warteschlange (chat_id, id);
+  CREATE TABLE rueckgaengig (id TEXT PRIMARY KEY, chat_id TEXT, lauf_id TEXT, gebaeude TEXT NOT NULL, art TEXT NOT NULL, titel TEXT NOT NULL, daten_json TEXT NOT NULL,
+                             status TEXT NOT NULL, erstellt INTEGER NOT NULL, ergebnis TEXT);
+  CREATE INDEX rueckgaengig_zeit ON rueckgaengig (erstellt);
+  CREATE TABLE rueckfragen (id TEXT PRIMARY KEY, chat_id TEXT NOT NULL, frage TEXT NOT NULL, optionen_json TEXT NOT NULL, antwort TEXT, erstellt INTEGER NOT NULL);
+  CREATE TABLE plan_uebersprungen (plan_id TEXT NOT NULL, nr INTEGER NOT NULL, grund TEXT NOT NULL, PRIMARY KEY (plan_id, nr));
+  `,
 ];
 
 export function dbOeffnen(datei: string): DB {

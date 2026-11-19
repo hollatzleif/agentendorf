@@ -4,7 +4,7 @@ import type { VaultDienst } from '../vault/dienst.js';
 import { gebaeudeListe } from '../vault/gebaeude.js';
 import { DorfFehler } from '../fehler.js';
 import { zuInfo } from './aktionen.js';
-import { kurztitel } from './hilfen.js';
+import { dateiStempel, kurztitel } from './hilfen.js';
 
 /**
  * Skills (= Aktionen) anlegen – aus dem App-Formular oder als Vorschlag des Bürgermeisters (nach Leifs Freigabe).
@@ -63,7 +63,7 @@ export function skillMarkdown(e: SkillEntwurfT): string {
 }
 
 /** Prüft den Entwurf wie eine echte Aktion; gibt Pfad, Markdown und ID zurück (speichert NICHT) */
-export async function skillPruefen(vault: VaultDienst, roh: unknown) {
+export async function skillPruefen(vault: VaultDienst, roh: unknown, opt: { ersetzen?: boolean } = {}) {
   const e = SkillEntwurf.parse(roh);
   const gebaeude = await gebaeudeListe(vault);
   if (!gebaeude.some((g) => g.id === e.gebaeude)) throw new DorfFehler(400, `Gebäude „${e.gebaeude}“ gibt es nicht.`);
@@ -72,13 +72,22 @@ export async function skillPruefen(vault: VaultDienst, roh: unknown) {
   const markdown = skillMarkdown(e);
   const a = zuInfo(e.gebaeude, datei, markdown);
   if (a.fehler) throw new DorfFehler(400, a.fehler.replace(/^Aktion ist fehlerhaft: /, ''));
-  if (await vault.existiert(pfad)) throw new DorfFehler(409, `Es gibt schon eine Aktion ${pfad} – anderen Namen wählen oder die Datei bearbeiten.`);
-  return { pfad, markdown, id: a.id, name: e.name, gebaeude: e.gebaeude, beschreibung: e.beschreibung };
+  const existiert = await vault.existiert(pfad);
+  if (existiert && !opt.ersetzen) throw new DorfFehler(409, `Es gibt schon eine Aktion ${pfad} – anderen Namen wählen oder die Datei bearbeiten.`);
+  return { pfad, markdown, id: a.id, name: e.name, gebaeude: e.gebaeude, beschreibung: e.beschreibung, existiert };
 }
 
-/** Prüfen und speichern (App-Formular bzw. nach Leifs Freigabe) */
-export async function skillAnlegen(vault: VaultDienst, roh: unknown) {
-  const s = await skillPruefen(vault, roh);
-  await vault.schreiben(s.pfad, s.markdown, { nurNeu: true });
-  return { id: s.id, pfad: s.pfad };
+/**
+ * Prüfen und speichern (App-Formular, Bürgermeister direkt bzw. nach Leifs Freigabe). Mit `ersetzen` wird ein
+ * bestehender Skill überschrieben – die alte Fassung kommt nach <Gebäude>/archiv/aktionen/ (E185).
+ */
+export async function skillAnlegen(vault: VaultDienst, roh: unknown, opt: { ersetzen?: boolean; jetzt?: number } = {}) {
+  const s = await skillPruefen(vault, roh, opt);
+  let archiv: string | undefined;
+  if (s.existiert) {
+    archiv = `${s.gebaeude}/archiv/aktionen/${dateiStempel(opt.jetzt ?? Date.now())}_${s.pfad.split('/').pop()}`;
+    await vault.schreiben(archiv, (await vault.lesen(s.pfad)).inhalt);
+    await vault.schreiben(s.pfad, s.markdown);
+  } else await vault.schreiben(s.pfad, s.markdown, { nurNeu: true });
+  return { id: s.id, pfad: s.pfad, archiv };
 }
