@@ -86,3 +86,13 @@ export function fokusNachTageszeit(db: DB, jetzt: number, anzahl: number) {
   }
   return { fokusJeStunde, besteZeit: beste && fokusJeStunde.reduce((a, b) => a + b, 0) >= 120 ? beste : null };
 }
+
+/** E122/E166: Fokuszeit und letzte Fokussitzung je To-do (fokus_sitzungen.todo) an die To-dos hängen */
+export function mitFokus<T extends { pfad: string }>(db: DB, todos: T[]): (T & { fokusMin?: number; fokusZuletzt?: string })[] {
+  const zeilen = db.prepare('SELECT todo, SUM(minuten) AS m, MAX(ende) AS e FROM fokus_sitzungen WHERE todo IS NOT NULL GROUP BY todo').all() as { todo: string; m: number; e: number }[];
+  const je = new Map(zeilen.map((x) => [x.todo, x]));
+  return todos.map((t) => {
+    const f = je.get(t.pfad);
+    return f ? { ...t, ...(Math.round(f.m) ? { fokusMin: Math.round(f.m) } : {}), fokusZuletzt: new Date(f.e).toISOString() } : t;
+  });
+}

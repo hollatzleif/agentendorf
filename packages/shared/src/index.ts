@@ -225,6 +225,8 @@ export interface TodoInfo {
   verschoben?: number;
   /** E160: seit wann gewartet wird (ISO) */
   wartetSeit?: string;
+  /** E166: letzte Fokussitzung an diesem To-do (ISO) – zählt bei Projekten als Bewegung */
+  fokusZuletzt?: string;
   notiz?: string;
 }
 

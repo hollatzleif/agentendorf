@@ -1,5 +1,5 @@
 import { guteTage, minutenText, projekteAus } from '@dorf/shared';
-import { fokusNachTageszeit, statistik } from './statistik.js';
+import { fokusNachTageszeit, mitFokus, statistik } from './statistik.js';
 import matter from 'gray-matter';
 import { z } from 'zod';
 import type { DB } from './db.js';
@@ -86,7 +86,7 @@ export class Wochenrueckblick {
     const z1 = [`**${erledigt.length}** ${erledigt.length === 1 ? 'To-do' : 'To-dos'} erledigt${erledigt.length ? `: ${erledigt.slice(0, 10).map((t) => einzeilig(t.titel, 60)).join('; ')}` : ''}`];
     z1.push(`${offen.length} offen${ueberfaellig.length ? `, davon **${ueberfaellig.length} überfällig**: ${ueberfaellig.slice(0, 6).map((t) => einzeilig(t.titel, 50)).join('; ')}` : ''}`);
     // E150: worauf Leif wartet – lange Wartende verdienen ein Nachfassen
-    const wartend = offen.filter((t) => t.wartet).sort((a, b) => (a.erstellt ?? '').localeCompare(b.erstellt ?? ''));
+    const wartend = offen.filter((t) => t.wartet).sort((a, b) => (a.wartetSeit ?? a.erstellt ?? '').localeCompare(b.wartetSeit ?? b.erstellt ?? ''));
     if (wartend.length) {
       // gezählt ab dem Setzen von „wartet“, nicht ab Anlage des To-dos (Review); ältere Einträge ohne Vermerk: kein Alter
       const alt = (t: (typeof wartend)[number]) => (t.wartetSeit ? Math.floor((jetzt - Date.parse(t.wartetSeit)) / 86_400_000) : 0);
@@ -98,9 +98,9 @@ export class Wochenrueckblick {
       );
     }
     // E161: Projekte (Gruppen) – Fortschritt und was ruht
-    const pj = projekteAus(alle, jetzt).filter((p) => p.offen > 0);
+    const pj = projekteAus(mitFokus(this.o.db, alle), jetzt).filter((p) => p.offen > 0);
     if (pj.length)
-      z1.push(`📁 Projekte: ${pj.slice(0, 5).map((p) => `${einzeilig(p.name, 40)} ${p.erledigt}/${p.gesamt}${p.dieseWoche ? ` (+${p.dieseWoche})` : ''}${p.ruhtTage >= 7 ? `, ruht seit ${p.ruhtTage} Tagen` : ''}`).join('; ')}`);
+      z1.push(`📁 Projekte: ${pj.slice(0, 5).map((p) => `${einzeilig(p.name, 40)} ${p.erledigt}/${p.gesamt}${p.dieseWoche ? ` (+${p.dieseWoche})` : ''}${p.ruhtMelden ? `, ruht seit ${p.ruhtTage} Tagen` : ''}`).join('; ')}`);
     // E153: was immer wieder geschoben wird, ist meist zu groß oder unklar
     const geschoben = offen.filter((t) => (t.verschoben ?? 0) >= 3).sort((a, b) => b.verschoben! - a.verschoben!);
     if (geschoben.length) z1.push(`↻ Oft verschoben: ${geschoben.slice(0, 5).map((t) => `${einzeilig(t.titel, 50)} (${t.verschoben}×)`).join('; ')} – zerlegen, delegieren oder streichen?`);
@@ -122,7 +122,7 @@ export class Wochenrueckblick {
     } else if (f) abschnitte.push({ titel: 'Fokus', zeilen: ['Diese Woche keine Pomodoros – nächste Woche einfach mit einem 🍅 am wichtigsten To-do anfangen.'] });
 
     // E162: was mit guten Tagen zusammenhängt (4 Wochen, nur bei genug Stimmungs-Tagen)
-    const gt = guteTage((await statistik({ db: this.o.db, uhr: this.o.uhr, todos: this.o.todos }, 28)).tage);
+    const gt = guteTage((await statistik({ db: this.o.db, uhr: this.o.uhr, todos: this.o.todos }, 28)).tage, tagIn(jetzt));
     if (gt.length) abschnitte.push({ titel: 'Gute Tage', zeilen: [...gt.map((e) => e.text), '(4 Wochen – ein Zusammenhang, kein Beweis)'] });
 
     // E122: Schätzung gegen tatsächliche Fokuszeit – nur To-dos dieser Woche mit beidem (lernen, realistischer zu schätzen)

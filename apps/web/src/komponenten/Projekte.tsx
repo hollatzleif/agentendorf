@@ -49,7 +49,7 @@ export function Projekte() {
             <div className="projekt-balken" role="progressbar" aria-valuenow={anteil} aria-valuemin={0} aria-valuemax={100} aria-label={`${p.name}: ${anteil} %`}>
               <span style={{ width: `${anteil}%` }} />
             </div>
-            {p.offen > 0 && p.ruhtTage >= 7 && <p className="warnung-text">💤 Ruht seit {p.ruhtTage} Tagen – ein kleiner Schritt heute bringt es wieder in Gang.</p>}
+            {p.ruhtMelden && <p className="warnung-text">💤 Ruht seit {p.ruhtTage} Tagen – ein kleiner Schritt heute bringt es wieder in Gang.</p>}
             {p.naechster ? (
               <div className="projekt-naechster">
                 <span>

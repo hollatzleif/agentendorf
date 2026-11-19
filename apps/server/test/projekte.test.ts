@@ -53,3 +53,37 @@ describe('Projekte in Telegram und Morgenzeitung (E163)', () => {
     expect(z.abschnitte.find((x) => x.titel === 'Heute')!.zeilen.join('\n')).toContain('💤 Bachelorarbeit ruht seit 9 Tagen – nächster Schritt: Kapitel A');
   });
 });
+
+describe('Review 8 (E166)', () => {
+  it('Wartendes ist kein nächster Schritt; „ruht“ nur, wenn es sich lohnt; Fokus zählt als Bewegung; wiederkehrende zählen nicht', () => {
+    const jetzt = Date.parse('2026-11-16T12:00:00Z');
+    const alt = '2026-11-01T10:00:00Z';
+    const p = projekteAus(
+      [
+        // nur Wartendes offen → kein nächster Schritt, kein „ruht“
+        t('Kisten', { gruppe: 'Umzug', erstellt: alt, wartet: 'Vermieter', faellig: '2026-11-26' }),
+        t('Vertrag', { gruppe: 'Umzug', erstellt: alt, erledigt: true, erledigtAm: alt }),
+        t('Schlüssel', { gruppe: 'Umzug', erstellt: alt, erledigt: true, erledigtAm: alt }),
+        // nächster Schritt erst in 3 Wochen fällig (Uni-Fristen) → kein „ruht“
+        t('Übung 5', { gruppe: 'Analysis', erstellt: alt, faellig: '2026-12-07' }),
+        t('Übung 6', { gruppe: 'Analysis', erstellt: alt, faellig: '2026-12-14' }),
+        // Fokus gestern → bewegt
+        t('Kapitel 2', { gruppe: 'BA', erstellt: alt, fokusZuletzt: '2026-11-15T18:00:00Z' }),
+        t('Kapitel 3', { gruppe: 'BA', erstellt: alt }),
+        // wiederkehrend → kein Projekt
+        t('Sport', { gruppe: 'Fitness', wiederholen: 'täglich' }),
+        t('Sport2', { gruppe: 'Fitness', wiederholen: 'täglich', erledigt: true }),
+        t('Sport3', { gruppe: 'Fitness', wiederholen: 'täglich', erledigt: true }),
+      ],
+      jetzt,
+    );
+    const nach = Object.fromEntries(p.map((x) => [x.name, x]));
+    expect(Object.keys(nach).sort()).toEqual(['Analysis', 'BA', 'Umzug']);
+    expect(nach.Umzug!.naechster).toBeUndefined();
+    expect(nach.Umzug!.ruhtMelden).toBe(false);
+    expect(nach.Analysis!.ruhtTage).toBe(15);
+    expect(nach.Analysis!.ruhtMelden).toBe(false);
+    expect(nach.BA!.ruhtTage).toBe(0);
+    expect(nach.BA!.ruhtMelden).toBe(false);
+  });
+});

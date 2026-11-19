@@ -37,7 +37,8 @@ function puffer(ctx: AudioContext, art: Art) {
   // Anfang = Mischung aus Fortsetzung des Endes (d[laenge+i]) und eigentlichem Anfang → nahtlos an aus[laenge-1]
   for (let i = 0; i < ueber; i++) {
     const f = i / ueber;
-    aus[i] = d[laenge + i]! * (1 - f) + d[i]! * f;
+    // gleichbleibende Leistung (unabhängige Rauschstücke) – linear gäbe ein Loch von ~3 dB in der Mitte (Review)
+    aus[i] = d[laenge + i]! * Math.sqrt(1 - f) + d[i]! * Math.sqrt(f);
   }
   return b;
 }

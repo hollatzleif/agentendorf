@@ -136,11 +136,11 @@ export function StatistikAnsicht() {
               )}
               {s.fokusJeStunde && s.fokusJeStunde.some((m) => m > 0) && <Tageszeit werte={s.fokusJeStunde} beste={s.besteZeit ?? null} />}
               {/* E162: was mit guten Tagen zusammenhängt (nur bei genug Daten) */}
-              {guteTage(s.tage).length > 0 && (
+              {guteTage(s.tage, new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Vienna" })).length > 0 && (
                 <div className="karte statistik-einsichten" role="note" aria-label="Was gute Tage ausmacht">
                   <h3>💡 Was gute Tage ausmacht</h3>
                   <ul>
-                    {guteTage(s.tage).map((e) => (
+                    {guteTage(s.tage, new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Vienna" })).map((e) => (
                       <li key={e.text}>
                         {e.text} <span className="leise">({e.tageMit} gegen {e.tageOhne} Tage)</span>
                       </li>

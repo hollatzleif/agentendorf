@@ -15,8 +15,9 @@ export interface Einsicht {
 
 type Tag = Statistik['tage'][number];
 
-export function guteTage(tage: Tag[]): Einsicht[] {
-  const mitStimmung = tage.filter((t) => t.stimmung != null);
+/** heute: der laufende Tag zählt nicht – morgens gesetzte Stimmung bei noch 0 min Fokus verzerrt sonst (Review) */
+export function guteTage(tage: Tag[], heute?: string): Einsicht[] {
+  const mitStimmung = tage.filter((t) => t.stimmung != null && (!heute || t.tag < heute));
   const schnitt = (l: Tag[]) => Math.round((l.reduce((s, t) => s + t.stimmung!, 0) / l.length) * 10) / 10;
   const vergleiche: [string, (t: Tag) => boolean | null][] = [
     ['mindestens 1 h Fokus', (t) => t.fokusMin >= 60],

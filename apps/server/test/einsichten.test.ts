@@ -22,6 +22,8 @@ describe('Was gute Tage ausmacht (E162)', () => {
       tag(7, { fokusMin: 0, stimmung: null }),
     ];
     expect(guteTage(tage)).toEqual([{ text: 'An Tagen mit mindestens 1 h Fokus: Stimmung ⌀ 4,3 – sonst 2,3', mit: 4.3, ohne: 2.3, tageMit: 3, tageOhne: 3 }]);
+    // der laufende Tag zählt nicht (Review): mit heute = 2026-11-06 fällt Tag 6 weg → zu wenige „ohne“-Tage
+    expect(guteTage(tage, '2026-11-06')).toEqual([]);
     // zu wenige Tage → nichts
     expect(guteTage(tage.slice(0, 5))).toEqual([]);
     // kein Unterschied → nichts

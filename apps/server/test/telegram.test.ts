@@ -1209,6 +1209,11 @@ describe('/morgen (E156)', () => {
     expect(t).toContain('🕊️ frei 8–22 Uhr ≈ 12 h');
     const knoepfe = (p.reply_markup as { inline_keyboard: { text: string }[][] }).inline_keyboard.map((z) => z[0]!.text);
     expect(knoepfe).toEqual(['☆ Referat (morgen)']);
+    // nach dem Tippen bleibt das Wartende draußen (Review)
+    const daten = (p.reply_markup as { inline_keyboard: { callback_data: string }[][] }).inline_keyboard[0]![0]!.callback_data;
+    await d.telegram!.verarbeiten({ update_id: 2, callback_query: { id: 'cb', data: daten, from: { id: Number(LEIF) }, message: { message_id: 1, chat: { id: Number(LEIF) } } } });
+    const neu = n.aufrufe.filter((x) => x.m === 'editMessageReplyMarkup').at(-1)!.p;
+    expect((neu.reply_markup as { inline_keyboard: { text: string }[][] }).inline_keyboard.map((z) => z[0]!.text)).toEqual(['⭐ Referat (morgen)']);
   });
 });
 

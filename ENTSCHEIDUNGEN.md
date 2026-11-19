@@ -1313,3 +1313,20 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 ## E165 – Projekte in der Wochenplanung (19.11.)
 
 - /planen → „2 · Drei Ziele“: Unter den Wochenzielen lassen sich die Projekte aufklappen („📁 Deine Projekte ansehen“). Wochenziele entstehen oft aus Projekten, und ein ruhendes Projekt ist beim Planen genau richtig aufgehoben.
+
+## E164 – Feinschliff Projekte und Einsichten (nur Stil, 19.11.)
+
+- Projekte erscheinen als kleine Tafeln mit Fortschrittsbalken (Prozent per CSS aus `aria-valuenow`). „💤 Ruht“ steht als gelber Hinweis, der nächste Schritt in einem eigenen Kästchen. „💡 Was gute Tage ausmacht“ ist ein warmer Hinweiskasten neben den Diagrammen.
+
+## E166 – Review 8 (19.11.)
+
+- **Projekte:**
+  - Wartendes (E147) ist kein nächster Schritt.
+  - „💤 ruht“ (`ruhtMelden`) gibt es nur, wenn etwas Machbares offen ist und der nächste Schritt nicht erst später fällig ist. Sonst würde jeder Uni-Kurs mit Fristen in drei Wochen täglich angestupst.
+  - Fokussitzungen zählen als Bewegung (`fokusZuletzt`, vom Server über `mitFokus` angehängt).
+  - Wiederkehrende To-dos sind keine Projektschritte.
+- **/morgen:** Das Tagesende wird über das Datum berechnet (Umstell-Tage haben 23 oder 25 h). Die ⭐-Auswahl lässt ruhendes Wartendes auch nach dem ersten Tippen draußen; das gilt auch für den Tagesabschluss.
+- **Gute Tage:** Der laufende Tag zählt nicht mit, denn eine morgens gesetzte Stimmung bei noch 0 min Fokus würde verzerren.
+- **Wochenrückblick:** Wartendes wird nach `wartetSeit` sortiert.
+- **Rauschen:** Die Überblendung hält die Leistung gleich, ohne Lautstärkeloch.
+- **Bewusst gelassen:** `/api/todos?alle=1` für den Projekte-Reiter liefert alle erledigten To-dos. Das Lesen kostet nichts extra (`liste()` liest ohnehin alle Dateien), nur die Antwort wächst mit der Zeit. Bei Bedarf kommt ein schlanker `/api/projekte`-Endpunkt.

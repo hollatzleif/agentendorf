@@ -19,7 +19,7 @@ import type { Notizen } from '../notizen.js';
 import { zeitpunktAus } from '../todo-erinnerungen.js';
 import { dateinameBereinigen } from '../vault/pfade.js';
 import { tagPlanen } from '../tagesplan.js';
-import { STIMMUNGEN, fokusNachTageszeit, stimmungSetzen } from '../statistik.js';
+import { STIMMUNGEN, fokusNachTageszeit, mitFokus, stimmungSetzen } from '../statistik.js';
 import { bluete, STUFE_TEXT } from '../bluete.js';
 import { ortszeitZuUtc } from '../uni/ical.js';
 
@@ -44,7 +44,7 @@ import { fristText } from '../uni/text.js';
 import { aktionenListe } from '../agenten/aktionen.js';
 import type { Uhr } from '../uhr.js';
 import { fremdinhaltHuelle } from '../agenten/leine.js';
-import { tagVonJetzt } from '../zeit.js';
+import { tagPlus, tagVonJetzt } from '../zeit.js';
 
 /** So lange nach dem letzten Austausch gilt eine neue Nachricht als Fortsetzung des Gesprächs */
 export const GESPRAECH_MINUTEN = 60;
@@ -1612,14 +1612,13 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
 
   private async projekteSenden() {
     if (!this.o.listen) return this.senden('Die Listen sind nicht eingerichtet.');
-    const fokus = new Map((this.o.db.prepare('SELECT todo, SUM(minuten) AS m FROM fokus_sitzungen WHERE todo IS NOT NULL GROUP BY todo').all() as { todo: string; m: number }[]).map((x) => [x.todo, Math.round(x.m)]));
-    const alle = (await this.o.listen.todo.liste({ alleErledigten: true })).map((t) => (fokus.get(t.pfad) ? { ...t, fokusMin: fokus.get(t.pfad) } : t));
+    const alle = mitFokus(this.o.db, await this.o.listen.todo.liste({ alleErledigten: true }));
     const p = projekteAus(alle, this.o.uhr.jetzt()).filter((x) => x.offen > 0);
     if (!p.length) return this.senden('📁 Noch keine Projekte. Gib zusammengehörigen To-dos in der App dieselbe <b>Gruppe</b> (z. B. „Bachelorarbeit“) – ab drei To-dos wird daraus ein Projekt.');
     const balken = (a: number) => '▰'.repeat(Math.round(a * 8)) + '▱'.repeat(8 - Math.round(a * 8));
     const zeilen = p.slice(0, 8).map(
       (x) =>
-        `📁 <b>${h(x.name)}</b> ${balken(x.erledigt / x.gesamt)} ${x.erledigt}/${x.gesamt}${x.dieseWoche ? ` (+${x.dieseWoche})` : ''}${x.ruhtTage >= 7 ? ` · 💤 ${x.ruhtTage} Tage` : ''}${x.naechster ? `\n   👉 ${h(x.naechster.titel)}` : ''}`,
+        `📁 <b>${h(x.name)}</b> ${balken(x.erledigt / x.gesamt)} ${x.erledigt}/${x.gesamt}${x.dieseWoche ? ` (+${x.dieseWoche})` : ''}${x.ruhtMelden ? ` · 💤 ${x.ruhtTage} Tage` : ''}${x.naechster ? `\n   👉 ${h(x.naechster.titel)}` : ''}`,
     );
     const knoepfe = p
       .slice(0, 8)
@@ -1636,11 +1635,13 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     const morgen = this.heuteTag(1);
     const [j, mo, t] = morgen.split('-').map(Number) as [number, number, number];
     const tagVon = ortszeitZuUtc(j, mo, t, 0, 0, 0, 'Europe/Vienna');
+    // Tagesende über das Datum, nicht +24 h – an Umstell-Tagen hat der Tag 23 oder 25 h (Review)
+    const tagBis = ortszeitZuUtc(...(tagPlus(morgen, 1).split('-').map(Number) as [number, number, number]), 0, 0, 0, 'Europe/Vienna');
     const von = ortszeitZuUtc(j, mo, t, 8, 0, 0, 'Europe/Vienna');
     const bis = ortszeitZuUtc(j, mo, t, 22, 0, 0, 'Europe/Vienna');
-    const z = this.o.kalender?.zeitraum ? await this.o.kalender.zeitraum(tagVon, tagVon + 86_400_000).catch(() => null) : null;
+    const z = this.o.kalender?.zeitraum ? await this.o.kalender.zeitraum(tagVon, tagBis).catch(() => null) : null;
     const termine = (z?.termine ?? []).filter((x): x is KalenderTermin => typeof x.start === 'string' && typeof x.ende === 'string' && typeof x.ganztags === 'boolean' && !istFristBlock(x));
-    const zeitig = termine.filter((x) => !x.ganztags && Date.parse(x.ende) > tagVon && Date.parse(x.start) < tagVon + 86_400_000).sort((a, b) => a.start.localeCompare(b.start));
+    const zeitig = termine.filter((x) => !x.ganztags && Date.parse(x.ende) > tagVon && Date.parse(x.start) < tagBis).sort((a, b) => a.start.localeCompare(b.start));
     const uhr = (iso: string) => new Date(iso).toLocaleTimeString('de-AT', { timeZone: 'Europe/Vienna', hour: '2-digit', minute: '2-digit' });
     const alle = await this.o.listen.todo.liste();
     const dran = alle.filter((x) => !x.erledigt && x.faellig && x.faellig <= morgen && !ruht(x, morgen)).sort((a, b) => Number(!!b.wichtig) - Number(!!a.wichtig) || (a.faellig ?? '').localeCompare(b.faellig ?? ''));
@@ -1660,7 +1661,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     );
     zz.push(`🕊️ frei 8–22 Uhr ≈ ${minutenText(frei)}${geschaetzt > frei * 0.7 ? ' – eng, vielleicht etwas verschieben' : ''}`);
     zz.push('\n⭐ <b>Was ist morgen wichtig?</b> Tipp an:');
-    return this.senden(zz.join('\n'), { reply_markup: { inline_keyboard: this.sternAuswahl(alle.filter((x) => !ruht(x, morgen)), morgen) } });
+    return this.senden(zz.join('\n'), { reply_markup: { inline_keyboard: this.sternAuswahl(alle, morgen) } });
   }
 
   // ---- /wartet (E150) ----------------------------------------------------------------------------------
@@ -1968,7 +1969,8 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     return crypto.createHmac('sha256', this.signaturSchluessel).update(`stern:${k}`).digest('base64url').slice(0, 16);
   }
   private sternAuswahl(alle: TodoInfo[], morgen: string) {
-    const offen = alle.filter((t) => !t.erledigt).sort((a, b) => Number(!!b.wichtig) - Number(!!a.wichtig) || (a.faellig ?? '9999').localeCompare(b.faellig ?? '9999'));
+    // ruhendes Wartendes gehört nicht zu „was ist morgen wichtig“ – auch nicht nach dem ersten Tippen (Review)
+    const offen = alle.filter((t) => !t.erledigt && !ruht(t, morgen)).sort((a, b) => Number(!!b.wichtig) - Number(!!a.wichtig) || (a.faellig ?? '9999').localeCompare(b.faellig ?? '9999'));
     return offen.slice(0, 8).map((t) => {
       const k = this.todoKennung(t.pfad);
       return [{ text: knopfText(`${t.wichtig ? '⭐' : '☆'} ${t.titel}${t.faellig && t.faellig <= morgen ? ` (${t.faellig === morgen ? 'morgen' : 'fällig'})` : ''}`), callback_data: `st:${k}:${this.sternSignatur(k)}` }];

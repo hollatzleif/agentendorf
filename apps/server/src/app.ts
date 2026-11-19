@@ -9,7 +9,7 @@ import type { Gewohnheiten } from './gewohnheiten.js';
 import type { Wochenziele } from './wochenziele.js';
 import type { Notizen } from './notizen.js';
 import type { Noten } from './uni/noten.js';
-import { statistik, stimmungSetzen } from './statistik.js';
+import { mitFokus, statistik, stimmungSetzen } from './statistik.js';
 import { anschluesse } from './anschluesse.js';
 import { bluete } from './bluete.js';
 import { ortszeitZuUtc } from './uni/ical.js';
@@ -617,8 +617,7 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
         const liste = await l.liste({ alleErledigten: (req.query as { alle?: string }).alle === '1' });
         if (name !== 'todo') return liste;
         // E122: Fokuszeit je To-do (Pomodoro mit To-do, fokus_sitzungen.todo) – tatsächlich gegen geschätzt
-        const fokus = new Map((db.prepare('SELECT todo, SUM(minuten) AS m FROM fokus_sitzungen WHERE todo IS NOT NULL GROUP BY todo').all() as { todo: string; m: number }[]).map((x) => [x.todo, Math.round(x.m)]));
-        return liste.map((t) => (fokus.get(t.pfad) ? { ...t, fokusMin: fokus.get(t.pfad) } : t));
+        return mitFokus(db, liste);
       });
       app.post(basis, async (req) => einmalig(req, () => l.anlegen(req.body, 'Leif')));
       app.patch(basis, async (req) => {
