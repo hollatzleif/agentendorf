@@ -1130,3 +1130,10 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **Abends (ab 18 Uhr, Klasse `abend`):** Stimmung und „🌅 Morgen“ rücken direkt unter die Termine (am Handy noch vor die To-dos), der Fokus ans Ende. Ein laufender Fokus steht dagegen immer ganz oben in seiner Spalte.
 - **Ruhiger:** „In den nächsten 7 Tagen“ und „Ohne Datum“ sind schlichte Zeilen ohne Kästchen-Rahmen, damit Wichtig/Überfällig/Heute hervortreten. „Erste Schritte“ ist gestrichelt und ohne Schatten. Die Stimmungs-Knöpfe füllen am Handy eine Zeile.
 - **Technik:** Die Reihenfolge im DOM ist die des PCs; Handy und Abend ordnen per CSS `order` um (`.heute-spalte` ist am Handy `display: contents`). Abstände kommen einheitlich aus `gap` auf `.heute`; leere Bänder verschwinden über `:empty`. Neue Klassen: `heute-jetzt-zeile`, `heute-band`, `heute-fuss`, `heute-todos-karte`, `heute-termine-karte`, `heute-gewohnheiten`, `heute-wochenziele`, Gruppe `spaeter`. Bestehende Klassen, Rollen, Texte und testids sind unverändert.
+
+## E144 – Wann bin ich am konzentriertesten? (Nacht 18./19.11.)
+
+- **Statistik (Rathaus):** Ein neues Diagramm „🕘 Fokus nach Tageszeit“ zeigt 24 Balken mit den Fokusminuten je Stunde (Wien) im gewählten Zeitraum. Die beste zusammenhängende 2-Stunden-Spanne ist hervorgehoben, darüber steht „am konzentriertesten: 9–11 Uhr“.
+- **Wochenrückblick, Abschnitt Fokus:** „Am konzentriertesten (4 Wochen): 9–11 Uhr – leg Wichtiges in diese Zeit“.
+- **Rechnung:** Eine Sitzung über eine Stundengrenze wird anteilig aufgeteilt (5-Minuten-Schritte). Eine Aussage gibt es erst ab 2 h Fokus insgesamt, darunter wäre es Zufall.
+- **Warum:** Wer seine beste Zeit kennt, plant das Schwere dorthin. Die Daten (Pomodoro-Sitzungen) gab es schon.

@@ -133,6 +133,7 @@ export function StatistikAnsicht() {
                   einheit={(v) => `${v} %`}
                 />
               )}
+              {s.fokusJeStunde && s.fokusJeStunde.some((m) => m > 0) && <Tageszeit werte={s.fokusJeStunde} beste={s.besteZeit ?? null} />}
               {s.summen.stimmungSchnitt != null && (
                 <Balken
                   titel="💭 Stimmung (1–5)"
@@ -325,5 +326,45 @@ function Tabelle({ tage }: { tage: Tag[] }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+/** E144: Fokus nach Tageszeit – 24 Balken (Stunde in Wien), beste 2-Stunden-Spanne hervorgehoben */
+function Tageszeit({ werte, beste }: { werte: number[]; beste: { von: number; bis: number } | null }) {
+  const [hover, setHover] = useState<number | null>(null);
+  const hoechst = Math.max(1, ...werte);
+  const schritt = B / 24;
+  const breite = schritt - 2;
+  const titel = '🕘 Fokus nach Tageszeit';
+  return (
+    <figure className="statistik-diagramm" aria-label={titel}>
+      <figcaption>
+        <span>{titel}</span>
+        <span className="statistik-hover" aria-live="polite">
+          {hover != null ? `${hover}–${hover + 1} Uhr: ${stunden(werte[hover]!)}` : beste ? `am konzentriertesten: ${beste.von}–${beste.bis} Uhr` : 'noch zu wenig Fokus für eine Aussage'}
+        </span>
+      </figcaption>
+      <svg viewBox={`0 0 ${B} ${H}`} preserveAspectRatio="none" role="img" aria-label={`${titel}: ${werte.map((m, h) => `${h} Uhr ${m} min`).join(', ')}`} onMouseLeave={() => setHover(null)}>
+        <line x1={0} x2={B} y1={H} y2={H} className="statistik-achse" />
+        {werte.map((m, h) => {
+          const hoehe = (H * m) / hoechst;
+          const x = h * schritt + 1;
+          const imBesten = beste != null && h >= beste.von && h < beste.bis;
+          return (
+            <g key={h}>
+              {m > 0 && <path d={balkenPfad(x, H, breite, hoehe)} className={`statistik-balken${hover === h ? ' an' : ''}${imBesten ? ' beste' : ''}`} />}
+              <rect className="statistik-treffer" x={h * schritt} y={0} width={schritt} height={H} fill="transparent" onMouseEnter={() => setHover(h)} onClick={() => setHover(h)} />
+            </g>
+          );
+        })}
+      </svg>
+      <div className="statistik-x" aria-hidden>
+        {[0, 6, 12, 18].map((h) => (
+          <span key={h} style={{ left: `${((h + 0.5) / 24) * 100}%` }}>
+            {h} Uhr
+          </span>
+        ))}
+      </div>
+    </figure>
   );
 }

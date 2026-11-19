@@ -1400,3 +1400,6 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0.05rem 0.35rem; border:
   .heute .stimmung-frage { flex-basis: 100%; }
   .heute .stimmung-knopf { flex: 1; }
 }
+
+/* E144: beste Tageszeit */
+.statistik-balken.beste { fill: #e2553f; }

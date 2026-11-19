@@ -42,8 +42,11 @@ export async function statistik(o: { db: DB; uhr: Uhr; todos: TodoDienst; gewohn
   }));
   const summe = (f: (z: (typeof zeilen)[number]) => number, von = 0) => zeilen.slice(von).reduce((s, z) => s + f(z), 0);
   const gwF = summe((z) => z.gewohnheitenFaellig);
+  const { fokusJeStunde, besteZeit } = fokusNachTageszeit(o.db, jetzt, anzahl);
   return {
     tage: zeilen,
+    fokusJeStunde,
+    besteZeit,
     summen: {
       erledigt: summe((z) => z.erledigt),
       erledigtWoche: summe((z) => z.erledigt, anzahl - 7),
@@ -62,4 +65,24 @@ export const STIMMUNGEN = ['😞', '😕', '😐', '🙂', '😄'] as const;
 export function stimmungSetzen(db: DB, tag: string, wert: number, jetzt: number) {
   if (!Number.isInteger(wert) || wert < 1 || wert > 5) throw new Error('Stimmung 1–5');
   db.prepare('INSERT INTO stimmung (tag, wert, zeit) VALUES (?, ?, ?) ON CONFLICT(tag) DO UPDATE SET wert = excluded.wert, zeit = excluded.zeit').run(tag, wert, jetzt);
+}
+
+/** E144: Fokusminuten je Stunde (Wien) der letzten N Tage und die beste 2-Stunden-Spanne (ab 2 h Fokus insgesamt) */
+export function fokusNachTageszeit(db: DB, jetzt: number, anzahl: number) {
+  // E144: Fokus nach Tageszeit – Minuten je Stunde (Wien), verteilt über die Stunden, die eine Sitzung berührt
+  const jeStunde = Array.from({ length: 24 }, () => 0);
+  const stundeVon = (ms: number) => Number(new Date(ms).toLocaleString('en-GB', { timeZone: 'Europe/Vienna', hour: '2-digit', hour12: false })) % 24;
+  for (const x of db.prepare('SELECT start, ende, minuten FROM fokus_sitzungen WHERE ende > ?').all(jetzt - anzahl * 86_400_000) as { start: number; ende: number; minuten: number }[]) {
+    const dauer = Math.max(1, x.ende - x.start);
+    // in 5-Minuten-Schritten aufteilen (genug genau, auch über eine Stundengrenze hinweg)
+    for (let t = x.start; t < x.ende; t += 5 * 60_000) jeStunde[stundeVon(t)]! += (x.minuten * Math.min(5 * 60_000, x.ende - t)) / dauer;
+  }
+  const fokusJeStunde = jeStunde.map((m) => Math.round(m));
+  // beste zusammenhängende 2-Stunden-Spanne (nur wenn es genug Daten gibt)
+  let beste: { von: number; bis: number; min: number } | null = null;
+  for (let h = 0; h < 23; h++) {
+    const m = fokusJeStunde[h]! + fokusJeStunde[h + 1]!;
+    if (m > 0 && (!beste || m > beste.min)) beste = { von: h, bis: h + 2, min: m };
+  }
+  return { fokusJeStunde, besteZeit: beste && fokusJeStunde.reduce((a, b) => a + b, 0) >= 120 ? beste : null };
 }

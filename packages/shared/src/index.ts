@@ -811,6 +811,10 @@ export interface WochenzieleStand extends Wochenziele {
 export interface Statistik {
   tage: { tag: string; erledigt: number; fokusMin: number; gewohnheitenFaellig: number; gewohnheitenErledigt: number; /** E107: 1–5 */ stimmung: number | null }[];
   summen: { erledigt: number; erledigtWoche: number; fokusMin: number; fokusMinWoche: number; gewohnheitenQuote: number | null; stimmungSchnitt: number | null; aktiveTage: number };
+  /** E144: Fokusminuten je Stunde (0–23, Wien) im Zeitraum */
+  fokusJeStunde?: number[];
+  /** E144: beste 2-Stunden-Spanne (erst ab 2 h Fokus insgesamt) */
+  besteZeit?: { von: number; bis: number; min: number } | null;
 }
 
 /** Noten & ECTS (E98) */

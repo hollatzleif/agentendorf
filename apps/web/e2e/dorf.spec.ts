@@ -1543,6 +1543,20 @@ test('Heute ab 18 Uhr: „Morgen im Blick“ mit To-dos und freier Zeit (E141)',
   await expect(k).toContainText('frei ≈ 14 h');
 });
 
+test('Statistik: Fokus nach Tageszeit mit bester Spanne (E144)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await page.route('**/api/statistik?*', async (r) => {
+    const echt = await (await r.fetch()).json();
+    const werte = Array.from({ length: 24 }, (_, h) => (h === 9 ? 80 : h === 10 ? 60 : h === 15 ? 20 : 0));
+    return r.fulfill({ json: { ...echt, fokusJeStunde: werte, besteZeit: { von: 9, bis: 11, min: 140 } } });
+  });
+  await anmelden(page);
+  await page.goto('/gebaeude/Rathaus?reiter=statistik');
+  const d = page.getByRole('figure', { name: '🕘 Fokus nach Tageszeit' });
+  await expect(d).toContainText('am konzentriertesten: 9–11 Uhr');
+  await expect(d.locator('.statistik-balken.beste')).toHaveCount(2);
+});
+
 test('Seite lässt sich nicht laden (nach Deploy): einmal neu laden, dann „Neu laden“ statt weißer Seite (Review)', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'einmal reicht');
   await anmelden(page);
