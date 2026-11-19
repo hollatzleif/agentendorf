@@ -965,6 +965,7 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 ## E124 – Drittes Review: Wochenplan, Offline, Teilschritte, Zeitrechnung (Nacht 18./19.11.)
 
 - **Wochenplan:** Eine überfällige Karte, die man im Eingang wieder loslässt, verliert ihr Fälligkeitsdatum nicht mehr. Vorher ging ein PATCH mit `faellig: ''` raus.
+- **Wochenplan, zweimal schnell verschieben:** Die neue Version aus der Antwort wird sofort übernommen. Vorher schickte das zweite Verschieben die alte Version mit und bekam 409.
 - **Offline-Schlange idempotent:** Jede Anfrage, die offline gemerkt werden kann, trägt schon beim ersten Versuch eine Eintrags-ID (`x-dorf-id`).
   - Der Server merkt sich ID und Antwort 7 Tage lang (Tabelle `idempotenz`, Migration 22) und gibt bei Wiederholung dieselbe Antwort zurück.
   - So entsteht nichts doppelt, wenn die Anfrage ankam, die Antwort aber im Funkloch verloren ging.

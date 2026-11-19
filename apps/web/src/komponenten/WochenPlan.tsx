@@ -67,7 +67,9 @@ export function WochenPlan({ startVersatz = 0 }: { startVersatz?: number } = {})
     // sofort zeigen, der Server bestätigt gleich
     qc.setQueryData<TodoInfo[]>(['liste', 'todo'], (l) => l?.map((x) => (x.pfad === pfad ? { ...x, faellig: faellig || undefined } : x)));
     try {
-      await api('/api/todos', { methode: 'PATCH', body: { pfad, basisVersion: t.version, faellig } });
+      const neu = await api<TodoInfo>('/api/todos', { methode: 'PATCH', body: { pfad, basisVersion: t.version, faellig } });
+      // neue Version sofort übernehmen – ein zweites schnelles Verschieben schickt sonst die alte mit (409)
+      if (neu?.pfad === pfad && neu.version) qc.setQueryData<TodoInfo[]>(['liste', 'todo'], (l) => l?.map((x) => (x.pfad === pfad ? { ...x, ...neu } : x)));
     } catch (e) {
       setFehler(e instanceof ApiFehler ? e.message : String(e));
     }
