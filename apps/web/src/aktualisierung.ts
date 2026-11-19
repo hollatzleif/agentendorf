@@ -1,16 +1,10 @@
 /**
- * E179: Die App aktualisiert sich selbst – auch wenn sie nie neu geladen wird (PWA am Handy aus dem Hintergrund,
- * Programm-Fenster den ganzen Tag offen).
- * - Service Worker (autoUpdate: aktiviert neue Fassungen sofort) wird alle 30 min, beim Zurückkommen in den
- *   Vordergrund und nach jedem Wiederverbinden der Live-Verbindung (= Server neu gestartet, meist ein Deploy) geprüft.
- * - Zusätzlich vergleicht die App ihr eigenes Haupt-Skript mit dem aktuellen index.html des Servers – das greift auch
- *   dort, wo kein Service Worker läuft (Programm).
- * - Neue Fassung da: ist die App gerade im Hintergrund, lädt sie sofort neu; sonst erscheint ein Hinweis zum
- *   Neuladen, und sie lädt beim nächsten Wechsel in den Hintergrund neu – nie mitten im Tippen.
+ * Updates von Hand (Leif, 19.11. – ersetzt die automatische Prüfung aus E179): Leif weiß, wann er deployt hat,
+ * und drückt in den Einstellungen „Nach Update suchen“. Kein Prüfen im Hintergrund, kein Neuladen von selbst.
+ * - Der Service Worker bleibt (Offline, PWA); er wird nur beim Knopfdruck auf eine neue Fassung geprüft.
+ * - Verglichen wird das eigene Haupt-Skript mit dem aktuellen index.html des Servers – das greift auch dort,
+ *   wo kein Service Worker läuft (Programm).
  */
-const EREIGNIS = 'dorf:neue-version';
-let bereit = false;
-
 const eigeneSkripte = () =>
   [...document.querySelectorAll<HTMLScriptElement>('script[type="module"][src]')]
     .map((s) => new URL(s.src, location.href).pathname)
@@ -18,29 +12,13 @@ const eigeneSkripte = () =>
     .sort()
     .join('|');
 
-function melden() {
-  if (bereit) return;
-  bereit = true;
-  if (document.visibilityState === 'hidden') neuLaden();
-  else window.dispatchEvent(new Event(EREIGNIS));
-}
+export type UpdateErgebnis = 'neu' | 'aktuell' | 'offline' | 'entwicklung';
 
-export const neueVersionDa = () => bereit;
-export const aufNeueVersion = (f: () => void) => {
-  window.addEventListener(EREIGNIS, f);
-  return () => window.removeEventListener(EREIGNIS, f);
-};
-
-export function neuLaden() {
-  location.reload();
-}
-
-/** Server fragen: liefert index.html ein anderes Haupt-Skript als das, mit dem diese Seite läuft? */
-export async function versionPruefen() {
+/** Fragt den Server, ob es eine neue Fassung gibt. */
+export async function updateSuchen(): Promise<UpdateErgebnis> {
+  const eigen = eigeneSkripte();
+  if (!eigen) return 'entwicklung'; // Entwicklungsserver (kein gebautes Skript) – nichts zu vergleichen
   try {
-    void navigator.serviceWorker?.getRegistration().then((r) => r?.update()).catch(() => undefined);
-    const eigen = eigeneSkripte();
-    if (!eigen) return; // Entwicklungsserver (kein gebautes Skript) – nichts zu vergleichen
     // ?v=… umgeht den Precache des Service Workers (nur exakte Adressen), no-store den HTTP-Zwischenspeicher
     const html = await (await fetch(`/index.html?v=${Date.now()}`, { cache: 'no-store', credentials: 'same-origin' })).text();
     const server = [...html.matchAll(/<script[^>]*type="module"[^>]*src="([^"]+)"/g)]
@@ -48,26 +26,32 @@ export async function versionPruefen() {
       .filter((p) => p.startsWith('/assets/'))
       .sort()
       .join('|');
-    if (server && server !== eigen) melden();
+    if (!server) return 'offline';
+    return server !== eigen ? 'neu' : 'aktuell';
   } catch {
-    /* offline – beim nächsten Mal */
+    return 'offline';
   }
 }
 
-export function aktualisierungStarten() {
-  if ('serviceWorker' in navigator && !import.meta.env.DEV) {
-    let hatteController = !!navigator.serviceWorker.controller;
-    // neue Fassung hat übernommen (autoUpdate: skipWaiting + clientsClaim) – beim ersten Einrichten nicht melden
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (hatteController) melden();
-      hatteController = true;
+/** Neue Fassung holen: Service Worker aktualisieren (neue Fassung übernimmt sofort), sonst ohne ihn neu laden. */
+export async function updateInstallieren() {
+  const reg = await navigator.serviceWorker?.getRegistration().catch(() => undefined);
+  if (reg) {
+    const uebernommen = new Promise<void>((ok) => {
+      navigator.serviceWorker.addEventListener('controllerchange', () => ok(), { once: true });
+      setTimeout(ok, 8000);
     });
-    void navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => undefined);
+    try {
+      await reg.update();
+      if (reg.installing || reg.waiting) await uebernommen;
+      else await reg.unregister(); // keine neue Fassung im Service Worker gefunden → ohne ihn frisch vom Server laden
+    } catch {
+      await reg.unregister().catch(() => undefined);
+    }
   }
-  setInterval(() => void versionPruefen(), 30 * 60_000);
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') {
-      if (bereit) neuLaden();
-    } else void versionPruefen();
-  });
+  location.reload();
+}
+
+export function aktualisierungStarten() {
+  if ('serviceWorker' in navigator && !import.meta.env.DEV) void navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => undefined);
 }

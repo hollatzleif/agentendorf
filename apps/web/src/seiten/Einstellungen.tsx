@@ -5,6 +5,7 @@ import type { Anschluss, GeraetInfo, GeraetKopplung, Ich, Konflikt, ProgrammeInf
 import { istProgramm } from '../programm/desktop';
 import { api, ApiFehler } from '../api';
 import { bibliothekUrl, linkKlick } from '../router';
+import { updateInstallieren, updateSuchen } from '../aktualisierung';
 
 const fehlertext = (e: unknown) => (e instanceof ApiFehler ? e.message : String(e));
 const zeit = (iso: string) => new Date(iso).toLocaleString('de-AT', { dateStyle: 'short', timeStyle: 'short' });
@@ -47,8 +48,34 @@ export function Einstellungen() {
         <p className="leise">
           Dorf-Stand {ich.data?.version} · diese Seite gebaut am {zeitText(__BAU_ZEIT__)}
         </p>
+        <UpdateKnopf />
       </div>
     </section>
+  );
+}
+
+/** Updates von Hand (19.11.): Leif weiß, wann er deployt hat – kein automatisches Prüfen mehr */
+function UpdateKnopf() {
+  const [stand, setStand] = useState<'' | 'sucht' | 'neu' | 'aktuell' | 'offline' | 'entwicklung'>('');
+  const suchen = async () => {
+    setStand('sucht');
+    const r = await updateSuchen();
+    setStand(r);
+    if (r === 'neu') await updateInstallieren();
+  };
+  return (
+    <p className="formzeile" role="status">
+      <button type="button" onClick={() => void suchen()} disabled={stand === 'sucht' || stand === 'neu'}>
+        🔄 Nach Update suchen
+      </button>
+      <span className="leise">
+        {stand === 'sucht' && 'Frage das Dorf …'}
+        {stand === 'neu' && 'Neue Version gefunden – lädt neu …'}
+        {stand === 'aktuell' && 'Du hast schon die neueste Version.'}
+        {stand === 'offline' && 'Das Dorf ist gerade nicht erreichbar.'}
+        {stand === 'entwicklung' && 'Entwicklungsserver – hier gibt es nichts zu aktualisieren.'}
+      </span>
+    </p>
   );
 }
 

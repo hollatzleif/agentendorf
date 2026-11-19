@@ -1932,25 +1932,31 @@ test('Befehlspalette springt zu den Projekten (E177)', async ({ page }, info) =>
   await expect(page).toHaveURL(/reiter=projekte/);
 });
 
-test('Neue Version: liefert der Server ein anderes Haupt-Skript, erscheint „Neue Version“ (E179)', async ({ page }, info) => {
+test('Nach Update suchen: von Hand in den Einstellungen – kein automatisches Prüfen mehr', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'einmal reicht');
   await anmelden(page);
-  await page.goto('/heute');
-  await expect(page.getByRole('heading', { name: /, Leif$/ })).toBeVisible();
-  // gleiche Fassung → kein Hinweis
-  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
-  await page.waitForTimeout(500);
-  await expect(page.getByText('Neue Version des Dorfs ist da.')).toHaveCount(0);
-  // Server hat neu deployt
-  await page.route('**/index.html?v=*', (r) => r.fulfill({ contentType: 'text/html', body: '<!doctype html><script type="module" crossorigin src="/assets/index-NEU123.js"></script>' }));
-  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
-  const h = page.getByRole('status').filter({ hasText: 'Neue Version des Dorfs ist da.' });
-  await expect(h).toBeVisible();
-  await expect(h.getByRole('button', { name: 'Jetzt neu laden' })).toBeVisible();
-  // Einstellungen: Dorf-Stand und Bauzeit dieser Seite stehen nebeneinander
-  await page.unroute('**/index.html?v=*');
   await page.goto('/einstellungen');
   await expect(page.getByText(/Dorf-Stand .* · diese Seite gebaut am/)).toBeVisible();
+  // von selbst passiert nichts: auch wenn der Server ein neues Skript liefert, fragt die App nicht nach
+  let gefragt = 0;
+  await page.route('**/index.html?v=*', (r) => {
+    gefragt++;
+    return r.fulfill({ contentType: 'text/html', body: '<!doctype html><script type="module" crossorigin src="/assets/index-NEU123.js"></script>' });
+  });
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await page.waitForTimeout(500);
+  expect(gefragt).toBe(0);
+  // gleiche Fassung → „schon aktuell“
+  await page.unroute('**/index.html?v=*');
+  await page.getByRole('button', { name: '🔄 Nach Update suchen' }).click();
+  await expect(page.getByText('Du hast schon die neueste Version.')).toBeVisible();
+  // neue Fassung → lädt neu
+  await page.route('**/index.html?v=*', (r) => r.fulfill({ contentType: 'text/html', body: '<!doctype html><script type="module" crossorigin src="/assets/index-NEU123.js"></script>' }));
+  const neuGeladen = page.waitForEvent('load');
+  await page.getByRole('button', { name: '🔄 Nach Update suchen' }).click();
+  await neuGeladen;
+  await page.unroute('**/index.html?v=*');
+  await expect(page.getByRole('button', { name: '🔄 Nach Update suchen' })).toBeVisible();
 });
 
 test('Einstellungen: Cardputer koppeln – Code, Gerät erscheint, Sperren → Schlüssel gilt nicht mehr (E182)', async ({ page, request }, info) => {

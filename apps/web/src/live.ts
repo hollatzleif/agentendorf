@@ -1,7 +1,6 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import type { QueryClient } from '@tanstack/react-query';
 import type { LiveEreignis } from '@dorf/shared';
-import { versionPruefen } from './aktualisierung';
 
 type Zustand = 'verbinde' | 'verbunden' | 'getrennt';
 let zustand: Zustand = 'verbinde';
@@ -42,15 +41,11 @@ export function useLiveVerbindung(qc: QueryClient, aktiv: boolean) {
     let versuch = 0;
     let timer: number | undefined;
     let beendet = false;
-    let hatteVerbindung = false;
 
     const verbinden = () => {
       setzen('verbinde');
       ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/live`);
       ws.onopen = () => {
-        // E179: nach einem Wiederverbinden (Server neu gestartet, meist ein Deploy) nach einer neuen Fassung sehen
-        if (versuch > 0 || hatteVerbindung) void versionPruefen();
-        hatteVerbindung = true;
         versuch = 0;
         setzen('verbunden');
         // nach einer Unterbrechung alles frisch holen
