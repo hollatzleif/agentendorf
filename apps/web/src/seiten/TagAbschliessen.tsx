@@ -6,6 +6,7 @@ import { api, ApiFehler } from '../api';
 import { linkKlick } from '../router';
 import { tagPlus } from '../komponenten/MarktKalender';
 import { StimmungZeile } from '../komponenten/StimmungZeile';
+import { GewohnheitenKarte } from '../komponenten/GewohnheitenKarte';
 import { Stern } from './Heute';
 
 /**
@@ -98,6 +99,8 @@ export function TagAbschliessen() {
               <StimmungZeile />
             </div>
           )}
+          {/* E159: Gewohnheiten von heute gleich mit abhaken */}
+          {k === 'geschafft' && <GewohnheitenKarte />}
           {k === 'offen' && <OffenVerteilen offen={offen} heute={heute} laedt={todos.isLoading} />}
           {k === 'morgen' && (
             <div className="karte">

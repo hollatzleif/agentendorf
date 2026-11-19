@@ -66,6 +66,9 @@ export function TodoBrett({ liste: name = 'todo', platzhalter = 'Neues To-do …
     ...(alleOffen.some((t) => t.wichtig) ? [['stern', '⭐'] as [string, string]] : []),
     ...(alleOffen.some((t) => t.faellig && t.faellig <= h0) ? [['heute', 'Heute & überfällig'] as [string, string]] : []),
     ...(alleOffen.some((t) => !t.faellig) && alleOffen.some((t) => t.faellig) ? [['ohne', 'Ohne Datum'] as [string, string]] : []),
+    // E158: Wartendes und oft Verschobenes gezielt ansehen
+    ...(alleOffen.some((t) => t.wartet) ? [['wartet', '⏳ Wartet'] as [string, string]] : []),
+    ...(alleOffen.some((t) => (t.verschoben ?? 0) >= 3) ? [['geschoben', '↻ Oft verschoben'] as [string, string]] : []),
     ...gruppen.map((g) => [`g:${g}`, g] as [string, string]),
   ];
   // gewählter Chip verschwunden (z. B. letztes ⭐ erledigt) → wie „Alle“ (Review)
@@ -81,6 +84,8 @@ export function TodoBrett({ liste: name = 'todo', platzhalter = 'Neues To-do …
     if (filterJetzt === 'stern') return !!t.wichtig;
     if (filterJetzt === 'heute') return !!t.faellig && t.faellig <= h0;
     if (filterJetzt === 'ohne') return !t.faellig;
+    if (filterJetzt === 'wartet') return !!t.wartet;
+    if (filterJetzt === 'geschoben') return (t.verschoben ?? 0) >= 3;
     if (filterJetzt.startsWith('g:')) return t.gruppe === filterJetzt.slice(2) || t.gebaeude === filterJetzt.slice(2);
     return true;
   };

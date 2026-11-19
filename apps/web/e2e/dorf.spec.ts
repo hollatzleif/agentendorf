@@ -1374,6 +1374,13 @@ test('To-do-Brett: Filter nach Text, ⭐ und Gruppe (E125)', async ({ page }, in
   await expect(page.locator('li.todo', { hasText: `${p} Wichtig` })).toBeVisible();
   await f.getByRole('button', { name: 'Alle', exact: true }).click();
   await expect(page.locator('li.todo', { hasText: p })).toHaveCount(7);
+  // E158: ⏳ Wartet
+  await page.request.post('/api/todos', { headers: o, data: { titel: `${p} Antwort`, wartet: 'Prof' } });
+  await page.reload();
+  await f.getByRole('searchbox', { name: 'To-dos filtern' }).fill(p);
+  await f.getByRole('button', { name: '⏳ Wartet' }).click();
+  await expect(page.locator('li.todo', { hasText: p })).toHaveCount(1);
+  await expect(page.locator('li.todo', { hasText: `${p} Antwort` })).toBeVisible();
 });
 
 test('Wochenplan: „Woche verteilen“ schlägt Tage vor, Übernehmen setzt die Fälligkeit (E126)', async ({ page }, info) => {

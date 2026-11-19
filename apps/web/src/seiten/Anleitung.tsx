@@ -35,7 +35,7 @@ export function Anleitung() {
           Nicht lange überlegen: <b>👉 Jetzt dran</b> auf „Heute“ (Telegram: <b>/jetzt</b> oder „👉 Was zuerst?“ unter der Morgenzeitung) zeigt, was in die Zeit bis zum nächsten Termin passt – „🍅 Los“.
         </li>
         <li>
-          Am wichtigsten To-do mit <b>🍅 Fokus</b> arbeiten – am besten im <L href="/fokus">Vollbild</L>. Telegram hält solange Meldungen zurück; danach fragt es, ob das To-do erledigt ist.
+          Am wichtigsten To-do mit <b>🍅 Fokus</b> arbeiten – am besten im <L href="/fokus">Vollbild</L>. Telegram hält solange Meldungen zurück; danach fragt es, ob das To-do erledigt ist. Im Vollbild: <b>💭 Gedanken parken</b> (Enter – landet in der Tagesnotiz) und <b>🔊 Rauschen</b> gegen Ablenkung.
         </li>
         <li>
           Gedanken sofort festhalten: <b>„notiz: …“</b> in Telegram oder Strg/⌘+K → „notiz …“. Aufgaben: <b>„todo: …“</b>, auch „… jeden Montag“.
@@ -66,7 +66,7 @@ export function Anleitung() {
       <h2>🌙 Abends (2 Minuten)</h2>
       <ol>
         <li>
-          <b>Tagesabschluss</b> (Telegram, 21:00): Erledigtes, Fokus, was morgen fällig ist.
+          <b>Tagesabschluss</b> (Telegram, 21:00): Erledigtes, Fokus, was morgen fällig ist. Früher fertig? <b>/morgen</b> zeigt den nächsten Tag jederzeit.
         </li>
         <li>
           <b>⭐ Was ist morgen wichtig?</b> antippen – dann steht es morgen ganz oben.

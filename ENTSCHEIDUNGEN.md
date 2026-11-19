@@ -1259,3 +1259,11 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
   - darunter die bekannten ⭐-Knöpfe aus dem Tagesabschluss (`st:`)
 - **Warum:** Der Tagesabschluss kommt um 21 Uhr. Wer früher Schluss macht oder abends noch etwas einschiebt, will den Morgen jederzeit sehen können.
 - **Bürgermeister:** Er kennt den Aufschiebe-Zähler und bietet Zerlegen an.
+
+## E158 – Filter „⏳ Wartet“ und „↻ Oft verschoben“ im To-do-Brett (19.11.)
+
+- Zwei neue Filter-Chips (nur, wenn es passende To-dos gibt): alles Wartende bzw. alles, was mindestens dreimal verschoben wurde. Damit lässt sich die Liste gezielt durchgehen, z. B. beim Wochenrückblick.
+
+## E159 – Gewohnheiten im Tagesabschluss (19.11.)
+
+- Unter /abschluss → „1 · Geschafft“ steht die Gewohnheiten-Karte von Heute: abends abhaken, was erledigt ist, damit die Serie nicht reißt. Wie im Telegram-Tagesabschluss, nur in der App.
