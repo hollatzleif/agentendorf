@@ -50,6 +50,9 @@ export function Anleitung() {
           Wartest du auf jemanden? „Note Mathe <b>wartet auf</b> Prof. Müller“ – das To-do ruht unter <b>⏳ Wartet auf</b>, bis der Tag zum Nachfassen da ist (Datum im To-do).
         </li>
         <li>
+          Große Abgabe in zwei Wochen? Im To-do-Brett <b>🪜</b> verteilt sie rückwärts in Etappen bis zur Frist – daraus wird automatisch ein Projekt mit Fortschritt.
+        </li>
+        <li>
           <b>🧠 / 🪶 Energie</b> am To-do (im Brett beim Bearbeiten): „Jetzt dran“ schlägt Schweres in deiner besten Tageszeit vor (Rathaus → Statistik), Leichtes abends und in kurzen Lücken.
         </li>
         <li>
