@@ -1474,3 +1474,24 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **strict-Grenzen (E180):** Die neuen Schemas haben wenige optionale Felder (ohne `minimum`/`maximum`; Zod prüft). Weil sie billiger sind, wählt `strictAuswahl` sie vor `todo_anlegen` – das läuft jetzt wie schon `todo_bearbeiten` ohne strict. Die Grenzen bleiben eingehalten.
 - **Kontext:** Der Systemprompt nennt die Werkzeuge, die der Lauf hat. Die Orientierung des Bürgermeisters sagt jetzt „Termine nie selbst eintragen, termin_vorschlagen“ statt „Einträge legt nur Leif an“ und dass er Pomodoro, Timer und Wecker selbst stellen kann, wenn Leif es will. Keine Vorlagendatei geändert (kein neuer Hash nötig).
 - **Ersetzt E75 (Teil):** „Kalendereinträge: Agenten nie“ gilt nicht mehr – Agenten nur per Freigabe.
+
+## E184 – Cardputer-Firmware 1.0: Fernbedienung + Agentendorf (19.11.)
+
+- **Wunsch (Leif):** Auf dem M5Stack Cardputer Adv bleibt im Startmenü „Fernbedienung“ (HaloOS 0.3, Quellcode von Leif). „Cardo“ wird durch „Agentendorf“ ersetzt: alle Funktionen als Listen, über WLAN oder Handy-Hotspot, mit dem Bürgermeister reden.
+- **Aufbau (`apps/cardputer/`):**
+  - Die Logik liegt in `src/core/` (läuft auch am PC), die Hardware in `src/main.cpp`.
+  - Die Fernbedienung ist unverändert. Der Cardo-Abgleich mit dem Hub bleibt drin, weil das Entfernen das Verhalten gegenüber dem ungetesteten Hub ändern würde.
+  - Moduswechsel = Neustart. Im Agentendorf läuft kein BLE.
+- **Netz:**
+  - Ein eigener FreeRTOS-Task, damit Tasten, Countdown und Läuten während eines TLS-Handshakes weiterlaufen.
+  - HTTPS mit eingebetteten Root-CAs (ISRG X1/X2, USERTrust RSA/ECC) und Prüfung des Hostnamens, nie `setInsecure`.
+  - Das Ablaufdatum der Zertifikate prüft das mbedTLS des Core 2.0.17 nicht (ohne `MBEDTLS_HAVE_TIME_DATE`).
+- **JSON:** Ein eigener Leser ohne Baum statt ArduinoJson, weil das Gerät kein PSRAM hat und 20-KB-Antworten sonst doppelt im RAM lägen.
+- **Offline:** Schreibende Aktionen laufen immer über eine Warteschlangen-Datei mit fester `X-Vorgang`-id. Der Server führt nichts doppelt aus (E182).
+- **Prüfung:**
+  - `test/host-test.sh`: 115 Prüfungen gegen den Nachbau der API.
+  - `test/vertrag_test.py`: die echte Geräte-API gegen den Nachbau. Felder und Typen stimmen überein, optionale Felder sind laut `API.md` erlaubt.
+  - Nie auf echter Hardware gelaufen. Ungemessen bzw. unerprobt sind Heap mit WLAN+TLS, WLAN-Fehlertexte, Akku und Tastatur. Siehe `ANLEITUNG.md` → „Was geprüft ist“.
+- **Auslieferung:**
+  - `release/agentendorf-cardputer-1.0.bin` (an 0x0, wie HaloOS) und `…-nur-programm.bin` (an 0x10000, für spätere Updates ohne Verlust von WLAN und Kopplung).
+  - Die Binärdateien liegen im Repo, damit Leif sie direkt herunterladen kann.
