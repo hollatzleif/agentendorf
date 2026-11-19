@@ -1309,3 +1309,7 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 
 - **/projekte:** Offene Projekte mit Balken (▰▱), „erledigt/gesamt“, „+N diese Woche“, „💤 N Tage“ und dem nächsten Schritt. Je Projekt gibt es einen „🍅“-Knopf, der den Fokus auf den nächsten Schritt startet (derselbe signierte Knopf wie „Jetzt dran“, `jl:`).
 - **Morgenzeitung:** Ruht ein offenes Projekt seit mindestens 7 Tagen, steht das am längsten ruhende unter „Heute“: „💤 Umzug ruht seit 12 Tagen – nächster Schritt: …“. Nur eins, damit es ein Anstoß bleibt und keine Liste wird.
+
+## E165 – Projekte in der Wochenplanung (19.11.)
+
+- /planen → „2 · Drei Ziele“: Unter den Wochenzielen lassen sich die Projekte aufklappen („📁 Deine Projekte ansehen“). Wochenziele entstehen oft aus Projekten, und ein ruhendes Projekt ist beim Planen genau richtig aufgehoben.

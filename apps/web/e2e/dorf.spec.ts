@@ -1439,6 +1439,9 @@ test('Wochenplanung (/planen): vier Schritte, Häkchen bleiben; Hinweis auf „H
   const p = page.getByRole('region', { name: 'Wochenplanung' });
   for (const n of ['1 · Zurückschauen', '2 · Drei Ziele', '3 · Woche verteilen', '4 · Gewohnheiten']) await expect(p.getByRole('region', { name: n })).toBeVisible();
   await expect(p.getByRole('region', { name: 'Wochenplan' })).toContainText('23.11.');
+  // E165: Projekte aufklappbar unter den Zielen
+  await p.getByText('📁 Deine Projekte ansehen').click();
+  await expect(p.getByRole('region', { name: '2 · Drei Ziele' }).locator('.projekte, .projekte-leer').first()).toBeVisible();
   await p.getByRole('checkbox', { name: '1 · Zurückschauen erledigt' }).check();
   await expect(p).toContainText('1/4 erledigt');
   await page.reload();

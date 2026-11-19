@@ -4,6 +4,7 @@ import { WochenrueckblickAnsicht } from '../komponenten/WochenrueckblickAnsicht'
 import { WochenzieleKarte } from '../komponenten/WochenzieleKarte';
 import { WochenPlan } from '../komponenten/WochenPlan';
 import { GewohnheitenKarte } from '../komponenten/GewohnheitenKarte';
+import { Projekte } from '../komponenten/Projekte';
 
 /**
  * E129: Wochenplanung (/planen) – das 10-Minuten-Ritual am Sonntag (oder Montag früh) auf einer Seite:
@@ -72,6 +73,13 @@ export function WochePlanen() {
           <p className="leise">{text}</p>
           {k === 'rueckblick' && <WochenrueckblickAnsicht />}
           {k === 'ziele' && <WochenzieleKarte />}
+          {k === 'ziele' && (
+            // E165: Ziele entstehen oft aus Projekten – was ruht, fällt hier auf
+            <details className="planen-projekte">
+              <summary>📁 Deine Projekte ansehen</summary>
+              <Projekte />
+            </details>
+          )}
           {k === 'verteilen' && <WochenPlan startVersatz={sonntag ? 1 : 0} />}
           {k === 'gewohnheiten' && <GewohnheitenKarte />}
         </section>
