@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { belegtMs, minutenText } from '@dorf/shared';
+import { belegtMs, istFristBlock, minutenText } from '@dorf/shared';
 import matter from 'gray-matter';
 import { WETTER_TEXT, type MorgenzeitungInfo, type MorgenzeitungUebersicht } from '@dorf/shared';
 import type { DB } from './db.js';
@@ -69,7 +69,7 @@ export class Morgenzeitung {
       /** E139: Lernziele dieser Woche („Mathe III: 2 h von 6 h“) */
       lernen?: () => Promise<string[]>;
       /** E120: heute dran stehende To-dos (überfällig + heute fällig) mit Schätzung */
-      todosHeute?: () => Promise<{ dauer?: number }[]>;
+      todosHeute?: () => Promise<{ dauer?: number; titel?: string; wartet?: string }[]>;
       /** E112: wie es dem Dorf geht */
       bluete?: () => Promise<DorfBluete>;
       log?: (t: string) => void;
@@ -144,7 +144,7 @@ export class Morgenzeitung {
     const tagBis = tagBeginn + 22 * 3600_000;
     try {
       for (const k of await this.o.kalender.termine(tagBeginn, tagEnde)) {
-        if (!k.ganztags && k.start != null && k.ende != null) belegt.push([k.start, k.ende]);
+        if (!k.ganztags && k.start != null && k.ende != null && !istFristBlock(k)) belegt.push([k.start, k.ende]);
         const zeit = k.ganztags ? 'ganztägig' : `${uhr.format(new Date(k.start!))}${k.ende ? `–${uhr.format(new Date(k.ende))}` : ''}`;
         heute.push({ zeit: k.ganztags ? tagBeginn : k.start!, zeile: `${zeit} ${einzeilig(k.titel, 120)}` });
       }
@@ -178,6 +178,9 @@ export class Morgenzeitung {
         `☑️ ${dran.length} To-do${dran.length === 1 ? '' : 's'} dran${geschaetzt ? ` (≈ ${minutenText(geschaetzt)} geschätzt${ohne ? `, ${ohne} ohne Schätzung` : ''})` : ''} · frei 8–22 Uhr ≈ ${minutenText(frei)}${geschaetzt > frei ? ' – mehr, als in den Tag passt: etwas verschieben?' : ''}`,
       );
     }
+    // E150: wartende To-dos, deren Nachfass-Tag da ist
+    const nachfassen = (dran ?? []).filter((t2) => t2.wartet && t2.titel);
+    if (nachfassen.length) heuteZeilen.push(`⏳ Heute nachfassen: ${nachfassen.slice(0, 4).map((t2) => `${einzeilig(t2.titel!, 60)} (bei ${einzeilig(t2.wartet!, 40)})`).join(', ')}`);
     abschnitte.push({ titel: 'Heute', zeilen: heuteZeilen });
 
     // Fristen der nächsten 7 Tage (nicht abgehakt)

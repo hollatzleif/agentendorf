@@ -1208,3 +1208,13 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **Tastenkürzel:** Sie ruhen nur bei echten Fenstern (`dialog[open]`, `aria-modal`, `.fenster-hintergrund`), nicht bei der eigenen Hilfe, nicht bei den kleinen Karten im Dorf und nicht nach einem Klick auf einen Knopf in einem Formular. Die Felder für Einkauf, Wunschliste und Ämter heißen wieder „Neues To-do“ (Browser-Tests); „n“ unterscheidet über `data-todo-neu`.
 - **Leine:** Setzt ein Fremdinhalt-Lauf `wartet`, wird das To-do „fremd“ (wie bei Titel/Notiz).
 - **/verteilen** zählt ruhende To-dos nicht als Eingang.
+
+## E150 – Wartet auf … rundum (19.11.)
+
+- **Morgenzeitung:** Unter „Heute“ steht die Zeile „⏳ Heute nachfassen: Titel (bei Person)“ für Wartendes, dessen Nachfass-Tag da ist. Fristen-Blöcke zählen auch hier nicht als belegte Zeit.
+- **Wochenrückblick:** Unter „Erledigt und offen“ steht „⏳ N wartend“, mit „seit N Tagen“ ab einer Woche und „ohne Nachfass-Tag“ als Hinweis, einen zu setzen.
+- **Telegram /wartet:** Zeigt alles Wartende mit Nachfass-Tag. Je Eintrag gibt es drei signierte Knöpfe (`wa:`):
+  - 📨 +3 T: nachgefasst, in 3 Tagen wieder
+  - ✅ Erledigt
+  - ▶️ Selbst: wartet nicht mehr, heute dran
+- **Bürgermeister:** Kennt /abschluss und das Feld `wartet` (Systemkontext).

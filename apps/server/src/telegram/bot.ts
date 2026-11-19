@@ -330,6 +330,7 @@ export class TelegramBot {
     { command: 'karten', description: 'Karteikarten wiederholen: /karten [Fach]' },
     { command: 'jetzt', description: 'Was passt jetzt? Ein To-do für die Zeit bis zum nächsten Termin' },
     { command: 'verteilen', description: 'To-dos ohne Datum auf die Woche verteilen (Vorschlag)' },
+    { command: 'wartet', description: 'Worauf du wartest – nachgefasst, angekommen oder selbst weitermachen' },
     { command: 'lernen', description: 'Lernziele der Woche je Fach – mit 🍅 starten' },
     { command: 'fokus', description: 'Pomodoro starten: /fokus [Thema]' },
     { command: 'ziel', description: 'Wochenziele: /ziel <Text> setzt eins, /ziel zeigt sie zum Abhaken' },
@@ -526,6 +527,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       if (b === '/karten') return this.kartenBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b === '/jetzt') return this.jetztBefehl();
       if (b === '/verteilen') return this.verteilenBefehl();
+      if (b === '/wartet' || b === '/warte') return this.wartetZeigen();
       if (b === '/lernen') return this.lernenBefehl();
       if (b === '/fokus') return this.fokusBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b !== '/neu') return this.befehl(b);
@@ -602,7 +604,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
   private async befehl(b: string) {
     if (b === '/start' || b === '/hilfe' || b === '/help')
       return this.senden(
-        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters. Weiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch); antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n<b>📅 Planen</b>\n/heute – dein Tag · /woche – die nächsten 7 Tage\n/plan [morgen] – To-dos in freie Kalenderlücken\n/verteilen – To-dos ohne Datum auf die Woche verteilen\n/fristen – Abgaben und Prüfungen (7 Tage)\n/termin &lt;wann&gt; &lt;was&gt; – Termin eintragen (mit Bestätigung)\n\n<b>✅ Erledigen</b>\n/todo [Text] – To-do-Liste bzw. neues To-do (auch „… jeden Montag“)\n/einkauf [Text] – Einkaufsliste\n/erinner &lt;wann&gt; &lt;was&gt; – Erinnerung (läutet im Kirchturm)\n/aufraeumen – Überfälliges neu einplanen\n/jetzt – was jetzt passt (mit 🍅 Los) · /fokus [Thema] – Pomodoro starten\n/gewohnheiten – heute abhaken · /ziel [Text] – Wochenziele\n\n<b>🎓 Lernen</b>\n/lernen – Lernziele der Woche, 🍅 je Fach\n/karten [Fach] – Karteikarten · /moodle &lt;Fach&gt; [Frage] – in Moodle nachsehen\n/noten – Notenschnitt und ECTS\n\n<b>📝 Festhalten &amp; Finden</b>\n/notiz &lt;Text&gt; – Tagesnotiz · /suche &lt;Begriff&gt; – im Vault suchen\n/statistik – die letzten 7 Tage\n\n<b>🏛️ Dorf</b>\n/status – was läuft · /freigaben – offene Freigaben\n/aktion [Name] – Skill starten · /neu – nächste Nachricht = neue Aufgabe\n/hilfe – diese Hilfe\n\n<i>Tipp: „todo: …“, „notiz: …“, „ziel: …“, „einkauf: …“ gehen auch ohne Schrägstrich – ein Foto mit „notiz: …“ landet samt Bild in der Tagesnotiz.</i>`,
+        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters. Weiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch); antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n<b>📅 Planen</b>\n/heute – dein Tag · /woche – die nächsten 7 Tage\n/plan [morgen] – To-dos in freie Kalenderlücken\n/verteilen – To-dos ohne Datum auf die Woche verteilen\n/fristen – Abgaben und Prüfungen (7 Tage)\n/termin &lt;wann&gt; &lt;was&gt; – Termin eintragen (mit Bestätigung)\n\n<b>✅ Erledigen</b>\n/todo [Text] – To-do-Liste bzw. neues To-do (auch „… jeden Montag“)\n/einkauf [Text] – Einkaufsliste\n/erinner &lt;wann&gt; &lt;was&gt; – Erinnerung (läutet im Kirchturm)\n/aufraeumen – Überfälliges neu einplanen · /wartet – worauf du wartest\n/jetzt – was jetzt passt (mit 🍅 Los) · /fokus [Thema] – Pomodoro starten\n/gewohnheiten – heute abhaken · /ziel [Text] – Wochenziele\n\n<b>🎓 Lernen</b>\n/lernen – Lernziele der Woche, 🍅 je Fach\n/karten [Fach] – Karteikarten · /moodle &lt;Fach&gt; [Frage] – in Moodle nachsehen\n/noten – Notenschnitt und ECTS\n\n<b>📝 Festhalten &amp; Finden</b>\n/notiz &lt;Text&gt; – Tagesnotiz · /suche &lt;Begriff&gt; – im Vault suchen\n/statistik – die letzten 7 Tage\n\n<b>🏛️ Dorf</b>\n/status – was läuft · /freigaben – offene Freigaben\n/aktion [Name] – Skill starten · /neu – nächste Nachricht = neue Aufgabe\n/hilfe – diese Hilfe\n\n<i>Tipp: „todo: …“, „notiz: …“, „ziel: …“, „einkauf: …“ gehen auch ohne Schrägstrich – ein Foto mit „notiz: …“ landet samt Bild in der Tagesnotiz.</i>`,
       );
     if (b === '/status') {
       const aktiv = this.o.agenten.aktiveLaeufe();
@@ -722,6 +724,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (q.data?.startsWith('zl:')) return this.zielKnopf(q, antworten);
     if (q.data?.startsWith('er:')) return this.erinnerKnopf(q, antworten);
     if (q.data?.startsWith('ar:')) return this.aufraeumenKnopf(q, antworten);
+    if (q.data?.startsWith('wa:')) return this.wartetKnopf(q, antworten);
     if (q.data?.startsWith('sb:')) return this.schnellKnopf(q, antworten);
     if (q.data?.startsWith('wv:')) return this.vorschlagKnopf(q, antworten);
     if (q.data?.startsWith('pw:')) return this.pruefungKnopf(q, antworten);
@@ -1525,6 +1528,60 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     } else await antworten('Schon erledigt.');
     if (q.message) {
       const n = await this.aufraeumenText();
+      await this.o.api.aufruf('editMessageText', { chat_id: q.message.chat.id, message_id: q.message.message_id, text: n.text, parse_mode: 'HTML', ...n.extra }).catch(() => undefined);
+    }
+  }
+
+  // ---- /wartet (E150) ----------------------------------------------------------------------------------
+
+  private wartetDaten(k: string, a: string) {
+    return `wa:${k}:${a}:${crypto.createHmac('sha256', this.signaturSchluessel).update(`wartet:${k}:${a}`).digest('base64url').slice(0, 16)}`;
+  }
+
+  private async wartetText(): Promise<{ text: string; extra: Record<string, unknown> }> {
+    const heute = this.heuteTag();
+    const w = (await this.o.listen!.todo.liste()).filter((t) => !t.erledigt && t.wartet).sort((a, b) => (a.faellig ?? '9999').localeCompare(b.faellig ?? '9999'));
+    if (!w.length) return { text: '⏳ Du wartest gerade auf nichts. Schreib z. B. <i>/todo Note Mathe wartet auf Prof. Müller</i>.', extra: {} };
+    const zeilen = w.slice(0, 8).map((t) => {
+      const wann = !t.faellig ? 'ohne Nachfass-Tag' : t.faellig <= heute ? '<b>heute nachfassen</b>' : `nachfassen am ${h(t.faellig)}`;
+      return `• <b>${h(t.titel)}</b> – bei ${h(t.wartet!)} · ${wann}`;
+    });
+    const knoepfe = w.slice(0, 8).map((t) => {
+      const k = this.todoKennung(t.pfad);
+      return [
+        { text: knopfText(`📨 +3 T · ${t.titel}`), callback_data: this.wartetDaten(k, 'n') },
+        { text: '✅ Erledigt', callback_data: this.wartetDaten(k, 'e') },
+        { text: '▶️ Selbst', callback_data: this.wartetDaten(k, 's') },
+      ];
+    });
+    return {
+      text: `⏳ <b>Wartet auf</b> (${w.length})\n${zeilen.join('\n')}${w.length > 8 ? `\n… und ${w.length - 8} weitere` : ''}\n\n<i>📨 = nachgefasst, in 3 Tagen wieder · ▶️ = wartet nicht mehr, heute selbst dran</i>`,
+      extra: { reply_markup: { inline_keyboard: knoepfe } },
+    };
+  }
+
+  private async wartetZeigen() {
+    if (!this.o.listen) return this.senden('Die Listen sind nicht eingerichtet.');
+    const a = await this.wartetText();
+    return this.senden(a.text, a.extra);
+  }
+
+  private async wartetKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {
+    const m = /^wa:([0-9a-f]{12}):([nes]):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
+    const soll = m ? this.wartetDaten(m[1]!, m[2]!).split(':')[3]! : '';
+    if (!m || !this.o.listen || !crypto.timingSafeEqual(Buffer.from(m[3]!), Buffer.from(soll))) {
+      this.o.log?.('Telegram: Wartet-Knopf mit ungültiger Signatur abgelehnt.');
+      return antworten('Ungültiger Knopf.');
+    }
+    const dienst = this.o.listen.todo;
+    const t = (await dienst.liste()).find((x) => this.todoKennung(x.pfad) === m[1]);
+    if (t && !t.erledigt) {
+      const a = m[2]!;
+      await dienst.aendern(t.pfad, a === 'e' ? { erledigt: true } : a === 'n' ? { faellig: this.heuteTag(3) } : { wartet: '', faellig: this.heuteTag() });
+      await antworten({ n: `Nachgefasst – wieder am ${this.heuteTag(3)}.`, e: 'Erledigt.', s: 'Wartet nicht mehr – heute dran.' }[a]!);
+    } else await antworten('Schon erledigt.');
+    if (q.message) {
+      const n = await this.wartetText();
       await this.o.api.aufruf('editMessageText', { chat_id: q.message.chat.id, message_id: q.message.message_id, text: n.text, parse_mode: 'HTML', ...n.extra }).catch(() => undefined);
     }
   }

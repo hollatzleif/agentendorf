@@ -85,6 +85,17 @@ export class Wochenrueckblick {
     const ueberfaellig = offen.filter((t) => t.faellig && t.faellig < heute);
     const z1 = [`**${erledigt.length}** ${erledigt.length === 1 ? 'To-do' : 'To-dos'} erledigt${erledigt.length ? `: ${erledigt.slice(0, 10).map((t) => einzeilig(t.titel, 60)).join('; ')}` : ''}`];
     z1.push(`${offen.length} offen${ueberfaellig.length ? `, davon **${ueberfaellig.length} überfällig**: ${ueberfaellig.slice(0, 6).map((t) => einzeilig(t.titel, 50)).join('; ')}` : ''}`);
+    // E150: worauf Leif wartet – lange Wartende verdienen ein Nachfassen
+    const wartend = offen.filter((t) => t.wartet).sort((a, b) => (a.erstellt ?? '').localeCompare(b.erstellt ?? ''));
+    if (wartend.length) {
+      const alt = (t: (typeof wartend)[number]) => (t.erstellt ? Math.floor((jetzt - Date.parse(t.erstellt)) / 86_400_000) : 0);
+      z1.push(
+        `⏳ ${wartend.length} wartend: ${wartend
+          .slice(0, 6)
+          .map((t) => `${einzeilig(t.titel, 50)} (bei ${einzeilig(t.wartet!, 30)}${alt(t) >= 7 ? `, seit ${alt(t)} Tagen` : ''}${!t.faellig ? ', ohne Nachfass-Tag' : ''})`)
+          .join('; ')}`,
+      );
+    }
     abschnitte.push({ titel: 'Erledigt und offen', zeilen: z1 });
 
     const f = this.o.fokus?.fokusStatistik();

@@ -222,7 +222,7 @@ describe('Telegram-Bot', () => {
     expect(offsets.at(-1)).toBe(51);
     // Befehlsmenü wird beim Start angemeldet
     const menue = d.aufrufe.find((x) => x.m === 'setMyCommands')?.p.commands as { command: string }[];
-    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'woche', 'noten', 'suche', 'statistik', 'aufraeumen', 'notiz', 'erinner', 'plan', 'karten', 'jetzt', 'verteilen', 'lernen', 'fokus', 'ziel', 'gewohnheiten', 'neu', 'hilfe']);
+    expect(menue.map((c) => c.command)).toEqual(['status', 'heute', 'fristen', 'freigaben', 'moodle', 'aktion', 'todo', 'einkauf', 'termin', 'woche', 'noten', 'suche', 'statistik', 'aufraeumen', 'notiz', 'erinner', 'plan', 'karten', 'jetzt', 'verteilen', 'wartet', 'lernen', 'fokus', 'ziel', 'gewohnheiten', 'neu', 'hilfe']);
     await d.agenten.leerlauf();
   }, 15_000);
 });
@@ -1072,5 +1072,45 @@ describe('Lücken-Anstoß nach Terminen (E143)', () => {
     // nach drei verschickten ist Schluss
     d.db.prepare("INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES ('telegram_luecken', ?)").run(JSON.stringify({ tag: '2026-11-16', ids: [], gesendet: 3 }));
     expect(await d.telegram!.lueckenHinweis()).toBe(false);
+  });
+});
+
+describe('/wartet (E150)', () => {
+  it('listet Wartendes mit Nachfass-Tag; 📨 schiebt um 3 Tage, ▶️ beendet das Warten, ✅ hakt ab; falsche Signatur abgelehnt', async () => {
+    const d = await dorf();
+    // TestUhr: Mo 16.11.2026
+    const a = await d.todos.anlegen({ titel: 'Note Mathe', wartet: 'Prof. Müller', faellig: '2026-11-16' }, 'Leif');
+    const b = await d.todos.anlegen({ titel: 'Paket', wartet: 'DHL' }, 'Leif');
+    await d.nachricht({ text: '/wartet' });
+    const m = d.aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p;
+    expect(String(m.text)).toContain('⏳ <b>Wartet auf</b> (2)');
+    expect(String(m.text)).toContain('<b>Note Mathe</b> – bei Prof. Müller · <b>heute nachfassen</b>');
+    expect(String(m.text)).toContain('<b>Paket</b> – bei DHL · ohne Nachfass-Tag');
+    const knoepfe = (m.reply_markup as { inline_keyboard: { text: string; callback_data: string }[][] }).inline_keyboard;
+    await d.knopf(knoepfe[0]![0]!.callback_data.replace(/:[^:]+$/, ':AAAAAAAAAAAAAAAA'));
+    expect((await d.todos.holen(a.pfad)).faellig).toBe('2026-11-16');
+    await d.knopf(knoepfe[0]![0]!.callback_data);
+    expect((await d.todos.holen(a.pfad)).faellig).toBe('2026-11-19');
+    await d.knopf(knoepfe[1]![2]!.callback_data);
+    const p = await d.todos.holen(b.pfad);
+    expect(p.wartet).toBeUndefined();
+    expect(p.faellig).toBe('2026-11-16');
+    await d.knopf(knoepfe[0]![1]!.callback_data);
+    expect((await d.todos.holen(a.pfad)).erledigt).toBe(true);
+  });
+});
+
+describe('Wartet in Morgenzeitung und Wochenrückblick (E150)', () => {
+  it('Zeitung: „⏳ Heute nachfassen“; Rückblick: Wartendes mit Alter', async () => {
+    const d = await testDorf();
+    await d.todos.anlegen({ titel: 'Note Mathe', wartet: 'Prof. Müller', faellig: '2026-11-16' }, 'Leif');
+    await d.todos.anlegen({ titel: 'Paket', wartet: 'DHL' }, 'Leif');
+    const z = await d.morgenzeitung.fakten();
+    expect(z.abschnitte.find((x) => x.titel === 'Heute')!.zeilen.join('\n')).toContain('⏳ Heute nachfassen: Note Mathe (bei Prof. Müller)');
+    d.uhr.vor(8 * 86_400_000);
+    const r = await d.wochenrueckblick.fakten();
+    const zeile = r.abschnitte.find((x) => x.titel === 'Erledigt und offen')!.zeilen.find((x) => x.startsWith('⏳'))!;
+    expect(zeile).toContain('⏳ 2 wartend: ');
+    expect(zeile).toContain('Paket (bei DHL, seit 8 Tagen, ohne Nachfass-Tag)');
   });
 });
