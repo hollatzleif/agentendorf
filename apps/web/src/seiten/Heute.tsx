@@ -759,7 +759,10 @@ function PlanenHinweis() {
 // ---- E141: Morgen im Blick (ab 18 Uhr) ----------------------------------------------------------------
 
 function MorgenKarte({ todos, termine, morgen }: { todos: TodoInfo[]; termine: KalenderTermin[]; morgen: string }) {
-  const dran = todos.filter((t) => !t.erledigt && t.faellig && t.faellig <= morgen);
+  // für morgen Geplantes zuerst, dann was mitwandert (überfällig/heute); ⭐ jeweils vorn
+  const dran = todos
+    .filter((t) => !t.erledigt && t.faellig && t.faellig <= morgen)
+    .sort((a, b) => Number(b.faellig === morgen) - Number(a.faellig === morgen) || Number(!!b.wichtig) - Number(!!a.wichtig));
   const zeitig = termine.filter((t) => !t.ganztags);
   // 8–22 Uhr morgen (Ortszeit) minus Termine; Minuten des Tages über ort()
   const iv = zeitig.map((t) => {
