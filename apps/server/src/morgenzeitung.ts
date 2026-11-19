@@ -18,6 +18,8 @@ import { einzeilig } from './uni/text.js';
 import { fremdinhaltHuelle } from './agenten/leine.js';
 import type { DorfBluete } from '@dorf/shared';
 import { blueteZeile } from './bluete.js';
+import { rundgangEinstellungen, rundgangMeldungenSeit } from './rundgang.js';
+import { uhrzeitIn } from './zeit.js';
 
 export const ORDNER = 'Rathaus/morgenzeitung';
 /** Erscheint um 06:30 Linzer Zeit */
@@ -223,16 +225,20 @@ export class Morgenzeitung {
     // Was der Bürgermeister von selbst getan hat (Rundgänge, Lageberichte) – Ruhiges nur als Zahl
     const nacht = this.o.db
       .prepare(
-        `SELECT s.titel,
+        `SELECT s.titel, s.chat_id AS chat,
                 (SELECT l.zusammenfassung FROM laeufe l WHERE l.chat_id = s.chat_id ORDER BY l.nummer DESC LIMIT 1) AS zf,
                 (SELECT COUNT(*) FROM werkzeug_log w WHERE w.chat_id = s.chat_id AND w.erlaubt = 1
                    AND w.werkzeug IN ('helfer_starten', 'plan_vorlegen', 'vault_schreiben', 'freigabe_beantragen')) AS taten
          FROM schreibtisch s WHERE s.quelle = 'aufwachen' AND s.erstellt >= ? AND s.chat_id IS NOT NULL ORDER BY s.erstellt`,
       )
-      .all(seit) as { titel: string; zf: string | null; taten: number }[];
-    const getan = nacht.filter((n) => n.taten > 0);
-    const ruhig = nacht.length - getan.length;
-    const bm = getan.slice(0, 8).map((n) => `${einzeilig(n.titel, 40)}: ${einzeilig((n.zf ?? '').replace(/^#+\s*\w+\s*/gm, ''), 200) || 'siehe Chat'}`);
+      .all(seit) as { titel: string; chat: string; zf: string | null; taten: number }[];
+    // E192: Was er auf Rundgängen „Für Leif“ notiert hat – gebündelt, einmal am Tag hier (abschaltbar in rundgang.md)
+    const meldungen = (await rundgangEinstellungen(this.o.vault)).e.meldung ? rundgangMeldungenSeit(this.o.db, seit) : [];
+    const gemeldet = new Set(meldungen.map((m) => m.chatId));
+    const getan = nacht.filter((n) => n.taten > 0 && !gemeldet.has(n.chat));
+    const ruhig = nacht.filter((n) => n.taten === 0 && !gemeldet.has(n.chat)).length;
+    const bm = meldungen.slice(-8).map((m) => `🧭 ${uhrzeitIn(m.zeit)} – ${einzeilig(m.text, 300)}`);
+    bm.push(...getan.slice(0, 8).map((n) => `${einzeilig(n.titel, 40)}: ${einzeilig((n.zf ?? '').replace(/^#+\s*\w+\s*/gm, ''), 200) || 'siehe Chat'}`));
     if (ruhig) bm.push(`Dazu ${ruhig} ${ruhig === 1 ? 'ruhiger Rundgang' : 'ruhige Rundgänge'} ohne Anlass.`);
     if (bm.length) abschnitte.push({ titel: 'Der Bürgermeister seit gestern', zeilen: bm });
 

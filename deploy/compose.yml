@@ -12,6 +12,8 @@ services:
       - "443:443/udp"
     environment:
       DORF_DOMAIN: ${DORF_DOMAIN:?DORF_DOMAIN fehlt in /srv/dorf/.env}
+      # Codehaus (E191): VS Code auf eigener Adresse (eigener Ursprung) – Standard code.<Dorf-Adresse>
+      CODING_DOMAIN: ${CODING_DOMAIN:-code.${DORF_DOMAIN}}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-daten:/data
@@ -19,6 +21,7 @@ services:
     depends_on:
       - dorf
     mem_limit: 128m
+    networks: [default, codingnetz]
 
   dorf:
     image: agentendorf:${DORF_VERSION:-latest}
@@ -29,6 +32,8 @@ services:
       HINTER_PROXY: "true"
       DORF_VERSION: ${DORF_VERSION:-unbekannt}
       WERKSTATT_URL: http://werkstatt:4000
+      CODING_URL: http://coding:4000
+      CODING_ADRESSE: https://${CODING_DOMAIN:-code.${DORF_DOMAIN}}
       TZ: Europe/Vienna
       # Wetter im Dorf und in der Morgenzeitung (Open-Meteo, frei, ohne Konto; geht nur die Ortsangabe Konstanz hinaus)
       WETTER_ORT: ${WETTER_ORT:-Konstanz}
@@ -45,7 +50,7 @@ services:
     security_opt:
       - no-new-privileges:true
     mem_limit: 768m
-    networks: [default, rechennetz, browsernetz]
+    networks: [default, rechennetz, browsernetz, codingnetz]
     # kein Port nach außen – nur Caddy spricht mit dem Dorf (3000); die Werkstatt ruft Werkzeuge über 3001 auf
 
   werkstatt:
@@ -125,6 +130,42 @@ services:
     cpus: 1.0
     pids_limit: 512
 
+  coding:
+    # Codehaus (E191): VS Code im Browser (openvscode-server, Port 3000) + Runner für Coding-Agenten (Port 4000, claude-CLI
+    # mit Bash/Edit/Write). Leifs Entscheidung: Internet, GitHub (klonen/pushen/PR/mergen) und der Vault LES- UND SCHREIBBAR.
+    # Dafür streng getrennt: eigenes Netz (erreicht nur Dorf und Caddy, nicht Werkstatt/Syncthing/Rechenraum/Browser),
+    # eigene Geheimnisse (coding.env: Abo-Token, GitHub-Token, Git-Name – NICHTS aus /srv/dorf/.env), kein root, keine
+    # Rechte-Ausweitung, Abbild nur lesbar. Startet erst nach `dorf coding-einrichten` (Profil „coding“, setzt ./dorf).
+    profiles: [coding]
+    image: agentendorf-coding:${CODING_VERSION:-fehlt}
+    restart: unless-stopped
+    # fehlt die Datei noch (vor dem ersten `dorf deploy` dieser Fassung), darf das den Start des Dorfs nicht verhindern
+    env_file:
+      - path: /srv/dorf/coding.env
+        required: false
+    environment:
+      DORF_INTERN_URL: http://dorf:3001
+      TZ: Europe/Vienna
+    user: "${DORF_UID:-1000}:${DORF_UID:-1000}"
+    read_only: true
+    networks: [codingnetz]
+    volumes:
+      # Projekte + Heimordner (VS-Code-Einstellungen, Erweiterungen, npm/pip des Benutzers) – bleibt über Neustarts
+      - /srv/dorf/coding:/arbeit
+      - /srv/dorf/vault:/vault
+      - /srv/dorf/claude-coding:/claude-konfig
+      - type: tmpfs
+        target: /tmp
+        tmpfs: { mode: 01777, size: 268435456 }
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    # Bauen und Testen braucht Platz; die Grenze schützt das Dorf (CODING_MEM in /srv/dorf/.env ändert sie)
+    mem_limit: ${CODING_MEM:-2g}
+    # halbes Gewicht: unter Last hat das Dorf Vorrang, ohne Last darf das Codehaus alle Kerne nutzen
+    cpu_shares: 512
+    pids_limit: 1024
+
   syncthing:
     image: syncthing/syncthing:2
     restart: unless-stopped
@@ -150,6 +191,9 @@ networks:
     internal: true
   # Dorf ↔ Moodle-Browser; der Browser braucht Internet (moodle.jku.at), die Leine im Runner begrenzt auf JKU
   browsernetz: {}
+  # Codehaus: Caddy → VS Code (3000), Dorf → Runner (4000), Runner → Dorf-Werkzeuge (3001, Lauf-Token). Mit Internet
+  # (npm, pip, git). Werkstatt, Rechenraum, Browser und Syncthing hängen NICHT in diesem Netz.
+  codingnetz: {}
 
 volumes:
   caddy-daten:

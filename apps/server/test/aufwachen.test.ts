@@ -84,7 +84,7 @@ describe('Aufwachen des Bürgermeisters', () => {
   it('nichts los und keine eigenen Aufgaben: keine KI, kein Lauf, keine Meldung', async () => {
     const { d, texte } = await aufbau(kal());
     const r = await d.aufwachen.aufwachen();
-    expect(r).toEqual({ gestartet: 0, anlaesse: 0, neu: 0, lagebericht: null, rundgang: null, budgetErreicht: false });
+    expect(r).toEqual({ gestartet: 0, anlaesse: 0, neu: 0, lagebericht: null, rundgang: null, budgetErreicht: false, eigeneTodos: 0, aktivitaeten: [] });
     expect(d.db.prepare('SELECT COUNT(*) AS n FROM laeufe').get()).toEqual({ n: 0 });
     expect(texte).toHaveLength(0);
   });
@@ -139,10 +139,12 @@ describe('Aufwachen des Bürgermeisters', () => {
     expect(texte.some((t) => t.includes('Bürgermeister: Aufwachen'))).toBe(true);
   });
 
-  it('Rundgang: nichts Neues → höchstens alle 3 Stunden selbst umschauen (über api); ohne Tat keine Meldung', async () => {
+  it('Rundgang: nichts Neues → höchstens alle 3 Stunden Aktivitäten aus dem Katalog (über api); keine einzelne Meldung (E192)', async () => {
     const { d, texte } = await aufbau(kal(), 'eigene_aufgaben: ja');
+    // Anlass für „Überfällige To-dos zerlegen“: ein To-do, das seit einer Woche fällig ist
+    await d.todos.anlegen({ titel: 'Steuererklärung', faellig: '2026-11-05' }, 'Leif');
     const r = await d.aufwachen.aufwachen();
-    expect(r).toMatchObject({ lagebericht: null, budgetErreicht: false });
+    expect(r).toMatchObject({ lagebericht: null, budgetErreicht: false, aktivitaeten: ['todos-ueberfaellig'] });
     expect(r.rundgang).not.toBeNull();
     await d.agenten.leerlauf();
     const a = d.schreibtisch.holen(r.rundgang!);
@@ -150,14 +152,20 @@ describe('Aufwachen des Bürgermeisters', () => {
     expect(a.pfad).toMatch(/^Rathaus\/schreibtisch\/aufwachen\//);
     const notiz = (await d.vault.lesen(a.pfad)).inhalt;
     expect(notiz).toContain('<fremdinhalt quelle="rundgang">');
-    expect(notiz).toContain('höchstens EINEN Helfer');
+    expect(notiz).toContain('<fremdinhalt quelle="rundgang-todos-ueberfaellig">');
+    expect(notiz).toContain('Steuererklärung');
+    expect(notiz).toContain('Höchstens EINEN Helfer');
     expect(d.agenten.chatDetail(a.chatId!).laeufe[0]).toMatchObject({ motor: 'api', ausloeser: 'zeitplan' });
-    expect(texte.filter((t) => t.includes('Rundgang'))).toHaveLength(0); // nichts getan → still
+    expect(texte.filter((t) => t.includes('Rundgang'))).toHaveLength(0); // still
 
+    // dieselbe Aktivität ist „täglich“ – eine und drei Stunden später kommt sie nicht wieder dran, und ohne Anlass gibt es keinen Lauf
     d.uhr.vor(3_600_000);
-    expect((await d.aufwachen.aufwachen()).rundgang).toBeNull(); // eine Stunde später: noch nicht wieder
+    expect((await d.aufwachen.aufwachen()).rundgang).toBeNull();
     d.uhr.vor(2 * 3_600_000);
-    expect((await d.aufwachen.aufwachen()).rundgang).not.toBeNull(); // nach drei Stunden: wieder
+    expect(await d.aufwachen.aufwachen()).toMatchObject({ rundgang: null, aktivitaeten: [] });
+    // am nächsten Tag wieder
+    d.uhr.vor(21 * 3_600_000);
+    expect((await d.aufwachen.aufwachen()).aktivitaeten).toEqual(['todos-ueberfaellig']);
     await d.agenten.leerlauf();
   });
 

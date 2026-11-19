@@ -718,6 +718,64 @@ const einkaufsladen: Bauer = (b, _g, rnd) => {
   return { rauch: [new THREE.Vector3(1.0, BODEN + 2.3, -0.8)], hoehe: BODEN + 3.0 };
 };
 
+/** Codehaus (E191): Werkstatt-Loft mit großer Glasfront, Bildschirm-Tafel mit Code und Antenne auf dem Flachdach */
+const codehaus: Bauer = (b, _g, rnd) => {
+  grundstueck(b);
+  const wf = '#3d4657';
+  const holz = '#c58a4a';
+  b.mit(0, 0, -0.35, 0, () => {
+    // Erdgeschoss: dunkle Wand, vorn fast ganz Glas (man sieht die Bildschirme leuchten)
+    wand(b, 3.2, 1.5, 2.3, wf, { sockel: '#2a303c', gesims: holz });
+    for (const fx of [-1.05, -0.35, 0.35, 1.05]) {
+      if (Math.abs(fx) < 0.4 && fx > 0) continue; // Platz für die Tür
+      fenster(b, fx, BODEN + 0.78, 1.15, 0, { w: 0.56, h: 0.9, sprossen: false, rahmen: '#2a303c', licht: fx < -1 });
+    }
+    tuer(b, 0.35, 1.15, 0, '#2a303c', { glas: true, w: 0.5, h: 0.95 });
+    // Bildschirme hinter dem Glas
+    for (const fx of [-1.05, -0.35]) b.teil(quader(0.34, 0.2, 0.02), '#0f1720', fx, BODEN + 0.72, 1.1, { leuchten: '#39d98a' });
+    for (const s of [-1, 1]) for (const fz of [-0.55, 0.45]) fenster(b, s * 1.6, BODEN + 0.8, fz, (s * Math.PI) / 2, { w: 0.42, h: 0.6, sprossen: false, rahmen: '#2a303c' });
+    fenster(b, -0.8, BODEN + 0.8, -1.15, Math.PI, { w: 0.42, h: 0.6, sprossen: false, rahmen: '#2a303c' });
+    // Obergeschoss: Holzkasten, etwas zurückgesetzt und versetzt
+    b.mit(-0.35, 1.5, -0.1, 0, () => {
+      b.teil(kasten(2.3, 1.15, 1.9, 0.04), holz, 0, BODEN + 0.58, 0);
+      for (let i = -5; i <= 5; i++) b.teil(quader(0.015, 1.1, 0.01), dunkler(holz, 0.1), i * 0.21, BODEN + 0.58, 0.955, { keinSchatten: true });
+      b.teil(kasten(2.4, 0.1, 2.0, 0.02), '#2a303c', 0, BODEN + 1.2, 0, { name: 'dach' });
+      fenster(b, -0.55, BODEN + 0.62, 0.95, 0, { w: 0.7, h: 0.55, sprossen: false, rahmen: '#2a303c', licht: true });
+      fenster(b, 0.55, BODEN + 0.62, 0.95, 0, { w: 0.7, h: 0.55, sprossen: false, rahmen: '#2a303c' });
+      fenster(b, -1.15, BODEN + 0.62, 0, -Math.PI / 2, { w: 0.5, h: 0.5, sprossen: false, rahmen: '#2a303c' });
+      // Antenne mit rotem Licht und eine kleine Schüssel
+      b.teil(zylinder(0.018, 0.018, 0.9, 6), '#9aa4b1', 0.85, BODEN + 1.7, -0.6);
+      b.teil(kugel(0.045, 8, 6), '#e8413c', 0.85, BODEN + 2.17, -0.6, { leuchten: '#ff3b2f' });
+      b.teil(zylinder(0.2, 0.06, 0.08, 14), '#dfe5ea', -0.7, BODEN + 1.42, -0.55, { rx: -0.7 });
+      b.teil(zylinder(0.015, 0.015, 0.22, 6), '#9aa4b1', -0.7, BODEN + 1.32, -0.6);
+    });
+    // Terrasse auf dem Erdgeschossdach (rechts) mit Geländer und Pflanzkübel
+    b.teil(kasten(1.05, 0.05, 2.25, 0.01), '#8a8f99', 1.08, BODEN + 1.53, 0);
+    for (const fz of [-1.1, 1.1]) b.teil(quader(1.0, 0.03, 0.03), '#2a303c', 1.08, BODEN + 1.85, fz);
+    b.teil(quader(0.03, 0.03, 2.2), '#2a303c', 1.58, BODEN + 1.85, 0);
+    for (const [px, pz] of [[1.58, -1.1], [1.58, 0], [1.58, 1.1], [0.6, 1.1], [0.6, -1.1]] as const) b.teil(quader(0.03, 0.32, 0.03), '#2a303c', px, BODEN + 1.7, pz);
+    b.teil(kasten(0.3, 0.2, 0.3, 0.03), '#b8674a', 1.25, BODEN + 1.66, 0.75);
+    b.teil(ikosaeder(0.2, 0), F.rasenDunkel, 1.25, BODEN + 1.9, 0.75, { flach: true });
+    // Tafeln: Name über dem Eingang, daneben ein „Bildschirm“ mit Code
+    tafel(b, 'CODEHAUS', -0.55, BODEN + 1.3, 1.17, 0, 1.3, 0.2, { grund: '#11161f', schrift: '#ffffff', rahmen: holz });
+    tafel(b, '</>  git push', 1.0, BODEN + 1.02, 1.17, 0, 0.9, 0.16, { grund: '#11161f', schrift: '#4ef08a', rahmen: '#4a5563' });
+    b.licht(-0.55, BODEN + 1.05, 1.4, 1.6);
+  });
+  // Fahrradständer mit Rad, Paketkiste
+  b.mit(-1.55, BODEN, 1.55, 0.3, () => {
+    for (const s of [-1, 1]) b.teil(zylinder(0.16, 0.16, 0.025, 14), '#222222', s * 0.24, 0.17, 0, { rx: Math.PI / 2 });
+    b.teil(quader(0.5, 0.025, 0.025), '#e8413c', 0, 0.3, 0, { rz: 0.25 });
+    b.teil(quader(0.025, 0.22, 0.025), '#e8413c', -0.12, 0.32, 0);
+    b.teil(quader(0.14, 0.03, 0.06), '#222222', -0.12, 0.44, 0);
+    b.teil(quader(0.025, 0.2, 0.025), '#9aa4b1', 0.22, 0.34, 0);
+    b.teil(quader(0.03, 0.03, 0.26), '#9aa4b1', 0.22, 0.45, 0);
+  });
+  kiste(b, 1.55, 1.6, 0.9);
+  busch(b, 1.9, -1.85, 0.9, rnd);
+  baum(b, -1.9, -1.85, 0.7, rnd);
+  return { rauch: [new THREE.Vector3(-0.2, BODEN + 3.0, -0.9)], hoehe: BODEN + 4.2 };
+};
+
 /** Baustelle für Gebäude, die noch nicht eröffnet sind */
 const baustelle: Bauer = (b, _g, rnd) => {
   grundstueck(b, 'erde');
@@ -993,6 +1051,7 @@ const BAUER: Record<string, Bauer> = {
   boerse,
   einkaufsladen,
   kirchturm,
+  codehaus,
 };
 
 export function modellArt(g: Gebaeude): string {

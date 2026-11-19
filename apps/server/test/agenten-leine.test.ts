@@ -115,7 +115,7 @@ describe('Modell- und Motor-Konfiguration', () => {
     expect((await d.vault.lesen('00_Stadtordnung/modelle.md')).inhalt).toContain('# Modell-Zuordnung');
     await expect(stufeSetzen(d.vault, 'klein', 'gpt-5', 'low')).rejects.toThrow();
 
-    expect(await motorenLaden(d.vault)).toEqual({ alleAuf: 'keiner', parallel: { 'claude-code': 2, api: 4 } });
+    expect(await motorenLaden(d.vault)).toEqual({ alleAuf: 'keiner', parallel: { 'claude-code': 2, api: 4, coding: 1 } });
     await motorenSetzen(d.vault, { alleAuf: 'api', parallel: { 'claude-code': 1, api: 3 } });
     expect((await motorenLaden(d.vault)).alleAuf).toBe('api');
 

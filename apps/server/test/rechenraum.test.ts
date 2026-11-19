@@ -59,7 +59,7 @@ describe('Rechenraum: Leine', () => {
     expect(p.web).toBe(false);
   });
 
-  it('Zielordner bestimmt der Code; nur .pdf/.tex verlassen den Raum', () => {
+  it('Zielordner bestimmt der Code; nur fertige Dateien verlassen den Raum', () => {
     const erstellt = Date.UTC(2026, 10, 17, 13, 5); // 14:05 in Linz
     expect(ablageOrdner({ gebaeude: 'Uni', titel: 'x', erstellt, eingaben: { abgabe: 'Computational Data Analytics/aufgaben/Übung 3 (Teil a)' } })).toBe(
       'Uni/faecher/Computational Data Analytics/entwuerfe/2026-11-17_1405_uebung-3-teil-a',
@@ -68,7 +68,14 @@ describe('Rechenraum: Leine', () => {
     expect(ablageOrdner({ gebaeude: 'Bibliothek', titel: 'Notizen: Statistik', erstellt, eingaben: {} })).toBe('Bibliothek/entwuerfe/2026-11-17_1405_notizen-statistik');
     expect(ablageName('out/Blatt 3_Loesung.pdf')).toBe('Blatt_3_Loesung.pdf');
     expect(ablageName('blatt.tex')).toBe('blatt.tex');
-    expect(() => ablageName('rechnung.py')).toThrow(/nur \.pdf und \.tex/);
+    expect(() => ablageName('rechnung.py')).toThrow(/nur fertige Dateien/);
+    // E190: fertige Dokumente, Tabellen, Folien, Bilder, Archive – aber nie Skripte oder HTML
+    for (const n of ['brief.docx', 'budget.xlsx', 'folien.pptx', 'tabelle.csv', 'diagramm.png', 'grafik.svg', 'paket.zip', 'termin.ics']) expect(ablageName(n)).toBe(n);
+    for (const n of ['seite.html', 'skript.sh', 'programm.exe', 'makro.docm', 'a.js']) expect(() => ablageName(n)).toThrow(/nur fertige Dateien/);
+    // E190: Bürgermeister legt in Rathaus/dateien/ ab
+    expect(ablageOrdner({ gebaeude: 'Rathaus', titel: 'Bürgermeister: Bewerbung als Word', erstellt, eingaben: {}, rolle: 'buergermeister' })).toBe(
+      'Rathaus/dateien/2026-11-17_1405_bewerbung-als-word',
+    );
     expect(() => ablageName('a.pdf.sh')).toThrow();
     expect(kurzname('ÄÖÜ ß!!')).toBe('aeoeue-ss');
   });
@@ -108,7 +115,7 @@ describe('Rechenraum: Ende zu Ende (echter Runner, Attrappe als Motor)', () => {
     expect(abgelegt[0]!.pfad).toMatch(/^Uni\/entwuerfe\/2026-11-16_1300_abgabe-testen-cda-aufgaben-blatt-3[a-z-]*\/Blatt3_Loesung\.pdf$/);
     expect(fs.readFileSync(d.vault.abs(abgelegt[0]!.pfad!), 'utf8')).toBe(PDF);
     expect(abgelegt[1]).toMatchObject({ erlaubt: 0 });
-    expect(abgelegt[1]!.ergebnis).toMatch(/nur \.pdf und \.tex/);
+    expect(abgelegt[1]!.ergebnis).toMatch(/nur fertige Dateien/);
     expect(nach('rechenraum_schreiben')[1]).toMatchObject({ erlaubt: 0 });
     // Kein Vault im Rechenraum
     const c = d.agenten.chatDetail(chatId);

@@ -14,7 +14,7 @@ import { LiveHub } from './live.js';
 import { appBauen } from './app.js';
 import { AgentenDienst } from './agenten/dienst.js';
 import type { Motor } from './agenten/motor.js';
-import { motorenBauen } from './agenten/motoren.js';
+import { motorenBauen, type Motoren } from './agenten/motoren.js';
 import { WerkzeugRegister } from './agenten/register.js';
 import { internBauen } from './intern.js';
 import { Schreibtisch } from './schreibtisch.js';
@@ -34,6 +34,8 @@ import { GoogleZugang } from './post/google-oauth.js';
 import { Terminkalender } from './kalender.js';
 import { Morgenzeitung } from './morgenzeitung.js';
 import { Aufwachen } from './aufwachen.js';
+import { Rundgang } from './rundgang.js';
+import { MEINE_TODOS_ORDNER, MeineTodos } from './agenten/meine-todos.js';
 import { listenAnlegen } from './todos.js';
 import { UniTodoBruecke } from './uni/todo-bruecke.js';
 import { Saxo } from './saxo.js';
@@ -61,6 +63,7 @@ const PFLICHT_DATEIEN = [
   'Rathaus/aktionen/buergermeister.md',
   '00_Stadtordnung/telegram.md',
   '00_Stadtordnung/aufwachen.md',
+  '00_Stadtordnung/rundgang.md',
   'Uni/aktionen/lernen.md',
   'Uni/aktionen/abgabe-bearbeiten.md',
   'Uni/aktionen/moodle-durchsehen.md',
@@ -84,6 +87,11 @@ const PFLICHT_DATEIEN = [
   'Boerse/aktionen/wochenbericht.md',
   'Kirchturm/gebaeude.md',
   'Uni/aktionen/karten-erstellen.md',
+  // E191 Codehaus
+  'Codehaus/gebaeude.md',
+  'Codehaus/aktionen/programmieren.md',
+  'Codehaus/aktionen/repo-klonen.md',
+  'Codehaus/aktionen/pr-pruefen.md',
 ];
 
 /**
@@ -100,9 +108,10 @@ const VORLAGE_FRUEHERE_FASSUNGEN: Record<string, string[]> = {
   'Post/gebaeude.md': ['313622cda22bc8ff13c0a644fab2c49f1bdf84c57eb2702231a70f2ac1e9a076'], // bis Etappe 3
   '00_Stadtordnung/aktion-vorlage.md': ['b0d3e48a90aa554a0e7ceb234edc1b026e285424313cc2654431b5b9c683f671', '7c7e1c394868de4de10cf6c85ce03f9578b452291e36259be9b9cf54ad368940'], // E60, bis E184
   'Uni/aktionen/kursuebersicht.md': ['f525448be2f08c6d74635be2a96d4c89b0c1c98f5d0d21b42211da403833a8cf'], // E60
-  '00_Stadtordnung/aufwachen.md': ['231a442ce4d7e593e65f27a057d4c5392521cd0da0b139c8c045a2d38c6efbd2', '126158d2f1587d9fa31f98a0bbef6aa09e7c95121cc98ebf85baa1bdad4363c8'], // bis E61, bis E180
+  '00_Stadtordnung/aufwachen.md': ['231a442ce4d7e593e65f27a057d4c5392521cd0da0b139c8c045a2d38c6efbd2', '126158d2f1587d9fa31f98a0bbef6aa09e7c95121cc98ebf85baa1bdad4363c8', '1918aee666f956e4f85a47e31dc29504f1ad2a980c58bc45b762395cea0b9f84'], // bis E61, bis E180, E181–E191
   // E61: Gedächtnis/Persönlichkeit des Bürgermeisters
-  'Rathaus/aktionen/buergermeister.md': ['653aace36ae47d42bc847eda934c819312ceb446d1d624ba92f8ff528eb37084', '7deb8d2e528b9f2bee7d39619be317cc6043c7ab2269fdc532ebff7b83e2c952'], // bis E60, E61–E184
+  'Rathaus/aktionen/buergermeister.md': ['653aace36ae47d42bc847eda934c819312ceb446d1d624ba92f8ff528eb37084', '7deb8d2e528b9f2bee7d39619be317cc6043c7ab2269fdc532ebff7b83e2c952', '2d072be6666a3aaef6b19adb004dbf12f3d8221af8603cba00c91f9da4111b96'], // bis E60, E61–E184, E185–E191
+  'Rathaus/memory.md': ['e0fc4c0f1b0580080454cc80af5ebb111f927d77e3a3b5d0b71f710ba6e74ee7'], // bis E191 (nur wenn weder Leif noch der Bürgermeister sie je geändert haben)
   'Rathaus/gebaeude.md': ['7dd8c996765e716a804cafdaa4734c16aa4f97afb94e20ae69a6b0cda615b130'],
   '00_Stadtordnung/stadtordnung.md': [
     'b25ae8f9443f9001f0d9fe78ede22016e41ff8839e073540172b22768507c95e', // Etappe 1
@@ -113,6 +122,7 @@ const VORLAGE_FRUEHERE_FASSUNGEN: Record<string, string[]> = {
     '77990f31c7ba34481767fb0ee51234ed6ec6f17da46c5f3b2d71d6a0f56d5b64', // E65–E184
   ],
   'Boerse/gebaeude.md': ['15a5f5dae8854563d65c806e7b84b429d733826e38e1d35dc9a68a92b8779948'], // geschlossen bis Etappe 7
+  '00_Stadtordnung/motoren.md': ['86c86542cedce20651cd2ed78bd1a5f7c2003da319595ee0721d48bc52151c83'], // bis E190 (ohne coding)
   'Corpshaus/gebaeude.md': ['b7604d37957b279a6581562ed10640efb0993ca228cbdd47fb191e599a753427'], // leer bis Etappe 7
   'Bank/gebaeude.md': ['c2349ea31d50afc797ea1c70c9bc3d43ef0f7f605bb5a6f7d5e43555cb482b37'], // geschlossen bis Etappe 7
   'Einkaufsladen/gebaeude.md': ['b334b038336be925930e612231f6129a7f25a723f111d08af9568117fe45e87f'], // geschlossen bis Etappe 7
@@ -125,7 +135,7 @@ export async function dorfStarten(
   opt: {
     uhr?: Uhr;
     beobachten?: boolean;
-    motoren?: Record<'api' | 'claude-code', Motor> | ((r: WerkzeugRegister) => Record<'api' | 'claude-code', Motor>);
+    motoren?: Motoren | ((r: WerkzeugRegister) => Motoren);
     /** Für Tests: nachgebaute Bot-API; das Polling startet dann nicht automatisch */
     telegram?: TelegramSchnittstelle;
     /** Für Tests: nachgebauter Moodle-Server; der 3-Stunden-Takt startet dann nicht */
@@ -179,6 +189,7 @@ export async function dorfStarten(
     if (VaultDienst.istKonflikt(rel)) hub.gebuendelt({ typ: 'konflikte.geaendert' });
     if (/^[^/]+\/aktionen\//.test(rel)) hub.gebuendelt({ typ: 'aktionen.geaendert' });
     if (rel.startsWith('00_Stadtordnung/')) hub.gebuendelt({ typ: 'konfig.geaendert' });
+    if (rel.startsWith(`${MEINE_TODOS_ORDNER}/`)) hub.gebuendelt({ typ: 'schreibtisch.geaendert' });
     if (art === 'angelegt' && Schreibtisch.istAufgabe(rel)) void schreibtischRef.aktuell?.vaultAufnehmen(rel).catch(() => undefined);
     // neues Kontoauszug-PDF → Skill „Kontoauszug (PDF) einlesen“ (gebündelt, Motor der Aktion)
     if (art === 'angelegt' && /^Bank\/auszuege\/[^/]+\.pdf$/i.test(rel) && bankRef.pdfStart) bankRef.pdfStart();
@@ -193,12 +204,14 @@ export async function dorfStarten(
   const waechter = opt.beobachten === false ? null : vaultBeobachten(vault.wurzel, aenderung);
 
   const register = new WerkzeugRegister();
-  const motoren = typeof opt.motoren === 'function' ? opt.motoren(register) : (opt.motoren ?? motorenBauen(konfig, register));
+  const motoren: Motoren = typeof opt.motoren === 'function' ? opt.motoren(register) : (opt.motoren ?? motorenBauen(konfig, register));
   const agenten = new AgentenDienst(db, uhr, vault, suche, hub, motoren);
   if (konfig.rechenraumGeheimnis) agenten.rechenraum = rechenraumKlient(konfig.rechenraumUrl, konfig.rechenraumGeheimnis);
+  // E190: Umwandlungen fremder Anhänge zwischenspeichern (Daten-Ordner, nicht der Vault – Syncthing muss das nicht tragen)
+  agenten.dateien.cacheOrdner = path.join(konfig.datenDir, 'umwandlung');
   if (opt.moodleBrowser) agenten.moodleBrowser = opt.moodleBrowser;
   else if (konfig.browserGeheimnis) agenten.moodleBrowser = moodleBrowserKlient(konfig.browserUrl, konfig.browserGeheimnis);
-  const intern = await internBauen(register);
+  const intern = await internBauen(register, { konfig, db, uhr });
   const schreibtisch = new Schreibtisch(db, uhr, vault, hub);
   schreibtischRef.aktuell = schreibtisch;
   const buergermeister = new Buergermeister(db, uhr, vault, agenten, schreibtisch, hub);
@@ -309,13 +322,24 @@ export async function dorfStarten(
     }
     return aus;
   };
-  const aufwachen = new Aufwachen({ db, uhr, hub, schreibtisch, buergermeister, freigaben: agenten.freigaben, uni, postbote, vault, log: (t) => console.warn(t) });
+  // E192: eigene To-do-Liste des Bürgermeisters + Aktivitäten-Katalog für den Rundgang
+  const meineTodos = new MeineTodos({ db, vault, uhr });
+  meineTodos.beiAenderung = () => hub.gebuendelt({ typ: 'schreibtisch.geaendert' });
+  agenten.meineTodos = meineTodos;
+  const rundgang = new Rundgang({ db, uhr, vault, uni, postbote, meineTodos, todos: listen.todo, kalender: agenten.kalender });
+  // Nach jedem Bürgermeister-Lauf: Offenes aus der Zusammenfassung übernehmen (wenn er es nicht selbst eingetragen hat), Rundgang protokollieren
+  agenten.beiLaufEnde.push(async (e) => {
+    await meineTodos.nachLauf(e).catch((x) => console.warn(`Eigene To-dos: ${(x as Error).message}`));
+    await rundgang.nachLauf(e).catch((x) => console.warn(`Rundgang-Protokoll: ${(x as Error).message}`));
+  });
+  const aufwachen = new Aufwachen({ db, uhr, hub, schreibtisch, buergermeister, freigaben: agenten.freigaben, uni, postbote, vault, meineTodos, rundgang, log: (t) => console.warn(t) });
   const wetter = new Wetter({ url: konfig.wetterUrl, ort: konfig.wetterOrt, uhr, laden: opt.wetter, log: (t) => console.warn(t) });
   // einmal vorab holen, damit das Wetter schon beim ersten Öffnen des Dorfs da ist (nur mit WETTER_URL)
   if (konfig.wetterUrl) void wetter.holen();
   // Etappe 7: Bank – Kontoauszüge aus Bank/auszuege/ (nur lesen und auswerten, nie bezahlen)
   const bank = new Bank({ db, uhr, vault, hub, ki, log: (t) => console.warn(t) });
   bankRef.aktuell = bank;
+  rundgang.ergaenzen({ bank });
   let pdfZeitgeber: NodeJS.Timeout | undefined;
   bankRef.pdfStart = () => {
     if (pdfZeitgeber) clearTimeout(pdfZeitgeber);

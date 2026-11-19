@@ -30,6 +30,8 @@ jobs:
         run: |
           sudo apt-get update -q && sudo apt-get install -y -q poppler-utils
           pnpm test
+      - name: Codehaus – Start des Containers ohne Docker (Geheimnisse, Token nicht im Protokoll, Git/GitHub, Projektliste)
+        run: bash apps/coding/test/start-test.sh
       - name: Rechenraum-Runner (Geheimnis, Zeitlimit, Pfade, Aufräumen)
         run: python3 -m unittest discover -s apps/rechenraum/test -v
       - name: Browser-Tests (Desktop und Handy)
@@ -44,8 +46,14 @@ jobs:
           bash deploy/test/backup-test.sh
           bash deploy/test/empfangen-test.sh
           bash deploy/test/moodle-anmelden-test.sh
+          bash deploy/test/coding-einrichten-test.sh
+      - name: Codehaus – Zugang zu VS Code mit dem echten Caddyfile (Anmeldung, Einmal-Karte, forward_auth, WebSocket)
+        run: |
+          sudo apt-get install -y -q caddy
+          sudo systemctl stop caddy || true
+          CADDY_PFLICHT=1 bash deploy/test/coding-zugang-test.sh
       - name: Shell-Skripte prüfen
-        run: shellcheck -x -S warning deploy/dorf deploy/bootstrap.sh deploy/programme-manifest.sh deploy/test/*.sh
+        run: shellcheck -x -S warning deploy/dorf deploy/bootstrap.sh deploy/programme-manifest.sh deploy/test/*.sh apps/coding/*.sh apps/coding/test/*.sh
 
   # ---- Etappe 6: Programme für Mac und Windows (Tauri) ----------------------------------------------
   programm-selbsttest:
@@ -213,6 +221,17 @@ jobs:
           [ "$HATB" = ja ] || HATB=nein
           echo "Server hat agentendorf-browser:$BV: $HATB"
           echo "browser_hat=$HATB" >> "$GITHUB_OUTPUT"
+          # Codehaus (E191): großes Image (VS Code, Compiler) – Kennung über alles, was hineingeht (auch den Runner der
+          # Werkstatt); ältere dorf-Skripte kennen hat-coding nicht → „nein“
+          CV=$(cat apps/coding/Dockerfile apps/coding/start.sh apps/coding/gesund.sh apps/werkstatt/package.json apps/werkstatt/bauen.mjs apps/werkstatt/src/*.ts | sha256sum | cut -c1-16)
+          echo "coding_kennung=$CV" >> "$GITHUB_OUTPUT"
+          HATC=nein
+          if [ -f ~/.ssh/id_ed25519 ]; then
+            HATC=$(ssh -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" "hat-coding $CV" 2>/dev/null || echo nein)
+          fi
+          [ "$HATC" = ja ] || HATC=nein
+          echo "Server hat agentendorf-coding:$CV: $HATC"
+          echo "coding_hat=$HATC" >> "$GITHUB_OUTPUT"
       - name: Images bauen
         run: |
           docker build -t agentendorf:ci .
@@ -250,6 +269,15 @@ jobs:
           grep -q 'Keine Moodle-Zugangsdaten\|nicht erreichbar\|Seite lädt nicht' /tmp/pruefen.txt
           docker logs br
           docker rm -f br
+      - name: Codehaus-Image bauen und rauchtesten (nur wenn der Server es nicht hat; Fehler blockieren den Deploy nicht)
+        id: codingbau
+        if: steps.rechenraum.outputs.coding_hat != 'ja'
+        continue-on-error: true
+        run: |
+          BILD="agentendorf-coding:${{ steps.rechenraum.outputs.coding_kennung }}"
+          docker build -f apps/coding/Dockerfile -t "$BILD" .
+          docker image ls "$BILD"
+          bash apps/coding/test/rauchtest.sh "$BILD"
       - name: Rauchtest des Images
         run: |
           mkdir -p /tmp/dorf/vault /tmp/dorf/daten /tmp/dorf/claude && sudo chown -R 1000:1000 /tmp/dorf
@@ -296,6 +324,13 @@ jobs:
           elif [ "${{ steps.browserbau.outcome }}" = success ]; then MIT_BROWSER=bild; fi
           [ "$MIT_BROWSER" = nein ] || echo "$BV" > buendel/BROWSER_VERSION
           echo "Moodle-Browser: $MIT_BROWSER"
+          # Codehaus: wie der Browser – Kennung nur mitschicken, wenn der Server das Image hat oder es jetzt bekommt
+          CV="${{ steps.rechenraum.outputs.coding_kennung }}"
+          MIT_CODING=nein
+          if [ "${{ steps.rechenraum.outputs.coding_hat }}" = ja ]; then MIT_CODING=vorhanden
+          elif [ "${{ steps.codingbau.outcome }}" = success ]; then MIT_CODING=bild; fi
+          [ "$MIT_CODING" = nein ] || echo "$CV" > buendel/CODING_VERSION
+          echo "Codehaus: $MIT_CODING"
           docker tag agentendorf:ci "agentendorf:$VERSION"
           docker tag agentendorf-werkstatt:ci "agentendorf-werkstatt:$VERSION"
           docker save "agentendorf:$VERSION" "agentendorf-werkstatt:$VERSION" | gzip > buendel/image.tar.gz
@@ -304,6 +339,11 @@ jobs:
           if [ "$MIT_BROWSER" = bild ]; then
             docker save "agentendorf-browser:$BV" | gzip > buendel/browser.tar.gz
             DATEIEN="$DATEIEN browser.tar.gz"
+          fi
+          [ "$MIT_CODING" = nein ] || DATEIEN="$DATEIEN CODING_VERSION"
+          if [ "$MIT_CODING" = bild ]; then
+            docker save "agentendorf-coding:$CV" | gzip > buendel/coding.tar.gz
+            DATEIEN="$DATEIEN coding.tar.gz"
           fi
           if [ "${{ steps.rechenraum.outputs.hat }}" != ja ]; then
             docker save "agentendorf-rechenraum:$RV" | gzip > buendel/rechenraum.tar.gz

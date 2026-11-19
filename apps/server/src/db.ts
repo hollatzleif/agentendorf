@@ -400,6 +400,16 @@ const MIGRATIONEN: string[] = [
     SELECT c.id, 0 FROM chats c WHERE c.eltern_chat_id IS NOT NULL AND c.plan_id IS NULL
       AND NOT EXISTS (SELECT 1 FROM laeufe l WHERE l.chat_id = c.id AND l.status IN ('wartet_freigabe', 'wartend', 'laeuft'));
   `,
+  // 26: E191 Codehaus – Zugang zu VS Code auf dem Code-Host: eigenes Cookie (nur Hash), gebunden an eine Dorf-Sitzung
+  `
+  CREATE TABLE coding_zugang (id TEXT PRIMARY KEY, sitzung TEXT NOT NULL, erstellt INTEGER NOT NULL, ablauf INTEGER NOT NULL);
+  CREATE INDEX coding_zugang_sitzung ON coding_zugang (sitzung);
+  `,
+  // 27: E190 – Anhänge je Lauf und je wartender Nachricht (Chat-Anhänge, Telegram-Dateien im laufenden Gespräch)
+  `
+  ALTER TABLE laeufe ADD COLUMN anhaenge_json TEXT NOT NULL DEFAULT '[]';
+  ALTER TABLE chat_warteschlange ADD COLUMN anhaenge_json TEXT NOT NULL DEFAULT '[]';
+  `,
 ];
 
 export function dbOeffnen(datei: string): DB {

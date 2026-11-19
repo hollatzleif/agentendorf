@@ -5,7 +5,10 @@ Rechenraum-Runner: führt pdflatex/python3/pdftoppm in einem abgeschotteten Cont
 - Nur das Dorf erreicht ihn (internes Docker-Netz ohne Internet), jede Anfrage braucht das Geheimnis.
 - Kein Zugriff auf den Vault: Dateien kommen nur über /schreiben herein und über /lesen hinaus.
 - Ein Raum pro Chat unter ARBEIT_DIR/<raum>; Pfade bleiben im Raum, Zeitlimit pro Befehl, alte Räume werden aufgeräumt.
-Nur Standardbibliothek.
+- /umwandeln (E190): eine fremde Datei (Word, Excel, PowerPoint, Mail, Archiv, Audio, Video, Bild …) wird in einem
+  eigenen Kindprozess mit Zeit- und Speichergrenze zu Text und Bildern für das Modell. Das Dorf parst Fremdes nie selbst.
+Nur Standardbibliothek; die Umwandlung nutzt Werkzeuge aus dem Image (ffmpeg, whisper-cli, tesseract, rsvg-convert,
+heif-convert, catdoc, Pillow, xlrd, olefile), wenn vorhanden – fehlt eines, sagt das Ergebnis es ehrlich.
 """
 import base64
 import hmac
@@ -15,6 +18,8 @@ import re
 import shutil
 import signal
 import subprocess
+import sys
+import tempfile
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -140,10 +145,1358 @@ def seite(raum_dir, pdf, nr, dpi):
         return {"png": base64.b64encode(f.read()).decode(), "seiten": int(m.group(1)) if m else None}
 
 
+# ---- Umwandeln (E190): fremde Dateien → Text und Bilder für das Modell --------------------------------------------
+#
+# Läuft NIE im Server-Thread: /umwandeln startet `runner.py --umwandeln <datei> <name>` als Kindprozess mit eigenem
+# Arbeitsordner, Zeitlimit (UMWANDELN_ZEITLIMIT_S) und Speichergrenze (RLIMIT_AS). Archive werden nie nach ihren
+# Pfaden entpackt (nur Einträge lesen, mit Größen-, Anzahl-, Tiefen- und Packraten-Grenzen gegen Zip-Bomben).
+
+UMWANDLUNG_VERSION = "1"
+UMWANDELN_ZEITLIMIT = int(os.environ.get("UMWANDELN_ZEITLIMIT_S", "420"))
+UMWANDELN_SPEICHER = int(os.environ.get("UMWANDELN_SPEICHER_MB", "1536")) * 1024 * 1024
+UMWANDELN_GLEICHZEITIG = threading.BoundedSemaphore(int(os.environ.get("UMWANDELN_GLEICHZEITIG", "2")))
+MAX_UMWANDELN = 25 * 1024 * 1024
+MAX_TEXT = 150_000
+MAX_BILDER = 8
+BILD_KANTE = 1568
+BILD_MAX_BYTES = 3_500_000
+AUDIO_MAX_S = int(os.environ.get("AUDIO_MAX_S", "360"))
+TABELLE_ZEILEN = 200
+TABELLE_SPALTEN = 30
+ARCHIV_LISTE = 300
+ARCHIV_UMWANDELN = 15
+ARCHIV_DATEI = 25 * 1024 * 1024
+ARCHIV_SUMME = 100 * 1024 * 1024
+ARCHIV_PACKRATE = 200
+ARCHIV_TIEFE = 2
+ZIP_XML_MAX = 60 * 1024 * 1024
+WHISPER_CLI = os.environ.get("WHISPER_CLI", "whisper-cli")
+WHISPER_MODELL = os.environ.get("WHISPER_MODELL", "/opt/whisper/ggml-base-q5_1.bin")
+
+TEXT_ENDUNGEN = {
+    ".txt", ".md", ".markdown", ".csv", ".tsv", ".json", ".jsonl", ".yaml", ".yml", ".xml", ".log", ".ini", ".cfg",
+    ".conf", ".toml", ".tex", ".bib", ".sty", ".cls", ".py", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".java",
+    ".c", ".h", ".cpp", ".hpp", ".cc", ".cs", ".rs", ".go", ".rb", ".php", ".swift", ".kt", ".kts", ".scala", ".r",
+    ".m", ".jl", ".lua", ".pl", ".sql", ".sh", ".bash", ".zsh", ".ps1", ".bat", ".css", ".scss", ".vue", ".svelte",
+    ".dart", ".hs", ".ml", ".ex", ".exs", ".erl", ".clj", ".gradle", ".properties", ".env.example", ".srt", ".vtt",
+    ".ics", ".vcf", ".rst", ".adoc", ".org", ".ipynb", ".gitignore", ".dockerfile", ".make", ".mk", ".cmake", ".asm",
+    ".s", ".f90", ".mat", ".do", ".sas", ".tikz", ".gp", ".plt", ".dot", ".mermaid", ".mmd", ".csl", ".nix",
+}
+HTML_ENDUNGEN = {".html", ".htm", ".xhtml", ".mhtml"}
+BILD_ENDUNGEN = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tif", ".tiff", ".ico", ".heic", ".heif", ".avif", ".ppm", ".pgm", ".tga", ".jfif"}
+AUDIO_ENDUNGEN = {".mp3", ".m4a", ".wav", ".ogg", ".oga", ".opus", ".flac", ".aac", ".amr", ".wma", ".aiff", ".aif", ".caf", ".3gp"}
+VIDEO_ENDUNGEN = {".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v", ".wmv", ".mpg", ".mpeg", ".3g2", ".flv"}
+ARCHIV_ENDUNGEN = {".zip", ".tar", ".tgz", ".tbz2", ".txz", ".gz", ".bz2", ".xz"}
+
+_ENDE = [0.0]
+
+
+def _uebrig():
+    return _ENDE[0] - time.time()
+
+
+class Ergebnis:
+    def __init__(self, typ):
+        self.typ = typ
+        self.teile = []
+        self.bilder = []
+        self.hinweise = []
+        self.meta = {}
+
+    def text(self, t):
+        t = (t or "").strip("\n")
+        if t.strip():
+            self.teile.append(t)
+
+    def bild(self, daten, mime, titel):
+        if len(self.bilder) >= MAX_BILDER:
+            self.hinweise.append(f"Weitere Bilder weggelassen (höchstens {MAX_BILDER}).")
+            return
+        self.bilder.append({"mime": mime, "b64": base64.b64encode(daten).decode(), "titel": titel})
+
+    def als_dict(self):
+        t = "\n\n".join(self.teile)
+        if len(t) > MAX_TEXT:
+            t = t[:MAX_TEXT] + f"\n\n[… gekürzt – insgesamt {len(t)} Zeichen]"
+        hinweise = list(dict.fromkeys(self.hinweise))[:30]
+        return {"version": UMWANDLUNG_VERSION, "typ": self.typ, "text": t, "bilder": self.bilder, "hinweise": hinweise, "meta": self.meta}
+
+
+def _endung(name):
+    n = name.lower()
+    for doppelt in (".tar.gz", ".tar.bz2", ".tar.xz"):
+        if n.endswith(doppelt):
+            return doppelt
+    return os.path.splitext(n)[1]
+
+
+def _werkzeug(cmd, zeit=60, eingabe=None):
+    """Externes Werkzeug mit Zeitlimit; FileNotFoundError, wenn es im Image fehlt."""
+    zeit = max(1, min(zeit, _uebrig() - 2 if _ENDE[0] else zeit))
+    return subprocess.run(cmd, capture_output=True, timeout=zeit, input=eingabe, stdin=None if eingabe is not None else subprocess.DEVNULL)
+
+
+def cpu_kontingent():
+    """CPUs, die der Container wirklich hat (cgroup-Quote, z. B. cpus: 1.0) – mehr Threads machen whisper nur langsamer."""
+    n = len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else (os.cpu_count() or 1)
+    try:
+        with open("/sys/fs/cgroup/cpu.max") as f:
+            quote, periode = f.read().split()[:2]
+        if quote != "max":
+            n = min(n, max(1, int(int(quote) / int(periode))))
+    except (OSError, ValueError):
+        try:
+            with open("/sys/fs/cgroup/cpu/cpu.cfs_quota_us") as f:
+                quote = int(f.read())
+            with open("/sys/fs/cgroup/cpu/cpu.cfs_period_us") as f:
+                periode = int(f.read())
+            if quote > 0:
+                n = min(n, max(1, quote // periode))
+        except (OSError, ValueError):
+            pass
+    return max(1, min(4, int(os.environ.get("WHISPER_THREADS", n))))
+
+
+def _hat(werkzeug):
+    return shutil.which(werkzeug) is not None
+
+
+def text_dekodieren(b):
+    import codecs
+    if b.startswith(codecs.BOM_UTF8):
+        return b[3:].decode("utf-8", "replace")
+    if b[:2] in (codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE):
+        return b.decode("utf-16", "replace")
+    try:
+        return b.decode("utf-8")
+    except UnicodeDecodeError:
+        return b.decode("cp1252", "replace")
+
+
+def ist_text(b):
+    probe = b[:16384]
+    if not probe:
+        return True
+    if probe[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        return True
+    if b"\x00" in probe:
+        return False
+    t = text_dekodieren(probe)
+    steuer = sum(1 for z in t if ord(z) < 32 and z not in "\n\r\t\f")
+    return steuer / max(1, len(t)) < 0.02
+
+
+def _sniff(kopf):
+    """Dateityp aus den ersten Bytes (für Dateien ohne oder mit falscher Endung)."""
+    tabelle = [
+        (b"%PDF", ".pdf"), (b"PK\x03\x04", ".zip"), (b"\x89PNG", ".png"), (b"\xff\xd8\xff", ".jpg"), (b"GIF8", ".gif"),
+        (b"OggS", ".ogg"), (b"ID3", ".mp3"), (b"fLaC", ".flac"), (b"\x1f\x8b", ".gz"), (b"BZh", ".bz2"),
+        (b"\xfd7zXZ", ".xz"), (b"{\\rtf", ".rtf"), (b"\xd0\xcf\x11\xe0", ".ole"), (b"BM", ".bmp"), (b"#!AMR", ".amr"),
+        (b"\x1a\x45\xdf\xa3", ".mkv"), (b"7z\xbc\xaf", ".7z"), (b"Rar!", ".rar"),
+    ]
+    for magie, e in tabelle:
+        if kopf.startswith(magie):
+            return e
+    if kopf[:4] == b"RIFF" and kopf[8:12] == b"WAVE":
+        return ".wav"
+    if kopf[:4] == b"RIFF" and kopf[8:12] == b"WEBP":
+        return ".webp"
+    if kopf[:4] == b"RIFF" and kopf[8:12] == b"AVI ":
+        return ".avi"
+    if kopf[4:8] == b"ftyp":
+        marke = kopf[8:12]
+        if marke in (b"heic", b"heix", b"mif1", b"msf1", b"heim", b"heis"):
+            return ".heic"
+        if marke == b"avif":
+            return ".avif"
+        if marke in (b"M4A ", b"M4B "):
+            return ".m4a"
+        return ".mp4"
+    if kopf.lstrip()[:5].lower() in (b"<html", b"<!doc"):
+        return ".html"
+    if kopf.lstrip()[:4] == b"<svg" or (kopf.lstrip()[:5] == b"<?xml" and b"<svg" in kopf):
+        return ".svg"
+    if kopf.startswith(b"From ") or re.match(rb"^(Return-Path|Received|From|Message-ID|MIME-Version|Delivered-To):", kopf):
+        return ".eml"
+    if len(kopf) > 262 and kopf[257:262] == b"ustar":
+        return ".tar"
+    return ""
+
+
+TYPEN = {
+    ".pdf": "PDF", ".docx": "Word-Dokument", ".docm": "Word-Dokument", ".dotx": "Word-Vorlage", ".doc": "Word-Dokument (alt)",
+    ".odt": "OpenDocument-Text", ".rtf": "RTF-Text", ".xlsx": "Excel-Tabelle", ".xlsm": "Excel-Tabelle", ".xls": "Excel-Tabelle (alt)",
+    ".ods": "OpenDocument-Tabelle", ".pptx": "PowerPoint", ".ppsx": "PowerPoint", ".potx": "PowerPoint-Vorlage", ".ppt": "PowerPoint (alt)",
+    ".odp": "OpenDocument-Präsentation", ".epub": "E-Book (EPUB)", ".eml": "E-Mail", ".msg": "Outlook-Mail", ".zip": "ZIP-Archiv",
+    ".tar": "TAR-Archiv", ".tar.gz": "TAR-Archiv (gz)", ".tgz": "TAR-Archiv (gz)", ".tar.bz2": "TAR-Archiv (bz2)", ".tbz2": "TAR-Archiv (bz2)",
+    ".tar.xz": "TAR-Archiv (xz)", ".txz": "TAR-Archiv (xz)", ".gz": "gzip-Datei", ".bz2": "bzip2-Datei", ".xz": "xz-Datei", ".svg": "SVG-Grafik",
+    ".7z": "7-Zip-Archiv", ".rar": "RAR-Archiv", ".ole": "Office-Datei (alt)",
+}
+
+
+def typ_text(e):
+    if e in TYPEN:
+        return TYPEN[e]
+    if e in BILD_ENDUNGEN:
+        return f"Bild ({e[1:].upper()})"
+    if e in AUDIO_ENDUNGEN:
+        return f"Audio ({e[1:]})"
+    if e in VIDEO_ENDUNGEN:
+        return f"Video ({e[1:]})"
+    if e in HTML_ENDUNGEN:
+        return "Webseite (HTML)"
+    if e in TEXT_ENDUNGEN:
+        return f"Text ({e[1:]})"
+    return f"Datei ({e[1:] or 'ohne Endung'})"
+
+
+# ---- Text, HTML, RTF -------------------------------------------------------------------------------------------------
+
+def html_zu_text(html):
+    from html.parser import HTMLParser
+
+    class P(HTMLParser):
+        BLOCK = {"p", "div", "section", "article", "header", "footer", "main", "aside", "nav", "blockquote", "pre", "table", "ul", "ol", "dl", "form", "figure"}
+
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.aus = []
+            self.weg = 0
+            self.href = []
+            self.pre = 0
+
+        def handle_starttag(self, tag, attrs):
+            a = dict(attrs)
+            if tag in ("script", "style", "noscript", "template", "head", "svg"):
+                self.weg += 1
+            elif tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
+                self.aus.append("\n\n" + "#" * int(tag[1]) + " ")
+            elif tag == "li":
+                self.aus.append("\n- ")
+            elif tag == "br":
+                self.aus.append("\n")
+            elif tag == "tr":
+                self.aus.append("\n|")
+            elif tag in ("td", "th"):
+                self.aus.append(" ")
+            elif tag == "img" and a.get("alt"):
+                self.aus.append(f"[Bild: {a['alt']}]")
+            elif tag == "a":
+                self.href.append(a.get("href") or "")
+            elif tag in self.BLOCK:
+                self.aus.append("\n\n")
+            if tag == "pre":
+                self.pre += 1
+
+        def handle_endtag(self, tag):
+            if tag in ("script", "style", "noscript", "template", "head", "svg"):
+                self.weg = max(0, self.weg - 1)
+            elif tag in ("td", "th"):
+                self.aus.append(" |")
+            elif tag == "a" and self.href:
+                h = self.href.pop()
+                if h.startswith(("http://", "https://", "mailto:")):
+                    self.aus.append(f" ({h})")
+            elif tag in self.BLOCK or tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
+                self.aus.append("\n\n")
+            if tag == "pre":
+                self.pre = max(0, self.pre - 1)
+
+        def handle_data(self, d):
+            if self.weg:
+                return
+            self.aus.append(d if self.pre else re.sub(r"\s+", " ", d))
+
+    p = P()
+    try:
+        p.feed(html)
+        p.close()
+    except Exception:  # noqa: BLE001 – kaputtes HTML: so viel wie möglich
+        pass
+    t = "".join(p.aus)
+    t = re.sub(r"[ \t]+\n", "\n", t)
+    t = re.sub(r"\n{3,}", "\n\n", t)
+    return t.strip()
+
+
+def rtf_zu_text(rtf):
+    """Einfacher RTF-Leser: Absätze, Tabs, \\'hh (cp1252), \\uN; Kopf-Gruppen (Schriften, Farben, Bilder …) fallen weg."""
+    weg_gruppen = {"fonttbl", "colortbl", "stylesheet", "info", "pict", "header", "footer", "headerl", "headerr", "footerl",
+                   "footerr", "listtable", "listoverridetable", "rsidtbl", "generator", "xmlnstbl", "themedata", "colorschememapping",
+                   "latentstyles", "datastore", "object", "fldinst", "filetbl", "revtbl", "mmathPr", "pgdsctbl"}
+    aus = []
+    stapel = []  # (weg, uc)
+    weg = False
+    uc = 1
+    ueberspringen = 0
+    i = 0
+    muster = re.compile(r"\\([a-zA-Z]+)(-?\d+)? ?|\\'([0-9a-fA-F]{2})|\\([^a-zA-Z])|([{}])|[\r\n]+|([^\\{}\r\n]+)")
+    for m in muster.finditer(rtf):
+        wort, zahl, hexz, zeichen, klammer, text = m.groups()
+        if klammer == "{":
+            stapel.append((weg, uc))
+            continue
+        if klammer == "}":
+            if stapel:
+                weg, uc = stapel.pop()
+            continue
+        if zeichen is not None:
+            if zeichen == "*":
+                weg = True
+            elif zeichen in "\\{}" and not weg:
+                aus.append(zeichen)
+            elif zeichen == "~" and not weg:
+                aus.append(" ")
+            continue
+        if wort is not None:
+            if wort in weg_gruppen:
+                weg = True
+            elif weg:
+                pass
+            elif wort in ("par", "line", "sect", "page"):
+                aus.append("\n")
+            elif wort == "tab":
+                aus.append("\t")
+            elif wort == "cell":
+                aus.append(" | ")
+            elif wort == "row":
+                aus.append("\n")
+            elif wort == "uc":
+                uc = int(zahl or 1)
+            elif wort == "u" and zahl is not None:
+                n = int(zahl)
+                aus.append(chr(n + 65536 if n < 0 else n))
+                ueberspringen = uc
+            continue
+        if hexz is not None:
+            if ueberspringen:
+                ueberspringen -= 1
+            elif not weg:
+                aus.append(bytes([int(hexz, 16)]).decode("cp1252", "replace"))
+            continue
+        if text and not weg:
+            if ueberspringen:
+                k = min(ueberspringen, len(text))
+                text = text[k:]
+                ueberspringen -= k
+            aus.append(text)
+    return re.sub(r"\n{3,}", "\n\n", "".join(aus)).strip()
+
+
+# ---- Office (OOXML/ODF) mit der Standardbibliothek --------------------------------------------------------------------
+
+def _zip_oeffnen(pfad):
+    import zipfile
+    z = zipfile.ZipFile(pfad)
+    if sum(i.file_size for i in z.infolist()) > 4 * ZIP_XML_MAX:
+        raise ValueError("entpackt zu groß (Schutz gegen Zip-Bomben)")
+    return z
+
+
+def _xml(z, name):
+    import xml.etree.ElementTree as ET
+    info = z.getinfo(name)
+    if info.file_size > ZIP_XML_MAX:
+        raise ValueError(f"{name} ist entpackt zu groß")
+    with z.open(name) as f:
+        daten = f.read(ZIP_XML_MAX + 1)
+    if len(daten) > ZIP_XML_MAX:
+        raise ValueError(f"{name} ist entpackt zu groß")
+    if b"<!ENTITY" in daten[:4096]:
+        raise ValueError("XML mit Entity-Definitionen wird nicht gelesen")
+    return ET.fromstring(daten)
+
+
+def _zelle(t):
+    return (t or "").replace("\n", " ").replace("|", "\\|").strip()
+
+
+def md_tabelle(zeilen, kopf_hinweis=""):
+    zeilen = [z for z in zeilen if any((c or "").strip() for c in z)]
+    if not zeilen:
+        return ""
+    breite = min(TABELLE_SPALTEN, max(len(z) for z in zeilen))
+    # leere Spalten am Ende weg
+    while breite > 1 and all(len(z) < breite or not (z[breite - 1] or "").strip() for z in zeilen):
+        breite -= 1
+    aus = []
+    for i, z in enumerate(zeilen):
+        z = [_zelle(c) for c in (list(z) + [""] * breite)[:breite]]
+        aus.append("| " + " | ".join(z) + " |")
+        if i == 0:
+            aus.append("|" + "---|" * breite)
+    return (kopf_hinweis + "\n" if kopf_hinweis else "") + "\n".join(aus)
+
+
+W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+
+
+def docx_lesen(pfad, erg):
+    z = _zip_oeffnen(pfad)
+    stile = {}
+    listen_stile = set()
+    if "word/styles.xml" in z.namelist():
+        for s in _xml(z, "word/styles.xml").iter(W + "style"):
+            sid = s.get(W + "styleId") or ""
+            n = s.find(W + "name")
+            name = (n.get(W + "val") if n is not None else sid).lower()
+            ebene = None
+            m = re.match(r"(heading|überschrift|berschrift)\s*(\d)", name)
+            if m:
+                ebene = int(m.group(2))
+            elif name in ("title", "titel"):
+                ebene = 1
+            ol = s.find(f"{W}pPr/{W}outlineLvl")
+            if ebene is None and ol is not None:
+                ebene = int(ol.get(W + "val", "0")) + 1
+            stile[sid] = ebene
+            if name.startswith(("list", "liste", "aufzählung")) or s.find(f"{W}pPr/{W}numPr") is not None:
+                listen_stile.add(sid)
+    wurzel = _xml(z, "word/document.xml")
+    koerper = wurzel.find(W + "body")
+    aus = []
+
+    def absatz(p):
+        teile = []
+        for el in p.iter():
+            if el.tag == W + "t" and el.text:
+                teile.append(el.text)
+            elif el.tag == W + "tab":
+                teile.append("\t")
+            elif el.tag in (W + "br", W + "cr"):
+                teile.append("\n")
+        t = "".join(teile).strip()
+        if not t:
+            return ""
+        ppr = p.find(W + "pPr")
+        ebene = None
+        if ppr is not None:
+            st = ppr.find(W + "pStyle")
+            if st is not None:
+                ebene = stile.get(st.get(W + "val"))
+                if st.get(W + "val") in listen_stile and ppr.find(W + "numPr") is None:
+                    return "- " + t
+            ol = ppr.find(W + "outlineLvl")
+            if ebene is None and ol is not None:
+                ebene = int(ol.get(W + "val", "0")) + 1
+            if ppr.find(W + "numPr") is not None:
+                lvl = ppr.find(f"{W}numPr/{W}ilvl")
+                return "  " * int(lvl.get(W + "val", "0") if lvl is not None else 0) + "- " + t
+        if ebene and ebene <= 6:
+            return "#" * ebene + " " + t
+        return t
+
+    def tabelle(tbl):
+        zeilen = []
+        for tr in tbl.findall(W + "tr"):
+            zeilen.append([" ".join(filter(None, (absatz(p) for p in tc.iter(W + "p")))) for tc in tr.findall(W + "tc")])
+        return md_tabelle(zeilen)
+
+    def bloecke(el):
+        for k in el:
+            if k.tag == W + "p":
+                a = absatz(k)
+                if a:
+                    aus.append(a)
+            elif k.tag == W + "tbl":
+                aus.append(tabelle(k))
+            elif k.tag in (W + "sdt", W + "sdtContent", W + "customXml", W + "ins", W + "smartTag"):
+                bloecke(k)
+    bloecke(koerper if koerper is not None else wurzel)
+    # Fußnoten hinten an
+    if "word/footnotes.xml" in z.namelist():
+        noten = [absatz(p) for p in _xml(z, "word/footnotes.xml").iter(W + "p")]
+        noten = [n for n in noten if n]
+        if noten:
+            aus.append("## Fußnoten\n" + "\n".join(f"- {n}" for n in noten))
+    bilder = [n for n in z.namelist() if n.startswith("word/media/")]
+    if bilder:
+        erg.hinweise.append(f"Das Dokument enthält {len(bilder)} eingebettete(s) Bild(er) – nicht beigelegt.")
+    erg.text("\n\n".join(aus))
+
+
+ODF = {
+    "text": "urn:oasis:names:tc:opendocument:xmlns:text:1.0",
+    "table": "urn:oasis:names:tc:opendocument:xmlns:table:1.0",
+    "office": "urn:oasis:names:tc:opendocument:xmlns:office:1.0",
+    "draw": "urn:oasis:names:tc:opendocument:xmlns:drawing:1.0",
+    "presentation": "urn:oasis:names:tc:opendocument:xmlns:presentation:1.0",
+}
+
+
+def _o(ns, n):
+    return "{" + ODF[ns] + "}" + n
+
+
+def _odf_text(el):
+    """Text eines ODF-Absatzes (text:s = Leerzeichen, text:tab, text:line-break)."""
+    teile = [el.text or ""]
+    for k in el:
+        if k.tag == _o("text", "s"):
+            teile.append(" " * int(k.get(_o("text", "c"), "1")))
+        elif k.tag == _o("text", "tab"):
+            teile.append("\t")
+        elif k.tag == _o("text", "line-break"):
+            teile.append("\n")
+        elif k.tag in (_o("text", "note"),):
+            pass
+        else:
+            teile.append(_odf_text(k))
+        teile.append(k.tail or "")
+    return "".join(teile)
+
+
+def _odf_tabelle(tbl, max_zeilen=TABELLE_ZEILEN):
+    zeilen = []
+    gesamt = 0
+    for tr in tbl.iter(_o("table", "table-row")):
+        wdh = min(int(tr.get(_o("table", "number-rows-repeated"), "1")), 1000)
+        zeile = []
+        for tc in tr:
+            if tc.tag not in (_o("table", "table-cell"), _o("table", "covered-table-cell")):
+                continue
+            n = min(int(tc.get(_o("table", "number-columns-repeated"), "1")), TABELLE_SPALTEN)
+            wert = " ".join(_odf_text(p) for p in tc.iter(_o("text", "p"))).strip()
+            if not wert:
+                wert = tc.get(_o("office", "date-value")) or tc.get(_o("office", "value")) or ""
+            zeile.extend([wert] * n)
+            if len(zeile) >= TABELLE_SPALTEN:
+                break
+        if not any(c.strip() for c in zeile):
+            continue
+        for _ in range(wdh):
+            gesamt += 1
+            if len(zeilen) < max_zeilen:
+                zeilen.append(zeile)
+    return zeilen, gesamt
+
+
+def odt_lesen(pfad, erg):
+    z = _zip_oeffnen(pfad)
+    wurzel = _xml(z, "content.xml")
+    koerper = wurzel.find(f"{_o('office', 'body')}/{_o('office', 'text')}")
+    aus = []
+
+    def bloecke(el, liste=0):
+        for k in el:
+            if k.tag == _o("text", "h"):
+                e = int(k.get(_o("text", "outline-level"), "1"))
+                t = _odf_text(k).strip()
+                if t:
+                    aus.append("#" * min(e, 6) + " " + t)
+            elif k.tag == _o("text", "p"):
+                t = _odf_text(k).strip()
+                if t:
+                    aus.append(("  " * (liste - 1) + "- " if liste else "") + t)
+            elif k.tag == _o("text", "list"):
+                bloecke(k, liste + 1)
+            elif k.tag in (_o("text", "list-item"), _o("text", "section"), _o("text", "list-header")):
+                bloecke(k, liste)
+            elif k.tag == _o("table", "table"):
+                zeilen, _ = _odf_tabelle(k)
+                aus.append(md_tabelle(zeilen))
+    bloecke(koerper if koerper is not None else wurzel)
+    erg.text("\n\n".join(a for a in aus if a))
+
+
+def ods_lesen(pfad, erg):
+    z = _zip_oeffnen(pfad)
+    wurzel = _xml(z, "content.xml")
+    blaetter = list(wurzel.iter(_o("table", "table")))
+    for i, tbl in enumerate(blaetter[:20]):
+        zeilen, gesamt = _odf_tabelle(tbl)
+        name = tbl.get(_o("table", "name"), f"Blatt {i + 1}")
+        hinweis = f" (gezeigt {len(zeilen)} von {gesamt} Zeilen)" if gesamt > len(zeilen) else ""
+        erg.text(f"## Blatt: {name}{hinweis}\n" + (md_tabelle(zeilen) or "(leer)"))
+    if len(blaetter) > 20:
+        erg.hinweise.append(f"{len(blaetter) - 20} weitere Blätter weggelassen.")
+
+
+def odp_lesen(pfad, erg):
+    z = _zip_oeffnen(pfad)
+    wurzel = _xml(z, "content.xml")
+    for i, seite in enumerate(wurzel.iter(_o("draw", "page"))):
+        texte = []
+        notizen = []
+        for el in seite.iter():
+            if el.tag == _o("presentation", "notes"):
+                notizen = [_odf_text(p).strip() for p in el.iter(_o("text", "p"))]
+        noten_ids = set()
+        for n in seite.iter(_o("presentation", "notes")):
+            noten_ids.update(id(p) for p in n.iter(_o("text", "p")))
+        titel = ""
+        for rahmen in seite.iter(_o("draw", "frame")):
+            if rahmen.get(_o("presentation", "class")) == "title":
+                titel = " ".join(_odf_text(p).strip() for p in rahmen.iter(_o("text", "p"))).strip()
+                noten_ids.update(id(p) for p in rahmen.iter(_o("text", "p")))
+        for p in seite.iter(_o("text", "p")):
+            if id(p) not in noten_ids:
+                t = _odf_text(p).strip()
+                if t:
+                    texte.append(t)
+        teil = f"## Folie {i + 1}{': ' + titel if titel else ''}\n" + "\n".join(f"- {t}" for t in texte)
+        notizen = [n for n in notizen if n and n != "<number>"]
+        if notizen:
+            teil += "\n\nNotizen: " + " ".join(notizen)
+        erg.text(teil)
+
+
+A = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
+PML = "{http://schemas.openxmlformats.org/presentationml/2006/main}"
+REL = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
+PREL = "{http://schemas.openxmlformats.org/package/2006/relationships}"
+
+
+def _rels(z, pfad):
+    ordner, name = pfad.rsplit("/", 1)
+    rp = f"{ordner}/_rels/{name}.rels"
+    if rp not in z.namelist():
+        return {}
+    aus = {}
+    for r in _xml(z, rp).iter(PREL + "Relationship"):
+        ziel = r.get("Target", "")
+        if not ziel.startswith("/"):
+            teile = ordner.split("/")
+            for t in ziel.split("/"):
+                if t == "..":
+                    teile = teile[:-1]
+                elif t != ".":
+                    teile.append(t)
+            ziel = "/".join(teile)
+        aus[r.get("Id")] = (r.get("Type", ""), ziel.lstrip("/"))
+    return aus
+
+
+def _a_absaetze(el):
+    aus = []
+    for p in el.iter(A + "p"):
+        t = "".join((x.text or "") if x.tag == A + "t" else ("\n" if x.tag == A + "br" else "") for x in p.iter() if x.tag in (A + "t", A + "br")).strip()
+        if t:
+            aus.append(t)
+    return aus
+
+
+def pptx_lesen(pfad, erg):
+    z = _zip_oeffnen(pfad)
+    praes = _xml(z, "ppt/presentation.xml")
+    rels = _rels(z, "ppt/presentation.xml")
+    folien = []
+    for s in praes.iter(PML + "sldId"):
+        r = rels.get(s.get(REL + "id"))
+        if r and r[1] in z.namelist():
+            folien.append(r[1])
+    for nr, fp in enumerate(folien, 1):
+        wurzel = _xml(z, fp)
+        titel = ""
+        texte = []
+        for sp in wurzel.iter(PML + "sp"):
+            ph = sp.find(f"{PML}nvSpPr/{PML}nvPr/{PML}ph")
+            abs_ = _a_absaetze(sp)
+            if ph is not None and ph.get("type") in ("title", "ctrTitle") and abs_:
+                titel = " ".join(abs_)
+            elif ph is not None and ph.get("type") in ("sldNum", "dt", "ftr"):
+                continue
+            else:
+                texte.extend(abs_)
+        for tbl in wurzel.iter(A + "tbl"):
+            zeilen = [[" ".join(_a_absaetze(tc)) for tc in tr.findall(A + "tc")] for tr in tbl.findall(A + "tr")]
+            texte.append(md_tabelle(zeilen))
+        teil = f"## Folie {nr}{': ' + titel if titel else ''}\n" + "\n".join(f"- {t}" if "\n" not in t and not t.startswith("|") else t for t in texte)
+        for typ, ziel in _rels(z, fp).values():
+            if typ.endswith("/notesSlide") and ziel in z.namelist():
+                notizen = []
+                for sp in _xml(z, ziel).iter(PML + "sp"):
+                    ph = sp.find(f"{PML}nvSpPr/{PML}nvPr/{PML}ph")
+                    if ph is not None and ph.get("type") in ("sldImg", "sldNum", "hdr", "ftr", "dt"):
+                        continue
+                    notizen.extend(_a_absaetze(sp))
+                if notizen:
+                    teil += "\n\nNotizen: " + " ".join(notizen)
+        erg.text(teil)
+    erg.meta["folien"] = len(folien)
+    erg.hinweise.append("Folien als Bilder gibt es nicht (bräuchte LibreOffice im Rechenraum) – nur Text, Tabellen und Notizen.")
+
+
+S = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+DATUM_FORMATE = set(range(14, 23)) | {45, 46, 47}
+
+
+def _spalte(ref):
+    n = 0
+    for z in re.match(r"[A-Z]+", ref).group(0):
+        n = n * 26 + ord(z) - 64
+    return n - 1
+
+
+def _excel_datum(wert, mit_zeit):
+    import datetime
+    try:
+        t = datetime.datetime(1899, 12, 30) + datetime.timedelta(days=float(wert))
+    except (ValueError, OverflowError):
+        return wert
+    return t.strftime("%Y-%m-%d %H:%M" if mit_zeit and t.time() != datetime.time(0) else "%Y-%m-%d")
+
+
+def xlsx_lesen(pfad, erg):
+    import xml.etree.ElementTree as ET
+    z = _zip_oeffnen(pfad)
+    namen = set(z.namelist())
+    geteilt = []
+    if "xl/sharedStrings.xml" in namen:
+        for si in _xml(z, "xl/sharedStrings.xml").iter(S + "si"):
+            geteilt.append("".join(t.text or "" for t in si.iter(S + "t")))
+    datum_stile = set()
+    if "xl/styles.xml" in namen:
+        st = _xml(z, "xl/styles.xml")
+        eigene = {}
+        for nf in st.iter(S + "numFmt"):
+            code = re.sub(r'"[^"]*"|\[[^\]]*\]', "", nf.get("formatCode", "").lower())
+            eigene[int(nf.get("numFmtId", "0"))] = bool(re.search(r"[dy]|m{3,}", code)) or ("m" in code and ("d" in code or "y" in code))
+        xfs = st.find(S + "cellXfs")
+        for i, xf in enumerate(xfs if xfs is not None else []):
+            fid = int(xf.get("numFmtId", "0"))
+            if fid in DATUM_FORMATE or eigene.get(fid):
+                datum_stile.add(i)
+    mappe = _xml(z, "xl/workbook.xml")
+    rels = _rels(z, "xl/workbook.xml")
+    blaetter = [(b.get("name"), rels.get(b.get(REL + "id"), ("", ""))[1]) for b in mappe.iter(S + "sheet")]
+    for name, ziel in blaetter[:20]:
+        if ziel not in namen:
+            continue
+        info = z.getinfo(ziel)
+        if info.file_size > 4 * ZIP_XML_MAX:
+            erg.text(f"## Blatt: {name}\n(zu groß zum Lesen)")
+            continue
+        zeilen = []
+        gesamt = 0
+        with z.open(ziel) as f:
+            for ereignis, el in ET.iterparse(f, events=("end",)):
+                if el.tag == S + "dimension":
+                    erg.meta.setdefault("bereiche", {})[name] = el.get("ref")
+                if el.tag != S + "row":
+                    continue
+                gesamt += 1
+                if len(zeilen) < TABELLE_ZEILEN:
+                    zeile = {}
+                    for c in el.findall(S + "c"):
+                        ref = c.get("r")
+                        sp = _spalte(ref) if ref else len(zeile)
+                        if sp >= TABELLE_SPALTEN:
+                            continue
+                        t = c.get("t")
+                        v = c.find(S + "v")
+                        wert = v.text if v is not None and v.text is not None else ""
+                        if t == "s" and wert:
+                            wert = geteilt[int(wert)] if int(wert) < len(geteilt) else ""
+                        elif t == "inlineStr":
+                            wert = "".join(x.text or "" for x in c.iter(S + "t"))
+                        elif t == "b":
+                            wert = "WAHR" if wert == "1" else "FALSCH"
+                        elif t in (None, "n") and wert and int(c.get("s", "0")) in datum_stile:
+                            wert = _excel_datum(wert, True)
+                        zeile[sp] = wert
+                    if zeile:
+                        zeilen.append([zeile.get(i, "") for i in range(max(zeile) + 1)])
+                el.clear()
+        hinweis = f" (gezeigt {len(zeilen)} von {gesamt} Zeilen)" if gesamt > len(zeilen) else ""
+        erg.text(f"## Blatt: {name}{hinweis}\n" + (md_tabelle(zeilen) or "(leer)"))
+    if len(blaetter) > 20:
+        erg.hinweise.append(f"{len(blaetter) - 20} weitere Blätter weggelassen.")
+
+
+def xls_lesen(pfad, erg):
+    try:
+        import xlrd
+    except ImportError:
+        erg.hinweise.append("Altes Excel-Format (.xls): Leser xlrd fehlt im Rechenraum – bitte als .xlsx speichern.")
+        return
+    mappe = xlrd.open_workbook(pfad, on_demand=True)
+    for i in range(min(mappe.nsheets, 20)):
+        b = mappe.sheet_by_index(i)
+        zeilen = []
+        for r in range(min(b.nrows, TABELLE_ZEILEN)):
+            zeile = []
+            for c in range(min(b.ncols, TABELLE_SPALTEN)):
+                zelle = b.cell(r, c)
+                if zelle.ctype == xlrd.XL_CELL_DATE:
+                    try:
+                        zeile.append(xlrd.xldate.xldate_as_datetime(zelle.value, mappe.datemode).strftime("%Y-%m-%d"))
+                        continue
+                    except Exception:  # noqa: BLE001
+                        pass
+                v = zelle.value
+                zeile.append(str(int(v)) if isinstance(v, float) and v.is_integer() else str(v))
+            zeilen.append(zeile)
+        hinweis = f" (gezeigt {len(zeilen)} von {b.nrows} Zeilen)" if b.nrows > len(zeilen) else ""
+        erg.text(f"## Blatt: {b.name}{hinweis}\n" + (md_tabelle(zeilen) or "(leer)"))
+
+
+def catdoc_lesen(pfad, erg, programm):
+    if not _hat(programm):
+        erg.hinweise.append(f"Altes Office-Format: {programm} fehlt im Rechenraum – bitte als .docx/.pptx speichern.")
+        return
+    r = _werkzeug([programm, "-d", "utf-8", pfad], 60)
+    erg.text(r.stdout.decode("utf-8", "replace"))
+    if r.returncode != 0 and not r.stdout.strip():
+        erg.hinweise.append(f"{programm} konnte die Datei nicht lesen: {r.stderr.decode('utf-8', 'replace')[-300:]}")
+
+
+def epub_lesen(pfad, erg):
+    import posixpath
+    z = _zip_oeffnen(pfad)
+    c = _xml(z, "META-INF/container.xml")
+    rf = next((e.get("full-path") for e in c.iter() if e.tag.endswith("rootfile")), None)
+    if not rf:
+        raise ValueError("EPUB ohne Inhaltsverzeichnis")
+    opf = _xml(z, rf)
+    basis = posixpath.dirname(rf)
+    manifest = {e.get("id"): e.get("href") for e in opf.iter() if e.tag.endswith("}item")}
+    titel = next((e.text for e in opf.iter() if e.tag.endswith("}title") and e.text), "")
+    if titel:
+        erg.text(f"# {titel}")
+    for e in opf.iter():
+        if e.tag.endswith("}itemref"):
+            href = manifest.get(e.get("idref"))
+            if not href:
+                continue
+            p = posixpath.normpath(posixpath.join(basis, href))
+            if p in z.namelist() and z.getinfo(p).file_size < ZIP_XML_MAX:
+                erg.text(html_zu_text(text_dekodieren(z.read(p))))
+            if sum(len(t) for t in erg.teile) > MAX_TEXT:
+                break
+
+
+# ---- Mail ------------------------------------------------------------------------------------------------------------
+
+def _groesse(n):
+    return f"{n / 1024 / 1024:.1f} MB" if n >= 1024 * 1024 else f"{max(1, round(n / 1024))} KB"
+
+
+def eml_lesen(pfad, erg, tiefe):
+    import email
+    from email import policy
+    with open(pfad, "rb") as f:
+        m = email.message_from_binary_file(f, policy=policy.default)
+    kopf = [f"{k}: {m.get(k)}" for k in ("From", "To", "Cc", "Date", "Subject") if m.get(k)]
+    erg.text("\n".join(kopf))
+    koerper = None
+    try:
+        koerper = m.get_body(preferencelist=("plain", "html"))
+    except Exception:  # noqa: BLE001
+        pass
+    if koerper is not None:
+        try:
+            inhalt = koerper.get_content()
+        except Exception:  # noqa: BLE001
+            inhalt = (koerper.get_payload(decode=True) or b"").decode("utf-8", "replace")
+        erg.text(html_zu_text(inhalt) if koerper.get_content_type() == "text/html" else inhalt)
+    anhaenge = []
+    for a in m.iter_attachments():
+        daten = a.get_payload(decode=True) or b""
+        anhaenge.append((a.get_filename() or "anhang", a.get_content_type(), daten))
+    _teile_anhaengen(erg, "Anhänge der Mail", [(n, len(d), t, (lambda d=d: d)) for n, t, d in anhaenge], tiefe)
+
+
+def msg_lesen(pfad, erg, tiefe):
+    try:
+        import olefile
+    except ImportError:
+        erg.hinweise.append("Outlook-Mail (.msg): Leser olefile fehlt im Rechenraum – bitte als .eml speichern.")
+        return
+    ole = olefile.OleFileIO(pfad)
+
+    def lies(name, wurzel=""):
+        for typ, kod in (("001F", "utf-16-le"), ("001E", "cp1252")):
+            p = f"{wurzel}__substg1.0_{name}{typ}"
+            if ole.exists(p):
+                return ole.openstream(p).read().decode(kod, "replace").rstrip("\x00")
+        return ""
+
+    kopf = [("Von", f"{lies('0C1A')} <{lies('0C1F') or lies('5D01')}>".strip(" <>")), ("An", lies("0E04")), ("Cc", lies("0E03")), ("Betreff", lies("0037"))]
+    koepfe = lies("007D")
+    datum = re.search(r"^Date:\s*(.+)$", koepfe, re.M)
+    if datum:
+        kopf.insert(3, ("Datum", datum.group(1).strip()))
+    erg.text("\n".join(f"{k}: {v}" for k, v in kopf if v))
+    text = lies("1000")
+    if not text and ole.exists("__substg1.0_10130102"):
+        text = html_zu_text(text_dekodieren(ole.openstream("__substg1.0_10130102").read()))
+    erg.text(text)
+    anhaenge = []
+    for eintrag in ole.listdir(streams=False, storages=True):
+        if len(eintrag) == 1 and eintrag[0].startswith("__attach_version1.0_"):
+            w = eintrag[0] + "/"
+            name = lies("3707", w) or lies("3704", w) or "anhang"
+            datenpfad = w + "__substg1.0_37010102"
+            groesse = ole.get_size(datenpfad) if ole.exists(datenpfad) else 0
+            anhaenge.append((name, groesse, "", (lambda p=datenpfad: ole.openstream(p).read() if ole.exists(p) else b"")))
+    _teile_anhaengen(erg, "Anhänge der Mail", anhaenge, tiefe)
+
+
+# ---- Archive ---------------------------------------------------------------------------------------------------------
+
+def _teile_anhaengen(erg, ueberschrift, eintraege, tiefe):
+    """eintraege: (name, groesse, art, lesen()) – Liste + die verstehbaren Dateien darin (mit Grenzen)."""
+    if not eintraege:
+        return
+    zeilen = [f"- {n} ({_groesse(g)}{', ' + a if a else ''})" for n, g, a, _ in eintraege[:ARCHIV_LISTE]]
+    if len(eintraege) > ARCHIV_LISTE:
+        zeilen.append(f"- … und {len(eintraege) - ARCHIV_LISTE} weitere")
+    erg.text(f"## {ueberschrift} ({len(eintraege)})\n" + "\n".join(zeilen))
+    if tiefe >= ARCHIV_TIEFE:
+        erg.hinweise.append("Verschachtelte Archive/Anhänge: nur das Inhaltsverzeichnis (Tiefe begrenzt).")
+        return
+    gelesen = 0
+    summe = 0
+    for name, groesse, _, lesen in eintraege:
+        e = _endung(name)
+        if e in AUDIO_ENDUNGEN | VIDEO_ENDUNGEN:
+            continue  # Transkription kostet zu viel Zeit für einen Archiv-Eintrag
+        if gelesen >= ARCHIV_UMWANDELN:
+            erg.hinweise.append(f"Nur die ersten {ARCHIV_UMWANDELN} Dateien wurden gelesen.")
+            break
+        if _uebrig() < UMWANDELN_ZEITLIMIT * 0.25:
+            erg.hinweise.append("Zeit knapp – weitere Dateien nicht mehr gelesen.")
+            break
+        if groesse > ARCHIV_DATEI or summe + groesse > ARCHIV_SUMME:
+            erg.hinweise.append(f"{name}: zu groß zum Lesen ({_groesse(groesse)}).")
+            continue
+        try:
+            daten = lesen()
+        except Exception as ex:  # noqa: BLE001
+            erg.hinweise.append(f"{name}: nicht lesbar ({type(ex).__name__}: {ex}).")
+            continue
+        if len(daten) > ARCHIV_DATEI:
+            erg.hinweise.append(f"{name}: zu groß zum Lesen.")
+            continue
+        summe += len(daten)
+        gelesen += 1
+        unter = Ergebnis(typ_text(e or _sniff(daten[:600])))
+        d = tempfile.mkdtemp(dir=os.getcwd())
+        ziel = os.path.join(d, f"teil{gelesen}{e if re.match(r'^[.a-z0-9]{1,12}$', e) else ''}")
+        with open(ziel, "wb") as f:
+            f.write(daten)
+        try:
+            verstehen(ziel, name, unter, tiefe + 1)
+        except Exception as ex:  # noqa: BLE001
+            unter.hinweise.append(f"nicht lesbar ({type(ex).__name__}: {ex})")
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+        t = "\n\n".join(unter.teile)
+        if len(t) > 30_000:
+            t = t[:30_000] + "\n[… gekürzt]"
+        erg.text(f"### {name} ({unter.typ})\n{t or '(kein Text)'}")
+        erg.hinweise.extend(f"{name}: {h}" for h in unter.hinweise[:5])
+        for b in unter.bilder:
+            if len(erg.bilder) < MAX_BILDER:
+                erg.bilder.append({**b, "titel": f"{name}: {b.get('titel', '')}".rstrip(": ")})
+
+
+def zip_lesen(pfad, erg, tiefe):
+    import zipfile
+    z = zipfile.ZipFile(pfad)
+    eintraege = []
+    verschluesselt = 0
+    for i in z.infolist():
+        if i.is_dir():
+            continue
+        if i.flag_bits & 0x1:
+            verschluesselt += 1
+            eintraege.append((i.filename, i.file_size, "verschlüsselt", (lambda: (_ for _ in ()).throw(ValueError("verschlüsselt")))))
+            continue
+        if i.compress_size and i.file_size / i.compress_size > ARCHIV_PACKRATE and i.file_size > 1024 * 1024:
+            eintraege.append((i.filename, i.file_size, "verdächtig stark gepackt – nicht gelesen", (lambda: b"\x00" * (ARCHIV_DATEI + 1))))
+            continue
+
+        def lesen(i=i):
+            with z.open(i) as f:
+                return f.read(ARCHIV_DATEI + 1)
+        eintraege.append((i.filename, i.file_size, "", lesen))
+    if verschluesselt:
+        erg.hinweise.append(f"{verschluesselt} Datei(en) im Archiv sind verschlüsselt.")
+    _teile_anhaengen(erg, "Inhalt des Archivs", eintraege, tiefe)
+
+
+def tar_lesen(pfad, erg, tiefe):
+    import tarfile
+    t = tarfile.open(pfad, mode="r:*")
+    eintraege = []
+    n = 0
+    for m in t:
+        n += 1
+        if n > 5000:
+            erg.hinweise.append("Mehr als 5000 Einträge – Rest nicht gezeigt.")
+            break
+        if not m.isfile():
+            continue
+
+        def lesen(m=m):
+            f = t.extractfile(m)
+            return f.read(ARCHIV_DATEI + 1) if f else b""
+        eintraege.append((m.name, m.size, "", lesen))
+    _teile_anhaengen(erg, "Inhalt des Archivs", eintraege, tiefe)
+
+
+def einzeln_entpacken(pfad, name, erg, tiefe, art):
+    import bz2
+    import gzip
+    import lzma
+    oeffner = {".gz": gzip.open, ".bz2": bz2.open, ".xz": lzma.open}[art]
+    innen = name[: -len(art)] if name.lower().endswith(art) else name + ".entpackt"
+    with oeffner(pfad, "rb") as f:
+        daten = f.read(ARCHIV_DATEI + 1)
+    if len(daten) > ARCHIV_DATEI:
+        erg.hinweise.append(f"Entpackt größer als {_groesse(ARCHIV_DATEI)} – nicht gelesen (Schutz gegen Zip-Bomben).")
+        return
+    if len(daten) > 262 and daten[257:262] == b"ustar":
+        return tar_lesen(pfad, erg, tiefe)
+    _teile_anhaengen(erg, "Inhalt", [(innen, len(daten), "", lambda: daten)], tiefe)
+
+
+# ---- Bilder, PDF, Audio, Video ---------------------------------------------------------------------------------------
+
+def bild_aufbereiten(pfad, erg, titel):
+    """Bild → PNG/JPEG, längste Kante höchstens BILD_KANTE, höchstens BILD_MAX_BYTES."""
+    try:
+        from PIL import Image
+    except ImportError:
+        erg.hinweise.append("Bildbibliothek (Pillow) fehlt im Rechenraum.")
+        return False
+    import io
+    Image.MAX_IMAGE_PIXELS = 80_000_000
+    with Image.open(pfad) as b:
+        erg.meta.setdefault("bilder", []).append({"breite": b.width, "hoehe": b.height, "format": b.format})
+        b.seek(0)
+        b.load()
+        if b.mode in ("P", "LA", "PA"):
+            b = b.convert("RGBA")
+        elif b.mode not in ("RGB", "RGBA", "L"):
+            b = b.convert("RGB")
+        b.thumbnail((BILD_KANTE, BILD_KANTE))
+        alpha = b.mode == "RGBA"
+        for q in (88, 75, 60):
+            puffer = io.BytesIO()
+            if alpha:
+                b.save(puffer, "PNG", optimize=True)
+                mime = "image/png"
+            else:
+                b.save(puffer, "JPEG", quality=q)
+                mime = "image/jpeg"
+            if puffer.tell() <= BILD_MAX_BYTES:
+                break
+            if alpha:
+                b = b.convert("RGB")
+                alpha = False
+        erg.bild(puffer.getvalue(), mime, titel)
+    return True
+
+
+def bild_lesen(pfad, name, erg, e):
+    quelle = pfad
+    if e in (".heic", ".heif", ".avif"):
+        try:
+            from PIL import Image  # noqa: F401
+            import pillow_heif  # noqa: F401
+            pillow_heif.register_heif_opener()
+        except ImportError:
+            if not _hat("heif-convert"):
+                erg.hinweise.append("HEIC/HEIF: Umwandler (heif-convert) fehlt im Rechenraum.")
+                return
+            quelle = pfad + ".png"
+            r = _werkzeug(["heif-convert", pfad, quelle], 60)
+            if r.returncode != 0 or not os.path.isfile(quelle):
+                erg.hinweise.append("HEIC/HEIF ließ sich nicht umwandeln: " + r.stderr.decode("utf-8", "replace")[-300:])
+                return
+    bild_aufbereiten(quelle, erg, name)
+
+
+def svg_lesen(pfad, name, erg):
+    with open(pfad, "rb") as f:
+        roh = f.read(200_000)
+    texte = re.findall(rb"<(?:title|desc|text|tspan)[^>]*>([^<]{1,500})<", roh)
+    if texte:
+        erg.text("Texte in der Grafik: " + " · ".join(t.decode("utf-8", "replace").strip() for t in texte[:100] if t.strip()))
+    if not _hat("rsvg-convert"):
+        erg.hinweise.append("SVG → PNG: rsvg-convert fehlt im Rechenraum.")
+        return
+    ziel = pfad + ".png"
+    r = _werkzeug(["rsvg-convert", "--width", "1200", "--keep-aspect-ratio", "--format", "png", "--output", ziel, pfad], 60)
+    if r.returncode != 0 or not os.path.isfile(ziel):
+        erg.hinweise.append("SVG ließ sich nicht darstellen: " + r.stderr.decode("utf-8", "replace")[-300:])
+        return
+    if not bild_aufbereiten(ziel, erg, name):
+        with open(ziel, "rb") as f:
+            erg.bild(f.read(), "image/png", name)
+
+
+def pdf_lesen(pfad, erg):
+    if not _hat("pdftotext"):
+        erg.hinweise.append("pdftotext fehlt im Rechenraum.")
+        return
+    info = _werkzeug(["pdfinfo", pfad], 30).stdout.decode("utf-8", "replace")
+    m = re.search(r"^Pages:\s+(\d+)", info, re.M)
+    seiten = int(m.group(1)) if m else 0
+    erg.meta["seiten"] = seiten
+    r = _werkzeug(["pdftotext", "-layout", "-l", "300", pfad, "-"], 120)
+    text = r.stdout.decode("utf-8", "replace")
+    if seiten > 300:
+        erg.hinweise.append(f"Nur die ersten 300 von {seiten} Seiten gelesen.")
+    zeichen = len(re.sub(r"\s", "", text))
+    if seiten and zeichen < 40 * min(seiten, 10):
+        # vermutlich ein Scan → OCR der ersten Seiten
+        if _hat("tesseract") and _hat("pdftoppm"):
+            n = min(seiten, 10)
+            r2 = _werkzeug(["pdftoppm", "-r", "150", "-gray", "-f", "1", "-l", str(n), "-png", pfad, os.path.join(os.getcwd(), "ocr")], 120)
+            teile = []
+            for bild in sorted(x for x in os.listdir(os.getcwd()) if x.startswith("ocr") and x.endswith(".png")):
+                if _uebrig() < 20:
+                    erg.hinweise.append("Zeit knapp – OCR nach einigen Seiten beendet.")
+                    break
+                o = _werkzeug(["tesseract", bild, "-", "-l", "deu+eng"], 90)
+                teile.append(f"### Seite {len(teile) + 1} (OCR)\n" + o.stdout.decode("utf-8", "replace").strip())
+            if teile:
+                text = "\n\n".join(teile)
+                erg.hinweise.append(f"Gescanntes PDF: Text per Texterkennung (OCR) aus {len(teile)} Seite(n) – kann Lesefehler enthalten.")
+            elif r2.returncode != 0:
+                erg.hinweise.append("OCR fehlgeschlagen.")
+        else:
+            erg.hinweise.append("Das PDF enthält kaum Text (Scan?) – Texterkennung (tesseract) fehlt im Rechenraum.")
+    erg.text(text)
+
+
+def _ffprobe(pfad):
+    if not _hat("ffprobe"):
+        return None
+    r = _werkzeug(["ffprobe", "-v", "error", "-show_entries",
+                   "format=duration,bit_rate,format_long_name:format_tags=title,artist,album,date,creation_time:stream=codec_type,codec_name,width,height,sample_rate,channels",
+                   "-of", "json", pfad], 30)
+    try:
+        return json.loads(r.stdout or b"{}")
+    except ValueError:
+        return None
+
+
+def _medien_meta(erg, info):
+    fmt = (info or {}).get("format", {})
+    dauer = float(fmt.get("duration") or 0)
+    zeilen = []
+    if dauer:
+        zeilen.append(f"Dauer: {int(dauer // 60)}:{int(dauer % 60):02d} min")
+        erg.meta["dauer_s"] = round(dauer, 1)
+    if fmt.get("format_long_name"):
+        zeilen.append(f"Format: {fmt['format_long_name']}")
+    for s in (info or {}).get("streams", []):
+        if s.get("codec_type") == "video":
+            zeilen.append(f"Video: {s.get('codec_name')} {s.get('width')}×{s.get('height')}")
+        elif s.get("codec_type") == "audio":
+            zeilen.append(f"Audio: {s.get('codec_name')}, {s.get('sample_rate')} Hz, {s.get('channels')} Kanal/Kanäle")
+    for k, v in (fmt.get("tags") or {}).items():
+        zeilen.append(f"{k}: {v}")
+    erg.text("\n".join(zeilen))
+    return dauer
+
+
+def transkribieren(pfad, erg, dauer):
+    if not (_hat(WHISPER_CLI) and os.path.isfile(WHISPER_MODELL)):
+        erg.hinweise.append("Transkription ist im Rechenraum nicht eingerichtet (whisper-cli/Modell fehlt) – nur Metadaten.")
+        return
+    if not _hat("ffmpeg"):
+        erg.hinweise.append("ffmpeg fehlt – keine Transkription.")
+        return
+    wav = os.path.join(os.getcwd(), "ton.wav")
+    r = _werkzeug(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", pfad, "-t", str(AUDIO_MAX_S), "-vn", "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", wav], 120)
+    if r.returncode != 0 or not os.path.isfile(wav):
+        erg.hinweise.append("Tonspur ließ sich nicht lesen: " + r.stderr.decode("utf-8", "replace")[-300:])
+        return
+    if dauer > AUDIO_MAX_S:
+        erg.hinweise.append(f"Nur die ersten {AUDIO_MAX_S // 60} Minuten transkribiert.")
+    aus = os.path.join(os.getcwd(), "transkript")
+    zeit = max(10, int(_uebrig()) - 10)
+    try:
+        r = _werkzeug([WHISPER_CLI, "-m", WHISPER_MODELL, "-f", wav, "-l", "auto", "-t", str(cpu_kontingent()), "-np", "-otxt", "-of", aus], zeit)
+    except subprocess.TimeoutExpired:
+        erg.hinweise.append("Transkription dauerte zu lange und wurde abgebrochen.")
+        return
+    if r.returncode != 0 or not os.path.isfile(aus + ".txt"):
+        erg.hinweise.append("Transkription fehlgeschlagen: " + r.stderr.decode("utf-8", "replace")[-300:])
+        return
+    with open(aus + ".txt", encoding="utf-8", errors="replace") as f:
+        t = f.read().strip()
+    erg.text("## Transkript (automatisch, kann Hörfehler enthalten)\n" + (t or "(keine Sprache erkannt)"))
+
+
+def audio_lesen(pfad, erg):
+    info = _ffprobe(pfad)
+    if info is None:
+        erg.hinweise.append("ffprobe fehlt im Rechenraum – keine Audio-Infos.")
+    dauer = _medien_meta(erg, info)
+    transkribieren(pfad, erg, dauer)
+
+
+def video_lesen(pfad, erg):
+    info = _ffprobe(pfad)
+    if info is None:
+        erg.hinweise.append("ffmpeg/ffprobe fehlt im Rechenraum – keine Video-Infos.")
+        return
+    dauer = _medien_meta(erg, info)
+    for i, anteil in enumerate((0.05, 0.35, 0.65, 0.9)):
+        ziel = os.path.join(os.getcwd(), f"standbild{i}.jpg")
+        t = max(0.0, dauer * anteil) if dauer else i
+        r = _werkzeug(["ffmpeg", "-nostdin", "-v", "error", "-y", "-ss", f"{t:.2f}", "-i", pfad, "-frames:v", "1", "-vf", "scale='min(1024,iw)':-2", "-q:v", "4", ziel], 60)
+        if r.returncode == 0 and os.path.isfile(ziel):
+            with open(ziel, "rb") as f:
+                erg.bild(f.read(), "image/jpeg", f"Standbild bei {int(t // 60)}:{int(t % 60):02d}")
+    if any(s.get("codec_type") == "audio" for s in info.get("streams", [])):
+        transkribieren(pfad, erg, dauer)
+
+
+# ---- Verteiler -------------------------------------------------------------------------------------------------------
+
+def verstehen(pfad, name, erg, tiefe=0):
+    e = _endung(name)
+    with open(pfad, "rb") as f:
+        kopf = f.read(600)
+    erkannt = _sniff(kopf)
+    # Endung fehlt oder unbekannt → nach Inhalt; bekannte Endung gewinnt (docx ist auch ein ZIP)
+    bekannt = e in TEXT_ENDUNGEN | HTML_ENDUNGEN | BILD_ENDUNGEN | AUDIO_ENDUNGEN | VIDEO_ENDUNGEN | ARCHIV_ENDUNGEN | set(TYPEN) | {".tar.gz", ".tar.bz2", ".tar.xz"}
+    if not bekannt and erkannt:
+        e = erkannt
+        erg.typ = typ_text(e) + " (am Inhalt erkannt)"
+    if e == ".ole":
+        erg.hinweise.append("Altes Office-Format (Word/Excel/PowerPoint vor 2007) ohne passende Endung – bitte als .docx/.xlsx/.pptx speichern.")
+        return
+    if e in HTML_ENDUNGEN:
+        with open(pfad, "rb") as f:
+            return erg.text(html_zu_text(text_dekodieren(f.read())))
+    if e in TEXT_ENDUNGEN or (not erkannt and not bekannt and ist_text(kopf)):
+        with open(pfad, "rb") as f:
+            daten = f.read(MAX_TEXT * 4)
+        if not ist_text(daten):
+            erg.hinweise.append("Sieht nicht wie Text aus – nicht gelesen.")
+            return
+        return erg.text(text_dekodieren(daten))
+    if e == ".svg":
+        return svg_lesen(pfad, name, erg)
+    if e in BILD_ENDUNGEN:
+        return bild_lesen(pfad, name, erg, e)
+    if e == ".pdf":
+        return pdf_lesen(pfad, erg)
+    if e in (".docx", ".docm", ".dotx"):
+        return docx_lesen(pfad, erg)
+    if e in (".odt", ".ott"):
+        return odt_lesen(pfad, erg)
+    if e == ".rtf":
+        with open(pfad, "rb") as f:
+            return erg.text(rtf_zu_text(f.read().decode("latin-1")))
+    if e == ".doc":
+        return catdoc_lesen(pfad, erg, "catdoc")
+    if e in (".xlsx", ".xlsm", ".xltx"):
+        return xlsx_lesen(pfad, erg)
+    if e == ".xls":
+        return xls_lesen(pfad, erg)
+    if e == ".ods":
+        return ods_lesen(pfad, erg)
+    if e in (".pptx", ".ppsx", ".potx"):
+        return pptx_lesen(pfad, erg)
+    if e == ".ppt":
+        return catdoc_lesen(pfad, erg, "catppt")
+    if e == ".odp":
+        return odp_lesen(pfad, erg)
+    if e == ".epub":
+        return epub_lesen(pfad, erg)
+    if e == ".eml":
+        return eml_lesen(pfad, erg, tiefe)
+    if e == ".msg":
+        return msg_lesen(pfad, erg, tiefe)
+    if e == ".zip":
+        return zip_lesen(pfad, erg, tiefe)
+    if e in (".tar", ".tgz", ".tbz2", ".txz", ".tar.gz", ".tar.bz2", ".tar.xz"):
+        return tar_lesen(pfad, erg, tiefe)
+    if e in (".gz", ".bz2", ".xz"):
+        return einzeln_entpacken(pfad, name, erg, tiefe, e)
+    if e in AUDIO_ENDUNGEN:
+        return audio_lesen(pfad, erg)
+    if e in VIDEO_ENDUNGEN:
+        return video_lesen(pfad, erg)
+    if e in (".7z", ".rar"):
+        erg.hinweise.append(f"{typ_text(e)}: wird nicht entpackt – bitte als .zip schicken.")
+        return
+    erg.hinweise.append("Unbekanntes Format – nur Name, Typ und Größe.")
+
+
+def umwandeln_kind(pfad, name):
+    """Einstieg des Kindprozesses: Ergebnis als JSON auf stdout."""
+    _ENDE[0] = time.time() + float(os.environ.get("UMWANDELN_REST_S", UMWANDELN_ZEITLIMIT))
+    erg = Ergebnis(typ_text(_endung(name)))
+    erg.meta["groesse"] = os.path.getsize(pfad)
+    try:
+        verstehen(pfad, name, erg)
+    except subprocess.TimeoutExpired:
+        erg.hinweise.append("Ein Werkzeug brauchte zu lange und wurde abgebrochen.")
+    except MemoryError:
+        erg.hinweise.append("Zu wenig Speicher für diese Datei.")
+    except Exception as ex:  # noqa: BLE001 – nie abstürzen, sondern ehrlich melden
+        erg.hinweise.append(f"Nicht lesbar ({type(ex).__name__}: {str(ex)[:300]}).")
+    sys.stdout.write(json.dumps(erg.als_dict()))
+
+
+def _grenzen_setzen():
+    import resource
+    os.setsid()
+    resource.setrlimit(resource.RLIMIT_AS, (UMWANDELN_SPEICHER, UMWANDELN_SPEICHER))
+    resource.setrlimit(resource.RLIMIT_FSIZE, (300 * 1024 * 1024, 300 * 1024 * 1024))
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+
+
+def umwandeln(name, inhalt):
+    """Wandelt eine Datei in einem Kindprozess um (eigener Ordner, Zeit- und Speichergrenze). Ordner wird danach gelöscht."""
+    if not isinstance(name, str) or not name or len(name) > 300:
+        raise Fehler(400, "Dateiname fehlt.")
+    if len(inhalt) > MAX_UMWANDELN:
+        raise Fehler(413, f"Datei zu groß (höchstens {MAX_UMWANDELN // 1024 // 1024} MB).")
+    basis = os.path.join(ARBEIT, ".umwandeln")
+    os.makedirs(basis, exist_ok=True)
+    with UMWANDELN_GLEICHZEITIG:
+        d = tempfile.mkdtemp(dir=basis)
+        try:
+            e = _endung(name)
+            datei = os.path.join(d, "eingang" + (e if re.match(r"^[.a-z0-9]{1,12}$", e) else ""))
+            with open(datei, "wb") as f:
+                f.write(inhalt)
+            umgebung = {
+                "PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": d, "TMPDIR": d, "LANG": "C.UTF-8",
+                "PYTHONDONTWRITEBYTECODE": "1", "UMWANDELN_REST_S": str(UMWANDELN_ZEITLIMIT - 5), "OMP_NUM_THREADS": "2",
+            }
+            for k in ("WHISPER_CLI", "WHISPER_MODELL", "WHISPER_THREADS", "AUDIO_MAX_S", "UMWANDELN_SPEICHER_MB", "UMWANDELN_ZEITLIMIT_S"):
+                if k in os.environ:
+                    umgebung[k] = os.environ[k]
+            p = subprocess.Popen([sys.executable, os.path.abspath(__file__), "--umwandeln", datei, name], cwd=d, env=umgebung,
+                                 stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, preexec_fn=_grenzen_setzen)
+            try:
+                aus, fehler = p.communicate(timeout=UMWANDELN_ZEITLIMIT)
+            except subprocess.TimeoutExpired:
+                os.killpg(p.pid, signal.SIGKILL)
+                p.communicate()
+                erg = Ergebnis(typ_text(e))
+                erg.hinweise.append(f"Umwandlung nach {UMWANDELN_ZEITLIMIT} s abgebrochen (Zeitlimit).")
+                return erg.als_dict()
+            try:
+                return json.loads(aus.decode("utf-8"))
+            except ValueError:
+                erg = Ergebnis(typ_text(e))
+                letzte = fehler.decode("utf-8", "replace").strip().splitlines()[-1:] or [f"Exit-Code {p.returncode}"]
+                erg.hinweise.append(f"Umwandlung abgestürzt ({letzte[0][:300]}).")
+                return erg.als_dict()
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+
 def aufraeumen_alt():
     while True:
         jetzt = time.time()
         for n in os.listdir(ARBEIT):
+            if n == ".umwandeln":
+                continue  # jede Umwandlung räumt ihren Ordner selbst weg
             p = os.path.join(ARBEIT, n)
             try:
                 if os.path.isdir(p) and jetzt - os.path.getmtime(p) > RAUM_ALTER_S:
@@ -188,6 +1541,9 @@ class Handler(BaseHTTPRequestHandler):
                 p = raum_pfad(b.get("raum"), anlegen=False)
                 shutil.rmtree(p, ignore_errors=True)
                 return self.antwort(200, {"ok": True})
+            if weg == "/umwandeln":
+                inhalt = base64.b64decode(b.get("inhalt_b64") or "", validate=True)
+                return self.antwort(200, umwandeln(b.get("name"), inhalt))
             raum = raum_pfad(b.get("raum"))
             if weg == "/befehl":
                 return self.antwort(200, befehl(raum, b.get("befehl"), b.get("zeitlimit")))
@@ -222,6 +1578,8 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    if len(sys.argv) == 4 and sys.argv[1] == "--umwandeln":
+        return umwandeln_kind(sys.argv[2], sys.argv[3])
     if not GEHEIMNIS:
         raise SystemExit("RECHENRAUM_GEHEIMNIS fehlt.")
     os.makedirs(ARBEIT, exist_ok=True)

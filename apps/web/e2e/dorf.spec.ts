@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 
 /** Origin des Testservers (E2E_PORT wie in playwright.config.ts – so laufen auch zwei Testreihen nebeneinander) */
@@ -1984,4 +1985,71 @@ test('Einstellungen: Cardputer koppeln – Code, Gerät erscheint, Sperren → S
   await zeile.getByRole('button', { name: 'Sperren' }).click();
   await expect(zeile).toHaveCount(0);
   expect((await request.get('/api/geraet/start', { headers: g })).status()).toBe(401);
+});
+
+test('Rathaus: eigene To-dos des Bürgermeisters – er trägt ein, Leif setzt etwas darauf und hakt ab; Rundgang-Katalog (E192)', async ({ page }, info) => {
+  test.setTimeout(60_000);
+  await anmelden(page);
+  await page.goto('/gebaeude/Rathaus?reiter=schreibtisch');
+  const bereich = page.getByRole('region', { name: 'Eigene To-dos des Bürgermeisters' });
+  await expect(bereich.getByRole('heading', { name: /Eigene To-dos des Bürgermeisters/ })).toBeVisible();
+  // Leif setzt ihm etwas auf die Liste
+  const vonLeif = `Prüfungsamt nachfassen ${info.project.name}`;
+  await bereich.getByLabel('Neues To-do für den Bürgermeister').fill(vonLeif);
+  await bereich.getByTitle('Auf seine Liste').click();
+  const zeileLeif = bereich.locator('.todo', { hasText: vonLeif });
+  await expect(zeileLeif.getByText('fällig', { exact: true })).toBeVisible();
+  await expect(zeileLeif.getByText('von: Leif')).toBeVisible();
+  // Der Bürgermeister trägt am Ende eines Auftrags selbst etwas ein (Attrappe: Werkzeugaufruf) – erscheint live, mit Bezug zum Chat
+  const vomBm = `Nachsehen ob die Mail raus ist ${info.project.name}`;
+  await page.getByLabel('Neue Aufgabe für den Bürgermeister').fill(`Mail an die Professorin ${info.project.name} <<werkzeug meine_todos_anlegen {"titel":"${vomBm}","wieder_am":"2099-01-01"}>>`);
+  await page.getByRole('button', { name: 'Auf den Schreibtisch' }).click();
+  const zeileBm = bereich.locator('.todo', { hasText: vomBm });
+  await expect(zeileBm.getByText('wieder ansehen 2099-01-01')).toBeVisible({ timeout: 30_000 });
+  await expect(zeileBm.getByRole('link', { name: /Schreibtisch: „Mail an die Professorin/ })).toHaveAttribute('href', /^\/chats\//);
+  // Leif hakt seins ab
+  await zeileLeif.getByRole('checkbox').click(); // der Haken folgt dem Server (kontrolliertes Feld)
+  await expect(zeileLeif).toHaveClass(/fertig/);
+  // Katalog des Rundgangs: 18 Aktivitäten, mit ID zum Abschalten in rundgang.md
+  await bereich.getByText(/Rundgang: 18 von 18 Aktivitäten an, höchstens 2 je Rundgang/).click();
+  await expect(bereich.getByText('Leif kennenlernen', { exact: true })).toBeVisible();
+  await expect(bereich.getByText('leif-kennenlernen', { exact: true })).toBeVisible();
+  await expect(bereich.getByRole('link', { name: '00_Stadtordnung/rundgang.md' })).toBeVisible();
+});
+
+test('E190 Anhänge: Schreibtisch mit Datei, im Chat Dateien anhängen – als Kärtchen mit Vorschau', async ({ page }, info) => {
+  test.setTimeout(90_000);
+  await anmelden(page);
+  await page.goto('/gebaeude/Rathaus');
+  const titel = `Anhang-Test ${info.project.name}`;
+  await page.getByLabel('Neue Aufgabe für den Bürgermeister').fill(titel);
+  await page.getByTestId('anhang-eingabe').first().setInputFiles({ name: 'Übung 3.txt', mimeType: 'text/plain', buffer: Buffer.from('Aufgabe 1: 6 * 7') });
+  await expect(page.locator('.datei-karten.gewaehlt .datei-karte', { hasText: 'Übung 3.txt' })).toBeVisible();
+  await page.getByRole('button', { name: 'Auf den Schreibtisch' }).click();
+  const zeile = page.locator('.chatliste li', { hasText: titel });
+  // der Bürgermeister hat übernommen, sobald die Zeile auf seinen Chat zeigt
+  await expect(zeile.getByRole('link', { name: titel })).toHaveAttribute('href', /\/chats\//);
+  await zeile.getByRole('link', { name: titel }).click();
+  await expect(page).toHaveURL(/\/chats\//);
+  // Lauf 1 zeigt die hochgeladene Datei als Kärtchen (ASCII-Name im Vault)
+  await expect(page.locator('.nachricht.nutzer .datei-karte', { hasText: 'Uebung 3.txt' })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(/Lauf 1: fertig/)).toBeVisible({ timeout: 30_000 });
+  // im Chat: Bild + Text anhängen
+  const png = fs.readFileSync(new URL('../../server/test/fixtures/anhaenge/foto.png', import.meta.url));
+  await page.getByTestId('anhang-eingabe').setInputFiles([
+    { name: 'skizze.png', mimeType: 'image/png', buffer: png },
+    { name: 'notiz.md', mimeType: 'text/markdown', buffer: Buffer.from('# Notiz') },
+  ]);
+  await expect(page.locator('.datei-karten.gewaehlt .datei-karte')).toHaveCount(2);
+  await page.getByPlaceholder('Weiter im Gespräch …').fill('Hier noch die Skizze');
+  await page.getByRole('button', { name: 'Senden' }).click();
+  await expect(page.locator('.datei-karten.gewaehlt')).toHaveCount(0);
+  const blase = page.locator('.nachricht.nutzer', { hasText: 'Hier noch die Skizze' });
+  await expect(blase.locator('.datei-karte')).toHaveCount(2, { timeout: 30_000 });
+  const bild = blase.locator('.datei-karte', { hasText: 'skizze.png' });
+  await expect(bild.locator('img')).toBeVisible();
+  await expect(bild).toHaveAttribute('href', /\/api\/vault\/roh\?pfad=Rathaus%2Fchats%2Fanhaenge%2F/);
+  await expect(page.getByText(/Lauf 2: fertig/)).toBeVisible({ timeout: 30_000 });
+  // was der Agent vom Anhang gesehen hat, ist eingeklappt
+  await expect(blase.locator('details.anhang-inhalt summary')).toHaveText('Anhänge, wie der Agent sie sieht');
 });

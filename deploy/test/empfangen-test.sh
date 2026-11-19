@@ -13,13 +13,13 @@ source "$HIER/../dorf"
 BILDER=$(mktemp -d)
 docker() {
   case "$1" in
-    load) local inhalt; inhalt=$(cat); case "$inhalt" in rr:*) touch "$BILDER/${inhalt#rr:}" ;; bb:*) touch "$BILDER/b-${inhalt#bb:}" ;; esac ;;
+    load) local inhalt; inhalt=$(cat); case "$inhalt" in rr:*) touch "$BILDER/${inhalt#rr:}" ;; bb:*) touch "$BILDER/b-${inhalt#bb:}" ;; cc:*) touch "$BILDER/c-${inhalt#cc:}" ;; esac ;;
     image)
       case "$2" in
-        inspect) case "$3" in agentendorf-browser:*) [ -e "$BILDER/b-${3#agentendorf-browser:}" ] ;; *) [ -e "$BILDER/${3#agentendorf-rechenraum:}" ] ;; esac ;;
-        rm) shift 2; local b; for b in "$@"; do case "$b" in agentendorf-browser:*) rm -f "$BILDER/b-${b#agentendorf-browser:}" ;; *) rm -f "$BILDER/${b#agentendorf-rechenraum:}" ;; esac; done ;;
+        inspect) case "$3" in agentendorf-browser:*) [ -e "$BILDER/b-${3#agentendorf-browser:}" ] ;; agentendorf-coding:*) [ -e "$BILDER/c-${3#agentendorf-coding:}" ] ;; *) [ -e "$BILDER/${3#agentendorf-rechenraum:}" ] ;; esac ;;
+        rm) shift 2; local b; for b in "$@"; do case "$b" in agentendorf-browser:*) rm -f "$BILDER/b-${b#agentendorf-browser:}" ;; agentendorf-coding:*) rm -f "$BILDER/c-${b#agentendorf-coding:}" ;; *) rm -f "$BILDER/${b#agentendorf-rechenraum:}" ;; esac; done ;;
       esac ;;
-    images) if [ "$2" = agentendorf-browser ]; then find "$BILDER" -name 'b-*' -printf '%f\n' | sed 's/^b-//'; else find "$BILDER" -type f ! -name 'b-*' -printf '%f\n'; fi ;;
+    images) if [ "$2" = agentendorf-browser ]; then find "$BILDER" -name 'b-*' -printf '%f\n' | sed 's/^b-//'; elif [ "$2" = agentendorf-coding ]; then find "$BILDER" -name 'c-*' -printf '%f\n' | sed 's/^c-//'; else find "$BILDER" -type f ! -name 'b-*' ! -name 'c-*' -printf '%f\n'; fi ;;
     *) : ;;
   esac
 }
@@ -33,6 +33,10 @@ buendel() { # version [rechenraum-kennung [mit-image]]   (BROWSER=kennung[:mit] 
   if [ -n "${BROWSER:-}" ]; then
     echo "${BROWSER%%:*}" > "$d/BROWSER_VERSION"; dateien+=(BROWSER_VERSION)
     if [ "${BROWSER#*:}" = mit ]; then printf 'bb:%s' "${BROWSER%%:*}" | gzip > "$d/browser.tar.gz"; dateien+=(browser.tar.gz); fi
+  fi
+  if [ -n "${CODING:-}" ]; then
+    echo "${CODING%%:*}" > "$d/CODING_VERSION"; dateien+=(CODING_VERSION)
+    if [ "${CODING#*:}" = mit ]; then printf 'cc:%s' "${CODING%%:*}" | gzip > "$d/coding.tar.gz"; dateien+=(coding.tar.gz); fi
   fi
   echo "$1" > "$d/VERSION"; cp -r "$HIER/.." "$d/deploy"
   echo "image" | gzip > "$d/image.tar.gz"
@@ -132,12 +136,39 @@ P="$DORF_BASIS/daten/programme"
 [ "$(jq -r '.version + " " + .mac.version + " " + .windows.installer' "$P/programme.json")" = "0.2.0 0.1.9 Agentendorf_0.2.0_x64-setup.exe" ] || fehler "programme.json nicht zusammengeführt: $(cat "$P/programme.json")"
 [ "$(SSH_ORIGINAL_COMMAND="hat-programme $PK" cmd_ci)" = nein ] || fehler "unvollständige Programme dürfen nicht als fertig gelten"
 echo "Programme mitliefern, hat-programme, Teil-Bau: bestanden"
+# Codehaus (E191): Image nur bei Bedarf, fehlendes Image stoppt, alte Images werden aufgeräumt, hat-coding
+CA=4444444444444444; CB=5555555555555555; CC=6666666666666666
+[ ! -f "$AKTUELL/CODING_VERSION" ] || fehler "ohne Codehaus-Image darf es keine CODING_VERSION geben"
+[ "$(SSH_ORIGINAL_COMMAND="hat-coding $CA" cmd_ci)" = nein ] || fehler "hat-coding $CA sollte nein sein"
+BROWSER="$BA" CODING="$CA:mit" cmd_empfangen < "$(BROWSER="$BA" CODING="$CA:mit" buendel v19 $RC)" >/dev/null || fehler "v19 mit Codehaus-Image"
+[ "$(cat "$AKTUELL/CODING_VERSION")" = $CA ] || fehler "CODING_VERSION nicht übernommen"
+[ "$(cat "$AKTUELL/BROWSER_VERSION")" = $BA ] || fehler "BROWSER_VERSION ging mit dem Codehaus verloren"
+BROWSER="$BA" CODING="$CA" cmd_empfangen < "$(BROWSER="$BA" CODING="$CA" buendel v20 $RC)" >/dev/null || fehler "v20 ohne Image, aber Server hat es"
+if cmd_empfangen < "$(BROWSER="$BA" CODING="$CB" buendel v21 $RC)" >/dev/null 2>&1; then fehler "v21 ohne vorhandenes Codehaus-Image angenommen"; fi
+[ "$(cat "$AKTUELL/VERSION")" = v20 ] || fehler "nach fehlendem Codehaus-Image sollte v20 aktiv bleiben"
+if cmd_empfangen < "$(BROWSER="$BA" CODING="../../etc:mit" buendel v21 $RC)" >/dev/null 2>&1; then fehler "ungültige CODING_VERSION angenommen"; fi
+[ "$(SSH_ORIGINAL_COMMAND="hat-coding $CA" cmd_ci)" = ja ] || fehler "hat-coding $CA sollte ja sein"
+[ "$(SSH_ORIGINAL_COMMAND="hat-coding $CB" cmd_ci)" = nein ] || fehler "hat-coding $CB sollte nein sein"
+( SSH_ORIGINAL_COMMAND="hat-coding $CA; rm -rf /" cmd_ci ) >/dev/null 2>&1 && fehler "hat-coding mit Anhang erlaubt"
+( SSH_ORIGINAL_COMMAND="hat-coding ../x" cmd_ci ) >/dev/null 2>&1 && fehler "hat-coding mit Pfad erlaubt"
+for v in v22 v23 v24; do BROWSER="$BA" CODING="$CC$([ $v = v22 ] && echo :mit)" cmd_empfangen < "$(BROWSER="$BA" CODING="$CC$([ $v = v22 ] && echo :mit)" buendel $v $RC)" >/dev/null || fehler "$v"; done
+[ ! -e "$BILDER/c-$CA" ] || fehler "nicht mehr gebrauchtes Codehaus-Image $CA wurde nicht entfernt"
+[ -e "$BILDER/c-$CC" ] || fehler "gebrauchtes Codehaus-Image $CC wurde entfernt"
+[ -e "$BILDER/b-$BA" ] && [ -e "$BILDER/$RC" ] || fehler "Aufräumen der Codehaus-Images hat Browser-/Rechenraum-Image entfernt"
+echo "Codehaus-Image nur bei Bedarf, hat-coding, Aufräumen: bestanden"
 # Compose bekommt das Profil „browser“ genau dann, wenn die Version eine BROWSER_VERSION hat
 # echte compose()-Funktion aus dem Skript wiederherstellen (oben durch eine Attrappe ersetzt)
 # shellcheck disable=SC1090
 source <(sed -n '/^compose() {/,/^}/p' "$HIER/../dorf")
+# shellcheck disable=SC1090
+source <(sed -n '/^coding_an() {/p' "$HIER/../dorf")
 docker() { [ "$1" = compose ] && echo "BV=$BROWSER_VERSION PROFIL=$COMPOSE_PROFILES"; }
+# Codehaus-Image da, aber nicht eingerichtet (kein CODING_AN) → kein Profil coding
 [ "$(compose ps)" = "BV=$BA PROFIL=browser" ] || fehler "Compose-Profil fehlt: $(compose ps)"
+echo "CODING_AN=ja" >> "$DORF_BASIS/.env"
+[ "$(compose ps)" = "BV=$BA PROFIL=browser,coding" ] || fehler "Profil coding fehlt trotz Schalter: $(compose ps)"
+rm "$AKTUELL/CODING_VERSION"
+[ "$(compose ps)" = "BV=$BA PROFIL=browser" ] || fehler "Profil coding ohne Image: $(compose ps)"
 rm "$AKTUELL/BROWSER_VERSION"
 [ "$(compose ps)" = "BV=fehlt PROFIL=" ] || fehler "ohne BROWSER_VERSION darf kein Profil gesetzt sein: $(compose ps)"
 echo "Compose-Profil für den Browser: bestanden"

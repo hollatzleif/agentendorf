@@ -569,6 +569,19 @@ export function geraeteRouten(app: FastifyInstance, a: Abhaengigkeiten, o: { ger
     return { ok: true };
   });
 
+  // ---- E194: Spracheingabe – WAV vom Cardputer → Text (whisper.cpp im Rechenraum, ohne Cloud; nichts wird gespeichert) ----
+  if (!app.hasContentTypeParser('audio/wav'))
+    app.addContentTypeParser(['audio/wav', 'audio/x-wav', 'audio/wave'], { parseAs: 'buffer', bodyLimit: SPRACHE_MAX_BYTES }, (_req, body, fertig) => fertig(null, body));
+  app.post('/api/geraet/sprache', { bodyLimit: SPRACHE_MAX_BYTES }, async (req) => {
+    const rr = a.agenten.rechenraum;
+    if (!rr) throw new DorfFehler(503, 'Die Spracherkennung ist gerade nicht verfügbar (Rechenraum fehlt).');
+    const wav = req.body;
+    if (!Buffer.isBuffer(wav) || wav.length < 44 || wav.toString('ascii', 0, 4) !== 'RIFF' || wav.toString('ascii', 8, 12) !== 'WAVE')
+      throw new DorfFehler(400, 'Keine gültige WAV-Aufnahme.');
+    const e = await rr.umwandeln('sprache.wav', wav);
+    return { text: transkriptAus(e.text) };
+  });
+
   // ---- Weiteres ----
   app.get('/api/geraet/gewohnheiten', async () => {
     if (!a.gewohnheiten) return { gewohnheiten: [] };
@@ -612,4 +625,16 @@ export function geraeteRouten(app: FastifyInstance, a: Abhaengigkeiten, o: { ger
         .map((m) => ({ von: kurz(m.von, 60), betreff: kurz(m.betreff, 120), zusammenfassung: kurz(m.zusammenfassung ?? '', 300), antwortNoetig: m.antwortNoetig })),
     };
   });
+}
+
+/** E194: höchstens ≈ 60 s Sprache (16 kHz, 16 Bit, mono = 32 KB/s) */
+export const SPRACHE_MAX_BYTES = 2 * 1024 * 1024;
+
+/** Nur das Transkript aus dem Umwandeln-Ergebnis (ohne Metadaten-Abschnitte und Hinweis-Zeilen) */
+export function transkriptAus(md: string): string {
+  const m = /## Transkript[^\n]*\n([\s\S]*?)(?=\n## |$)/.exec(md);
+  const t = (m?.[1] ?? '').trim();
+  if (!t || t === '(keine Sprache erkannt)') return '';
+  // whisper markiert Stille/Geräusche als [BLANK_AUDIO], (Musik) …
+  return t.replace(/\[[A-Z_ ]+\]|\((?:Musik|Music|Applaus|Lachen|Stille)\)/gi, '').replace(/\s+/g, ' ').trim();
 }

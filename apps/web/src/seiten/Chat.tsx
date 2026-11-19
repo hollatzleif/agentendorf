@@ -1,16 +1,20 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ChatDetail, ChatNachricht, LaufInfo } from '@dorf/shared';
+import type { ChatDetail, ChatNachricht, DateiKarte, LaufInfo } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { bibliothekUrl, linkKlick } from '../router';
 import { useLiveText } from '../live';
 import { Markdown } from '../komponenten/Markdown';
 import { laufStatusText, stufeText } from '../texte';
+import { AnhangWahl, DateiKarten, dateienAus, dateienHinzufuegen, nachrichtTeilen } from '../komponenten/Anhaenge';
 
 export function ChatSeite({ id }: { id: string }) {
   const qc = useQueryClient();
   const chat = useQuery({ queryKey: ['chat', id], queryFn: () => api<ChatDetail>(`/api/chats/${id}`) });
   const [text, setText] = useState('');
+  const [dateien, setDateien] = useState<File[]>([]);
+  const [laedt, setLaedt] = useState(false);
+  const [ziehen, setZiehen] = useState(false);
   const [fehler, setFehler] = useState('');
   const unten = useRef<HTMLDivElement>(null);
   const aktiv = chat.data?.laeufe.find((l) => ['wartend', 'laeuft', 'wartet_freigabe'].includes(l.status));
@@ -26,22 +30,56 @@ export function ChatSeite({ id }: { id: string }) {
 
   const senden = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!text.trim()) return;
+    if (!text.trim() && !dateien.length) return;
     setFehler('');
     // Feld sofort leeren (E187): Leif tippt gleich die nächste Nachricht – die darf die Antwort des Servers nicht wegwischen
     const gesendet = text;
+    const mit = dateien;
     setText('');
+    setDateien([]);
     try {
-      await api(`/api/chats/${id}/nachricht`, { body: { text: gesendet } });
+      if (mit.length) {
+        // E190: Dateien gehen mit (multipart) – auch während ein Lauf läuft (dann in die Warteschlange)
+        setLaedt(true);
+        const f = new FormData();
+        f.append('text', gesendet);
+        for (const d of mit) f.append('datei', d, d.name);
+        await api(`/api/chats/${id}/nachricht`, { formular: f });
+      } else await api(`/api/chats/${id}/nachricht`, { body: { text: gesendet } });
       await qc.invalidateQueries({ queryKey: ['chat', id] });
     } catch (err) {
       setText((jetzt) => jetzt || gesendet);
+      setDateien((jetzt) => (jetzt.length ? jetzt : mit));
       setFehler(err instanceof ApiFehler ? err.message : String(err));
+    } finally {
+      setLaedt(false);
     }
   };
+  const laufVon = new Map(c.laeufe.map((l) => [l.id, l]));
+  // erzeugte Dateien eines Laufs nach seiner letzten Nachricht zeigen
+  const letzteJeLauf = new Map<string, number>();
+  for (const n of c.nachrichten) if (n.laufId) letzteJeLauf.set(n.laufId, n.id);
 
   return (
-    <section className="chat">
+    <section
+      className={`chat${ziehen ? ' ziehen' : ''}`}
+      onDragOver={(e) => {
+        if (Array.from(e.dataTransfer.types).includes('Files')) {
+          e.preventDefault();
+          setZiehen(true);
+        }
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget === e.target) setZiehen(false);
+      }}
+      onDrop={(e) => {
+        const neu = dateienAus(e.dataTransfer);
+        setZiehen(false);
+        if (!neu.length) return;
+        e.preventDefault();
+        dateienHinzufuegen(dateien, neu, setDateien, setFehler);
+      }}
+    >
       <a href={`/gebaeude/${encodeURIComponent(c.gebaeude)}?reiter=chats`} onClick={linkKlick} className="zurueck">
         ← {c.gebaeude}
       </a>
@@ -76,9 +114,20 @@ export function ChatSeite({ id }: { id: string }) {
       </p>
 
       <div className="nachrichten">
-        {c.nachrichten.map((n) => (
-          <Nachricht key={n.id} n={n} />
-        ))}
+        {c.nachrichten.map((n) => {
+          const l = n.laufId ? laufVon.get(n.laufId) : undefined;
+          const istLetzte = !!n.laufId && letzteJeLauf.get(n.laufId) === n.id;
+          return (
+            <Fragment key={n.id}>
+              <Nachricht n={n} anhaenge={n.rolle === 'nutzer' ? l?.anhaenge : undefined} />
+              {istLetzte && l?.dateien?.length ? (
+                <div className="nachricht agent erzeugt">
+                  <DateiKarten karten={l.dateien} titel="📂 Erzeugte Dateien" />
+                </div>
+              ) : null}
+            </Fragment>
+          );
+        })}
         {aktiv && (
           <div className="nachricht agent laufend">
             <LaufKopf l={aktiv} />
@@ -105,6 +154,7 @@ export function ChatSeite({ id }: { id: string }) {
               </button>
             </div>
             <p className="nutzertext">{w.text}</p>
+            {w.anhaenge && <DateiKarten karten={w.anhaenge} />}
           </div>
         ))}
         <div ref={unten} />
@@ -123,6 +173,13 @@ export function ChatSeite({ id }: { id: string }) {
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
+          onPaste={(e) => {
+            // E190: Bildschirmfoto oder kopierte Datei einfügen (Strg/Cmd + V)
+            const neu = dateienAus(e.clipboardData);
+            if (!neu.length) return;
+            e.preventDefault();
+            dateienHinzufuegen(dateien, neu, setDateien, setFehler);
+          }}
           placeholder={aktiv ? 'Noch etwas vergessen? Schreib es dazu – es kommt nach dem aktuellen Schritt dran …' : 'Weiter im Gespräch …'}
           rows={3}
           onKeyDown={(e) => {
@@ -130,15 +187,16 @@ export function ChatSeite({ id }: { id: string }) {
           }}
         />
         <div className="werkzeuge">
-          <button type="submit" className="haupt" disabled={!text.trim()}>
-            {aktiv ? 'Dazuschreiben' : 'Senden'}
+          <button type="submit" className="haupt" disabled={laedt || (!text.trim() && !dateien.length)}>
+            {laedt ? 'Lade hoch …' : aktiv ? 'Dazuschreiben' : 'Senden'}
           </button>
+          <AnhangWahl dateien={dateien} setDateien={setDateien} setFehler={setFehler} />
           {aktiv && (
             <button type="button" className="gefahr" onClick={() => api(`/api/laeufe/${aktiv.id}/abbrechen`, { body: {} }).catch((e: Error) => setFehler(e.message))}>
               Abbrechen
             </button>
           )}
-          <span className="leise">Strg/Cmd + Enter sendet</span>
+          <span className="leise">Strg/Cmd + Enter sendet · Dateien hineinziehen oder einfügen (je bis 25 MB)</span>
         </div>
         {fehler && <p className="fehler">{fehler}</p>}
       </form>
@@ -154,7 +212,7 @@ function LaufKopf({ l }: { l: LaufInfo }) {
   );
 }
 
-function Nachricht({ n }: { n: ChatNachricht }) {
+function Nachricht({ n, anhaenge }: { n: ChatNachricht; anhaenge?: DateiKarte[] }) {
   if (n.rolle === 'werkzeug')
     return (
       <details className="nachricht werkzeug">
@@ -166,7 +224,7 @@ function Nachricht({ n }: { n: ChatNachricht }) {
   return (
     <div className={`nachricht ${n.rolle}`}>
       {n.rolle === 'nutzer' ? (
-        <p className="nutzertext">{n.text}</p>
+        <NutzerText text={n.text} />
       ) : n.rolle === 'hinweis' ? (
         <div className="hinweis">
           <Markdown inhalt={n.text} pfad="" />
@@ -174,7 +232,24 @@ function Nachricht({ n }: { n: ChatNachricht }) {
       ) : (
         <Markdown inhalt={n.text} pfad="" />
       )}
+      {anhaenge?.length ? <DateiKarten karten={anhaenge} /> : null}
       <div className="leise zeit">{new Date(n.erstellt).toLocaleString('de-AT', { dateStyle: 'short', timeStyle: 'short' })}</div>
     </div>
+  );
+}
+
+/** E190: Was der Agent an Anhang-Inhalt mitbekommen hat, steht eingeklappt unter Leifs Text */
+function NutzerText({ text }: { text: string }) {
+  const [vorne, hinten] = nachrichtTeilen(text);
+  return (
+    <>
+      <p className="nutzertext">{vorne}</p>
+      {hinten && (
+        <details className="anhang-inhalt">
+          <summary className="leise">Anhänge, wie der Agent sie sieht</summary>
+          <pre>{hinten}</pre>
+        </details>
+      )}
+    </>
   );
 }

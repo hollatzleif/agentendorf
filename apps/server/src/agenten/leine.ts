@@ -58,7 +58,10 @@ export type DorfWerkzeug =
   | 'kontakt_suchen'
   | 'kontakt_merken'
   | 'rueckfrage'
-  | 'post_entwurf_neu';
+  | 'post_entwurf_neu'
+  | 'meine_todos_lesen'
+  | 'meine_todos_anlegen'
+  | 'meine_todos_erledigen';
 export const LESE_WERKZEUGE: DorfWerkzeug[] = ['vault_lesen', 'vault_liste', 'vault_suchen'];
 /**
  * Nur Aktionen mit werkzeuge: [post]: Mails aus dem Posteingang (dem Dorf bekannt) suchen und lesen, Entwürfe anlegen
@@ -71,6 +74,12 @@ export const KALENDER_WERKZEUGE: DorfWerkzeug[] = ['kalender_lesen'];
  * Nur Aktionen mit rolle: buergermeister. E185: Kurzes erledigt er selbst – darum hat er Post, Kalender, Adressbuch
  * und Web direkt (dienst.ts gibt ihm Web immer). Gedächtnis frei, Persönlichkeit nur per Freigabe (E61).
  */
+/**
+ * E192: die eigene To-do-Liste des Bürgermeisters (Rathaus/buergermeister-todos/) – nur er, nur über diese Werkzeuge.
+ * Kein Helfer und keine Aktion bekommt sie (werkzeugprofil kennt sie nicht); die WerkzeugKiste lehnt sie ohne Rolle ab.
+ */
+export const MEINE_TODOS_WERKZEUGE: DorfWerkzeug[] = ['meine_todos_lesen', 'meine_todos_anlegen', 'meine_todos_erledigen'];
+export const MEINE_TODOS_BEREICH = 'Rathaus/buergermeister-todos';
 export const BUERGERMEISTER_WERKZEUGE: DorfWerkzeug[] = [
   'aktionen_liste',
   'helfer_starten',
@@ -78,6 +87,7 @@ export const BUERGERMEISTER_WERKZEUGE: DorfWerkzeug[] = [
   'aktion_anlegen',
   'gedaechtnis_schreiben',
   'persoenlichkeit_vorschlagen',
+  ...MEINE_TODOS_WERKZEUGE,
   ...POST_WERKZEUGE,
   ...KALENDER_WERKZEUGE,
 ];
@@ -150,6 +160,19 @@ export function aktionPruefen(_a: { werkzeuge: AktionsWerkzeug[]; fremdinhalte: 
   return null;
 }
 
+/**
+ * E191 – Codehaus: Der Motor „coding“ läuft im Coding-Container mit Shell, Internet, GitHub-Zugang und beschreibbarem
+ * Vault (Leifs Entscheidung). Diese Leine gilt dort NICHT für das, was claude selbst tut (Bash/Edit/Write) – nur für die
+ * Dorf-Werkzeuge. Darum bekommt ihn ausschließlich eine Aktion im Gebäude Codehaus; überall sonst ist er ein Fehler.
+ * Über die App und `aktion_anlegen` lässt sich kein coding-Skill anlegen (skills.ts kennt den Motor nicht).
+ */
+export const CODING_GEBAEUDE = 'Codehaus';
+export function motorPruefen(gebaeude: string, motor: string): string | null {
+  if (motor === 'coding' && gebaeude !== CODING_GEBAEUDE)
+    return `motor: coding gibt es nur im Gebäude ${CODING_GEBAEUDE} (dort hat der Agent Shell und vollen Schreibzugriff). Hier: claude-code oder api.`;
+  return null;
+}
+
 export function werkzeugprofil(a: { werkzeuge: AktionsWerkzeug[]; fremdinhalte: boolean }): Werkzeugprofil {
   const fehler = aktionPruefen(a);
   if (fehler) throw new DorfFehler(400, fehler);
@@ -194,6 +217,7 @@ export function schreibenPruefen(p: SchreibPruefung): string | null {
   const teile = rel.split('/');
   const name = teile[teile.length - 1]!;
   if (teile[0] === '00_Stadtordnung') return 'In 00_Stadtordnung schreibt kein Agent.';
+  if (rel === MEINE_TODOS_BEREICH || rel.startsWith(`${MEINE_TODOS_BEREICH}/`)) return 'Die To-do-Liste des Bürgermeisters führt nur er selbst – über meine_todos_*.';
   const imGebaeude = teile[0] === p.gebaeude && teile.length >= 2;
   const aufSchreibtisch = rel.startsWith('Rathaus/schreibtisch/') && teile.length === 3;
   if (!imGebaeude && !aufSchreibtisch)
@@ -230,5 +254,6 @@ export function pflegePruefen(gebaeude: string, pfad: string): string | null {
   if (teile[0] !== gebaeude || teile.length < 2) return `Ändern und Verschieben geht nur im eigenen Gebäude (${gebaeude}/…).`;
   if (GESCHUETZT_IM_GEBAEUDE.includes(teile[1]!)) return `${gebaeude}/${teile[1]} wird nur vom Dorf bzw. von Leif geschrieben.`;
   if (rel === 'Rathaus/memory.md' || rel === 'Rathaus/personality.md') return 'Gedächtnis und Persönlichkeit haben eigene Werkzeuge.';
+  if (rel === MEINE_TODOS_BEREICH || rel.startsWith(`${MEINE_TODOS_BEREICH}/`)) return 'Die To-do-Liste des Bürgermeisters führt nur er selbst – über meine_todos_*.';
   return null;
 }

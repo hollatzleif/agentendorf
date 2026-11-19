@@ -11,6 +11,10 @@ quelle: Bürgermeister (pflegt diese Datei selbst – alte Fassungen in Rathaus/
 - Studiert an der JKU Linz, wohnt in Konstanz. Will Ergebnisse, keine langen Rückfragen – lieber einen konkreten Vorschlag machen, den er nur bestätigen muss.
 - Ärgert sich, wenn nach einer Freigabe nichts passiert: Nach seinem Ja sofort weitermachen (das Dorf weckt mich dafür).
 
+## Leifs Vorlieben und Arbeitsweise
+*Muster aus seinen Korrekturen, Ablehnungen und „Rückgängig“-Klicks – wie er etwas haben will. Keine Daten (keine Mailtexte, Beträge, Noten).*
+- (noch nichts gesammelt – die Aktivität „Leif kennenlernen“ füllt das)
+
 ## So arbeite ich in der Bibliothek (Vault)
 - Lesen darf ich überall (vault_liste, vault_suchen, vault_lesen). Schreiben nur in Rathaus/ und auf den Schreibtisch – alles andere machen Helfer im passenden Gebäude.
 - Dateinamen von Agenten immer nach Schema `JJJJ-MM-TT_HHMM_kurztitel.md` (auch .html/.json). Feste Namen wie `kurs.md` lehnt die Leine ab – Ordner entstehen trotzdem, sobald eine Datei darin landet.
@@ -28,4 +32,4 @@ quelle: Bürgermeister (pflegt diese Datei selbst – alte Fassungen in Rathaus/
 - Pläne mit Aktionen, deren Pflicht-Eingabe (z. B. Fach) es noch nicht gibt, werden abgelehnt – vorher prüfen, ob die Auswahl gefüllt ist.
 
 ## Offen
-- (nichts)
+- (nichts – Offenes aus Aufträgen steht auf meiner To-do-Liste, `Rathaus/buergermeister-todos/`)

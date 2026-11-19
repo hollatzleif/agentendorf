@@ -7,7 +7,7 @@ import { DorfFehler } from '../fehler.js';
 export const MODELLE_PFAD = '00_Stadtordnung/modelle.md';
 export const MOTOREN_PFAD = '00_Stadtordnung/motoren.md';
 export const STUFEN: Stufe[] = ['klein', 'mittel', 'gross'];
-export const MOTOREN: Motor[] = ['api', 'claude-code'];
+export const MOTOREN: Motor[] = ['api', 'claude-code', 'coding'];
 const AUFWAND: Aufwand[] = ['low', 'medium', 'high', 'xhigh', 'max'];
 
 // Rückfall, falls die Dateien fehlen oder kaputt sind (entspricht der Vorlage)
@@ -24,7 +24,7 @@ export const STANDARD_STUFEN: StufenKonfig = {
     'claude-haiku-5-5': { eingabe: 0.1, ausgabe: 0.5 },
   },
 };
-export const STANDARD_MOTOREN: MotorenKonfig = { alleAuf: 'keiner', parallel: { 'claude-code': 2, api: 4 } };
+export const STANDARD_MOTOREN: MotorenKonfig = { alleAuf: 'keiner', parallel: { 'claude-code': 2, api: 4, coding: 1 } };
 
 const ModellId = z.string().regex(/^claude-[a-z0-9-]+$/, 'Modell-ID muss mit claude- beginnen');
 const StufeSchema = z.object({ modell: ModellId, aufwand: z.enum(AUFWAND as [Aufwand, ...Aufwand[]]) });
@@ -34,7 +34,10 @@ const ModelleKopf = z.object({
 });
 const MotorenKopf = z.object({
   alle_auf: z.enum(['keiner', 'api', 'claude-code']).default('keiner'),
-  parallel: z.object({ 'claude-code': z.number().int().min(0).max(10), api: z.number().int().min(0).max(20) }).default({ 'claude-code': 2, api: 4 }),
+  // coding fehlt in älteren motoren.md → 1 (ein Coding-Agent zur Zeit; 0 = Coding-Agenten aus)
+  parallel: z
+    .object({ 'claude-code': z.number().int().min(0).max(10), api: z.number().int().min(0).max(20), coding: z.number().int().min(0).max(3).default(1) })
+    .default({ 'claude-code': 2, api: 4, coding: 1 }),
 });
 
 const fehlerText = (e: unknown) =>
@@ -83,11 +86,16 @@ export async function stufeSetzen(vault: VaultDienst, stufe: Stufe, modell: stri
   });
 }
 
-export async function motorenSetzen(vault: VaultDienst, k: { alleAuf: MotorenKonfig['alleAuf']; parallel: MotorenKonfig['parallel'] }) {
+/** `coding` darf fehlen (ältere Oberfläche, Tests): dann bleibt der Wert aus der Datei stehen. */
+export async function motorenSetzen(
+  vault: VaultDienst,
+  k: { alleAuf: MotorenKonfig['alleAuf']; parallel: Omit<MotorenKonfig['parallel'], 'coding'> & { coding?: number } },
+) {
   const g = MotorenKopf.parse({ alle_auf: k.alleAuf, parallel: k.parallel });
   await kopfAendern(vault, MOTOREN_PFAD, (d) => {
+    const bisher = (d.parallel as { coding?: unknown } | undefined)?.coding;
     d.alle_auf = g.alle_auf;
-    d.parallel = g.parallel;
+    d.parallel = { ...g.parallel, coding: k.parallel.coding ?? (typeof bisher === 'number' ? bisher : g.parallel.coding) };
   });
 }
 

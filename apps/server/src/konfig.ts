@@ -24,6 +24,11 @@ const Schema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
   WERKSTATT_URL: z.string().default('http://werkstatt:4000'),
   WERKSTATT_GEHEIMNIS: z.string().optional(),
+  // E191 Codehaus: Runner im Coding-Container (eigenes Geheimnis), öffentliche Adresse von VS Code, dessen Verbindungs-Token
+  CODING_URL: z.string().default('http://coding:4000'),
+  CODING_GEHEIMNIS: z.string().optional(),
+  CODING_ADRESSE: z.string().optional(),
+  CODING_VSCODE_TOKEN: z.string().optional(),
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_CHAT_ID: z.string().optional(),
   TELEGRAM_API_URL: z.string().default('https://api.telegram.org'),
@@ -77,6 +82,11 @@ export interface Konfig {
   anthropicApiKey?: string;
   werkstattUrl: string;
   werkstattGeheimnis?: string;
+  codingUrl: string;
+  codingGeheimnis?: string;
+  /** Öffentliche Adresse von VS Code, z. B. https://code.dorf.example.de (ohne Schrägstrich am Ende) */
+  codingAdresse?: string;
+  codingVscodeToken?: string;
   telegramToken?: string;
   telegramChatId?: string;
   telegramApiUrl: string;
@@ -121,6 +131,10 @@ export function konfigLaden(env: NodeJS.ProcessEnv = process.env): Konfig {
     anthropicApiKey: e.ANTHROPIC_API_KEY || undefined,
     werkstattUrl: e.WERKSTATT_URL,
     werkstattGeheimnis: e.WERKSTATT_GEHEIMNIS || undefined,
+    codingUrl: e.CODING_URL.replace(/\/$/, ''),
+    codingGeheimnis: e.CODING_GEHEIMNIS || undefined,
+    codingAdresse: e.CODING_ADRESSE?.trim().replace(/\/$/, '') || undefined,
+    codingVscodeToken: e.CODING_VSCODE_TOKEN || undefined,
     telegramToken: e.TELEGRAM_BOT_TOKEN || undefined,
     telegramChatId: e.TELEGRAM_CHAT_ID || undefined,
     telegramApiUrl: e.TELEGRAM_API_URL,

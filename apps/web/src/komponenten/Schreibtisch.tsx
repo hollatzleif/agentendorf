@@ -1,9 +1,11 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SchreibtischAufgabe, SchreibtischStatus } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { bibliothekUrl, linkKlick } from '../router';
 import { zeitKurz } from '../texte';
+import { BuergermeisterTodos } from './BuergermeisterTodos';
+import { AnhangWahl, dateienAus, dateienHinzufuegen } from './Anhaenge';
 
 export const SCHREIBTISCH_STATUS: Record<SchreibtischStatus, string> = {
   neu: 'neu – noch nicht bearbeitet',
@@ -76,7 +78,6 @@ export function Schreibtisch() {
   const [dateien, setDateien] = useState<File[]>([]);
   const [fehler, setFehler] = useState('');
   const [laeuft, setLaeuft] = useState(false);
-  const eingabe = useRef<HTMLInputElement>(null);
 
   const ablegen = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,7 +90,6 @@ export function Schreibtisch() {
       await api('/api/schreibtisch', { formular: f });
       setText('');
       setDateien([]);
-      if (eingabe.current) eingabe.current.value = '';
       await qc.invalidateQueries({ queryKey: ['schreibtisch'] });
     } catch (err) {
       setFehler(err instanceof ApiFehler ? err.message : String(err));
@@ -101,7 +101,20 @@ export function Schreibtisch() {
   return (
     <div>
       <AufwachZeile />
-      <form className="formspalte breit" onSubmit={ablegen}>
+      <form
+        className="formspalte breit"
+        onSubmit={ablegen}
+        onDragOver={(e) => {
+          if (Array.from(e.dataTransfer.types).includes('Files')) e.preventDefault();
+        }}
+        onDrop={(e) => {
+          // E190: Dateien hineinziehen
+          const neu = dateienAus(e.dataTransfer);
+          if (!neu.length) return;
+          e.preventDefault();
+          dateienHinzufuegen(dateien, neu, setDateien, setFehler);
+        }}
+      >
         <label>
           Neue Aufgabe für den Bürgermeister
           <textarea
@@ -112,13 +125,20 @@ export function Schreibtisch() {
             onKeyDown={(e) => {
               if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void ablegen(e);
             }}
+            onPaste={(e) => {
+              const neu = dateienAus(e.clipboardData);
+              if (!neu.length) return;
+              e.preventDefault();
+              dateienHinzufuegen(dateien, neu, setDateien, setFehler);
+            }}
           />
         </label>
         <div className="werkzeuge">
-          <input ref={eingabe} type="file" multiple onChange={(e) => setDateien(Array.from(e.target.files ?? []))} aria-label="Dateien anhängen" />
           <button type="submit" className="haupt" disabled={laeuft || (!text.trim() && !dateien.length)}>
             {laeuft ? 'Lege hin …' : 'Auf den Schreibtisch'}
           </button>
+          <AnhangWahl dateien={dateien} setDateien={setDateien} setFehler={setFehler} />
+          <span className="leise">Word, Excel, PDF, Fotos, Mails, ZIP, Sprachnachrichten … je bis 25 MB – auch hineinziehen oder einfügen</span>
         </div>
         {fehler && <p className="fehler">{fehler}</p>}
       </form>
@@ -171,6 +191,7 @@ export function Schreibtisch() {
           </li>
         ))}
       </ul>
+      <BuergermeisterTodos />
     </div>
   );
 }

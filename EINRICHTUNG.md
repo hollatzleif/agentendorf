@@ -307,6 +307,81 @@ Danach ist die Datei wieder da. Der vorherige Stand liegt unter `/srv/dorf/vault
 
 Ab dann läuft die Sicherung täglich um 03:30. Es bleiben genau die Stände der letzten 7 Tage.
 
+## 12. Codehaus einrichten (VS Code im Browser + Coding-Agenten)
+
+Im Codehaus programmierst du selbst (VS Code im Browser, mit Terminal, Git und Erweiterungen – am PC, Tablet und Handy) und Agenten programmieren selbstständig: Code schreiben, Befehle ausführen, testen, auf GitHub pushen, Pull Requests anlegen und mergen.
+
+**Was du wissen musst, bevor du es einschaltest**
+
+- Der Coding-Container hat Internet, einen GitHub-Zugang und den **ganzen Vault les- und schreibbar** (deine Entscheidung, E191). Die Leine der anderen Agenten gilt dort nicht für das, was ein Agent in der Shell tut.
+- Er bekommt **nur** drei Dinge von dir: dein Claude-Abo-Token, ein GitHub-Token, deinen Git-Namen. Sie liegen in `/srv/dorf/coding.env`. API-Schlüssel, Gmail, Telegram, Moodle, Saxo usw. (`/srv/dorf/.env`) kommen nicht hinein.
+- VS Code läuft auf einer eigenen Adresse: `code.` vor deiner Dorf-Adresse, z. B. `code.agentendorf-lh.duckdns.org`. Bei DuckDNS zeigt jede solche Unteradresse von selbst auf deinen Server – du musst nichts anlegen. Hinein kommt nur, wer im Dorf angemeldet ist.
+
+**Schritt 1 – GitHub-Token anlegen** (im Browser)
+
+1. [github.com](https://github.com) → Profilbild → *Settings* → *Developer settings* → *Personal access tokens* → *Fine-grained tokens* → *Generate new token*.
+2. *Repository access*: **Only select repositories** – nur die, an denen Agenten arbeiten sollen.
+3. *Permissions* → *Repository permissions*: **Contents: Read and write**, **Pull requests: Read and write**, *Metadata: Read-only* (kommt von selbst). Sollen Agenten auch Dateien unter `.github/workflows/` ändern: zusätzlich **Workflows: Read and write**.
+4. Ablaufdatum wählen (z. B. 90 Tage), *Generate token*, das Token (`github_pat_…`) kopieren.
+
+> Für Repositories deines Arbeitgebers: nimm ein eigenes Token nur für diese Repositories – und kläre vorher, ob dein Arbeitgeber Code auf einem privaten Server und KI-Agenten daran erlaubt.
+
+**Schritt 2 – auf dem Server einrichten**
+
+```bash
+ssh leif@dorf.deine-domain.de
+```
+
+```bash
+dorf coding-einrichten
+```
+
+Der Befehl fragt der Reihe nach:
+
+1. **Claude-Abo:** Enter übernimmt das Token der Werkstatt (aus `dorf claude-anmelden`). Du kannst auch ein eigenes einfügen.
+2. **GitHub-Token:** einfügen (unsichtbar). Der Befehl prüft es bei GitHub und zeigt dein Konto.
+3. **Name und E-Mail für Commits:** Enter übernimmt Name und die `…@users.noreply.github.com`-Adresse deines GitHub-Kontos.
+
+Danach startet das Codehaus; das Dorf startet dabei kurz neu.
+
+> Meldet der Befehl „Diese Version hat noch kein Codehaus-Image“: Das Image kommt erst mit dem **zweiten** Deploy nach dieser Änderung (beim ersten kennt der Server den neuen Empfang noch nicht). GitHub → Actions → *Prüfen und ausliefern* → *Run workflow*, danach `dorf coding-einrichten` wiederholen.
+
+**Schritt 3 – ausprobieren**
+
+1. In der App: Dorf → **Codehaus** → **VS Code öffnen**. Ein neuer Tab öffnet `https://code.…`; beim allerersten Mal dauert es ein paar Sekunden (Caddy holt das Zertifikat).
+2. Im VS-Code-Terminal:
+
+```bash
+gh auth status
+```
+
+```bash
+gh repo clone <dein-konto>/<repository> /arbeit/<repository>
+```
+
+3. Zurück im Dorf: Codehaus → *Aktionen* → **Programmieren** → Projektordner und Auftrag eintragen → Starten. Oder dem Bürgermeister schreiben: „Lass im Codehaus im Projekt … Folgendes bauen: …“.
+
+**Gut zu wissen**
+
+- Projekte liegen auf dem Server unter `/srv/dorf/coding/` (im Container `/arbeit/<projekt>`). Sie sind in der täglichen Sicherung – ohne `node_modules`, `.venv` und Zwischenspeicher.
+- Lesezeichen für VS Code: `https://dorf.deine-domain.de/api/coding/oeffnen` (führt über deine Dorf-Anmeldung hinein). Meldest du dich im Dorf ab, ist auch VS Code zu.
+- Erweiterungen kommen von [open-vsx.org](https://open-vsx.org) (nicht aus Microsofts Marketplace); einige Microsoft-Erweiterungen gibt es dort nicht.
+- Der Bürgermeister startet Coding-Helfer von sich aus. Hat er im selben Gespräch vorher Mails, Webseiten, Moodle oder den Kalender gelesen, fragt dich das Dorf einmal (App/Telegram: „Aktion starten: Programmieren …“) – so kann kein eingeschleuster Text einen Agenten mit Shell und GitHub-Zugang losschicken.
+- Wie viele Coding-Agenten gleichzeitig laufen: Rathaus → Agenten-Einstellungen → „Gleichzeitig coding“ (Standard 1, 0 = aus).
+- Speicher: Das Codehaus darf 2 GB nutzen. Mehr oder weniger: `CODING_MEM=3g` in `/srv/dorf/.env`, dann `dorf deploy`.
+- Andere Adresse für VS Code: `CODING_DOMAIN=…` in `/srv/dorf/.env`, dann `dorf coding-einrichten`.
+- Token tauschen (GitHub-Token läuft ab, anderes Abo): `dorf coding-einrichten` noch einmal – Enter behält, was du nicht ändern willst.
+
+```bash
+dorf logs coding
+```
+
+```bash
+dorf coding-aus
+```
+
+`dorf coding-aus` hält das Codehaus an; Projekte, Einstellungen und Token bleiben.
+
 ## Alltag
 
 ```bash

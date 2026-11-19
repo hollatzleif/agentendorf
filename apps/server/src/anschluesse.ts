@@ -9,6 +9,13 @@ export function anschluesse(k: Konfig, live: { kalenderVerbunden: boolean; saxo?
   const a: Anschluss[] = [
     { name: 'KI (API-Schlüssel)', symbol: '🧠', ok: !!k.anthropicApiKey || k.motorAttrappe, wofuer: 'Bürgermeister-Runden, Morgenzeitung, Einordnung von Mails', befehl: 'dorf api-schluessel' },
     { name: 'Werkstatt (Claude-Abo)', symbol: '🛠️', ok: !!k.werkstattGeheimnis || k.motorAttrappe, wofuer: 'Helfer und Skills mit claude-code', befehl: 'dorf claude-anmelden' },
+    {
+      name: 'Codehaus (VS Code + Coding-Agenten)',
+      symbol: '💻',
+      ok: !!(k.codingGeheimnis && k.codingAdresse && k.codingVscodeToken),
+      wofuer: 'Programmieren im Browser, Agenten mit Shell und GitHub',
+      befehl: 'dorf coding-einrichten',
+    },
     { name: 'Telegram', symbol: '📱', ok: !!(k.telegramToken && k.telegramChatId), wofuer: 'Meldungen, Erinnerungen, /todo, /plan …', befehl: 'dorf telegram-einrichten' },
     { name: 'Gmail', symbol: '📬', ok: !!k.gmail, wofuer: 'Post-Eingang, Antwort-Entwürfe, Rechnungen', befehl: 'dorf gmail-anmelden' },
     {

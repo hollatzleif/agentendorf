@@ -16,7 +16,7 @@ import { AbbruchFehler } from './motor.js';
  *   <<werkzeug name {json}>>              → beliebiges Werkzeug mit JSON-Eingabe
  *   [pause ms]                            → nach den Werkzeugen warten (abbrechbar)
  */
-export function attrappe(name: 'api' | 'claude-code'): Motor {
+export function attrappe(name: 'api' | 'claude-code' | 'coding'): Motor {
   return {
     name,
     async *starten(a: LaufAuftrag): AsyncIterable<LaufEreignis> {
@@ -74,11 +74,11 @@ export function attrappe(name: 'api' | 'claude-code'): Motor {
         });
       }
       if (m.includes('[nachschub]')) for (const n of a.nachschub?.() ?? []) yield { typ: 'nachricht', rolle: 'nutzer', text: n };
-      const teile = ['Erledigt. ', `(${name}, ${a.modell}, ${a.anhaenge.length} Anhänge, Verlauf: ${a.verlauf.apiNachrichten.length})`];
+      const teile = ['Erledigt. ', `(${name}, ${a.modell}, ${a.anhaenge.length} Anhänge, Verlauf: ${a.verlauf.apiNachrichten.length}${a.projekt ? `, Projekt: ${a.projekt}` : ''})`];
       for (const t of teile) yield { typ: 'text', text: t };
       const antwort = `${teile.join('')}\n\n## Zusammenfassung\n### Auftrag\n${m.slice(0, 80)}\n### Getan\nTest-Lauf.\n### Entschieden\n–\n### Offen\nNichts.\n### Auffälligkeiten\n–`;
       yield { typ: 'nachricht', rolle: 'agent', text: antwort, roh: { role: 'assistant', content: [{ type: 'text', text: antwort }] } };
-      if (name === 'claude-code') yield { typ: 'sitzung', id: a.verlauf.ccSitzung ?? `attrappe-${a.chatId}` };
+      if (name !== 'api') yield { typ: 'sitzung', id: a.verlauf.ccSitzung ?? `attrappe-${a.chatId}` };
       yield { typ: 'verbrauch', ein: 1000, aus: 200, cacheLesen: 0, cacheSchreiben: 0 };
     },
   };

@@ -6,7 +6,7 @@ import { konfigLaden } from '../src/konfig.js';
 import { dorfStarten } from '../src/dorf.js';
 import { TestUhr } from '../src/uhr.js';
 import { attrappe } from '../src/agenten/motor-attrappe.js';
-import type { Motor } from '../src/agenten/motor.js';
+import type { Motoren } from '../src/agenten/motoren.js';
 import type { WerkzeugRegister } from '../src/agenten/register.js';
 import type { TelegramSchnittstelle } from '../src/telegram/api.js';
 import type { MoodleKlient } from '../src/uni/moodle.js';
@@ -24,7 +24,7 @@ export function tempOrdner(praefix = 'dorf-test-') {
 export async function testDorf(
   opt: {
     beobachten?: boolean;
-    motoren?: Record<'api' | 'claude-code', Motor> | ((r: WerkzeugRegister) => Record<'api' | 'claude-code', Motor>);
+    motoren?: Motoren | ((r: WerkzeugRegister) => Motoren);
     env?: Record<string, string>;
     telegram?: TelegramSchnittstelle;
     moodle?: MoodleKlient;
@@ -53,7 +53,7 @@ export async function testDorf(
   const d = await dorfStarten(konfig, {
     uhr,
     beobachten: opt.beobachten ?? false,
-    motoren: opt.motoren ?? { api: attrappe('api'), 'claude-code': attrappe('claude-code') },
+    motoren: opt.motoren ?? { api: attrappe('api'), 'claude-code': attrappe('claude-code'), coding: attrappe('coding') },
     telegram: opt.telegram,
     moodle: opt.moodle,
     kalender: opt.kalender,

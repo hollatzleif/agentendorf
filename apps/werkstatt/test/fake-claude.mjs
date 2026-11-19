@@ -33,7 +33,16 @@ await client.close();
 
 aus({ type: 'stream_event', parent_tool_use_id: null, event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Hallo ' } } });
 aus({ type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'tool_use', name: 'Read', input: { file_path: '/vault/Start.md' } }] } });
-const bericht = { werkzeuge, r1: r1.content[0].text, r1Fehler: !!r1.isError, r2: r2.content[0].text, r2Fehler: !!r2.isError, r3, args, prompt };
+// Coding-Profil: so tun, als hätte claude einen Befehl ausgeführt und eine Datei geschrieben
+if (prompt.includes('[code]')) {
+  const fs = await import('node:fs');
+  fs.writeFileSync('von-claude.txt', 'hallo');
+  aus({ type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'tool_use', name: 'Bash', input: { command: 'npm test' } }] } });
+  aus({ type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'tool_use', name: 'Write', input: { file_path: `${process.cwd()}/von-claude.txt` } }] } });
+  aus({ type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'tool_use', name: 'Edit', input: { file_path: '/vault/Codehaus/notiz.md' } }] } });
+}
+const umgebung = Object.keys(process.env).filter((k) => /GEHEIMNIS|TOKEN|API_KEY|^GIT_|^GH_/.test(k)).sort();
+const bericht = { werkzeuge, r1: r1.content[0].text, r1Fehler: !!r1.isError, r2: r2.content[0].text, r2Fehler: !!r2.isError, r3, args, prompt, cwd: process.cwd(), umgebung };
 aus({
   type: 'result',
   subtype: prompt.includes('[fehler]') ? 'error_during_execution' : 'success',

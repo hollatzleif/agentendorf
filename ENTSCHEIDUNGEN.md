@@ -1577,3 +1577,125 @@ Ein unabhängiger Review hat neun Fehler gefunden. Jeder ist behoben und hat ein
   - Grenze: Ein versteckt sendendes besseres Netz löst keinen Wechsel aus.
 - **Steuerung im Kern:** Das Auto-Reconnect des Arduino-Core bleibt aus. Die Automatik sitzt in `core/dorf.cpp` und ist damit am PC prüfbar (Host-Test: 140 Prüfungen, WLAN nachgestellt). Nie auf echter Hardware gelaufen.
 - **Auslieferung:** `tools/zip.sh` packt die ZIP (Anleitung, beide `.bin`, SHA256, Bilder). Sie liegt nicht im Repo, und die Dorf-Adresse steht nicht in der Anleitung.
+
+## E192 – Der Bürgermeister arbeitet von selbst (19.11.)
+
+- **Wunsch (Leif):** 50 Aktivitäten für das Aufwachen, statt nur den Schreibtisch zu prüfen und wieder einzuschlafen. Dazu: Vault pflegen, aus alten Protokollen Leifs Verhaltensweisen lernen, eine eigene To-do-Liste, damit aus alten Aufträgen nichts offen bleibt.
+- **50 Aktivitäten** stehen in `docs/buergermeister-aktivitaeten.md`. 18 sind im Katalog umgesetzt, eine ist fest eingebaut (eigene To-dos), 31 bleiben Ideen.
+- **Eigene To-do-Liste (`agenten/meine-todos.ts`):**
+  - Eine Datei je Eintrag in `Rathaus/buergermeister-todos/`, wie Leifs To-do-Brett (Obsidian, Konfliktkopie, Papierkorb). Jeder Eintrag hat `wieder_am` und einen Bezug zur Aufgabe bzw. zum Chat.
+  - Werkzeuge `meine_todos_*` gibt es nur für den Bürgermeister: Kein Profil kennt sie, die Kiste lehnt sie ohne Rolle ab, und der Ordner ist für `vault_*` gesperrt.
+  - Im Systemprompt steht die Regel „am Ende jedes Laufs Offenes eintragen“.
+  - Nach jedem Lauf übernimmt der Code die Punkte unter „Offen“ aus der Zusammenfassung (höchstens 5 je Lauf, höchstens 60 offen, ohne Dubletten), wenn der Bürgermeister die Liste nicht selbst gepflegt hat.
+  - Leif sieht und bearbeitet die Liste im Rathaus unter „Schreibtisch“.
+- **Aufwachen, neue Reihenfolge:**
+  1. Fällige eigene To-dos, auch bei `eigene_aufgaben: nein`.
+  2. Neue Anlässe: Lagebericht.
+  3. Sonst ein Rundgang mit 1–3 Aktivitäten aus dem Katalog, ausgewählt vom Code.
+  - Ohne Anlass startet kein KI-Lauf mehr.
+  - Ein To-do, das 3× ohne Fortschritt vorgelegt wurde, ruht eine Woche.
+- **Katalog (`rundgang.ts`):**
+  - 18 Aktivitäten, darunter: Aufträge nachhalten, Dorf-Gesundheit, Uni-Fristen vorbereiten, unbeantwortete Mails, Kalender-Vorschau, überfällige To-dos zerlegen, Leif kennenlernen, Vault pflegen, Skills verbessern, Budget/Abos, Recherche auf Vorrat. Die übrigen stehen in `rundgang.ts`.
+  - Zu jeder Aktivität sammelt der Code die Fakten ohne KI. Ohne Anlass wird sie nicht gewählt und erst nach mindestens 20 Stunden wieder geprüft.
+  - Auswahl: am längsten überfällige zuerst.
+  - Budget: 10 % Reserve, große Aktivitäten erst ab halbem Tagesbudget, mittlere ab einem Viertel, höchstens eine nicht-kleine je Rundgang. Nachts nur stille Pflege.
+  - Einstellungen in `00_Stadtordnung/rundgang.md`: Häufigkeit `aus`/`jedes`/`täglich`/`wöchentlich`/`monatlich`/`alle N tage`. Zod-geprüft, bei Fehlern gelten die Standardwerte, und der Fehler wird angezeigt.
+- **Leif kennenlernen:**
+  - Daraus lernt er: abgelehnte Freigaben und Pläne mit Grund, „Rückgängig“, Leifs Nachträge, Abbrüche, Antworten auf Rückfragen.
+  - Das Ergebnis steht im Abschnitt „Leifs Vorlieben und Arbeitsweise“ in `Rathaus/memory.md`.
+  - `textPruefen` sperrt IBAN und Kontostände im Gedächtnis.
+- **Sichtbarkeit ohne Spam:**
+  - Je Rundgang und Lagebericht schreibt der Code eine Zeile in `Rathaus/rundgang/JJJJ-MM-TT.md`.
+  - Die Zeilen „Für Leif: …“ erscheinen gebündelt in der Morgenzeitung („Der Bürgermeister seit gestern“, abschaltbar mit `meldung: nein`).
+  - Rundgänge melden sich nicht mehr einzeln per Telegram.
+- **Kosten:** Die Gewichte (klein 0,08 $, mittel 0,25 $, groß 0,80 $) sind Annahmen. Nach einer Woche echter Läufe wird `KOSTEN_USD` angepasst.
+- **Leine:** unverändert, nie senden, zahlen oder abgeben. Web nutzt nur „Recherche auf Vorrat“, dort gilt das Risiko aus E185.
+
+## E190 – Anhänge in allen Formaten (19.11.)
+
+- **Wunsch (Leif):** Dateien anhängen und so an den Bürgermeister übergeben. Er soll mit vielen Formaten arbeiten können.
+- **Anhängen überall:**
+  - **Chat:** Knopf, Ziehen/Ablegen, Einfügen; auch während eines Laufs (dann Warteschlange mit Kärtchen).
+  - **Schreibtisch:** dieselbe Auswahl.
+  - **Telegram:** Dokument, Foto, Sprachnachricht, Audio, Video. Im laufenden Gespräch hängt die Datei an der aktuellen Aufgabe, die Bildunterschrift ist der Text. Weitergeleitetes bleibt eine neue Aufgabe und Fremdinhalt.
+  - **Ablage:** Chat in `<Gebäude>/chats/anhaenge/<zeit>/`, Schreibtisch in `Rathaus/schreibtisch/anhaenge/<zeit>/`, ASCII-Namen.
+  - **Grenzen:** 25 MB je Datei, höchstens 20. Zu groß → 413 mit Namen, nichts bleibt liegen.
+  - Migration 27: `anhaenge_json` an `laeufe` und `chat_warteschlange`.
+- **Verstehen (`agenten/anhaenge.ts`):**
+  - Text und Quelltext liest das Dorf selbst (nur dekodieren).
+  - PDF und PNG/JPG/GIF/WEBP gehen nativ ans Modell, zusammen höchstens 22 MB je Lauf.
+  - Alles andere ist Fremdinhalt und wird NUR im Rechenraum umgewandelt (`/umwandeln`: eigener Kindprozess, 420 s, RLIMIT_AS 1,5 GB, eigener Ordner, höchstens 2 gleichzeitig).
+  - Zwischenspeicher je sha256 in `<daten>/umwandlung/`, nicht im Vault.
+  - Umgewandeltes steht immer in der Fremdinhalt-Hülle. Unbekanntes kommt mit Name, Typ, Größe und Grund, nichts wird still verschluckt.
+- **Formate:**
+  - **Office, Dokumente, Archive:** Office/ODF/RTF/EPUB/HTML/.eml/ZIP/TAR mit der Python-Standardbibliothek (in der CI ohne Zusatzpakete testbar). Alte .doc/.ppt mit catdoc, .xls mit xlrd, .msg mit olefile.
+  - **Bilder:** HEIC/BMP/TIFF/SVG werden zum verkleinerten Bild.
+  - **Scan-PDF:** tesseract (deu+eng, erste 10 Seiten).
+  - **Audio und Video:** Audio mit whisper.cpp v1.8.7 (Modell base-q5_1, im Image), höchstens 6 min. Video ergibt 4 Standbilder und ein Transkript.
+  - **Archiv-Grenzen:** nie nach Pfad entpacken; höchstens 15 Dateien lesen, je 25 MB, zusammen 100 MB; Packrate über 200 wird nicht gelesen; Tiefe höchstens 2.
+- **Nicht gemacht:**
+  - LibreOffice (rund 500 MB): Folien gibt es deshalb nur als Text, nicht als Bild.
+  - MarkItDown verworfen: viele ungepinnte Abhängigkeiten.
+  - 7z/RAR nur gemeldet.
+  - Gmail-Anhänge über `post_lesen` kommen später.
+  - Die Transkription braucht AVX2.
+- **Mit Dateien arbeiten:**
+  - `vault_lesen` versteht jedes Format, in beiden Motoren.
+  - Der Bürgermeister hat den Rechenraum und legt in `Rathaus/dateien/<stempel>_<titel>/` ab.
+  - `rechenraum_ablegen` nimmt fertige Dateien (PDF, TeX, DOCX/XLSX/PPTX, ODF, CSV/TXT/MD/JSON, PNG/JPG/SVG, ZIP, ICS …), nie HTML, Skripte oder Makro-Dateien.
+- **Anzeige:** Kärtchen unter Leifs Nachricht, „📂 Erzeugte Dateien“ nach dem Lauf, und eingeklappt, was der Agent vom Anhang sah.
+
+## E191 – Codehaus: VS Code im Browser und Agenten, die selbst programmieren (19.11.)
+
+- **Leifs Entscheidungen (verbindlich):**
+  1. VS Code im Browser, erreichbar von PC, Tablet und Handy, geschützt durch die Dorf-Anmeldung.
+  2. Agenten programmieren dort selbstständig: Dateien schreiben, Befehle ausführen, testen, mit Internet und **mit Vollzugriff (lesen und schreiben) auf den Vault**.
+  3. GitHub: klonen, pushen, Pull Requests anlegen **und mergen**.
+  - Dorf-Geheimnisse (`.env`, `browser.env`, `rechenraum.env`) kommen nicht in den Coding-Container.
+- **Risiko, das Leif damit trägt:**
+  - Im Coding-Container gilt die Leine nicht für das, was claude selbst tut (Bash/Edit/Write). Ein Agent dort kann jede Vault-Datei ändern, auch Stadtordnung, Skills, Gedächtnis und Persönlichkeit.
+  - Er hat Internet, das Abo-Token und ein GitHub-Token. Eingeschleuster Text (Webseite, README, Paket-Skript, Issue) kann ihn dazu bringen, Privates hinauszutragen oder Code zu pushen und zu mergen.
+  - Was bleibt: eigener Container, eigenes Netz, eigene Geheimnisse, kein root, `werkzeug_log` (Befehle, geschriebene Pfade), die Regeln in `Codehaus/gebaeude.md` sowie Branch-Schutz und Token-Zuschnitt bei GitHub (Leifs Sache).
+- **Container `coding`** (`apps/coding/`):
+  - **Inhalt:** openvscode-server 1.109.5 (MIT, sha256 im Dockerfile), Node 24, Python 3, git, gh, build-essential, claude-CLI in derselben Version wie die Werkstatt (ein Test prüft die Gleichheit).
+  - **Schutz:** nur lesbar, DORF_UID, `cap_drop ALL`, `no-new-privileges`, 2 GB (`CODING_MEM`), halbes CPU-Gewicht, 1024 Prozesse.
+  - **Eingehängt:** `/srv/dorf/coding` → `/arbeit`, Vault → `/vault` (rw).
+  - **Netz `codingnetz`:** nur Caddy, Dorf und Coding.
+  - **Geheimnisse:** `coding.env` enthält `CODING_GEHEIMNIS`, `VSCODE_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, `GH_TOKEN`, `GIT_NAME`, `GIT_EMAIL`. Das GitHub-Token liegt in keiner Datei im Container (git fragt `gh auth git-credential`).
+- **Runner:**
+  - Derselbe wie in der Werkstatt, das Profil kommt aus `RUNNER_PROFIL=coding`. Das legt der Container fest, nie der Auftrag.
+  - Coding-Profil: `--tools default`, `--permission-mode bypassPermissions`, `--setting-sources user,project`, `--add-dir /vault`, nur der MCP-Server „dorf“. Arbeitsordner `/arbeit/<projekt>` (geprüft), eigene Prozessgruppe.
+  - Das Werkstatt-Profil bleibt unverändert streng.
+- **Motor `coding`:**
+  - `parallel.coding`: Standard 1, höchstens 3, 0 = aus.
+  - Nur für Aktionen im Gebäude Codehaus. App-Formular und `aktion_anlegen` kennen ihn nicht.
+  - Der Notschalter `alle_auf` ist nie „coding“ und verlegt Coding-Läufe nicht.
+- **Bürgermeister:**
+  - Startet Coding-Helfer über die Aktion `programmieren`.
+  - Hat sein Gespräch etwas von außen gelesen (Web/Post/Moodle/Kalender laut `werkzeug_log`), startet der Helfer erst nach Leifs Klick. Ein Plan mit Coding-Teil wird dann vorgelegt und nicht automatisch angenommen.
+  - Grund: „präparierte Mail → Bürgermeister → Shell mit Vault und GitHub“ soll nicht ohne Rückfrage durchgehen. Ohne Fremdinhalte startet er sofort.
+- **Zugang `code.<Dorf-Adresse>`:**
+  - Eigener Ursprung: Das Sitzungs-Cookie des Dorfs erreicht den Container nie.
+  - DuckDNS löst Unteradressen von selbst auf (geprüft). `CODING_DOMAIN` übersteuert die Adresse.
+  - Ablauf:
+    1. `GET /api/coding/oeffnen` (mit Dorf-Sitzung) gibt eine Einmal-Karte (60 s, einmalig).
+    2. `code.…/_dorf/eintritt` setzt das Cookie `dorf_coding` (HttpOnly, nur Hash in der DB, höchstens 7 Tage, gilt nur, solange die Dorf-Sitzung besteht).
+    3. Weiter zu VS Code mit dessen Verbindungs-Token.
+  - Caddy prüft jede Anfrage per `forward_auth` gegen `dorf:3001/intern/coding/zugang`. Die Prüfung liegt auf dem internen Port, weil `@fastify/websocket` auf dem öffentlichen Port Upgrade-Anfragen an normale Routen mit 101 beantwortet.
+  - Verworfen: Port 8443 (Cookies gelten für alle Ports) und der Pfad `/code/` (gleicher Ursprung wie die App).
+- **Gebäude:** `Codehaus/` mit den Aktionen `programmieren`, `repo-klonen` und `pr-pruefen`, ergänzt über `PFLICHT_DATEIEN`. Die App zeigt Projekte, „VS Code öffnen“ und die Coding-Chats. Das Codehaus hat ein eigenes 3D-Modell.
+- **Deploy:**
+  - Compose-Profil `coding`, aktiv nur mit `CODING_VERSION` und `CODING_AN=ja` (gesetzt von `dorf coding-einrichten`; `dorf coding-aus` hält an).
+  - Das Image wird nur ausgeliefert, wenn der Server es nicht hat (`hat-coding`).
+  - Fehler im Codehaus blockieren weder den Deploy noch die Gesundheitsprüfung.
+  - `/srv/dorf/coding` ist in der Sicherung.
+- **Offen:**
+  - `trustProxy` auf Caddy beschränken: Der Coding-Container erreicht `dorf:3000` direkt und kann `X-Forwarded-For` fälschen.
+  - Vorschau von Dev-Servern.
+  - Speicherbedarf auf dem echten Server messen.
+
+## E194 – Spracheingabe am Cardputer: Server-Teil (19.11.)
+
+- `POST /api/geraet/sprache` (nur mit dem Geräte-Schlüssel): WAV im Körper (16 kHz, mono, 16 Bit, höchstens 2 MB ≈ 60 s) → `{ text }`.
+- Abgeschrieben wird mit whisper.cpp im Rechenraum über `/umwandeln` (E190), ohne Cloud. Das Dorf gibt nur den Transkript-Abschnitt zurück, ohne Geräusch-Marken. Die Aufnahme wird nicht gespeichert.
+- Fehler: 503 ohne Rechenraum, 400 kein WAV, 413 zu groß. Die Firmware (1.2) fügt den Text an der Schreibmarke ein, abgeschickt wird erst mit Enter.

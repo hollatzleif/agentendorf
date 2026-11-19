@@ -1,5 +1,5 @@
 """Rauchtest IM gebauten Rechenraum-Image (CI): Leifs Präambel kompiliert in beiden Fassungen, Python-Pakete da,
-Seitenbild klappt, kein Internet. Läuft mit docker exec im Container, spricht den Runner über HTTP an."""
+Seitenbild klappt, Dateien erzeugen und umwandeln (E190), kein Internet. Läuft mit docker exec im Container, spricht den Runner über HTTP an."""
 import base64
 import json
 import os
@@ -90,6 +90,41 @@ if r["code"] != 0 or "1/3" not in r["ausgabe"]:
 s = post("/seite", {"raum": "rauch", "pdf": "Blatt3_Loesung.pdf", "seite": 1})
 if not base64.b64decode(s["png"]).startswith(b"\x89PNG") or s["seiten"] != 1:
     fehler.append("Seitenbild")
+# E190: Dateien erzeugen (Word/Excel/PowerPoint) und fremde Dateien umwandeln (/umwandeln)
+ERZEUGEN = r"""
+import docx, openpyxl, pptx, odf.opendocument, xlsxwriter
+d = docx.Document(); d.add_heading("Rauchtest Wort", 1); d.add_paragraph("Absatz mit Umlauten: Grüße"); d.save("r.docx")
+wb = openpyxl.Workbook(); wb.active.append(["Monat", "Betrag"]); wb.active.append(["Jänner", 42]); wb.save("r.xlsx")
+p = pptx.Presentation(); s = p.slides.add_slide(p.slide_layouts[1]); s.shapes.title.text = "Rauchtest Folie"; p.save("r.pptx")
+print("erzeugt")
+"""
+post("/schreiben", {"raum": "rauch", "pfad": "erzeugen.py", "inhalt_b64": base64.b64encode(ERZEUGEN.encode()).decode()})
+r = befehl("python3 erzeugen.py && ffmpeg -v error -f lavfi -i sine=frequency=300:duration=2 -y ton.wav && "
+           "printf '<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"50\" height=\"50\"><rect width=\"40\" height=\"40\"/></svg>' > g.svg")
+if r["code"] != 0 or "erzeugt" not in r["ausgabe"]:
+    fehler.append("Dateien erzeugen (python-docx/openpyxl/python-pptx/ffmpeg):\n" + r["ausgabe"])
+else:
+    def umw(datei, name):
+        return post("/umwandeln", {"name": name, "inhalt_b64": post("/lesen", {"raum": "rauch", "pfad": datei})["inhalt_b64"]})
+    erwartet = {"r.docx": "# Rauchtest Wort", "r.xlsx": "| Jänner | 42 |", "r.pptx": "## Folie 1: Rauchtest Folie"}
+    for datei, text in erwartet.items():
+        e = umw(datei, datei)
+        if text not in e["text"]:
+            fehler.append(f"Umwandeln {datei}: {e}")
+    e = umw("g.svg", "g.svg")
+    if len(e["bilder"]) != 1:
+        fehler.append(f"SVG → PNG: {e['hinweise']}")
+    e = umw("ton.wav", "sprachnachricht.wav")
+    if "## Transkript" not in e["text"]:
+        fehler.append(f"Transkription (whisper-cli): {e['hinweise']}")
+    e = umw("Blatt3_Loesung.pdf", "blatt.pdf")
+    if "Bayesian" not in e["text"]:
+        fehler.append(f"PDF → Text: {e['hinweise']}")
+    print("Umwandeln geprüft: docx, xlsx, pptx, svg, wav (Transkript), pdf")
+r = befehl("tesseract --list-langs 2>&1 | grep -c -E '^(deu|eng)$'")
+if r["ausgabe"].strip() != "2":
+    fehler.append("tesseract ohne deu/eng: " + r["ausgabe"])
+
 r = befehl("python3 -c \"import urllib.request; urllib.request.urlopen('https://example.com', timeout=5)\"")
 if r["code"] == 0:
     fehler.append("Rechenraum erreicht das Internet!")

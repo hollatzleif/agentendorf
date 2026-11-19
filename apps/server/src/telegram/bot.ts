@@ -61,9 +61,10 @@ interface TgNachricht {
   media_group_id?: string;
   photo?: { file_id: string; file_size?: number }[];
   document?: { file_id: string; file_name?: string; file_size?: number };
-  voice?: unknown;
-  audio?: unknown;
-  video_note?: unknown;
+  voice?: { file_id: string; file_size?: number; mime_type?: string };
+  audio?: { file_id: string; file_name?: string; file_size?: number; mime_type?: string };
+  video?: { file_id: string; file_name?: string; file_size?: number; mime_type?: string };
+  video_note?: { file_id: string; file_size?: number };
   forward_origin?: unknown;
   forward_from?: unknown;
   forward_from_chat?: unknown;
@@ -544,21 +545,21 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       // „/neu“ beendet das laufende Gespräch; „/neu <Text>“ legt gleich eine neue Aufgabe an
       this.verlaufMerken(m.message_id, '');
       text = text.slice(text.split(/\s/)[0]!.length).trim();
-      if (!text && !m.document && !m.photo?.length) return this.senden('🆕 Okay – deine nächste Nachricht wird eine neue Aufgabe.');
+      if (!text && !telegramDatei(m)) return this.senden('🆕 Okay – deine nächste Nachricht wird eine neue Aufgabe.');
       return this.neueAufgabe(m, text);
     }
-    if (m.voice || m.audio || m.video_note) return this.senden('🎙️ Sprachnachrichten kann das Dorf noch nicht verarbeiten. Schreib mir die Aufgabe bitte als Text.');
-
-    // Reiner Text (nicht weitergeleitet, keine Datei) kann ein laufendes Gespräch fortsetzen.
-    // Weitergeleitetes und Dateien werden immer neue Aufgaben – Fremdinhalt kommt nie direkt in einen Auftrag.
+    // Reiner Text (nicht weitergeleitet) setzt ein laufendes Gespräch fort; E190: Leifs eigene Dateien, Fotos und
+    // Sprachnachrichten auch – sie hängen dann an der aktuellen Aufgabe (Bildunterschrift = Text).
+    // Weitergeleitetes wird immer eine neue Aufgabe – Fremdinhalt kommt nie direkt in einen Auftrag.
     const fremd = !!(m.forward_origin || m.forward_from || m.forward_from_chat || m.forward_date);
+    const datei = telegramDatei(m);
     // E64: Antwort auf „Warum abgelehnt?“ → Grund an die Freigabe (und damit an den Bürgermeister)
-    if (text && !fremd && !m.document && !m.photo?.length) {
+    if (text && !fremd && !datei) {
       const frage = this.grundFrage();
       const passt = frage && (m.reply_to_message ? m.reply_to_message.message_id === frage.messageId : this.o.uhr.jetzt() - frage.zeit < GRUND_MINUTEN * 60_000);
       if (frage && passt) return this.grundAnnehmen(frage.freigabeId, text);
     }
-    if (text && !fremd && !m.document && !m.photo?.length) {
+    if ((text || datei) && !fremd) {
       const chatId = this.gespraechFinden(m);
       if (chatId) return this.fortsetzen(m, chatId, text);
     }
@@ -573,23 +574,32 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       return this.neueAufgabe(m, text);
     }
     let wartend = 0;
+    const datei = telegramDatei(m);
+    const anhaenge: string[] = [];
     try {
-      wartend = this.o.agenten.nachrichtSenden(chatId, text, 'klick').wartend ?? 0;
+      // E190: Datei an die aktuelle Aufgabe hängen (Ordner des Chats)
+      if (datei) {
+        if ((datei.file_size ?? 0) > MAX_DATEI) return this.senden('📎 Die Datei ist größer als 20 MB – so große Dateien kann ein Bot nicht laden. Lade sie bitte in der App hoch.');
+        const d = await this.o.api.dateiLaden(datei.file_id);
+        anhaenge.push(await this.o.agenten.anhangSpeichern(chatId, datei.file_name ?? d.name, Readable.from(d.inhalt)));
+      }
+      wartend = this.o.agenten.nachrichtSenden(chatId, text, 'klick', anhaenge).wartend ?? 0;
     } catch (e) {
       return this.senden(`⚠️ Konnte die Nachricht nicht weitergeben: ${h((e as Error).message)}`);
     }
     this.verlaufMerken(m.message_id, chatId);
+    const was = datei ? `📎 ${h(anhaenge[0]!.split('/').pop()!)} ` : '';
     // E185: läuft dort gerade etwas, wartet die Nachricht in der Schlange – nichts geht verloren
     if (wartend)
-      return this.senden(`📝 Notiert – kommt nach dem aktuellen Schritt dran${wartend > 1 ? ` (${wartend} Nachrichten warten)` : ''}: <b>${h(c.titel)}</b>\n<i>/neu startet eine neue Aufgabe</i>`, {}, chatId);
-    await this.senden(`↪️ Weiter im Gespräch: <b>${h(c.titel)}</b> · <a href="${this.link(`/chats/${chatId}`)}">Chat öffnen</a>\n<i>/neu startet eine neue Aufgabe</i>`, {}, chatId);
+      return this.senden(`📝 ${was}Notiert – kommt nach dem aktuellen Schritt dran${wartend > 1 ? ` (${wartend} Nachrichten warten)` : ''}: <b>${h(c.titel)}</b>\n<i>/neu startet eine neue Aufgabe</i>`, {}, chatId);
+    await this.senden(`↪️ ${was ? `${was}angehängt – ` : ''}Weiter im Gespräch: <b>${h(c.titel)}</b> · <a href="${this.link(`/chats/${chatId}`)}">Chat öffnen</a>\n<i>/neu startet eine neue Aufgabe</i>`, {}, chatId);
   }
 
   private async neueAufgabe(m: TgNachricht, textRoh: string) {
     let text = textRoh;
     const anhaenge: string[] = [];
     try {
-      const datei = m.document ?? (m.photo?.length ? { ...m.photo[m.photo.length - 1]!, file_name: `foto-${m.message_id}.jpg` } : undefined);
+      const datei = telegramDatei(m);
       if (datei) {
         if ((datei.file_size ?? 0) > MAX_DATEI) return this.senden('📎 Die Datei ist größer als 20 MB – so große Dateien kann ein Bot nicht laden. Lade sie bitte in der App hoch.');
         const d = await this.o.api.dateiLaden(datei.file_id);
@@ -616,7 +626,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
   private async befehl(b: string) {
     if (b === '/start' || b === '/hilfe' || b === '/help')
       return this.senden(
-        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters. Weiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch); antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n<b>📅 Planen</b>\n/heute – dein Tag · /morgen – der nächste Tag · /woche – die nächsten 7 Tage\n/plan [morgen] – To-dos in freie Kalenderlücken\n/verteilen – To-dos ohne Datum auf die Woche verteilen\n/fristen – Abgaben und Prüfungen (7 Tage)\n/termin &lt;wann&gt; &lt;was&gt; – Termin eintragen (mit Bestätigung)\n\n<b>✅ Erledigen</b>\n/todo [Text] – To-do-Liste bzw. neues To-do (auch „… jeden Montag“)\n/einkauf [Text] – Einkaufsliste\n/erinner &lt;wann&gt; &lt;was&gt; – Erinnerung (läutet im Kirchturm)\n/aufraeumen – Überfälliges neu einplanen · /wartet – worauf du wartest\n/projekte – Fortschritt deiner Projekte (Gruppen)\n/jetzt – was jetzt passt (mit 🍅 Los) · /fokus [Thema] – Pomodoro starten\n/gewohnheiten – heute abhaken · /ziel [Text] – Wochenziele\n\n<b>🎓 Lernen</b>\n/lernen – Lernziele der Woche, 🍅 je Fach\n/karten [Fach] – Karteikarten · /moodle &lt;Fach&gt; [Frage] – in Moodle nachsehen\n/noten – Notenschnitt und ECTS\n\n<b>📝 Festhalten &amp; Finden</b>\n/notiz &lt;Text&gt; – Tagesnotiz · /suche &lt;Begriff&gt; – im Vault suchen\n/statistik – die letzten 7 Tage\n\n<b>🏛️ Dorf</b>\n/status – was läuft · /freigaben – offene Freigaben\n/aktion [Name] – Skill starten · /neu – nächste Nachricht = neue Aufgabe\n/hilfe – diese Hilfe\n\n<i>Tipp: „todo: …“, „notiz: …“, „ziel: …“, „einkauf: …“ gehen auch ohne Schrägstrich – ein Foto mit „notiz: …“ landet samt Bild in der Tagesnotiz.</i>`,
+        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text, Sprachnachricht, Foto oder Datei (Bildunterschrift = Auftrag; Word, Excel, PDF, Mail, ZIP … alles geht) – sie landet auf dem Schreibtisch des Bürgermeisters. Weiterschreiben (auch Dateien) setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch); antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n<b>📅 Planen</b>\n/heute – dein Tag · /morgen – der nächste Tag · /woche – die nächsten 7 Tage\n/plan [morgen] – To-dos in freie Kalenderlücken\n/verteilen – To-dos ohne Datum auf die Woche verteilen\n/fristen – Abgaben und Prüfungen (7 Tage)\n/termin &lt;wann&gt; &lt;was&gt; – Termin eintragen (mit Bestätigung)\n\n<b>✅ Erledigen</b>\n/todo [Text] – To-do-Liste bzw. neues To-do (auch „… jeden Montag“)\n/einkauf [Text] – Einkaufsliste\n/erinner &lt;wann&gt; &lt;was&gt; – Erinnerung (läutet im Kirchturm)\n/aufraeumen – Überfälliges neu einplanen · /wartet – worauf du wartest\n/projekte – Fortschritt deiner Projekte (Gruppen)\n/jetzt – was jetzt passt (mit 🍅 Los) · /fokus [Thema] – Pomodoro starten\n/gewohnheiten – heute abhaken · /ziel [Text] – Wochenziele\n\n<b>🎓 Lernen</b>\n/lernen – Lernziele der Woche, 🍅 je Fach\n/karten [Fach] – Karteikarten · /moodle &lt;Fach&gt; [Frage] – in Moodle nachsehen\n/noten – Notenschnitt und ECTS\n\n<b>📝 Festhalten &amp; Finden</b>\n/notiz &lt;Text&gt; – Tagesnotiz · /suche &lt;Begriff&gt; – im Vault suchen\n/statistik – die letzten 7 Tage\n\n<b>🏛️ Dorf</b>\n/status – was läuft · /freigaben – offene Freigaben\n/aktion [Name] – Skill starten · /neu – nächste Nachricht = neue Aufgabe\n/hilfe – diese Hilfe\n\n<i>Tipp: „todo: …“, „notiz: …“, „ziel: …“, „einkauf: …“ gehen auch ohne Schrägstrich – ein Foto mit „notiz: …“ landet samt Bild in der Tagesnotiz.</i>`,
       );
     if (b === '/status') {
       const aktiv = this.o.agenten.aktiveLaeufe();
@@ -2305,7 +2315,10 @@ Magst du kurz sagen, warum? Antworte einfach mit einem Satz – ${f.chatId ? 'de
     }
     // Von selbst aufgewacht und nichts getan → keine Meldung (Leif will nur hören, wenn etwas passiert ist)
     if (c.rolle === 'buergermeister' && c.schreibtisch_id) {
-      const quelle = (this.o.db.prepare('SELECT quelle FROM schreibtisch WHERE id = ?').get(c.schreibtisch_id) as { quelle: string } | undefined)?.quelle;
+      const aufgabe = this.o.db.prepare('SELECT quelle, titel FROM schreibtisch WHERE id = ?').get(c.schreibtisch_id) as { quelle: string; titel: string } | undefined;
+      const quelle = aufgabe?.quelle;
+      // E192: Rundgänge melden sich nie einzeln – was Leif etwas bringt, steht einmal am Tag gebündelt in der Morgenzeitung
+      if (quelle === 'aufwachen' && aufgabe?.titel.startsWith('Rundgang')) return;
       const getan = this.o.db
         .prepare("SELECT 1 FROM werkzeug_log WHERE lauf_id = ? AND erlaubt = 1 AND werkzeug IN ('helfer_starten', 'plan_vorlegen', 'vault_schreiben', 'vault_aendern', 'freigabe_beantragen', 'post_entwurf', 'post_entwurf_neu', 'termin_anlegen', 'termin_aendern', 'termin_loeschen', 'aktion_anlegen', 'rueckfrage') LIMIT 1")
         .get(e.laufId);
@@ -2361,4 +2374,18 @@ export function htmlKuerzen(text: string, max: number) {
   const schnitt = text.lastIndexOf('\n', max - 2);
   if (schnitt > max / 2) return `${text.slice(0, schnitt)}\n…`;
   return `${text.replace(/<[^>]*>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&').slice(0, max - 20).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')} …`;
+}
+
+/**
+ * E190: Datei einer Telegram-Nachricht – Dokument, größtes Foto, Sprachnachricht, Audio, Video, Videonachricht.
+ * Dateinamen ohne Namen bekommen einen sprechenden (Endung wichtig für die Umwandlung im Rechenraum).
+ */
+export function telegramDatei(m: TgNachricht): { file_id: string; file_name?: string; file_size?: number } | undefined {
+  if (m.document) return m.document;
+  if (m.photo?.length) return { ...m.photo[m.photo.length - 1]!, file_name: `foto-${m.message_id}.jpg` };
+  if (m.voice) return { ...m.voice, file_name: `sprachnachricht-${m.message_id}.${m.voice.mime_type === 'audio/mpeg' ? 'mp3' : 'oga'}` };
+  if (m.audio) return { ...m.audio, file_name: m.audio.file_name ?? `audio-${m.message_id}.${m.audio.mime_type === 'audio/mp4' ? 'm4a' : 'mp3'}` };
+  if (m.video) return { ...m.video, file_name: m.video.file_name ?? `video-${m.message_id}.mp4` };
+  if (m.video_note) return { ...m.video_note, file_name: `videonachricht-${m.message_id}.mp4` };
+  return undefined;
 }

@@ -21,19 +21,28 @@ gruen() { printf '\033[32m%s\033[0m\n' "$*"; }
 info() { printf '» %s\n' "$*"; }
 
 compose() {
-  local version rv bv profile=""
+  local version rv bv cv profile=""
   version=$(cat "$AKTUELL/VERSION" 2>/dev/null || echo latest)
   rv=$(cat "$AKTUELL/RECHENRAUM_VERSION" 2>/dev/null || echo fehlt)
   # Moodle-Browser nur, wenn diese Version ein Browser-Image mitbringt (Compose-Profil „browser“)
   bv=$(cat "$AKTUELL/BROWSER_VERSION" 2>/dev/null || echo fehlt)
   [ "$bv" = fehlt ] || profile=browser
-  DORF_VERSION="$version" RECHENRAUM_VERSION="$rv" BROWSER_VERSION="$bv" COMPOSE_PROFILES="$profile" \
+  # Codehaus (E191) nur, wenn diese Version das Image mitbringt UND Leif es eingerichtet hat (dorf coding-einrichten)
+  cv=$(cat "$AKTUELL/CODING_VERSION" 2>/dev/null || echo fehlt)
+  if [ "$cv" != fehlt ] && coding_an; then profile=${profile:+$profile,}coding; fi
+  DORF_VERSION="$version" RECHENRAUM_VERSION="$rv" BROWSER_VERSION="$bv" CODING_VERSION="$cv" COMPOSE_PROFILES="$profile" \
     docker compose --project-name dorf --env-file "$ENV_DATEI" -f "$AKTUELL/deploy/compose.yml" "$@"
 }
 
+# Codehaus eingeschaltet? (setzt dorf coding-einrichten, nimmt dorf coding-aus zurück)
+coding_an() { grep -qE '^CODING_AN=ja$' "$ENV_DATEI" 2>/dev/null; }
+
 # Gesundheitsprüfung eines Dienstes von innen (Rechenraum hat Python statt Node)
 gesund_pruefen() { # dienst port pfad
-  if [ "$1" = rechenraum ]; then
+  if [ "$1" = coding ]; then
+    # prüft Runner UND VS Code
+    compose exec -T coding /app/gesund.sh 2>/dev/null
+  elif [ "$1" = rechenraum ]; then
     compose exec -T "$1" python3 -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:$2$3',timeout=3).status==200 else 1)" 2>/dev/null
   else
     compose exec -T "$1" node -e "fetch('http://127.0.0.1:$2$3').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" 2>/dev/null
@@ -42,11 +51,12 @@ gesund_pruefen() { # dienst port pfad
 
 gesund_warten() {
   local eintrag dienst port pfad ok
-  for eintrag in dorf:3000:/api/gesundheit werkstatt:4000:/gesundheit rechenraum:4100:/gesundheit browser:4200:/gesundheit; do
+  for eintrag in dorf:3000:/api/gesundheit werkstatt:4000:/gesundheit rechenraum:4100:/gesundheit browser:4200:/gesundheit coding:4000:/gesundheit; do
     IFS=: read -r dienst port pfad <<< "$eintrag"
     # ältere Versionen (vor Etappe 3) haben keinen Rechenraum, Versionen ohne Browser-Image keinen Browser
     [ "$dienst" != rechenraum ] || [ -f "$AKTUELL/RECHENRAUM_VERSION" ] || continue
     [ "$dienst" != browser ] || [ -f "$AKTUELL/BROWSER_VERSION" ] || continue
+    [ "$dienst" != coding ] || { [ -f "$AKTUELL/CODING_VERSION" ] && coding_an; } || continue
     ok=nein
     for _ in $(seq 1 60); do
       if gesund_pruefen "$dienst" "$port" "$pfad"; then
@@ -59,6 +69,12 @@ gesund_warten() {
       # Der Moodle-Browser ist eine Zusatzfunktion: Warnung, aber kein Rollback des ganzen Dorfs
       rot "Warnung: Moodle-Browser meldet sich nicht gesund – das Dorf läuft trotzdem weiter."
       compose logs --tail 30 browser || true
+      continue
+    fi
+    if [ "$ok" != ja ] && [ "$dienst" = coding ]; then
+      # Auch das Codehaus ist ein Zusatz: Warnung, kein Rollback
+      rot "Warnung: Codehaus meldet sich nicht gesund – das Dorf läuft trotzdem weiter. (dorf logs coding)"
+      compose logs --tail 30 coding || true
       continue
     fi
     [ "$ok" = ja ] || { rot "Dienst $dienst meldet sich nicht gesund."; compose logs --tail 30 "$dienst"; return 1; }
@@ -107,6 +123,23 @@ geheimnisse_sicherstellen() {
   chmod 600 "$BASIS/browser.env"
   # als Datei eingebunden → muss dem Container-Benutzer gehören (Standard 1000)
   chown "${uid:-1000}:${uid:-1000}" "$BASIS/browser.env" 2>/dev/null || true
+  # Codehaus (E191): Ordner und coding.env. Geheimnisse entstehen erst mit `dorf coding-einrichten`; hier werden nur
+  # Runner-Geheimnis und VS-Code-Token aus .env nachgezogen, falls sie dort schon stehen. Sonst steht in coding.env nichts.
+  mkdir -p "$BASIS/coding" "$BASIS/claude-coding"
+  [ -f "$BASIS/coding.env" ] || printf '# Nur für den Coding-Container (Codehaus). Einrichten mit: dorf coding-einrichten\n' > "$BASIS/coding.env"
+  coding_env_setzen CODING_GEHEIMNIS "$(grep -E '^CODING_GEHEIMNIS=' "$ENV_DATEI" | cut -d= -f2 || true)"
+  coding_env_setzen VSCODE_TOKEN "$(grep -E '^CODING_VSCODE_TOKEN=' "$ENV_DATEI" | cut -d= -f2 || true)"
+  chmod 600 "$BASIS/coding.env"
+  chown "${uid:-1000}:${uid:-1000}" "$BASIS/coding" "$BASIS/claude-coding" "$BASIS/coding.env" 2>/dev/null || true
+}
+
+# Eine Zeile NAME=wert in coding.env ersetzen oder anhängen (leerer Wert = nichts tun). Ohne sed – Werte bleiben, wie sie sind.
+coding_env_setzen() { # name wert
+  local datei="$BASIS/coding.env"
+  [ -n "$2" ] || return 0
+  grep -vE "^$1=" "$datei" > "$datei.neu" || true
+  printf '%s=%s\n' "$1" "$2" >> "$datei.neu"
+  chmod 600 "$datei.neu" && mv "$datei.neu" "$datei"
 }
 
 cmd_deploy() {
@@ -119,7 +152,7 @@ cmd_deploy() {
 # Wird von GitHub Actions per SSH aufgerufen (erzwungener Befehl). Erwartet ein tar.gz-Bündel auf stdin:
 #   VERSION, deploy/…, image.tar.gz, RECHENRAUM_VERSION und – nur wenn der Server es noch nicht hat – rechenraum.tar.gz
 cmd_empfangen() {
-  local tmp version ziel vorher rv bv
+  local tmp version ziel vorher rv bv cv
   tmp=$(mktemp -d)
   # Aufräumen beim Verlassen dieser Funktion – die Falle entfernt sich selbst, sonst feuert sie später erneut.
   trap 'rm -rf "${tmp:-}"; trap - RETURN' RETURN
@@ -128,6 +161,16 @@ cmd_empfangen() {
   [ -n "$version" ] || { rot "Bündel ohne VERSION"; return 1; }
   rv=""
   bv=""
+  cv=""
+  if [ -f "$tmp/CODING_VERSION" ]; then
+    cv=$(tr -cd 'a-f0-9' < "$tmp/CODING_VERSION")
+    [[ "$cv" =~ ^[a-f0-9]{16}$ ]] || { rot "Ungültige CODING_VERSION"; return 1; }
+    if [ -f "$tmp/coding.tar.gz" ]; then
+      info "Lade Codehaus-Image $cv …"
+      gunzip -c "$tmp/coding.tar.gz" | docker load
+    fi
+    docker image inspect "agentendorf-coding:$cv" >/dev/null 2>&1 || { rot "Codehaus-Image $cv fehlt auf dem Server und war nicht im Bündel."; return 1; }
+  fi
   if [ -f "$tmp/BROWSER_VERSION" ]; then
     bv=$(tr -cd 'a-f0-9' < "$tmp/BROWSER_VERSION")
     [[ "$bv" =~ ^[a-f0-9]{16}$ ]] || { rot "Ungültige BROWSER_VERSION"; return 1; }
@@ -153,6 +196,7 @@ cmd_empfangen() {
   echo "$version" > "$ziel/VERSION"
   [ -z "$rv" ] || echo "$rv" > "$ziel/RECHENRAUM_VERSION"
   [ -z "$bv" ] || echo "$bv" > "$ziel/BROWSER_VERSION"
+  [ -z "$cv" ] || echo "$cv" > "$ziel/CODING_VERSION"
   info "Lade Image …"
   gunzip -c "$tmp/image.tar.gz" | docker load
   vorher=$(readlink -f "$AKTUELL" 2>/dev/null || true)
@@ -166,6 +210,7 @@ cmd_empfangen() {
     done
     rechenraum_aufraeumen
     browser_aufraeumen
+    coding_aufraeumen
     programme_installieren "$tmp"
     gruen "Deploy von $version erfolgreich."
   else
@@ -228,8 +273,18 @@ browser_aufraeumen() {
   done
 }
 
+# Codehaus-Images (groß), die keine behaltene Version mehr braucht, entfernen.
+coding_aufraeumen() {
+  local behalten tag
+  behalten=$(cat "$APP"/releases/*/CODING_VERSION 2>/dev/null || true)
+  docker images agentendorf-coding --format '{{.Tag}}' 2>/dev/null | while read -r tag; do
+    [ -n "$tag" ] || continue
+    grep -qx "$tag" <<< "$behalten" || docker image rm "agentendorf-coding:$tag" >/dev/null 2>&1 || true
+  done
+}
+
 # Erzwungener SSH-Befehl für den CI-Schlüssel: erlaubt nur "empfangen", "status", "hat-image <16 Hex>",
-# "hat-browser <16 Hex>" und "hat-programme <16 Hex>".
+# "hat-browser <16 Hex>", "hat-coding <16 Hex>" und "hat-programme <16 Hex>".
 cmd_ci() {
   local befehl=${SSH_ORIGINAL_COMMAND:-}
   case "$befehl" in
@@ -243,6 +298,10 @@ cmd_ci() {
       local bv=${befehl#hat-browser }
       [[ "$bv" =~ ^[a-f0-9]{16}$ ]] || { rot "Nicht erlaubt: $befehl"; exit 1; }
       if docker image inspect "agentendorf-browser:$bv" >/dev/null 2>&1; then echo ja; else echo nein; fi ;;
+    "hat-coding "*)
+      local cv=${befehl#hat-coding }
+      [[ "$cv" =~ ^[a-f0-9]{16}$ ]] || { rot "Nicht erlaubt: $befehl"; exit 1; }
+      if docker image inspect "agentendorf-coding:$cv" >/dev/null 2>&1; then echo ja; else echo nein; fi ;;
     "hat-programme "*)
       local pv=${befehl#hat-programme }
       [[ "$pv" =~ ^[a-f0-9]{16}$ ]] || { rot "Nicht erlaubt: $befehl"; exit 1; }
@@ -283,9 +342,14 @@ cmd_backup() {
   # DORF_BACKUP_ZEIT nur für Tests (simuliert ältere Tage)
   local ziele=("$BASIS/vault" "$BASIS/daten/sicherung" "$ENV_DATEI")
   local z
-  for z in "$BASIS/syncthing/config" "$BASIS/werkstatt.env"; do [ -e "$z" ] && ziele+=("$z"); done
+  # Codehaus: Projekte und Einstellungen ja (auch was noch nicht auf GitHub liegt) – ohne alles, was sich neu holen lässt
+  for z in "$BASIS/syncthing/config" "$BASIS/werkstatt.env" "$BASIS/coding.env" "$BASIS/coding"; do [ -e "$z" ] && ziele+=("$z"); done
   restic backup --tag taeglich --host agentendorf ${DORF_BACKUP_ZEIT:+--time "$DORF_BACKUP_ZEIT"} \
-    --exclude "$BASIS/syncthing/index-*" "${ziele[@]}"
+    --exclude "$BASIS/syncthing/index-*" \
+    --exclude "$BASIS/coding/.tmp" --exclude "$BASIS/coding/.heim/.cache" --exclude "$BASIS/coding/.heim/.npm" \
+    --exclude "$BASIS/coding/.heim/.npm-global" --exclude "$BASIS/coding/.heim/.openvscode-server/extensions" \
+    --exclude "$BASIS/coding/**/node_modules" --exclude "$BASIS/coding/**/.venv" --exclude "$BASIS/coding/**/__pycache__" \
+    "${ziele[@]}"
   info "Behalte nur die Stände der letzten 7 Tage …"
   restic forget --tag taeglich --keep-within-daily "$BEHALTEN_TAGE" --prune
   restic check
@@ -501,6 +565,124 @@ cmd_moodle_browser_zugang() {
   fi
 }
 
+# Codehaus (E191): VS Code im Browser + Coding-Agenten. Fragt GitHub-Token und Git-Namen ab, übernimmt das Abo-Token der
+# Werkstatt (oder ein eigenes), schreibt /srv/dorf/coding.env (600, nur für den Coding-Container) und startet den Dienst.
+# In den Coding-Container kommt NICHTS aus /srv/dorf/.env. Erneut ausführen = Angaben ändern (Enter behält Bisheriges).
+cmd_coding_einrichten() {
+  local datei="$BASIS/coding.env" domain code abo neu gh gh_alt antwort login name mail name_alt mail_alt g uid code_http
+  [ -f "$AKTUELL/CODING_VERSION" ] || { rot "Diese Version hat noch kein Codehaus-Image – nach dem nächsten Deploy erneut versuchen."; return 1; }
+  geheimnisse_sicherstellen
+  domain=$(grep -E '^DORF_DOMAIN=' "$ENV_DATEI" | cut -d= -f2)
+  code=$(grep -E '^CODING_DOMAIN=' "$ENV_DATEI" | cut -d= -f2 || true)
+  code=${code:-code.$domain}
+  info "Das Codehaus bekommt: dein Claude-Abo (für Claude Code), ein GitHub-Token und deinen Git-Namen – sonst nichts."
+  info "Agenten dort können Befehle ausführen, ins Internet, den Vault lesen und schreiben und auf GitHub pushen und mergen."
+
+  # 1. Claude-Abo: das Token der Werkstatt übernehmen oder ein eigenes eintragen
+  abo=$(grep -E '^CLAUDE_CODE_OAUTH_TOKEN=' "$datei" | cut -d= -f2 || true)
+  [ -n "$abo" ] || abo=$(grep -E '^CLAUDE_CODE_OAUTH_TOKEN=' "$BASIS/werkstatt.env" 2>/dev/null | cut -d= -f2 || true)
+  if [ -n "$abo" ]; then
+    read -r -s -p "Claude-Abo: Enter = vorhandenes Token (Werkstatt) nehmen, oder ein eigenes einfügen (unsichtbar): " neu; echo
+  else
+    info "Noch kein Abo-Token da. Erzeuge eines mit 'dorf claude-anmelden' (oder am eigenen Rechner: claude setup-token) und füge es ein."
+    read -r -s -p "Abo-Token (sk-ant-oat…, unsichtbar, leer = abbrechen): " neu; echo
+  fi
+  neu=$(printf '%s' "$neu" | tr -d '\r\n ')
+  if [ -n "$neu" ]; then
+    case "$neu" in sk-ant-oat*) ;; *) rot "Das sieht nicht wie ein Abo-Token aus (es beginnt mit sk-ant-oat…)."; return 1 ;; esac
+    [[ "$neu" =~ ^[A-Za-z0-9_-]{80,}$ ]] || { rot "Token zu kurz oder mit ungültigen Zeichen – vermutlich beim Kopieren abgeschnitten."; return 1; }
+    abo=$neu
+  fi
+  [ -n "$abo" ] || { rot "Ohne Abo-Token kein Codehaus. Abgebrochen."; return 1; }
+
+  # 2. GitHub: Token mit Schreibrechten auf die gewünschten Repositories
+  gh_alt=$(grep -E '^GH_TOKEN=' "$datei" | cut -d= -f2 || true)
+  info "GitHub-Token: github.com → Settings → Developer settings → Fine-grained tokens. Nur die Repositories wählen, an denen"
+  info "Agenten arbeiten sollen; Rechte: Contents, Pull requests (je Read and write), Metadata (Read); für CI-Dateien auch Workflows."
+  read -r -s -p "GitHub-Token (github_pat_… oder ghp_…, unsichtbar${gh_alt:+, Enter = bisheriges behalten}): " gh; echo
+  gh=$(printf '%s' "$gh" | tr -d '\r\n ')
+  gh=${gh:-$gh_alt}
+  login=""; name=""; mail=""
+  if [ -n "$gh" ]; then
+    [[ "$gh" =~ ^(ghp_|github_pat_|gho_)[A-Za-z0-9_]{20,255}$ ]] || { rot "Das sieht nicht wie ein GitHub-Token aus (github_pat_… oder ghp_…)."; return 1; }
+    antwort=$(curl -sS -m 20 -w '\n%{http_code}' -H "Authorization: Bearer $gh" -H 'Accept: application/vnd.github+json' https://api.github.com/user || printf '\n000')
+    code_http=$(tail -1 <<<"$antwort")
+    case "$code_http" in
+      200)
+        login=$(sed '$d' <<<"$antwort" | jq -r '.login // empty')
+        name=$(sed '$d' <<<"$antwort" | jq -r '.name // empty')
+        mail=$(sed '$d' <<<"$antwort" | jq -r 'if .id and .login then "\(.id)+\(.login)@users.noreply.github.com" else empty end')
+        gruen "GitHub kennt das Token: angemeldet als $login." ;;
+      401|403) rot "GitHub lehnt das Token ab (HTTP $code_http)."; return 1 ;;
+      *) info "GitHub antwortet mit HTTP $code_http – ich trage das Token trotzdem ein (prüfen im VS-Code-Terminal: gh auth status)." ;;
+    esac
+  else
+    info "Kein GitHub-Token: Agenten können klonen (öffentliche Repositories), aber nicht pushen. Später: dorf coding-einrichten"
+  fi
+
+  # 3. Git-Name und E-Mail (stehen in jedem Commit)
+  name_alt=$(grep -E '^GIT_NAME=' "$datei" | cut -d= -f2- || true)
+  mail_alt=$(grep -E '^GIT_EMAIL=' "$datei" | cut -d= -f2- || true)
+  name=${name_alt:-${name:-$login}}
+  mail=${mail_alt:-$mail}
+  read -r -p "Name für Commits [${name:-–}]: " antwort
+  name=${antwort:-$name}
+  read -r -p "E-Mail für Commits [${mail:-–}]: " antwort
+  mail=$(printf '%s' "${antwort:-$mail}" | tr -d '\r\n ')
+  name=$(printf '%s' "$name" | tr -d '\r\n')
+  # nichts, was eine env-Datei anders liest als gemeint (Anführungszeichen, $, #, Rückstrich)
+  case "$name" in *[\"\'\\\$\#\`=]*) rot "Name: ohne Anführungszeichen, \$, #, = und Rückstrich."; return 1 ;; esac
+  [ -n "$name" ] && [ "${#name}" -le 80 ] || { rot "Name: 1–80 Zeichen."; return 1; }
+  [[ "$mail" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]] || { rot "Das sieht nicht wie eine E-Mail-Adresse aus."; return 1; }
+
+  # 4. Geheimnisse Dorf ↔ Codehaus (Runner) und das Verbindungs-Token von VS Code – nur erzeugen, wenn sie fehlen
+  if ! grep -qE '^CODING_GEHEIMNIS=.{32,}' "$ENV_DATEI"; then
+    g=$(zufall 40); sed -i '/^CODING_GEHEIMNIS=/d' "$ENV_DATEI"; echo "CODING_GEHEIMNIS=$g" >> "$ENV_DATEI"
+  fi
+  if ! grep -qE '^CODING_VSCODE_TOKEN=.{32,}' "$ENV_DATEI"; then
+    g=$(zufall 48); sed -i '/^CODING_VSCODE_TOKEN=/d' "$ENV_DATEI"; echo "CODING_VSCODE_TOKEN=$g" >> "$ENV_DATEI"
+  fi
+  sed -i '/^CODING_AN=/d' "$ENV_DATEI"; echo "CODING_AN=ja" >> "$ENV_DATEI"
+
+  # 5. coding.env neu schreiben (nur diese sechs Zeilen), Rechte 600, gehört dem Container-Benutzer
+  {
+    printf '# Nur für den Coding-Container (Codehaus). Ändern mit: dorf coding-einrichten\n'
+    printf 'CODING_GEHEIMNIS=%s\n' "$(grep -E '^CODING_GEHEIMNIS=' "$ENV_DATEI" | cut -d= -f2)"
+    printf 'VSCODE_TOKEN=%s\n' "$(grep -E '^CODING_VSCODE_TOKEN=' "$ENV_DATEI" | cut -d= -f2)"
+    printf 'CLAUDE_CODE_OAUTH_TOKEN=%s\n' "$abo"
+    [ -z "$gh" ] || printf 'GH_TOKEN=%s\n' "$gh"
+    printf 'GIT_NAME=%s\n' "$name"
+    printf 'GIT_EMAIL=%s\n' "$mail"
+  } > "$datei.neu"
+  chmod 600 "$datei.neu" && mv "$datei.neu" "$datei"
+  uid=$(grep -E '^DORF_UID=' "$ENV_DATEI" | cut -d= -f2 || true)
+  mkdir -p "$BASIS/coding" "$BASIS/claude-coding"
+  chown "${uid:-1000}:${uid:-1000}" "$datei" "$BASIS/coding" "$BASIS/claude-coding" 2>/dev/null || true
+
+  # 6. Adresse von VS Code: muss auf diesen Server zeigen (bei DuckDNS tun das alle Unteradressen von selbst)
+  if command -v getent >/dev/null 2>&1 && ! getent hosts "$code" >/dev/null 2>&1; then
+    rot "Achtung: $code lässt sich nicht auflösen. Leg dafür einen DNS-Eintrag auf diesen Server an – oder trag eine"
+    rot "andere Adresse als CODING_DOMAIN=… in $ENV_DATEI ein und führe 'dorf coding-einrichten' noch einmal aus."
+  fi
+
+  info "Starte das Codehaus (das Dorf startet dabei kurz neu) …"
+  compose up -d --force-recreate coding dorf
+  if gesund_warten; then
+    gruen "Codehaus läuft. In der App: Codehaus → VS Code öffnen (Adresse: https://$code – nur über das Dorf, mit deiner Anmeldung)."
+    info "Beim ersten Aufruf holt Caddy das Zertifikat für $code; das dauert ein paar Sekunden."
+  else
+    return 1
+  fi
+}
+
+# Codehaus anhalten: Container weg, Schalter aus. Projekte (/srv/dorf/coding), Einstellungen und coding.env bleiben.
+cmd_coding_aus() {
+  if coding_an; then compose rm -sf coding || true; fi
+  sed -i '/^CODING_AN=/d' "$ENV_DATEI"
+  compose up -d --remove-orphans
+  gruen "Codehaus angehalten. Wieder einschalten: dorf coding-einrichten"
+}
+
 # Google anmelden (OAuth): Gmail nur Lesen + Entwürfe, dazu der Kalender (E75). Client-ID/-Schlüssel aus Leifs eigenem Google-Cloud-Projekt.
 cmd_gmail_anmelden() {
   local id secret aus adresse verifier state rueck token
@@ -609,7 +791,7 @@ cmd_hilfe() {
 Agentendorf – Befehle auf dem Server
 
   dorf status                    Container, Version, Speicher, letzte Sicherungen
-  dorf logs [dorf|werkstatt|rechenraum|caddy|syncthing]  Protokolle ansehen (Strg+C beendet)
+  dorf logs [dorf|werkstatt|rechenraum|coding|caddy|syncthing]  Protokolle ansehen (Strg+C beendet)
   dorf deploy                    aktuelle Version (neu) starten
   dorf rollback                  zur vorherigen Version zurück
 
@@ -627,6 +809,8 @@ Agentendorf – Befehle auf dem Server
   dorf moodle-kalender           (alt) Fristen direkt aus dem Moodle-Kalender-Export
   dorf moodle-anmelden [url]     Moodle-App-Zugang (an der JKU derzeit gesperrt)
   dorf moodle-browser-zugang     JKU-Login für den Moodle-Browser-Agenten hinterlegen und Anmeldung prüfen
+  dorf coding-einrichten         Codehaus: VS Code im Browser + Coding-Agenten einrichten (GitHub-Token, Git-Name) und starten
+  dorf coding-aus                Codehaus anhalten (Projekte und Einstellungen bleiben)
 
   dorf backup                    Sicherung jetzt (läuft sonst täglich 03:30)
   dorf restore-test [stand]      Wiederherstellung in Testordner prüfen
@@ -665,6 +849,8 @@ case "$befehl" in
   telegram-einrichten) cmd_telegram_einrichten ;;
   moodle-anmelden) cmd_moodle_anmelden "$@" ;;
   moodle-browser-zugang) cmd_moodle_browser_zugang ;;
+  coding-einrichten) cmd_coding_einrichten ;;
+  coding-aus) cmd_coding_aus ;;
   moodle-kalender) cmd_moodle_kalender ;;
   google-kalender) cmd_google_kalender ;;
   gmail-anmelden) cmd_gmail_anmelden ;;

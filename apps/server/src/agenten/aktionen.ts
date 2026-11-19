@@ -6,7 +6,7 @@ import type { AktionInfo, AktionQuelle, QuellenOption } from '@dorf/shared';
 import type { VaultDienst } from '../vault/dienst.js';
 import { gebaeudeListe } from '../vault/gebaeude.js';
 import { DorfFehler } from '../fehler.js';
-import { aktionPruefen } from './leine.js';
+import { aktionPruefen, motorPruefen } from './leine.js';
 import { zeitplanLesen } from './zeitplan.js';
 
 // „ja“/„nein“ in Obsidian-Frontmatter als Wahrheitswerte akzeptieren
@@ -32,7 +32,7 @@ export const AktionKopf = z
     name: z.string().min(1),
     gebaeude: z.string().optional(),
     beschreibung: z.string().default(''),
-    motor: z.enum(['api', 'claude-code']).default('claude-code'),
+    motor: z.enum(['api', 'claude-code', 'coding']).default('claude-code'),
     stufe: z.enum(['klein', 'mittel', 'gross']).default('mittel'),
     eingaben: z.array(Eingabe).default([]),
     anhaenge: z.array(z.string()).default([]),
@@ -92,6 +92,8 @@ export function zuInfo(gebaeude: string, datei: string, roh: string): Aktion {
     const m = matter(roh);
     const k = AktionKopf.parse(m.data);
     if (k.gebaeude && k.gebaeude !== gebaeude) throw new Error(`liegt in ${gebaeude}, nennt aber gebaeude: ${k.gebaeude}`);
+    const motorFehler = motorPruefen(gebaeude, k.motor);
+    if (motorFehler) throw new Error(motorFehler);
     if (k.ablage && (!k.ablage.startsWith(`${gebaeude}/`) || /^[^/]+\/(aktionen|protokolle|chats|archiv)\//.test(k.ablage)))
       throw new Error(`ablage muss im eigenen Gebäude liegen (${gebaeude}/…), nicht in aktionen/, protokolle/, chats/ oder archiv/`);
     if (!m.content.trim()) throw new Error('Der Text unter dem Frontmatter (der Prompt) ist leer.');

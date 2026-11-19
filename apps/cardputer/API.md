@@ -95,3 +95,11 @@ Die Uhren laufen auf dem Server – der Cardputer zeigt sie nur an und piept.
 - `POST /api/geraet/notiz` `{ "text": "…" }` → `{ "ok": true }` (Tagesnotiz)
 - `GET /api/geraet/fristen` → `{ "fristen": [ { "titel": "…", "fach": "…", "faellig": "2026-11-20T23:59:00+01:00", "erledigt": false } ] }` (14 Tage)
 - `GET /api/geraet/post` → `{ "mails": [ { "von": "…", "betreff": "…", "zusammenfassung": "…", "antwortNoetig": true } ] }` (heute + gestern, höchstens 20)
+
+## Spracheingabe (E194)
+
+- `POST /api/geraet/sprache` – Körper: eine WAV-Datei (PCM 16 Bit, mono, 16 kHz; `Content-Type: audio/wav`), höchstens 2 MB
+  (≈ 60 s). Antwort: `{ "text": "erkannter Text" }` (leer, wenn nichts verstanden wurde).
+  - Abgeschrieben wird auf dem Server im Rechenraum (whisper.cpp, Deutsch zuerst), ohne Cloud. Dauer etwa 1,5 × Länge der Aufnahme.
+  - Fehler: 413 (zu lang/zu groß), 503 (Spracherkennung gerade nicht verfügbar), 400 (kein gültiges WAV).
+  - Die Aufnahme wird nach dem Abschreiben gelöscht, nicht im Vault gespeichert.

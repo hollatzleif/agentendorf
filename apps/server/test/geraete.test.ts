@@ -385,3 +385,52 @@ describe('Hilfen der Geräte-API', () => {
     );
   });
 });
+
+describe('Spracheingabe am Gerät (E194)', () => {
+  const wav = (sekunden: number) => {
+    const daten = Buffer.alloc(32_000 * sekunden);
+    const k = Buffer.alloc(44);
+    k.write('RIFF', 0, 'ascii');
+    k.writeUInt32LE(36 + daten.length, 4);
+    k.write('WAVEfmt ', 8, 'ascii');
+    k.writeUInt32LE(16, 16);
+    k.writeUInt16LE(1, 20);
+    k.writeUInt16LE(1, 22);
+    k.writeUInt32LE(16_000, 24);
+    k.writeUInt32LE(32_000, 28);
+    k.writeUInt16LE(2, 32);
+    k.writeUInt16LE(16, 34);
+    k.write('data', 36, 'ascii');
+    k.writeUInt32LE(daten.length, 40);
+    return Buffer.concat([k, daten]);
+  };
+
+  it('WAV → nur der Text des Transkripts; ohne Rechenraum 503; kein WAV 400; zu lang 413; ohne Schlüssel 401', async () => {
+    const { d, g } = await aufbau();
+    const post = (body: Buffer, kopfzeilen: Record<string, string> = g) =>
+      d.app.inject({ method: 'POST', url: '/api/geraet/sprache', headers: { ...kopfzeilen, 'content-type': 'audio/wav' }, payload: body });
+    // ohne Rechenraum
+    expect((await post(wav(1))).statusCode).toBe(503);
+    const gesehen: { name: string; groesse: number }[] = [];
+    d.agenten.rechenraum = {
+      umwandeln: async (name: string, inhalt: Buffer) => {
+        gesehen.push({ name, groesse: inhalt.length });
+        return { version: '1', typ: 'audio', text: '## Datei\n- Dauer: 1 s\n\n## Transkript (automatisch, kann Hörfehler enthalten)\n [BLANK_AUDIO] Milch kaufen  morgen\n', bilder: [], hinweise: [] };
+      },
+    } as unknown as NonNullable<typeof d.agenten.rechenraum>;
+    const r = await post(wav(1));
+    expect(r.statusCode, r.body).toBe(200);
+    expect(r.json()).toEqual({ text: 'Milch kaufen morgen' });
+    expect(gesehen).toEqual([{ name: 'sprache.wav', groesse: 44 + 32_000 }]);
+    expect((await post(Buffer.from('kein wav, nur Text, lang genug für den Kopf …………………'))).statusCode).toBe(400);
+    expect((await post(wav(70))).statusCode).toBe(413);
+    expect((await post(wav(1), {})).statusCode).toBe(401);
+  });
+
+  it('transkriptAus: ohne Transkript leer, Geräusch-Marken raus', async () => {
+    const { transkriptAus } = await import('../src/geraete.js');
+    expect(transkriptAus('## Datei\n- Dauer: 2 s')).toBe('');
+    expect(transkriptAus('## Transkript (x)\n(keine Sprache erkannt)')).toBe('');
+    expect(transkriptAus('## Transkript (x)\n(Musik) Hallo\nWelt\n\n## Hinweise\n- y')).toBe('Hallo Welt');
+  });
+});

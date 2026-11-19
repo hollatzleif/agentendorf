@@ -1,0 +1,24 @@
+From: Prof. Beispiel <prof@example.org>
+To: leif@example.org
+Subject: Unterlagen zur =?utf-8?q?=C3=9Cbung?=
+Date: Wed, 18 Nov 2026 10:00:00 +0100
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="===============6194931632263572435=="
+
+--===============6194931632263572435==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+Hallo Leif,
+im Anhang die Angabe.
+Grüße
+
+--===============6194931632263572435==
+Content-Type: text/plain
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="angabe.txt"
+MIME-Version: 1.0
+
+QXVmZ2FiZSAxOiBCZXJlY2huZSBkZW4gTWl0dGVsd2VydCB2b24gMiwgNCwgNi4K
+
+--===============6194931632263572435==--

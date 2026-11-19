@@ -8,13 +8,16 @@ export interface Anhang {
   text?: string; // bei Text: Inhalt (ggf. in Fremdinhalt-Hülle)
   base64?: string; // bei PDF/Bild (api-Motor)
   mime?: string;
+  /** E190: Bild aus einer Umwandlung im Rechenraum (liegt nicht als Datei im Vault – claude-code sieht es über vault_lesen) */
+  umgewandelt?: boolean;
+  titel?: string;
 }
 
 /** Bisheriger Verlauf eines Chats, wie ihn der jeweilige Motor braucht. */
 export interface Verlauf {
   /** Unveränderte API-Nachrichten früherer api-Läufe (nur api-Motor) */
   apiNachrichten: unknown[];
-  /** claude-code-Sitzung zum Fortsetzen (nur claude-code-Motor) */
+  /** claude-Sitzung zum Fortsetzen (claude-code- und coding-Motor; gilt nur im Container, in dem sie entstand) */
   ccSitzung?: string;
   /** Lesbarer Verlauf als Text – für den Fall, dass der Motor gewechselt hat */
   textVerlauf?: string;
@@ -32,6 +35,8 @@ export interface LaufAuftrag {
   verlauf: Verlauf;
   werkzeuge: WerkzeugKiste;
   web: boolean;
+  /** Nur Motor coding (E191): Projektordner unter /arbeit im Codehaus (geprüfter Ordnername) – sonst leer */
+  projekt?: string;
   signal: AbortSignal;
   /**
    * E185: Nachrichten, die Leif während des Laufs nachgeschoben hat (werden dabei aus der Warteschlange genommen).

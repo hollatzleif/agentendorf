@@ -180,6 +180,7 @@ describe('api-Motor: Bilder in Werkzeug-Ergebnissen', () => {
         return { png, seiten: 3 };
       },
       aufraeumen: async () => undefined,
+      umwandeln: async () => ({ version: '1', typ: '', text: '', bilder: [], hinweise: [] }),
     };
     const { chatId } = await d.agenten.aktionStarten('Uni/a', {});
     await d.agenten.leerlauf();

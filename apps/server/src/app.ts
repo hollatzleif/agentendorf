@@ -48,6 +48,7 @@ import { VaultDienst } from './vault/dienst.js';
 import { gebaeudeAendern, gebaeudeAnlegen, gebaeudeListe } from './vault/gebaeude.js';
 import { Suchindex } from './vault/suche.js';
 import { LiveHub } from './live.js';
+import { CODING_OFFEN, codingRouten } from './coding.js';
 import type { AgentenDienst } from './agenten/dienst.js';
 import { agentenRouten } from './agenten/routen.js';
 import type { Schreibtisch } from './schreibtisch.js';
@@ -61,7 +62,8 @@ import { einstellungenLaden, einstellungenSetzen } from './telegram/einstellunge
 
 export const COOKIE = 'dorf_sitzung';
 // Saxo-Rückleitung: kommt von einer fremden Seite ohne Cookie (SameSite=Strict) – geschützt über den einmaligen state
-const OFFEN = new Set(['/api/gesundheit', '/api/anmeldung', '/api/anmeldung/info', '/api/boerse/saxo/rueckruf']);
+// Codehaus (E191): der Eintritt auf dem Code-Host prüft selbst (Einmal-Karte)
+const OFFEN = new Set<string>(['/api/gesundheit', '/api/anmeldung', '/api/anmeldung/info', '/api/boerse/saxo/rueckruf', ...CODING_OFFEN]);
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -619,6 +621,7 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
 
   // ---- Etappe 6: Programme für Mac und Windows ----
   programmeRouten(app, { ordner: path.join(konfig.datenDir, 'programme'), ursprung: konfig.origins[0] ?? '' });
+  codingRouten(app, { konfig, db, uhr });
 
   // ---- E65: To-do-Brett (Marktplatz) ----
   // Etappe 7: alle Listen unter /api/listen/<name>; /api/todos bleibt für die To-do-Liste
@@ -925,6 +928,19 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
     };
   });
   app.post('/api/aufwachen/jetzt', async () => a.aufwachen.aufwachen());
+
+  // ---- E192: eigene To-do-Liste des Bürgermeisters + Aktivitäten-Katalog (Rathaus → Schreibtisch) ----
+  app.get('/api/buergermeister/todos', async () => ({ todos: await a.aufwachen.meineTodos.liste(), rundgang: await a.aufwachen.rundgang.uebersicht() }));
+  // Leif setzt ihm selbst etwas auf die Liste (kommt beim nächsten Aufwachen dran)
+  app.post('/api/buergermeister/todos', async (req) => {
+    const e = z.object({ titel: z.string().trim().min(3).max(200), wiederAm: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }).parse(req.body);
+    return a.aufwachen.meineTodos.anlegen({ titel: e.titel, ...(e.wiederAm ? { wieder_am: e.wiederAm } : {}) }, 'Leif');
+  });
+  app.post('/api/buergermeister/todos/erledigt', async (req) => {
+    const e = z.object({ pfad: z.string(), erledigt: z.boolean(), version: z.string().optional() }).parse(req.body);
+    return a.aufwachen.meineTodos.erledigen(e.pfad, { erledigt: e.erledigt, basisVersion: e.version });
+  });
+  app.post('/api/buergermeister/todos/loeschen', async (req) => ({ papierkorb: await a.aufwachen.meineTodos.loeschen(z.object({ pfad: z.string() }).parse(req.body).pfad) }));
 
   // ---- Live-Verbindung ------------------------------------------------------------------------
   // ---- Etappe 5: Dorf ------------------------------------------------------------------------

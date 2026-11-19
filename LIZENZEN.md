@@ -14,5 +14,6 @@ Alle Gebäude, Figuren, Autos, Bäume, Symbole und Effekte des 3D-Dorfs sind **e
 | codemirror | Editor | MIT |
 | pdfjs-dist | PDF-Anzeige | Apache-2.0 |
 | fastify, better-sqlite3, zod | Server | MIT |
+| openvscode-server (Gitpod, auf Basis von Code – OSS von Microsoft) | VS Code im Browser im Codehaus-Container (`apps/coding/Dockerfile`, unverändert aus dem Release-Archiv, Version dort festgelegt) | MIT |
 
 Die vollständigen Lizenztexte liegen den Paketen in `node_modules/<paket>/LICENSE` bei.

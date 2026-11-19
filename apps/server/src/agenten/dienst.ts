@@ -1,6 +1,7 @@
 import type { ListenName, TodoDienst } from '../todos.js';
 import crypto from 'node:crypto';
-import type { Ausloeser, ChatDetail, ChatInfo, LaufInfo, LaufStatus, Motor as MotorName, Stufe } from '@dorf/shared';
+import fsSync from 'node:fs';
+import type { Ausloeser, ChatDetail, DateiKarte, ChatInfo, LaufInfo, LaufStatus, Motor as MotorName, Stufe } from '@dorf/shared';
 import type { DB } from '../db.js';
 import type { Uhr } from '../uhr.js';
 import type { VaultDienst } from '../vault/dienst.js';
@@ -11,7 +12,7 @@ import { aktionLaden, eingabenAnwenden, type QuellenFn } from './aktionen.js';
 import { ablageOrdner, type RechenraumKlient } from './rechenraum.js';
 import type { MoodleBrowserKlient } from './moodle-browser.js';
 import type { GmailKlient } from '../post/gmail.js';
-import { BUERGERMEISTER_WERKZEUGE, werkzeugeAktuell, werkzeugprofil, type DorfWerkzeug, type HelferFaehigkeit } from './leine.js';
+import { BUERGERMEISTER_WERKZEUGE, RECHENRAUM_WERKZEUGE, werkzeugeAktuell, werkzeugprofil, type DorfWerkzeug, type HelferFaehigkeit } from './leine.js';
 import { Rueckgaengig } from './rueckgaengig.js';
 import type { Kontakte } from '../kontakte.js';
 import type { GoogleKalender } from '../kalender-google.js';
@@ -19,13 +20,17 @@ import type { Kirchturm } from '../kirchturm.js';
 import type { Notizen } from '../notizen.js';
 import { kostenSchaetzen, motorenLaden, stufenLaden } from './modelle.js';
 import { anhaengeLaden, auftragMitAnhaengen, systemPromptBauen } from './kontext.js';
+import { DateiVerstehen } from './anhaenge.js';
 import { wissenLaden } from './gedaechtnis.js';
+import type { MeineTodos } from './meine-todos.js';
 import { WERKZEUG_DEFINITIONEN, WerkzeugKiste, type KalenderEintrag, type RollenHandler } from './werkzeuge.js';
 import type { Ablage } from './automatik.js';
 import { Freigaben } from './freigaben.js';
-import { AbbruchFehler, type Anhang, type Motor, type Verlauf } from './motor.js';
+import { AbbruchFehler, type Anhang, type Verlauf } from './motor.js';
+import { CODING_FEHLT, motorFehlt, type Motoren } from './motoren.js';
 import { chatSpiegeln, protokollSchreiben } from './protokolle.js';
-import { kurztitel } from './hilfen.js';
+import { dateiStempel, kurztitel } from './hilfen.js';
+import type { Readable } from 'node:stream';
 
 interface ChatZeile {
   id: string;
@@ -60,6 +65,8 @@ interface LaufZeile {
   status: LaufStatus;
   ausloeser: Ausloeser;
   auftrag: string;
+  /** E190: Dateien, die Leif diesem Lauf angehängt hat (Vault-Pfade) */
+  anhaenge_json?: string;
   erstellt: number;
   start: number | null;
   ende: number | null;
@@ -72,6 +79,23 @@ interface LaufZeile {
 }
 
 const iso = (ms: number | null) => (ms ? new Date(ms).toISOString() : undefined);
+
+/** E190: Datei-Kärtchen (Name, Größe); `nurVorhandene`: was es nicht mehr gibt, fällt weg (erzeugte Dateien) */
+function dateiKarten(vault: VaultDienst, pfade: string[], nurVorhandene = false): DateiKarte[] {
+  const aus: DateiKarte[] = [];
+  for (const pfad of pfade) {
+    let groesse: number | undefined;
+    try {
+      const st = fsSync.statSync(vault.abs(pfad));
+      if (st.isFile()) groesse = st.size;
+    } catch {
+      /* gelöscht oder verschoben */
+    }
+    if (nurVorhandene && groesse === undefined) continue;
+    aus.push({ pfad, name: pfad.split('/').pop()!, ...(groesse !== undefined ? { groesse } : {}) });
+  }
+  return aus;
+}
 export function laufInfo(l: LaufZeile): LaufInfo {
   return {
     id: l.id,
@@ -104,6 +128,8 @@ export interface ChatHerkunft {
   extraAnhaenge?: string[];
   /** E185: Zusatz zum Auftrag einer Aktion (Auftrag des Bürgermeisters, Ergebnisse der Vorgänger im Plan) */
   zusatz?: string;
+  /** E191: dieser Start braucht Leifs Freigabe, auch wenn die Aktion keine verlangt (mit Begründung für die Freigabe) */
+  freigabeNoetig?: string;
 }
 
 /** E185: Rückfrage eines Agenten an Leif (Antwort-Knöpfe in Telegram, Antwort landet als Nachricht im Chat) */
@@ -120,6 +146,16 @@ export interface LaufEnde {
   status: LaufStatus;
   fehler?: string;
   geschrieben: string[];
+}
+
+/** E191: Eingabe „projekt“ einer Codehaus-Aktion = Ordner unter /arbeit (geprüft wird im Motor und noch einmal im Runner). */
+function codingProjekt(eingabenJson: string): string | undefined {
+  try {
+    const p = (JSON.parse(eingabenJson || '{}') as Record<string, unknown>).projekt;
+    return typeof p === 'string' && p.trim() ? p.trim() : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -150,6 +186,8 @@ export class AgentenDienst {
   kalender?: (von: number, bis: number) => Promise<KalenderEintrag[]>;
   /** To-do-Brett (E65) und weitere Listen (Etappe 7) */
   listen?: Record<ListenName, TodoDienst>;
+  /** E192: die eigene To-do-Liste des Bürgermeisters (nur seine Läufe bekommen sie) */
+  meineTodos?: MeineTodos;
   /** E183: Kirchturm und Tagesnotizen für die Alltags-Werkzeuge (in dorf.ts gesetzt) */
   kirchturm?: Kirchturm;
   notizen?: Notizen;
@@ -157,6 +195,8 @@ export class AgentenDienst {
   termine?: GoogleKalender;
   kontakte?: Kontakte;
   readonly rueckgaengig: Rueckgaengig;
+  /** E190: versteht Anhänge in jedem Format (Fremdes nur über den Rechenraum); Zwischenspeicher setzt dorf.ts */
+  readonly dateien: DateiVerstehen;
   readonly beiRueckfrage: ((r: RueckfrageInfo) => void | Promise<void>)[] = [];
 
   constructor(
@@ -165,9 +205,10 @@ export class AgentenDienst {
     private vault: VaultDienst,
     private suche: Suchindex,
     private hub: LiveHub,
-    private motoren: Record<MotorName, Motor>,
+    private motoren: Motoren,
   ) {
     this.freigaben = new Freigaben(db, uhr, vault);
+    this.dateien = new DateiVerstehen(vault, () => this.rechenraum);
     this.freigaben.beiAenderung = () => hub.senden({ typ: 'freigaben.geaendert' });
     this.rueckgaengig = new Rueckgaengig(db, uhr);
     this.rueckgaengig.beiAenderung = () => hub.senden({ typ: 'freigaben.geaendert' });
@@ -249,7 +290,10 @@ export class AgentenDienst {
     const titel = `${a.name}${erstesFeld ? `: ${erstesFeld.replace(/\s+/g, ' ').slice(0, 60)}` : ''}`;
     // E185: Der Bürgermeister erledigt Kurzes selbst – Post, Kalender, Adressbuch und Web hat er immer (unabhängig von der Aktionsdatei)
     const bm = a.rolle === 'buergermeister';
-    const werkzeugListe: string[] = [...new Set([...profil.dorf, ...(bm ? BUERGERMEISTER_WERKZEUGE : []), ...(profil.web || bm ? ['web'] : [])])];
+    // E190: … und den Rechenraum (Dateien umwandeln, erzeugen und ablegen), sofern er eingerichtet ist
+    const werkzeugListe: string[] = [
+      ...new Set([...profil.dorf, ...(bm ? BUERGERMEISTER_WERKZEUGE : []), ...(bm && this.rechenraum ? RECHENRAUM_WERKZEUGE : []), ...(profil.web || bm ? ['web'] : [])]),
+    ];
     const chatId = await this.chatAnlegen({
       gebaeude: a.gebaeude,
       aktion: a.id,
@@ -263,13 +307,14 @@ export class AgentenDienst {
       rolle: a.rolle,
       herkunft,
     });
-    const laufId = this.laufAnlegen(chatId, prompt, ausloeser, a.freigabeVorStart);
+    const vorStart = a.freigabeVorStart || !!herkunft.freigabeNoetig;
+    const laufId = this.laufAnlegen(chatId, prompt, ausloeser, vorStart);
     if (abl) this.ablage!.merken(laufId, abl.ziel, abl.entwurf);
-    if (a.freigabeVorStart) {
+    if (vorStart) {
       await this.freigaben.beantragen({
         art: 'lauf_starten',
         titel: `Aktion starten: ${titel}`,
-        begruendung: 'Diese Aktion verlangt vor dem Start Leifs Freigabe (freigabe_vor_start).',
+        begruendung: herkunft.freigabeNoetig ?? 'Diese Aktion verlangt vor dem Start Leifs Freigabe (freigabe_vor_start).',
         inhalt: { laufId },
         gebaeude: a.gebaeude,
         laufId,
@@ -373,14 +418,19 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
    * Setzt einen Chat mit einer neuen Nachricht fort. Läuft dort gerade etwas, kommt sie in die Warteschlange (E185) und
    * wird nach dem aktuellen Schritt übergeben – nichts geht verloren, weder Leifs Nachschub noch Meldungen des Dorfs.
    */
-  nachrichtSenden(chatId: string, text: string, ausloeser: Ausloeser = 'klick'): { laufId?: string; wartend?: number } {
+  nachrichtSenden(chatId: string, textRoh: string, ausloeser: Ausloeser = 'klick', anhaenge: string[] = []): { laufId?: string; wartend?: number } {
     const c = this.chatZeile(chatId);
-    if (!text.trim()) throw new DorfFehler(400, 'Nachricht ist leer.');
+    if (!textRoh.trim() && !anhaenge.length) throw new DorfFehler(400, 'Nachricht ist leer.');
+    // E190: nur Dateien, kein Text → der Agent soll sie sich ansehen
+    const text = textRoh.trim() ? textRoh : `Ich habe dir ${anhaenge.length === 1 ? 'eine Datei' : `${anhaenge.length} Dateien`} angehängt – schau sie dir an.`;
+    const anhaengeJson = JSON.stringify(anhaenge);
     const offen = this.offenerLauf(chatId);
     // Auch einreihen, wenn noch Älteres wartet (der Lauf ist gerade zu Ende, die Schlange aber noch nicht übergeben) –
     // sonst käme die neue Nachricht vor den älteren dran (Review zu E185).
     if (offen || this.wartend(chatId).length) {
-      this.db.prepare('INSERT INTO chat_warteschlange (chat_id, text, ausloeser, erstellt) VALUES (?, ?, ?, ?)').run(chatId, text, ausloeser, this.uhr.jetzt());
+      this.db
+        .prepare('INSERT INTO chat_warteschlange (chat_id, text, ausloeser, erstellt, anhaenge_json) VALUES (?, ?, ?, ?, ?)')
+        .run(chatId, text, ausloeser, this.uhr.jetzt(), anhaengeJson);
       if (!offen) {
         // kein Lauf mehr offen: gleich alles in der richtigen Reihenfolge übergeben
         this.schlangeUebergeben(chatId);
@@ -390,9 +440,15 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
       this.hub.senden({ typ: 'chat.geaendert', chatId, gebaeude: c.gebaeude });
       return { wartend: this.wartend(chatId).length };
     }
-    const laufId = this.laufAnlegen(c.id, text, ausloeser, false);
+    const laufId = this.laufAnlegen(c.id, text, ausloeser, false, anhaenge);
     this.anstossen();
     return { laufId };
+  }
+
+  /** E190: Anhang einer Chat-Nachricht ablegen – <Gebäude>/chats/anhaenge/<zeit>/<name> (ASCII-Name, nie überschreiben) */
+  async anhangSpeichern(chatId: string, dateiname: string, strom: Readable) {
+    const c = this.chatZeile(chatId);
+    return this.vault.hochladen(`${c.gebaeude}/chats/anhaenge/${dateiStempel(this.uhr.jetzt())}`, dateiname, strom);
   }
 
   private offenerLauf(chatId: string) {
@@ -400,11 +456,17 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
   }
 
   wartend(chatId: string) {
-    return (this.db.prepare('SELECT id, text, erstellt FROM chat_warteschlange WHERE chat_id = ? ORDER BY id').all(chatId) as { id: number; text: string; erstellt: number }[]).map((w) => ({
-      id: w.id,
-      text: w.text,
-      erstellt: iso(w.erstellt)!,
-    }));
+    return (
+      this.db.prepare('SELECT id, text, erstellt, anhaenge_json FROM chat_warteschlange WHERE chat_id = ? ORDER BY id').all(chatId) as {
+        id: number;
+        text: string;
+        erstellt: number;
+        anhaenge_json: string;
+      }[]
+    ).map((w) => {
+      const anhaenge = dateiKarten(this.vault, JSON.parse(w.anhaenge_json || '[]') as string[]);
+      return { id: w.id, text: w.text, erstellt: iso(w.erstellt)!, ...(anhaenge.length ? { anhaenge } : {}) };
+    });
   }
 
   /** Eine wartende Nachricht wieder herausnehmen (Leif hat es sich anders überlegt) */
@@ -418,7 +480,14 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
   /** Nimmt alles Wartende eines Chats heraus (atomar) – für den nächsten Lauf oder als Nachschub in den laufenden */
   private schlangeNehmen(chatId: string) {
     return this.db.transaction(() => {
-      const z = this.db.prepare('SELECT id, text, ausloeser FROM chat_warteschlange WHERE chat_id = ? ORDER BY id').all(chatId) as { id: number; text: string; ausloeser: Ausloeser }[];
+      const z = (
+        this.db.prepare('SELECT id, text, ausloeser, anhaenge_json FROM chat_warteschlange WHERE chat_id = ? ORDER BY id').all(chatId) as {
+          id: number;
+          text: string;
+          ausloeser: Ausloeser;
+          anhaenge_json: string;
+        }[]
+      ).map((x) => ({ id: x.id, text: x.text, ausloeser: x.ausloeser, anhaenge: JSON.parse(x.anhaenge_json || '[]') as string[] }));
       if (z.length) this.db.prepare('DELETE FROM chat_warteschlange WHERE chat_id = ?').run(chatId);
       return z;
     })();
@@ -430,7 +499,7 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
     const z = this.schlangeNehmen(chatId);
     if (!z.length) return;
     const text = z.length === 1 ? z[0]!.text : z.map((x, i) => `Nachricht ${i + 1}:\n${x.text}`).join('\n\n---\n\n');
-    this.laufAnlegen(chatId, text, z.some((x) => x.ausloeser !== 'zeitplan') ? 'klick' : 'zeitplan', false);
+    this.laufAnlegen(chatId, text, z.some((x) => x.ausloeser !== 'zeitplan') ? 'klick' : 'zeitplan', false, [...new Set(z.flatMap((x) => x.anhaenge))]);
   }
 
   /** E185: Rückfrage eines Agenten – als Hinweis im Chat, Zuhörer (Telegram) schicken Knöpfe */
@@ -463,16 +532,16 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
     this.laufend.get(laufId)?.abort();
   }
 
-  private laufAnlegen(chatId: string, auftrag: string, ausloeser: Ausloeser, wartetFreigabe: boolean) {
+  private laufAnlegen(chatId: string, auftrag: string, ausloeser: Ausloeser, wartetFreigabe: boolean, anhaenge: string[] = []) {
     const c = this.chatZeile(chatId);
     const id = crypto.randomUUID();
     const nummer = ((this.db.prepare('SELECT MAX(nummer) AS n FROM laeufe WHERE chat_id = ?').get(chatId) as { n: number | null }).n ?? 0) + 1;
     this.db
       .prepare(
-        `INSERT INTO laeufe (id, chat_id, nummer, motor, modell, stufe, aufwand, status, ausloeser, auftrag, erstellt)
-         VALUES (?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?)`,
+        `INSERT INTO laeufe (id, chat_id, nummer, motor, modell, stufe, aufwand, status, ausloeser, auftrag, erstellt, anhaenge_json)
+         VALUES (?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?)`,
       )
-      .run(id, chatId, nummer, c.motor, c.modell, c.stufe, wartetFreigabe ? 'wartet_freigabe' : 'wartend', ausloeser, auftrag, this.uhr.jetzt());
+      .run(id, chatId, nummer, c.motor, c.modell, c.stufe, wartetFreigabe ? 'wartet_freigabe' : 'wartend', ausloeser, auftrag, this.uhr.jetzt(), JSON.stringify(anhaenge));
     this.statusMelden(id);
     return id;
   }
@@ -506,6 +575,9 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
 
   /** Zeitgesteuerte Läufe laufen immer über die API (Abo nur für Leifs Klicks). Der Notschalter übersteuert alles. */
   private effektiverMotor(l: LaufZeile, alleAuf: 'keiner' | MotorName): MotorName {
+    // E191: Coding-Läufe gibt es nur im Codehaus-Container (Shell, Projekte) – der Notschalter verlegt sie nicht.
+    // Anhalten lassen sie sich mit parallel.coding: 0.
+    if (l.motor === 'coding') return 'coding';
     if (alleAuf !== 'keiner') return alleAuf;
     if (l.ausloeser === 'zeitplan') return 'api';
     return l.motor;
@@ -534,7 +606,7 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
     this.statusMelden(laufId);
     let letzteAntwort = '';
     // Nachschub, den der Motor schon genommen hat, auf den das Modell aber noch nicht geantwortet hat (Review zu E185)
-    let nachschubOffen: { text: string; ausloeser: Ausloeser }[] = [];
+    let nachschubOffen: { text: string; ausloeser: Ausloeser; anhaenge: string[] }[] = [];
     const t = { ein: 0, aus: 0, cacheLesen: 0, cacheSchreiben: 0, kosten: 0 as number | undefined };
     let status: LaufStatus = 'fertig';
     let fehler: string | null = null;
@@ -545,11 +617,11 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
       const s = stufen.stufen[c.stufe];
       // Das Modell steht im Chat fest; der Aufwand kommt aus der aktuellen Stufe.
       this.db.prepare('UPDATE laeufe SET aufwand = ?, modell = ? WHERE id = ?').run(s.aufwand, c.modell, laufId);
-      const motor = this.motoren[l.motor];
+      const motor = this.motoren[l.motor] ?? motorFehlt(l.motor, CODING_FEHLT);
       const werkzeugListe = werkzeugeAktuell(JSON.parse(c.werkzeuge_json) as string[], (n) => n in WERKZEUG_DEFINITIONEN);
       const profil = { dorf: werkzeugListe.filter((w) => w !== 'web') as DorfWerkzeug[], web: werkzeugListe.includes('web') };
       // Bürgermeister (E61): Gedächtnis und Persönlichkeit einmal lesen – für den Prompt und als bekannte Fassung
-      const wissen = c.rolle === 'buergermeister' ? await wissenLaden(this.vault) : null;
+      const wissen = c.rolle === 'buergermeister' ? await wissenLaden(this.vault, this.meineTodos) : null;
       const kiste = new WerkzeugKiste(
         this.db,
         this.uhr,
@@ -563,12 +635,14 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
           erlaubt: profil.dorf,
           rechenraum:
             this.rechenraum && profil.dorf.includes('rechenraum_befehl')
-              ? { klient: this.rechenraum, ablage: ablageOrdner({ gebaeude: c.gebaeude, titel: c.titel, erstellt: c.erstellt, eingaben: JSON.parse(c.eingaben_json || '{}') }) }
+              ? { klient: this.rechenraum, ablage: ablageOrdner({ gebaeude: c.gebaeude, titel: c.titel, erstellt: c.erstellt, eingaben: JSON.parse(c.eingaben_json || '{}'), rolle: c.rolle }) }
               : undefined,
           post: profil.dorf.includes('post_lesen') || profil.dorf.includes('post_entwurf_neu') ? this.post : undefined,
           moodle: this.moodleBrowser && profil.dorf.includes('moodle_oeffnen') ? this.moodleBrowser : undefined,
           kalender: profil.dorf.includes('kalender_lesen') ? this.kalender : undefined,
           wissen: wissen ? { gedaechtnisVersion: wissen.gedaechtnisVersion } : undefined,
+          meineTodos: wissen ? this.meineTodos : undefined,
+          dateien: this.dateien,
           listen: this.listen,
           kirchturm: this.kirchturm,
           notizen: this.notizen,
@@ -587,9 +661,10 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
       const system = await systemPromptBauen(this.vault, { gebaeude: c.gebaeude, aktionName, profil, jetzt: this.uhr.jetzt(), motor: l.motor, stufe: c.stufe, wissen });
       let anhaenge: Anhang[] = [];
       let nachricht = l.auftrag;
-      const muster = JSON.parse(c.anhaenge_json) as string[];
-      if (l.nummer === 1 && muster.length) {
-        const geladen = await anhaengeLaden(this.vault, muster, !!c.fremdinhalte);
+      // Anhänge der Aktion (nur im ersten Lauf) + was Leif diesem Lauf angehängt hat (E190)
+      const muster = [...(l.nummer === 1 ? (JSON.parse(c.anhaenge_json) as string[]) : []), ...(JSON.parse(l.anhaenge_json || '[]') as string[])];
+      if (muster.length) {
+        const geladen = await anhaengeLaden(this.vault, muster, !!c.fremdinhalte, this.dateien);
         anhaenge = geladen.anhaenge;
         nachricht = auftragMitAnhaengen(l.auftrag, anhaenge, geladen.fehlend, !!c.fremdinhalte);
       } else if (l.nummer === 1 && c.fremdinhalte) {
@@ -597,10 +672,11 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
       }
       const verlauf = this.verlaufFuer(c, l.motor);
 
-      for await (const e of motor.starten({ laufId, chatId: c.id, modell: c.modell, aufwand: s.aufwand, system, nachricht, anhaenge, verlauf, werkzeuge: kiste, web: profil.web, signal: ac.signal, nachschub: () => {
+      for await (const e of motor.starten({ laufId, chatId: c.id, modell: c.modell, aufwand: s.aufwand, system, nachricht, anhaenge, verlauf, werkzeuge: kiste, web: profil.web, projekt: l.motor === 'coding' ? codingProjekt(c.eingaben_json) : undefined, signal: ac.signal, nachschub: () => {
         const z = this.schlangeNehmen(c.id);
         nachschubOffen.push(...z);
-        return z.map((x) => x.text);
+        // E190: Anhänge im Nachschub als Pfade – vault_lesen versteht jedes Format
+        return z.map((x) => (x.anhaenge.length ? `${x.text}\n\nAngehängt (lies sie mit vault_lesen):\n${x.anhaenge.map((p) => `- ${p}`).join('\n')}` : x.text));
       }, liveText: (text) => this.hub.senden({ typ: 'lauf.text', laufId, chatId: c.id, text }) })) {
         switch (e.typ) {
           case 'text':
@@ -646,11 +722,16 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
       // Schlange – so gibt es einen Folgelauf, und Leifs Nachtrag bleibt nicht ohne Antwort.
       if (nachschubOffen.length) {
         this.db.transaction(() => {
-          const rest = this.db.prepare('SELECT text, ausloeser, erstellt FROM chat_warteschlange WHERE chat_id = ? ORDER BY id').all(c.id) as { text: string; ausloeser: string; erstellt: number }[];
+          const rest = this.db.prepare('SELECT text, ausloeser, erstellt, anhaenge_json FROM chat_warteschlange WHERE chat_id = ? ORDER BY id').all(c.id) as {
+            text: string;
+            ausloeser: string;
+            erstellt: number;
+            anhaenge_json: string;
+          }[];
           this.db.prepare('DELETE FROM chat_warteschlange WHERE chat_id = ?').run(c.id);
-          const neu = this.db.prepare('INSERT INTO chat_warteschlange (chat_id, text, ausloeser, erstellt) VALUES (?, ?, ?, ?)');
-          for (const x of nachschubOffen) neu.run(c.id, x.text, x.ausloeser, this.uhr.jetzt());
-          for (const x of rest) neu.run(c.id, x.text, x.ausloeser, x.erstellt);
+          const neu = this.db.prepare('INSERT INTO chat_warteschlange (chat_id, text, ausloeser, erstellt, anhaenge_json) VALUES (?, ?, ?, ?, ?)');
+          for (const x of nachschubOffen) neu.run(c.id, x.text, x.ausloeser, this.uhr.jetzt(), JSON.stringify(x.anhaenge));
+          for (const x of rest) neu.run(c.id, x.text, x.ausloeser, x.erstellt, x.anhaenge_json);
         })();
       }
       this.db.prepare('UPDATE laeufe SET status = ?, fehler = ?, ende = ? WHERE id = ?').run(status, fehler, this.uhr.jetzt(), laufId);
@@ -707,7 +788,7 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
     if (fremdMotor) return { apiNachrichten: [], textVerlauf };
     return {
       apiNachrichten: motor === 'api' ? n.filter((x) => x.roh_json).map((x) => JSON.parse(x.roh_json!)) : [],
-      ccSitzung: motor === 'claude-code' ? (c.cc_sitzung ?? undefined) : undefined,
+      ccSitzung: motor !== 'api' ? (c.cc_sitzung ?? undefined) : undefined,
     };
   }
 
@@ -760,7 +841,19 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
 
   chatDetail(id: string): ChatDetail {
     const c = this.chatZeile(id);
-    const laeufe = (this.db.prepare('SELECT * FROM laeufe WHERE chat_id = ? ORDER BY nummer').all(id) as LaufZeile[]).map(laufInfo);
+    const geschrieben = this.db
+      .prepare(
+        "SELECT lauf_id, pfad FROM werkzeug_log WHERE chat_id = ? AND art = 'geschrieben' AND erlaubt = 1 AND pfad IS NOT NULL AND werkzeug IN ('rechenraum_ablegen', 'vault_schreiben', 'moodle_herunterladen') ORDER BY id",
+      )
+      .all(id) as { lauf_id: string; pfad: string }[];
+    const laeufe = (this.db.prepare('SELECT * FROM laeufe WHERE chat_id = ? ORDER BY nummer').all(id) as LaufZeile[]).map((l) => {
+      const info = laufInfo(l);
+      // Lauf 1 zeigt auch, was beim Start hochgeladen wurde (Schreibtisch, Telegram) – nicht die Muster einer Aktion
+      const hochgeladen = l.nummer === 1 ? (JSON.parse(c.anhaenge_json || '[]') as string[]).filter((p) => /(^|\/)anhaenge\//.test(p) && !p.endsWith('/**')) : [];
+      const anhaenge = dateiKarten(this.vault, [...new Set([...hochgeladen, ...(JSON.parse(l.anhaenge_json || '[]') as string[])])]);
+      const dateien = dateiKarten(this.vault, [...new Set(geschrieben.filter((g) => g.lauf_id === l.id).map((g) => g.pfad))], true);
+      return { ...info, ...(anhaenge.length ? { anhaenge } : {}), ...(dateien.length ? { dateien } : {}) };
+    });
     const nachrichten = (
       this.db.prepare('SELECT id, lauf_id, rolle, text, erstellt FROM nachrichten WHERE chat_id = ? ORDER BY id').all(id) as {
         id: number;

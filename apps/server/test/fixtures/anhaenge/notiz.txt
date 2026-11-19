@@ -1,0 +1,4 @@
+Einkaufsliste für Leif
+- Äpfel
+- Brot
+Kennwort: Rübezahl-Test

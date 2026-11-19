@@ -64,6 +64,7 @@ function MotorenForm(p: { k: MotorenKonfig; beiFehler: (e: unknown) => void; bei
   const [alleAuf, setAlleAuf] = useState(p.k.alleAuf);
   const [cc, setCc] = useState(p.k.parallel['claude-code']);
   const [apiN, setApiN] = useState(p.k.parallel.api);
+  const [codingN, setCodingN] = useState(p.k.parallel.coding ?? 1);
   return (
     <div className="formspalte">
       <label>
@@ -82,7 +83,11 @@ function MotorenForm(p: { k: MotorenKonfig; beiFehler: (e: unknown) => void; bei
         Gleichzeitig api
         <input type="number" min={0} max={20} value={apiN} onChange={(e) => setApiN(Number(e.target.value))} />
       </label>
-      <button onClick={() => api('/api/einstellungen/motoren', { methode: 'PUT', body: { alleAuf, parallel: { 'claude-code': cc, api: apiN } } }).then(p.beiOk, p.beiFehler)}>
+      <label>
+        Gleichzeitig coding (Codehaus, 0 = aus)
+        <input type="number" min={0} max={3} value={codingN} onChange={(e) => setCodingN(Number(e.target.value))} />
+      </label>
+      <button onClick={() => api('/api/einstellungen/motoren', { methode: 'PUT', body: { alleAuf, parallel: { 'claude-code': cc, api: apiN, coding: codingN } } }).then(p.beiOk, p.beiFehler)}>
         Speichern
       </button>
     </div>

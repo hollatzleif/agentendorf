@@ -15,5 +15,12 @@ trap 'kill $MOODLE_PID 2>/dev/null || true' EXIT
 # wie bei Leif: Google-Kalender (Fristen aus seinem Skript + JKU Pflicht); der Moodle-App-Zugang ist an der JKU gesperrt
 export GOOGLE_FRISTEN_ICS="http://127.0.0.1:$MOODLE_PORT/calendar/ical/fristen/private-e2e/basic.ics"
 export GOOGLE_PFLICHT_ICS="http://127.0.0.1:$MOODLE_PORT/calendar/ical/pflicht/private-e2e/basic.ics"
+# Nachgebauter Coding-Container (Codehaus, E191): Projektliste + Zielseite für „VS Code öffnen“
+CODING_PORT=${E2E_CODING_PORT:-$((MOODLE_PORT - 2))}
+export CODING_URL="http://127.0.0.1:$CODING_PORT" CODING_ADRESSE="http://127.0.0.1:$CODING_PORT" \
+  CODING_GEHEIMNIS=e2e-coding-geheimnis-e2e-coding-geheimnis-12 CODING_VSCODE_TOKEN=e2e-vscode-token-e2e-vscode-token-123456
+CODING_PORT=$CODING_PORT node ../web/e2e/coding-attrappe.mjs &
+CODING_PID=$!
+trap 'kill $MOODLE_PID $CODING_PID 2>/dev/null || true' EXIT
 echo -n 'e2e-Passwort-sehr-lang-1' | npx tsx src/cli.ts passwort --stdin
 npx tsx src/start.ts

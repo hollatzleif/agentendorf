@@ -71,6 +71,10 @@ const ENDSTATUS = new Set(['fertig', 'fehler', 'abgebrochen']);
  * Helfer (höchstens 5 je Aufgabe) oder einen Plan mit Reihenfolge. Pläne startet der CODE – sofort, außer Leif wollte
  * einen Plan sehen oder der Plan ist groß/teuer (dann Freigabe). Skills legt er direkt an (mit „Rückgängig“).
  */
+/** E191: Begründung der Freigabe, wenn ein Coding-Helfer aus einem Gespräch mit Fremdinhalten starten soll */
+export const CODING_FREIGABE_GRUND =
+  'Der Bürgermeister will einen Coding-Helfer starten (Shell, Internet, GitHub, Vault beschreibbar) – in diesem Gespräch wurden aber Inhalte von außen gelesen (Mail, Web, Moodle, Kalender). Bitte prüfen, ob der Auftrag wirklich von dir kommt.';
+
 export class Buergermeister implements RollenHandler {
   /** Zuhörer für erledigte Aufgaben (Telegram) */
   readonly beiAbschluss: ((a: { chatId: string; titel: string; text: string }) => void | Promise<void>)[] = [];
@@ -245,7 +249,12 @@ export class Buergermeister implements RollenHandler {
     const geprueft = await this.teilaufgabePruefen({ ...t, titel: t.titel ?? t.auftrag.split('\n')[0]!.slice(0, 80) });
     // Helfer laufen mit dem Motor ihrer Aktion/Stufe (meist claude-code = Leifs Abo) – auch wenn der Bürgermeister
     // von selbst aufgewacht ist (Leif, E56). Er selbst denkt beim Aufwachen über api (Tagesbudget). Notschalter übersteuert.
-    const r = await this.teilaufgabeStarten(geprueft, { schreibtischId: chat.schreibtisch_id ?? undefined, elternChatId: k.chatId }, 'buergermeister');
+    // E191: Coding-Helfer haben Shell, Internet, GitHub und den Vault. Hat dieses Gespräch Fremdes gelesen (Mail, Web,
+    // Moodle …), könnte der Auftrag eingeschleust sein – dann startet der Helfer erst nach Leifs Klick.
+    const freigabeNoetig = geprueft.motor === 'coding' && this.fremdBeruehrt(k) ? CODING_FREIGABE_GRUND : undefined;
+    const r = await this.teilaufgabeStarten(geprueft, { schreibtischId: chat.schreibtisch_id ?? undefined, elternChatId: k.chatId, freigabeNoetig }, 'buergermeister');
+    if (freigabeNoetig)
+      return { ok: true, text: `Der Coding-Helfer ist vorbereitet (Chat ${r.chatId}) und startet, sobald Leif zustimmt: In diesem Gespräch wurden Inhalte von außen gelesen, und im Codehaus kann ein Agent Befehle ausführen und auf GitHub schreiben. Sag Leif kurz, was der Helfer tun soll.` };
     return { ok: true, text: `Helfer gestartet (Chat ${r.chatId}) im Gebäude ${geprueft.gebaeude}${geprueft.aktion ? ` mit der Aktion ${geprueft.aktion}` : ''}. Du musst nicht warten; das Dorf meldet Leif, wenn er fertig ist.` };
   }
 
@@ -276,12 +285,26 @@ export class Buergermeister implements RollenHandler {
 
   private async teilaufgabeStarten(
     t: PlanTeilaufgabe,
-    herkunft: { schreibtischId?: string; elternChatId: string; planId?: string; zusatz?: string },
+    herkunft: { schreibtischId?: string; elternChatId: string; planId?: string; zusatz?: string; freigabeNoetig?: string },
     ausloeser: 'buergermeister' | 'zeitplan' = 'buergermeister',
   ) {
     // E185: Aktionen bekommen den Auftrag des Bürgermeisters als Zusatz (früher ging er verloren), dazu die Ergebnisse der Vorgänger
     if (t.aktion) return this.agenten.aktionStarten(`${t.gebaeude}/${t.aktion}`, t.eingaben ?? {}, ausloeser, { ...herkunft, zusatz: [t.auftrag, herkunft.zusatz].filter(Boolean).join('\n\n') });
     return this.agenten.helferStarten({ gebaeude: t.gebaeude, titel: t.titel, auftrag: t.auftrag, stufe: t.stufe, ausloeser, herkunft, faehigkeiten: t.faehigkeiten as HelferFaehigkeit[] | undefined });
+  }
+
+  /**
+   * E191: Hat dieses Gespräch Inhalte von außen gelesen? Jetzt in diesem Lauf (k.fremdinhalte, vom Werkzeugkasten) oder
+   * in einem früheren Lauf desselben Chats (Web, Post, Moodle, Kalender laut werkzeug_log).
+   */
+  private fremdBeruehrt(k: LaufKontext): boolean {
+    if (k.fremdinhalte) return true;
+    return !!this.db
+      .prepare(
+        `SELECT 1 FROM werkzeug_log WHERE chat_id = ? AND erlaubt = 1
+           AND (art = 'web' OR werkzeug IN ('WebSearch', 'WebFetch', 'kalender_lesen') OR werkzeug LIKE 'post!_%' ESCAPE '!' OR werkzeug LIKE 'moodle!_%' ESCAPE '!') LIMIT 1`,
+      )
+      .get(k.chatId);
   }
 
   private async planVorlegen(eingabe: unknown, k: LaufKontext): Promise<WerkzeugAufrufErgebnis> {
@@ -302,15 +325,18 @@ export class Buergermeister implements RollenHandler {
     }
     const planId = crypto.randomUUID();
     const kostenUsd = Math.round(teilaufgaben.reduce((s, t) => s + t.kostenUsd, 0) * 1000) / 1000;
-    const abo = teilaufgaben.filter((t) => t.motor === 'claude-code').length;
+    const abo = teilaufgaben.filter((t) => t.motor !== 'api').length;
     const jetzt = this.uhr.jetzt();
     // E62: ohne Antwort nach N Minuten automatisch annehmen (Einstellung in 00_Stadtordnung/aufwachen.md, 0 = nie)
     // E185: Leif bestätigt nur, wenn er selbst einen Plan wollte – oder der Plan groß/teuer ist (Schutz vor Ausreißern)
     // Review: die Grenzen gelten je AUFGABE, nicht je Plan – sonst ergäben drei kleine Pläne in einem Lauf 15 Helfer ohne Klick
     const bisher = this.helferJeAufgabe(chat);
     const zuGross = bisher.helfer + teilaufgaben.length > PLAN_OHNE_FRAGE_MAX_HELFER || bisher.usdOhneFrage + kostenUsd > PLAN_OHNE_FRAGE_MAX_USD;
-    const fragen = p.bestaetigen || zuGross;
-    const minuten = fragen ? (await aufwachEinstellungen(this.vault)).plan_automatisch_nach_minuten : 0;
+    // E191: Plan mit Coding-Helfern aus einem Gespräch, das Fremdes gelesen hat → Leif entscheidet, und zwar wirklich
+    // (kein automatisches Annehmen nach N Minuten): dort gibt es Shell, GitHub und den ganzen Vault.
+    const codingFremd = teilaufgaben.some((t) => t.motor === 'coding') && this.fremdBeruehrt(k);
+    const fragen = p.bestaetigen || zuGross || codingFremd;
+    const minuten = fragen && !codingFremd ? (await aufwachEinstellungen(this.vault)).plan_automatisch_nach_minuten : 0;
     const automatischUm = minuten > 0 ? jetzt + minuten * 60_000 : null;
     const inhalt: PlanInhalt = {
       planId,

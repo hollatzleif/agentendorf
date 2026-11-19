@@ -70,6 +70,7 @@ describe('claude-code-Motor über die Werkstatt', () => {
       dateien: async () => [],
       seite: async () => ({ png: Buffer.from('PNG!'), seiten: 1 }),
       aufraeumen: async () => undefined,
+      umwandeln: async () => ({ version: '1', typ: '', text: '', bilder: [], hinweise: [] }),
     };
     try {
       const { chatId } = await d.agenten.aktionStarten('Uni/cc-bild', {});

@@ -1,4 +1,6 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { Readable } from 'node:stream';
+import { MAX_ANHANG_BYTES } from '@dorf/shared';
 import { z } from 'zod';
 import type { AktionInfo } from '@dorf/shared';
 import type { VaultDienst } from '../vault/dienst.js';
@@ -56,8 +58,15 @@ export function agentenRouten(
     return agenten.chatListe(q);
   });
   app.get('/api/chats/:id', async (req) => agenten.chatDetail(z.object({ id: z.string() }).parse(req.params).id));
+  // E190: Text + Dateien (multipart) oder nur Text (JSON) – läuft gerade etwas, kommt beides in die Warteschlange
   app.post('/api/chats/:id/nachricht', async (req) => {
     const { id } = z.object({ id: z.string() }).parse(req.params);
+    if (req.isMultipart()) {
+      agenten.chatZeile(id); // 404 vor dem Speichern
+      const e = await anhaengeEmpfangen(req, vault, (name, strom) => agenten.anhangSpeichern(id, name, strom));
+      if (e.text.length > 100_000) throw new DorfFehler(400, 'Die Nachricht ist zu lang.');
+      return agenten.nachrichtSenden(id, e.text, 'klick', e.anhaenge);
+    }
     const { text } = z.object({ text: z.string().max(100_000) }).parse(req.body);
     return agenten.nachrichtSenden(id, text);
   });
@@ -102,7 +111,7 @@ export function agentenRouten(
     const b = z
       .object({
         alleAuf: z.enum(['keiner', 'api', 'claude-code']),
-        parallel: z.object({ 'claude-code': z.number().int().min(0).max(10), api: z.number().int().min(0).max(20) }),
+        parallel: z.object({ 'claude-code': z.number().int().min(0).max(10), api: z.number().int().min(0).max(20), coding: z.number().int().min(0).max(3).optional() }),
       })
       .parse(req.body);
     await motorenSetzen(vault, b);
@@ -117,13 +126,9 @@ export function agentenRouten(
   /** Neue Aufgabe (Text + Dateien, multipart oder JSON) – der Bürgermeister legt sofort los. */
   app.post('/api/schreibtisch', async (req) => {
     let text = '';
-    const anhaenge: string[] = [];
-    if (req.isMultipart()) {
-      for await (const teil of req.parts()) {
-        if (teil.type === 'file') anhaenge.push(await d.schreibtisch.anhangSpeichern(teil.filename, teil.file));
-        else if (teil.fieldname === 'text') text = String(teil.value ?? '');
-      }
-    } else text = z.object({ text: z.string() }).parse(req.body).text;
+    let anhaenge: string[] = [];
+    if (req.isMultipart()) ({ text, anhaenge } = await anhaengeEmpfangen(req, vault, (name, strom) => d.schreibtisch.anhangSpeichern(name, strom)));
+    else text = z.object({ text: z.string() }).parse(req.body).text;
     const a = await d.schreibtisch.anlegen({ text, quelle: 'app', anhaenge });
     await d.buergermeister.starten(a.id, 'klick');
     return d.schreibtisch.holen(a.id);
@@ -139,4 +144,31 @@ export function agentenRouten(
 
   app.get('/api/plaene', async () => d.buergermeister.plaene());
   app.get('/api/plaene/:id', async (req) => d.buergermeister.planInfo(z.object({ id: z.string() }).parse(req.params).id));
+}
+
+/**
+ * E190: multipart mit Feld „text“ und beliebig vielen Dateien (je höchstens MAX_ANHANG_BYTES, zusammen höchstens 20).
+ * Ist eine Datei zu groß, wird nichts übernommen (schon gespeicherte Dateien → Papierkorb) und die Meldung nennt sie.
+ */
+async function anhaengeEmpfangen(req: FastifyRequest, vault: VaultDienst, speichern: (name: string, strom: Readable) => Promise<string>) {
+  let text = '';
+  const anhaenge: string[] = [];
+  try {
+    for await (const teil of req.parts({ limits: { fileSize: MAX_ANHANG_BYTES, files: 20 } })) {
+      if (teil.type === 'file') {
+        try {
+          anhaenge.push(await speichern(teil.filename || 'datei', teil.file));
+        } catch (e) {
+          if ((e as { status?: number }).status === 413 || teil.file.truncated)
+            throw new DorfFehler(413, `„${teil.filename}“ ist größer als ${MAX_ANHANG_BYTES / 1024 / 1024} MB – so große Dateien nimmt das Dorf nicht an.`);
+          throw e;
+        }
+      } else if (teil.fieldname === 'text') text = String(teil.value ?? '');
+    }
+  } catch (e) {
+    for (const p of anhaenge) await vault.loeschen(p).catch(() => undefined);
+    if ((e as { code?: string }).code === 'FST_FILES_LIMIT') throw new DorfFehler(413, 'Höchstens 20 Dateien auf einmal.');
+    throw e;
+  }
+  return { text, anhaenge };
 }

@@ -30,8 +30,13 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
     motor-attrappe.ts     Motor ohne Tokenverbrauch (Tests, DORF_MOTOR_ATTRAPPE=1)
     system.ts       SystemAufrufe: ein api-Aufruf OHNE Werkzeuge mit JSON-Schema-Antwort, verbucht als System-Chat (Einordnung, Zeitung)
     moodle-browser.ts Klient für den Moodle-Browser + Seitenauszug-Text; Werkzeuge moodle_* (werkzeuge.ts), nur mit werkzeuge: [moodle] + fremdinhalte
-    rechenraum.ts   Klient für den Rechenraum + Ablage-Ordner (vom Code bestimmt) + erlaubte Endungen (.pdf/.tex)
+    rechenraum.ts   Klient für den Rechenraum (+ umwandeln) + Ablage-Ordner (vom Code bestimmt; Bürgermeister: Rathaus/dateien/) + erlaubte
+                    Endungen (fertige Dateien: PDF, TeX, DOCX/XLSX/PPTX, ODF, CSV/TXT/MD, PNG/JPG/SVG, ZIP … – nie HTML/Skripte)
+    anhaenge.ts     E190: Anhänge in jedem Format – Text direkt, PDF/Bilder nativ, alles andere NUR über den Rechenraum (/umwandeln),
+                    Zwischenspeicher <daten>/umwandlung/, immer Fremdinhalt-Hülle, Unbekanntes mit Name/Typ/Größe; auch vault_lesen
     gedaechtnis.ts  Rathaus/memory.md (Bürgermeister pflegt selbst, Archiv, Version) + personality.md (nur per Freigabe) – E61
+    meine-todos.ts  E192: eigene To-do-Liste des Bürgermeisters (Rathaus/buergermeister-todos/, eine Datei je Eintrag, „wieder ansehen am“,
+                    Bezug zu Aufgabe/Chat); meine_todos_* nur für ihn; nach jedem Lauf übernimmt der Code „Offen“ ohne Dubletten
     buergermeister.ts     Bürgermeister (Etappe 2b, E185/E186): erledigt Kurzes selbst; aktionen_liste, helfer_starten (max. 5 je Aufgabe),
                           plan_vorlegen (max. 10, Reihenfolge über `nach`, startet sofort – Freigabe nur auf Leifs Wunsch oder wenn groß/teuer),
                           Plan-Ausführung durch den CODE, Abschluss genau einmal, Status der Schreibtisch-Aufgabe
@@ -40,6 +45,8 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
   src/boerse.ts   Etappe 7 (E70): Depot/Watchlist (Boerse/depot.md), EODHD-Schlusskurse (≤ 19 Abrufe/Tag, ISIN → Kürzel gemerkt), EZB Euro/Dollar
   src/corps.ts    Etappe 7 (E69): Corps-Termine (Hauptkalender per Stichwort), Absenderliste für den Postboten (Corpshaus/einstellungen.md)
   src/kontakte.ts Adressbuch (E186): Rathaus/kontakte.md + Absender im Posteingang + gesendete Mails (kontakt_suchen/kontakt_merken)
+  src/coding.ts   E191 Codehaus: Zugang zu VS Code auf code.<domain> (Einmal-Karte → Cookie dorf_coding, nur Hash, an die Sitzung
+                  gebunden), /api/coding (Projekte vom Runner), /api/coding/oeffnen|eintritt; forward_auth-Prüfung in intern.ts
   src/todos.ts    To-do-Brett (E65): eine Datei je To-do in Marktplatz/todos/, Version/409, Löschen = Papierkorb, wiederholen (E92), Teilschritte (E119, KI-Vorschlag todo-schritte.ts); App, Telegram /todo, todo_* für alle Agenten
   src/schreibtisch.ts  Aufgaben = Notizen in Rathaus/schreibtisch/ (DB führt Status, Frontmatter spiegelt ihn); App/Telegram starten
                        den Bürgermeister sofort, Notizen aus Obsidian/von Agenten werden nur aufgenommen
@@ -70,8 +77,11 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
   src/wochenrueckblick.ts E80: sonntags 18:30 Rathaus/wochenrueckblick/JJJJ-KWnn.md (Fakten + KI-Vorschläge)
   src/wetter.ts        Wetter für Leifs Wohnort Konstanz (WETTER_ORT/WETTER_URL) von Open-Meteo (E59): bei Bedarf, 30 min Zwischenspeicher
   src/morgenzeitung.ts 06:30 Linz: Fakten vom Code + KI-Einleitung → Rathaus/morgenzeitung/, Rathaus-Reiter, Telegram
-  src/aufwachen.ts     Bürgermeister wacht zu zufälligen Zeiten auf (alle 3–7 h, 24/7, E56/E181; Termin in dorf_stand): Code prüft, KI nur bei NEUEN Anlässen (Lagebericht) oder
-                       alle 3 h als Rundgang; Tagesbudget; Nachtruhe 22–7 für Telegram (istNacht, telegram/bot.ts nachtNachholen)
+  src/aufwachen.ts     Bürgermeister wacht zu zufälligen Zeiten auf (alle 3–7 h, 24/7, E56/E181; Termin in dorf_stand): Code prüft ohne KI; Reihenfolge
+                       (E192): fällige eigene To-dos → neue Anlässe (Lagebericht) → Rundgang mit 1–3 Katalog-Aktivitäten; ohne Anlass kein KI-Lauf;
+                       Tagesbudget; Nachtruhe 22–7 (istNacht, telegram/bot.ts nachtNachholen)
+  src/rundgang.ts      E192: Aktivitäten-Katalog (18) mit Fakten-Sammlern ohne KI, Auswahl nach Fälligkeit/Restbudget/Nacht (dorf_stand),
+                       00_Stadtordnung/rundgang.md (Zod, an/ab, Häufigkeit), Protokoll Rathaus/rundgang/, „Für Leif“ → Morgenzeitung
   src/intern.ts   interner Port 3001 (nur Docker-Netz): Werkzeugaufrufe der Werkstatt per Lauf-Token
   src/geraete.ts  E182: Geräte koppeln (6-stelliger Code, 5 min, einmalig) + Geräte-API /api/geraet/* für den Cardputer (Vertrag
                   apps/cardputer/API.md): NUR Bearer-Schlüssel (sha256 in DB), kein Cookie/Origin; ruft nur vorhandene Dienste
@@ -98,6 +108,8 @@ apps/werkstatt  eigener Container: unverändertes claude-CLI (Version im Dockerf
 apps/rechenraum eigener Container: pdflatex (texlive), Python (numpy/sympy/scipy/matplotlib), poppler; runner.py nur
                 Standardbibliothek. Internes Netz ohne Internet, kein Vault, Arbeitsordner pro Chat, 120 s pro Befehl.
                 Image-Kennung = Hash(Dockerfile+runner.py), wird nur ausgeliefert, wenn der Server es nicht hat.
+                /umwandeln (E190): fremde Dateien → Text/Bilder in eigenem Kindprozess (420 s, 1,5 GB, Zip-Bomben-Grenzen); dazu ffmpeg,
+                whisper.cpp (base-q5_1, im Image), tesseract deu+eng, rsvg, heif-convert, catdoc, xlrd, olefile; python-docx/openpyxl/python-pptx/odfpy.
 apps/browser    Moodle-Browser (E57): Chromium über playwright-core + Runner (HTTP, Bearer-Geheimnis). leine.ts = DIE Regeln
                 (nur Domains aus BROWSER_HOSTS, GET ja außer sesskey/Abmelden, POST nur Anmeldeformular als Seiten-
                 navigation oder lesende Moodle-Ajax-Funktionen), browser.ts = Sitzung je Lauf, nummerierte Links,
@@ -114,6 +126,10 @@ apps/cardputer  E184/E193: Firmware für den M5Stack Cardputer Adv (aus HaloOS 0
                 Vertrag: API.md. Tests: test/host-test.sh (g++ + Nachbau-Server), test/vertrag_test.py (gegen den echten
                 e2e-Server). Bauen: tools/werkzeug.sh + tools/build.sh → release/*.bin, tools/zip.sh → ZIP für Leif (nicht im Repo).
                 WLAN (E193): bis 8 Netze mit Vorrang, versteckte Netze direkt versuchen, Wechsel ins Heimnetz. Anleitung: ANLEITUNG.md.
+apps/coding     Codehaus (E191), eigener Container: openvscode-server (3000) + Runner der Werkstatt im Profil „coding“ (4000:
+                claude mit Bash/Edit/Write, bypassPermissions, /arbeit/<projekt>, Vault rw) + git, gh, Node, Python, Compiler. Netz
+                „codingnetz“ (Internet, erreicht nur Dorf und Caddy). Geheimnisse nur aus /srv/dorf/coding.env. Compose-Profil „coding“.
+                Tests: test/start-test.sh, test/rauchtest.sh <image> (CI), deploy/test/coding-zugang-test.sh (echter Caddyfile).
 packages/shared Typen für HTTP und WebSocket (LiveEreignis, VaultEintrag …) + Dorf-Layout-Regeln (dorf.ts) – wird in den Server gebündelt
 vault-vorlage   Startinhalt des Vaults (Stadtordnung, gebaeude.md je Gebäude). Wird nur in einen LEEREN Vault kopiert.
 deploy          compose.yml, Caddyfile, dorf (Server-Verwaltung), bootstrap.sh (Ersteinrichtung), test/ (Backup-/Deploy-Tests)
@@ -127,6 +143,7 @@ deploy          compose.yml, Caddyfile, dorf (Server-Verwaltung), bootstrap.sh (
 - Rohdateien aus dem Vault werden mit `Content-Security-Policy: sandbox` ausgeliefert, HTML/SVG nur als Download (Vault-Inhalte können aus fremden Quellen stammen). Anzeigen lässt sich `.html` nur über `/api/vault/seite`: Skripte ja, aber undurchsichtiger Ursprung und kein Netz (E36).
 - Geheimnisse nur auf dem Server – nie im Repo, nie im Vault: `/srv/dorf/.env` (Dorf: ANTHROPIC_API_KEY, EODHD_API_KEY, WERKSTATT_GEHEIMNIS, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, GOOGLE_FRISTEN_ICS, GOOGLE_PFLICHT_ICS, GOOGLE_TERMINE_ICS, GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN, MOODLE_KALENDER_URL, MOODLE_URL, MOODLE_TOKEN, RECHENRAUM_GEHEIMNIS), `/srv/dorf/rechenraum.env` (nur RECHENRAUM_GEHEIMNIS), `/srv/dorf/browser.env` (nur Browser-Container: BROWSER_GEHEIMNIS, MOODLE_BENUTZER, MOODLE_PASSWORT, BROWSER_HOSTS, MOODLE_WEB_URL) und `/srv/dorf/werkstatt.env` (Werkstatt: CLAUDE_CODE_OAUTH_TOKEN, WERKSTATT_GEHEIMNIS). Der API-Schlüssel erreicht die Werkstatt nie, das Abo-Token das Dorf nie.
 - **Die Leine sitzt im Code** (`agenten/leine.ts`, `werkzeuge.ts`, Werkstatt-Argumente): Agenten haben kein eingebautes Schreiben/Shell. Senden, Abgeben, Zahlen gibt es nicht (nur Entwürfe). Seit E185 gilt Leifs Regel „bestätigen nur, wenn ich einen Plan will“: Was sich zurückholen lässt (Termin im eigenen Kalender, Skill ohne Zeitplan, Datei im eigenen Gebäude), tun Agenten direkt, und Leif bekommt „Rückgängig“ (`rueckgaengig.ts`, App + Telegram). Freigaben (`freigaben.ts`, Ausführung erst nach Leifs Klick) bleiben für Dateien außerhalb des eigenen Gebäudes, Termine mit Gästen, Skills mit Zeitplan, die Persönlichkeit und gewünschte oder große Pläne. Web darf mit Post/Moodle/Kalender/Fremdinhalten zusammen laufen – Leif hat das Abfluss-Risiko bewusst in Kauf genommen (E185); jeder Web-Abruf steht im `werkzeug_log`, die Fremdinhalt-Hülle bleibt. Zeitgesteuerte Läufe des Bürgermeisters laufen über `api` mit Tagesbudget (`00_Stadtordnung/aufwachen.md`); Helfer, die er startet, über den Motor ihrer Aktion – meist claude-code/Abo (E56, ersetzt E51); Notschalter `alle_auf` übersteuert alles.
+- **Ausnahme Codehaus (E191, Leifs Entscheidung):** Der Motor `coding` läuft im Coding-Container mit Shell, Internet, GitHub (auch pushen/mergen) und beschreibbarem Vault – dort gilt die Leine nur für die Dorf-Werkzeuge, nicht für Bash/Edit/Write. Darum: `motor: coding` nur im Gebäude Codehaus, kein Coding-Skill über App/`aktion_anlegen`, Notschalter nie „coding“, Coding-Helfer des Bürgermeisters nach Fremdinhalten nur mit Leifs Freigabe. VS Code hat eine eigene Adresse (eigener Ursprung, eigenes Cookie); das Sitzungs-Cookie des Dorfs erreicht den Container nie. `coding.env` (CODING_GEHEIMNIS, VSCODE_TOKEN, CLAUDE_CODE_OAUTH_TOKEN, GH_TOKEN, GIT_NAME, GIT_EMAIL) – nichts aus `.env` erreicht das Codehaus.
 - api-Verlauf wird **nur angehängt**, Antworten unverändert zurückgeschickt (Opus 5.5/Fable 5.2 prüfen das).
 
 ## Befehle
@@ -148,7 +165,9 @@ cargo test --manifest-path apps/programm/src-tauri/Cargo.toml   # Programm (brau
 bash apps/programm/test/selbsttest.sh   # Programm-Freigaben (laufender e2e-Server auf 3999, Xvfb)
 bash apps/cardputer/test/host-test.sh   # Cardputer-App am PC (g++, python3)
 python3 apps/cardputer/test/vertrag_test.py http://127.0.0.1:3999 'e2e-Passwort-sehr-lang-1'   # Geräte-API vs. Firmware (laufender e2e-Server)
-shellcheck -x -S warning deploy/dorf deploy/bootstrap.sh deploy/test/*.sh
+bash apps/coding/test/start-test.sh        # Codehaus-Start ohne Docker (vorher pnpm build)
+CADDY_BIN=caddy bash deploy/test/coding-zugang-test.sh   # echter Caddyfile + Dorf
+shellcheck -x -S warning deploy/dorf deploy/bootstrap.sh deploy/test/*.sh apps/coding/*.sh apps/coding/test/*.sh
 ```
 Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server über Vite-Proxy braucht das). `DORF_MOTOR_ATTRAPPE=1` ersetzt beide Motoren durch die Attrappe (Befehle in der Nachricht: `[schreibe pfad]`, `[freigabe pfad]`, `[fehler]`, `[warte ms]`, `[pause ms]` (nach den Werkzeugen), `[helfer Gebäude|Auftrag]`, `[plan Gebäude|Titel; …]` (mit Freigabe), `[los Gebäude|Titel; Gebäude|Titel|1]` (Plan ohne Freigabe, dritter Teil = `nach`), `[nachschub]`, `<<werkzeug name {json}>>`).
 
@@ -188,3 +207,7 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E184 (19.11.): Cardputer-Firmware 1.0 (Fernbedienung + Agentendorf, `apps/cardputer/`) – Host-Test und Vertragsprüfung grün, nie auf echter Hardware gelaufen
 - [x] E185–E188 (19.11.): Agenten nehmen Arbeit ab – Freigaben ausgedünnt + „Rückgängig“, Web auch mit Privatem (Leifs Entscheidung), Bürgermeister erledigt Kurzes selbst (Mail in einem Lauf, Adressbuch, Rückfrage), Pläne mit Reihenfolge, Nachrichten-Warteschlange im Chat, Termine direkt, Entwürfe mit Anhang/ändern, vault_aendern/verschieben (ersetzt den Freigabe-Teil von E183)
 - [x] E193 (19.11.): Cardputer-Firmware 1.1 – bekannte Netze automatisch (Vorrang, versteckte Netze, Wechsel ins Heimnetz), ZIP mit Anleitung; Host-Test grün (140), nie auf echter Hardware gelaufen
+- [x] E192 (19.11.): Der Bürgermeister arbeitet von selbst – eigene To-do-Liste (`meine_todos_*`, Übernahme aus „Offen“), Rundgang mit Aktivitäten-Katalog (18 von 50, `00_Stadtordnung/rundgang.md`, `docs/buergermeister-aktivitaeten.md`), „Leif kennenlernen“, Sammelmeldung in der Morgenzeitung – echte Läufe und Kosten abzunehmen
+- [x] E190 (19.11.): Anhänge in allen Formaten – Chat/Schreibtisch/Telegram (auch Sprachnachrichten), Umwandlung nur im Rechenraum (Office, Mail, Archive, Bilder, OCR, Audio-Transkript, Video-Standbilder), Bürgermeister erzeugt Dateien (Rathaus/dateien/) – Abnahme mit echten Dateien auf dem Server steht aus
+- [x] E191 (19.11.): Codehaus – VS Code im Browser (code.<Dorf-Adresse>, nur über die Dorf-Anmeldung), Coding-Agenten mit Shell, Internet, GitHub und beschreibbarem Vault (Motor coding, nur im Gebäude Codehaus); Abnahme auf dem Server steht aus (`dorf coding-einrichten`, Image kommt mit dem zweiten Deploy)
+- [x] E194 (19.11., Server): Spracheingabe für Geräte – `POST /api/geraet/sprache` (WAV → Text über whisper.cpp im Rechenraum, nichts gespeichert)

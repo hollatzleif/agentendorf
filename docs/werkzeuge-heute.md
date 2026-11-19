@@ -1,6 +1,6 @@
 # Werkzeuge der Agenten – Stand 19.11.2026 (nach E185–E189)
 
-Automatisch aus `apps/server/src/agenten/werkzeuge.ts` erzeugt (47 Dorf-Werkzeuge) plus die eingebauten Fähigkeiten der Motoren.
+Automatisch aus `apps/server/src/agenten/werkzeuge.ts` erzeugt (50 Dorf-Werkzeuge, seit E192 mit `meine_todos_*`) plus die eingebauten Fähigkeiten der Motoren.
 Wer welches Werkzeug bekommt, regelt `agenten/leine.ts`: Der **Bürgermeister** hat Vault, To-dos, Kalender, Post, Adressbuch, Kirchturm, Notizen, Web und seine Organisations-Werkzeuge immer; **Helfer** bekommen, was ihre Aktion nennt (`werkzeuge: [...]`) bzw. freie Helfer per `faehigkeiten`; To-dos, Kirchturm, Notizen und Termine haben alle.
 
 **Nie möglich:** Mails senden, bezahlen, Abgaben einreichen, Shell/Schreiben außerhalb der Leine. Was sich zurückholen lässt, tun Agenten direkt (Leif bekommt „Rückgängig“).
@@ -27,6 +27,9 @@ Wer welches Werkzeug bekommt, regelt `agenten/leine.ts`: Der **Bürgermeister** 
 | `aktion_anlegen` | Nur für den Bürgermeister: legt einen Skill (Aktion) für ein Gebäude an oder ersetzt mit ersetzen: true einen bestehenden (alte Fassung ins Archiv) – nur, wenn Leif das wünscht oder eine Aufgabe regelmäßig wiederkommt; NIE für … |
 | `gedaechtnis_schreiben` | Nur für den Bürgermeister: ersetzt dein Gedächtnis Rathaus/memory.md durch die GANZE neue Fassung (die alte kommt automatisch ins Archiv Rathaus/archiv/memory/) |
 | `persoenlichkeit_vorschlagen` | Nur für den Bürgermeister: schlägt Leif eine neue Fassung deiner Persönlichkeit Rathaus/personality.md vor (wie du auftrittst: Ton, Länge, Art der Antworten) |
+| `meine_todos_lesen` | Nur für den Bürgermeister (E192): seine EIGENE To-do-Liste lesen (Rathaus/buergermeister-todos/) – was aus früheren Aufträgen noch offen ist, fällige zuerst |
+| `meine_todos_anlegen` | Nur für den Bürgermeister (E192): trägt am Ende eines Laufs Offenes auf seine eigene Liste ein (mit „wieder ansehen am“; Bezug zur Schreibtisch-Aufgabe bzw. zum Chat automatisch) |
+| `meine_todos_erledigen` | Nur für den Bürgermeister (E192): hakt einen eigenen Eintrag ab (mit Ergebnis) oder legt ihn mit `wieder_am` auf später |
 | `rueckfrage` | Stellt Leif EINE kurze Frage (App und Telegram, mit Antwort-Knöpfen für die optionen) – nur wenn du es wirklich nicht selbst herausfinden kannst |
 
 ## To-dos und Listen
@@ -107,4 +110,4 @@ Wer welches Werkzeug bekommt, regelt `agenten/leine.ts`: Der **Bürgermeister** 
 | `Read`, `Glob`, `Grep` | claude-code-Motor | Vault lesen und durchsuchen (Read kann auch PDFs und Bilder ansehen) |
 | Bilder/PDFs ansehen | beide Motoren | Anhänge eines Chats werden dem Modell gezeigt (siehe Anhänge) |
 
-Insgesamt: **47 Dorf-Werkzeuge** + die eingebauten Fähigkeiten der beiden Motoren.
+Insgesamt: **50 Dorf-Werkzeuge** + die eingebauten Fähigkeiten der beiden Motoren.

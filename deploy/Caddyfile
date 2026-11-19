@@ -16,3 +16,39 @@
 
 	reverse_proxy dorf:3000
 }
+
+# Codehaus (E191): VS Code im Browser auf EIGENER Adresse = eigener Ursprung. Das Sitzungs-Cookie des Dorfs gilt nur für
+# {$DORF_DOMAIN} und wird hierher nie geschickt; VS Code und seine Erweiterungen können die Dorf-App nicht anfassen.
+# Hinein kommt nur, wer im Dorf angemeldet ist: Dorf → Einmal-Karte → /_dorf/eintritt setzt ein eigenes Cookie,
+# danach fragt Caddy vor JEDER Anfrage (auch WebSockets) das Dorf, ob es noch gilt. Zusätzlich verlangt VS Code sein
+# Verbindungs-Token. Läuft der Coding-Container (noch) nicht, antwortet diese Adresse mit 401/502 – das Dorf merkt nichts.
+{$CODING_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		# VS Code setzt seine eigene Content-Security-Policy; einbetten darf es nur sich selbst
+		?X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "same-origin"
+		-Server
+	}
+
+	# Der EINZIGE Pfad dieser Adresse, der ans Dorf geht: Karte einlösen (die Dorf-API ist hier sonst nicht erreichbar)
+	handle /_dorf/eintritt {
+		rewrite * /api/coding/eintritt?{query}
+		reverse_proxy dorf:3000
+	}
+
+	handle /_dorf/* {
+		respond 404
+	}
+
+	handle {
+		# Prüfung über den internen Port des Dorfs (von außen nicht erreichbar): 200 = weiter, sonst Antwort des Dorfs (401/302)
+		forward_auth dorf:3001 {
+			uri /intern/coding/zugang
+		}
+		reverse_proxy coding:3000
+	}
+}

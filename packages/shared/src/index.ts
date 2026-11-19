@@ -246,10 +246,19 @@ export interface TodoInfo {
 }
 
 export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
+/** E190: Anhänge an Chat, Schreibtisch und Telegram – je Datei höchstens so groß (Telegram selbst lädt nur bis 20 MB) */
+export const MAX_ANHANG_BYTES = 25 * 1024 * 1024;
+/** E190: Datei-Kärtchen im Chat (Anhang von Leif oder vom Agenten erzeugte Datei) */
+export interface DateiKarte {
+  pfad: string;
+  name: string;
+  groesse?: number;
+}
 
 // ---- Etappe 2a: Agenten ------------------------------------------------------------------------
 
-export type Motor = 'api' | 'claude-code';
+/** coding (E191): claude-CLI im Codehaus-Container – darf schreiben und Befehle ausführen; nur für Aktionen im Gebäude Codehaus */
+export type Motor = 'api' | 'claude-code' | 'coding';
 export type Stufe = 'klein' | 'mittel' | 'gross';
 export type Aufwand = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export type LaufStatus = 'wartet_freigabe' | 'wartend' | 'laeuft' | 'fertig' | 'fehler' | 'abgebrochen';
@@ -318,6 +327,10 @@ export interface LaufInfo {
   cacheSchreiben: number;
   kostenUsd: number;
   fehler?: string;
+  /** E190: Dateien, die Leif diesem Lauf angehängt hat */
+  anhaenge?: DateiKarte[];
+  /** E190: Dateien, die der Lauf im Vault abgelegt hat (rechenraum_ablegen, vault_schreiben) */
+  dateien?: DateiKarte[];
 }
 
 export interface ChatInfo {
@@ -351,7 +364,7 @@ export interface ChatDetail extends ChatInfo {
   nachrichten: ChatNachricht[];
   laeufe: LaufInfo[];
   /** E185: Nachrichten, die Leif während eines Laufs nachgeschoben hat – werden nach dem aktuellen Schritt übergeben */
-  wartend: { id: number; text: string; erstellt: string }[];
+  wartend: { id: number; text: string; erstellt: string; anhaenge?: DateiKarte[] }[];
 }
 
 /** E185: etwas, das ein Agent ohne Rückfrage getan hat und das Leif mit einem Klick zurücknehmen kann */
@@ -407,8 +420,22 @@ export interface StufenKonfig {
   preise: Record<string, { eingabe: number; ausgabe: number }>;
   fehler?: string;
 }
+/** E191 Codehaus: Stand des Coding-Containers und Projektordner unter /arbeit */
+export interface CodingUebersicht {
+  /** Runner-Geheimnis, Adresse und VS-Code-Token vorhanden (dorf coding-einrichten gelaufen) */
+  eingerichtet: boolean;
+  /** Öffentliche Adresse von VS Code (eigener Ursprung), z. B. https://code.dorf.example.de */
+  adresse: string | null;
+  /** Der Runner im Coding-Container antwortet */
+  erreichbar: boolean;
+  projekte: { name: string; git: boolean; geaendert: string }[];
+  fehler?: string;
+  befehl: string;
+}
+
 export interface MotorenKonfig {
-  alleAuf: 'keiner' | Motor;
+  /** Notschalter – nie „coding“ (dort hätte jede Aktion Shell und Vollzugriff); Coding-Läufe lässt er unberührt */
+  alleAuf: 'keiner' | Exclude<Motor, 'coding'>;
   parallel: Record<Motor, number>;
   fehler?: string;
 }
@@ -441,6 +468,34 @@ export interface SchreibtischAufgabe {
   chatId?: string;
   planId?: string;
   erstellt: string;
+}
+
+/** E192: Eintrag auf der eigenen To-do-Liste des Bürgermeisters (Rathaus/buergermeister-todos/) */
+export interface BuergermeisterTodo {
+  pfad: string;
+  version: string;
+  titel: string;
+  erledigt: boolean;
+  /** „wieder ansehen am“ (JJJJ-MM-TT); ohne Datum sofort fällig */
+  wiederAm?: string;
+  faellig: boolean;
+  /** Woher der Punkt stammt: Schreibtisch-Aufgabe oder Chat */
+  bezug?: string;
+  chatId?: string;
+  quelle?: string;
+  /** so oft beim Aufwachen vorgelegt, ohne dass sich etwas getan hat */
+  vorgelegt?: number;
+  erstellt?: string;
+  erledigtAm?: string;
+  notiz?: string;
+}
+
+/** E192: Stand des Aktivitäten-Katalogs für den Rundgang (00_Stadtordnung/rundgang.md) */
+export interface RundgangStand {
+  /** Fehler in rundgang.md (dann gelten die Standardwerte) */
+  fehler: string | null;
+  jeRundgang: number;
+  aktivitaeten: { id: string; titel: string; gruppe: string; haeufigkeit: string; aktiv: boolean; gewicht: 'klein' | 'mittel' | 'gross'; nachts: boolean; zuletzt: string | null }[];
 }
 
 export interface PlanTeilaufgabe {
