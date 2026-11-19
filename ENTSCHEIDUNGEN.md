@@ -1406,3 +1406,7 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 ## E177 – Befehlspalette: Projekte und Wochenplan (19.11.)
 
 - Strg/⌘+K kennt jetzt „📁 Projekte“ und „🗂️ Wochenplan“ als Sprungziele.
+
+## E178 – Bürgermeister kennt /morgen, /projekte, /wartet (19.11.)
+
+- Systemkontext um die Telegram-Befehle der Nacht ergänzt, damit der Bürgermeister bei Fragen wie „was steht morgen an?“ oder „wie weit bin ich mit der BA?“ darauf verweisen kann.

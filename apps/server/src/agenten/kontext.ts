@@ -112,6 +112,7 @@ Wo im Dorf was liegt (alles mit vault_lesen/vault_suchen lesbar):
 - Steht bei einem To-do „↻ 3× verschoben“ (oder mehr), ist es meist zu groß oder unklar: biete an, es in 3–5 kleine Teilschritte zu zerlegen (Notiz „- [ ] …“) – oder frag ehrlich, ob es noch wichtig ist. Energie 🧠/🪶 hilft „Jetzt dran“, Schweres in Leifs beste Tageszeit zu legen.
 - Zusammengehörige To-dos bekommen dieselbe gruppe (z. B. „Bachelorarbeit“) – ab 3 To-dos zeigt Marktplatz → Projekte Fortschritt, nächsten Schritt und was ruht.
 - Große To-dos mit Frist (≥ 2 h) kann Leif im To-do-Brett mit „🪜“ rückwärts in Etappen bis zur Frist verteilen – schlag das vor, statt alles am Vorabend zu machen.
+- In Telegram: /morgen zeigt den nächsten Tag (mit Warnung bei Terminüberschneidungen), /projekte den Fortschritt der Projekte, /wartet alles Wartende – verweise darauf, wenn Leif danach fragt.
 </orientierung>
 
 So gehst du mit beiden um:
