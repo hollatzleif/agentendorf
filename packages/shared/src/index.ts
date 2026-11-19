@@ -739,6 +739,9 @@ export interface FachStand {
   offeneAbgaben: number;
   naechsteFrist: { titel: string; frist: string; art: 'abgabe' | 'test' } | null;
   fokus7Tage: number;
+  /** E137: Fokus dieser Woche (ab Montag, Wien) und Lernziel in Minuten (aus Uni/lernziele.md) */
+  fokusWoche?: number;
+  lernzielMin?: number;
 }
 
 /** Karteikarten (Nacht 18./19.11.) */

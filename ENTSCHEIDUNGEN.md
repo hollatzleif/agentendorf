@@ -1071,3 +1071,10 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 
 - Läuft ein Pomodoro für ein To-do, zeigt das Fokus-Vollbild (`/fokus`) dessen Teilschritte. Man kann sie dort abhaken und mit Enter ergänzen, ohne den Fokus zu verlassen. Hat das To-do noch keine Schritte, fragt ein Feld: „Was ist der nächste Schritt?“
 - Dahinter stecken dieselben Wege wie im To-do-Brett (E119): Text-Prüfung gegen die Nummer, `basisVersion`, ein abgelehntes Häkchen springt zurück.
+
+## E137 – Lernziel je Fach pro Woche (Nacht 18./19.11.)
+
+- **Wo:** In der Uni unter „Studium“ hat jede Fach-Karte einen Knopf **🎯**: „Stunden Fokus pro Woche“, 0 bedeutet kein Ziel. Gespeichert wird in `Uni/lernziele.md` (Frontmatter `ziele: { "Mathe III": 6 }`). Die Datei lässt sich in Obsidian ändern; eigener Text bleibt. Geschrieben wird nacheinander mit `basisVersion`.
+- **Gemessen** wird die Fokuszeit (Pomodoro mit Fach als Gruppe, z. B. über „🍅 Fokus“ auf der Fach-Karte) **dieser Woche ab Montag 0:00 Wien**. Die Karte zeigt einen Balken „2 h 30 min von 6 h diese Woche“, grün sobald erreicht.
+- **Wochenrückblick:** Abschnitt „Lernziele“ mit „✓ Mathe III: 6 h 10 min von 6 h“ bzw. „✗ …“ über die letzten 7 Tage.
+- **Warum:** Fristen allein sagen nicht, ob man genug lernt. Ein Wochenziel je Fach macht Lernen planbar, auch wenn gerade keine Abgabe drückt.

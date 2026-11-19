@@ -13,6 +13,7 @@ import { statistik, stimmungSetzen } from './statistik.js';
 import { anschluesse } from './anschluesse.js';
 import { bluete } from './bluete.js';
 import { ortszeitZuUtc } from './uni/ical.js';
+import { tagIn, tagPlus } from './zeit.js';
 import type { GoogleKalender } from './kalender-google.js';
 import type { Corps } from './corps.js';
 import type { Bank } from './bank.js';
@@ -20,6 +21,7 @@ import { programmeRouten } from './programme.js';
 import { LISTEN_NAMEN, type ListenName, type TodoDienst } from './todos.js';
 import { schritteZerlegen } from './todo-schritte.js';
 import type { SystemAufrufe } from './agenten/system.js';
+import type { Lernziele } from './uni/lernziele.js';
 import type { Dorfplan } from './dorfplan.js';
 import { normalisieren } from './vault/pfade.js';
 import type { Automatik } from './agenten/automatik.js';
@@ -67,6 +69,7 @@ declare module 'fastify' {
 
 export interface Abhaengigkeiten {
   konfig: Konfig;
+  lernziele?: Lernziele;
   ki?: SystemAufrufe;
   db: DB;
   uhr: Uhr;
@@ -763,6 +766,11 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
     const abgaben = a.uni.abgaben();
     const fristen = a.uni.fristen().filter((f) => (f.art === 'abgabe' || f.art === 'test') && !f.abgegeben && f.frist && Date.parse(f.frist) > uhr.jetzt());
     const fokus = a.kirchturm?.fokusJeGruppe(uhr.jetzt() - 7 * 86_400_000) ?? new Map<string, number>();
+    // E137: Woche ab Montag 0:00 Wien
+    const heute = tagIn(uhr.jetzt());
+    const montag = tagPlus(heute, -((new Date(`${heute}T12:00:00Z`).getUTCDay() + 6) % 7));
+    const fokusWoche = a.kirchturm?.fokusJeGruppe(ortszeitZuUtc(...(montag.split('-').map(Number) as [number, number, number]), 0, 0, 0, 'Europe/Vienna')) ?? new Map<string, number>();
+    const ziele = (await a.lernziele?.lesen()) ?? {};
     return a.uni.faecher().map((f) => {
       const n = fristen.find((x) => x.kurs && (passt(x.kurs, f.titel) || passt(x.kurs, f.name)));
       return {
@@ -770,8 +778,18 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
         offeneAbgaben: abgaben.filter((x) => x.fach === f.titel).length,
         naechsteFrist: n ? { titel: n.titel, frist: n.frist!, art: n.art as 'abgabe' | 'test' } : null,
         fokus7Tage: [...fokus.entries()].filter(([k]) => passt(k, f.titel) || passt(k, f.name)).reduce((s2, [, m]) => s2 + m, 0),
+        fokusWoche: [...fokusWoche.entries()].filter(([k]) => passt(k, f.titel) || passt(k, f.name)).reduce((s2, [, m]) => s2 + m, 0),
+        ...(() => {
+          const z2 = ziele[f.titel] ?? ziele[f.name];
+          return z2 ? { lernzielMin: Math.round(z2 * 60) } : {};
+        })(),
       };
     });
+  });
+  app.post('/api/uni/lernziel', async (req) => {
+    if (!a.lernziele) throw new DorfFehler(503, 'Lernziele sind nicht eingerichtet.');
+    const b = z.object({ fach: z.string().min(1).max(120), stunden: z.number().min(0).max(80) }).parse(req.body);
+    return { ziele: await a.lernziele.setzen(b.fach, b.stunden) };
   });
   app.post('/api/uni/fach', async (req) => {
     const b = z.object({ name: z.string().min(1).max(120) }).parse(req.body);

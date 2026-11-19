@@ -60,6 +60,8 @@ export class Wochenrueckblick {
       todos: TodoDienst;
       uni: Uni;
       kalender: Terminkalender;
+      /** E137: „✓ Mathe III: 6 h von 6 h“ je Lernziel */
+      lernziele?: () => Promise<string[]>;
       fokus?: { fokusStatistik(): FokusStatistik; zustand?(): { pomodoro: { einstellungen: { tagesZielMin?: number } } } };
       bank?: { zeitungsZeilen(): Promise<string[]> };
       gewohnheiten?: { wochenZeile(): Promise<string | null> };
@@ -110,6 +112,9 @@ export class Wochenrueckblick {
         ],
       });
     }
+
+    const lz = await this.o.lernziele?.().catch(() => []);
+    if (lz?.length) abschnitte.push({ titel: 'Lernziele', zeilen: lz });
 
     const b = await this.o.bluete?.().catch(() => undefined);
     if (b) abschnitte.push({ titel: 'Dein Dorf', zeilen: [blueteZeile(b)] });

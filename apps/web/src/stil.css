@@ -1300,3 +1300,10 @@ input.kurz { width: 5em; }
 .fokus-schritte li label input { width: 1.2rem; height: 1.2rem; }
 .fokus-schritte li.fertig span { text-decoration: line-through; opacity: 0.55; }
 .fokus-schritt-neu input { width: 100%; }
+
+/* E137: Lernziel je Fach */
+.fach-lernziel { display: grid; gap: 0.2rem; margin: 0.3rem 0; }
+.fach-lernziel-balken { height: 7px; border-radius: 7px; background: rgba(0, 0, 0, 0.08); overflow: hidden; }
+.fach-lernziel-balken span { display: block; height: 100%; background: #c8553d; border-radius: 7px; }
+.fach-lernziel.erreicht .fach-lernziel-balken span { background: var(--gruen); }
+.fach-ziel-form input { width: 5.5rem; }

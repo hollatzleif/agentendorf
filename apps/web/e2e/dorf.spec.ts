@@ -1465,6 +1465,21 @@ test('Fokus-Vollbild: Schritte des To-dos abhaken und ergänzen, ohne den Fokus 
   await page.request.post('/api/kirchturm', { headers: o, data: { befehl: 'pomodoro', aktion: 'stopp' } });
 });
 
+test('Uni: Lernziel je Fach pro Woche setzen, Balken erscheint (E137)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  const fach = `Lernziel${Date.now() % 100000}`;
+  await page.request.post('/api/uni/fach', { headers: { origin: ORIGIN }, data: { name: fach } });
+  await page.goto('/gebaeude/Uni?reiter=studium');
+  const k = page.getByRole('region', { name: `Fach ${fach}` });
+  await k.getByRole('button', { name: `Lernziel: ${fach}` }).click();
+  await k.getByRole('spinbutton', { name: `Stunden pro Woche für ${fach}` }).fill('4');
+  await k.getByRole('button', { name: 'Speichern' }).click();
+  await expect(k.getByRole('meter', { name: `Lernziel ${fach}` })).toContainText('0 min von 4 h diese Woche');
+  const datei = await (await page.request.get(`/api/vault/datei?pfad=${encodeURIComponent('Uni/lernziele.md')}`)).json();
+  expect(datei.inhalt).toContain(`${fach}: 4`);
+});
+
 test('Seite lässt sich nicht laden (nach Deploy): einmal neu laden, dann „Neu laden“ statt weißer Seite (Review)', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'einmal reicht');
   await anmelden(page);

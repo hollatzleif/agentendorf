@@ -42,6 +42,8 @@ import { Karteikasten } from './karten.js';
 import { Gewohnheiten } from './gewohnheiten.js';
 import { Wochenziele } from './wochenziele.js';
 import { tagIn } from './zeit.js';
+import { Lernziele } from './uni/lernziele.js';
+import { minutenText } from '@dorf/shared';
 import { Notizen } from './notizen.js';
 import { Noten } from './uni/noten.js';
 import { statistik } from './statistik.js';
@@ -360,7 +362,18 @@ export async function dorfStarten(
   });
   if (opt.beobachten !== false) erinnerungen.starten();
   // Nacht 18./19.11.: Wochenrückblick sonntags 18:30
-  const wochenrueckblick = new Wochenrueckblick({ db, uhr, vault, hub, ki, todos, uni, kalender, fokus: kirchturm, bank, gewohnheiten, wochenziele, bluete: () => blueteBerechnen(), log: (t) => console.warn(t) });
+  const lernziele = new Lernziele({ vault, hub });
+  // E137: Lernziele je Fach gegen die Fokuszeit der letzten 7 Tage (Gruppe = Fach, ungefährer Namensvergleich)
+  const lernzielZeilen = async () => {
+    const ziele = await lernziele.lesen();
+    const fokus = [...kirchturm.fokusJeGruppe(uhr.jetzt() - 7 * 86_400_000).entries()];
+    const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9äöüß]/g, '');
+    return Object.entries(ziele).map(([fach, h]) => {
+      const m = fokus.filter(([k]) => norm(k) === norm(fach) || (norm(fach).length >= 4 && norm(k).includes(norm(fach)))).reduce((s2, [, x]) => s2 + x, 0);
+      return `${m >= h * 60 ? '✓' : '✗'} ${fach}: ${minutenText(m)} von ${String(h).replace('.', ',')} h`;
+    });
+  };
+  const wochenrueckblick = new Wochenrueckblick({ db, uhr, vault, hub, ki, todos, uni, kalender, lernziele: lernzielZeilen, fokus: kirchturm, bank, gewohnheiten, wochenziele, bluete: () => blueteBerechnen(), log: (t) => console.warn(t) });
   const morgenzeitung = new Morgenzeitung({ db, uhr, vault, hub, ki, freigaben: agenten.freigaben, schreibtisch, uni, postbote, kalender, wetter, bank, boerse: depotZeilen, fokus: kirchturm, gewohnheiten, wochenziele, bluete: () => blueteBerechnen(), todosHeute: async () => { const h = tagIn(uhr.jetzt()); return (await todos.liste()).filter((t) => !t.erledigt && t.faellig && t.faellig <= h); }, wichtig: async () => (await todos.liste()).filter((t) => !t.erledigt && t.wichtig).slice(0, 5).map((t) => `**${t.titel}**${t.faellig ? ` (fällig ${t.faellig})` : ''}`), log: (t) => console.warn(t) });
   let telegram: TelegramBot | undefined;
   if ((konfig.telegramToken || opt.telegram) && konfig.telegramChatId) {
@@ -435,7 +448,7 @@ export async function dorfStarten(
   const planTakt = opt.beobachten !== false ? setInterval(() => void buergermeister.faelligePlaeneAnnehmen().catch((e) => console.warn(`Pläne: ${(e as Error).message}`)), 60_000) : undefined;
   planTakt?.unref();
   const dorfplan = new Dorfplan({ db, uhr, hub, vault, uni, wetter, todos, kirchturm });
-  const app = await appBauen({ konfig, ki, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen, dorfplan, automatik, listen, bank, corps, boerse, saxo, kirchturm, googleKalender, wochenrueckblick, karten, gewohnheiten, wochenziele, notizen, noten });
+  const app = await appBauen({ konfig, ki, lernziele, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen, dorfplan, automatik, listen, bank, corps, boerse, saxo, kirchturm, googleKalender, wochenrueckblick, karten, gewohnheiten, wochenziele, notizen, noten });
   // Abhaken in Obsidian kommt ohne Ereignis an → zusätzlich alle 10 Minuten abgleichen
   const uniTodoTakt = opt.beobachten !== false ? setInterval(() => uniTodosAnstossen(), 600_000) : undefined;
   uniTodoTakt?.unref();
@@ -460,5 +473,5 @@ export async function dorfStarten(
     await agenten.ruhe();
     db.close();
   });
-  return { app, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan, wetter, automatik, todos, listen, bank, corps, boerse, uniTodos, saxo, kirchturm, googleKalender, wochenrueckblick, karten, gewohnheiten, wochenziele, erinnerungen, notizen, noten };
+  return { app, lernziele, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan, wetter, automatik, todos, listen, bank, corps, boerse, uniTodos, saxo, kirchturm, googleKalender, wochenrueckblick, karten, gewohnheiten, wochenziele, erinnerungen, notizen, noten };
 }
