@@ -80,4 +80,16 @@ describe('Uni-Fristen → To-dos (E71)', () => {
       ['Abgabe: Blatt 4 ist fällig', '2026-11-25'],
     ]);
   });
+
+  it('E130: neue Abgabe/Prüfung bekommt Standard-Teilschritte; eigene Vorlage im Vault gewinnt, leere schaltet ab', async () => {
+    const { d, offen } = await aufbau();
+    await d.vault.schreiben('Uni/vorlagen/schritte-pruefung.md', '# Meine Prüfungsschritte\n\n- [ ] Zusammenfassung schreiben\n- [x] Altklausur 1\n', { nurNeu: true });
+    await d.uni.abgleichen();
+    const [blatt, pruefung] = await offen();
+    expect(blatt!.schritte?.map((x) => x.text)).toEqual(['Angabe lesen, Fragen notieren', 'Aufgaben lösen', 'Lösung sauber aufschreiben', 'In Moodle hochladen und Abgabe prüfen']);
+    expect(blatt!.schritte?.every((x) => !x.erledigt)).toBe(true);
+    // Vorlage übernimmt nur den Text, nicht das Häkchen
+    expect(pruefung!.schritte).toEqual([{ text: 'Zusammenfassung schreiben', erledigt: false }, { text: 'Altklausur 1', erledigt: false }]);
+    expect(pruefung!.notiz).toMatch(/^Prüfung am/);
+  });
 });

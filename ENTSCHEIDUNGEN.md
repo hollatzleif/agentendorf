@@ -1019,3 +1019,11 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
   - Der Wochenrückblick in Telegram verlinkt die Seite.
   - Sie steht in der Befehlspalette und in der Anleitung.
 - **Warum:** Die Bausteine gab es schon, aber verteilt auf Rathaus, Heute und Marktplatz. Ein fester, kurzer Ablauf macht aus Funktionen eine Gewohnheit.
+
+## E130 – Abgaben und Prüfungen kommen mit Teilschritten (Nacht 18./19.11.)
+
+- Neue Uni-To-dos (E71) bekommen Teilschritte (E119) als Checkliste in der Notiz. „Jetzt dran“, „Heute“ und Telegram zeigen damit sofort den nächsten Schritt.
+  - **Abgabe:** Angabe lesen, Fragen notieren → Aufgaben lösen → Lösung sauber aufschreiben → in Moodle hochladen und prüfen.
+  - **Prüfung:** Stoff und Altklausuren sammeln → Lernplan anlegen → Karteikarten → Probeklausur unter Zeitdruck → am Vortag Ort, Zeit, Ausweis, Hilfsmittel.
+- **Eigene Vorlage:** `Uni/vorlagen/schritte-abgabe.md` bzw. `schritte-pruefung.md` mit Zeilen „- [ ] Schritt“. Übernommen wird nur der Text, nicht das Häkchen. Eine Datei ohne solche Zeilen schaltet die Schritte ab.
+- Das gilt nur für **neu** angelegte Uni-To-dos; bestehende bleiben, wie sie sind.

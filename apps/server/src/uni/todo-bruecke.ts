@@ -2,6 +2,18 @@ import type { DB } from '../db.js';
 import type { Uhr } from '../uhr.js';
 import type { TodoDienst } from '../todos.js';
 import type { Uni } from './abgleich.js';
+import type { VaultDienst } from '../vault/dienst.js';
+import { schritteLesen } from '../todos.js';
+
+/**
+ * E130: Standard-Teilschritte für Abgaben und Prüfungen. Eigene Vorlage: `Uni/vorlagen/schritte-abgabe.md` bzw.
+ * `schritte-pruefung.md` mit Zeilen „- [ ] Schritt“ – eine Datei ohne solche Zeilen schaltet die Schritte ab.
+ */
+export const SCHRITTE_VORLAGE = { abgabe: 'Uni/vorlagen/schritte-abgabe.md', test: 'Uni/vorlagen/schritte-pruefung.md' } as const;
+export const SCHRITTE_STANDARD = {
+  abgabe: ['Angabe lesen, Fragen notieren', 'Aufgaben lösen', 'Lösung sauber aufschreiben', 'In Moodle hochladen und Abgabe prüfen'],
+  test: ['Stoff und Altklausuren sammeln', 'Lernplan anlegen (Prüfungs-Wächter)', 'Karteikarten wiederholen', 'Probeklausur unter Zeitdruck rechnen', 'Am Vortag: Ort, Zeit, Ausweis, Hilfsmittel prüfen'],
+} as const;
 
 /**
  * E71: Uni-Fristen (Abgaben, Prüfungen) als To-dos auf dem Marktplatz – und Abhaken in beide Richtungen.
@@ -17,7 +29,14 @@ export class UniTodoBruecke {
   private laeuft: Promise<void> | null = null;
   private nochmal = false;
 
-  constructor(private o: { db: DB; uhr: Uhr; uni: Uni; todos: TodoDienst; log?: (t: string) => void }) {}
+  constructor(private o: { db: DB; uhr: Uhr; uni: Uni; todos: TodoDienst; vault?: VaultDienst; log?: (t: string) => void }) {}
+
+  /** Schritte für ein neues Abgabe-/Prüfungs-To-do: Leifs Vorlage, sonst der Standard */
+  private async schritte(art: 'abgabe' | 'test'): Promise<string[]> {
+    const d = this.o.vault ? await this.o.vault.lesen(SCHRITTE_VORLAGE[art]).catch(() => null) : null;
+    if (d) return schritteLesen(d.inhalt).map((x) => x.text.slice(0, 200)).slice(0, 15);
+    return [...SCHRITTE_STANDARD[art]];
+  }
 
   /** Abgleichen; parallele Aufrufe werden zusammengefasst (es läuft höchstens einer, danach ggf. noch einer) */
   abgleichen(): Promise<void> {
@@ -57,13 +76,14 @@ export class UniTodoBruecke {
       if (!g) {
         // nur Künftiges und noch nicht Erledigtes wird neu angelegt
         if (frist <= jetzt || f.abgegeben) continue;
+        const schritte = await this.schritte(f.art === 'test' ? 'test' : 'abgabe');
         const t = await todos.anlegen(
           {
             titel: `${f.art === 'test' ? 'Prüfung' : 'Abgabe'}: ${f.titel}`.slice(0, 200),
             faellig: tagInWien(frist),
             gebaeude: 'Uni',
             ...(f.kurs ? { gruppe: f.kurs.slice(0, 60) } : {}),
-            notiz: notiz(f.art, frist, f.kurs, f.pfad),
+            notiz: `${notiz(f.art, frist, f.kurs, f.pfad)}${schritte.length ? `\n\n${schritte.map((x) => `- [ ] ${x}`).join('\n')}` : ''}`,
           },
           'Uni',
           { fremd: true },

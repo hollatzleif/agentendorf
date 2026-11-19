@@ -261,7 +261,7 @@ export async function dorfStarten(
   });
   const todos = listen.todo;
   // E71: Uni-Fristen → To-dos, Abhaken in beide Richtungen
-  const uniTodos = new UniTodoBruecke({ db, uhr, uni, todos, log: (t) => console.warn(t) });
+  const uniTodos = new UniTodoBruecke({ db, uhr, uni, todos, vault, log: (t) => console.warn(t) });
   let geschlossen = false;
   let uniTodosZeitgeber: NodeJS.Timeout | undefined;
   uniTodosAnstossen = () => {
