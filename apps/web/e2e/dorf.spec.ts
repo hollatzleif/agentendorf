@@ -1421,6 +1421,27 @@ test('To-do aus Text in der App: „… jeden Montag 30 min“ mit Vorschau (E12
   await expect(page.locator('.todo-text-hinweis')).toHaveCount(0);
 });
 
+test('Wochenplanung (/planen): vier Schritte, Häkchen bleiben; Hinweis auf „Heute“ am Sonntag (E129)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  // Sonntag 15:00 Wien → Hinweis auf Heute, geplant wird die kommende Woche
+  await page.clock.setFixedTime(new Date('2026-11-22T15:00:00+01:00'));
+  await page.goto('/heute');
+  await page.getByRole('link', { name: /Zeit für die Wochenplanung/ }).click();
+  await expect(page).toHaveURL(/\/planen$/);
+  const p = page.getByRole('region', { name: 'Wochenplanung' });
+  for (const n of ['1 · Zurückschauen', '2 · Drei Ziele', '3 · Woche verteilen', '4 · Gewohnheiten']) await expect(p.getByRole('region', { name: n })).toBeVisible();
+  await expect(p.getByRole('region', { name: 'Wochenplan' })).toContainText('23.11.');
+  await p.getByRole('checkbox', { name: '1 · Zurückschauen erledigt' }).check();
+  await expect(p).toContainText('1/4 erledigt');
+  await page.reload();
+  await expect(page.getByRole('checkbox', { name: '1 · Zurückschauen erledigt' })).toBeChecked();
+  for (const n of ['2 · Drei Ziele', '3 · Woche verteilen', '4 · Gewohnheiten']) await page.getByRole('checkbox', { name: `${n} erledigt` }).check();
+  await expect(page.getByRole('region', { name: 'Wochenplanung' })).toContainText('4/4 erledigt – gute Woche!');
+  await page.goto('/heute');
+  await expect(page.getByRole('link', { name: /Zeit für die Wochenplanung/ })).toHaveCount(0);
+});
+
 test('Seite lässt sich nicht laden (nach Deploy): einmal neu laden, dann „Neu laden“ statt weißer Seite (Review)', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'einmal reicht');
   await anmelden(page);

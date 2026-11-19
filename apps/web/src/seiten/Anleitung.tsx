@@ -68,6 +68,9 @@ export function Anleitung() {
       </ol>
 
       <h2>🗓️ Sonntags (10 Minuten)</h2>
+      <p>
+        Alles auf einer Seite: <L href="/planen">Woche planen</L> führt durch die vier Schritte.
+      </p>
       <ol>
         <li>
           <b>Wochenrückblick</b> (18:30): Bilanz von Zielen, Gewohnheiten, Fokus, Stimmung – und Vorschläge.

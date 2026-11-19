@@ -27,10 +27,10 @@ function terminMinuten(termine: KalenderTermin[], tag: string) {
   return belegtMs(iv, 8 * 60, 22 * 60);
 }
 
-export function WochenPlan() {
+export function WochenPlan({ startVersatz = 0 }: { startVersatz?: number } = {}) {
   const qc = useQueryClient();
   const heute = ort(new Date().toISOString()).tag;
-  const [versatz, setVersatz] = useState(0);
+  const [versatz, setVersatz] = useState(startVersatz);
   const montag = tagPlus(tagPlus(heute, -wochentag(heute)), 7 * versatz);
   const tage = Array.from({ length: 7 }, (_, i) => tagPlus(montag, i));
   const todos = useQuery({ queryKey: ['liste', 'todo'], queryFn: () => api<TodoInfo[]>('/api/todos') });

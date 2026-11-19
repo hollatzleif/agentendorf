@@ -295,6 +295,7 @@ export function Heute() {
         </div>
 
         <div className="heute-spalte">
+          <PlanenHinweis />
           <ErsteSchritte />
           <WochenzieleKarte />
           <section className="karte heute-karte" aria-label="To-dos">
@@ -717,5 +718,27 @@ function JetztDran({ d }: { d: NonNullable<ReturnType<typeof jetztDran>> }) {
       </button>
       {fehler && <p className="fehler">{fehler}</p>}
     </div>
+  );
+}
+
+// ---- E129: Hinweis auf die Wochenplanung (So ab 12 Uhr, Mo bis 12 Uhr), solange nicht alle Schritte erledigt ------
+
+function PlanenHinweis() {
+  const teile = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Vienna', weekday: 'short', hour: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()).map((x) => [x.type, x.value]));
+  const stunde = Number(teile.hour);
+  if (!((teile.weekday === 'Sun' && stunde >= 12) || (teile.weekday === 'Mon' && stunde < 12))) return null;
+  const d = new Date(new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' }) + 'T12:00:00Z');
+  if (d.getUTCDay() === 0) d.setUTCDate(d.getUTCDate() + 1);
+  let fertig = 0;
+  try {
+    fertig = (JSON.parse(localStorage.getItem(`dorf-planen-${d.toISOString().slice(0, 10)}`) ?? '[]') as string[]).length;
+  } catch {
+    /* egal */
+  }
+  if (fertig >= 4) return null;
+  return (
+    <a href="/planen" onClick={linkKlick} className="karte heute-karte planen-hinweis">
+      🗓️ <strong>Zeit für die Wochenplanung</strong> – 10 Minuten, vier Schritte{fertig ? ` (${fertig}/4)` : ''} →
+    </a>
   );
 }

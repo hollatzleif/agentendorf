@@ -1004,3 +1004,17 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - `/verteilen` macht dasselbe wie „✨ Woche verteilen“ (E126), aber am Handy. **Sonntags** plant es die nächste Woche (Mo–So), sonst den Rest dieser Woche ab heute.
 - Die freie Zeit je Tag kommt aus dem Google-Kalender, wenn er verbunden ist; überlappende Termine zählen einmal. Ohne Kalender gilt der ganze Tag 8–22 Uhr, mit 70 % Puffer.
 - Jeder Vorschlag ist ein Knopf, dazu kommt „🗓️ Alle übernehmen“. Die Knöpfe sind signiert (`vt:`), werden vor dem Schreiben vermerkt (ein Doppelklick ändert nichts doppelt) und laufen nach 2 Tagen ab. Es wird nur `faellig` gesetzt.
+
+## E129 – Wochenplanung als Ritual (/planen) (Nacht 18./19.11.)
+
+- Die neue Seite **„🗓️ Woche planen“** (`/planen`) führt in vier Schritten durch die Wochenplanung, ungefähr 10 Minuten:
+  1. Wochenrückblick lesen
+  2. Drei Wochenziele setzen (sonntags für die kommende Woche)
+  3. Woche verteilen (Wochenplan, sonntags für die nächste Woche, mit „✨ Woche verteilen“)
+  4. Gewohnheiten prüfen
+- Alle vier Schritte nutzen vorhandene Bausteine; es gibt kein neues Datenmodell. Die abgehakten Schritte merkt sich das Gerät je Woche (`localStorage`). Ein Sonntag zählt dabei schon zur kommenden Woche.
+- **Wo man darauf stößt:**
+  - „Heute“ zeigt sonntags ab 12 Uhr und montags bis 12 Uhr den Hinweis „Zeit für die Wochenplanung“, bis alle vier Schritte erledigt sind.
+  - Der Wochenrückblick in Telegram verlinkt die Seite.
+  - Sie steht in der Befehlspalette und in der Anleitung.
+- **Warum:** Die Bausteine gab es schon, aber verteilt auf Rathaus, Heute und Marktplatz. Ein fester, kurzer Ablauf macht aus Funktionen eine Gewohnheit.

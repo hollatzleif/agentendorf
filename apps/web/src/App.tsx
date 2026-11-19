@@ -20,6 +20,7 @@ const Heute = lazy(() => import('./seiten/Heute').then((m) => ({ default: m.Heut
 const Einstellungen = lazy(() => import('./seiten/Einstellungen').then((m) => ({ default: m.Einstellungen })));
 const ChatSeite = lazy(() => import('./seiten/Chat').then((m) => ({ default: m.ChatSeite })));
 const Anleitung = lazy(() => import('./seiten/Anleitung').then((m) => ({ default: m.Anleitung })));
+const WochePlanen = lazy(() => import('./seiten/WochePlanen').then((m) => ({ default: m.WochePlanen })));
 const FokusVollbild = lazy(() => import('./seiten/FokusVollbild').then((m) => ({ default: m.FokusVollbild })));
 
 export function App() {
@@ -89,6 +90,7 @@ function Rahmen() {
   else if (pfad === '/heute') seite = <Heute />;
   else if (pfad === '/fokus') seite = <FokusVollbild />;
   else if (pfad === '/anleitung') seite = <Anleitung />;
+  else if (pfad === '/planen') seite = <WochePlanen />;
   else if (pfad === '/bibliothek') seite = <Bibliothek />;
   else if (pfad === '/einstellungen') seite = <Einstellungen />;
   else if (pfad.startsWith('/chats/')) seite = <ChatSeite key={pfad} id={decodeURIComponent(pfad.slice('/chats/'.length))} />;

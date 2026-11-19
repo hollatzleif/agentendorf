@@ -1270,3 +1270,16 @@ input.kurz { width: 5em; }
 
 /* E127: erkannte Wiederholung/Dauer beim Tippen */
 .todo-text-hinweis { margin: -0.2rem 0 0.4rem; font-size: 0.85rem; }
+
+/* E129: Wochenplanung */
+.planen { display: grid; gap: 0.8rem; }
+.planen h1 { margin: 0.2rem 0 0; }
+.planen-schritte { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.planen-schritte a { padding: 0.35rem 0.7rem; border-radius: 999px; border: 2px solid var(--rand); background: var(--karte); text-decoration: none; font-size: 0.9rem; }
+.planen-schritte a.fertig { border-color: var(--gruen); background: var(--gruen-hell); }
+.planen-schritt { background: var(--karte); border: 2px solid var(--rand); border-radius: var(--radius); padding: 0.8rem 1rem; scroll-margin-top: 1rem; }
+.planen-schritt.fertig { border-color: var(--gruen); }
+.planen-kopf { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+.planen-kopf h2 { margin: 0; }
+.planen-haken { display: flex; align-items: center; gap: 0.35rem; white-space: nowrap; min-height: 32px; }
+.planen-hinweis { display: block; text-decoration: none; background: linear-gradient(90deg, #e3f3d8, #fffdf6); }

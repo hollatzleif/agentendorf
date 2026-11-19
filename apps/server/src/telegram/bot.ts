@@ -221,7 +221,7 @@ export class TelegramBot {
       this.vorschlaegeWartendSetzen(alle);
       r.vorschlaege.slice(0, 3).forEach((v, i) => knoepfe.push([{ text: knopfText(`🎯 ${v}`), callback_data: this.vorschlagDaten(id, i) }]));
     }
-    await this.proaktiv(`${text}\n<a href="${this.link('/gebaeude/Rathaus?reiter=woche')}">Ganzer Rückblick</a>${knoepfe.length ? '\n\n<i>Antippen = als Ziel für nächste Woche übernehmen:</i>' : ''}`, knoepfe.length ? { reply_markup: { inline_keyboard: knoepfe } } : {});
+    await this.proaktiv(`${text}\n<a href="${this.link('/gebaeude/Rathaus?reiter=woche')}">Ganzer Rückblick</a> · <a href="${this.link('/planen')}">🗓️ Woche planen</a>${knoepfe.length ? '\n\n<i>Antippen = als Ziel für nächste Woche übernehmen:</i>' : ''}`, knoepfe.length ? { reply_markup: { inline_keyboard: knoepfe } } : {});
   }
 
   private vorschlagDaten(id: string, i: number) {
