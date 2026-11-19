@@ -103,3 +103,19 @@ describe('Gruppe = Fachname (E171)', () => {
     expect(t.gruppe).toBe('Mathe III UE');
   });
 });
+
+describe('alte Kurs-Gruppe wird nachgezogen (E173)', () => {
+  it('Gruppe exakt = Kursname → Fachname; von Leif geändert → bleibt', async () => {
+    const { d, offen } = await aufbau();
+    await d.uni.abgleichen();
+    const a = (await offen()).find((x) => x.titel.startsWith('Abgabe: Übungsblatt 5'))!;
+    const p = (await offen()).find((x) => x.titel.startsWith('Prüfung:'))!;
+    expect(a.gruppe).toBe('Mathe III');
+    await d.todos.aendern(p.pfad, { gruppe: 'Meine NLP-Gruppe' });
+    await d.uni.fachAnlegen('Mathe III UE');
+    await d.uni.fachAnlegen('NLP Vorlesung');
+    await d.uni.abgleichen();
+    expect((await d.todos.holen(a.pfad)).gruppe).toBe('Mathe III UE');
+    expect((await d.todos.holen(p.pfad)).gruppe).toBe('Meine NLP-Gruppe');
+  });
+});

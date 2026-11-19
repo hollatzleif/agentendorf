@@ -18,7 +18,7 @@ import type { GoogleKalender } from './kalender-google.js';
 import type { Corps } from './corps.js';
 import type { Bank } from './bank.js';
 import { programmeRouten } from './programme.js';
-import { LISTEN_NAMEN, type ListenName, type TodoDienst } from './todos.js';
+import { LISTEN_NAMEN, TodoNeu, type ListenName, type TodoDienst } from './todos.js';
 import { schritteZerlegen } from './todo-schritte.js';
 import type { SystemAufrufe } from './agenten/system.js';
 import type { Lernziele } from './uni/lernziele.js';
@@ -650,11 +650,18 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
         if (t.erledigt || t.wiederholen) throw new DorfFehler(400, 'Nur offene, nicht wiederkehrende To-dos lassen sich in Etappen planen.');
         const plan = etappenPlan(t, tagIn(uhr.jetzt()), b.anzahl);
         if (!plan.length) throw new DorfFehler(400, 'Dafür braucht das To-do eine Frist frühestens übermorgen.');
-        const gruppe = (t.gruppe ?? t.titel).slice(0, 60);
-        await listen.todo.aendern(b.pfad, { gruppe }, b.basisVersion);
-        const neu = [];
-        for (const e of plan) neu.push(await listen.todo.anlegen({ ...e, gruppe, ...(t.gebaeude ? { gebaeude: t.gebaeude } : {}), ...(t.energie ? { energie: t.energie } : {}) }, 'Leif'));
-        return { angelegt: neu.length };
+        // schon geplant? (zweiter Klick, zweites Gerät) – Etappen mit demselben Titelstamm gibt es bereits (Review)
+        const stamm = `${plan[0]!.titel.replace(/ – Etappe \d+\/\d+$/, '')} – Etappe `;
+        if ((await listen.todo.liste({ alleErledigten: true })).some((x) => x.titel.startsWith(stamm))) throw new DorfFehler(409, 'Dieses To-do ist schon in Etappen geplant.');
+        const gruppe = t.gruppe ?? t.titel.slice(0, 60);
+        const roh = plan.map((e) => ({ ...e, gruppe, ...(t.gebaeude ? { gebaeude: t.gebaeude } : {}), ...(t.energie ? { energie: t.energie } : {}) }));
+        // erst alles prüfen, dann ändern – sonst bleibt bei einem Fehler ein halb umgebautes Original zurück (Review)
+        for (const r of roh) if (!TodoNeu.safeParse(r).success) throw new DorfFehler(400, 'Die Etappen lassen sich so nicht anlegen (Gruppe oder Gebäude zu lang).');
+        // Original = die Abgabe selbst: 15 min statt der ganzen Arbeit (die steckt jetzt in den Etappen – sonst doppelt im Tagesbudget)
+        await listen.todo.aendern(b.pfad, { gruppe, dauer: 15 }, b.basisVersion);
+        // Fremdinhalt bleibt Fremdinhalt (Uni-/Mail-Titel) – Leine (Review)
+        for (const r of roh) await listen.todo.anlegen(r, 'Leif', { fremd: t.fremd === true });
+        return { angelegt: roh.length };
       }),
     );
     // E119: KI schlägt Schritte vor – geschrieben wird erst, wenn Leif sie übernimmt

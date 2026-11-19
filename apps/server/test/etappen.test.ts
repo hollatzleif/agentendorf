@@ -45,3 +45,20 @@ describe('In Etappen planen (E170)', () => {
     expect((await d.app.inject({ method: 'POST', url: '/api/todos/etappen', headers: h, payload: { pfad: w.pfad, basisVersion: w.version } })).statusCode).toBe(400);
   });
 });
+
+describe('Review 9 (E173)', () => {
+  it('fremd bleibt fremd; Original behält 15 min; zweites Planen → 409, auch bei schon gesetzter Gruppe', async () => {
+    const d = await testDorf();
+    const h = await kopf(d);
+    const t = await d.todos.anlegen({ titel: 'Abgabe: Blatt 5', faellig: '2026-11-20', dauer: 180, gruppe: 'Mathe III' }, 'Uni', { fremd: true });
+    expect((await d.app.inject({ method: 'POST', url: '/api/todos/etappen', headers: h, payload: { pfad: t.pfad, basisVersion: t.version } })).statusCode).toBe(200);
+    const alle = await d.todos.liste();
+    const etappen = alle.filter((x) => x.titel.includes('– Etappe'));
+    expect(etappen).toHaveLength(3);
+    expect(etappen.every((x) => x.fremd === true && x.gruppe === 'Mathe III')).toBe(true);
+    const o = alle.find((x) => x.pfad === t.pfad)!;
+    expect(o.dauer).toBe(15);
+    expect((await d.app.inject({ method: 'POST', url: '/api/todos/etappen', headers: h, payload: { pfad: o.pfad, basisVersion: o.version } })).statusCode).toBe(409);
+    expect((await d.todos.liste()).filter((x) => x.titel.includes('– Etappe'))).toHaveLength(3);
+  });
+});

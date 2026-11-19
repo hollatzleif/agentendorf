@@ -1202,17 +1202,20 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (fristen.length) z.push(`⏰ Morgen fällig: ${fristen.map((f) => h(f.titel)).join(', ')}`);
     // E141: Morgen im Blick – To-dos (inkl. Überfälligem, das mitwandert) gegen die freie Zeit 8–22 Uhr
     const morgenTodos = alle.filter((t) => !t.erledigt && t.faellig && t.faellig <= morgen);
+    // Termine des ganzen Tages morgen – Überschneidungen auch ohne To-dos und vor 8 Uhr (Review)
+    const [j2, mo2, t2] = morgen.split('-').map(Number) as [number, number, number];
+    const von = ortszeitZuUtc(j2, mo2, t2, 8, 0, 0, 'Europe/Vienna');
+    const bis = ortszeitZuUtc(j2, mo2, t2, 22, 0, 0, 'Europe/Vienna');
+    const tagAnf = ortszeitZuUtc(j2, mo2, t2, 0, 0, 0, 'Europe/Vienna');
+    const tagEnde = ortszeitZuUtc(...(tagPlus(morgen, 1).split('-').map(Number) as [number, number, number]), 0, 0, 0, 'Europe/Vienna');
+    const z2 = this.o.kalender?.zeitraum ? await this.o.kalender.zeitraum(tagAnf, tagEnde).catch(() => null) : null;
+    const termineTag = (z2?.termine ?? []).filter((t): t is KalenderTermin => typeof t.start === 'string' && typeof t.ende === 'string' && !t.ganztags && !istFristBlock(t));
+    const ueber = ueberschneidungen(termineTag);
+    if (ueber.length) z.push(`⚠️ Morgen überschneiden sich: ${ueber.slice(0, 2).map(([a, b]) => `${h(a.titel)} ↔ ${h(b.titel)}`).join('; ')}`);
     if (morgenTodos.length) {
-      const [j2, mo2, t2] = morgen.split('-').map(Number) as [number, number, number];
-      const von = ortszeitZuUtc(j2, mo2, t2, 8, 0, 0, 'Europe/Vienna');
-      const bis = ortszeitZuUtc(j2, mo2, t2, 22, 0, 0, 'Europe/Vienna');
-      const z2 = this.o.kalender?.zeitraum ? await this.o.kalender.zeitraum(von, bis).catch(() => null) : null;
-      const termine = (z2?.termine ?? []).filter((t): t is KalenderTermin => typeof t.start === 'string' && typeof t.ende === 'string' && !t.ganztags && !istFristBlock(t));
+      const termine = termineTag.filter((t) => Date.parse(t.ende) > von && Date.parse(t.start) < bis);
       const frei = Math.max(0, Math.round((bis - von - belegtMs(termine.map((t) => [Date.parse(t.start), Date.parse(t.ende)]), von, bis)) / 60_000));
       const geschaetzt = morgenTodos.reduce((s2, t) => s2 + (t.dauer ?? 0), 0);
-      // E168: Überschneidungen morgen
-      const ueber = ueberschneidungen(termine);
-      if (ueber.length) z.push(`⚠️ Morgen überschneiden sich: ${ueber.slice(0, 2).map(([a, b]) => `${h(a.titel)} ↔ ${h(b.titel)}`).join('; ')}`);
       z.push(
         `🌅 Morgen: ${morgenTodos.length} To-do${morgenTodos.length === 1 ? '' : 's'}${geschaetzt ? ` (≈ ${minutenText(geschaetzt)})` : ''}${termine.length ? ` · ${termine.length} Termin${termine.length === 1 ? '' : 'e'}` : ''} · frei ≈ ${minutenText(frei)}${geschaetzt > frei * 0.7 ? ' – eng, vielleicht etwas verschieben' : ''}`,
       );

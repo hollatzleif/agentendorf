@@ -1280,5 +1280,9 @@ describe('Überschneidungen in /morgen (E168)', () => {
     const d = await testDorf({ env: { TELEGRAM_CHAT_ID: LEIF, ORIGIN: 'https://dorf.test' }, telegram: n.api, kalenderKlient: klient as never });
     await d.telegram!.verarbeiten({ update_id: 1, message: { message_id: 1, chat: { id: Number(LEIF) }, text: '/morgen' } });
     expect(String(n.aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p.text)).toContain('⚠️ Überschneidung: 10:00 Vorlesung ↔ 11:30 Zahnarzt');
+    // Tagesabschluss meldet sie auch ohne To-dos für morgen (E173)
+    d.uhr.vor(8 * 3_600_000 + 5 * 60_000);
+    await d.telegram!.abendSenden(true);
+    expect(String(n.aufrufe.filter((x) => x.m === 'sendMessage').find((x) => String(x.p.text).startsWith('🌙'))!.p.text)).toContain('⚠️ Morgen überschneiden sich: Vorlesung ↔ Zahnarzt');
   });
 });

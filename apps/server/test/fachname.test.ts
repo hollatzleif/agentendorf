@@ -54,3 +54,14 @@ describe('Überschneidungen (E168)', () => {
     expect(r.map(([a, b]) => `${a.titel}↔${b.titel}`)).toEqual(['VL↔Zahnarzt']);
   });
 });
+
+describe('Überschneidungen ohne Mehrtägiges (E173)', () => {
+  it('ein Termin über mehrere Tage überschneidet nicht alles', async () => {
+    const { ueberschneidungen } = await import('@dorf/shared');
+    const r = ueberschneidungen([
+      { titel: 'Exkursion', start: '2026-11-16T08:00:00+01:00', ende: '2026-11-18T18:00:00+01:00', ganztags: false },
+      { titel: 'VL', start: '2026-11-17T10:00:00+01:00', ende: '2026-11-17T12:00:00+01:00', ganztags: false },
+    ]);
+    expect(r).toEqual([]);
+  });
+});

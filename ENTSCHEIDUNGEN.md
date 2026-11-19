@@ -1370,3 +1370,15 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - Jedes Projekt trägt jetzt `frist` (spätestes Datum unter den offenen To-dos, meist die Abgabe) und `hinterher` (offene, machbare Schritte mit Datum vor heute).
 - **Marktplatz → Projekte:** „🏁 Frist 2026-11-26 (in 7 Tagen)“, rot bei „⚠️ 2 Schritte hinterher“. **Wochenrückblick:** „…, 2 hinterher“.
 - **Warum:** Mit Etappen (E170) gibt es einen Plan, und man will sehen, ob man ihn hält, bevor die Frist kippt.
+
+## E173 – Review 9 (19.11.)
+
+- **Etappen:**
+  - Sie erben „fremd“ vom Original (Uni-/Mail-Titel), wie bei Wiederholungen (Leine).
+  - Der Server lehnt mit 409 ab, wenn es schon Etappen mit demselben Titelstamm gibt. Der Knopf ist während der Anfrage gesperrt.
+  - Das Original wird zur Abgabe selbst: 15 min statt der ganzen Schätzung, sonst zählt die Arbeit doppelt in Tagesbudget, Wochenplan und „Jetzt dran“. Damit verschwindet auch 🪜 danach.
+  - Es wird erst alles geprüft und dann geändert, damit kein halb umgebautes Original zurückbleibt. Eine bestehende Gruppe wird nicht gekürzt.
+  - 🪜 erscheint auch bei Uni-Abgaben und Prüfungen ohne Schätzung; gerechnet wird dann mit 2 h.
+- **Tagesabschluss:** Überschneidungen werden über den ganzen Tag geprüft (auch vor 8 Uhr) und auch dann gemeldet, wenn morgen keine To-dos dran sind.
+- **Überschneidungen:** Termine über 24 h (Exkursion Fr–So) zählen nicht. Sonst überschneiden sie alles.
+- **Uni-Gruppe:** Bestehende Uni-To-dos, deren Gruppe noch exakt der Kursname ist, werden einmal auf den Fachnamen gezogen. Von Leif geänderte Gruppen bleiben.

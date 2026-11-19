@@ -95,8 +95,13 @@ export class UniTodoBruecke {
         merken.run(f.id, t.pfad, frist, 0);
         continue;
       }
-      const t = offen.get(g.pfad);
+      let t = offen.get(g.pfad);
       if (!t) continue; // To-do gelöscht → Leifs Entscheidung, nicht neu anlegen
+      // E173: alte Gruppe (exakt der Kursname, also nicht von Leif geändert) einmal auf den Fachnamen ziehen (Review)
+      if (f.kurs && t.gruppe === f.kurs.slice(0, 60) && gruppeFuer(f.kurs) !== t.gruppe) {
+        const neu = await todos.aendern(t.pfad, { gruppe: gruppeFuer(f.kurs) }, t.version, { abgleich: true }).catch(() => null);
+        if (neu) t = neu;
+      }
       // Frist verschoben → Fälligkeit nachziehen
       if (g.frist !== frist) {
         const neu = await todos.aendern(t.pfad, { faellig: tagInWien(frist) }, t.version, { fremd: true, abgleich: true }).catch(() => null);

@@ -201,6 +201,7 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehr
   const [haken, setHaken] = useState(t.erledigt);
   const [planen, setPlanen] = useState(false);
   const [etappen, setEtappen] = useState(false);
+  const [etappenLaeuft, setEtappenLaeuft] = useState(false);
   // die Zeile wird bei jeder neuen Version neu aufgebaut (key) – offen bleibt sie trotzdem
   const [schritteOffen, setSchritteOffenRoh] = useState(() => OFFENE_SCHRITTE.has(t.pfad));
   const setSchritteOffen = (f: (x: boolean) => boolean) =>
@@ -354,7 +355,7 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehr
               📅
             </button>
           )}
-          {basis === '/api/todos' && !t.erledigt && !t.wiederholen && (t.dauer ?? 0) >= 120 && etappenPlan(t, heute()).length > 0 && (
+          {basis === '/api/todos' && !t.erledigt && !t.wiederholen && ((t.dauer ?? 0) >= 120 || (!t.dauer && (t.gebaeude === 'Uni' || /^(Abgabe|Prüfung):/.test(t.titel)))) && etappenPlan(t, heute()).length > 0 && (
             // E170: großes To-do mit Frist → Etappen auf die Tage davor
             <button type="button" className="klein" title="In Etappen auf die Tage bis zur Frist verteilen" aria-label={`Etappen: ${t.titel}`} aria-expanded={etappen} onClick={() => setEtappen((x) => !x)}>
               🪜
@@ -402,7 +403,14 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehr
               <button
                 type="button"
                 className="haupt klein"
-                onClick={() => void ausfuehren(() => api('/api/todos/etappen', { body: { pfad: t.pfad, basisVersion: t.version } })).then(() => setEtappen(false))}
+                disabled={etappenLaeuft}
+                onClick={() => {
+                  setEtappenLaeuft(true);
+                  void ausfuehren(() => api('/api/todos/etappen', { body: { pfad: t.pfad, basisVersion: t.version } })).finally(() => {
+                    setEtappenLaeuft(false);
+                    setEtappen(false);
+                  });
+                }}
               >
                 Etappen anlegen
               </button>
