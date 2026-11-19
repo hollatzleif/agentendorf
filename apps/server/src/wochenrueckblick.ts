@@ -100,7 +100,7 @@ export class Wochenrueckblick {
     // E161: Projekte (Gruppen) – Fortschritt und was ruht
     const pj = projekteAus(mitFokus(this.o.db, alle), jetzt).filter((p) => p.offen > 0);
     if (pj.length)
-      z1.push(`📁 Projekte: ${pj.slice(0, 5).map((p) => `${einzeilig(p.name, 40)} ${p.erledigt}/${p.gesamt}${p.dieseWoche ? ` (+${p.dieseWoche})` : ''}${p.ruhtMelden ? `, ruht seit ${p.ruhtTage} Tagen` : ''}`).join('; ')}`);
+      z1.push(`📁 Projekte: ${pj.slice(0, 5).map((p) => `${einzeilig(p.name, 40)} ${p.erledigt}/${p.gesamt}${p.dieseWoche ? ` (+${p.dieseWoche})` : ''}${p.hinterher ? `, ${p.hinterher} hinterher` : ''}${p.ruhtMelden ? `, ruht seit ${p.ruhtTage} Tagen` : ''}`).join('; ')}`);
     // E153: was immer wieder geschoben wird, ist meist zu groß oder unklar
     const geschoben = offen.filter((t) => (t.verschoben ?? 0) >= 3).sort((a, b) => b.verschoben! - a.verschoben!);
     if (geschoben.length) z1.push(`↻ Oft verschoben: ${geschoben.slice(0, 5).map((t) => `${einzeilig(t.titel, 50)} (${t.verschoben}×)`).join('; ')} – zerlegen, delegieren oder streichen?`);

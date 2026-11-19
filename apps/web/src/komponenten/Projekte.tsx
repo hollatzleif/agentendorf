@@ -9,6 +9,12 @@ import { navigieren } from '../router';
  * E161: Projekte – To-dos mit derselben Gruppe als Projekt gesehen: Fortschritt, nächster Schritt (mit 🍅),
  * Fokuszeit und „ruht seit …“. Eine Gruppe vergibst du im To-do-Brett beim Bearbeiten (Feld „Gruppe“).
  */
+function fristText(frist: string) {
+  const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+  const tage = Math.round((Date.parse(`${frist}T12:00:00Z`) - Date.parse(`${heute}T12:00:00Z`)) / 86_400_000);
+  return tage < 0 ? `vor ${-tage} ${tage === -1 ? 'Tag' : 'Tagen'}` : tage === 0 ? 'heute' : tage === 1 ? 'morgen' : `in ${tage} Tagen`;
+}
+
 export function Projekte() {
   // E167: Auswertung vom Server – hängt an ['liste', 'todo'], wird also bei jeder To-do-Änderung frisch geholt
   const q = useQuery({ queryKey: ['liste', 'todo', 'projekte'], queryFn: () => api<Projekt[]>('/api/projekte') });
@@ -50,6 +56,14 @@ export function Projekte() {
             <div className="projekt-balken" role="progressbar" aria-valuenow={anteil} aria-valuemin={0} aria-valuemax={100} aria-label={`${p.name}: ${anteil} %`}>
               <span style={{ width: `${anteil}%` }} />
             </div>
+            {(p.frist || p.hinterher > 0) && p.offen > 0 && (
+              // E172: im Plan? Frist mit Countdown, überfällige Schritte
+              <p className={p.hinterher ? 'warnung-text' : 'leise'}>
+                {p.frist && `🏁 Frist ${p.frist} (${fristText(p.frist)})`}
+                {p.frist && p.hinterher > 0 && ' · '}
+                {p.hinterher > 0 && `⚠️ ${p.hinterher} ${p.hinterher === 1 ? 'Schritt' : 'Schritte'} hinterher`}
+              </p>
+            )}
             {p.ruhtMelden && <p className="warnung-text">💤 Ruht seit {p.ruhtTage} Tagen – ein kleiner Schritt heute bringt es wieder in Gang.</p>}
             {p.naechster ? (
               <div className="projekt-naechster">

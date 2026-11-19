@@ -1861,5 +1861,8 @@ test('In Etappen planen: 🪜 zeigt die Vorschau, „Etappen anlegen“ macht ei
   await g.getByRole('button', { name: 'Etappen anlegen' }).click();
   await expect(page.locator('li.todo', { hasText: `${titel} – Etappe 3/3` })).toBeVisible();
   await page.goto('/gebaeude/Marktplatz?reiter=projekte');
-  await expect(page.getByRole('article', { name: `Projekt ${titel}` })).toContainText('0/4 erledigt');
+  const k = page.getByRole('article', { name: `Projekt ${titel}` });
+  await expect(k).toContainText('0/4 erledigt');
+  // E172: Frist mit Countdown
+  await expect(k).toContainText(`🏁 Frist ${frist} (in 4 Tagen)`);
 });

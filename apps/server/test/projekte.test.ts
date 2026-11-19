@@ -98,3 +98,20 @@ describe('/api/projekte (E167)', () => {
     expect(r).toEqual([expect.objectContaining({ name: 'BA', gesamt: 3, offen: 3, naechster: expect.objectContaining({ titel: 'Kapitel A' }) })]);
   });
 });
+
+describe('Projekte im Plan (E172)', () => {
+  it('Frist = spätestes offenes Datum; hinterher = offene Schritte vor heute (ohne Wartendes)', () => {
+    const jetzt = Date.parse('2026-11-16T12:00:00Z');
+    const [p] = projekteAus(
+      [
+        t('Referat – Etappe 1/3', { gruppe: 'Referat', faellig: '2026-11-14' }),
+        t('Referat – Etappe 2/3', { gruppe: 'Referat', faellig: '2026-11-15' }),
+        t('Referat – Etappe 3/3', { gruppe: 'Referat', faellig: '2026-11-17' }),
+        t('Referat', { gruppe: 'Referat', faellig: '2026-11-20' }),
+        t('Rückmeldung', { gruppe: 'Referat', wartet: 'Prof' }),
+      ],
+      jetzt,
+    );
+    expect(p).toMatchObject({ frist: '2026-11-20', hinterher: 2 });
+  });
+});

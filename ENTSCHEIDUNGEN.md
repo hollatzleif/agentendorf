@@ -1364,3 +1364,9 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - Die Uni-Brücke (E71) setzt als Gruppe jetzt den Fachnamen aus Uni/faecher (`fachZuordnen` über Titel und Ordner), nicht mehr den Kursnamen aus dem Kalender. Gibt es kein passendes Fach, bleibt es beim Kursnamen.
 - **Warum:** Fach-Karten, Lernziele, „Nachbereiten“ und der Pomodoro aus dem Fach nutzen den Fachnamen. Mit zwei Namen zerfiel ein Kurs in zwei Projekte, und Fokuszeit landete nicht sauber beim Lernziel. Bestehende To-dos behalten ihre Gruppe, weil das Dorf nichts umschreibt, was Leif vielleicht angepasst hat.
 - **Bürgermeister:** Er kennt „🪜 Etappen“ und schlägt sie bei großen Abgaben vor.
+
+## E172 – Projekte im Plan (19.11.)
+
+- Jedes Projekt trägt jetzt `frist` (spätestes Datum unter den offenen To-dos, meist die Abgabe) und `hinterher` (offene, machbare Schritte mit Datum vor heute).
+- **Marktplatz → Projekte:** „🏁 Frist 2026-11-26 (in 7 Tagen)“, rot bei „⚠️ 2 Schritte hinterher“. **Wochenrückblick:** „…, 2 hinterher“.
+- **Warum:** Mit Etappen (E170) gibt es einen Plan, und man will sehen, ob man ihn hält, bevor die Frist kippt.

@@ -16,6 +16,10 @@ export interface Projekt {
   fokusMin: number;
   /** ganze Tage seit der letzten Bewegung (Anlage, Erledigung, Fokussitzung) */
   ruhtTage: number;
+  /** E172: offene Schritte mit Datum vor heute (Etappen hinterher) */
+  hinterher: number;
+  /** E172: spätestes Datum unter den offenen To-dos (meist die Abgabe) */
+  frist?: string;
   /** E166: „ruht“ lohnt einen Anstoß – offen, eine Woche still, nicht alles wartend, nächster Schritt nicht erst später fällig */
   ruhtMelden: boolean;
 }
@@ -49,6 +53,8 @@ export function projekteAus(todos: TodoInfo[], jetzt: number): Projekt[] {
       ...(naechster ? { naechster: { pfad: naechster.pfad, titel: naechster.titel, ...(naechster.faellig ? { faellig: naechster.faellig } : {}), ...(naechster.schritte?.find((s) => !s.erledigt) ? { schritt: naechster.schritte.find((s) => !s.erledigt)!.text } : {}) } } : {}),
       fokusMin: liste.reduce((s, t) => s + (t.fokusMin ?? 0), 0),
       ruhtTage: Math.max(0, Math.floor((jetzt - letzte) / 86_400_000)),
+      hinterher: aktiv.filter((t) => t.faellig && t.faellig < heute).length,
+      ...(offen.some((t) => t.faellig) ? { frist: offen.map((t) => t.faellig).filter((x): x is string => !!x).sort().at(-1)! } : {}),
       ruhtMelden: offen.length > 0 && aktiv.length > 0 && jetzt - letzte >= 7 * 86_400_000 && !(naechster?.faellig && naechster.faellig > heute),
     });
   }
