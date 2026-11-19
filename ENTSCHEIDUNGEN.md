@@ -1358,3 +1358,9 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
   - Die Etappen „Titel – Etappe i/n“ bekommen dieselbe Gruppe, also entsteht sofort ein Projekt (E161) mit Fortschritt.
   - Gebäude und Energie werden übernommen.
 - **Warum:** Große Abgaben scheitern selten am Können, sondern daran, dass sie erst am Vorabend begonnen werden. Rückwärts geplante Etappen machen aus „Referat in 2 Wochen“ heute 1 Stunde, und „Jetzt dran“, Wochenplan und Projekte greifen automatisch.
+
+## E171 – Uni-To-dos gruppieren nach Fachname (19.11.)
+
+- Die Uni-Brücke (E71) setzt als Gruppe jetzt den Fachnamen aus Uni/faecher (`fachZuordnen` über Titel und Ordner), nicht mehr den Kursnamen aus dem Kalender. Gibt es kein passendes Fach, bleibt es beim Kursnamen.
+- **Warum:** Fach-Karten, Lernziele, „Nachbereiten“ und der Pomodoro aus dem Fach nutzen den Fachnamen. Mit zwei Namen zerfiel ein Kurs in zwei Projekte, und Fokuszeit landete nicht sauber beim Lernziel. Bestehende To-dos behalten ihre Gruppe, weil das Dorf nichts umschreibt, was Leif vielleicht angepasst hat.
+- **Bürgermeister:** Er kennt „🪜 Etappen“ und schlägt sie bei großen Abgaben vor.

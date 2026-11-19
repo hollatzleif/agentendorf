@@ -4,6 +4,7 @@ import type { TodoDienst } from '../todos.js';
 import type { Uni } from './abgleich.js';
 import type { VaultDienst } from '../vault/dienst.js';
 import { schritteLesen } from '../todos.js';
+import { fachZuordnen } from '@dorf/shared';
 
 /**
  * E130: Standard-Teilschritte für Abgaben und Prüfungen. Eigene Vorlage: `Uni/vorlagen/schritte-abgabe.md` bzw.
@@ -70,6 +71,9 @@ export class UniTodoBruecke {
     );
     const offen = new Map((await todos.liste({ alleErledigten: true })).map((t) => [t.pfad, t]));
 
+    // E171: Gruppe = Fachname aus Uni/faecher (wie Fach-Karten, Lernziel, Nachbereiten) – sonst zerfällt ein Kurs in zwei Projekte
+    const faecher = this.o.uni.faecher();
+    const gruppeFuer = (kurs: string) => (fachZuordnen(faecher, (x) => [x.titel, x.name], kurs)?.titel ?? kurs).slice(0, 60);
     for (const f of fristen) {
       const frist = Date.parse(f.frist!);
       const g = gemerkt.get(f.id);
@@ -82,7 +86,7 @@ export class UniTodoBruecke {
             titel: `${f.art === 'test' ? 'Prüfung' : 'Abgabe'}: ${f.titel}`.slice(0, 200),
             faellig: tagInWien(frist),
             gebaeude: 'Uni',
-            ...(f.kurs ? { gruppe: f.kurs.slice(0, 60) } : {}),
+            ...(f.kurs ? { gruppe: gruppeFuer(f.kurs) } : {}),
             notiz: `${notiz(f.art, frist, f.kurs, f.pfad)}${schritte.length ? `\n\n${schritte.map((x) => `- [ ] ${x}`).join('\n')}` : ''}`,
           },
           'Uni',

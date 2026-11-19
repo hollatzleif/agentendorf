@@ -93,3 +93,13 @@ describe('Uni-Fristen → To-dos (E71)', () => {
     expect(pruefung!.notiz).toMatch(/^Prüfung am/);
   });
 });
+
+describe('Gruppe = Fachname (E171)', () => {
+  it('Kurs aus dem Kalender wird dem Fachordner zugeordnet', async () => {
+    const { d, offen } = await aufbau();
+    await d.uni.fachAnlegen('Mathe III UE');
+    await d.uni.abgleichen();
+    const t = (await offen()).find((x) => x.titel.startsWith('Abgabe: Übungsblatt 5'))!;
+    expect(t.gruppe).toBe('Mathe III UE');
+  });
+});
