@@ -1509,12 +1509,39 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0.05rem 0.35rem; border:
   .tagesleiste-stunden { font-size: 0.72rem; }
 }
 
-/* E161: Projekte */
-.projekte { display: grid; gap: 0.8rem; }
-.projekt { display: grid; gap: 0.45rem; }
-.projekt.fertig { opacity: 0.75; }
-.projekt-kopf { display: flex; justify-content: space-between; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
-.projekt-kopf h3 { margin: 0; }
-.projekt-balken { height: 0.6rem; border-radius: 999px; background: var(--rand); overflow: hidden; }
-.projekt-balken span { display: block; height: 100%; background: var(--gruen, #3c8d5a); border-radius: 999px; transition: width 0.3s; }
-.projekt-naechster { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+/* E161: Projekte – kleine Projekt-Tafeln (E164) */
+.projekte { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 21rem), 1fr)); gap: 1rem; align-items: start; }
+.projekte > .fehler { grid-column: 1 / -1; margin: 0; }
+.projekt { display: grid; gap: 0.6rem; margin-bottom: 0; padding: 0 0 0.9rem; overflow: hidden; min-width: 0; }
+.projekt > * { margin: 0 1rem; min-width: 0; }
+.projekt > .projekt-kopf { margin: 0; padding: 0.6rem 1rem 0.55rem; background: linear-gradient(#f1f8e6, var(--gruen-hell)); border-bottom: 2px solid var(--navy); display: flex; justify-content: space-between; align-items: baseline; gap: 0.2rem 0.6rem; flex-wrap: wrap; }
+.projekt-kopf h3 { margin: 0; font-size: 1.05rem; line-height: 1.3; min-width: 0; overflow-wrap: anywhere; }
+.projekt-kopf .leise { font-size: 0.82rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.projekt-balken { position: relative; height: 1.25rem; border: 2px solid var(--navy); border-radius: 999px; background: #f3f6ee; box-shadow: 0 2px 0 var(--navy); overflow: hidden; }
+.projekt-balken span { display: block; height: 100%; min-width: 0; background: repeating-linear-gradient(-45deg, rgb(255 255 255 / 0.16) 0 8px, transparent 8px 16px), linear-gradient(#8ee06b, #3fa63a); box-shadow: inset 0 -3px 0 rgb(0 0 0 / 0.14); transition: width 0.3s; }
+.projekt-balken span:not([style*='width: 100%']):not([style*='width: 0%']) { border-right: 2px solid #1f5a1d; }
+.projekt-balken::after { content: attr(aria-valuenow) ' %'; position: absolute; inset: 0; display: grid; place-items: center; font-size: 0.72rem; font-weight: 900; line-height: 1; color: var(--navy); text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 2px #fff; font-variant-numeric: tabular-nums; pointer-events: none; }
+.projekt > .warnung-text { padding: 0.4rem 0.65rem; border: 2px dashed #e0b25a; border-radius: 10px; background: #fff6dd; font-size: 0.88rem; line-height: 1.4; }
+.projekt-naechster { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem 0.7rem; padding: 0.5rem 0.55rem 0.55rem 0.7rem; border: 2px solid var(--rand); border-radius: 12px; background: #fff; line-height: 1.4; }
+.projekt-naechster > span { min-width: 0; overflow-wrap: anywhere; }
+.projekt-naechster > button { flex: none; white-space: nowrap; }
+.projekt > p.leise { font-weight: 700; color: #1f5a1d; }
+.projekt.fertig { opacity: 1; background: #f6fbef; }
+.projekt.fertig > .projekt-kopf { background: linear-gradient(#e3f3d8, #cfe9bd); }
+.projekte-leer { border-style: dashed; text-align: center; }
+.projekte-leer p { margin: 0.2rem 0; }
+@media (max-width: 600px) {
+  .projekte { gap: 0.85rem; }
+  .projekt > * { margin: 0 0.75rem; }
+  .projekt > .projekt-kopf { padding: 0.55rem 0.75rem 0.5rem; }
+  .projekt-naechster > button { min-height: 2.5rem; min-width: 4.6rem; }
+}
+
+/* E162: „Was gute Tage ausmacht“ – freundlicher Hinweis zwischen den Diagrammen (E164) */
+.statistik-einsichten { margin: 0; padding: 0.7rem 0.9rem 0.6rem; border: 2px solid #e6cf86; border-left-width: 8px; border-radius: 14px; background: #fffaea; box-shadow: none; }
+.statistik-einsichten h3 { margin: 0 0 0.35rem; font-size: 1rem; }
+.statistik-einsichten ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.3rem; }
+.statistik-einsichten li { position: relative; padding-left: 1.35rem; line-height: 1.4; font-weight: 600; overflow-wrap: anywhere; }
+.statistik-einsichten li::before { content: ''; position: absolute; left: 0.25rem; top: 0.45em; width: 0.55rem; height: 0.55rem; border-radius: 50%; background: #f2b51e; box-shadow: 0 0 0 2px #fff, 0 0 0 3px #d79a10; }
+.statistik-einsichten li .leise { font-weight: 500; font-size: 0.82rem; white-space: nowrap; }
+.statistik-einsichten > p.leise { margin: 0.5rem 0 0; padding-top: 0.4rem; border-top: 1px dashed #e6cf86; font-size: 0.8rem; }
