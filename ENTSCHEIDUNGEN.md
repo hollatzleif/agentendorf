@@ -1298,3 +1298,9 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
   - „💤 Ruht seit N Tagen“, wenn eine Woche lang nichts angelegt oder erledigt wurde
 - **Wochenrückblick:** „📁 Projekte: Bachelorarbeit 4/10 (+2), Umzug …, ruht seit 12 Tagen“.
 - **Warum:** Große Vorhaben (Bachelorarbeit, Umzug, ein Corps-Amt) zerfallen in viele To-dos. In der Tagesliste sieht man nie, ob das Ganze vorankommt. Die Projektansicht zeigt genau das und stupst an, was einschläft.
+
+## E162 – Was gute Tage ausmacht (19.11.)
+
+- **Statistik (Rathaus) und Wochenrückblick („Gute Tage“, 4 Wochen):** Die Stimmung (E107) an Tagen mit und ohne eine Sache wird verglichen: mindestens 1 h Fokus, alle Gewohnheiten erledigt (nur Statistik), 3 oder mehr erledigte To-dos. Ein Ergebnis sieht so aus: „An Tagen mit mindestens 1 h Fokus: Stimmung ⌀ 4,3 – sonst 3,1“.
+- **Nur mit Aussagekraft:** Verglichen wird nur, wenn es auf beiden Seiten mindestens 3 Tage mit Stimmung gibt und der Unterschied mindestens 0,5 beträgt. Ehrlich formuliert: ein Zusammenhang, kein Beweis.
+- **Warum:** Die Stimmung des Tages wird schon erfasst, aber nirgends genutzt. Wer sieht, dass Fokus-Tage gute Tage sind, fängt eher wieder mit einem 🍅 an. Das ist Motivation aus den eigenen Daten statt aus Ratgebern.

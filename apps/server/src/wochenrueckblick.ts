@@ -1,5 +1,5 @@
-import { minutenText, projekteAus } from '@dorf/shared';
-import { fokusNachTageszeit } from './statistik.js';
+import { guteTage, minutenText, projekteAus } from '@dorf/shared';
+import { fokusNachTageszeit, statistik } from './statistik.js';
 import matter from 'gray-matter';
 import { z } from 'zod';
 import type { DB } from './db.js';
@@ -120,6 +120,10 @@ export class Wochenrueckblick {
       if (ziel) z2.push(`🎯 Fokus-Ziel (${minutenText(ziel)}) an **${f.tage.filter((t) => t.min >= ziel).length} von ${f.tage.length}** Tagen erreicht`);
       abschnitte.push({ titel: 'Fokus', zeilen: z2 });
     } else if (f) abschnitte.push({ titel: 'Fokus', zeilen: ['Diese Woche keine Pomodoros – nächste Woche einfach mit einem 🍅 am wichtigsten To-do anfangen.'] });
+
+    // E162: was mit guten Tagen zusammenhängt (4 Wochen, nur bei genug Stimmungs-Tagen)
+    const gt = guteTage((await statistik({ db: this.o.db, uhr: this.o.uhr, todos: this.o.todos }, 28)).tage);
+    if (gt.length) abschnitte.push({ titel: 'Gute Tage', zeilen: [...gt.map((e) => e.text), '(4 Wochen – ein Zusammenhang, kein Beweis)'] });
 
     // E122: Schätzung gegen tatsächliche Fokuszeit – nur To-dos dieser Woche mit beidem (lernen, realistischer zu schätzen)
     const fokusJe = new Map((this.o.db.prepare('SELECT todo, SUM(minuten) AS m FROM fokus_sitzungen WHERE todo IS NOT NULL GROUP BY todo').all() as { todo: string; m: number }[]).map((x) => [x.todo, x.m]));

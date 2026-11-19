@@ -1808,3 +1808,22 @@ test('Marktplatz → Projekte: Gruppe als Projekt mit Fortschritt und nächstem 
   await expect(k.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '33');
   await expect(k).toContainText(`👉 ${g} Kapitel 1`);
 });
+
+test('Statistik: „💡 Was gute Tage ausmacht“ bei genug Stimmungs-Tagen (E162)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  const tage = Array.from({ length: 28 }, (_, i) => ({
+    tag: new Date(Date.UTC(2026, 9, 23 + i)).toISOString().slice(0, 10),
+    erledigt: 0,
+    fokusMin: i % 2 ? 90 : 0,
+    gewohnheitenFaellig: 0,
+    gewohnheitenErledigt: 0,
+    stimmung: i < 8 ? (i % 2 ? 5 : 2) : null,
+  }));
+  await page.route('**/api/statistik?*', (r) =>
+    r.fulfill({ json: { tage, summen: { erledigt: 0, erledigtWoche: 0, fokusMin: 1260, fokusMinWoche: 270, gewohnheitenQuote: null, stimmungSchnitt: 3.5, aktiveTage: 14 }, fokusJeStunde: Array(24).fill(0), besteZeit: null } }),
+  );
+  await page.goto('/gebaeude/Rathaus?reiter=statistik');
+  const k = page.getByRole('note', { name: 'Was gute Tage ausmacht' });
+  await expect(k).toContainText('An Tagen mit mindestens 1 h Fokus: Stimmung ⌀ 5 – sonst 2');
+});

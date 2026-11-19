@@ -856,3 +856,4 @@ export * from './tagesbudget.js';
 export * from './todotext.js';
 export * from './fachname.js';
 export * from './projekte.js';
+export * from './einsichten.js';

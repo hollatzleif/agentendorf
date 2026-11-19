@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { Statistik } from "@dorf/shared";
+import { guteTage } from "@dorf/shared";
 import { api } from "../api";
 
 /**
@@ -134,6 +135,20 @@ export function StatistikAnsicht() {
                 />
               )}
               {s.fokusJeStunde && s.fokusJeStunde.some((m) => m > 0) && <Tageszeit werte={s.fokusJeStunde} beste={s.besteZeit ?? null} />}
+              {/* E162: was mit guten Tagen zusammenhängt (nur bei genug Daten) */}
+              {guteTage(s.tage).length > 0 && (
+                <div className="karte statistik-einsichten" role="note" aria-label="Was gute Tage ausmacht">
+                  <h3>💡 Was gute Tage ausmacht</h3>
+                  <ul>
+                    {guteTage(s.tage).map((e) => (
+                      <li key={e.text}>
+                        {e.text} <span className="leise">({e.tageMit} gegen {e.tageOhne} Tage)</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="leise">Ein Zusammenhang, kein Beweis – aber ein guter Hinweis, worauf du achten kannst.</p>
+                </div>
+              )}
               {s.summen.stimmungSchnitt != null && (
                 <Balken
                   titel="💭 Stimmung (1–5)"
