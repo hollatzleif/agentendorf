@@ -454,6 +454,8 @@ export interface TelegramEinstellungen {
   bank: boolean;
   /** Nacht 18./19.11.: Tagesabschluss um 21 Uhr (erledigt, Fokus, ⭐ für morgen) */
   abend: boolean;
+  /** E143: nach einem Termin „Jetzt dran“ für die freie Zeit danach (höchstens 3× am Tag) */
+  luecken: boolean;
 }
 
 // ---- Etappe 3: Uni -------------------------------------------------------------------------------

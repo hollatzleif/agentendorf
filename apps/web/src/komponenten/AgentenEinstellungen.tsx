@@ -96,6 +96,7 @@ const SCHALTER: [keyof TelegramEinstellungen, string][] = [
   ['beendet', 'Jede beendete Aufgabe'],
   ['morgenzeitung', 'Morgenzeitung (06:30) und Wochenrückblick (So 18:30)'],
   ['abend', 'Tagesabschluss (21:00): erledigt, Fokus, ⭐ für morgen wählen'],
+  ['luecken', 'Nach einem Termin: „👉 Jetzt dran“ für die freie Zeit danach (höchstens 3× am Tag)'],
   ['moodle', 'Neue Fristen aus Moodle'],
   ['erinnerungen', 'Erinnerungen an Abgaben und Tests (3 Tage, 1 Tag, 3 Stunden vorher; Nachfrage danach)'],
   ['bank', 'Bank: Warnung, wenn ein Budget zu 80 % bzw. ganz aufgebraucht ist'],

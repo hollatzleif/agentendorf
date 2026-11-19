@@ -990,3 +990,46 @@ describe('Tagesabschluss: Morgen im Blick (E141)', () => {
     expect(d.gesendet().find((t) => t.startsWith('🌙'))).toContain('🌅 Morgen: 2 To-dos (≈ 11 h) · frei ≈ 14 h – eng, vielleicht etwas verschieben');
   });
 });
+
+describe('Lücken-Anstoß nach Terminen (E143)', () => {
+  it('Termin gerade vorbei → einmal „Jetzt dran“ mit 🍅 Los; je Termin einmal; nicht im Fokus; abschaltbar', async () => {
+    const n = nachbau();
+    // TestUhr: Mo 16.11. 13:00 Wien = 12:00Z; Vorlesung 11:00–12:55 Wien, nächster Termin 15:00
+    const klient = {
+      async kalender() {
+        return [{ id: 'leif', name: 'Leif', farbe: '#000', primaer: true, schreibbar: true }];
+      },
+      async termine() {
+        return [
+          { id: 'v1', summary: 'Vorlesung', start: { dateTime: '2026-11-16T11:00:00+01:00' }, end: { dateTime: '2026-11-16T12:55:00+01:00' } },
+          { id: 'v2', summary: 'Tutorium', start: { dateTime: '2026-11-16T15:00:00+01:00' }, end: { dateTime: '2026-11-16T16:00:00+01:00' } },
+        ];
+      },
+      async holen() {
+        throw new Error('-');
+      },
+      async anlegen() {
+        throw new Error('-');
+      },
+      async aendern() {
+        throw new Error('-');
+      },
+      async loeschen() {},
+      async verschieben() {
+        throw new Error('-');
+      },
+    };
+    const d = await testDorf({ env: { TELEGRAM_CHAT_ID: LEIF, ORIGIN: 'https://dorf.test' }, telegram: n.api, kalenderKlient: klient as never });
+    await d.todos.anlegen({ titel: 'Blatt 4', faellig: '2026-11-16', dauer: 60 }, 'Leif');
+    expect(await d.telegram!.lueckenHinweis()).toBe(true);
+    const p = n.aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p;
+    expect(p.text).toBe('✅ <b>Vorlesung</b> ist vorbei.\n👉 <b>Jetzt dran:</b> Blatt 4\n<i>passt in die 2 h bis Tutorium · ⏱ 1 h</i>');
+    // derselbe Termin nicht nochmal
+    expect(await d.telegram!.lueckenHinweis()).toBe(false);
+    // abschaltbar
+    const e = await (await import('../src/telegram/einstellungen.js')).einstellungenLaden(d.vault);
+    await (await import('../src/telegram/einstellungen.js')).einstellungenSetzen(d.vault, { ...e, luecken: false });
+    d.db.prepare("DELETE FROM dorf_stand WHERE schluessel = 'telegram_luecken'").run();
+    expect(await d.telegram!.lueckenHinweis()).toBe(false);
+  });
+});

@@ -305,6 +305,7 @@ export class TelegramBot {
 
   // ---- Polling --------------------------------------------------------------------------------
 
+  private lueckenTakt?: ReturnType<typeof setInterval>;
   private erinnerungsTakt?: NodeJS.Timeout;
 
   /** Befehlsmenü („/“ in Telegram) – reine Anzeige, Fehler sind egal */
@@ -349,6 +350,9 @@ export class TelegramBot {
       void this.abendSenden().catch((e) => this.fehler(e));
       void this.pruefungsWaechter().catch((e) => this.fehler(e));
     }, 10 * 60_000);
+    // E143: Lücken-Anstoß nach Terminen – alle 5 Minuten nachsehen
+    this.lueckenTakt = setInterval(() => void this.lueckenHinweis().catch((e) => this.fehler(e)), 5 * 60_000);
+    this.lueckenTakt.unref();
     this.erinnerungsTakt.unref();
   }
 
@@ -356,6 +360,7 @@ export class TelegramBot {
     this.laeuft = false;
     this.abbruch?.abort();
     if (this.erinnerungsTakt) clearInterval(this.erinnerungsTakt);
+    if (this.lueckenTakt) clearInterval(this.lueckenTakt);
   }
 
   // ---- Erinnerungen an Fristen ------------------------------------------------------------------
@@ -1231,8 +1236,8 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     return `jl:${k}:${crypto.createHmac('sha256', this.signaturSchluessel).update(`jetzt:${k}`).digest('base64url').slice(0, 16)}`;
   }
 
-  private async jetztBefehl() {
-    if (!this.o.listen) return this.senden('Die To-do-Liste ist nicht eingerichtet.');
+  /** Grundlage für /jetzt und den Lücken-Anstoß (E143): Termine heute, To-dos mit Fokuszeit, Vorschlag */
+  private async jetztLage() {
     const jetzt = this.o.uhr.jetzt();
     const teile = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Vienna', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(jetzt)).map((x) => [x.type, x.value]));
     const heute = `${teile.year}-${teile.month}-${teile.day}`;
@@ -1244,14 +1249,52 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       termine = (z?.termine ?? []).filter((t): t is KalenderTermin => typeof t.start === 'string' && typeof t.ende === 'string' && typeof t.ganztags === 'boolean');
     }
     const fokus = new Map((this.o.db.prepare('SELECT todo, SUM(minuten) AS m FROM fokus_sitzungen WHERE todo IS NOT NULL GROUP BY todo').all() as { todo: string; m: number }[]).map((x) => [x.todo, Math.round(x.m)]));
-    const todos = (await this.o.listen.todo.liste()).map((t) => (fokus.get(t.pfad) ? { ...t, fokusMin: fokus.get(t.pfad) } : t));
-    const d = jetztDran({ todos, termine, jetzt, jetztMin, heute });
-    if (!d) return this.senden(jetztMin >= 22 * 60 ? '🌙 Feierabend – für heute ist nichts mehr dran.' : '👉 Gerade passt nichts Dringendes hinein (Termin läuft, zu wenig Zeit oder nichts fällig). Zeit für dich. 🌿');
+    const todos = (await this.o.listen!.todo.liste()).map((t) => (fokus.get(t.pfad) ? { ...t, fokusMin: fokus.get(t.pfad) } : t));
+    return { jetzt, heute, jetztMin, termine, d: jetztDran({ todos, termine, jetzt, jetztMin, heute }) };
+  }
+
+  private jetztNachricht(d: NonNullable<ReturnType<typeof jetztDran>>, vorweg = '') {
     const luecke = d.bis ? `${minutenText(d.luecke)} bis ${h(d.bis.titel)}` : `${minutenText(d.luecke)} bis 22 Uhr`;
-    return this.senden(
-      `👉 <b>Jetzt dran:</b> ${h(d.todo.titel)}${d.schritt ? `\nnächster Schritt: ${h(d.schritt)}` : ''}\n<i>${d.passt ? `passt in die ${luecke}` : `für einen 🍅 reicht's (${luecke})`}${d.todo.dauer ? ` · ⏱ ${minutenText(d.todo.dauer)}` : ''}</i>`,
+    return [
+      `${vorweg}👉 <b>Jetzt dran:</b> ${h(d.todo.titel)}${d.schritt ? `\nnächster Schritt: ${h(d.schritt)}` : ''}\n<i>${d.passt ? `passt in die ${luecke}` : `für einen 🍅 reicht's (${luecke})`}${d.todo.dauer ? ` · ⏱ ${minutenText(d.todo.dauer)}` : ''}</i>`,
       { reply_markup: { inline_keyboard: [[{ text: '🍅 Los', callback_data: this.jetztDaten(this.todoKennung(d.todo.pfad)) }]] } },
-    );
+    ] as const;
+  }
+
+  private async jetztBefehl() {
+    if (!this.o.listen) return this.senden('Die To-do-Liste ist nicht eingerichtet.');
+    const { jetztMin, d } = await this.jetztLage();
+    if (!d) return this.senden(jetztMin >= 22 * 60 ? '🌙 Feierabend – für heute ist nichts mehr dran.' : '👉 Gerade passt nichts Dringendes hinein (Termin läuft, zu wenig Zeit oder nichts fällig). Zeit für dich. 🌿');
+    const [text, extra] = this.jetztNachricht(d);
+    return this.senden(text, extra);
+  }
+
+  /**
+   * E143: Lücken-Anstoß – ist gerade (≤ 12 min) ein Termin zu Ende gegangen und danach Zeit frei, kommt einmal
+   * „✅ Vorlesung ist vorbei. 👉 Jetzt dran: …“ mit 🍅 Los. Höchstens 3× am Tag, je Termin einmal, nicht im Fokus,
+   * nicht nachts (dann verfällt er – er ist nur jetzt nützlich). Schalter „luecken“ in 00_Stadtordnung/telegram.md.
+   */
+  async lueckenHinweis() {
+    if (!this.o.listen || !this.o.kalender?.zeitraum || !(await einstellungenLaden(this.o.vault)).luecken) return false;
+    if (this.fokusAktiv() || (await this.nachtruhe())) return false;
+    const { jetzt, heute, termine, d } = await this.jetztLage();
+    const zeitig = termine.filter((t) => !t.ganztags);
+    const vorbei = zeitig.filter((t) => Date.parse(t.ende) <= jetzt && Date.parse(t.ende) > jetzt - 12 * 60_000).sort((a, b) => b.ende.localeCompare(a.ende))[0];
+    if (!vorbei) return false;
+    const stand = (() => {
+      try {
+        const w = JSON.parse((this.o.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'telegram_luecken'").get() as { wert: string } | undefined)?.wert ?? '{}') as { tag?: string; ids?: string[] };
+        return w.tag === heute ? { tag: heute, ids: w.ids ?? [] } : { tag: heute, ids: [] as string[] };
+      } catch {
+        return { tag: heute, ids: [] as string[] };
+      }
+    })();
+    if (stand.ids.includes(vorbei.id) || stand.ids.length >= 3) return false;
+    stand.ids.push(vorbei.id);
+    this.o.db.prepare("INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES ('telegram_luecken', ?)").run(JSON.stringify(stand));
+    if (!d) return false;
+    const [text, extra] = this.jetztNachricht(d, `✅ <b>${h(vorbei.titel)}</b> ist vorbei.\n`);
+    return !!(await this.senden(text, extra));
   }
 
   private async jetztKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {

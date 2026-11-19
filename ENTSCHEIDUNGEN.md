@@ -1110,3 +1110,13 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **Tagesabschluss (Telegram, 21 Uhr):** „🌅 Morgen: 3 To-dos (≈ 2 h 30 min) · 2 Termine · frei ≈ 9 h“. Wird es eng (mehr als 70 % der freien Zeit verplant), steht dahinter „eng, vielleicht etwas verschieben“. Mitgezählt wird auch Überfälliges, weil es morgen sonst einfach mitwandert.
 - **„Heute“ ab 18 Uhr:** Die Karte „🌅 Morgen“ zeigt dasselbe, dazu die ersten 5 To-dos und einen Link zum Wochenplan.
 - **Warum:** Ein kurzer Blick auf morgen ist der beste Feierabend-Abschluss. Man legt den Tag gedanklich ab und startet morgens ohne Überraschung.
+
+## E143 – Anstoß nach Terminen (Nacht 18./19.11.)
+
+- Ist gerade ein Termin zu Ende gegangen (vor höchstens 12 min) und danach Zeit frei, schickt Telegram einmal: „✅ **Vorlesung** ist vorbei. 👉 Jetzt dran: Blatt 4 – passt in die 2 h bis Tutorium“, mit **„🍅 Los“**. Das ist derselbe Vorschlag wie `/jetzt` (E123).
+- **Grenzen:**
+  - je Termin einmal und höchstens 3× am Tag
+  - nicht während eines Pomodoros und nicht in der Nachtruhe; dann verfällt der Anstoß, er ist nur im Moment nützlich
+  - nur mit verbundenem Google-Kalender
+- **Schalter** „luecken“ in `00_Stadtordnung/telegram.md` bzw. unter Agenten-Einstellungen → Telegram, standardmäßig an. Geprüft wird alle 5 Minuten.
+- **Warum:** Der schwierigste Moment ist der Übergang. Nach der Vorlesung bleibt man leicht hängen; ein konkreter nächster Schritt im richtigen Moment hilft beim Weitermachen.
