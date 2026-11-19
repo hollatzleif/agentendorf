@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { belegtMs, istFristBlock, minutenText } from '@dorf/shared';
+import { belegtMs, istFristBlock, minutenText, type Projekt } from '@dorf/shared';
 import matter from 'gray-matter';
 import { WETTER_TEXT, type MorgenzeitungInfo, type MorgenzeitungUebersicht } from '@dorf/shared';
 import type { DB } from './db.js';
@@ -70,6 +70,8 @@ export class Morgenzeitung {
       lernen?: () => Promise<string[]>;
       /** E120: heute dran stehende To-dos (überfällig + heute fällig) mit Schätzung */
       todosHeute?: () => Promise<{ dauer?: number; titel?: string; wartet?: string }[]>;
+      /** E163: Projekte (Gruppen) – ruhende werden erwähnt */
+      projekte?: () => Promise<Projekt[]>;
       /** E112: wie es dem Dorf geht */
       bluete?: () => Promise<DorfBluete>;
       log?: (t: string) => void;
@@ -181,6 +183,9 @@ export class Morgenzeitung {
     // E150: wartende To-dos, deren Nachfass-Tag da ist
     const nachfassen = (dran ?? []).filter((t2) => t2.wartet && t2.titel);
     if (nachfassen.length) heuteZeilen.push(`⏳ Heute nachfassen: ${nachfassen.slice(0, 4).map((t2) => `${einzeilig(t2.titel!, 60)} (bei ${einzeilig(t2.wartet!, 40)})`).join(', ')}`);
+    // E163: ein Projekt, das seit einer Woche ruht – ein kleiner Schritt heute
+    const ruhend = ((await this.o.projekte?.().catch(() => [])) ?? []).filter((p) => p.offen > 0 && p.ruhtTage >= 7).sort((a, b) => b.ruhtTage - a.ruhtTage)[0];
+    if (ruhend) heuteZeilen.push(`💤 ${einzeilig(ruhend.name, 50)} ruht seit ${ruhend.ruhtTage} Tagen${ruhend.naechster ? ` – nächster Schritt: ${einzeilig(ruhend.naechster.titel, 60)}` : ''}`);
     abschnitte.push({ titel: 'Heute', zeilen: heuteZeilen });
 
     // Fristen der nächsten 7 Tage (nicht abgehakt)

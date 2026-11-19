@@ -36,3 +36,20 @@ describe('Projekte im Wochenrückblick (E161)', () => {
     expect(r.abschnitte.find((x) => x.titel === 'Erledigt und offen')!.zeilen.join('\n')).toContain('📁 Projekte: Bachelorarbeit 1/3 (+1)');
   });
 });
+
+describe('Projekte in Telegram und Morgenzeitung (E163)', () => {
+  it('/projekte mit Balken und 🍅-Knopf; Zeitung nennt ein ruhendes Projekt', async () => {
+    const { testDorf } = await import('./hilfen.js');
+    const aufrufe: { m: string; p: Record<string, unknown> }[] = [];
+    const api = { aufruf: async (m: string, p: Record<string, unknown> = {}) => (aufrufe.push({ m, p }), m === 'sendMessage' ? { message_id: 1 } : true), dateiLaden: async () => ({ daten: Buffer.alloc(0), name: 'x' }) };
+    const d = await testDorf({ env: { TELEGRAM_CHAT_ID: '42', ORIGIN: 'https://dorf.test' }, telegram: api as never });
+    for (const x of ['A', 'B', 'C']) await d.todos.anlegen({ titel: `Kapitel ${x}`, gruppe: 'Bachelorarbeit' }, 'Leif');
+    await d.telegram!.verarbeiten({ update_id: 1, message: { message_id: 1, chat: { id: 42 }, text: '/projekte' } });
+    const p = aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p;
+    expect(String(p.text)).toContain('📁 <b>Bachelorarbeit</b> ▱▱▱▱▱▱▱▱ 0/3');
+    expect((p.reply_markup as { inline_keyboard: { text: string; callback_data: string }[][] }).inline_keyboard[0]![0]!.callback_data).toMatch(/^jl:/);
+    d.uhr.vor(9 * 86_400_000);
+    const z = await d.morgenzeitung.fakten();
+    expect(z.abschnitte.find((x) => x.titel === 'Heute')!.zeilen.join('\n')).toContain('💤 Bachelorarbeit ruht seit 9 Tagen – nächster Schritt: Kapitel A');
+  });
+});

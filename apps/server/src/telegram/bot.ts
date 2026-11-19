@@ -10,7 +10,7 @@ const LISTEN_ANZEIGE: Record<ListenName, { symbol: string; titel: string; befehl
 };
 import { aufwachEinstellungen, istNacht } from '../aufwachen.js';
 import type { Rueckblick } from '../wochenrueckblick.js';
-import { belegtMs, fachZuordnen, istFristBlock, jetztDran, ruht, minutenText, terminAusText, wocheVerteilen, type KalenderTermin, type TerminAusText } from '@dorf/shared';
+import { belegtMs, fachZuordnen, projekteAus, istFristBlock, jetztDran, ruht, minutenText, terminAusText, wocheVerteilen, type KalenderTermin, type TerminAusText } from '@dorf/shared';
 import type { Karteikasten } from '../karten.js';
 import type { Gewohnheiten } from '../gewohnheiten.js';
 import type { Wochenziele } from '../wochenziele.js';
@@ -330,6 +330,7 @@ export class TelegramBot {
     { command: 'karten', description: 'Karteikarten wiederholen: /karten [Fach]' },
     { command: 'jetzt', description: 'Was passt jetzt? Ein To-do für die Zeit bis zum nächsten Termin' },
     { command: 'verteilen', description: 'To-dos ohne Datum auf die Woche verteilen (Vorschlag)' },
+    { command: 'projekte', description: 'Projekte (Gruppen): Fortschritt, nächster Schritt mit 🍅' },
     { command: 'morgen', description: 'Dein Morgen: Termine, Fälliges, freie Zeit – ⭐ setzen' },
     { command: 'wartet', description: 'Worauf du wartest – nachgefasst, angekommen oder selbst weitermachen' },
     { command: 'lernen', description: 'Lernziele der Woche je Fach – mit 🍅 starten' },
@@ -530,6 +531,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       if (b === '/verteilen') return this.verteilenBefehl();
       if (b === '/wartet' || b === '/warte') return this.wartetZeigen();
       if (b === '/morgen') return this.morgenSenden();
+      if (b === '/projekte' || b === '/projekt') return this.projekteSenden();
       if (b === '/lernen') return this.lernenBefehl();
       if (b === '/fokus') return this.fokusBefehl(text.slice(text.split(/\s/)[0]!.length).trim());
       if (b !== '/neu') return this.befehl(b);
@@ -606,7 +608,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
   private async befehl(b: string) {
     if (b === '/start' || b === '/hilfe' || b === '/help')
       return this.senden(
-        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters. Weiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch); antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n<b>📅 Planen</b>\n/heute – dein Tag · /morgen – der nächste Tag · /woche – die nächsten 7 Tage\n/plan [morgen] – To-dos in freie Kalenderlücken\n/verteilen – To-dos ohne Datum auf die Woche verteilen\n/fristen – Abgaben und Prüfungen (7 Tage)\n/termin &lt;wann&gt; &lt;was&gt; – Termin eintragen (mit Bestätigung)\n\n<b>✅ Erledigen</b>\n/todo [Text] – To-do-Liste bzw. neues To-do (auch „… jeden Montag“)\n/einkauf [Text] – Einkaufsliste\n/erinner &lt;wann&gt; &lt;was&gt; – Erinnerung (läutet im Kirchturm)\n/aufraeumen – Überfälliges neu einplanen · /wartet – worauf du wartest\n/jetzt – was jetzt passt (mit 🍅 Los) · /fokus [Thema] – Pomodoro starten\n/gewohnheiten – heute abhaken · /ziel [Text] – Wochenziele\n\n<b>🎓 Lernen</b>\n/lernen – Lernziele der Woche, 🍅 je Fach\n/karten [Fach] – Karteikarten · /moodle &lt;Fach&gt; [Frage] – in Moodle nachsehen\n/noten – Notenschnitt und ECTS\n\n<b>📝 Festhalten &amp; Finden</b>\n/notiz &lt;Text&gt; – Tagesnotiz · /suche &lt;Begriff&gt; – im Vault suchen\n/statistik – die letzten 7 Tage\n\n<b>🏛️ Dorf</b>\n/status – was läuft · /freigaben – offene Freigaben\n/aktion [Name] – Skill starten · /neu – nächste Nachricht = neue Aufgabe\n/hilfe – diese Hilfe\n\n<i>Tipp: „todo: …“, „notiz: …“, „ziel: …“, „einkauf: …“ gehen auch ohne Schrägstrich – ein Foto mit „notiz: …“ landet samt Bild in der Tagesnotiz.</i>`,
+        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text (oder Foto/Datei mit Beschreibung) – sie landet auf dem Schreibtisch des Bürgermeisters. Weiterschreiben setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch); antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n<b>📅 Planen</b>\n/heute – dein Tag · /morgen – der nächste Tag · /woche – die nächsten 7 Tage\n/plan [morgen] – To-dos in freie Kalenderlücken\n/verteilen – To-dos ohne Datum auf die Woche verteilen\n/fristen – Abgaben und Prüfungen (7 Tage)\n/termin &lt;wann&gt; &lt;was&gt; – Termin eintragen (mit Bestätigung)\n\n<b>✅ Erledigen</b>\n/todo [Text] – To-do-Liste bzw. neues To-do (auch „… jeden Montag“)\n/einkauf [Text] – Einkaufsliste\n/erinner &lt;wann&gt; &lt;was&gt; – Erinnerung (läutet im Kirchturm)\n/aufraeumen – Überfälliges neu einplanen · /wartet – worauf du wartest\n/projekte – Fortschritt deiner Projekte (Gruppen)\n/jetzt – was jetzt passt (mit 🍅 Los) · /fokus [Thema] – Pomodoro starten\n/gewohnheiten – heute abhaken · /ziel [Text] – Wochenziele\n\n<b>🎓 Lernen</b>\n/lernen – Lernziele der Woche, 🍅 je Fach\n/karten [Fach] – Karteikarten · /moodle &lt;Fach&gt; [Frage] – in Moodle nachsehen\n/noten – Notenschnitt und ECTS\n\n<b>📝 Festhalten &amp; Finden</b>\n/notiz &lt;Text&gt; – Tagesnotiz · /suche &lt;Begriff&gt; – im Vault suchen\n/statistik – die letzten 7 Tage\n\n<b>🏛️ Dorf</b>\n/status – was läuft · /freigaben – offene Freigaben\n/aktion [Name] – Skill starten · /neu – nächste Nachricht = neue Aufgabe\n/hilfe – diese Hilfe\n\n<i>Tipp: „todo: …“, „notiz: …“, „ziel: …“, „einkauf: …“ gehen auch ohne Schrägstrich – ein Foto mit „notiz: …“ landet samt Bild in der Tagesnotiz.</i>`,
       );
     if (b === '/status') {
       const aktiv = this.o.agenten.aktiveLaeufe();
@@ -1604,6 +1606,26 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       const n = await this.aufraeumenText();
       await this.o.api.aufruf('editMessageText', { chat_id: q.message.chat.id, message_id: q.message.message_id, text: n.text, parse_mode: 'HTML', ...n.extra }).catch(() => undefined);
     }
+  }
+
+  // ---- /projekte (E163) --------------------------------------------------------------------------------
+
+  private async projekteSenden() {
+    if (!this.o.listen) return this.senden('Die Listen sind nicht eingerichtet.');
+    const fokus = new Map((this.o.db.prepare('SELECT todo, SUM(minuten) AS m FROM fokus_sitzungen WHERE todo IS NOT NULL GROUP BY todo').all() as { todo: string; m: number }[]).map((x) => [x.todo, Math.round(x.m)]));
+    const alle = (await this.o.listen.todo.liste({ alleErledigten: true })).map((t) => (fokus.get(t.pfad) ? { ...t, fokusMin: fokus.get(t.pfad) } : t));
+    const p = projekteAus(alle, this.o.uhr.jetzt()).filter((x) => x.offen > 0);
+    if (!p.length) return this.senden('📁 Noch keine Projekte. Gib zusammengehörigen To-dos in der App dieselbe <b>Gruppe</b> (z. B. „Bachelorarbeit“) – ab drei To-dos wird daraus ein Projekt.');
+    const balken = (a: number) => '▰'.repeat(Math.round(a * 8)) + '▱'.repeat(8 - Math.round(a * 8));
+    const zeilen = p.slice(0, 8).map(
+      (x) =>
+        `📁 <b>${h(x.name)}</b> ${balken(x.erledigt / x.gesamt)} ${x.erledigt}/${x.gesamt}${x.dieseWoche ? ` (+${x.dieseWoche})` : ''}${x.ruhtTage >= 7 ? ` · 💤 ${x.ruhtTage} Tage` : ''}${x.naechster ? `\n   👉 ${h(x.naechster.titel)}` : ''}`,
+    );
+    const knoepfe = p
+      .slice(0, 8)
+      .filter((x) => x.naechster)
+      .map((x) => [{ text: knopfText(`🍅 ${x.name}: ${x.naechster!.titel}`), callback_data: this.jetztDaten(this.todoKennung(x.naechster!.pfad)) }]);
+    return this.senden(`<b>Projekte</b>\n${zeilen.join('\n')}`, knoepfe.length ? { reply_markup: { inline_keyboard: knoepfe } } : {});
   }
 
   // ---- /morgen (E156) ----------------------------------------------------------------------------------

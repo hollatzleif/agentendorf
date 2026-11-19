@@ -44,7 +44,7 @@ import { Wochenziele } from './wochenziele.js';
 import { tagIn, tagPlus } from './zeit.js';
 import { ortszeitZuUtc } from './uni/ical.js';
 import { Lernziele } from './uni/lernziele.js';
-import { fachZuordnen, minutenText } from '@dorf/shared';
+import { fachZuordnen, minutenText, projekteAus } from '@dorf/shared';
 import { Notizen } from './notizen.js';
 import { Noten } from './uni/noten.js';
 import { statistik } from './statistik.js';
@@ -384,7 +384,7 @@ export async function dorfStarten(
   const lernzielZeilen = async () =>
     (await lernStand(uhr.jetzt() - 7 * 86_400_000)).map((l) => `${l.istMin >= l.zielMin ? '✓' : '✗'} ${l.fach}: ${minutenText(l.istMin)} von ${minutenText(l.zielMin)}`);
   const wochenrueckblick = new Wochenrueckblick({ db, uhr, vault, hub, ki, todos, uni, kalender, lernziele: lernzielZeilen, fokus: kirchturm, bank, gewohnheiten, wochenziele, bluete: () => blueteBerechnen(), log: (t) => console.warn(t) });
-  const morgenzeitung = new Morgenzeitung({ db, uhr, vault, hub, ki, freigaben: agenten.freigaben, schreibtisch, uni, postbote, kalender, wetter, bank, boerse: depotZeilen, fokus: kirchturm, gewohnheiten, wochenziele, bluete: () => blueteBerechnen(), lernen: async () => (await lernStand(seitMontag())).map((l) => `${l.istMin >= l.zielMin ? '✓ ' : ''}${l.fach}: ${minutenText(l.istMin)} von ${minutenText(l.zielMin)}`), todosHeute: async () => { const h = tagIn(uhr.jetzt()); return (await todos.liste()).filter((t) => !t.erledigt && t.faellig && t.faellig <= h); }, wichtig: async () => (await todos.liste()).filter((t) => !t.erledigt && t.wichtig).slice(0, 5).map((t) => `**${t.titel}**${t.faellig ? ` (fällig ${t.faellig})` : ''}`), log: (t) => console.warn(t) });
+  const morgenzeitung = new Morgenzeitung({ db, uhr, vault, hub, ki, freigaben: agenten.freigaben, schreibtisch, uni, postbote, kalender, wetter, bank, boerse: depotZeilen, fokus: kirchturm, gewohnheiten, wochenziele, bluete: () => blueteBerechnen(), lernen: async () => (await lernStand(seitMontag())).map((l) => `${l.istMin >= l.zielMin ? '✓ ' : ''}${l.fach}: ${minutenText(l.istMin)} von ${minutenText(l.zielMin)}`), projekte: async () => projekteAus(await todos.liste({ alleErledigten: true }), uhr.jetzt()), todosHeute: async () => { const h = tagIn(uhr.jetzt()); return (await todos.liste()).filter((t) => !t.erledigt && t.faellig && t.faellig <= h); }, wichtig: async () => (await todos.liste()).filter((t) => !t.erledigt && t.wichtig).slice(0, 5).map((t) => `**${t.titel}**${t.faellig ? ` (fällig ${t.faellig})` : ''}`), log: (t) => console.warn(t) });
   let telegram: TelegramBot | undefined;
   if ((konfig.telegramToken || opt.telegram) && konfig.telegramChatId) {
     telegram = new TelegramBot({

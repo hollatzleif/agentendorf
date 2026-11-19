@@ -1304,3 +1304,8 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **Statistik (Rathaus) und Wochenrückblick („Gute Tage“, 4 Wochen):** Die Stimmung (E107) an Tagen mit und ohne eine Sache wird verglichen: mindestens 1 h Fokus, alle Gewohnheiten erledigt (nur Statistik), 3 oder mehr erledigte To-dos. Ein Ergebnis sieht so aus: „An Tagen mit mindestens 1 h Fokus: Stimmung ⌀ 4,3 – sonst 3,1“.
 - **Nur mit Aussagekraft:** Verglichen wird nur, wenn es auf beiden Seiten mindestens 3 Tage mit Stimmung gibt und der Unterschied mindestens 0,5 beträgt. Ehrlich formuliert: ein Zusammenhang, kein Beweis.
 - **Warum:** Die Stimmung des Tages wird schon erfasst, aber nirgends genutzt. Wer sieht, dass Fokus-Tage gute Tage sind, fängt eher wieder mit einem 🍅 an. Das ist Motivation aus den eigenen Daten statt aus Ratgebern.
+
+## E163 – Projekte in Telegram und Morgenzeitung (19.11.)
+
+- **/projekte:** Offene Projekte mit Balken (▰▱), „erledigt/gesamt“, „+N diese Woche“, „💤 N Tage“ und dem nächsten Schritt. Je Projekt gibt es einen „🍅“-Knopf, der den Fokus auf den nächsten Schritt startet (derselbe signierte Knopf wie „Jetzt dran“, `jl:`).
+- **Morgenzeitung:** Ruht ein offenes Projekt seit mindestens 7 Tagen, steht das am längsten ruhende unter „Heute“: „💤 Umzug ruht seit 12 Tagen – nächster Schritt: …“. Nur eins, damit es ein Anstoß bleibt und keine Liste wird.
