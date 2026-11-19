@@ -1210,7 +1210,8 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     const tagEnde = ortszeitZuUtc(...(tagPlus(morgen, 1).split('-').map(Number) as [number, number, number]), 0, 0, 0, 'Europe/Vienna');
     const z2 = this.o.kalender?.zeitraum ? await this.o.kalender.zeitraum(tagAnf, tagEnde).catch(() => null) : null;
     const termineTag = (z2?.termine ?? []).filter((t): t is KalenderTermin => typeof t.start === 'string' && typeof t.ende === 'string' && !t.ganztags && !istFristBlock(t));
-    const ueber = ueberschneidungen(termineTag);
+    // nur Termine, die morgen beginnen (wie „Morgen im Blick“) – die Nacht von heute zählt nicht (Review)
+    const ueber = ueberschneidungen(termineTag.filter((t) => tagVonJetzt(Date.parse(t.start), 0) === morgen));
     if (ueber.length) z.push(`⚠️ Morgen überschneiden sich: ${ueber.slice(0, 2).map(([a, b]) => `${h(a.titel)} ↔ ${h(b.titel)}`).join('; ')}`);
     if (morgenTodos.length) {
       const termine = termineTag.filter((t) => Date.parse(t.ende) > von && Date.parse(t.start) < bis);

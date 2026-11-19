@@ -648,11 +648,13 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
         const b = z.object({ pfad: z.string(), basisVersion: z.string(), anzahl: z.number().int().min(2).max(8).optional() }).parse(req.body);
         const t = await listen.todo.holen(b.pfad);
         if (t.erledigt || t.wiederholen) throw new DorfFehler(400, 'Nur offene, nicht wiederkehrende To-dos lassen sich in Etappen planen.');
+        if (/ – Etappe \d+\/\d+$/.test(t.titel)) throw new DorfFehler(400, 'Das ist schon eine Etappe.');
         const plan = etappenPlan(t, tagIn(uhr.jetzt()), b.anzahl);
         if (!plan.length) throw new DorfFehler(400, 'Dafür braucht das To-do eine Frist frühestens übermorgen.');
         // schon geplant? (zweiter Klick, zweites Gerät) – Etappen mit demselben Titelstamm gibt es bereits (Review)
         const stamm = `${plan[0]!.titel.replace(/ – Etappe \d+\/\d+$/, '')} – Etappe `;
-        if ((await listen.todo.liste({ alleErledigten: true })).some((x) => x.titel.startsWith(stamm))) throw new DorfFehler(409, 'Dieses To-do ist schon in Etappen geplant.');
+        // nur offene Etappen derselben Gruppe zählen – gleichnamige Abgaben späterer Wochen dürfen neu geplant werden (Review)
+        if ((await listen.todo.liste()).some((x) => !x.erledigt && x.titel.startsWith(stamm) && x.gruppe === (t.gruppe ?? t.titel.slice(0, 60)))) throw new DorfFehler(409, 'Dieses To-do ist schon in Etappen geplant.');
         const gruppe = t.gruppe ?? t.titel.slice(0, 60);
         const roh = plan.map((e) => ({ ...e, gruppe, ...(t.gebaeude ? { gebaeude: t.gebaeude } : {}), ...(t.energie ? { energie: t.energie } : {}) }));
         // erst alles prüfen, dann ändern – sonst bleibt bei einem Fehler ein halb umgebautes Original zurück (Review)

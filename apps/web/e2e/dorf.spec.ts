@@ -1628,6 +1628,9 @@ test('Gewohnheit bearbeiten: Tage und Uhrzeit ändern', async ({ page }, info) =
   await k.getByRole('button', { name: 'Fertig' }).click();
   await expect(k.locator('.gewohnheit', { hasText: 'Bearbeiten-Test' })).toContainText('06:45');
   await expect(k.locator('.gewohnheit', { hasText: 'Bearbeiten-Test' })).toContainText('diese Woche');
+  // aufräumen: sonst läutet die 06:45-Erinnerung ab 06:45 Wiener Zeit im Testserver und ihr Hinweis liegt über
+  // späteren Tests (3D-Dorf-Klicks liefen in die Zeitüberschreitung)
+  await page.request.delete('/api/gewohnheiten?name=Bearbeiten-Test', { headers: { origin: ORIGIN } });
 });
 
 test('Tag abschließen (/abschluss): Erledigtes, Offenes auf morgen, ⭐ für morgen, Kopf leeren (E146)', async ({ page }, info) => {

@@ -141,3 +141,18 @@ describe('/projekte mit Frist und hinterher (E175)', () => {
     expect(String(aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p.text)).toContain('0/3 · ⚠️ 1 hinterher · 🏁 2026-11-20');
   });
 });
+
+describe('hinterher nur vor der Frist (E176)', () => {
+  it('nach der Abgabe (keine offene Frist mehr) mahnt nichts', () => {
+    const jetzt = Date.parse('2026-11-16T12:00:00Z');
+    const [p] = projekteAus(
+      [
+        t('Referat – Etappe 1/2', { gruppe: 'Referat', faellig: '2026-11-10' }),
+        t('Referat – Etappe 2/2', { gruppe: 'Referat', faellig: '2026-11-11' }),
+        t('Referat', { gruppe: 'Referat', faellig: '2026-11-12', erledigt: true }),
+      ],
+      jetzt,
+    );
+    expect(p!.hinterher).toBe(0);
+  });
+});

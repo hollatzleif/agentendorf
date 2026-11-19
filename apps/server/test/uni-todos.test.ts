@@ -112,10 +112,17 @@ describe('alte Kurs-Gruppe wird nachgezogen (E173)', () => {
     const p = (await offen()).find((x) => x.titel.startsWith('Prüfung:'))!;
     expect(a.gruppe).toBe('Mathe III');
     await d.todos.aendern(p.pfad, { gruppe: 'Meine NLP-Gruppe' });
+    // eine Etappe mit der alten Gruppe zieht mit (E176)
+    const etappe = await d.todos.anlegen({ titel: 'Abgabe: Übungsblatt 5 ist fällig – Etappe 1/2', gruppe: 'Mathe III', gebaeude: 'Uni', faellig: '2026-11-16' }, 'Leif', { fremd: true });
     await d.uni.fachAnlegen('Mathe III UE');
     await d.uni.fachAnlegen('NLP Vorlesung');
     await d.uni.abgleichen();
     expect((await d.todos.holen(a.pfad)).gruppe).toBe('Mathe III UE');
+    expect((await d.todos.holen(etappe.pfad)).gruppe).toBe('Mathe III UE');
+    // genau einmal: setzt Leif die alte Gruppe zurück, bleibt sie (keine Schleife, kein Überschreiben)
+    await d.todos.aendern(a.pfad, { gruppe: 'Mathe III' });
+    await d.uni.abgleichen();
+    expect((await d.todos.holen(a.pfad)).gruppe).toBe('Mathe III');
     expect((await d.todos.holen(p.pfad)).gruppe).toBe('Meine NLP-Gruppe');
   });
 });

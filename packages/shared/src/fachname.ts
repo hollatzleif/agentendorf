@@ -47,13 +47,15 @@ export function fachZuordnen<T>(liste: readonly T[], namen: (x: T) => (string | 
 }
 
 /** E168: Termine mit Uhrzeit, die sich überschneiden (ohne Fristen-Blöcke und Ganztägiges) – je Paar einmal */
-export function ueberschneidungen<T extends { titel: string; start: string; ende: string; ganztags: boolean }>(termine: T[]): [T, T][] {
+export function ueberschneidungen<T extends { titel: string; start: string; ende: string; ganztags: boolean; quelle?: string }>(termine: T[]): [T, T][] {
   // mehrtägige Termine (Exkursion Fr–So) würden alles überschneiden – nicht mitzählen (Review)
   const z = termine.filter((t) => !t.ganztags && !istFristBlock(t) && Date.parse(t.ende) - Date.parse(t.start) <= 86_400_000).sort((a, b) => a.start.localeCompare(b.start));
   const aus: [T, T][] = [];
   for (let i = 0; i < z.length; i++)
     for (let j = i + 1; j < z.length; j++) {
       if (Date.parse(z[j]!.start) >= Date.parse(z[i]!.ende)) break;
+      // dieselbe Prüfung doppelt (Uni-Frist + Leifs Moodle-Kalender) ist keine Überschneidung (Review)
+      if ((z[i]!.quelle === 'uni' || z[j]!.quelle === 'uni') && Date.parse(z[i]!.start) === Date.parse(z[j]!.start)) continue;
       aus.push([z[i]!, z[j]!]);
     }
   return aus;

@@ -65,3 +65,14 @@ describe('Überschneidungen ohne Mehrtägiges (E173)', () => {
     expect(r).toEqual([]);
   });
 });
+
+describe('Prüfung doppelt ist keine Überschneidung (E176)', () => {
+  it('Uni-Kopie mit gleichem Start wird übersprungen', async () => {
+    const { ueberschneidungen } = await import('@dorf/shared');
+    const r = ueberschneidungen([
+      { titel: '📝 Mathe: Klausur', start: '2026-11-17T09:00:00.000Z', ende: '2026-11-17T11:00:00.000Z', ganztags: false },
+      { titel: '📝 Mathe: Klausur', start: '2026-11-17T09:00:00.000Z', ende: '2026-11-17T11:00:00.000Z', ganztags: false, quelle: 'uni' },
+    ]);
+    expect(r).toEqual([]);
+  });
+});

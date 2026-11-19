@@ -1391,3 +1391,14 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 ## E175 – /projekte mit Frist und „hinterher“ (19.11.)
 
 - Telegram /projekte zeigt je Projekt „⚠️ N hinterher“ und „🏁 Frist“ (E172), wie die App.
+
+## E176 – Review 10 (19.11.)
+
+- **Überschneidungen:** Die Uni-Kopie einer Prüfung (Quelle `uni`, gleicher Start) überschneidet sich nicht mit dem Eintrag aus Leifs Moodle-Kalender. Der Tagesabschluss vergleicht nur Termine, die morgen beginnen (wie „Morgen im Blick“).
+- **Etappen:**
+  - Gesperrt wird nur durch **offene** Etappen derselben Gruppe. Eine gleichnamige Abgabe der nächsten Woche lässt sich wieder planen.
+  - Eine Etappe selbst bekommt kein 🪜 (400 am Server).
+- **„hinterher“** zählt nur, solange im Projekt noch eine offene Frist aussteht. Nach der Abgabe mahnt nichts mehr.
+- **Uni-Gruppe nachziehen:** Das gilt für alle offenen Uni-To-dos mit der alten Gruppe (auch Etappen). Verglichen wird mit dem getrimmten Kursnamen.
+- **Nachziehen nur einmal je Kurs:** Ein Vermerk in `dorf_stand.uni_gruppe_umgezogen` sorgt dafür, dass jeder Kurs nur einmal umgezogen wird. Das Ziel ist nie der alte Name eines anderen Kurses. Ohne das konnten sich zwei Kurse gegenseitig hin- und herschieben, und weil jede To-do-Änderung den nächsten Abgleich anstößt, lief das endlos. In den Browser-Tests hielt das den Server so beschäftigt, dass das 3D-Dorf in die Zeitüberschreitung lief.
+- **Test-Befund:** Die roten 3D-Dorf-Tests seit 05:45 UTC kamen nicht von Code-Änderungen. Der Test „Gewohnheit bearbeiten“ legte eine Gewohnheit mit Erinnerung um 06:45 an, und ab 06:45 Wiener Zeit läutete sie im Testserver. Ihr Hinweis lag dann über dem Dorf und fing die Klicks ab. Der Test räumt die Gewohnheit jetzt am Ende wieder ab.

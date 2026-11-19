@@ -62,3 +62,16 @@ describe('Review 9 (E173)', () => {
     expect((await d.todos.liste()).filter((x) => x.titel.includes('– Etappe'))).toHaveLength(3);
   });
 });
+
+describe('Etappen-Sperre genauer (E176)', () => {
+  it('erledigte gleichnamige Etappen sperren nicht; eine Etappe selbst lässt sich nicht weiter planen', async () => {
+    const d = await testDorf();
+    const h = await kopf(d);
+    const alt = await d.todos.anlegen({ titel: 'Abgabe: Hausübung – Etappe 1/2', gruppe: 'Abgabe: Hausübung', faellig: '2026-11-10' }, 'Leif');
+    await d.todos.aendern(alt.pfad, { erledigt: true });
+    const t = await d.todos.anlegen({ titel: 'Abgabe: Hausübung', faellig: '2026-11-20', dauer: 120 }, 'Leif');
+    expect((await d.app.inject({ method: 'POST', url: '/api/todos/etappen', headers: h, payload: { pfad: t.pfad, basisVersion: t.version } })).statusCode).toBe(200);
+    const e = (await d.todos.liste()).find((x) => x.titel === 'Abgabe: Hausübung – Etappe 1/2' && !x.erledigt)!;
+    expect((await d.app.inject({ method: 'POST', url: '/api/todos/etappen', headers: h, payload: { pfad: e.pfad, basisVersion: e.version } })).statusCode).toBe(400);
+  });
+});

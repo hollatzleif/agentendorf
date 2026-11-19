@@ -74,6 +74,32 @@ export class UniTodoBruecke {
     // E171: Gruppe = Fachname aus Uni/faecher (wie Fach-Karten, Lernziel, Nachbereiten) – sonst zerfällt ein Kurs in zwei Projekte
     const faecher = this.o.uni.faecher();
     const gruppeFuer = (kurs: string) => (fachZuordnen(faecher, (x) => [x.titel, x.name], kurs)?.titel ?? kurs).slice(0, 60);
+    // E173/E176: alte Gruppe (exakt der – getrimmte – Kursname, also nicht von Leif geändert) einmal auf den Fachnamen
+    // ziehen – für alle offenen Uni-To-dos dieser Gruppe, also auch Etappen, sonst zerfällt das Projekt (Review)
+    // genau einmal je Kurs (Vermerk) und nie auf den alten Namen eines anderen Kurses – sonst schieben sich zwei Kurse
+    // gegenseitig hin und her, und jede Änderung stößt den nächsten Abgleich an (Endlosschleife)
+    const kurse = [...new Set(fristen.map((f) => f.kurs).filter((k): k is string => !!k))];
+    const alteNamen = new Set(kurse.map((k) => k.slice(0, 60).trim()));
+    const lesenUmzug = () => {
+      try {
+        return new Set<string>(JSON.parse((this.o.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'uni_gruppe_umgezogen'").get() as { wert: string } | undefined)?.wert ?? '[]'));
+      } catch {
+        return new Set<string>();
+      }
+    };
+    const umgezogen = lesenUmzug();
+    for (const kurs of kurse) {
+      const alt = kurs.slice(0, 60).trim();
+      const neuName = gruppeFuer(kurs);
+      if (alt === neuName || umgezogen.has(alt) || alteNamen.has(neuName)) continue;
+      umgezogen.add(alt);
+      this.o.db.prepare("INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES ('uni_gruppe_umgezogen', ?)").run(JSON.stringify([...umgezogen].slice(-200)));
+      for (const t of [...offen.values()])
+        if (!t.erledigt && t.gebaeude === 'Uni' && t.gruppe === alt) {
+          const neu = await todos.aendern(t.pfad, { gruppe: neuName }, t.version, { abgleich: true }).catch(() => null);
+          if (neu) offen.set(t.pfad, neu);
+        }
+    }
     for (const f of fristen) {
       const frist = Date.parse(f.frist!);
       const g = gemerkt.get(f.id);
@@ -95,13 +121,8 @@ export class UniTodoBruecke {
         merken.run(f.id, t.pfad, frist, 0);
         continue;
       }
-      let t = offen.get(g.pfad);
+      const t = offen.get(g.pfad);
       if (!t) continue; // To-do gelöscht → Leifs Entscheidung, nicht neu anlegen
-      // E173: alte Gruppe (exakt der Kursname, also nicht von Leif geändert) einmal auf den Fachnamen ziehen (Review)
-      if (f.kurs && t.gruppe === f.kurs.slice(0, 60) && gruppeFuer(f.kurs) !== t.gruppe) {
-        const neu = await todos.aendern(t.pfad, { gruppe: gruppeFuer(f.kurs) }, t.version, { abgleich: true }).catch(() => null);
-        if (neu) t = neu;
-      }
       // Frist verschoben → Fälligkeit nachziehen
       if (g.frist !== frist) {
         const neu = await todos.aendern(t.pfad, { faellig: tagInWien(frist) }, t.version, { fremd: true, abgleich: true }).catch(() => null);

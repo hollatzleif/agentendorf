@@ -355,7 +355,7 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehr
               📅
             </button>
           )}
-          {basis === '/api/todos' && !t.erledigt && !t.wiederholen && ((t.dauer ?? 0) >= 120 || (!t.dauer && (t.gebaeude === 'Uni' || /^(Abgabe|Prüfung):/.test(t.titel)))) && etappenPlan(t, heute()).length > 0 && (
+          {basis === '/api/todos' && !t.erledigt && !t.wiederholen && !/ – Etappe \d+\/\d+$/.test(t.titel) && ((t.dauer ?? 0) >= 120 || (!t.dauer && (t.gebaeude === 'Uni' || /^(Abgabe|Prüfung):/.test(t.titel)))) && etappenPlan(t, heute()).length > 0 && (
             // E170: großes To-do mit Frist → Etappen auf die Tage davor
             <button type="button" className="klein" title="In Etappen auf die Tage bis zur Frist verteilen" aria-label={`Etappen: ${t.titel}`} aria-expanded={etappen} onClick={() => setEtappen((x) => !x)}>
               🪜
