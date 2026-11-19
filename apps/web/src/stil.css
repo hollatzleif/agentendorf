@@ -1485,3 +1485,9 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0.05rem 0.35rem; border:
   .fokus-parkplatz input { font-size: 1rem; text-overflow: ellipsis; }
   .fokus-parkplatz li button.klein { min-height: 2.1rem; }
 }
+
+/* E155: Rauschen im Fokus */
+.fokus-rauschen { display: flex; gap: 0.5rem; align-items: center; justify-content: center; flex-wrap: wrap; margin-top: 0.6rem; opacity: 0.8; }
+.fokus-rauschen:hover, .fokus-rauschen:focus-within { opacity: 1; }
+.fokus-rauschen button.an { background: var(--gruen, #3c8d5a); color: #fff; }
+.fokus-rauschen input[type='range'] { width: 8rem; }

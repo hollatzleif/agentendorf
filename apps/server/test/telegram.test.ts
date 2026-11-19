@@ -1114,3 +1114,46 @@ describe('Wartet in Morgenzeitung und Wochenrückblick (E150)', () => {
     expect(zeile).toContain('Paket (bei DHL, seit 8 Tagen, ohne Nachfass-Tag)');
   });
 });
+
+describe('Nachbereiten nach der Vorlesung (E154)', () => {
+  it('Termin passt zu einem Fach → Knopf „📝 Nachbereiten“; legt genau einmal ein 15-min-To-do für heute an', async () => {
+    const n = nachbau();
+    const klient = {
+      async kalender() {
+        return [{ id: 'leif', name: 'Leif', farbe: '#000', primaer: true, schreibbar: true }];
+      },
+      async termine() {
+        return [{ id: 'v1', summary: 'VL Statistisches Lernen', start: { dateTime: '2026-11-16T11:00:00+01:00' }, end: { dateTime: '2026-11-16T12:55:00+01:00' } }];
+      },
+      async holen() {
+        throw new Error('-');
+      },
+      async anlegen() {
+        throw new Error('-');
+      },
+      async aendern() {
+        throw new Error('-');
+      },
+      async loeschen() {},
+      async verschieben() {
+        throw new Error('-');
+      },
+    };
+    const d = await testDorf({ env: { TELEGRAM_CHAT_ID: LEIF, ORIGIN: 'https://dorf.test' }, telegram: n.api, kalenderKlient: klient as never });
+    await d.uni.fachAnlegen('Statistisches Lernen');
+    // keine To-dos → trotzdem ein Anstoß, weil es eine Lehrveranstaltung war
+    expect(await d.telegram!.lueckenHinweis()).toBe(true);
+    const p = n.aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p;
+    expect(String(p.text)).toContain('✅ <b>VL Statistisches Lernen</b> ist vorbei.');
+    const knopf = (p.reply_markup as { inline_keyboard: { text: string; callback_data: string }[][] }).inline_keyboard.flat().find((k) => k.text.startsWith('📝'))!;
+    let u = 1;
+    const druck = (data: string) => d.telegram!.verarbeiten({ update_id: u++, callback_query: { id: `cb${u}`, data, from: { id: Number(LEIF) }, message: { message_id: 1, chat: { id: Number(LEIF) } } } });
+    await druck(knopf.callback_data.replace(/:[^:]+$/, ':AAAAAAAAAAAAAAAA'));
+    expect((await d.todos.liste()).length).toBe(0);
+    await druck(knopf.callback_data);
+    await druck(knopf.callback_data);
+    const t = await d.todos.liste();
+    expect(t).toHaveLength(1);
+    expect(t[0]).toMatchObject({ titel: 'Nachbereiten: VL Statistisches Lernen', faellig: '2026-11-16', dauer: 15, gruppe: 'Statistisches Lernen', gebaeude: 'Uni' });
+  });
+});

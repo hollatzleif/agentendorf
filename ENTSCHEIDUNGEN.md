@@ -1238,3 +1238,14 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
   - /aufraeumen: „zerlegen oder löschen ist auch eine Entscheidung“
   - Wochenrückblick: „↻ Oft verschoben: … – zerlegen, delegieren oder streichen?“
 - **Warum:** Was immer wieder geschoben wird, ist fast nie Faulheit, sondern zu groß, zu unklar oder eigentlich unwichtig. Der Zähler macht das sichtbar, und die Lösung (Teilschritte, E119) gibt es schon.
+
+## E154 – Nachbereiten nach der Vorlesung (19.11.)
+
+- **Anstoß nach Terminen (E143):** Passt der Titel des gerade beendeten Termins zu einem Uni-Fach (`fachZuordnen`, z. B. „VL Statistisches Lernen“), kommt der Knopf **„📝 Nachbereiten (15 min)“** dazu. Der Anstoß kommt dann auch, wenn gerade kein To-do in die Lücke passt.
+- **Ein Tipp** legt „Nachbereiten: <Termin>“ an: heute fällig, 15 min, Gruppe = Fach (Fokuszeit zählt fürs Lernziel), Gebäude Uni. Das geschieht genau einmal je Termin; die Zuordnung liegt im Tagesstand `telegram_luecken.nach` (max. 10, nur heute). Signierter Knopf `nb:`.
+- **Warum:** Wiederholen kurz nach der Vorlesung ist der billigste Lernschritt überhaupt (Vergessenskurve). Gesendet wird es nur, wenn Leif die Anstöße eingeschaltet hat, wie bei allen Anstößen nach Terminen höchstens 3 am Tag.
+
+## E155 – Rauschen im Fokus (19.11.)
+
+- **Fokus-Vollbild:** „🔊 Rauschen“ mit braunem (tief, wie Regen) oder rosa Rauschen (heller) und einem Lautstärke-Regler. Der Ton wird im Browser über Web Audio erzeugt, ohne Datei und ohne Netz. Er startet nur auf Klick und endet beim Verlassen der Seite. Art und Lautstärke merkt sich das Gerät.
+- **Kein Klingeln:** Das ist kein Signal, sondern Hintergrund; Glocke und Wecker bleiben Sache des Kirchturms.

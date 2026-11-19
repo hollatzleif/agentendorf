@@ -1728,3 +1728,18 @@ test('Aufschiebe-Zähler: nach dreimal Verschieben ↻ 3× auf Heute (E153)', as
   await page.goto('/heute');
   await expect(page.locator('.heute-todo', { hasText: titel }).getByText('↻ 3×')).toBeVisible();
 });
+
+test('Fokus: Rauschen an und aus, Art wählbar (E155)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  await page.request.post('/api/kirchturm', { headers: { origin: ORIGIN }, data: { befehl: 'pomodoro', aktion: 'start' } });
+  await page.goto('/fokus');
+  const r = page.getByRole('group', { name: 'Rauschen' });
+  await r.getByRole('button', { name: '🔊 Rauschen' }).click();
+  await expect(r.getByRole('button', { name: '🔇 Rauschen aus' })).toHaveAttribute('aria-pressed', 'true');
+  await r.getByLabel('Art des Rauschens').selectOption('rosa');
+  expect(await page.evaluate(() => localStorage.getItem('dorf-rauschen'))).toBe('rosa');
+  await r.getByRole('button', { name: '🔇 Rauschen aus' }).click();
+  await expect(r.getByRole('button', { name: '🔊 Rauschen' })).toBeVisible();
+  await page.request.post('/api/kirchturm', { headers: { origin: ORIGIN }, data: { befehl: 'pomodoro', aktion: 'stopp' } });
+});

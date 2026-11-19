@@ -10,7 +10,7 @@ const LISTEN_ANZEIGE: Record<ListenName, { symbol: string; titel: string; befehl
 };
 import { aufwachEinstellungen, istNacht } from '../aufwachen.js';
 import type { Rueckblick } from '../wochenrueckblick.js';
-import { belegtMs, istFristBlock, jetztDran, ruht, minutenText, terminAusText, wocheVerteilen, type KalenderTermin, type TerminAusText } from '@dorf/shared';
+import { belegtMs, fachZuordnen, istFristBlock, jetztDran, ruht, minutenText, terminAusText, wocheVerteilen, type KalenderTermin, type TerminAusText } from '@dorf/shared';
 import type { Karteikasten } from '../karten.js';
 import type { Gewohnheiten } from '../gewohnheiten.js';
 import type { Wochenziele } from '../wochenziele.js';
@@ -725,6 +725,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (q.data?.startsWith('er:')) return this.erinnerKnopf(q, antworten);
     if (q.data?.startsWith('ar:')) return this.aufraeumenKnopf(q, antworten);
     if (q.data?.startsWith('wa:')) return this.wartetKnopf(q, antworten);
+    if (q.data?.startsWith('nb:')) return this.nachbereitenKnopf(q, antworten);
     if (q.data?.startsWith('sb:')) return this.schnellKnopf(q, antworten);
     if (q.data?.startsWith('wv:')) return this.vorschlagKnopf(q, antworten);
     if (q.data?.startsWith('pw:')) return this.pruefungKnopf(q, antworten);
@@ -1292,25 +1293,63 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (!vorbei) return false;
     const stand = (() => {
       try {
-        const w = JSON.parse((this.o.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'telegram_luecken'").get() as { wert: string } | undefined)?.wert ?? '{}') as { tag?: string; ids?: string[]; gesendet?: number };
-        return w.tag === heute ? { tag: heute, ids: w.ids ?? [], gesendet: w.gesendet ?? 0 } : { tag: heute, ids: [] as string[], gesendet: 0 };
+        const w = JSON.parse((this.o.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'telegram_luecken'").get() as { wert: string } | undefined)?.wert ?? '{}') as { tag?: string; ids?: string[]; gesendet?: number; nach?: Record<string, { titel: string; fach: string }> };
+        return w.tag === heute ? { tag: heute, ids: w.ids ?? [], gesendet: w.gesendet ?? 0, nach: w.nach ?? {} } : { tag: heute, ids: [] as string[], gesendet: 0, nach: {} as Record<string, { titel: string; fach: string }> };
       } catch {
-        return { tag: heute, ids: [] as string[], gesendet: 0 };
+        return { tag: heute, ids: [] as string[], gesendet: 0, nach: {} as Record<string, { titel: string; fach: string }> };
       }
     })();
     // gezählt wird nur, was wirklich verschickt wurde – Termine ohne Vorschlag verbrauchen keinen der drei Anstöße (Review)
     if (stand.ids.includes(vorbei.id) || stand.gesendet >= 3) return false;
     stand.ids.push(vorbei.id);
     const merken = () => this.o.db.prepare("INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES ('telegram_luecken', ?)").run(JSON.stringify({ ...stand, ids: stand.ids.slice(-50) }));
+    // E154: war es eine Lehrveranstaltung (Titel passt zu einem Uni-Fach)? Dann „📝 Nachbereiten“ anbieten
+    const fach = this.o.uni ? fachZuordnen(this.o.uni.faecher(), (f) => [f.titel, f.name], vorbei.titel) : undefined;
+    const nk = crypto.createHash('sha256').update(vorbei.id).digest('hex').slice(0, 10);
+    if (fach) stand.nach = { ...Object.fromEntries(Object.entries(stand.nach).slice(-9)), [nk]: { titel: vorbei.titel.slice(0, 120), fach: fach.titel } };
     merken();
-    if (!d) return false;
-    const [text, extra] = this.jetztNachricht(d, `✅ <b>${h(vorbei.titel)}</b> ist vorbei.\n`);
-    const ok = !!(await this.senden(text, extra));
+    if (!d && !fach) return false;
+    const nachKnopf = { text: '📝 Nachbereiten (15 min)', callback_data: this.nachbereitenDaten(nk) };
+    const [text, extra] = d
+      ? this.jetztNachricht(d, `✅ <b>${h(vorbei.titel)}</b> ist vorbei.\n`)
+      : ([`✅ <b>${h(vorbei.titel)}</b> ist vorbei.`, {}] as [string, Record<string, unknown>]);
+    if (fach) {
+      const tasten = ((extra as { reply_markup?: { inline_keyboard: unknown[][] } }).reply_markup?.inline_keyboard ?? []).concat([[nachKnopf]]);
+      Object.assign(extra, { reply_markup: { inline_keyboard: tasten } });
+    }
+    const ok = !!(await this.senden(fach ? `${text}\n<i>📝 Kurz nachbereiten, solange es frisch ist – 15 min jetzt sparen später eine Stunde.</i>` : text, extra));
     if (ok) {
       stand.gesendet++;
       merken();
     }
     return ok;
+  }
+
+  private nachbereitenDaten(k: string) {
+    return `nb:${k}:${crypto.createHmac('sha256', this.signaturSchluessel).update(`nachbereiten:${k}`).digest('base64url').slice(0, 16)}`;
+  }
+
+  /** E154: „📝 Nachbereiten“ – legt ein To-do für heute an (15 min, Gruppe = Fach), genau einmal je Termin */
+  private async nachbereitenKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {
+    const m = /^nb:([0-9a-f]{10}):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
+    if (!m || !this.o.listen || !crypto.timingSafeEqual(Buffer.from(m[2]!), Buffer.from(this.nachbereitenDaten(m[1]!).split(':')[2]!))) {
+      this.o.log?.('Telegram: Nachbereiten-Knopf mit ungültiger Signatur abgelehnt.');
+      return antworten('Ungültiger Knopf.');
+    }
+    const roh = (this.o.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'telegram_luecken'").get() as { wert: string } | undefined)?.wert;
+    let w: { nach?: Record<string, { titel: string; fach: string; angelegt?: boolean }> } = {};
+    try {
+      w = JSON.parse(roh ?? '{}');
+    } catch {
+      /* leer */
+    }
+    const e = w.nach?.[m[1]!];
+    if (!e) return antworten('Das ist schon zu lange her – leg es bei Bedarf selbst an.');
+    if (e.angelegt) return antworten('Ist schon auf der Liste.');
+    await this.o.listen.todo.anlegen({ titel: `Nachbereiten: ${e.titel}`.slice(0, 200), faellig: this.heuteTag(), dauer: 15, gruppe: e.fach.slice(0, 60), gebaeude: 'Uni' }, 'Telegram');
+    e.angelegt = true;
+    this.o.db.prepare("INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES ('telegram_luecken', ?)").run(JSON.stringify(w));
+    return antworten('📝 Für heute notiert (15 min).');
   }
 
   private async jetztKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {
