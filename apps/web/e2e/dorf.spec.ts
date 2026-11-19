@@ -1297,7 +1297,8 @@ test('Zeitschätzung: Dauer am To-do, „Heute“ warnt, wenn der Tag nicht reic
   const b = page.getByRole('status', { name: 'Zeitbudget heute' });
   await expect(b).toContainText('21 h 30 min');
   await expect(b).toContainText('mehr, als in den Tag passt');
-  await expect(page.locator('li', { hasText: 'Dauer-Test' }).getByText('⏱ 1 h 30 min')).toBeVisible();
+  // ab 18 Uhr steht das To-do zusätzlich in „Morgen im Blick“ – darum genau die Zeile der Heute-Liste
+  await expect(page.locator('li', { hasText: 'Dauer-Test' }).locator('.heute-todo-datum', { hasText: '⏱ 1 h 30 min' })).toBeVisible();
 });
 
 test('Wochenplan: Eingang und Tage, Verschieben per Ziehen und Auswahl, Auslastung (E121)', async ({ page }, info) => {
