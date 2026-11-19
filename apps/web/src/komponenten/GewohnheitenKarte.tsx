@@ -42,7 +42,7 @@ export function GewohnheitenKarte() {
   const fertig = heute.filter((g) => g.heuteErledigt).length;
 
   return (
-    <section className="karte heute-karte" aria-label="Gewohnheiten">
+    <section className="karte heute-karte heute-gewohnheiten" aria-label="Gewohnheiten">
       <div className="heute-karte-kopf">
         <h2>
           🔁 Gewohnheiten

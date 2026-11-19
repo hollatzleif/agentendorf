@@ -32,7 +32,7 @@ export function WochenzieleKarte() {
   const kw = s ? Number(s.woche.slice(-2)) : 0;
 
   return (
-    <section className="karte heute-karte" aria-label="Wochenziele">
+    <section className="karte heute-karte heute-wochenziele" aria-label="Wochenziele">
       <div className="heute-karte-kopf">
         <h2>
           🎯 Wochenziele{s ? ` · KW ${kw}` : ''}

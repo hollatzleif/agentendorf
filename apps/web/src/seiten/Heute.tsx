@@ -150,13 +150,12 @@ export function Heute() {
   const wetter = status.data?.wetter;
 
   return (
-    <section className="heute" aria-label="Mein Tag">
+    <section className={`heute${stunde >= 18 ? ' abend' : ''}`} aria-label="Mein Tag">
       <header className="karte heute-kopf">
         <div className="heute-kopf-zeile">
           <div>
             <p className="heute-datum">{tagText(heute, { weekday: 'long', day: 'numeric', month: 'long' })}</p>
             <h1 className="heute-gruss">{gruss(stunde)}, Leif</h1>
-            <StartSchalter />
           </div>
           {wetter && (
             <div className="heute-wetter" aria-label={`Wetter in ${wetter.ort ?? 'Konstanz'}`}>
@@ -173,32 +172,34 @@ export function Heute() {
           )}
         </div>
 
-        {/* ohne anstehenden Termin sagt „Jetzt dran“ dasselbe (und mehr) – nicht doppelt zeigen */}
-        {geladen && !(dran && !fokusLaeuft && !naechsterTermin) && (
-          <div className="heute-naechstes" data-testid="heute-naechstes">
-            <span className="heute-naechstes-marke">Als Nächstes</span>
-            {naechsterTermin ? (
-              <a href={KALENDER_URL} onClick={linkKlick}>
-                <strong>{naechsterTermin.titel}</strong>{' '}
-                {laeuft(naechsterTermin) ? (
-                  <span>läuft bis {ort(naechsterTermin.ende).zeit}</span>
-                ) : (
-                  <span>
-                    um {ort(naechsterTermin.start).zeit} ({inText(Date.parse(naechsterTermin.start) - jetzt)})
-                  </span>
-                )}
-              </a>
-            ) : erstesTodo ? (
-              <span>
-                <strong>{erstesTodo.titel}</strong> <span>{erstesTodo.faellig! < heute ? '– ist überfällig' : '– heute fällig'}</span>
-              </span>
-            ) : (
-              <span>Nichts Dringendes. Zeit für das, was dir wichtig ist. 🌿</span>
-            )}
-          </div>
-        )}
-
-        {geladen && dran && !fokusLaeuft && <JetztDran d={dran} />}
+        {/* E142: das Wichtigste in einer Zeile – links, was jetzt dran ist, rechts der nächste Termin */}
+        <div className="heute-jetzt-zeile">
+          {geladen && dran && !fokusLaeuft && <JetztDran d={dran} />}
+          {/* ohne anstehenden Termin sagt „Jetzt dran“ dasselbe (und mehr) – nicht doppelt zeigen */}
+          {geladen && !(dran && !fokusLaeuft && !naechsterTermin) && (
+            <div className="heute-naechstes" data-testid="heute-naechstes">
+              <span className="heute-naechstes-marke">Als Nächstes</span>
+              {naechsterTermin ? (
+                <a href={KALENDER_URL} onClick={linkKlick}>
+                  <strong>{naechsterTermin.titel}</strong>{' '}
+                  {laeuft(naechsterTermin) ? (
+                    <span>läuft bis {ort(naechsterTermin.ende).zeit}</span>
+                  ) : (
+                    <span>
+                      um {ort(naechsterTermin.start).zeit} ({inText(Date.parse(naechsterTermin.start) - jetzt)})
+                    </span>
+                  )}
+                </a>
+              ) : erstesTodo ? (
+                <span>
+                  <strong>{erstesTodo.titel}</strong> <span>{erstesTodo.faellig! < heute ? '– ist überfällig' : '– heute fällig'}</span>
+                </span>
+              ) : (
+                <span>Nichts Dringendes. Zeit für das, was dir wichtig ist. 🌿</span>
+              )}
+            </div>
+          )}
+        </div>
 
         <div className="heute-zahlen">
           {kalender.data && (
@@ -234,6 +235,11 @@ export function Heute() {
         {planen && <TagPlanen schliessen={() => setPlanen(false)} />}
       </header>
 
+      {/* E142: Hinweise als Band über die ganze Breite (leer = unsichtbar) */}
+      <div className="heute-band">
+        <PlanenHinweis />
+      </div>
+
       {(nf > 0 || zeitungHeute) && (
         <div className="heute-hinweise">
           {nf > 0 && (
@@ -264,8 +270,42 @@ export function Heute() {
       )}
 
       <div className="heute-spalten">
-        <div className="heute-spalte">
-          <section className="karte heute-karte" aria-label="Termine">
+        <div className="heute-spalte heute-spalte-haupt">
+          <section className="karte heute-karte heute-todos-karte" aria-label="To-dos">
+            <div className="heute-karte-kopf">
+              <h2>☑️ To-dos</h2>
+              <a href={TODO_URL} onClick={linkKlick} className="heute-mehr">
+                Alle{offen.length ? ` (${offen.length})` : ''} →
+              </a>
+            </div>
+            <TodoNeu heute={heute} fertig={() => qc.invalidateQueries({ queryKey: ['liste', 'todo'] })} />
+            {budget.geschaetztMin > 0 && (
+              <p className={`heute-budget${budget.zuViel ? ' warnung' : ''}`} role="status" aria-label="Zeitbudget heute">
+                ⏱ Heute ≈ <b>{minutenText(budget.geschaetztMin)}</b> geschätzt
+                {budget.ohneSchaetzung > 0 && <span className="leise"> (+{budget.ohneSchaetzung} ohne Schätzung)</span>} · frei bis 22 Uhr ≈ {minutenText(budget.freiMin)}
+                {budget.zuViel && <> – mehr, als in den Tag passt. Etwas auf morgen schieben?</>}
+              </p>
+            )}
+            {todos.isPending && <p className="leise">Lade …</p>}
+            {todos.isError && <p className="fehler">To-dos nicht erreichbar: {todos.error.message}</p>}
+            {todos.data && gezeigt === 0 && <p className="leise heute-leer">{offen.length ? 'Nichts in den nächsten 7 Tagen fällig. 🎉' : 'Nichts offen. 🎉'}</p>}
+            <TodoGruppe titel="⭐ Wichtig" art="stern" todos={wichtig} heute={heute} />
+            <TodoGruppe titel="Überfällig" art="rot" todos={ueberfaellig} heute={heute} />
+            <TodoGruppe titel="Heute" todos={faelligHeute} heute={heute} />
+            <TodoGruppe titel="In den nächsten 7 Tagen" art="spaeter" todos={bald} heute={heute} />
+            <TodoGruppe titel="Ohne Datum" art="spaeter" todos={ohneDatum} heute={heute} />
+            {ohneDatumAlle.length > ohneDatum.length && (
+              <a href={TODO_URL} onClick={linkKlick} className="heute-mehr unten">
+                + {ohneDatumAlle.length - ohneDatum.length} weitere ohne Datum
+              </a>
+            )}
+          </section>
+          <WochenzieleKarte />
+          <ErsteSchritte />
+        </div>
+
+        <div className="heute-spalte heute-spalte-neben">
+          <section className="karte heute-karte heute-termine-karte" aria-label="Termine">
             <div className="heute-karte-kopf">
               <h2>📅 Termine</h2>
               <a href={KALENDER_URL} onClick={linkKlick} className="heute-mehr">
@@ -295,42 +335,11 @@ export function Heute() {
           {stunde >= 17 && <StimmungZeile />}
           {stunde >= 18 && todos.data && <MorgenKarte todos={todos.data} termine={termineMorgen} morgen={morgen} />}
         </div>
-
-        <div className="heute-spalte">
-          <PlanenHinweis />
-          <ErsteSchritte />
-          <WochenzieleKarte />
-          <section className="karte heute-karte" aria-label="To-dos">
-            <div className="heute-karte-kopf">
-              <h2>☑️ To-dos</h2>
-              <a href={TODO_URL} onClick={linkKlick} className="heute-mehr">
-                Alle{offen.length ? ` (${offen.length})` : ''} →
-              </a>
-            </div>
-            <TodoNeu heute={heute} fertig={() => qc.invalidateQueries({ queryKey: ['liste', 'todo'] })} />
-            {budget.geschaetztMin > 0 && (
-              <p className={`heute-budget${budget.zuViel ? ' warnung' : ''}`} role="status" aria-label="Zeitbudget heute">
-                ⏱ Heute ≈ <b>{minutenText(budget.geschaetztMin)}</b> geschätzt
-                {budget.ohneSchaetzung > 0 && <span className="leise"> (+{budget.ohneSchaetzung} ohne Schätzung)</span>} · frei bis 22 Uhr ≈ {minutenText(budget.freiMin)}
-                {budget.zuViel && <> – mehr, als in den Tag passt. Etwas auf morgen schieben?</>}
-              </p>
-            )}
-            {todos.isPending && <p className="leise">Lade …</p>}
-            {todos.isError && <p className="fehler">To-dos nicht erreichbar: {todos.error.message}</p>}
-            {todos.data && gezeigt === 0 && <p className="leise heute-leer">{offen.length ? 'Nichts in den nächsten 7 Tagen fällig. 🎉' : 'Nichts offen. 🎉'}</p>}
-            <TodoGruppe titel="⭐ Wichtig" art="stern" todos={wichtig} heute={heute} />
-            <TodoGruppe titel="Überfällig" art="rot" todos={ueberfaellig} heute={heute} />
-            <TodoGruppe titel="Heute" todos={faelligHeute} heute={heute} />
-            <TodoGruppe titel="In den nächsten 7 Tagen" todos={bald} heute={heute} />
-            <TodoGruppe titel="Ohne Datum" todos={ohneDatum} heute={heute} />
-            {ohneDatumAlle.length > ohneDatum.length && (
-              <a href={TODO_URL} onClick={linkKlick} className="heute-mehr unten">
-                + {ohneDatumAlle.length - ohneDatum.length} weitere ohne Datum
-              </a>
-            )}
-          </section>
-        </div>
       </div>
+
+      <footer className="heute-fuss">
+        <StartSchalter />
+      </footer>
     </section>
   );
 }

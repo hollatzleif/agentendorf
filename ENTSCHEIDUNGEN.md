@@ -1120,3 +1120,13 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
   - nur mit verbundenem Google-Kalender
 - **Schalter** „luecken“ in `00_Stadtordnung/telegram.md` bzw. unter Agenten-Einstellungen → Telegram, standardmäßig an. Geprüft wird alle 5 Minuten.
 - **Warum:** Der schwierigste Moment ist der Übergang. Nach der Vorlesung bleibt man leicht hängen; ein konkreter nächster Schritt im richtigen Moment hilft beim Weitermachen.
+
+## E142 – Heute neu geordnet (19.11.)
+
+- **Nur Anordnung und Optik**, keine neue Logik, keine neuen Daten. Die Seite war über die Nacht gewachsen; jetzt liest sich der Tag wieder von oben nach unten.
+- **Kopf:** „👉 Jetzt dran“ und „Als Nächstes“ stehen in einer Zeile (am Handy untereinander, Jetzt dran zuerst). Der Schalter „Beim Öffnen zuerst ‚Heute‘ zeigen“ ist ans Seitenende gewandert – man stellt ihn einmal ein.
+- **PC (zwei Spalten):** links (etwas breiter) To-dos, darunter Wochenziele und Erste Schritte; rechts Termine, Fokus, Gewohnheiten. Der Hinweis auf die Wochenplanung (So/Mo) liegt als Band über beiden Spalten.
+- **Handy (eine Spalte):** Termine (kurz), To-dos, Fokus, Gewohnheiten, Wochenziele, Erste Schritte.
+- **Abends (ab 18 Uhr, Klasse `abend`):** Stimmung und „🌅 Morgen“ rücken direkt unter die Termine (am Handy noch vor die To-dos), der Fokus ans Ende. Ein laufender Fokus steht dagegen immer ganz oben in seiner Spalte.
+- **Ruhiger:** „In den nächsten 7 Tagen“ und „Ohne Datum“ sind schlichte Zeilen ohne Kästchen-Rahmen, damit Wichtig/Überfällig/Heute hervortreten. „Erste Schritte“ ist gestrichelt und ohne Schatten. Die Stimmungs-Knöpfe füllen am Handy eine Zeile.
+- **Technik:** Die Reihenfolge im DOM ist die des PCs; Handy und Abend ordnen per CSS `order` um (`.heute-spalte` ist am Handy `display: contents`). Abstände kommen einheitlich aus `gap` auf `.heute`; leere Bänder verschwinden über `:empty`. Neue Klassen: `heute-jetzt-zeile`, `heute-band`, `heute-fuss`, `heute-todos-karte`, `heute-termine-karte`, `heute-gewohnheiten`, `heute-wochenziele`, Gruppe `spaeter`. Bestehende Klassen, Rollen, Texte und testids sind unverändert.

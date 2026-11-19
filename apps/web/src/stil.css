@@ -1331,3 +1331,72 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0.05rem 0.35rem; border:
 .morgen-karte p { margin: 0.2rem 0; }
 .morgen-liste { margin: 0.3rem 0 0; padding-left: 1.1rem; }
 .warnung-text { color: #9a3b1d; font-weight: 600; }
+
+/* ---- E142: „Heute“ neu geordnet – der Tag von oben nach unten, gleichmäßige Abstände ---- */
+.heute { display: flex; flex-direction: column; gap: 1.1rem; }
+.heute .heute-hinweise, .heute .heute-spalten { margin-top: 0; }
+.heute-band { display: grid; gap: 1.1rem; }
+.heute-band:empty, .heute-jetzt-zeile:empty { display: none; }
+/* Kopf: „Jetzt dran“ und „Als Nächstes“ nebeneinander (am Handy untereinander) */
+.heute-jetzt-zeile { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0.7rem; margin-top: 0.9rem; }
+.heute-jetzt-zeile .heute-jetztdran { flex: 3 1 24rem; margin: 0; }
+.heute-jetzt-zeile .heute-naechstes { flex: 2 1 16rem; margin-top: 0; align-items: center; align-content: center; }
+/* To-dos: heute zuerst und kräftig, Späteres ruhiger */
+.heute-todos-karte .heute-budget { margin-top: 0.6rem; }
+.heute-gruppe.spaeter { margin-top: 1rem; padding-top: 0.7rem; border-top: 2px dashed var(--rand); }
+.heute-gruppe.spaeter + .heute-gruppe.spaeter { border-top: none; padding-top: 0; margin-top: 0.8rem; }
+.heute-gruppe.spaeter .heute-todos { gap: 0; }
+.heute-gruppe.spaeter .heute-todo { background: transparent; border-color: transparent; border-bottom-color: var(--rand); border-radius: 0; }
+.heute-gruppe.spaeter .heute-todo:last-child { border-bottom-color: transparent; }
+.heute-gruppe.spaeter .heute-todo-titel { font-weight: 600; }
+.heute-gruppe.spaeter .heute-todo label { min-height: 2.3rem; padding-top: 0.3rem; padding-bottom: 0.3rem; }
+/* selten Genutztes tritt zurück */
+.heute .erste-schritte { background: rgb(255 253 246 / 0.6); border: 2px dashed #b9c2d0; box-shadow: none; }
+.heute .erste-schritte h2 { font-size: 1rem; }
+.heute .morgen-karte { background: linear-gradient(160deg, #fffdf6 0%, #fdf3e3 100%); }
+.heute-fuss { display: flex; justify-content: center; padding: 0 0.5rem 0.4rem; }
+.heute-fuss .heute-start { margin-top: 0; }
+/* Reihenfolge: tagsüber Fokus vor den Gewohnheiten, ab 18 Uhr die Abend-Karten nach oben; ein laufender Fokus steht immer oben */
+.heute .heute-termine-karte { order: 1; }
+.heute .heute-spalte .heute-fokus { order: 2; }
+.heute .heute-gewohnheiten { order: 3; }
+.heute .heute-spalte .stimmung-zeile { order: 4; }
+.heute .heute-spalte .morgen-karte { order: 5; }
+.heute.abend .heute-spalte .stimmung-zeile { order: 2; }
+.heute.abend .heute-spalte .morgen-karte { order: 3; }
+.heute.abend .heute-gewohnheiten { order: 4; }
+.heute.abend .heute-spalte .heute-fokus { order: 5; }
+@media (min-width: 861px) {
+  .heute-spalten { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
+}
+@media (max-width: 860px) {
+  /* eine Spalte: Termine (kurz), To-dos, Fokus, Gewohnheiten, Wochenziele – abends Stimmung und Morgen gleich nach den Terminen */
+  .heute .heute-todos-karte { order: 2; }
+  .heute .heute-spalte .heute-fokus { order: 3; }
+  .heute .heute-gewohnheiten { order: 4; }
+  .heute .heute-wochenziele { order: 5; }
+  .heute .heute-spalte .stimmung-zeile { order: 6; }
+  .heute .heute-spalte .morgen-karte { order: 7; }
+  .heute .erste-schritte { order: 9; }
+  .heute.abend .heute-spalte .stimmung-zeile { order: 2; }
+  .heute.abend .heute-spalte .morgen-karte { order: 3; }
+  .heute.abend .heute-todos-karte { order: 4; }
+  .heute.abend .heute-gewohnheiten { order: 5; }
+  .heute.abend .heute-spalte .heute-fokus { order: 6; }
+  .heute.abend .heute-wochenziele { order: 7; }
+}
+.heute .heute-spalte .heute-fokus[class*='phase-'] { order: 0; }
+@media (max-width: 760px) {
+  .heute, .heute-band { gap: 0.9rem; }
+  .heute-jetzt-zeile { gap: 0.6rem; margin-top: 0.8rem; }
+  .heute-jetzt-zeile .heute-jetztdran, .heute-jetzt-zeile .heute-naechstes { flex-basis: 100%; }
+}
+@media (min-width: 761px) {
+  .heute-jetzt-zeile .heute-naechstes { flex-direction: column; flex-wrap: nowrap; align-items: flex-start; justify-content: center; gap: 0.25rem; }
+  .heute-jetzt-zeile .heute-naechstes-marke { align-self: flex-start; }
+  .heute-todos-karte .heute-gruppe.rot .heute-todo label { flex-basis: 13rem; }
+}
+@media (max-width: 760px) {
+  .heute .stimmung-frage { flex-basis: 100%; }
+  .heute .stimmung-knopf { flex: 1; }
+}
