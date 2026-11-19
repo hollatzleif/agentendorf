@@ -76,6 +76,9 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
   const [gerade, setGerade] = useState<Record<string, string>>({});
   useLiveEreignis((e) => {
     if (e.typ === 'lauf.werkzeug') setGerade((g) => ({ ...g, [e.laufId]: `${WERKZEUG_TEXT[e.name] ?? e.name}${e.kurz ? `: ${e.kurz}` : ''}${e.erlaubt ? '' : ' (verweigert)'}` }));
+    // E131: Tafel am Marktplatz und Fokus-Licht am Kirchturm folgen To-dos und Pomodoro sofort
+    if (e.typ === 'kirchturm.geaendert' || (e.typ === 'todos.geaendert' && (!e.liste || e.liste === 'todo')) || (e.typ === 'vault.geaendert' && e.pfad.startsWith('Marktplatz/todos/')))
+      void qc.invalidateQueries({ queryKey: ['dorf-status'] });
   });
   const [, tick] = useState(0);
 

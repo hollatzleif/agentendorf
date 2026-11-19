@@ -12,6 +12,7 @@ import {
   type DorfLaufEnde,
   type DorfLayout,
   type DorfStatus,
+  type DorfTag,
   type LaufStatus,
   type Motor,
   type Stufe,
@@ -26,6 +27,9 @@ import type { VaultDienst } from './vault/dienst.js';
 import { gebaeudeListe } from './vault/gebaeude.js';
 import { DorfFehler } from './fehler.js';
 import type { Uni } from './uni/abgleich.js';
+import type { TodoDienst } from './todos.js';
+import type { Kirchturm } from './kirchturm.js';
+import { tagIn } from './zeit.js';
 
 const TAG = 86_400_000;
 const feld = z.tuple([z.number().int(), z.number().int()]);
@@ -50,7 +54,7 @@ interface Zeile {
  * veralteten Version speichert, bekommt 409 und das aktuelle Layout zurück (statt still zu überschreiben).
  */
 export class Dorfplan {
-  constructor(private o: { db: DB; uhr: Uhr; hub: LiveHub; vault: VaultDienst; uni?: Uni; wetter?: Wetter }) {}
+  constructor(private o: { db: DB; uhr: Uhr; hub: LiveHub; vault: VaultDienst; uni?: Uni; wetter?: Wetter; todos?: Pick<TodoDienst, 'liste'>; kirchturm?: Pick<Kirchturm, 'zustand'> }) {}
 
   private zeile(): Zeile | undefined {
     return this.o.db.prepare('SELECT inhalt_json, version FROM dorf_layout WHERE id = 1').get() as Zeile | undefined;
@@ -182,6 +186,30 @@ export class Dorfplan {
     ).map((l) => ({ laufId: l.id, gebaeude: l.gebaeude, titel: l.titel, status: l.status, ende: new Date(l.ende).toISOString(), buergermeister: l.rolle === 'buergermeister' }));
 
     const wetter = this.o.wetter?.aktuell();
-    return { jetzt: new Date(jetzt).toISOString(), gebaeude: g, figuren, zuletzt, ...(wetter ? { wetter } : {}) };
+    // E131: Fokus = Pomodoro in der Arbeitsphase und nicht angehalten (unabhängig von „Nicht stören“)
+    const pomodoro = this.o.kirchturm?.zustand().pomodoro;
+    const fokus = pomodoro ? pomodoro.phase === 'arbeit' && pomodoro.status === 'laeuft' : undefined;
+    return { jetzt: new Date(jetzt).toISOString(), gebaeude: g, figuren, zuletzt, ...(wetter ? { wetter } : {}), ...(fokus !== undefined ? { fokus } : {}) };
+  }
+
+  /** E131: To-dos von heute (Wiener Kalendertag): offen und fällig bis heute / heute erledigt */
+  async tag(): Promise<DorfTag | undefined> {
+    if (!this.o.todos) return undefined;
+    const heute = tagIn(this.o.uhr.jetzt());
+    let dran = 0;
+    let erledigt = 0;
+    for (const t of await this.o.todos.liste()) {
+      if (!t.erledigt) {
+        if (t.faellig && t.faellig <= heute) dran++;
+      } else if (t.erledigtAm && tagIn(Date.parse(t.erledigtAm)) === heute) erledigt++;
+    }
+    return { dran, erledigt };
+  }
+
+  /** Status samt Tafel-Zahlen; ein Fehler beim Lesen der To-dos verhindert den Dorfstatus nie */
+  async statusMitTag(): Promise<DorfStatus> {
+    const st = this.status();
+    const tag = await this.tag().catch(() => undefined);
+    return tag ? { ...st, tag } : st;
   }
 }

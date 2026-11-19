@@ -838,6 +838,9 @@ function zeigerObjekt(laenge: number, breite: number, farbe: string) {
   return dreh;
 }
 
+/** Maße des Kirchturms, die auch das Fokus-Licht braucht (E131, tag.ts) */
+export const KIRCHTURM_MASSE = { tz: -0.45, uhrY: BODEN + 3.4 + 1.35 / 2, uhrHalb: 1.62 / 2, tuerZ: 0.9, lampeY: BODEN + 1.8 };
+
 const kirchturm: Bauer = (b, _g, rnd) => {
   grundstueck(b);
   const stein = '#efe6d2';

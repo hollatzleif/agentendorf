@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { DEKO_GROESSE, GRUNDSTUECK, belegungBerechnen, feldSchluessel, type DorfBluete, type DorfLayout, type DorfStatus, type DorfWetter, type Gebaeude, type WetterArt } from '@dorf/shared';
 import { Bausatz, entsorgen, glasMaterialien, ikosaeder, leuchtMaterialien, material, zufallAus } from './bausatz';
-import { BODEN, FELD, GLAS_FARBE, PLATZ, RASEN_FARBEN, auto, dekoBauen, gebaeudeModell, modellArt, type Modell } from './modelle';
+import { BODEN, FELD, GLAS_FARBE, KIRCHTURM_MASSE, PLATZ, RASEN_FARBEN, auto, dekoBauen, gebaeudeModell, modellArt, type Modell } from './modelle';
 import { Gelaende, feldMitte, strassenUndWasser, wasserFreigeben, wasserTick, type Grenzen } from './gelaende';
 import { Figuren } from './figuren';
 import { blase, namensschild, type BlasenArt } from './blasen';
@@ -10,6 +10,7 @@ import { wegFinden } from './wege';
 import { Niederschlag, TRUEBUNG, wetterArtVon } from './wetter';
 import { jahreszeit } from './jahreszeit';
 import { BLUETE_BILD, Blumen, Fahne, Feuerwerk, blueteVon, wiesenToenung, type BlueteStufe } from './bluete';
+import { FokusLicht, Tafel, tagVon } from './tag';
 
 const schneeDaecher = new Map<string, THREE.MeshStandardMaterial>();
 function schneeDach(m: THREE.MeshStandardMaterial) {
@@ -267,6 +268,9 @@ export class DorfSzene {
   private blumen: Blumen | null = null;
   private fahne: Fahne | null = null;
   private feuerwerk: Feuerwerk | null = null;
+  // Der Tag im Dorf (E131): Tafel am Marktplatz, Fokus-Licht am Kirchturm – vom Server oder ?tafel=…/?fokus=…
+  private tafel: Tafel | null = null;
+  private fokusLicht: FokusLicht | null = null;
   /** Fensterglas für Häuser, in denen nachts nur wenig Licht brennt */
   private glasMatt: THREE.MeshStandardMaterial | null = null;
   private schmutzig = true;
@@ -469,6 +473,7 @@ export class DorfSzene {
     }
 
     this.blueteSetzen(d.status?.bluete);
+    this.tagSetzen(d.status);
     this.statusSetzen(d.status);
     this.tageszeitSetzen();
     this.uhrStellen();
@@ -533,6 +538,9 @@ export class DorfSzene {
       this.fahne.entsorgen();
       this.fahne = null;
     }
+    // Tafel und Fokus-Licht hängen am Modell: vor dem Abreißen lösen (eigene Texturen/Materialien)
+    if (this.tafel?.gruppe.parent === e.modell.gruppe) this.tafelWeg();
+    if (this.fokusLicht?.gruppe.parent === e.modell.gruppe) this.fokusWeg();
     this.stadt.remove(e.huelle);
     this.blasenEbene.remove(e.schild, e.blasen);
     for (const r of e.rauch) r.entsorgen();
@@ -818,6 +826,62 @@ export class DorfSzene {
     this.schmutzig = true;
   }
 
+  // ---- Der Tag im Dorf (E131) ---------------------------------------------------------------------------
+
+  private tafelWeg() {
+    if (!this.tafel) return;
+    this.tafel.gruppe.removeFromParent();
+    this.tafel.entsorgen();
+    this.tafel = null;
+  }
+
+  private fokusWeg() {
+    if (!this.fokusLicht) return;
+    this.fokusLicht.gruppe.removeFromParent();
+    this.fokusLicht.entsorgen();
+    this.fokusLicht = null;
+  }
+
+  /** Tafel am Marktplatz (To-dos von heute) und warmes Licht am Kirchturm (Pomodoro in der Arbeitsphase) */
+  private tagSetzen(status: DorfStatus | undefined) {
+    const t = tagVon(status?.tag, status?.fokus);
+    const mit = (art: string) => [...this.gebaeude.values()].find((e) => e.schluessel.startsWith(`${art}|`));
+
+    const markt = mit('marktplatz');
+    if (t.tag && markt) {
+      if (!this.tafel) this.tafel = new Tafel();
+      if (this.tafel.gruppe.parent !== markt.modell.gruppe) {
+        // vorn rechts am Rand des Platzes, leicht zur Mitte gedreht
+        this.tafel.gruppe.position.set(1.05, BODEN, 2.2);
+        this.tafel.gruppe.rotation.y = -0.12;
+        markt.modell.gruppe.add(this.tafel.gruppe);
+        this.schmutzig = true;
+      }
+      if (this.tafel.schreiben(t.tag)) this.schmutzig = true;
+    } else if (this.tafel) {
+      this.tafelWeg();
+      this.schmutzig = true;
+    }
+
+    const turm = mit('kirchturm');
+    if (t.fokus && turm) {
+      if (!this.fokusLicht) this.fokusLicht = new FokusLicht(KIRCHTURM_MASSE);
+      if (this.fokusLicht.gruppe.parent !== turm.modell.gruppe) {
+        turm.modell.gruppe.add(this.fokusLicht.gruppe);
+        this.fokusLicht.nacht(this.dunkel);
+        this.schmutzig = true;
+      }
+    } else if (this.fokusLicht) {
+      this.fokusWeg();
+      this.schmutzig = true;
+    }
+  }
+
+  /** Was vom Tag gerade zu sehen ist (Tests): Text der Tafel (null = keine Tafel) und ob das Fokus-Licht brennt */
+  tagStand(): { tafel: string | null; fokus: boolean } {
+    return { tafel: this.tafel?.gruppe.parent ? this.tafel.text() : null, fokus: !!this.fokusLicht?.gruppe.parent };
+  }
+
   /** Was von der Blüte gerade zu sehen ist (Tests) */
   blueteStand(): { stufe: BlueteStufe | null; blumen: number; fahne: boolean; feuerwerk: boolean; feuerwerkLaeuft: boolean; feuerwerkRunden: number; helleHaeuser: number; haeuser: number } {
     return {
@@ -954,6 +1018,7 @@ export class DorfSzene {
     this.himmelsGruppe?.nacht(dunkel, trueb);
     this.figuren.nachtSetzen(dunkel > 0.6);
     this.dunkel = dunkel;
+    this.fokusLicht?.nacht(dunkel);
     wasserTick(this.uhr.elapsedTime, dunkel);
     if (this.lichtMat) this.lichtMat.opacity = Math.max(0, dunkel - 0.35) * 1.1;
     this.schattenAnpassen();
@@ -1368,6 +1433,8 @@ export class DorfSzene {
     this.blumenWeg();
     this.fahne?.entsorgen();
     this.feuerwerk?.entsorgen();
+    this.tafelWeg();
+    this.fokusWeg();
     this.glasMatt?.dispose();
     if (this.statisch) {
       wasserFreigeben(this.statisch.gruppe);

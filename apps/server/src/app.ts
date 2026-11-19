@@ -834,7 +834,7 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
     return a.dorfplan.speichern(b.basisVersion, b.layout);
   });
   app.get('/api/dorf/status', async () => {
-    const st = a.dorfplan.status();
+    const st = await a.dorfplan.statusMitTag();
     if (!a.listen) return st;
     // E112: Blüte – Fehler hier dürfen den Dorfstatus nie verhindern
     const b = await statistik({ db: a.db, uhr: a.uhr, todos: a.listen.todo, gewohnheiten: a.gewohnheiten }, 7)

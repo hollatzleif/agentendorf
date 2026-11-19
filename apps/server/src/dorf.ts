@@ -434,7 +434,7 @@ export async function dorfStarten(
   // E62: jede Minute fällige Pläne automatisch annehmen
   const planTakt = opt.beobachten !== false ? setInterval(() => void buergermeister.faelligePlaeneAnnehmen().catch((e) => console.warn(`Pläne: ${(e as Error).message}`)), 60_000) : undefined;
   planTakt?.unref();
-  const dorfplan = new Dorfplan({ db, uhr, hub, vault, uni, wetter });
+  const dorfplan = new Dorfplan({ db, uhr, hub, vault, uni, wetter, todos, kirchturm });
   const app = await appBauen({ konfig, ki, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen, dorfplan, automatik, listen, bank, corps, boerse, saxo, kirchturm, googleKalender, wochenrueckblick, karten, gewohnheiten, wochenziele, notizen, noten });
   // Abhaken in Obsidian kommt ohne Ereignis an → zusätzlich alle 10 Minuten abgleichen
   const uniTodoTakt = opt.beobachten !== false ? setInterval(() => uniTodosAnstossen(), 600_000) : undefined;

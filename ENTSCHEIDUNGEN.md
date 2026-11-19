@@ -1033,3 +1033,13 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **„Jetzt dran“:** Der Name `heute-jetzt` war schon für das „jetzt“-Abzeichen laufender Termine vergeben. Die Box erbte dadurch weiße Großbuchstaben auf hellem Grund und war unlesbar. Sie heißt jetzt `heute-jetztdran`.
 - **Nichts doppelt:** Steht kein Termin an, zeigt „Heute“ das To-do nicht zusätzlich unter „Als Nächstes“; „Jetzt dran“ sagt dasselbe und mehr.
 - **Wochenplanung:** Plant man sonntags die nächste Woche, liegt Überfälliges auch dann im Eingang. Die Häkchen „erledigt“ stehen in einer Zeile.
+
+## E131 – Das Dorf spiegelt den Tag
+
+- **Sinn:** Die Blüte (E112) zeigt die Woche; jetzt zeigt das Dorf auch den heutigen Tag – zwei kleine Dinge, an denen man im Vorbeischauen sieht, wo man steht.
+- **Tafel am Marktplatz:** Kreidetafel auf zwei Pfosten vorn am Platz, beidseitig beschrieben: „Heute ☑ 2/5“ = 2 von 5 erledigt (alles erledigt: grüne Kreide; nichts dran: „Heute frei“). Text als CanvasTexture, neu gezeichnet nur, wenn sich die Zahlen ändern.
+- **Fokus am Kirchturm:** Solange ein Pomodoro in der Arbeitsphase läuft, schimmern die vier Zifferblätter warm, und über der Tür hängt eine kleine leuchtende Tomaten-Laterne. Ruhiges Dauerlicht, nichts blinkt; nachts etwas kräftiger. Angehalten, in Pausen und ohne Pomodoro aus. Kein Ton.
+- **Daten:** Der Dorfstatus bekommt `tag: { dran, erledigt }` (offene To-dos mit Fälligkeit ≤ heute; heute Erledigtes – Kalendertag in Wien über `zeit.ts`) und `fokus` (Pomodoro `arbeit` + `laeuft`, unabhängig von „Nicht stören“). `Dorfplan` bekommt dafür `todos` und `kirchturm`; `status()` bleibt synchron (mit `fokus`), `statusMitTag()` liest zusätzlich die To-dos – die Route `/api/dorf/status` nutzt es (eine Zeile in `app.ts`). Ein Fehler beim Lesen der To-dos verhindert den Status nie. Keine Migration, kein neues Live-Ereignis.
+- **Live:** Die Dorf-Ansicht lädt den Status bei `kirchturm.geaendert`, `todos.geaendert` (To-do-Liste) und Änderungen unter `Marktplatz/todos/` (Obsidian) neu.
+- **Leistung:** Gestell und Laternenhalter je Material ein Mesh (Bausatz), nichts wird pro Bild erzeugt; beide Teile hängen am Gebäudemodell und werden mit ihm entsorgt.
+- **Vorschau/Tests:** `?tafel=2/5` (erledigt/insgesamt) und `?fokus=1` (auch `=0`) übersteuern nur die Darstellung; Tests lesen `window.__dorf.tagStand()`.

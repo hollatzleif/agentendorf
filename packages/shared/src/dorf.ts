@@ -136,6 +136,16 @@ export interface DorfStatus {
   zuletzt?: DorfLaufEnde[];
   /** E112: das Dorf blüht, wenn Leif produktiv ist */
   bluete?: DorfBluete;
+  /** E131: To-dos von heute – steht auf der Tafel am Marktplatz */
+  tag?: DorfTag;
+  /** E131: ein Pomodoro läuft gerade in der Arbeitsphase – Licht am Kirchturm */
+  fokus?: boolean;
+}
+export interface DorfTag {
+  /** offene To-dos, die heute oder früher fällig sind (Wiener Kalendertag) */
+  dran: number;
+  /** heute erledigte To-dos */
+  erledigt: number;
 }
 export interface DorfBluete {
   /** 0–1 aus den letzten 7 Tagen */

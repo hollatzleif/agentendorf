@@ -18,6 +18,7 @@ interface DorfTest {
   vorspulen(sekunden: number): void;
   uhrzeiger(id: string): { stunde: number[]; minute: number[] } | null;
   blueteStand(): { stufe: string | null; blumen: number; fahne: boolean; feuerwerk: boolean; feuerwerkLaeuft: boolean; feuerwerkRunden: number; helleHaeuser: number; haeuser: number };
+  tagStand(): { tafel: string | null; fokus: boolean };
 }
 declare global {
   interface Window {
@@ -401,6 +402,56 @@ test('Blüte: Schild zeigt die Stufe, Tipp die Gründe; ?bluete/?fahne/?feuerwer
   await page.goto('/?animiert&feuerwerk');
   // ohne ?bluete gilt weiter der Serverwert (sobald der Status geladen ist)
   await page.waitForFunction(() => window.__dorf?.blueteStand().feuerwerk === true && window.__dorf.blueteStand().stufe === 'bluehend', null, { timeout: 20_000 });
+  expect(fehler).toEqual([]);
+});
+
+test('Der Tag im Dorf: Tafel am Marktplatz und Fokus-Licht am Kirchturm folgen dem Server (live); ?tafel/?fokus übersteuern', async ({ page }) => {
+  const fehler: string[] = [];
+  page.on('pageerror', (e) => fehler.push(e.message));
+  await imDorf(page);
+  const o = { origin: new URL(page.url()).origin };
+  const status = async () => (await (await page.request.get('/api/dorf/status')).json()) as DorfStatus;
+  const text = (t: { dran: number; erledigt: number }) => (t.dran + t.erledigt ? `Heute ☑ ${t.erledigt}/${t.dran + t.erledigt}` : 'Heute frei');
+  const stand = () => page.evaluate(() => window.__dorf!.tagStand());
+  const pomodoro = async (aktion: string) => expect((await page.request.post('/api/kirchturm', { headers: o, data: { befehl: 'pomodoro', aktion } })).ok()).toBe(true);
+  await pomodoro('stopp');
+
+  // Ausgangslage: Tafel zeigt die Zahlen des Servers, kein Fokus
+  const s0 = await status();
+  expect(s0.fokus).toBe(false);
+  expect(s0.tag).toBeDefined();
+  await expect.poll(stand).toEqual({ tafel: text(s0.tag!), fokus: false });
+
+  // ein To-do für heute anlegen → die Tafel zählt ohne Neuladen mit
+  const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+  const todo = (await (await page.request.post('/api/todos', { headers: o, data: { titel: `Tafel-Test ${Date.now()}`, faellig: heute } })).json()) as { pfad: string };
+  const s1 = await status();
+  expect(s1.tag).toEqual({ dran: s0.tag!.dran + 1, erledigt: s0.tag!.erledigt });
+  await expect.poll(stand).toMatchObject({ tafel: text(s1.tag!) });
+  // abhaken → eins mehr erledigt
+  expect((await page.request.patch('/api/todos', { headers: o, data: { pfad: todo.pfad, erledigt: true } })).ok()).toBe(true);
+  const s2 = await status();
+  expect(s2.tag).toEqual({ dran: s0.tag!.dran, erledigt: s0.tag!.erledigt + 1 });
+  await expect.poll(stand).toMatchObject({ tafel: text(s2.tag!) });
+  expect(text(s2.tag!)).toMatch(/^Heute ☑ \d+\/\d+$/);
+
+  // Pomodoro: Arbeitsphase → Licht an; angehalten → aus; weiter → an; gestoppt → aus
+  await pomodoro('start');
+  expect((await status()).fokus).toBe(true);
+  await expect.poll(stand).toMatchObject({ fokus: true });
+  await pomodoro('pause');
+  await expect.poll(stand).toMatchObject({ fokus: false });
+  await pomodoro('weiter');
+  await expect.poll(stand).toMatchObject({ fokus: true });
+  await pomodoro('stopp');
+  await expect.poll(stand).toMatchObject({ fokus: false });
+
+  // Vorschau aus der Adresse übersteuert nur die Darstellung
+  await page.goto('/?tafel=2/5&fokus=1');
+  await page.waitForFunction(() => window.__dorf?.tagStand().tafel === 'Heute ☑ 2/5' && window.__dorf.tagStand().fokus === true, null, { timeout: 20_000 });
+  expect((await status()).fokus).toBe(false);
+  await page.goto('/?tafel=0/0&fokus=0');
+  await page.waitForFunction(() => window.__dorf?.tagStand().tafel === 'Heute frei' && window.__dorf.tagStand().fokus === false, null, { timeout: 20_000 });
   expect(fehler).toEqual([]);
 });
 
