@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { TodoInfo } from '@dorf/shared';
-import { minutenText, projekteAus } from '@dorf/shared';
+import type { Projekt } from '@dorf/shared';
+import { minutenText } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { navigieren } from '../router';
 
@@ -10,12 +10,13 @@ import { navigieren } from '../router';
  * Fokuszeit und „ruht seit …“. Eine Gruppe vergibst du im To-do-Brett beim Bearbeiten (Feld „Gruppe“).
  */
 export function Projekte() {
-  const q = useQuery({ queryKey: ['liste', 'todo', 'alle'], queryFn: () => api<TodoInfo[]>('/api/todos?alle=1') });
+  // E167: Auswertung vom Server – hängt an ['liste', 'todo'], wird also bei jeder To-do-Änderung frisch geholt
+  const q = useQuery({ queryKey: ['liste', 'todo', 'projekte'], queryFn: () => api<Projekt[]>('/api/projekte') });
   const [fehler, setFehler] = useState('');
   if (q.isLoading) return <p className="leise">Lade …</p>;
   if (q.isError) return <p className="fehler">{q.error.message}</p>;
-  const projekte = projekteAus(q.data ?? [], Date.now());
-  const los = async (p: ReturnType<typeof projekteAus>[number]) => {
+  const projekte = q.data ?? [];
+  const los = async (p: Projekt) => {
     if (!p.naechster) return;
     setFehler('');
     try {

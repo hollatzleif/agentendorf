@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { TodoInfo } from '@dorf/shared';
 import { projekteAus } from '@dorf/shared';
+import { kopf } from './etappe7.test.js';
 
 const t = (titel: string, o: Partial<TodoInfo> = {}): TodoInfo => ({ pfad: `Marktplatz/todos/${titel}.md`, version: 'v', titel, erledigt: false, ...o });
 
@@ -85,5 +86,15 @@ describe('Review 8 (E166)', () => {
     expect(nach.Analysis!.ruhtMelden).toBe(false);
     expect(nach.BA!.ruhtTage).toBe(0);
     expect(nach.BA!.ruhtMelden).toBe(false);
+  });
+});
+
+describe('/api/projekte (E167)', () => {
+  it('liefert die Auswertung', async () => {
+    const { testDorf } = await import('./hilfen.js');
+    const d = await testDorf();
+    for (const x of ['A', 'B', 'C']) await d.todos.anlegen({ titel: `Kapitel ${x}`, gruppe: 'BA' }, 'Leif');
+    const r = (await d.app.inject({ url: '/api/projekte', headers: await kopf(d) })).json();
+    expect(r).toEqual([expect.objectContaining({ name: 'BA', gesamt: 3, offen: 3, naechster: expect.objectContaining({ titel: 'Kapitel A' }) })]);
   });
 });

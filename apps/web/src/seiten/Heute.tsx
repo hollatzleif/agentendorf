@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { WETTER_TEXT, type DorfStatus, type FokusStatistik, type FreigabeInfo, type KartenFach, type KalenderAntwort, type KalenderTermin, type KirchturmZustand, type MorgenzeitungUebersicht, type PostUebersicht, type Statistik, type TodoInfo } from '@dorf/shared';
 import { api, ApiFehler, offlineGemerkt } from '../api';
-import { belegtMs, istFristBlock, jetztDran, minutenText, ruht, tagesBudget, todoAusText } from '@dorf/shared';
+import { belegtMs, istFristBlock, jetztDran, minutenText, ruht, tagesBudget, todoAusText, ueberschneidungen } from '@dorf/shared';
 import { TodoTextHinweis } from '../komponenten/TodoTextHinweis';
 import { linkKlick, navigieren } from '../router';
 import { FARBEN, ort, tagPlus } from '../komponenten/MarktKalender';
@@ -845,6 +845,12 @@ function MorgenKarte({ todos, termine, morgen }: { todos: TodoInfo[]; termine: K
         {zeitig.length ? ` · ${zeitig.length} Termin${zeitig.length === 1 ? '' : 'e'}` : ''} · frei ≈ {minutenText(frei)}
       </p>
       {geschaetzt > frei * 0.7 && <p className="warnung-text">Eng – vielleicht etwas auf später verschieben.</p>}
+      {/* E168: Überschneidungen morgen */}
+      {ueberschneidungen(zeitig.filter((t) => ort(t.start).tag === morgen)).slice(0, 2).map(([a, b]) => (
+        <p key={`${a.id}-${b.id}`} className="warnung-text">
+          ⚠️ Überschneidung: {ort(a.start).zeit} {a.titel} ↔ {ort(b.start).zeit} {b.titel}
+        </p>
+      ))}
       {dran.length > 0 && (
         <ul className="morgen-liste">
           {dran.slice(0, 5).map((t) => (

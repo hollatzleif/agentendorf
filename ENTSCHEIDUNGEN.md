@@ -1330,3 +1330,13 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **Wochenrückblick:** Wartendes wird nach `wartetSeit` sortiert.
 - **Rauschen:** Die Überblendung hält die Leistung gleich, ohne Lautstärkeloch.
 - **Bewusst gelassen:** `/api/todos?alle=1` für den Projekte-Reiter liefert alle erledigten To-dos. Das Lesen kostet nichts extra (`liste()` liest ohnehin alle Dateien), nur die Antwort wächst mit der Zeit. Bei Bedarf kommt ein schlanker `/api/projekte`-Endpunkt.
+
+## E167 – /api/projekte (19.11.)
+
+- Der Projekte-Reiter holt nur noch die Auswertung vom Server (`GET /api/projekte` → `projekteAus(mitFokus(…))`), nicht mehr alle je erledigten To-dos. Die Antwort bleibt damit klein, auch nach Jahren. Der Query-Schlüssel hängt an `['liste', 'todo']` und wird bei jeder To-do-Änderung frisch geholt.
+
+## E168 – Terminüberschneidungen (19.11.)
+
+- **`ueberschneidungen()`** (packages/shared) findet sich überlappende Termine mit Uhrzeit; Fristen-Blöcke und Ganztägiges sind ausgenommen, aneinandergrenzende zählen nicht.
+- **Gemeldet in:** /morgen („⚠️ Überschneidung: 10:00 Vorlesung ↔ 11:30 Zahnarzt“), Tagesabschluss 21 Uhr und „🌅 Morgen im Blick“ auf Heute.
+- **Warum:** Doppelt Gebuchtes fällt sonst erst auf, wenn man schon unterwegs ist. Am Vorabend lässt es sich noch in Ruhe klären.

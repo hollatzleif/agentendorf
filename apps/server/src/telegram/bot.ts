@@ -10,7 +10,7 @@ const LISTEN_ANZEIGE: Record<ListenName, { symbol: string; titel: string; befehl
 };
 import { aufwachEinstellungen, istNacht } from '../aufwachen.js';
 import type { Rueckblick } from '../wochenrueckblick.js';
-import { belegtMs, fachZuordnen, projekteAus, istFristBlock, jetztDran, ruht, minutenText, terminAusText, wocheVerteilen, type KalenderTermin, type TerminAusText } from '@dorf/shared';
+import { belegtMs, fachZuordnen, projekteAus, ueberschneidungen, istFristBlock, jetztDran, ruht, minutenText, terminAusText, wocheVerteilen, type KalenderTermin, type TerminAusText } from '@dorf/shared';
 import type { Karteikasten } from '../karten.js';
 import type { Gewohnheiten } from '../gewohnheiten.js';
 import type { Wochenziele } from '../wochenziele.js';
@@ -1210,6 +1210,9 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       const termine = (z2?.termine ?? []).filter((t): t is KalenderTermin => typeof t.start === 'string' && typeof t.ende === 'string' && !t.ganztags && !istFristBlock(t));
       const frei = Math.max(0, Math.round((bis - von - belegtMs(termine.map((t) => [Date.parse(t.start), Date.parse(t.ende)]), von, bis)) / 60_000));
       const geschaetzt = morgenTodos.reduce((s2, t) => s2 + (t.dauer ?? 0), 0);
+      // E168: Überschneidungen morgen
+      const ueber = ueberschneidungen(termine);
+      if (ueber.length) z.push(`⚠️ Morgen überschneiden sich: ${ueber.slice(0, 2).map(([a, b]) => `${h(a.titel)} ↔ ${h(b.titel)}`).join('; ')}`);
       z.push(
         `🌅 Morgen: ${morgenTodos.length} To-do${morgenTodos.length === 1 ? '' : 's'}${geschaetzt ? ` (≈ ${minutenText(geschaetzt)})` : ''}${termine.length ? ` · ${termine.length} Termin${termine.length === 1 ? '' : 'e'}` : ''} · frei ≈ ${minutenText(frei)}${geschaetzt > frei * 0.7 ? ' – eng, vielleicht etwas verschieben' : ''}`,
       );
@@ -1654,6 +1657,8 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (ganz.length) zz.push(...ganz.slice(0, 3).map((x) => `📌 ${h(x.titel)}`));
     zz.push(zeitig.length ? zeitig.slice(0, 8).map((x) => `🕘 ${uhr(x.start)}–${uhr(x.ende)} ${h(x.titel)}`).join('\n') : '🕘 Keine Termine.');
     if (fristen.length) zz.push(`⏰ Fällig: ${fristen.map((f) => h(f.titel)).join(', ')}`);
+    // E168: Überschneidungen – besser heute Abend klären als morgen im Flur
+    for (const [a, b] of ueberschneidungen(zeitig).slice(0, 3)) zz.push(`⚠️ Überschneidung: ${uhr(a.start)} ${h(a.titel)} ↔ ${uhr(b.start)} ${h(b.titel)}`);
     zz.push(
       dran.length
         ? `☑️ <b>${dran.length}</b> To-do${dran.length === 1 ? '' : 's'} dran${geschaetzt ? ` (≈ ${minutenText(geschaetzt)})` : ''}:\n${dran.slice(0, 8).map((x) => `• ${x.wichtig ? '⭐ ' : ''}${h(x.titel)}${x.wartet ? ` (⏳ nachfassen bei ${h(x.wartet)})` : ''}`).join('\n')}${dran.length > 8 ? `\n… und ${dran.length - 8} weitere` : ''}`

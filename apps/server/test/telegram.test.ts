@@ -1249,3 +1249,36 @@ describe('Nachbereiten nicht mitten im nächsten Termin (E160)', () => {
     expect(await d.telegram!.lueckenHinweis()).toBe(false);
   });
 });
+
+describe('Überschneidungen in /morgen (E168)', () => {
+  it('meldet überlappende Termine', async () => {
+    const n = nachbau();
+    const klient = {
+      async kalender() {
+        return [{ id: 'leif', name: 'Leif', farbe: '#000', primaer: true, schreibbar: true }];
+      },
+      async termine() {
+        return [
+          { id: 'v1', summary: 'Vorlesung', start: { dateTime: '2026-11-17T10:00:00+01:00' }, end: { dateTime: '2026-11-17T12:00:00+01:00' } },
+          { id: 'z1', summary: 'Zahnarzt', start: { dateTime: '2026-11-17T11:30:00+01:00' }, end: { dateTime: '2026-11-17T12:15:00+01:00' } },
+        ];
+      },
+      async holen() {
+        throw new Error('-');
+      },
+      async anlegen() {
+        throw new Error('-');
+      },
+      async aendern() {
+        throw new Error('-');
+      },
+      async loeschen() {},
+      async verschieben() {
+        throw new Error('-');
+      },
+    };
+    const d = await testDorf({ env: { TELEGRAM_CHAT_ID: LEIF, ORIGIN: 'https://dorf.test' }, telegram: n.api, kalenderKlient: klient as never });
+    await d.telegram!.verarbeiten({ update_id: 1, message: { message_id: 1, chat: { id: Number(LEIF) }, text: '/morgen' } });
+    expect(String(n.aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p.text)).toContain('⚠️ Überschneidung: 10:00 Vorlesung ↔ 11:30 Zahnarzt');
+  });
+});

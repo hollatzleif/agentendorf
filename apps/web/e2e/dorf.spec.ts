@@ -1830,3 +1830,18 @@ test('Statistik: „💡 Was gute Tage ausmacht“ bei genug Stimmungs-Tagen (E1
   const k = page.getByRole('note', { name: 'Was gute Tage ausmacht' });
   await expect(k).toContainText('An Tagen mit mindestens 1 h Fokus: Stimmung ⌀ 5 – sonst 2');
 });
+
+test('Morgen im Blick warnt vor Überschneidungen (E168)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+  const morgen = new Date(Date.parse(`${heute}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+  await page.clock.setFixedTime(new Date(`${heute}T19:00:00+01:00`));
+  const termin = (id: string, titel: string, a: string, b: string) => ({ id, kalenderId: 'k', titel, start: `${morgen}T${a}:00+01:00`, ende: `${morgen}T${b}:00+01:00`, ganztags: false });
+  await page.route('**/api/kalender?*', (r) =>
+    r.fulfill({ json: { modus: 'google', kalender: [{ id: 'k', name: 'Leif', farbe: '#4a86e8', primaer: true, schreibbar: true }], termine: [termin('a', 'Vorlesung', '10:00', '12:00'), termin('b', 'Zahnarzt', '11:30', '12:15')] } }),
+  );
+  await page.goto('/heute');
+  const k = page.getByRole('region', { name: 'Morgen im Blick' });
+  await expect(k).toContainText('⚠️ Überschneidung: 10:00 Vorlesung ↔ 11:30 Zahnarzt');
+});

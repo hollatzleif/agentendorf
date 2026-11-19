@@ -45,3 +45,12 @@ describe('fachZuordnen (E145)', () => {
     expect(fachZuordnen(alpha, (f) => [f.titel, f.name], 'VL Mathe III (2026W)')?.titel).toBe('Mathe III');
   });
 });
+
+describe('Überschneidungen (E168)', () => {
+  it('findet überlappende Termine, nicht angrenzende, nicht Fristen/Ganztägiges', async () => {
+    const { ueberschneidungen } = await import('@dorf/shared');
+    const t = (titel: string, a: string, b: string, ganztags = false) => ({ titel, start: `2026-11-17T${a}:00+01:00`, ende: `2026-11-17T${b}:00+01:00`, ganztags });
+    const r = ueberschneidungen([t('VL', '10:00', '12:00'), t('Zahnarzt', '11:30', '12:00'), t('Mittag', '12:00', '13:00'), t('⏰ Frist', '11:00', '11:10'), t('Feiertag', '00:00', '23:59', true)]);
+    expect(r.map(([a, b]) => `${a.titel}↔${b.titel}`)).toEqual(['VL↔Zahnarzt']);
+  });
+});

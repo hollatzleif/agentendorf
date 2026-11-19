@@ -1,7 +1,7 @@
 import type { Boerse } from './boerse.js';
 import type { Saxo } from './saxo.js';
 import type { Kirchturm } from './kirchturm.js';
-import { fachPasst, fachZuordnen, terminAusText, type FachStand, type PruefungStand, type UniFach } from '@dorf/shared';
+import { fachPasst, fachZuordnen, projekteAus, terminAusText, type FachStand, type PruefungStand, type UniFach } from '@dorf/shared';
 import { tagPlanen } from './tagesplan.js';
 import type { Wochenrueckblick } from './wochenrueckblick.js';
 import type { Karteikasten } from './karten.js';
@@ -611,6 +611,8 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
   // Etappe 7: alle Listen unter /api/listen/<name>; /api/todos bleibt für die To-do-Liste
   if (a.listen) {
     const listen = a.listen;
+    // E167: Projekte schlank – nur die Auswertung, nicht alle je erledigten To-dos
+    app.get('/api/projekte', async () => projekteAus(mitFokus(db, await listen.todo.liste({ alleErledigten: true })), uhr.jetzt()));
     for (const [basis, name] of [['/api/todos', 'todo'] as const, ...LISTEN_NAMEN.map((n) => [`/api/listen/${n}`, n] as const)]) {
       const l = listen[name];
       app.get(basis, async (req) => {
