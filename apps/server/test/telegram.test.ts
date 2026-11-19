@@ -621,8 +621,12 @@ describe('Morgenzeitung mit Schnellknöpfen (E101)', () => {
     await d.todos.anlegen({ titel: 'Steuer', faellig: '2026-11-10' }, 'Leif');
     await d.gewohnheiten.anlegen({ name: 'Lesen' });
     await d.bot.zeitungSenden({ datum: '2026-11-16', einleitung: null, abschnitte: [] } as never);
-    const k = (d.aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p.reply_markup as { inline_keyboard: { text: string; callback_data: string }[][] }).inline_keyboard[0]!;
-    expect(k.map((x) => x.text)).toEqual(['🧹 Aufräumen (1)', '🔁 Gewohnheiten']);
+    const zeilen = (d.aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p.reply_markup as { inline_keyboard: { text: string; callback_data: string }[][] }).inline_keyboard;
+    // E133: „Was zuerst?“ vorne, höchstens zwei Knöpfe je Zeile
+    expect(zeilen.map((z) => z.map((x) => x.text))).toEqual([['👉 Was zuerst?', '🧹 Aufräumen (1)'], ['🔁 Gewohnheiten']]);
+    const k = zeilen.flat().slice(1);
+    await d.knopf(zeilen[0]![0]!.callback_data);
+    expect(d.gesendet().at(-1)).toMatch(/👉 <b>Jetzt dran:<\/b> Steuer/);
     await d.knopf(k[0]!.callback_data.replace(/:[^:]+$/, ':AAAAAAAAAAAAAAAA'));
     expect(d.gesendet().at(-1)).not.toMatch(/Aufräumen/);
     await d.knopf(k[0]!.callback_data);
@@ -638,7 +642,7 @@ describe('Wochenrückblick: Vorschläge als Wochenziel (E102)', () => {
     await d.bot.rueckblickSenden(r as never);
     const m = d.aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p;
     const k = (m.reply_markup as { inline_keyboard: { text: string; callback_data: string }[][] }).inline_keyboard;
-    expect(k.map((z) => z[0]!.text)).toEqual(['🎯 3x Sport', '🎯 Blatt 8 früh anfangen']);
+    expect(k.map((z) => z[0]!.text)).toEqual(['🎯 3x Sport', '🎯 Blatt 8 früh anfangen', '🗓️ Woche verteilen']);
     await d.knopf(k[1]![0]!.callback_data.replace(/:[^:]+$/, ':AAAAAAAAAAAAAAAA'));
     expect((await d.wochenziele.lesen('2026-KW48')).ziele).toEqual([]);
     await d.knopf(k[1]![0]!.callback_data);

@@ -1043,3 +1043,9 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **Live:** Die Dorf-Ansicht lädt den Status bei `kirchturm.geaendert`, `todos.geaendert` (To-do-Liste) und Änderungen unter `Marktplatz/todos/` (Obsidian) neu.
 - **Leistung:** Gestell und Laternenhalter je Material ein Mesh (Bausatz), nichts wird pro Bild erzeugt; beide Teile hängen am Gebäudemodell und werden mit ihm entsorgt.
 - **Vorschau/Tests:** `?tafel=2/5` (erledigt/insgesamt) und `?fokus=1` (auch `=0`) übersteuern nur die Darstellung; Tests lesen `window.__dorf.tagStand()`.
+
+## E133 – Telegram: „Was zuerst?“ am Morgen, „Woche verteilen“ im Rückblick (Nacht 18./19.11.)
+
+- **Morgenzeitung:** Der erste Schnellknopf ist **„👉 Was zuerst?“** (wie `/jetzt`, E123). Er erscheint nur, wenn etwas dran ist (⭐ oder fällig bis heute). Die Knöpfe stehen jetzt höchstens zu zweit in einer Zeile, damit am Handy nichts abgeschnitten wird.
+- **Wochenrückblick (sonntags):** Unter den 🎯-Vorschlägen steht **„🗓️ Woche verteilen“** (wie `/verteilen`, E128). Daneben verlinkt die Nachricht „🗓️ Woche planen“ (E129). So führt der Rückblick direkt in die Planung.
+- Beide Knöpfe sind signierte Schnellknöpfe (`sb:`) wie die bisherigen, ohne neue Rechte.

@@ -176,22 +176,28 @@ export class TelegramBot {
     text = htmlKuerzen(text, 3700);
     // E101: Schnellknöpfe für den Start in den Tag
     const knoepfe: { text: string; callback_data: string }[] = [];
+    // E133: der erste Schritt in den Tag – was passt jetzt?
+    const offen = this.o.listen ? (await this.o.listen.todo.liste()).filter((t) => !t.erledigt) : [];
+    if (offen.some((t) => t.wichtig || (t.faellig && t.faellig <= this.heuteTag()))) knoepfe.push({ text: '👉 Was zuerst?', callback_data: this.schnellDaten('jetzt') });
     if (this.o.kalender?.verbunden && this.o.kalender.freiAmTag) knoepfe.push({ text: '🧭 Tag planen', callback_data: this.schnellDaten('plan') });
     if (this.o.listen) {
       const heute = this.heuteTag();
-      const ueber = (await this.o.listen.todo.liste()).filter((t) => !t.erledigt && t.faellig && t.faellig < heute).length;
+      const ueber = offen.filter((t) => t.faellig && t.faellig < heute).length;
       if (ueber) knoepfe.push({ text: `🧹 Aufräumen (${ueber})`, callback_data: this.schnellDaten('aufraeumen') });
     }
     if (this.o.gewohnheiten && (await this.o.gewohnheiten.stand()).gewohnheiten.some((g) => g.heuteFaellig)) knoepfe.push({ text: '🔁 Gewohnheiten', callback_data: this.schnellDaten('gewohnheiten') });
-    await this.senden(`${text}\n\n<a href="${this.link('/gebaeude/Rathaus?reiter=morgenzeitung')}">Ganze Zeitung</a>`, knoepfe.length ? { reply_markup: { inline_keyboard: [knoepfe] } } : {});
+    // höchstens zwei Knöpfe je Zeile – am Handy sonst abgeschnitten
+    const zeilen: (typeof knoepfe)[] = [];
+    for (let i = 0; i < knoepfe.length; i += 2) zeilen.push(knoepfe.slice(i, i + 2));
+    await this.senden(`${text}\n\n<a href="${this.link('/gebaeude/Rathaus?reiter=morgenzeitung')}">Ganze Zeitung</a>`, zeilen.length ? { reply_markup: { inline_keyboard: zeilen } } : {});
   }
 
   /** E101: Schnellknopf = derselbe Befehl wie getippt (sb:<befehl>:<Signatur>) */
-  private schnellDaten(befehl: 'plan' | 'aufraeumen' | 'gewohnheiten') {
+  private schnellDaten(befehl: 'plan' | 'aufraeumen' | 'gewohnheiten' | 'jetzt' | 'verteilen') {
     return `sb:${befehl}:${crypto.createHmac('sha256', this.signaturSchluessel).update(`schnell:${befehl}`).digest('base64url').slice(0, 16)}`;
   }
   private async schnellKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {
-    const m = /^sb:(plan|aufraeumen|gewohnheiten):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
+    const m = /^sb:(plan|aufraeumen|gewohnheiten|jetzt|verteilen):([A-Za-z0-9_-]{16})$/.exec(q.data ?? '');
     if (!m || !crypto.timingSafeEqual(Buffer.from(m[2]!), Buffer.from(this.schnellDaten(m[1] as 'plan').split(':')[2]!))) {
       this.o.log?.('Telegram: Schnellknopf mit ungültiger Signatur abgelehnt.');
       return antworten('Ungültiger Knopf.');
@@ -199,6 +205,8 @@ export class TelegramBot {
     await antworten('');
     if (m[1] === 'plan') return this.planBefehl('');
     if (m[1] === 'aufraeumen') return this.aufraeumenZeigen();
+    if (m[1] === 'jetzt') return this.jetztBefehl();
+    if (m[1] === 'verteilen') return this.verteilenBefehl();
     return this.gewohnheitenSenden();
   }
 
@@ -221,7 +229,9 @@ export class TelegramBot {
       this.vorschlaegeWartendSetzen(alle);
       r.vorschlaege.slice(0, 3).forEach((v, i) => knoepfe.push([{ text: knopfText(`🎯 ${v}`), callback_data: this.vorschlagDaten(id, i) }]));
     }
-    await this.proaktiv(`${text}\n<a href="${this.link('/gebaeude/Rathaus?reiter=woche')}">Ganzer Rückblick</a> · <a href="${this.link('/planen')}">🗓️ Woche planen</a>${knoepfe.length ? '\n\n<i>Antippen = als Ziel für nächste Woche übernehmen:</i>' : ''}`, knoepfe.length ? { reply_markup: { inline_keyboard: knoepfe } } : {});
+    // E133: gleich die nächste Woche verteilen
+    if (this.o.listen) knoepfe.push([{ text: '🗓️ Woche verteilen', callback_data: this.schnellDaten('verteilen') }]);
+    await this.proaktiv(`${text}\n<a href="${this.link('/gebaeude/Rathaus?reiter=woche')}">Ganzer Rückblick</a> · <a href="${this.link('/planen')}">🗓️ Woche planen</a>${knoepfe.length > 1 ? '\n\n<i>🎯 antippen = als Ziel für nächste Woche übernehmen:</i>' : ''}`, knoepfe.length ? { reply_markup: { inline_keyboard: knoepfe } } : {});
   }
 
   private vorschlagDaten(id: string, i: number) {
