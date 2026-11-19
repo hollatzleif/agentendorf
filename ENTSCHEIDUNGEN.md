@@ -1420,3 +1420,12 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
   - Zusätzlich wird das eigene Haupt-Skript mit dem aktuellen `index.html` des Servers verglichen (`?v=` umgeht den Precache). Das greift auch dort, wo kein Service Worker läuft (Programm).
 - **Neuladen ohne Datenverlust:** Ist die App im Hintergrund, lädt sie sofort neu. Sonst erscheint „🔄 Neue Version des Dorfs ist da – Jetzt neu laden“, und sie lädt beim nächsten Wechsel in den Hintergrund neu, nie mitten im Tippen.
 - **Einstellungen:** Dort stehen jetzt „Dorf-Stand <Commit> · diese Seite gebaut am …“. Ist die Bauzeit alt, obwohl der Dorf-Stand neu ist, hängt eine alte Fassung im Zwischenspeicher. Die Programm-Version heißt jetzt ausdrücklich „Programm-Hülle“ und erklärt, dass sie nur bei Änderungen am Programm selbst neu gebaut wird (z. B. 0.1.136 vom 18.11.), während die Inhalte immer frisch vom Dorf kommen.
+
+## E180 – strict-Werkzeuge innerhalb der API-Grenzen (19.11.)
+
+- **Problem:** Seit `wartet` (E147) und `energie` (E151) an `todo_anlegen`/`todo_bearbeiten` hängen, lehnte die API jeden api-Lauf mit To-do-Werkzeugen ab: „Schemas contains too many optional parameters (39) … limit: 24“. Der Bürgermeister wachte auf und scheiterte sofort (Lagebericht 12:00).
+- **Lösung (`motor-api.ts`, `strictAuswahl`):**
+  - strict bekommen nur Werkzeuge, die zusammen innerhalb der Grenzen bleiben: höchstens 20 Werkzeuge, 24 optionale Felder und 16 Typ-Vereinigungen.
+  - Werkzeuge mit wenigen optionalen Feldern kommen zuerst dran, die übrigen laufen ohne strict. Ihre Eingaben prüft die WerkzeugKiste ohnehin mit Zod.
+  - Die Reihenfolge der Werkzeuge bleibt gleich, die Auswahl ist pro Werkzeugliste fest. Damit bleibt der Cache stabil.
+- **Test:** Alle Werkzeuge auf einmal (schlimmster Fall) und die Bürgermeister-Werkzeuge bleiben unter den Grenzen. Der bisherige Motor-Test prüft jetzt auch die Summe. Er hätte den Fehler früher zeigen können, prüfte aber nur „strict-tauglich“, nicht „wie viele“.

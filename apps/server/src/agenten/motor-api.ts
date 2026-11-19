@@ -38,6 +38,60 @@ export function strictTauglich(schema: unknown): boolean {
   return true;
 }
 
+/**
+ * Grenzen der API für strict-Werkzeuge in EINER Anfrage (sonst 400 „too many optional parameters“ o. ä.):
+ * höchstens 20 strict-Werkzeuge, zusammen höchstens 24 optionale Felder und 16 Felder mit Typ-Vereinigung (anyOf/Typ-Liste).
+ */
+export const STRICT_GRENZEN = { werkzeuge: 20, optional: 24, vereinigungen: 16 } as const;
+
+/** Zählt optionale Felder (properties ohne required) und Typ-Vereinigungen rekursiv. */
+export function schemaZaehlen(schema: unknown): { optional: number; vereinigungen: number } {
+  const z = { optional: 0, vereinigungen: 0 };
+  const geh = (x: unknown) => {
+    if (!x || typeof x !== 'object') return;
+    const o = x as Record<string, unknown>;
+    if (Array.isArray(o.type) && o.type.length > 1) z.vereinigungen++;
+    for (const k of ['anyOf', 'oneOf'] as const) {
+      if (Array.isArray(o[k])) {
+        z.vereinigungen++;
+        (o[k] as unknown[]).forEach(geh);
+      }
+    }
+    const props = (o.properties as Record<string, unknown>) ?? {};
+    const pflicht = new Set(Array.isArray(o.required) ? (o.required as string[]) : []);
+    for (const [name, w] of Object.entries(props)) {
+      if (!pflicht.has(name)) z.optional++;
+      geh(w);
+    }
+    if (o.items) geh(o.items);
+  };
+  geh(schema);
+  return z;
+}
+
+/**
+ * Welche Werkzeuge strict bekommen: nur strict-taugliche, und nur so viele, dass die API-Grenzen eingehalten werden.
+ * Sparsame Werkzeuge (wenige optionale Felder) zuerst – so bleiben möglichst viele strict; der Rest läuft ohne
+ * strict (die WerkzeugKiste prüft die Eingaben ohnehin selbst mit Zod). Reihenfolge der Werkzeuge bleibt unverändert.
+ */
+export function strictAuswahl(defs: { name: string; input_schema: unknown }[]): Set<string> {
+  const kandidaten = defs
+    .filter((d) => strictTauglich(d.input_schema))
+    .map((d) => ({ name: d.name, ...schemaZaehlen(d.input_schema) }))
+    .sort((a, b) => a.optional + a.vereinigungen - (b.optional + b.vereinigungen) || a.name.localeCompare(b.name));
+  const gewaehlt = new Set<string>();
+  let optional = 0;
+  let vereinigungen = 0;
+  for (const k of kandidaten) {
+    if (gewaehlt.size >= STRICT_GRENZEN.werkzeuge) break;
+    if (optional + k.optional > STRICT_GRENZEN.optional || vereinigungen + k.vereinigungen > STRICT_GRENZEN.vereinigungen) continue;
+    gewaehlt.add(k.name);
+    optional += k.optional;
+    vereinigungen += k.vereinigungen;
+  }
+  return gewaehlt;
+}
+
 function alsBloecke(c: BetaMessageParam['content']): BetaContentBlockParam[] {
   if (!c) return [];
   return typeof c === 'string' ? [{ type: 'text', text: c }] : (c as BetaContentBlockParam[]);
@@ -84,9 +138,11 @@ export function apiMotor(klientFabrik: () => ModellKlient): Motor {
       } else nachrichten.push(nutzerNachricht);
       yield { typ: 'nachricht', rolle: 'nutzer', text: a.nachricht, roh: nutzerNachricht };
 
-      // strict nur, wo das Schema es erlaubt (jedes Objekt mit fester Feldliste) – sonst lehnt die API mit 400 ab.
-      // Die Eingaben prüft die WerkzeugKiste ohnehin selbst (Zod).
-      const werkzeuge: BetaToolUnion[] = a.werkzeuge.definitionen().map((d) => ({ ...d, ...(strictTauglich(d.input_schema) ? { strict: true } : {}) }) as BetaToolUnion);
+      // strict nur, wo das Schema es erlaubt (jedes Objekt mit fester Feldliste) und innerhalb der API-Grenzen
+      // (E180: sonst 400 „too many optional parameters“). Die Eingaben prüft die WerkzeugKiste ohnehin selbst (Zod).
+      const defs = a.werkzeuge.definitionen();
+      const strict = strictAuswahl(defs);
+      const werkzeuge: BetaToolUnion[] = defs.map((d) => ({ ...d, ...(strict.has(d.name) ? { strict: true } : {}) }) as BetaToolUnion);
       if (a.web) {
         werkzeuge.push({ type: 'web_search_20260209', name: 'web_search', max_uses: 8 } as BetaToolUnion);
         werkzeuge.push({ type: 'web_fetch_20260209', name: 'web_fetch', max_uses: 8 } as BetaToolUnion);
