@@ -75,3 +75,22 @@ describe('Woche verteilen (E126)', () => {
     ]);
   });
 });
+
+describe('Wartet auf … (E147)', () => {
+  it('ruht bis zum Nachfass-Tag: nicht in Jetzt dran, Woche verteilen, Tag planen; am Tag wieder normal', async () => {
+    const { ruht, wocheVerteilen } = await import('@dorf/shared');
+    const { tagPlanen } = await import('../src/tagesplan.js');
+    const heute = '2026-11-16';
+    const w = todo('Antwort Prof', { wartet: 'Prof. Müller', faellig: '2026-11-20', wichtig: true, dauer: 15 });
+    const ohne = todo('Paket', { wartet: 'DHL', wichtig: true, dauer: 15 });
+    expect(ruht(w, heute)).toBe(true);
+    expect(ruht(ohne, heute)).toBe(true);
+    expect(ruht(w, '2026-11-20')).toBe(false);
+    expect(ruht(todo('x'), heute)).toBe(false);
+    const jetzt = Date.parse('2026-11-16T09:00:00Z');
+    expect(jetztDran({ todos: [w, ohne], termine: [], jetzt, jetztMin: 10 * 60, heute })).toBeNull();
+    expect(jetztDran({ todos: [w], termine: [], jetzt, jetztMin: 10 * 60, heute: '2026-11-20' })?.todo.titel).toBe('Antwort Prof');
+    expect(wocheVerteilen({ eingang: [ohne], tage: [{ tag: heute, freiMin: 600, geplantMin: 0 }], heute })).toEqual([]);
+    expect(tagPlanen({ todos: [w, ohne], heute, frei: [[jetzt, jetzt + 4 * 3600_000]] })).toEqual([]);
+  });
+});

@@ -1,7 +1,7 @@
 import type { Boerse } from './boerse.js';
 import type { Saxo } from './saxo.js';
 import type { Kirchturm } from './kirchturm.js';
-import { terminAusText, type FachStand, type PruefungStand } from '@dorf/shared';
+import { fachPasst, fachZuordnen, terminAusText, type FachStand, type PruefungStand, type UniFach } from '@dorf/shared';
 import { tagPlanen } from './tagesplan.js';
 import type { Wochenrueckblick } from './wochenrueckblick.js';
 import type { Karteikasten } from './karten.js';
@@ -757,12 +757,9 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
   });
   // Stand je Fach: offene Abgaben, nächste Frist (Kurs-Name passt ungefähr zum Fach), Fokuszeit der letzten 7 Tage
   app.get('/api/uni/faecher-stand', async (): Promise<FachStand[]> => {
-    const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9äöüß]/g, '');
-    const passt = (a: string, b: string) => {
-      const x = norm(a);
-      const y = norm(b);
-      return x.length >= 2 && y.length >= 2 && (x === y || (Math.min(x.length, y.length) >= 4 && (x.includes(y) || y.includes(x))));
-    };
+    // E145: jede Frist und jede Fokus-Gruppe gehört zu genau EINEM Fach (exakt vor ungefähr, ganze Wörter – Review)
+    const alleFaecher = a.uni.faecher();
+    const fachVon = (n: string) => fachZuordnen(alleFaecher, (x) => [x.titel, x.name], n);
     const abgaben = a.uni.abgaben();
     const fristen = a.uni.fristen().filter((f) => (f.art === 'abgabe' || f.art === 'test') && !f.abgegeben && f.frist && Date.parse(f.frist) > uhr.jetzt());
     const fokus = a.kirchturm?.fokusJeGruppe(uhr.jetzt() - 7 * 86_400_000) ?? new Map<string, number>();
@@ -771,14 +768,15 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
     const montag = tagPlus(heute, -((new Date(`${heute}T12:00:00Z`).getUTCDay() + 6) % 7));
     const fokusWoche = a.kirchturm?.fokusJeGruppe(ortszeitZuUtc(...(montag.split('-').map(Number) as [number, number, number]), 0, 0, 0, 'Europe/Vienna')) ?? new Map<string, number>();
     const ziele = (await a.lernziele?.lesen()) ?? {};
-    return a.uni.faecher().map((f) => {
-      const n = fristen.find((x) => x.kurs && (passt(x.kurs, f.titel) || passt(x.kurs, f.name)));
+    const summe = (m: Map<string, number>, f: UniFach) => [...m.entries()].filter(([k]) => fachVon(k) === f).reduce((s2, [, x]) => s2 + x, 0);
+    return alleFaecher.map((f) => {
+      const n = fristen.find((x) => x.kurs && fachVon(x.kurs) === f);
       return {
         ...f,
         offeneAbgaben: abgaben.filter((x) => x.fach === f.titel).length,
         naechsteFrist: n ? { titel: n.titel, frist: n.frist!, art: n.art as 'abgabe' | 'test' } : null,
-        fokus7Tage: [...fokus.entries()].filter(([k]) => passt(k, f.titel) || passt(k, f.name)).reduce((s2, [, m]) => s2 + m, 0),
-        fokusWoche: [...fokusWoche.entries()].filter(([k]) => passt(k, f.titel) || passt(k, f.name)).reduce((s2, [, m]) => s2 + m, 0),
+        fokus7Tage: summe(fokus, f),
+        fokusWoche: summe(fokusWoche, f),
         ...(() => {
           const z2 = ziele[f.titel] ?? ziele[f.name];
           return z2 ? { lernzielMin: Math.round(z2 * 60) } : {};
@@ -788,12 +786,6 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
   });
   // E140: Prüfungs-Cockpit – je anstehende Prüfung: Countdown, Schritte des To-dos, Fokus 14 Tage aufs Fach, Karteikarten
   app.get('/api/uni/pruefungen', async (): Promise<PruefungStand[]> => {
-    const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9äöüß]/g, '');
-    const passt = (x0: string, y0: string) => {
-      const x = norm(x0);
-      const y = norm(y0);
-      return x.length >= 2 && y.length >= 2 && (x === y || (Math.min(x.length, y.length) >= 4 && (x.includes(y) || y.includes(x))));
-    };
     const jetzt = uhr.jetzt();
     const heute = tagIn(jetzt);
     const pruefungen = a.uni
@@ -808,21 +800,25 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
     const todoPfad = db.prepare('SELECT pfad FROM uni_todos WHERE frist_id = ?');
     const aus: PruefungStand[] = [];
     for (const f of pruefungen) {
-      const fach = faecher.find((x) => passt(f.kurs, x.titel) || passt(f.kurs, x.name));
+      // ohne Kursnamen (z. B. Termin aus „JKU Pflicht“): Fach über den Titel finden (Review)
+      const fach = (f.kurs ? fachZuordnen(faecher, (x) => [x.titel, x.name], f.kurs) : undefined) ??
+        fachZuordnen(faecher, (x) => [x.titel, x.name], f.titel.replace(/^(?:(?:Klausur|Prüfung|Test|Exam|Midterm|Final|Nachklausur|VO|VL|UE|KV)\b[\s:–-]*)+/i, ''));
       const namen = [f.kurs, fach?.titel, fach?.name].filter((x): x is string => !!x);
+      const gehoert = (n: string) => (fach ? fachZuordnen(faecher, (x) => [x.titel, x.name], n) === fach : namen.some((m) => fachPasst(n, m)));
       const pfad = (todoPfad.get(f.id) as { pfad: string } | undefined)?.pfad;
       const todo = pfad && a.listen ? await a.listen.todo.holen(pfad).catch(() => null) : null;
-      const k = karten.find((x) => namen.some((n) => passt(x.fach, n)));
-      const zielH = Object.entries(ziele).find(([n]) => namen.some((m) => passt(n, m)))?.[1];
+      const k = (fach && karten.find((x) => x.fach === fach.name)) || karten.find((x) => gehoert(x.fach));
+      const zielH = (fach && (ziele[fach.titel] ?? ziele[fach.name])) || Object.entries(ziele).find(([n]) => gehoert(n))?.[1];
       aus.push({
         id: f.id,
         titel: f.titel,
-        fach: fach?.titel ?? f.kurs,
+        fach: fach?.titel ?? (f.kurs || f.titel),
+        ...(fach ? {} : { ohneFach: true }),
         frist: f.frist!,
         tage: Math.round((Date.parse(`${tagIn(Date.parse(f.frist!))}T12:00:00Z`) - Date.parse(`${heute}T12:00:00Z`)) / 86_400_000),
         ...(todo && !todo.erledigt ? { todo: { pfad: todo.pfad, titel: todo.titel, schritteFertig: todo.schritte?.filter((x) => x.erledigt).length ?? 0, schritte: todo.schritte?.length ?? 0, naechster: todo.schritte?.find((x) => !x.erledigt)?.text } } : {}),
-        fokus14Tage: fokus.filter(([n]) => namen.some((m) => passt(n, m))).reduce((s2, [, m]) => s2 + m, 0),
-        ...(k ? { karten: { gesamt: k.gesamt, gelernt: k.gelernt, faellig: k.faellig } } : {}),
+        fokus14Tage: fokus.filter(([n]) => gehoert(n)).reduce((s2, [, m]) => s2 + m, 0),
+        ...(k ? { karten: { gesamt: k.gesamt, gelernt: k.gelernt, faellig: k.faellig, fach: k.fach } } : {}),
         ...(zielH ? { lernzielMin: Math.round(zielH * 60) } : {}),
       });
     }
@@ -831,7 +827,9 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
   app.post('/api/uni/lernziel', async (req) => {
     if (!a.lernziele) throw new DorfFehler(503, 'Lernziele sind nicht eingerichtet.');
     const b = z.object({ fach: z.string().min(1).max(120), stunden: z.number().min(0).max(80) }).parse(req.body);
-    return { ziele: await a.lernziele.setzen(b.fach, b.stunden) };
+    // ein Fach hat zwei Namen (Moodle-Titel und Ordner) – ein Ziel unter dem anderen Namen wird ersetzt statt verdoppelt (Review)
+    const f = a.uni.faecher().find((x) => x.titel === b.fach || x.name === b.fach);
+    return { ziele: await a.lernziele.setzen(b.fach, b.stunden, f ? [f.titel, f.name] : []) };
   });
   app.post('/api/uni/fach', async (req) => {
     const b = z.object({ name: z.string().min(1).max(120) }).parse(req.body);

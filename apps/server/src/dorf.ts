@@ -44,7 +44,7 @@ import { Wochenziele } from './wochenziele.js';
 import { tagIn, tagPlus } from './zeit.js';
 import { ortszeitZuUtc } from './uni/ical.js';
 import { Lernziele } from './uni/lernziele.js';
-import { minutenText } from '@dorf/shared';
+import { fachZuordnen, minutenText } from '@dorf/shared';
 import { Notizen } from './notizen.js';
 import { Noten } from './uni/noten.js';
 import { statistik } from './statistik.js';
@@ -368,11 +368,12 @@ export async function dorfStarten(
   const lernStand = async (seit: number) => {
     const ziele = await lernziele.lesen();
     const fokus = [...kirchturm.fokusJeGruppe(seit).entries()];
-    const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9äöüß]/g, '');
+    // E145: jede Fokus-Gruppe zählt für genau ein Ziel – exakt vor ungefähr, in beide Richtungen, ganze Wörter (Review)
+    const namen = Object.keys(ziele);
     return Object.entries(ziele).map(([fach, h]) => ({
       fach,
       zielMin: Math.round(h * 60),
-      istMin: fokus.filter(([k]) => norm(k) === norm(fach) || (norm(fach).length >= 4 && norm(k).includes(norm(fach)))).reduce((s2, [, x]) => s2 + x, 0),
+      istMin: fokus.filter(([k]) => fachZuordnen(namen, (n) => [n], k) === fach).reduce((s2, [, x]) => s2 + x, 0),
     }));
   };
   const seitMontag = () => {

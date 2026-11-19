@@ -29,7 +29,7 @@ describe('Prüfungs-Cockpit (E140)', () => {
       tage: 4,
       todo: { pfad: t.pfad, schritteFertig: 1, schritte: 5, naechster: 'Lernplan anlegen (Prüfungs-Wächter)' },
       fokus14Tage: 50,
-      karten: { gesamt: 2, gelernt: 0 },
+      karten: { gesamt: 2, gelernt: 0, fach: 'NLP' },
       lernzielMin: 180,
     });
   });

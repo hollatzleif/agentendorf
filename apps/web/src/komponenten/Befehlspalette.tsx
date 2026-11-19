@@ -27,6 +27,7 @@ const SEITEN: [string, string, string][] = [
   ['📋', 'Heute (Mein Tag)', '/heute'],
   ['🍅', 'Fokus-Vollbild', '/fokus'],
   ['🗓️', 'Woche planen (Sonntags-Ritual)', '/planen'],
+  ['🌙', 'Tag abschließen (Abend-Ritual)', '/abschluss'],
   ['🧭', 'So nutzt du das Dorf (Anleitung)', '/anleitung'],
   ['☀️', 'Morgenzeitung', '/gebaeude/Rathaus?reiter=morgenzeitung'],
   ['✉️', 'Freigaben', '/gebaeude/Rathaus?reiter=freigaben'],

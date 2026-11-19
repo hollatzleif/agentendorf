@@ -31,10 +31,12 @@ export function wiederholungAusText(text: string, heute: string): { titel: strin
 
 
 /** Beides in beliebiger Reihenfolge: „… 30 min jeden Montag“ und „… jeden Montag 30 min“ */
-export function todoAusText(text: string, heute: string): { titel: string; wiederholen?: string; faellig?: string; dauer?: number } {
+export function todoAusText(text: string, heute: string): { titel: string; wiederholen?: string; faellig?: string; dauer?: number; wartet?: string } {
   const d1 = dauerAusText(text.slice(0, 200));
   const w = wiederholungAusText(d1.titel, heute);
   const d2 = d1.dauer ? { titel: w.titel } : dauerAusText(w.titel);
   const dauer = d1.dauer ?? ('dauer' in d2 ? d2.dauer : undefined);
-  return { ...w, titel: d2.titel, ...(dauer ? { dauer } : {}) };
+  // E147: „Note Mathe wartet auf Prof. Müller“ / „… (wartet auf Sekretariat)“ – nur am Ende, mit Titel davor
+  const wm = /^(.*?\S)(?:\s+|\s*[(–—-]\s*)wartet auf\s+([^()]{2,80}?)\s*\)?$/i.exec(d2.titel);
+  return { ...w, titel: wm ? wm[1]!.replace(/\s*[–—-]$/, '') : d2.titel, ...(dauer ? { dauer } : {}), ...(wm ? { wartet: wm[2]! } : {}) };
 }

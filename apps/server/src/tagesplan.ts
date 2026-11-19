@@ -1,4 +1,4 @@
-import type { TodoInfo } from '@dorf/shared';
+import { ruht, type TodoInfo } from '@dorf/shared';
 
 /**
  * Tag planen (Nacht 18./19.11.): verteilt die wichtigsten offenen To-dos als Zeitblöcke auf die freien Lücken eines
@@ -18,7 +18,8 @@ const MIN = 60_000;
 const PAUSE = 15 * MIN;
 
 export function rangfolge(todos: TodoInfo[], heute: string) {
-  const offen = todos.filter((t) => !t.erledigt);
+  // E147: wer auf jemanden wartet, plant das erst am Nachfass-Tag ein
+  const offen = todos.filter((t) => !t.erledigt && !ruht(t, heute));
   const wichtig = (t: TodoInfo) => /^(Abgabe|Prüfung):/i.test(t.titel) || t.gebaeude === 'Uni';
   const stufe = (t: TodoInfo) => {
     if (t.wichtig) return t.faellig && t.faellig < heute ? 0 : 1;

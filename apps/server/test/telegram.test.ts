@@ -382,6 +382,7 @@ describe('Telegram Tagesabschluss 21:00 (Nacht 18./19.11.)', () => {
     expect(await d.bot.abendSenden()).toBe(false); // nur einmal am Tag
     const m = d.aufrufe.filter((x) => x.m === 'sendMessage').find((x) => String(x.p.text).startsWith('🌙'))!.p;
     expect(String(m.text)).toMatch(/🌙 <b>Tagesabschluss<\/b>\n✓ <b>1<\/b> erledigt: Folien lesen/);
+    expect(String(m.text)).toMatch(/<a href="[^"]*\/abschluss">🌙 In der App abschließen<\/a>/);
     const knoepfe = (m.reply_markup as { inline_keyboard: { text: string; callback_data: string }[][] }).inline_keyboard;
     expect(knoepfe.map((z) => z[0]!.text)).toEqual(['☆ Bewerbung schreiben']);
     await d.knopf(knoepfe[0]![0]!.callback_data.replace(/:[^:]+$/, ':AAAAAAAAAAAAAAAA'));
@@ -1030,6 +1031,46 @@ describe('Lücken-Anstoß nach Terminen (E143)', () => {
     const e = await (await import('../src/telegram/einstellungen.js')).einstellungenLaden(d.vault);
     await (await import('../src/telegram/einstellungen.js')).einstellungenSetzen(d.vault, { ...e, luecken: false });
     d.db.prepare("DELETE FROM dorf_stand WHERE schluessel = 'telegram_luecken'").run();
+    expect(await d.telegram!.lueckenHinweis()).toBe(false);
+  });
+  it('Fristen-Blöcke (⏰) zählen nicht als Termin; nur verschickte Anstöße zählen zur Grenze von drei (E145)', async () => {
+    const n = nachbau();
+    let mitVorlesung = false;
+    const klient = {
+      async kalender() {
+        return [{ id: 'leif', name: 'Leif', farbe: '#000', primaer: true, schreibbar: true }];
+      },
+      async termine() {
+        return [
+          { id: 'f1', summary: '⏰ NLP: Blatt 3 ist fällig', start: { dateTime: '2026-11-16T12:45:00+01:00' }, end: { dateTime: '2026-11-16T12:55:00+01:00' } },
+          ...(mitVorlesung ? [{ id: 'v1', summary: 'Vorlesung', start: { dateTime: '2026-11-16T11:00:00+01:00' }, end: { dateTime: '2026-11-16T12:56:00+01:00' } }] : []),
+        ];
+      },
+      async holen() {
+        throw new Error('-');
+      },
+      async anlegen() {
+        throw new Error('-');
+      },
+      async aendern() {
+        throw new Error('-');
+      },
+      async loeschen() {},
+      async verschieben() {
+        throw new Error('-');
+      },
+    };
+    const d = await testDorf({ env: { TELEGRAM_CHAT_ID: LEIF, ORIGIN: 'https://dorf.test' }, telegram: n.api, kalenderKlient: klient as never });
+    await d.todos.anlegen({ titel: 'Blatt 4', faellig: '2026-11-16', dauer: 60 }, 'Leif');
+    expect(await d.telegram!.lueckenHinweis()).toBe(false);
+    // drei frühere Termine ohne Vorschlag (nichts verschickt) blockieren den Anstoß nicht
+    d.db.prepare("INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES ('telegram_luecken', ?)").run(JSON.stringify({ tag: '2026-11-16', ids: ['a', 'b', 'c'], gesendet: 0 }));
+    mitVorlesung = true;
+    expect(await d.telegram!.lueckenHinweis()).toBe(true);
+    expect(n.aufrufe.filter((x) => x.m === 'sendMessage').at(-1)!.p.text).toContain('✅ <b>Vorlesung</b> ist vorbei.');
+    expect(JSON.parse((d.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'telegram_luecken'").get() as { wert: string }).wert).gesendet).toBe(1);
+    // nach drei verschickten ist Schluss
+    d.db.prepare("INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES ('telegram_luecken', ?)").run(JSON.stringify({ tag: '2026-11-16', ids: [], gesendet: 3 }));
     expect(await d.telegram!.lueckenHinweis()).toBe(false);
   });
 });

@@ -93,6 +93,8 @@ export const TodoNeu = z.object({
   erinnerung: z.string().regex(ZEITPUNKT, 'erinnerung als JJJJ-MM-TTTHH:MM').optional(),
   /** E120: geschätzte Dauer in Minuten */
   dauer: z.number().int().min(5, 'dauer: mindestens 5 Minuten').max(600, 'dauer: höchstens 600 Minuten').optional(),
+  /** E147: wartet auf (Person/Antwort); faellig = Nachfass-Tag */
+  wartet: z.string().trim().min(1).max(80).optional(),
 });
 export const TodoAenderung = z.object({
   titel: z.string().trim().min(1).max(200).optional(),
@@ -106,6 +108,8 @@ export const TodoAenderung = z.object({
   erinnerung: z.union([z.string().regex(ZEITPUNKT, 'erinnerung als JJJJ-MM-TTTHH:MM'), z.literal('')]).optional(),
   /** E120: Minuten; 0 = Schätzung entfernen */
   dauer: z.union([z.number().int().min(5).max(600), z.literal(0)]).optional(),
+  /** E147: '' = wartet nicht mehr */
+  wartet: z.union([z.string().trim().min(1).max(80), z.literal('')]).optional(),
 });
 
 export { dauerAusText, wiederholungAusText, todoAusText } from '@dorf/shared';
@@ -168,6 +172,7 @@ export class TodoDienst {
       ...(typeof k.erinnerung === 'string' && ZEITPUNKT.test(k.erinnerung) ? { erinnerung: k.erinnerung } : {}),
       ...(typeof k.erinnert === 'string' ? { erinnert: k.erinnert } : {}),
       ...(typeof k.dauer === 'number' && Number.isInteger(k.dauer) && k.dauer >= 5 && k.dauer <= 600 ? { dauer: k.dauer } : {}),
+      ...(typeof k.wartet === 'string' && k.wartet.trim() ? { wartet: k.wartet.trim().slice(0, 80) } : {}),
       quelle: typeof k.quelle === 'string' ? k.quelle : undefined,
       erstellt: typeof k.erstellt === 'string' ? k.erstellt : k.erstellt instanceof Date ? k.erstellt.toISOString() : undefined,
       erledigtAm: typeof k.erledigt_am === 'string' ? k.erledigt_am : k.erledigt_am instanceof Date ? k.erledigt_am.toISOString() : undefined,
@@ -270,6 +275,7 @@ export class TodoDienst {
     if (e.wiederholen && e.wiederholen_tag) daten.wiederholen_tag = e.wiederholen_tag;
     if (e.erinnerung) daten.erinnerung = e.erinnerung;
     if (e.dauer) daten.dauer = e.dauer;
+    if (e.wartet) daten.wartet = e.wartet;
     daten.quelle = quelle;
     if (opt.fremd) daten.fremd = true;
     daten.erstellt = new Date(jetzt).toISOString();
@@ -318,6 +324,10 @@ export class TodoDienst {
       if (a.dauer) k.dauer = a.dauer;
       else delete k.dauer;
     }
+    if (a.wartet !== undefined) {
+      if (a.wartet) k.wartet = a.wartet;
+      else delete k.wartet;
+    }
     if (a.erinnerung !== undefined && a.erinnerung !== k.erinnerung) {
       if (a.erinnerung) k.erinnerung = a.erinnerung;
       else delete k.erinnerung;
@@ -327,7 +337,7 @@ export class TodoDienst {
     const regel = typeof k.wiederholen === 'string' && WIEDERHOLEN.test(k.wiederholen) ? k.wiederholen : undefined;
     const naechstes = a.erledigt === true && regel && !k.wiederholt;
     // Inhalt von einem Fremdinhalt-Lauf geändert → ab jetzt „fremd“ (nur Abhaken ändert keinen Inhalt)
-    if (opt.fremd && (a.titel !== undefined || a.notiz !== undefined || a.gruppe !== undefined || a.gebaeude !== undefined)) k.fremd = true;
+    if (opt.fremd && (a.titel !== undefined || a.notiz !== undefined || a.gruppe !== undefined || a.gebaeude !== undefined || a.wartet !== undefined)) k.fremd = true;
     const inhalt = a.notiz !== undefined ? (a.notiz.trim() ? `${a.notiz.trim()}\n` : '') : m.content;
     // Nachfolger VOR dem Schreiben bauen und prüfen – sonst wäre das Original erledigt, aber ohne Nachfolger (Review)
     let nachfolger: z.infer<typeof TodoNeu> | undefined;
@@ -389,7 +399,7 @@ export class TodoDienst {
 
 /** Kurzer Text für Agenten und Telegram */
 export function todoZeile(t: TodoInfo) {
-  return `${t.erledigt ? '[x]' : '[ ]'} ${t.wichtig ? '⭐ ' : ''}${t.titel}${t.schritte?.length ? ` (${t.schritte.filter((s) => s.erledigt).length}/${t.schritte.length} Schritte)` : ''}${t.faellig ? ` (fällig ${t.faellig})` : ''}${t.wiederholen ? ` 🔁 ${t.wiederholen}` : ''}${t.dauer ? ` ⏱ ${t.dauer} min` : ''}${t.gruppe ? ` [${t.gruppe}]` : ''}${t.gebaeude ? ` #${t.gebaeude}` : ''} – ${t.pfad}`;
+  return `${t.erledigt ? '[x]' : '[ ]'} ${t.wichtig ? '⭐ ' : ''}${t.titel}${t.schritte?.length ? ` (${t.schritte.filter((s) => s.erledigt).length}/${t.schritte.length} Schritte)` : ''}${t.faellig ? ` (fällig ${t.faellig})` : ''}${t.wiederholen ? ` 🔁 ${t.wiederholen}` : ''}${t.dauer ? ` ⏱ ${t.dauer} min` : ''}${t.wartet ? ` ⏳ wartet auf ${t.wartet}` : ''}${t.gruppe ? ` [${t.gruppe}]` : ''}${t.gebaeude ? ` #${t.gebaeude}` : ''} – ${t.pfad}`;
 }
 
 /** Alle Listen (E65 + Etappe 7) – eine Instanz je Ordner */

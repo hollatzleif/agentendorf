@@ -4,6 +4,7 @@ import type { KirchturmZustand, TodoInfo } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { linkKlick, navigieren } from '../router';
 import { dauerText, useKirchturm } from '../komponenten/KirchturmUhr';
+import { FokusParkplatz } from '../komponenten/FokusParkplatz';
 
 /**
  * Fokus-Vollbild (/fokus): nur die Zeit, das Thema und die nötigen Knöpfe – sonst nichts. Der Pomodoro läuft im
@@ -107,6 +108,7 @@ export function FokusVollbild() {
             )}
           </div>
           {p.einstellungen.todoPfad && <FokusSchritte pfad={p.einstellungen.todoPfad} />}
+          <FokusParkplatz arbeit={p.phase === 'arbeit' && laeuft} />
           <p className="leise fokus-hinweis">Telegram hält Meldungen zurück, solange du arbeitest. Esc = zurück.</p>
         </>
       )}

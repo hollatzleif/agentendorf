@@ -1137,3 +1137,74 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **Wochenrückblick, Abschnitt Fokus:** „Am konzentriertesten (4 Wochen): 9–11 Uhr – leg Wichtiges in diese Zeit“.
 - **Rechnung:** Eine Sitzung über eine Stundengrenze wird anteilig aufgeteilt (5-Minuten-Schritte). Eine Aussage gibt es erst ab 2 h Fokus insgesamt, darunter wäre es Zufall.
 - **Warum:** Wer seine beste Zeit kennt, plant das Schwere dorthin. Die Daten (Pomodoro-Sitzungen) gab es schon.
+
+## E145 – Review 5: Fristen sind keine Termine, Fächer passen nur mit ganzen Wörtern (19.11.)
+
+- **Fristen-Blöcke:** Einträge „⏰ … ist fällig“ aus dem Kalender „Moodle-Fristen (automatisch)“ zählen nicht mehr als belegte Zeit (`istFristBlock` in packages/shared). Das gilt für Heute (Budget, Jetzt dran), „Morgen im Blick“, Wochenplan, Tag planen/`freiAmTag`, /verteilen und den Tagesabschluss. Sie lösen auch keinen Anstoß „… ist vorbei“ mehr aus. Prüfungen (📝) bleiben belegte Zeit.
+- **Anstöße nach Terminen:** Die Grenze von drei pro Tag zählt nur, was wirklich verschickt wurde (`gesendet`). Jeder Termin wird trotzdem nur einmal geprüft.
+- **Fächer vergleichen (`fachPasst`/`fachZuordnen`):**
+  - Gleich sind Namen mit gleichen Wörtern, oder wenn die Wörter des kürzeren Namens zusammenhängend im längeren vorkommen (mind. 4 Buchstaben).
+  - Ein einzelnes Wort passt nur als erstes Wort nach Kürzeln wie „VL“.
+  - Ein exakter Name hat Vorrang. Jede Frist, Fokus-Gruppe und Lernziel-Zeile gehört zu genau einem Fach.
+  - Bisher gab „Mathe I“ ⊂ „Mathe II“ einem Fach die Zeit eines anderen.
+  - Gilt für Uni → Studium, Prüfungs-Cockpit und Lernstand (Morgenzeitung, /lernen, Rückblick).
+- **Prüfungs-Cockpit:**
+  - Ohne Kursnamen wird das Fach über den Titel gesucht. Ohne Fach gibt es keinen „🍅 Lernen“-Knopf.
+  - „Karten üben“ nutzt den Ordnernamen der Karten.
+  - Der Fristtag für den Lernplan ist der Wiener Tag.
+- **Lernziel:** Wird ein Ziel unter dem Moodle-Titel gesetzt, ersetzt es ein Ziel unter dem Ordnernamen desselben Fachs (und umgekehrt), statt es zu verdoppeln.
+- **Tastenkürzel:**
+  - Sie ruhen, solange ein Fenster oder Dialog offen ist oder der Fokus in einem Formular steht.
+  - „n“ springt nur ins To-do-Feld (`data-todo-neu`), nicht in Einkauf, Wunschliste oder Ämter.
+- **Bewusst gelassen:** Der Wochenrückblick zählt Lernziele über die letzten 7 Tage. Er läuft sonntags abends, da ist das fast dieselbe Woche, und von Hand am Montag erzeugt bleibt er so aussagekräftig.
+
+## E146 – Tag abschließen: das Abend-Ritual in der App (19.11.)
+
+- **Seite /abschluss** („🌙 Tag abschließen“), das Gegenstück zu /planen. Vier Schritte, ca. 5 Minuten:
+  1. **Geschafft:** Was heute erledigt wurde, Fokuszeit, Serie und Stimmung.
+  2. **Offenes verteilen:** Alles, was heute oder früher fällig war: ✓ erledigt, → morgen, → Montag, ↩ Eingang (ohne Datum; nicht bei wiederkehrenden). Dazu der Knopf „Alle auf morgen“.
+  3. **Die drei für morgen:** To-dos bis morgen und ⭐ ohne Datum, mit Stern-Knopf. Bei mehr als drei ⭐ gibt es einen Hinweis.
+  4. **Kopf leeren:** Ein Gedanke geht in die Tagesnotiz (Rathaus/notizen/). Danach ist der Schritt abgehakt.
+- **Abgehakte Schritte** merkt sich das Gerät je Tag (`dorf-abschluss-JJJJ-MM-TT`), wie bei /planen.
+- **Erreichbar über:**
+  - Heute ab 19 Uhr (Hinweiskarte, bis alle Schritte erledigt sind)
+  - Befehlspalette
+  - Link im Telegram-Tagesabschluss (21 Uhr)
+- **Warum:** Morgens helfen Morgenzeitung und „Jetzt dran“, sonntags /planen. Am Abend fehlte ein bewusster Schluss. Wer Offenes aktiv neu einplant, statt es überfällig liegen zu lassen, startet morgens ohne roten Berg. Wer die drei Wichtigsten am Vorabend wählt, verliert morgens keine Zeit mit Entscheiden. Alles bleibt Leifs Klick, die App schlägt nichts automatisch vor.
+
+## E147 – Wartet auf … (19.11.)
+
+- **Neues Feld `wartet`** am To-do (Frontmatter, max. 80 Zeichen): auf wen oder was Leif wartet (Prof., Sekretariat, Corps, Lieferung). `faellig` ist dann der **Nachfass-Tag**.
+- **Ruhen (`ruht` in packages/shared):** Bis zum Nachfass-Tag, oder ohne Datum dauerhaft, zählt das To-do nicht als „dran“:
+  - nicht in „Jetzt dran“
+  - nicht in „Woche verteilen“ und /verteilen
+  - nicht in „Tag planen“
+  - nicht im Tagesbudget
+  
+  Auf „Heute“ steht es unten unter **„⏳ Wartet auf“**. Ab dem Nachfass-Tag ist es ein normales To-do mit dem Hinweis „⏳ nachfassen: …“. Dort zählt es auch als überfällig, wenn es liegen bleibt.
+- **Eingabe:**
+  - Im To-do-Brett gibt es beim Bearbeiten das Feld „⏳ Wartet auf …“.
+  - Im Text überall: „Note Mathe wartet auf Prof. Müller“ oder „… (wartet auf Sekretariat)“, nur am Ende und mit Titel davor. Die Vorschau zeigt es vor dem Enter.
+  - Agenten haben `wartet` in `todo_anlegen`/`todo_bearbeiten`.
+- **Warum:** Viele Uni- und Corps-Dinge hängen an anderen. Als normales To-do verstopfen sie „Jetzt dran“ und machen den Tag rot, obwohl Leif nichts tun kann. Ganz weglassen geht auch nicht: Dann vergisst man das Nachfassen. Ein eigener Status mit Nachfass-Tag löst beides, ohne neue Liste und ohne neue Datei.
+
+## E148 – Gedanken parken im Fokus (19.11.)
+
+- **Fokus-Vollbild (/fokus):** Das Feld „💭 Gedanke parken“ nimmt einen Gedanken mit Enter auf und schreibt ihn als „💭 …“ in die Tagesnotiz (Rathaus/notizen/). Der Fokus läuft weiter.
+- **Geparkte Gedanken** der Sitzung stehen darunter. In der Pause oder nach dem Fokus lässt sich jeder mit „→ To-do“ als Aufgabe anlegen; die Texterkennung gilt wie überall, also auch „… 15 min“ oder „wartet auf …“. Während der Arbeitsphase gibt es bewusst keinen Knopf, damit nicht doch umsortiert wird.
+- **Speicher:** Die Liste liegt nur im sessionStorage des Geräts. Die Notiz im Vault bleibt die Quelle.
+- **Warum:** Der häufigste Fokus-Killer ist der Gedanke „ich muss noch …“. Wer ihn sicher ablegen kann, muss ihn nicht sofort erledigen und nicht im Kopf behalten.
+
+## E149 – Review 6 (19.11.)
+
+- **Fach-Zuordnung:** Ohne exakten Treffer gewinnt der längste passende Name, nicht der erste in der Liste. „VL Mathe III UE“ gehört also zu „Mathe III UE“, auch wenn „Mathe III“ alphabetisch davor steht.
+- **Prüfung ohne Kursnamen:** Das Fach wird über den Titel gefunden, ohne „Klausur/Prüfung/Test/VO/VL …“ am Anfang.
+- **„wartet auf“** wird nur noch als eigenes Wort erkannt („Zahlung erwartet auf Konto“ bleibt ein Titel).
+- **Erledigte Fristen-Blöcke** mit ✔/☑/„erledigt“ vor dem ⏰ zählen ebenfalls nicht als Termin.
+- **Tag abschließen:**
+  - „↩ Eingang“ ist bei wartenden To-dos gesperrt, sonst würde das Nachfassen verloren gehen.
+  - „→ Mo“ ist bei wiederkehrenden gesperrt.
+  - „Alle auf morgen“ lässt wiederkehrende aus, damit die Serie nicht auf einen anderen Wochentag wandert.
+- **Tastenkürzel:** Sie ruhen nur bei echten Fenstern (`dialog[open]`, `aria-modal`, `.fenster-hintergrund`), nicht bei der eigenen Hilfe, nicht bei den kleinen Karten im Dorf und nicht nach einem Klick auf einen Knopf in einem Formular. Die Felder für Einkauf, Wunschliste und Ämter heißen wieder „Neues To-do“ (Browser-Tests); „n“ unterscheidet über `data-todo-neu`.
+- **Leine:** Setzt ein Fremdinhalt-Lauf `wartet`, wird das To-do „fremd“ (wie bei Titel/Notiz).
+- **/verteilen** zählt ruhende To-dos nicht als Eingang.

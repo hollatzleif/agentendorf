@@ -92,7 +92,7 @@ export function TodoBrett({ liste: name = 'todo', platzhalter = 'Neues To-do …
   return (
     <div className="todo-brett">
       <form className="todo-neu" onSubmit={anlegen} aria-label="Neues To-do">
-        <input value={titel} onChange={(e) => setTitel(e.target.value)} placeholder={platzhalter} maxLength={200} aria-label="Neues To-do" />
+        <input value={titel} onChange={(e) => setTitel(e.target.value)} placeholder={platzhalter} maxLength={200} aria-label="Neues To-do" {...(name === 'todo' ? { 'data-todo-neu': '' } : {})} />
         <input type="date" value={faellig} onChange={(e) => setFaellig(e.target.value)} aria-label="Fällig am" />
         <button type="submit" className="haupt">
           +
@@ -190,6 +190,7 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehr
   const [wiederholen, setWiederholen] = useState(t.wiederholen ?? '');
   const [erinnerung, setErinnerung] = useState(t.erinnerung ?? '');
   const [dauer, setDauer] = useState(t.dauer ? String(t.dauer) : '');
+  const [wartet, setWartet] = useState(t.wartet ?? '');
   // Häkchen sofort zeigen; die Zeile wird mit der neuen Version vom Server ohnehin neu aufgebaut
   const [haken, setHaken] = useState(t.erledigt);
   const [planen, setPlanen] = useState(false);
@@ -214,12 +215,16 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehr
           className="formspalte"
           onSubmit={(e) => {
             e.preventDefault();
-            void aendern({ titel, faellig, notiz, gruppe, ...(wiederholen !== (t.wiederholen ?? '') ? { wiederholen } : {}), ...(erinnerung !== (t.erinnerung ?? '') ? { erinnerung: erinnerung.slice(0, 16) } : {}), ...(dauer !== (t.dauer ? String(t.dauer) : '') ? { dauer: Number(dauer) || 0 } : {}) }).then(() => setBearbeiten(false));
+            void aendern({ titel, faellig, notiz, gruppe, ...(wiederholen !== (t.wiederholen ?? '') ? { wiederholen } : {}), ...(erinnerung !== (t.erinnerung ?? '') ? { erinnerung: erinnerung.slice(0, 16) } : {}), ...(dauer !== (t.dauer ? String(t.dauer) : '') ? { dauer: Number(dauer) || 0 } : {}), ...(wartet.trim() !== (t.wartet ?? '') ? { wartet: wartet.trim() } : {}) }).then(() => setBearbeiten(false));
           }}
         >
           <input value={titel} onChange={(e) => setTitel(e.target.value)} maxLength={200} aria-label="Titel" />
           <input type="date" value={faellig} onChange={(e) => setFaellig(e.target.value)} aria-label="Fällig am" />
           <input value={gruppe} onChange={(e) => setGruppe(e.target.value)} maxLength={60} placeholder="Gruppe (Abteilung, Amt …)" aria-label="Gruppe" />
+          {basis === '/api/todos' && (
+            // E147: wartet auf jemanden – das Datum oben ist dann der Nachfass-Tag
+            <input value={wartet} onChange={(e) => setWartet(e.target.value)} maxLength={80} placeholder="⏳ Wartet auf … (Person, Antwort) – Datum = nachfassen" aria-label="Wartet auf" />
+          )}
           <label className="todo-erinnerung">
             🔔 Erinnerung
             <input type="datetime-local" value={erinnerung} onChange={(e) => setErinnerung(e.target.value)} aria-label="Erinnerung" />
@@ -272,7 +277,12 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehr
           {t.titel}
         </button>
         <span className="todo-meta">
-          {t.faellig && <span className={`abzeichen${ueberfaellig ? ' warnung' : ''}`}>📅 {datumText(t.faellig)}</span>}
+          {t.wartet && !t.erledigt && (
+            <span className="abzeichen wartet" title={t.faellig ? `Wartet – am ${datumText(t.faellig)} nachfassen` : 'Wartet – ohne Nachfass-Tag'}>
+              ⏳ {t.wartet}
+            </span>
+          )}
+          {t.faellig && <span className={`abzeichen${ueberfaellig ? ' warnung' : ''}`}>{t.wartet ? '↩ nachfassen ' : '📅 '}{datumText(t.faellig)}</span>}
           {t.erinnerung && !t.erledigt && (
             <span className="abzeichen" title="Läutet im Kirchturm und schickt eine Telegram-Nachricht">
               🔔 {erinnerungText(t.erinnerung)}

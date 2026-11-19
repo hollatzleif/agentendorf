@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { KalenderAntwort, KalenderTermin, TodoInfo, WochenzieleStand } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { ort, tagPlus } from './MarktKalender';
-import { belegtMs, minutenText, wocheVerteilen } from '@dorf/shared';
+import { belegtMs, istFristBlock, minutenText, wocheVerteilen } from '@dorf/shared';
 
 /**
  * E121: Wochenplan – die To-dos der Woche als Spalten Mo–So, links der Eingang (ohne Datum, Überfälliges).
@@ -18,7 +18,7 @@ function terminMinuten(termine: KalenderTermin[], tag: string, abMin = 8 * 60) {
   // nur Termine mit Uhrzeit, auf 8–22 Uhr des Tages begrenzt; überlappende zählen einmal (Review)
   const iv: [number, number][] = [];
   for (const t of termine) {
-    if (t.ganztags) continue;
+    if (t.ganztags || istFristBlock(t)) continue;
     const a = ort(t.start);
     const b = ort(t.ende);
     if (a.tag > tag || b.tag < tag) continue;
@@ -114,6 +114,7 @@ export function WochenPlan({ startVersatz = 0 }: { startVersatz?: number } = {})
         {t.titel}
       </span>
       <span className="wplan-meta">
+        {t.wartet && <span title="wartet – „Woche verteilen“ lässt es liegen">⏳ {t.wartet}</span>}
         {t.dauer && <span>⏱ {t.fokusMin ? `${minutenText(t.fokusMin)} / ` : ''}{minutenText(t.dauer)}</span>}
         {t.schritte?.length ? (
           <span>

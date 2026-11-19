@@ -10,7 +10,7 @@ const LISTEN_ANZEIGE: Record<ListenName, { symbol: string; titel: string; befehl
 };
 import { aufwachEinstellungen, istNacht } from '../aufwachen.js';
 import type { Rueckblick } from '../wochenrueckblick.js';
-import { belegtMs, jetztDran, minutenText, terminAusText, wocheVerteilen, type KalenderTermin, type TerminAusText } from '@dorf/shared';
+import { belegtMs, istFristBlock, jetztDran, ruht, minutenText, terminAusText, wocheVerteilen, type KalenderTermin, type TerminAusText } from '@dorf/shared';
 import type { Karteikasten } from '../karten.js';
 import type { Gewohnheiten } from '../gewohnheiten.js';
 import type { Wochenziele } from '../wochenziele.js';
@@ -1028,10 +1028,11 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       const z = await this.o.kalender.zeitraum(grenze(tage[0]!, 0), grenze(tage.at(-1)!, 0) + 86_400_000).catch(() => null);
       termine = (z?.termine ?? []).filter((t): t is KalenderTermin => typeof t.start === 'string' && typeof t.ende === 'string' && typeof t.ganztags === 'boolean');
     }
-    const iv = termine.filter((t) => !t.ganztags).map((t) => [Date.parse(t.start), Date.parse(t.ende)] as [number, number]);
+    const iv = termine.filter((t) => !t.ganztags && !istFristBlock(t)).map((t) => [Date.parse(t.start), Date.parse(t.ende)] as [number, number]);
     const todos = (await this.o.listen.todo.liste()).filter((t) => !t.erledigt);
     // wiederkehrende To-dos nicht verschieben – die Serie rechnet vom Fälligkeitsdatum weiter (Review)
-    const eingang = todos.filter((t) => !t.faellig || (t.faellig < heute && !t.wiederholen));
+    // wartende To-dos ruhen bis zum Nachfass-Tag – nicht mitzählen (Review)
+    const eingang = todos.filter((t) => !ruht(t, heute) && (!t.faellig || (t.faellig < heute && !t.wiederholen)));
     if (!eingang.length) return this.senden('📥 Nichts ohne Datum oder überfällig – deine Woche ist verteilt. 🎉');
     const v = wocheVerteilen({
       eingang,
@@ -1198,13 +1199,15 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
       const von = ortszeitZuUtc(j2, mo2, t2, 8, 0, 0, 'Europe/Vienna');
       const bis = ortszeitZuUtc(j2, mo2, t2, 22, 0, 0, 'Europe/Vienna');
       const z2 = this.o.kalender?.zeitraum ? await this.o.kalender.zeitraum(von, bis).catch(() => null) : null;
-      const termine = (z2?.termine ?? []).filter((t): t is KalenderTermin => typeof t.start === 'string' && typeof t.ende === 'string' && !t.ganztags);
+      const termine = (z2?.termine ?? []).filter((t): t is KalenderTermin => typeof t.start === 'string' && typeof t.ende === 'string' && !t.ganztags && !istFristBlock(t));
       const frei = Math.max(0, Math.round((bis - von - belegtMs(termine.map((t) => [Date.parse(t.start), Date.parse(t.ende)]), von, bis)) / 60_000));
       const geschaetzt = morgenTodos.reduce((s2, t) => s2 + (t.dauer ?? 0), 0);
       z.push(
         `🌅 Morgen: ${morgenTodos.length} To-do${morgenTodos.length === 1 ? '' : 's'}${geschaetzt ? ` (≈ ${minutenText(geschaetzt)})` : ''}${termine.length ? ` · ${termine.length} Termin${termine.length === 1 ? '' : 'e'}` : ''} · frei ≈ ${minutenText(frei)}${geschaetzt > frei * 0.7 ? ' – eng, vielleicht etwas verschieben' : ''}`,
       );
     }
+    // E146: das ganze Abend-Ritual (Offenes verteilen, Kopf leeren) in der App
+    z.push(`<a href="${this.link('/abschluss')}">🌙 In der App abschließen</a> – Offenes verteilen, Kopf leeren`);
     z.push('\n⭐ <b>Was ist morgen wichtig?</b> Tipp an, was oben auf deiner Liste stehen soll:');
     const t = this.sternAuswahl(alle, morgen);
     const ok = !!(await this.senden(z.join('\n'), { reply_markup: { inline_keyboard: t } }));
@@ -1278,23 +1281,31 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     if (!this.o.listen || !this.o.kalender?.zeitraum || !(await einstellungenLaden(this.o.vault)).luecken) return false;
     if (this.fokusAktiv() || (await this.nachtruhe())) return false;
     const { jetzt, heute, termine, d } = await this.jetztLage();
-    const zeitig = termine.filter((t) => !t.ganztags);
+    // Fristen-Blöcke („⏰ … ist fällig“) sind keine Termine, nach denen man „wieder frei“ ist (Review)
+    const zeitig = termine.filter((t) => !t.ganztags && !istFristBlock(t));
     const vorbei = zeitig.filter((t) => Date.parse(t.ende) <= jetzt && Date.parse(t.ende) > jetzt - 12 * 60_000).sort((a, b) => b.ende.localeCompare(a.ende))[0];
     if (!vorbei) return false;
     const stand = (() => {
       try {
-        const w = JSON.parse((this.o.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'telegram_luecken'").get() as { wert: string } | undefined)?.wert ?? '{}') as { tag?: string; ids?: string[] };
-        return w.tag === heute ? { tag: heute, ids: w.ids ?? [] } : { tag: heute, ids: [] as string[] };
+        const w = JSON.parse((this.o.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'telegram_luecken'").get() as { wert: string } | undefined)?.wert ?? '{}') as { tag?: string; ids?: string[]; gesendet?: number };
+        return w.tag === heute ? { tag: heute, ids: w.ids ?? [], gesendet: w.gesendet ?? 0 } : { tag: heute, ids: [] as string[], gesendet: 0 };
       } catch {
-        return { tag: heute, ids: [] as string[] };
+        return { tag: heute, ids: [] as string[], gesendet: 0 };
       }
     })();
-    if (stand.ids.includes(vorbei.id) || stand.ids.length >= 3) return false;
+    // gezählt wird nur, was wirklich verschickt wurde – Termine ohne Vorschlag verbrauchen keinen der drei Anstöße (Review)
+    if (stand.ids.includes(vorbei.id) || stand.gesendet >= 3) return false;
     stand.ids.push(vorbei.id);
-    this.o.db.prepare("INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES ('telegram_luecken', ?)").run(JSON.stringify(stand));
+    const merken = () => this.o.db.prepare("INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES ('telegram_luecken', ?)").run(JSON.stringify({ ...stand, ids: stand.ids.slice(-50) }));
+    merken();
     if (!d) return false;
     const [text, extra] = this.jetztNachricht(d, `✅ <b>${h(vorbei.titel)}</b> ist vorbei.\n`);
-    return !!(await this.senden(text, extra));
+    const ok = !!(await this.senden(text, extra));
+    if (ok) {
+      stand.gesendet++;
+      merken();
+    }
+    return ok;
   }
 
   private async jetztKnopf(q: NonNullable<TgUpdate['callback_query']>, antworten: (t: string) => Promise<unknown>) {

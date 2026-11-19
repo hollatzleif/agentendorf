@@ -44,6 +44,9 @@ export function Anleitung() {
           Realistisch planen: am To-do <b>⏱ Dauer</b> schätzen (Telegram: „/todo Referat üben 45 min“) – „Heute“ warnt, wenn die geplanten To-dos nicht bis 22 Uhr passen.
         </li>
         <li>
+          Wartest du auf jemanden? „Note Mathe <b>wartet auf</b> Prof. Müller“ – das To-do ruht unter <b>⏳ Wartet auf</b>, bis der Tag zum Nachfassen da ist (Datum im To-do).
+        </li>
+        <li>
           Am PC: <b>n</b> neues To-do, <b>f</b> Fokus, <b>g w</b> Wochenplan, <b>?</b> alle Tastenkürzel.
         </li>
         <li>
@@ -69,6 +72,9 @@ export function Anleitung() {
           <b>🔁 Gewohnheiten</b> abhaken und <b>💭 Wie war dein Tag?</b> – ein Tipp.
         </li>
       </ol>
+      <p>
+        Lieber am PC? <L href="/abschluss">Tag abschließen</L> macht das Gleiche auf einer Seite – plus Liegengebliebenes neu verteilen und den Kopf in die Tagesnotiz leeren (ab 19 Uhr auf „Heute“ verlinkt).
+      </p>
 
       <h2>🗓️ Sonntags (10 Minuten)</h2>
       <p>

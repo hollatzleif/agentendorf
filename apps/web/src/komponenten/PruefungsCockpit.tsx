@@ -64,19 +64,21 @@ export function PruefungsCockpit() {
               )}
             </ul>
             <div className="zeile">
-              <button type="button" className="haupt klein" onClick={() => void lernen(p)} aria-label={`Lernen starten: ${p.fach}`}>
-                🍅 Lernen
-              </button>
+              {!p.ohneFach && (
+                <button type="button" className="haupt klein" onClick={() => void lernen(p)} aria-label={`Lernen starten: ${p.fach}`}>
+                  🍅 Lernen
+                </button>
+              )}
               <button type="button" className="klein" onClick={() => setPlanen(planen === p.id ? null : p.id)}>
                 📅 Lernplan
               </button>
               {p.karten && (
-                <a href={`/gebaeude/Uni?reiter=karten&fach=${encodeURIComponent(p.fach)}`} onClick={linkKlick} className="leise">
+                <a href={`/gebaeude/Uni?reiter=karten&fach=${encodeURIComponent(p.karten.fach)}`} onClick={linkKlick} className="leise">
                   Karten üben
                 </a>
               )}
             </div>
-            {planen === p.id && <LernzeitPlaner titel={p.fach} bis={p.frist} fristTag={p.frist.slice(0, 10)} schliessen={() => setPlanen(null)} />}
+            {planen === p.id && <LernzeitPlaner titel={p.fach} bis={p.frist} fristTag={new Date(p.frist).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' })} schliessen={() => setPlanen(null)} />}
           </article>
         );
       })}

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { WETTER_TEXT, type DorfStatus, type FokusStatistik, type FreigabeInfo, type KartenFach, type KalenderAntwort, type KalenderTermin, type KirchturmZustand, type MorgenzeitungUebersicht, type PostUebersicht, type TodoInfo } from '@dorf/shared';
 import { api, ApiFehler, offlineGemerkt } from '../api';
-import { belegtMs, jetztDran, minutenText, tagesBudget, todoAusText } from '@dorf/shared';
+import { belegtMs, istFristBlock, jetztDran, minutenText, ruht, tagesBudget, todoAusText } from '@dorf/shared';
 import { TodoTextHinweis } from '../komponenten/TodoTextHinweis';
 import { linkKlick, navigieren } from '../router';
 import { FARBEN, ort, tagPlus } from '../komponenten/MarktKalender';
@@ -126,7 +126,10 @@ export function Heute() {
   const laeuft = (t: KalenderTermin) => !t.ganztags && Date.parse(t.start) <= jetzt && jetzt < Date.parse(t.ende);
 
   // ---- To-dos ----
-  const offen = (todos.data ?? []).filter((t) => !t.erledigt);
+  // E147: wer auf jemanden wartet, ruht bis zum Nachfass-Tag – eigene Gruppe unten
+  const offenAlle = (todos.data ?? []).filter((t) => !t.erledigt);
+  const wartend = offenAlle.filter((t) => ruht(t, heute)).sort((a, b) => (a.faellig ?? '9999').localeCompare(b.faellig ?? '9999'));
+  const offen = offenAlle.filter((t) => !ruht(t, heute));
   const wichtig = offen.filter((t) => t.wichtig);
   const ueberfaellig = offen.filter((t) => !t.wichtig && t.faellig && t.faellig < heute);
   const faelligHeute = offen.filter((t) => !t.wichtig && t.faellig === heute);
@@ -238,6 +241,7 @@ export function Heute() {
       {/* E142: Hinweise als Band über die ganze Breite (leer = unsichtbar) */}
       <div className="heute-band">
         <PlanenHinweis />
+        <AbschlussHinweis />
       </div>
 
       {(nf > 0 || zeitungHeute) && (
@@ -275,7 +279,7 @@ export function Heute() {
             <div className="heute-karte-kopf">
               <h2>☑️ To-dos</h2>
               <a href={TODO_URL} onClick={linkKlick} className="heute-mehr">
-                Alle{offen.length ? ` (${offen.length})` : ''} →
+                Alle{offenAlle.length ? ` (${offenAlle.length})` : ''} →
               </a>
             </div>
             <TodoNeu heute={heute} fertig={() => qc.invalidateQueries({ queryKey: ['liste', 'todo'] })} />
@@ -299,6 +303,7 @@ export function Heute() {
                 + {ohneDatumAlle.length - ohneDatum.length} weitere ohne Datum
               </a>
             )}
+            <TodoGruppe titel="⏳ Wartet auf" art="spaeter wartend" todos={wartend} heute={heute} />
           </section>
           <WochenzieleKarte />
           <ErsteSchritte />
@@ -418,7 +423,7 @@ function TodoNeu({ heute, fertig }: { heute: string; fertig: () => Promise<unkno
     try {
       // E127: „… jeden Montag 30 min“ – erkannte Wiederholung bestimmt das erste Datum, sonst „für heute“
       const e = todoAusText(titel, heute);
-      await api('/api/todos', { body: { ...e, ...(fuerHeute && !e.faellig ? { faellig: heute } : {}) } });
+      await api('/api/todos', { body: { ...e, ...(fuerHeute && !e.faellig && !e.wartet ? { faellig: heute } : {}) } });
       setTitel('');
     } catch (err) {
       setFehler(err instanceof ApiFehler ? err.message : String(err));
@@ -431,7 +436,7 @@ function TodoNeu({ heute, fertig }: { heute: string; fertig: () => Promise<unkno
   return (
     <>
       <form className="heute-neu" onSubmit={(e) => void anlegen(e)} aria-label="Neues To-do">
-        <input value={titel} onChange={(e) => setTitel(e.target.value)} placeholder="Neues To-do …" maxLength={200} aria-label="Neues To-do" enterKeyHint="done" />
+        <input value={titel} onChange={(e) => setTitel(e.target.value)} placeholder="Neues To-do …" maxLength={200} aria-label="Neues To-do" data-todo-neu="" enterKeyHint="done" />
         <label className={`heute-neu-heute${fuerHeute ? ' an' : ''}`} title="Heute fällig">
           <input type="checkbox" checked={fuerHeute} onChange={(e) => setFuerHeute(e.target.checked)} />
           heute
@@ -496,6 +501,12 @@ function TodoZeile({ t, heute }: { t: TodoInfo; heute: string }) {
         <input type="checkbox" checked={haken} onChange={(e) => void abhaken(e.target.checked)} aria-label={`${t.titel} erledigt`} />
         <span className="heute-todo-titel">{t.titel}</span>
       </label>
+      {t.wartet && (
+        <span className="heute-todo-datum" title={t.faellig ? `wartet – ${t.faellig <= heute ? 'heute nachfassen' : `nachfassen am ${t.faellig}`}` : 'wartet – ohne Nachfass-Tag'}>
+          ⏳ {t.faellig && t.faellig <= heute ? 'nachfassen: ' : ''}
+          {t.wartet}
+        </span>
+      )}
       {datum && <span className={`heute-todo-datum${ueberfaellig ? ' rot' : ''}`}>{datum}</span>}
       {ueberfaellig && !haken && (
         <span className="heute-verschieben">
@@ -765,6 +776,25 @@ function PlanenHinweis() {
   );
 }
 
+// ---- E146: Hinweis auf den Tagesabschluss (ab 19 Uhr), solange nicht alle Schritte erledigt ----------------------
+
+function AbschlussHinweis() {
+  const stunde = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Vienna', hour: '2-digit', hourCycle: 'h23' }).format(new Date()));
+  if (stunde < 19) return null;
+  let fertig = 0;
+  try {
+    fertig = (JSON.parse(localStorage.getItem(`dorf-abschluss-${new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' })}`) ?? '[]') as string[]).length;
+  } catch {
+    /* egal */
+  }
+  if (fertig >= 4) return null;
+  return (
+    <a href="/abschluss" onClick={linkKlick} className="karte heute-karte planen-hinweis">
+      🌙 <strong>Tag abschließen</strong> – 5 Minuten, dann ist Feierabend{fertig ? ` (${fertig}/4)` : ''} →
+    </a>
+  );
+}
+
 // ---- E141: Morgen im Blick (ab 18 Uhr) ----------------------------------------------------------------
 
 function MorgenKarte({ todos, termine, morgen }: { todos: TodoInfo[]; termine: KalenderTermin[]; morgen: string }) {
@@ -772,7 +802,7 @@ function MorgenKarte({ todos, termine, morgen }: { todos: TodoInfo[]; termine: K
   const dran = todos
     .filter((t) => !t.erledigt && t.faellig && t.faellig <= morgen)
     .sort((a, b) => Number(b.faellig === morgen) - Number(a.faellig === morgen) || Number(!!b.wichtig) - Number(!!a.wichtig));
-  const zeitig = termine.filter((t) => !t.ganztags);
+  const zeitig = termine.filter((t) => !t.ganztags && !istFristBlock(t));
   // 8–22 Uhr morgen (Ortszeit) minus Termine; Minuten des Tages über ort()
   const iv = zeitig.map((t) => {
     const a = ort(t.start);

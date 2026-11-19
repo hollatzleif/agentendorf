@@ -217,6 +217,8 @@ export interface TodoInfo {
   quelle?: string; // „Leif“, „Telegram“ oder der Agent/die Aktion
   erstellt?: string;
   erledigtAm?: string;
+  /** E147: wartet auf jemanden/etwas (Person, Antwort); faellig = Nachfass-Tag. Bis dahin „ruht“ das To-do. */
+  wartet?: string;
   notiz?: string;
 }
 
@@ -756,8 +758,11 @@ export interface PruefungStand {
   tage: number;
   todo?: { pfad: string; titel: string; schritteFertig: number; schritte: number; naechster?: string };
   fokus14Tage: number;
-  karten?: { gesamt: number; gelernt: number; faellig: number };
+  /** fach = Ordnername der Karten (für den Link) */
+  karten?: { gesamt: number; gelernt: number; faellig: number; fach: string };
   lernzielMin?: number;
+  /** E145: kein Fach im Uni-Ordner gefunden – dann gibt es keinen „Lernen“-Knopf */
+  ohneFach?: boolean;
 }
 
 /** Karteikarten (Nacht 18./19.11.) */
@@ -843,3 +848,4 @@ export interface Anschluss {
 }
 export * from './tagesbudget.js';
 export * from './todotext.js';
+export * from './fachname.js';

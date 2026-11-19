@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { KalenderAntwort, KalenderInfo, KalenderTermin } from '@dorf/shared';
+import { istFristBlock } from '@dorf/shared';
 import type { GoogleZugang } from './post/google-oauth.js';
 import type { Terminkalender } from './kalender.js';
 import { ortszeitZuUtc, type IcsTermin } from './uni/ical.js';
@@ -374,7 +375,7 @@ export class GoogleKalender {
     const belegt: [number, number][] = [];
     for (const k of await this.liste())
       for (const ev of await this.o.klient.termine(k.id, a, e))
-        if (ev.start?.dateTime && ev.end?.dateTime && (ev as { transparency?: string }).transparency !== 'transparent')
+        if (ev.start?.dateTime && ev.end?.dateTime && (ev as { transparency?: string }).transparency !== 'transparent' && !istFristBlock({ titel: ev.summary ?? '' }))
           belegt.push([Date.parse(ev.start.dateTime) - puffer, Date.parse(ev.end.dateTime) + puffer]);
     for (const f of this.o.uni?.fristen() ?? []) if ((f.art === 'pflicht' || f.art === 'test') && f.frist && f.ende) belegt.push([Date.parse(f.frist) - puffer, Date.parse(f.ende) + puffer]);
     belegt.sort((x, y) => x[0] - y[0]);

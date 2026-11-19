@@ -1,4 +1,5 @@
 import type { KalenderTermin, TodoInfo } from './index.js';
+import { istFristBlock } from './fachname.js';
 
 /**
  * E120: Passt der Tag? Summe der Schätzungen der heute dran stehenden To-dos (überfällig, heute fällig, ⭐ mit Datum
@@ -30,13 +31,16 @@ export function belegtMs(intervalle: [number, number][], von: number, bis: numbe
   return summe;
 }
 
+/** E147: wartet auf jemanden und der Nachfass-Tag ist noch nicht da (oder keiner gesetzt) – zählt nicht als „dran“ */
+export const ruht = (t: { wartet?: string; faellig?: string }, heute: string) => !!t.wartet && (!t.faellig || t.faellig > heute);
+
 export function tagesBudget(o: { todos: TodoInfo[]; termine: KalenderTermin[]; jetzt: number; jetztMin: number; heute: string }) {
   const dran = o.todos.filter((t) => !t.erledigt && t.faellig && t.faellig <= o.heute);
   const geschaetzt = dran.filter((t) => t.dauer);
   const geschaetztMin = geschaetzt.reduce((s, t) => s + t.dauer!, 0);
   const beginn = o.jetzt + Math.max(0, TAGESBEGINN_MIN - o.jetztMin) * 60_000;
   const ende = o.jetzt + Math.max(0, FEIERABEND_MIN - o.jetztMin) * 60_000;
-  const belegt = belegtMs(o.termine.filter((t) => !t.ganztags).map((t) => [Date.parse(t.start), Date.parse(t.ende)]), beginn, ende);
+  const belegt = belegtMs(o.termine.filter((t) => !t.ganztags && !istFristBlock(t)).map((t) => [Date.parse(t.start), Date.parse(t.ende)]), beginn, ende);
   const freiMin = Math.max(0, Math.round((ende - beginn - belegt) / 60_000));
   return { anzahl: dran.length, geschaetztMin, ohneSchaetzung: dran.length - geschaetzt.length, freiMin, zuViel: geschaetzt.length > 0 && geschaetztMin > freiMin };
 }
@@ -50,7 +54,7 @@ export const minutenText = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} h${m
  * („ein 🍅 daran“). Läuft gerade ein Termin oder ist die Lücke unter 10 min, gibt es keinen Vorschlag.
  */
 export function jetztDran(o: { todos: TodoInfo[]; termine: KalenderTermin[]; jetzt: number; jetztMin: number; heute: string }) {
-  const zeitig = o.termine.filter((t) => !t.ganztags);
+  const zeitig = o.termine.filter((t) => !t.ganztags && !istFristBlock(t));
   if (zeitig.some((t) => Date.parse(t.start) <= o.jetzt && o.jetzt < Date.parse(t.ende))) return null;
   const naechster = zeitig.filter((t) => Date.parse(t.start) > o.jetzt).sort((a, b) => a.start.localeCompare(b.start))[0];
   if (o.jetztMin < NACHT_BIS_MIN) return null;
@@ -60,7 +64,7 @@ export function jetztDran(o: { todos: TodoInfo[]; termine: KalenderTermin[]; jet
   const plus3 = new Date(Date.parse(`${o.heute}T12:00:00Z`) + 3 * 86_400_000).toISOString().slice(0, 10);
   const stufe = (t: TodoInfo) => (t.faellig && t.faellig < o.heute ? 0 : t.faellig === o.heute ? 1 : !t.faellig && t.wichtig ? 2 : t.faellig && t.faellig <= plus3 ? 3 : 9);
   const kandidaten = o.todos
-    .filter((t) => !t.erledigt && stufe(t) < 9)
+    .filter((t) => !t.erledigt && !ruht(t, o.heute) && stufe(t) < 9)
     .sort((a, b) => stufe(a) - stufe(b) || Number(!!b.wichtig) - Number(!!a.wichtig) || (a.faellig ?? '9').localeCompare(b.faellig ?? '9'));
   if (!kandidaten.length) return null;
   const rest = (t: TodoInfo) => Math.max(5, (t.dauer ?? 30) - (t.fokusMin ?? 0));
@@ -79,7 +83,7 @@ export function jetztDran(o: { todos: TodoInfo[]; termine: KalenderTermin[]; jet
 export const PUFFER = 0.7;
 export function wocheVerteilen(o: { eingang: TodoInfo[]; tage: { tag: string; freiMin: number; geplantMin: number }[]; heute: string }) {
   const platz = new Map(o.tage.filter((t) => t.tag >= o.heute).map((t) => [t.tag, Math.floor(t.freiMin * PUFFER) - t.geplantMin]));
-  const reihe = [...o.eingang].sort(
+  const reihe = o.eingang.filter((t) => !ruht(t, o.heute)).sort(
     (a, b) =>
       Number(!!b.wichtig) - Number(!!a.wichtig) ||
       Number(!!b.faellig) - Number(!!a.faellig) ||

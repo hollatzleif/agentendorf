@@ -1403,3 +1403,22 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0.05rem 0.35rem; border:
 
 /* E144: beste Tageszeit */
 .statistik-balken.beste { fill: #e2553f; }
+
+/* E146: Tag abschließen */
+.abschluss-liste { list-style: none; margin: 0 0 0.6rem; padding: 0; display: grid; gap: 0.35rem; }
+.abschluss-zeile { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; justify-content: space-between; }
+.abschluss-zeile > span:first-of-type { flex: 1; min-width: 10rem; }
+.abschluss-zeile .zeile { gap: 0.3rem; }
+.abschluss .rot { color: var(--rot, #c0392b); }
+.abschluss-kopf { display: grid; gap: 0.5rem; }
+.abschluss-kopf textarea { width: 100%; resize: vertical; }
+
+/* E147: Wartet auf … */
+.abzeichen.wartet { background: #eef3fb; border-color: #b8c9e6; }
+.heute-gruppe.wartend .heute-todo { opacity: 0.85; }
+
+/* E148: Gedanken parken im Fokus */
+.fokus-parkplatz { width: min(32rem, 100%); display: grid; gap: 0.4rem; margin-top: 0.8rem; }
+.fokus-parkplatz input { width: 100%; background: rgba(255, 255, 255, 0.85); }
+.fokus-parkplatz ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25rem; text-align: left; }
+.fokus-parkplatz li { display: flex; gap: 0.5rem; align-items: center; justify-content: space-between; }

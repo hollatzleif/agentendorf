@@ -42,6 +42,30 @@ describe('Uni: Stand je Fach (Nacht 18./19.11.)', () => {
   });
 });
 
+describe('Fach-Zuordnung mit ganzen Wörtern (E145)', () => {
+  it('„Mathe I“ bekommt keine Fokuszeit von „Mathe II“; exakter Name vor ungefährem; jede Gruppe zählt einmal', async () => {
+    const d = await testDorf();
+    for (const f of ['Mathe I', 'Mathe II', 'Statistisches Lernen', 'Statistisches Lernen UE']) await d.uni.fachAnlegen(f);
+    const ins = d.db.prepare('INSERT INTO fokus_sitzungen (start, ende, minuten, thema, gruppe, todo, vollstaendig) VALUES (?, ?, ?, NULL, ?, NULL, 1)');
+    ins.run(d.uhr.jetzt() - 3600_000, d.uhr.jetzt() - 3000_000, 30, 'Mathe II');
+    ins.run(d.uhr.jetzt() - 3000_000, d.uhr.jetzt() - 2400_000, 20, 'Statistisches Lernen UE');
+    ins.run(d.uhr.jetzt() - 2400_000, d.uhr.jetzt() - 1800_000, 10, 'VL Statistisches Lernen (WS)');
+    const s = (await d.app.inject({ url: '/api/uni/faecher-stand', headers: await kopf(d) })).json() as { titel: string; fokus7Tage: number }[];
+    expect(Object.fromEntries(s.map((x) => [x.titel, x.fokus7Tage]))).toEqual({ 'Mathe I': 0, 'Mathe II': 30, 'Statistisches Lernen': 10, 'Statistisches Lernen UE': 20 });
+  });
+
+  it('Lernziel unter dem anderen Namen desselben Fachs wird ersetzt; Lernstand zählt in beide Richtungen', async () => {
+    const d = await testDorf();
+    await d.lernziele.setzen('mathe-ordner', 2);
+    expect(await d.lernziele.setzen('Mathe III', 4, ['Mathe III', 'mathe-ordner'])).toEqual({ 'Mathe III': 4 });
+    await d.lernziele.setzen('Statistisches Lernen', 1);
+    d.db.prepare('INSERT INTO fokus_sitzungen (start, ende, minuten, thema, gruppe, todo, vollstaendig) VALUES (?, ?, ?, NULL, ?, NULL, 1)').run(d.uhr.jetzt() - 3600_000, d.uhr.jetzt() - 3000_000, 70, 'Lernen');
+    d.db.prepare('INSERT INTO fokus_sitzungen (start, ende, minuten, thema, gruppe, todo, vollstaendig) VALUES (?, ?, ?, NULL, ?, NULL, 1)').run(d.uhr.jetzt() - 3000_000, d.uhr.jetzt() - 2400_000, 40, 'VL Statistisches Lernen');
+    const a = (await d.wochenrueckblick.fakten()).abschnitte.find((x) => x.titel === 'Lernziele')!;
+    expect(a.zeilen).toEqual(['✗ Mathe III: 0 min von 4 h', '✗ Statistisches Lernen: 40 min von 1 h']);
+  });
+});
+
 describe('Lernziele im Wochenrückblick (E137)', () => {
   it('✓/✗ je Fach gegen die Fokuszeit der letzten 7 Tage', async () => {
     const d = await testDorf();

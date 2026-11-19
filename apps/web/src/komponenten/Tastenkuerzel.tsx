@@ -22,10 +22,20 @@ const tippt = (z: EventTarget | null) => {
   return !!e && (e.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.tagName));
 };
 
+/** offenes Fenster/Dialog oder Fokus in einem Formular/Dialog: Kürzel ruhen (Review – sonst springt „g h“ aus einem Dialog heraus) */
+// nur echte Fenster zählen (nicht die eigene Hilfe, nicht die kleinen Karten im Dorf); Fokus auf einem Formular-Feld
+// wird schon über tippt() erkannt, ein Klick auf einen Knopf im Formular sperrt nichts (Review)
+const MODAL = 'dialog[open], [aria-modal="true"], .fenster-hintergrund:not(:has(.tasten-hilfe))';
+const dialogOffen = (z: EventTarget | null) => {
+  const e = z instanceof Element ? z : null;
+  if (e?.closest(MODAL)) return true;
+  return !!document.querySelector(MODAL);
+};
+
 /** sucht das Feld „Neues To-do“ – auf Heute oder im To-do-Brett; sonst nach Heute und dort fokussieren */
 function neuesTodo() {
   // nur ein sichtbares Feld zählt (ausgeblendete Reiter bleiben teils im DOM)
-  const feld = () => [...document.querySelectorAll<HTMLInputElement>('input[aria-label="Neues To-do"]')].find((x) => x.offsetParent !== null && x.getClientRects().length > 0) ?? null;
+  const feld = () => [...document.querySelectorAll<HTMLInputElement>('input[data-todo-neu]')].find((x) => x.offsetParent !== null && x.getClientRects().length > 0) ?? null;
   if (feld()) return feld()!.focus();
   navigieren('/heute');
   let n = 0;
@@ -44,6 +54,7 @@ export function Tastenkuerzel() {
     const k = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented || tippt(e.target)) return;
       if (e.key === 'Escape') return setHilfe(false);
+      if (dialogOffen(e.target)) return;
       // „g“ und dann innerhalb von 1,5 s ein Buchstabe
       if (g.current && Date.now() - g.current < 1500) {
         g.current = 0;

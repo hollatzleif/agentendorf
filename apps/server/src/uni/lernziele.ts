@@ -28,8 +28,8 @@ export class Lernziele {
     }
   }
 
-  /** stunden 0 = Ziel entfernen */
-  setzen(fachRoh: string, stunden: number) {
+  /** stunden 0 = Ziel entfernen; `auch` = weitere Namen desselben Fachs (Ordner-/Anzeigename), die ersetzt werden (Review) */
+  setzen(fachRoh: string, stunden: number, auch: string[] = []) {
     const fach = fachRoh.trim().slice(0, 120);
     if (!fach) throw new DorfFehler(400, 'Fach fehlt.');
     if (!(stunden >= 0 && stunden <= 80)) throw new DorfFehler(400, 'Stunden zwischen 0 und 80.');
@@ -44,6 +44,7 @@ export class Lernziele {
       const alt = Ziele.safeParse(m.data.ziele ?? {});
       if (!alt.success) throw new DorfFehler(409, 'In Uni/lernziele.md stimmt das Feld „ziele“ nicht – bitte in Obsidian prüfen.');
       const ziele = { ...alt.data };
+      for (const n of auch) if (n.trim() !== fach) delete ziele[n.trim()];
       if (stunden) ziele[fach] = Math.round(stunden * 2) / 2;
       else delete ziele[fach];
       const r = await this.o.vault.schreiben(LERNZIELE_PFAD, matter.stringify(m.content, { ...m.data, ziele }), d ? { basisVersion: d.version } : { nurNeu: true });

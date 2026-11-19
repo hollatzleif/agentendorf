@@ -1502,6 +1502,15 @@ test('Tastenkürzel: ? Übersicht, g w Wochenplan, n neues To-do, f Fokus; im Fe
   await expect(page).toHaveURL(/\/heute$/);
   await feld.fill('');
   await feld.blur();
+  // bei offenem Fenster (hier: Befehlspalette) ruhen die Kürzel (E145)
+  await page.keyboard.press('Control+k');
+  const palette = page.getByRole('dialog', { name: 'Befehlspalette' });
+  await expect(palette).toBeVisible();
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await page.keyboard.press('f');
+  await expect(page).toHaveURL(/\/heute$/);
+  await page.mouse.click(5, 5);
+  await expect(palette).toHaveCount(0);
   await page.keyboard.press('f');
   await expect(page).toHaveURL(/\/fokus$/);
 });
@@ -1511,7 +1520,8 @@ test('Uni → Prüfungen: Cockpit mit Countdown, Schritten, Fokus, Karten; Lernp
   await page.route('**/api/uni/pruefungen', (r) =>
     r.fulfill({
       json: [
-        { id: 'p1', titel: 'Short Exam 2', fach: 'NLP', frist: new Date(Date.now() + 2 * 86_400_000).toISOString(), tage: 2, todo: { pfad: 'Marktplatz/todos/x.md', titel: 'Prüfung: Short Exam 2', schritteFertig: 1, schritte: 5, naechster: 'Lernplan anlegen' }, fokus14Tage: 95, karten: { gesamt: 40, gelernt: 12, faellig: 6 }, lernzielMin: 180 },
+        { id: 'p1', titel: 'Short Exam 2', fach: 'NLP', frist: new Date(Date.now() + 2 * 86_400_000).toISOString(), tage: 2, todo: { pfad: 'Marktplatz/todos/x.md', titel: 'Prüfung: Short Exam 2', schritteFertig: 1, schritte: 5, naechster: 'Lernplan anlegen' }, fokus14Tage: 95, karten: { gesamt: 40, gelernt: 12, faellig: 6, fach: 'nlp-ordner' }, lernzielMin: 180 },
+        { id: 'p2', titel: 'Klausur ohne Kurs', fach: 'Klausur ohne Kurs', frist: new Date(Date.now() + 5 * 86_400_000).toISOString(), tage: 5, fokus14Tage: 0, ohneFach: true },
       ],
     }),
   );
@@ -1524,6 +1534,11 @@ test('Uni → Prüfungen: Cockpit mit Countdown, Schritten, Fokus, Karten; Lernp
   await expect(k).toContainText('1 h 35 min gelernt (14 Tage)');
   await expect(k).toContainText('Ziel 6 h');
   await expect(k).toContainText('12/40 Karten sitzen');
+  // Karten-Link nutzt den Ordnernamen der Karten; ohne Fach kein „Lernen“ (E145)
+  await expect(k.getByRole('link', { name: 'Karten üben' })).toHaveAttribute('href', '/gebaeude/Uni?reiter=karten&fach=nlp-ordner');
+  const ohne = page.getByRole('article', { name: 'Prüfung Klausur ohne Kurs' });
+  await expect(ohne.getByRole('button', { name: '📅 Lernplan' })).toBeVisible();
+  await expect(ohne.getByRole('button', { name: /Lernen starten/ })).toHaveCount(0);
   await k.getByRole('button', { name: '📅 Lernplan' }).click();
   await expect(k.getByRole('group', { name: 'Lernzeit für NLP' })).toBeVisible();
 });
@@ -1603,4 +1618,84 @@ test('Gewohnheit bearbeiten: Tage und Uhrzeit ändern', async ({ page }, info) =
   await k.getByRole('button', { name: 'Fertig' }).click();
   await expect(k.locator('.gewohnheit', { hasText: 'Bearbeiten-Test' })).toContainText('06:45');
   await expect(k.locator('.gewohnheit', { hasText: 'Bearbeiten-Test' })).toContainText('diese Woche');
+});
+
+test('Tag abschließen (/abschluss): Erledigtes, Offenes auf morgen, ⭐ für morgen, Kopf leeren (E146)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+  const morgen = new Date(Date.parse(`${heute}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+  const n = Date.now() % 100000;
+  const fertig = (await (await page.request.post('/api/todos', { headers: { origin: ORIGIN }, data: { titel: `Abschluss-fertig ${n}`, faellig: heute } })).json()) as { pfad: string; version: string };
+  await page.request.patch('/api/todos', { headers: { origin: ORIGIN }, data: { pfad: fertig.pfad, basisVersion: fertig.version, erledigt: true } });
+  await page.request.post('/api/todos', { headers: { origin: ORIGIN }, data: { titel: `Abschluss-offen ${n}`, faellig: heute } });
+  await page.goto('/abschluss');
+  await expect(page.getByRole('heading', { name: '🌙 Tag abschließen' })).toBeVisible();
+  const geschafft = page.getByRole('region', { name: '1 · Geschafft' });
+  await expect(geschafft).toContainText(`✓ Abschluss-fertig ${n}`);
+  const offen = page.getByRole('region', { name: '2 · Offenes verteilen' });
+  await expect(offen).toContainText(`Abschluss-offen ${n}`);
+  await offen.getByRole('button', { name: `Abschluss-offen ${n} auf morgen` }).click();
+  await expect(offen).not.toContainText(`Abschluss-offen ${n}`);
+  const t = ((await (await page.request.get('/api/todos')).json()) as { titel: string; faellig?: string }[]).find((x) => x.titel === `Abschluss-offen ${n}`)!;
+  expect(t.faellig).toBe(morgen);
+  // jetzt steht es unter „für morgen“ und bekommt einen ⭐
+  const drei = page.getByRole('region', { name: '3 · Die drei für morgen' });
+  await drei.getByRole('button', { name: `Abschluss-offen ${n} als wichtig markieren` }).click();
+  await expect(drei.getByRole('button', { name: `Abschluss-offen ${n} nicht mehr wichtig` })).toBeVisible();
+  // Kopf leeren → Tagesnotiz, Schritt 4 abgehakt
+  const kopf = page.getByRole('region', { name: '4 · Kopf leeren' });
+  await kopf.getByLabel('Gedanken für die Tagesnotiz').fill(`Abschluss-Gedanke ${n}`);
+  await kopf.getByRole('button', { name: 'In die Notiz' }).click();
+  await expect(kopf).toContainText('In der Tagesnotiz');
+  await expect(page.getByRole('checkbox', { name: '4 · Kopf leeren erledigt' })).toBeChecked();
+  await expect(page.getByText('1/4 erledigt')).toBeVisible();
+});
+
+test('Wartet auf …: aus Text erkannt, ruht unter „⏳ Wartet auf“, im Brett bearbeitbar (E147)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  const n = Date.now() % 100000;
+  await page.goto('/heute');
+  const feld = page.getByRole('textbox', { name: 'Neues To-do' }).first();
+  await feld.fill(`Note Mathe ${n} wartet auf Prof. Müller`);
+  await expect(page.getByText('⏳ wartet auf Prof. Müller')).toBeVisible();
+  await feld.press('Enter');
+  const gruppe = page.locator('.heute-gruppe.wartend');
+  await expect(gruppe).toContainText(`Note Mathe ${n}`);
+  await expect(gruppe).toContainText('⏳ Prof. Müller');
+  // im Brett: Abzeichen, bearbeiten → wartet nicht mehr
+  await page.goto('/gebaeude/Marktplatz?reiter=todo');
+  const zeile = page.locator('li.todo', { hasText: `Note Mathe ${n}` });
+  await expect(zeile.locator('.abzeichen.wartet')).toHaveText('⏳ Prof. Müller');
+  await zeile.getByRole('button', { name: `Note Mathe ${n}`, exact: true }).click();
+  const form = page.locator('li.todo.bearbeiten');
+  await expect(form.getByLabel('Wartet auf')).toHaveValue('Prof. Müller');
+  await form.getByLabel('Wartet auf').fill('');
+  await form.getByRole('button', { name: 'Speichern' }).click();
+  await expect(page.locator('li.todo', { hasText: `Note Mathe ${n}` }).locator('.abzeichen.wartet')).toHaveCount(0);
+});
+
+test('Fokus: Gedanken parken → Tagesnotiz, in der Pause „→ To-do“ (E148)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  await page.evaluate(() => sessionStorage.clear());
+  const n = Date.now() % 100000;
+  // Pomodoro starten, Gedanken parken während der Arbeit
+  await page.request.post('/api/kirchturm', { headers: { origin: ORIGIN }, data: { befehl: 'pomodoro', aktion: 'start' } });
+  await page.goto('/fokus');
+  const park = page.getByRole('group', { name: 'Gedanken parken' });
+  await park.getByLabel('Gedanke parken').fill(`Mail an Prof ${n}`);
+  await park.getByLabel('Gedanke parken').press('Enter');
+  await expect(park).toContainText(`💭 Mail an Prof ${n}`);
+  await expect(park.getByRole('button', { name: `Mail an Prof ${n} als To-do` })).toHaveCount(0);
+  const notiz = (await (await page.request.get('/api/notizen')).json()) as unknown;
+  expect(JSON.stringify(notiz)).toContain(`💭 Mail an Prof ${n}`);
+  // Stopp → keine Arbeitsphase mehr → „→ To-do“
+  await page.request.post('/api/kirchturm', { headers: { origin: ORIGIN }, data: { befehl: 'pomodoro', aktion: 'stopp' } });
+  await page.reload();
+  await park.getByRole('button', { name: `Mail an Prof ${n} als To-do` }).click();
+  await expect(park).toContainText('✓ To-do');
+  const todos = (await (await page.request.get('/api/todos')).json()) as { titel: string }[];
+  expect(todos.some((t) => t.titel === `Mail an Prof ${n}`)).toBe(true);
 });
