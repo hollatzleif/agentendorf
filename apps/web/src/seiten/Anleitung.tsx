@@ -27,6 +27,9 @@ export function Anleitung() {
         <li>
           Liegt etwas Überfälliges herum: <b>🧹 Aufräumen</b> (/aufraeumen) – heute, morgen, nächste Woche oder weg.
         </li>
+        <li>
+          Die <b>Tagesleiste</b> über den Terminen auf <L href="/heute">Heute</L> zeigt auf einen Blick, wo heute noch Platz ist (gestrichelt = frei).
+        </li>
       </ol>
 
       <h2>🍅 Tagsüber</h2>
@@ -66,7 +69,7 @@ export function Anleitung() {
       <h2>🌙 Abends (2 Minuten)</h2>
       <ol>
         <li>
-          <b>Tagesabschluss</b> (Telegram, 21:00): Erledigtes, Fokus, was morgen fällig ist. Früher fertig? <b>/morgen</b> zeigt den nächsten Tag jederzeit.
+          <b>Tagesabschluss</b> (Telegram, 21:00): Erledigtes, Fokus, was morgen fällig ist. Früher fertig? <b>/morgen</b> zeigt den nächsten Tag jederzeit – samt Warnung, wenn sich Termine überschneiden.
         </li>
         <li>
           <b>⭐ Was ist morgen wichtig?</b> antippen – dann steht es morgen ganz oben.
@@ -94,7 +97,10 @@ export function Anleitung() {
           Woche verteilen im <L href="/gebaeude/Marktplatz?reiter=wochenplan">Wochenplan</L>: To-dos aus dem Eingang auf die Tage ziehen oder mit <b>✨ Woche verteilen</b> vorschlagen lassen – die Leiste zeigt, welcher Tag schon voll ist.
         </li>
         <li>
-          Ein Blick auf die <L href="/gebaeude/Rathaus?reiter=statistik">Statistik</L> und ins Dorf: Je aktiver die Woche, desto mehr blüht es. 🌸
+          Ein Blick auf die <L href="/gebaeude/Rathaus?reiter=statistik">Statistik</L> und ins Dorf: Je aktiver die Woche, desto mehr blüht es. 🌸 Ab ein paar Wochen Stimmung zeigt <b>💡 Was gute Tage ausmacht</b>, was deine guten Tage gemeinsam haben.
+        </li>
+        <li>
+          <b>📁 Projekte</b> (<L href="/gebaeude/Marktplatz?reiter=projekte">Marktplatz → Projekte</L>, /projekte): To-dos mit derselben <b>Gruppe</b> sind ein Projekt – mit Fortschritt, nächstem Schritt und „💤 ruht“, wenn eine Woche nichts passiert ist.
         </li>
       </ol>
 

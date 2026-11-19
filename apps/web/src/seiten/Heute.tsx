@@ -816,7 +816,7 @@ function AbschlussHinweis() {
 
 // ---- E141: Morgen im Blick (ab 18 Uhr) ----------------------------------------------------------------
 
-function MorgenKarte({ todos, termine, morgen }: { todos: TodoInfo[]; termine: KalenderTermin[]; morgen: string }) {
+export function MorgenKarte({ todos, termine, morgen }: { todos: TodoInfo[]; termine: KalenderTermin[]; morgen: string }) {
   // für morgen Geplantes zuerst, dann was mitwandert (überfällig/heute); ⭐ jeweils vorn
   const dran = todos
     .filter((t) => !t.erledigt && t.faellig && t.faellig <= morgen)

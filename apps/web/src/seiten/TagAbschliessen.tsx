@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { FokusStatistik, TodoInfo } from '@dorf/shared';
+import type { FokusStatistik, KalenderAntwort, TodoInfo } from '@dorf/shared';
 import { minutenText } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { linkKlick } from '../router';
-import { tagPlus } from '../komponenten/MarktKalender';
+import { ort, tagPlus } from '../komponenten/MarktKalender';
 import { StimmungZeile } from '../komponenten/StimmungZeile';
 import { GewohnheitenKarte } from '../komponenten/GewohnheitenKarte';
-import { Stern } from './Heute';
+import { MorgenKarte, Stern } from './Heute';
 
 /**
  * E146: Tag abschließen (/abschluss) – das 5-Minuten-Ritual am Abend, Gegenstück zu „Woche planen“:
@@ -42,6 +42,11 @@ export function TagAbschliessen() {
   };
   const todos = useQuery({ queryKey: ['liste', 'todo'], queryFn: () => api<TodoInfo[]>('/api/todos') });
   const fokus = useQuery({ queryKey: ['kirchturm', 'fokus'], queryFn: () => api<FokusStatistik>('/api/kirchturm/fokus') });
+  // E169: Termine von morgen für „Morgen im Blick“ (freie Zeit, Überschneidungen)
+  const kvon = new Date(Date.parse(`${morgen}T00:00:00Z`) - 3 * 3600_000).toISOString();
+  const kbis = new Date(Date.parse(`${tagPlus(morgen, 1)}T00:00:00Z`) + 3 * 3600_000).toISOString();
+  const kalender = useQuery({ queryKey: ['kalender', kvon, kbis], queryFn: () => api<KalenderAntwort>(`/api/kalender?von=${kvon}&bis=${kbis}`) });
+  const termineMorgen = (kalender.data?.termine ?? []).filter((t) => (t.ganztags ? t.start <= morgen && morgen < t.ende : ort(t.start).tag === morgen || (ort(t.start).tag < morgen && ort(t.ende).tag >= morgen)));
   const alle = todos.data ?? [];
   const erledigt = alle.filter((t) => t.erledigt && t.erledigtAm && ortTag(Date.parse(t.erledigtAm)) === heute);
   const offen = alle.filter((t) => !t.erledigt && t.faellig && t.faellig <= heute);
@@ -122,6 +127,7 @@ export function TagAbschliessen() {
               )}
             </div>
           )}
+          {k === 'morgen' && todos.data && <MorgenKarte todos={todos.data} termine={termineMorgen} morgen={morgen} />}
           {k === 'kopf' && <KopfLeeren onFertig={() => haken('kopf', true)} />}
         </section>
       ))}

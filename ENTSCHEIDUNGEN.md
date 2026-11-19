@@ -1340,3 +1340,8 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **`ueberschneidungen()`** (packages/shared) findet sich überlappende Termine mit Uhrzeit; Fristen-Blöcke und Ganztägiges sind ausgenommen, aneinandergrenzende zählen nicht.
 - **Gemeldet in:** /morgen („⚠️ Überschneidung: 10:00 Vorlesung ↔ 11:30 Zahnarzt“), Tagesabschluss 21 Uhr und „🌅 Morgen im Blick“ auf Heute.
 - **Warum:** Doppelt Gebuchtes fällt sonst erst auf, wenn man schon unterwegs ist. Am Vorabend lässt es sich noch in Ruhe klären.
+
+## E169 – Morgen im Blick im Tagesabschluss, Anleitung (19.11.)
+
+- /abschluss → „3 · Die drei für morgen“ zeigt unter der ⭐-Auswahl die Karte „🌅 Morgen im Blick“ von Heute: dran-To-dos, Termine, freie Zeit 8–22 Uhr, „eng“ und Überschneidungen. Die Komponente ist dieselbe (`MorgenKarte`), nur exportiert.
+- Die Anleitung erklärt jetzt auch Tagesleiste, Projekte, „Was gute Tage ausmacht“ und die Überschneidungs-Warnung.
