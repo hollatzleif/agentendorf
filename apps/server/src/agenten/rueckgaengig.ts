@@ -79,7 +79,7 @@ export class Rueckgaengig {
     return (this.db.prepare('SELECT * FROM rueckgaengig WHERE erstellt >= ? ORDER BY erstellt DESC LIMIT 50').all(this.uhr.jetzt() - tage * 86_400_000) as Zeile[]).map(info);
   }
 
-  /** Genau einmal: der Statuswechsel ist atomar; ein zweiter Klick bekommt 409. */
+  /** Genau einmal: der Statuswechsel ist atomar; ein zweiter Klick bekommt 409. Scheitert das Zurücknehmen, bleibt es versuchbar. */
   async zuruecknehmen(id: string): Promise<RueckgaengigInfo> {
     const r = this.db.prepare("UPDATE rueckgaengig SET status = 'zurueckgenommen' WHERE id = ? AND status = 'offen'").run(id);
     if (r.changes !== 1) {
@@ -97,8 +97,10 @@ export class Rueckgaengig {
       status = 'fehlgeschlagen';
       ergebnis = (e as Error).message;
     }
-    this.db.prepare('UPDATE rueckgaengig SET status = ?, ergebnis = ? WHERE id = ?').run(status, ergebnis.slice(0, 1000), id);
+    // Gescheitert (Kalender gerade nicht erreichbar, Datei inzwischen geändert …): der Eintrag bleibt offen, damit Leif es
+    // später noch einmal versuchen kann – der Grund steht dabei. Die Antwort nennt trotzdem „fehlgeschlagen“.
+    this.db.prepare('UPDATE rueckgaengig SET status = ?, ergebnis = ? WHERE id = ?').run(status === 'fehlgeschlagen' ? 'offen' : status, ergebnis.slice(0, 1000), id);
     this.beiAenderung();
-    return this.holen(id);
+    return { ...this.holen(id), status };
   }
 }

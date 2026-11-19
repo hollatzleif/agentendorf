@@ -95,7 +95,10 @@ export class Buergermeister implements RollenHandler {
       return `${r.archiv ? 'Skill ersetzt' : 'Neuer Skill angelegt'}: ${r.pfad}`;
     });
     // Skill ohne Rückfrage angelegt/ersetzt → zurücknehmen = Papierkorb bzw. alte Fassung zurück
-    agenten.rueckgaengig.registrieren('skill_angelegt', async (d: { pfad: string; archiv?: string }) => {
+    agenten.rueckgaengig.registrieren('skill_angelegt', async (d: { pfad: string; archiv?: string; version?: string }) => {
+      // wie datei_geaendert: hat Leif den Skill seither (z. B. in Obsidian) bearbeitet, wird nichts überschrieben oder weggeräumt
+      const jetzt = await this.vault.lesen(d.pfad).catch(() => null);
+      if (jetzt && d.version && jetzt.version !== d.version) throw new Error(`${d.pfad} wurde seither geändert – nichts zurückgenommen${d.archiv ? ` (die alte Fassung liegt in ${d.archiv})` : ''}.`);
       if (!d.archiv) return `In den Papierkorb gelegt: ${await this.vault.loeschen(d.pfad)}`;
       await this.vault.schreiben(d.pfad, (await this.vault.lesen(d.archiv)).inhalt);
       return `Vorherige Fassung wiederhergestellt: ${d.pfad}`;
@@ -154,23 +157,25 @@ export class Buergermeister implements RollenHandler {
     const { ersetzen = false, ...entwurf } = z.object({ ersetzen: z.boolean().optional() }).passthrough().parse(eingabe);
     const s = await skillPruefen(this.vault, entwurf, { ersetzen });
     if (s.existiert && (await aktionLaden(this.vault, s.id)).rolle === 'buergermeister') throw new DorfFehler(403, 'Die Aktion des Bürgermeisters ändert nur Leif.');
-    if (SkillEntwurf.parse(entwurf).zeitplan) {
+    const zeitplan = !!SkillEntwurf.parse(entwurf).zeitplan;
+    // Review zu E185: Hat die alte Fassung einen Schutz oder Zeitplan (freigabe_vor_start, zeitplan, zeitplan_je, rolle), entscheidet Leif
+    if (zeitplan || s.geschuetzt.length) {
       const f = await this.agenten.freigaben.beantragen({
         art: 'aktion_anlegen',
-        titel: `${s.existiert ? 'Skill ersetzen' : 'Neuer Skill'} mit Zeitplan: ${s.name} (${s.gebaeude})`,
-        begruendung: s.beschreibung || 'Läuft künftig von selbst – darum entscheidest du.',
+        titel: zeitplan ? `${s.existiert ? 'Skill ersetzen' : 'Neuer Skill'} mit Zeitplan: ${s.name} (${s.gebaeude})` : `Skill ersetzen: ${s.name} (${s.gebaeude})`,
+        begruendung: `${s.beschreibung || (zeitplan ? 'Läuft künftig von selbst – darum entscheidest du.' : '')}${s.geschuetzt.length ? `\n\nDie bisherige Fassung hat: ${s.geschuetzt.join(', ')}. freigabe_vor_start, zeitplan_je, rolle und Anhänge bleiben beim Ersetzen erhalten; der Zeitplan richtet sich nach dem neuen Entwurf.` : ''}`.trim(),
         inhalt: { pfad: s.pfad, markdown: s.markdown, entwurf, ersetzen },
         gebaeude: s.gebaeude,
         laufId: k.laufId,
         chatId: k.chatId,
       });
-      return { ok: true, text: `Der Skill hat einen Zeitplan – als Freigabe ${f.id} vorgelegt. Erst wenn Leif zustimmt, gibt es die Aktion ${s.id}.` };
+      return { ok: true, text: `${zeitplan ? 'Der Skill hat einen Zeitplan' : `Die bisherige Fassung ist geschützt (${s.geschuetzt.join(', ')})`} – als Freigabe ${f.id} vorgelegt. Erst wenn Leif zustimmt, ${s.existiert ? 'wird die Aktion ersetzt' : `gibt es die Aktion ${s.id}`}.` };
     }
     const r = await skillAnlegen(this.vault, entwurf, { ersetzen, jetzt: this.uhr.jetzt() });
     await this.agenten.rueckgaengig.merken({
       art: 'skill_angelegt',
       titel: `${r.archiv ? 'Skill geändert' : 'Neuer Skill'}: ${s.name} (${s.gebaeude})`,
-      daten: { pfad: r.pfad, archiv: r.archiv },
+      daten: { pfad: r.pfad, archiv: r.archiv, version: r.version },
       gebaeude: s.gebaeude,
       chatId: k.chatId,
       laufId: k.laufId,
@@ -233,18 +238,40 @@ export class Buergermeister implements RollenHandler {
   private async helferStarten(eingabe: unknown, k: LaufKontext): Promise<WerkzeugAufrufErgebnis> {
     const t = Teilaufgabe.omit({ titel: true }).extend({ titel: z.string().optional() }).parse(eingabe);
     const chat = this.agenten.chatZeile(k.chatId);
-    const anzahl = (
-      chat.schreibtisch_id
-        ? this.db.prepare('SELECT COUNT(*) AS n FROM chats WHERE schreibtisch_id = ? AND eltern_chat_id IS NOT NULL AND plan_id IS NULL').get(chat.schreibtisch_id)
-        : this.db.prepare('SELECT COUNT(*) AS n FROM chats WHERE eltern_chat_id = ? AND plan_id IS NULL').get(k.chatId)
-    ) as { n: number };
-    if (anzahl.n >= MAX_HELFER_JE_AUFGABE)
-      return { ok: false, text: `Für diese Aufgabe gab es schon ${anzahl.n} Helfer – mehr startet das Dorf nicht (Schutz vor Ausreißern). Mach den Rest selbst oder sag Leif, was fehlt.` };
+    // Review zu E185: gezählt wird je Aufgabe ALLES – Einzelhelfer und die Teilaufgaben aller Pläne
+    const anzahl = this.helferJeAufgabe(chat).helfer;
+    if (anzahl >= MAX_HELFER_JE_AUFGABE)
+      return { ok: false, text: `Für diese Aufgabe gab es schon ${anzahl} Helfer – mehr startet das Dorf nicht ohne Leif (Schutz vor Ausreißern). Mach den Rest selbst – oder lege für weitere Helfer mit plan_vorlegen einen Plan vor, den Leif bestätigt.` };
     const geprueft = await this.teilaufgabePruefen({ ...t, titel: t.titel ?? t.auftrag.split('\n')[0]!.slice(0, 80) });
     // Helfer laufen mit dem Motor ihrer Aktion/Stufe (meist claude-code = Leifs Abo) – auch wenn der Bürgermeister
     // von selbst aufgewacht ist (Leif, E56). Er selbst denkt beim Aufwachen über api (Tagesbudget). Notschalter übersteuert.
     const r = await this.teilaufgabeStarten(geprueft, { schreibtischId: chat.schreibtisch_id ?? undefined, elternChatId: k.chatId }, 'buergermeister');
     return { ok: true, text: `Helfer gestartet (Chat ${r.chatId}) im Gebäude ${geprueft.gebaeude}${geprueft.aktion ? ` mit der Aktion ${geprueft.aktion}` : ''}. Du musst nicht warten; das Dorf meldet Leif, wenn er fertig ist.` };
+  }
+
+  /**
+   * Was für diese Aufgabe (Schreibtisch-Aufgabe, sonst Chat des Bürgermeisters) schon an Helfern unterwegs war oder geplant ist:
+   * Einzelhelfer + Teilaufgaben aller nicht abgelehnten Pläne; dazu die API-Schätzung der Pläne, die ohne Freigabe liefen.
+   */
+  private helferJeAufgabe(chat: { id: string; schreibtisch_id: string | null }) {
+    const einzeln = (
+      chat.schreibtisch_id
+        ? this.db.prepare('SELECT COUNT(*) AS n FROM chats WHERE schreibtisch_id = ? AND eltern_chat_id IS NOT NULL AND plan_id IS NULL').get(chat.schreibtisch_id)
+        : this.db.prepare('SELECT COUNT(*) AS n FROM chats WHERE eltern_chat_id = ? AND plan_id IS NULL').get(chat.id)
+    ) as { n: number };
+    const plaene = (
+      chat.schreibtisch_id
+        ? this.db.prepare("SELECT inhalt_json FROM plaene WHERE schreibtisch_id = ? AND status != 'abgelehnt'").all(chat.schreibtisch_id)
+        : this.db.prepare("SELECT inhalt_json FROM plaene WHERE chat_id = ? AND status != 'abgelehnt'").all(chat.id)
+    ) as { inhalt_json: string }[];
+    let helfer = einzeln.n;
+    let usdOhneFrage = 0;
+    for (const z of plaene) {
+      const i = JSON.parse(z.inhalt_json) as PlanInhalt;
+      helfer += i.teilaufgaben.length;
+      if (i.ohneFreigabe) usdOhneFrage += i.kostenUsd;
+    }
+    return { helfer, usdOhneFrage };
   }
 
   private async teilaufgabeStarten(
@@ -261,6 +288,7 @@ export class Buergermeister implements RollenHandler {
     const p = PlanEingabe.parse(eingabe);
     if (this.db.prepare("SELECT 1 FROM plaene WHERE chat_id = ? AND status = 'wartet'").get(k.chatId))
       return { ok: false, text: 'Es wartet schon ein Plan aus diesem Chat auf Leifs Entscheidung.' };
+    const chat = this.agenten.chatZeile(k.chatId);
     const teilaufgaben: PlanTeilaufgabe[] = [];
     for (const [i, t] of p.teilaufgaben.entries()) {
       // Reihenfolge nur nach vorn: „nach“ zeigt auf frühere Nummern – so gibt es keine Kreise
@@ -272,14 +300,15 @@ export class Buergermeister implements RollenHandler {
         return { ok: false, text: `Teilaufgabe ${i + 1} („${t.titel}“): ${(e as Error).message}` };
       }
     }
-    const chat = this.agenten.chatZeile(k.chatId);
     const planId = crypto.randomUUID();
     const kostenUsd = Math.round(teilaufgaben.reduce((s, t) => s + t.kostenUsd, 0) * 1000) / 1000;
     const abo = teilaufgaben.filter((t) => t.motor === 'claude-code').length;
     const jetzt = this.uhr.jetzt();
     // E62: ohne Antwort nach N Minuten automatisch annehmen (Einstellung in 00_Stadtordnung/aufwachen.md, 0 = nie)
     // E185: Leif bestätigt nur, wenn er selbst einen Plan wollte – oder der Plan groß/teuer ist (Schutz vor Ausreißern)
-    const zuGross = teilaufgaben.length > PLAN_OHNE_FRAGE_MAX_HELFER || kostenUsd > PLAN_OHNE_FRAGE_MAX_USD;
+    // Review: die Grenzen gelten je AUFGABE, nicht je Plan – sonst ergäben drei kleine Pläne in einem Lauf 15 Helfer ohne Klick
+    const bisher = this.helferJeAufgabe(chat);
+    const zuGross = bisher.helfer + teilaufgaben.length > PLAN_OHNE_FRAGE_MAX_HELFER || bisher.usdOhneFrage + kostenUsd > PLAN_OHNE_FRAGE_MAX_USD;
     const fragen = p.bestaetigen || zuGross;
     const minuten = fragen ? (await aufwachEinstellungen(this.vault)).plan_automatisch_nach_minuten : 0;
     const automatischUm = minuten > 0 ? jetzt + minuten * 60_000 : null;
@@ -323,7 +352,7 @@ export class Buergermeister implements RollenHandler {
     this.hub.senden({ typ: 'plaene.geaendert' });
     return {
       ok: true,
-      text: `Plan vorgelegt (${teilaufgaben.length} Teilaufgaben${zuGross && !p.bestaetigen ? ' – so große Pläne bestätigt Leif' : ''}). Leif entscheidet${automatischUm ? ` – ohne Antwort wird er nach ${minuten} Minuten automatisch angenommen` : ''}; danach startet das Dorf die Helfer selbst. Beende jetzt deinen Lauf mit der Zusammenfassung.`,
+      text: `Plan vorgelegt (${teilaufgaben.length} Teilaufgaben${zuGross && !p.bestaetigen ? ' – so viele Helfer für eine Aufgabe bestätigt Leif' : ''}). Leif entscheidet${automatischUm ? ` – ohne Antwort wird er nach ${minuten} Minuten automatisch angenommen` : ''}; danach startet das Dorf die Helfer selbst. Beende jetzt deinen Lauf mit der Zusammenfassung.`,
     };
   }
 
@@ -516,6 +545,19 @@ Nimm das ernst: Lege – wenn die Aufgabe noch offen ist – einen überarbeitet
     }
   }
 
+  /**
+   * Nach dem Serverstart (Review zu E185): Läufe, die beim Neustart liefen, gelten als fehlgeschlagen – ohne Laufende-Ereignis.
+   * Darum hier nachholen: laufende Pläne weiterführen bzw. abschließen, fertige Einzelhelfer melden.
+   */
+  async nachStart() {
+    const plaene = this.db.prepare("SELECT id, chat_id, schreibtisch_id FROM plaene WHERE status = 'laeuft'").all() as { id: string; chat_id: string; schreibtisch_id: string | null }[];
+    for (const p of plaene) await this.abschlussPruefen({ planId: p.id, elternChatId: p.chat_id, schreibtischId: p.schreibtisch_id ?? undefined }).catch((e) => console.error('Plan nach dem Start', e));
+    const eltern = this.db
+      .prepare('SELECT DISTINCT eltern_chat_id AS e, schreibtisch_id AS s FROM chats WHERE eltern_chat_id IS NOT NULL AND plan_id IS NULL AND id NOT IN (SELECT chat_id FROM helfer_gemeldet)')
+      .all() as { e: string; s: string | null }[];
+    for (const x of eltern) await this.abschlussPruefen({ elternChatId: x.e, schreibtischId: x.s ?? undefined }).catch((e) => console.error('Helfer nach dem Start', e));
+  }
+
   private letzterStatus(chatId: string) {
     return (this.db.prepare('SELECT status FROM laeufe WHERE chat_id = ? ORDER BY nummer DESC LIMIT 1').get(chatId) as { status: string } | undefined)?.status;
   }
@@ -528,7 +570,7 @@ Nimm das ernst: Lege – wenn die Aufgabe noch offen ist – einen überarbeitet
       const helfer = this.db.prepare('SELECT id FROM chats WHERE eltern_chat_id = ?').all(c.id) as { id: string }[];
       if (this.db.prepare("SELECT 1 FROM plaene WHERE chat_id = ? AND status = 'wartet'").get(c.id)) status = 'plan_wartet';
       else if (helfer.some((h) => !ENDSTATUS.has(this.letzterStatus(h.id) ?? ''))) status = 'helfer_laufen';
-      else if (helfer.length) return; // Helfer schon fertig – Abschluss kam bereits
+      else if (helfer.length) return; // Helfer schon fertig – ihr Abschluss kam bzw. kommt je Helfer genau einmal (helfer_gemeldet)
       else status = e.status === 'fertig' ? 'beantwortet' : 'fehler';
       await this.schreibtisch.statusSetzen(c.schreibtisch_id, status);
       return;
@@ -553,10 +595,11 @@ Nimm das ernst: Lege – wenn die Aufgabe noch offen ist – einen überarbeitet
       // noch nicht alles gestartet (Vorgänger laufen, oder ein Start ist gerade unterwegs) – der Start prüft am Ende erneut
       if (gestartet + ausgefallen.length < teile.length || [...this.planStartet].some((m) => m.startsWith(`${g.planId}:`))) return;
     }
-    const gruppe = (
+    let gruppe = (
       g.planId
         ? this.db.prepare('SELECT c.id, c.titel FROM plan_helfer ph JOIN chats c ON c.id = ph.chat_id WHERE ph.plan_id = ? ORDER BY ph.nr').all(g.planId)
-        : this.db.prepare('SELECT id, titel FROM chats WHERE eltern_chat_id = ? AND plan_id IS NULL').all(g.elternChatId)
+        : // Einzelhelfer: nur die, deren Abschluss der Bürgermeister noch nicht bekommen hat (Review zu E185)
+          this.db.prepare('SELECT id, titel FROM chats WHERE eltern_chat_id = ? AND plan_id IS NULL AND id NOT IN (SELECT chat_id FROM helfer_gemeldet)').all(g.elternChatId)
     ) as { id: string; titel: string }[];
     if (!gruppe.length && !ausgefallen.length) return;
     if (gruppe.some((h) => !ENDSTATUS.has(this.letzterStatus(h.id) ?? ''))) return;
@@ -565,9 +608,12 @@ Nimm das ernst: Lege – wenn die Aufgabe noch offen ist – einen überarbeitet
       if (r.changes !== 1) return; // Abschluss schon erfolgt
       await this.planSpiegeln(g.planId);
       this.hub.senden({ typ: 'plaene.geaendert' });
-    } else if (g.schreibtischId) {
-      const s = this.db.prepare('SELECT status FROM schreibtisch WHERE id = ?').get(g.schreibtischId) as { status: string } | undefined;
-      if (s?.status === 'erledigt') return;
+    } else {
+      // Jeder Einzelhelfer wird genau einmal gemeldet – atomar je Helfer, unabhängig vom Status der Schreibtisch-Aufgabe.
+      // Wer später fertig wird (auch während der Bürgermeister schon weiterarbeitet), bekommt seinen eigenen Abschluss.
+      const melden = this.db.prepare('INSERT OR IGNORE INTO helfer_gemeldet (chat_id, zeit) VALUES (?, ?)');
+      gruppe = gruppe.filter((h) => melden.run(h.id, this.uhr.jetzt()).changes === 1);
+      if (!gruppe.length) return;
     }
     const zeilen = gruppe.map((h) => {
       const st = this.letzterStatus(h.id);
@@ -577,7 +623,9 @@ Nimm das ernst: Lege – wenn die Aufgabe noch offen ist – einen überarbeitet
     for (const x of ausgefallen) zeilen.push(`- ⏭️ ${x.titel} (nicht gestartet: ${x.grund})`);
     const text = `🏁 Alle Helfer sind fertig:\n\n${zeilen.join('\n')}`;
     await this.agenten.hinweisSchreiben(g.elternChatId, text);
-    if (g.schreibtischId) await this.schreibtisch.statusSetzen(g.schreibtischId, 'erledigt');
+    // „erledigt“ erst, wenn für diese Aufgabe kein Helfer mehr unterwegs ist
+    const nochUnterwegs = (this.db.prepare('SELECT id FROM chats WHERE eltern_chat_id = ?').all(g.elternChatId) as { id: string }[]).some((h) => !ENDSTATUS.has(this.letzterStatus(h.id) ?? ''));
+    if (g.schreibtischId) await this.schreibtisch.statusSetzen(g.schreibtischId, nochUnterwegs ? 'helfer_laufen' : 'erledigt');
     const eltern = this.agenten.chatZeile(g.elternChatId);
     for (const fn of this.beiAbschluss) await Promise.resolve(fn({ chatId: eltern.id, titel: eltern.titel, text })).catch(() => undefined);
     // E61: Bürgermeister weiterarbeiten lassen – mit den Ergebnissen seiner Helfer (können Fremdes enthalten → Hülle)

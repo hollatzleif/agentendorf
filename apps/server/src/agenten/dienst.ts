@@ -182,6 +182,53 @@ export class AgentenDienst {
     this.db
       .prepare("UPDATE laeufe SET status = 'fehler', fehler = 'Server wurde während des Laufs neu gestartet.', ende = ? WHERE status = 'laeuft'")
       .run(uhr.jetzt());
+    // Review zu E185: Lehnt Leif „Aktion starten“ ab, ist der Lauf abgebrochen – sonst bliebe er für immer auf
+    // wartet_freigabe und alles, was im Chat nachgeschoben wurde, wartete ewig.
+    this.freigaben.beiEntscheidung.push((f) => {
+      if (f.art !== 'lauf_starten' || f.status !== 'abgelehnt') return;
+      const laufId = (f.inhalt as { laufId: string }).laufId;
+      const r = this.db.prepare("UPDATE laeufe SET status = 'abgebrochen', fehler = 'Leif hat den Start abgelehnt.', ende = ? WHERE id = ? AND status = 'wartet_freigabe'").run(this.uhr.jetzt(), laufId);
+      if (r.changes === 1) this.ohneLaufBeendet(laufId);
+    });
+  }
+
+  /**
+   * Nach dem Serverstart: Läufe, die beim Neustart liefen, sind jetzt „fehler“ – was in ihren Chats nachgeschoben wurde,
+   * hinge sonst nach jedem Deploy fest (Review zu E185). Übergibt die Warteschlange aller Chats ohne offenen Lauf.
+   */
+  nachStart() {
+    for (const z of this.db.prepare('SELECT DISTINCT chat_id FROM chat_warteschlange').all() as { chat_id: string }[]) {
+      try {
+        this.schlangeUebergeben(z.chat_id);
+      } catch (e) {
+        console.error('Warteschlange nach dem Start', e);
+      }
+    }
+    this.anstossen();
+  }
+
+  /** Ein Lauf endet, ohne je gelaufen zu sein (abgebrochen, während er wartete): Zuhörer, Warteschlange, nächste Läufe */
+  private ohneLaufBeendet(laufId: string) {
+    const l = this.laufZeile(laufId);
+    this.statusMelden(laufId);
+    this.hub.senden({ typ: 'chat.geaendert', chatId: l.chat_id, gebaeude: this.chatZeile(l.chat_id).gebaeude });
+    // Zuhörer wie nach jedem Lauf (Plan mit „nach“ wartet sonst ewig auf diesen Helfer) – danach die Warteschlange
+    const fertig = (async () => {
+      for (const fn of this.beiLaufEnde) {
+        try {
+          await fn({ laufId, chatId: l.chat_id, status: 'abgebrochen', fehler: 'Abgebrochen, bevor der Lauf begann.', geschrieben: [] });
+        } catch (e) {
+          console.error('Zuhörer für Laufende fehlgeschlagen', e);
+        }
+      }
+      try {
+        this.schlangeUebergeben(l.chat_id);
+      } catch (e) {
+        console.error('Warteschlange übergeben fehlgeschlagen', e);
+      }
+      this.anstossen();
+    })();
+    this.idle = Promise.all([this.idle.catch(() => undefined), fertig]).then(() => undefined);
   }
 
   /** Startet eine Aktion: neuer Chat + erster Lauf. */
@@ -329,8 +376,17 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
   nachrichtSenden(chatId: string, text: string, ausloeser: Ausloeser = 'klick'): { laufId?: string; wartend?: number } {
     const c = this.chatZeile(chatId);
     if (!text.trim()) throw new DorfFehler(400, 'Nachricht ist leer.');
-    if (this.offenerLauf(chatId)) {
+    const offen = this.offenerLauf(chatId);
+    // Auch einreihen, wenn noch Älteres wartet (der Lauf ist gerade zu Ende, die Schlange aber noch nicht übergeben) –
+    // sonst käme die neue Nachricht vor den älteren dran (Review zu E185).
+    if (offen || this.wartend(chatId).length) {
       this.db.prepare('INSERT INTO chat_warteschlange (chat_id, text, ausloeser, erstellt) VALUES (?, ?, ?, ?)').run(chatId, text, ausloeser, this.uhr.jetzt());
+      if (!offen) {
+        // kein Lauf mehr offen: gleich alles in der richtigen Reihenfolge übergeben
+        this.schlangeUebergeben(chatId);
+        this.anstossen();
+        return { laufId: (this.db.prepare('SELECT id FROM laeufe WHERE chat_id = ? ORDER BY nummer DESC LIMIT 1').get(chatId) as { id: string }).id };
+      }
       this.hub.senden({ typ: 'chat.geaendert', chatId, gebaeude: c.gebaeude });
       return { wartend: this.wartend(chatId).length };
     }
@@ -399,10 +455,8 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
   abbrechen(laufId: string) {
     const l = this.laufZeile(laufId);
     if (l.status === 'wartend' || l.status === 'wartet_freigabe') {
-      this.db.prepare("UPDATE laeufe SET status = 'abgebrochen', ende = ? WHERE id = ?").run(this.uhr.jetzt(), laufId);
-      this.statusMelden(laufId);
-      this.schlangeUebergeben(l.chat_id);
-      this.anstossen();
+      const r = this.db.prepare("UPDATE laeufe SET status = 'abgebrochen', ende = ? WHERE id = ? AND status IN ('wartend', 'wartet_freigabe')").run(this.uhr.jetzt(), laufId);
+      if (r.changes === 1) this.ohneLaufBeendet(laufId);
       return;
     }
     if (l.status !== 'laeuft') throw new DorfFehler(409, 'Dieser Lauf ist schon beendet.');
@@ -479,6 +533,8 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
     this.laufend.set(laufId, ac);
     this.statusMelden(laufId);
     let letzteAntwort = '';
+    // Nachschub, den der Motor schon genommen hat, auf den das Modell aber noch nicht geantwortet hat (Review zu E185)
+    let nachschubOffen: { text: string; ausloeser: Ausloeser }[] = [];
     const t = { ein: 0, aus: 0, cacheLesen: 0, cacheSchreiben: 0, kosten: 0 as number | undefined };
     let status: LaufStatus = 'fertig';
     let fehler: string | null = null;
@@ -541,7 +597,11 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
       }
       const verlauf = this.verlaufFuer(c, l.motor);
 
-      for await (const e of motor.starten({ laufId, chatId: c.id, modell: c.modell, aufwand: s.aufwand, system, nachricht, anhaenge, verlauf, werkzeuge: kiste, web: profil.web, signal: ac.signal, nachschub: () => this.schlangeNehmen(c.id).map((x) => x.text), liveText: (text) => this.hub.senden({ typ: 'lauf.text', laufId, chatId: c.id, text }) })) {
+      for await (const e of motor.starten({ laufId, chatId: c.id, modell: c.modell, aufwand: s.aufwand, system, nachricht, anhaenge, verlauf, werkzeuge: kiste, web: profil.web, signal: ac.signal, nachschub: () => {
+        const z = this.schlangeNehmen(c.id);
+        nachschubOffen.push(...z);
+        return z.map((x) => x.text);
+      }, liveText: (text) => this.hub.senden({ typ: 'lauf.text', laufId, chatId: c.id, text }) })) {
         switch (e.typ) {
           case 'text':
             this.hub.senden({ typ: 'lauf.text', laufId, chatId: c.id, text: e.text });
@@ -550,7 +610,10 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
             this.db
               .prepare('INSERT INTO nachrichten (chat_id, lauf_id, rolle, text, roh_json, motor, erstellt) VALUES (?, ?, ?, ?, ?, ?, ?)')
               .run(c.id, laufId, e.rolle, e.text, e.roh === undefined ? null : JSON.stringify(e.roh), l.motor, this.uhr.jetzt());
-            if (e.rolle === 'agent') letzteAntwort = e.text;
+            if (e.rolle === 'agent') {
+              letzteAntwort = e.text;
+              nachschubOffen = []; // das Modell hat nach dem Nachschub geantwortet
+            }
             this.hub.senden({ typ: 'chat.geaendert', chatId: c.id, gebaeude: c.gebaeude });
             break;
           case 'verbrauch':
@@ -579,6 +642,17 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
         .prepare("INSERT INTO nachrichten (chat_id, lauf_id, rolle, text, motor, erstellt) VALUES (?, ?, 'hinweis', ?, ?, ?)")
         .run(c.id, laufId, status === 'abgebrochen' ? 'Lauf abgebrochen.' : `Fehler: ${fehler}`, l.motor, this.uhr.jetzt());
     } finally {
+      // Scheitert oder endet der Lauf, bevor das Modell auf den Nachschub geantwortet hat, kommt er zurück an den ANFANG der
+      // Schlange – so gibt es einen Folgelauf, und Leifs Nachtrag bleibt nicht ohne Antwort.
+      if (nachschubOffen.length) {
+        this.db.transaction(() => {
+          const rest = this.db.prepare('SELECT text, ausloeser, erstellt FROM chat_warteschlange WHERE chat_id = ? ORDER BY id').all(c.id) as { text: string; ausloeser: string; erstellt: number }[];
+          this.db.prepare('DELETE FROM chat_warteschlange WHERE chat_id = ?').run(c.id);
+          const neu = this.db.prepare('INSERT INTO chat_warteschlange (chat_id, text, ausloeser, erstellt) VALUES (?, ?, ?, ?)');
+          for (const x of nachschubOffen) neu.run(c.id, x.text, x.ausloeser, this.uhr.jetzt());
+          for (const x of rest) neu.run(c.id, x.text, x.ausloeser, x.erstellt);
+        })();
+      }
       this.db.prepare('UPDATE laeufe SET status = ?, fehler = ?, ende = ? WHERE id = ?').run(status, fehler, this.uhr.jetzt(), laufId);
       this.db.prepare('UPDATE chats SET geaendert = ? WHERE id = ?').run(this.uhr.jetzt(), c.id);
       // Browser-Seite dieses Laufs schließen (die Moodle-Anmeldung bleibt im Browser erhalten)

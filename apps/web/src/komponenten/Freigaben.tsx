@@ -85,9 +85,12 @@ function GetanZeile({ g }: { g: RueckgaengigInfo }) {
         )
       </span>{' '}
       {g.status === 'offen' ? (
-        <button disabled={laeuft} onClick={zurueck}>
-          ↩️ Rückgängig
-        </button>
+        <>
+          <button disabled={laeuft} onClick={zurueck}>
+            ↩️ Rückgängig
+          </button>
+          {g.ergebnis && <span className="leise"> ⚠️ letzter Versuch ging nicht – {g.ergebnis}</span>}
+        </>
       ) : (
         <span className="leise">
           {g.status === 'zurueckgenommen' ? '↩️ zurückgenommen' : '⚠️ ging nicht'}

@@ -471,6 +471,9 @@ export async function dorfStarten(
     });
     kirchturm.beiFokusEnde.push(() => void t.nachtNachholen().catch(() => undefined));
   }
+  // Review zu E185: nach einem Neustart hängende Pläne/Helfer-Abschlüsse und Chat-Warteschlangen aufgreifen
+  await buergermeister.nachStart().catch((e) => console.error('Bürgermeister nach dem Start', e));
+  agenten.nachStart();
   agenten.anstossen();
   if (!opt.moodle && !opt.kalender && !opt.google && opt.beobachten !== false) uni.starten();
   // Kontoauszüge, die während einer Pause dazukamen; Budget einmal am Tag prüfen (Monatswechsel, neue Einstellungen)

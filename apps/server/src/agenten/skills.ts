@@ -62,19 +62,43 @@ export function skillMarkdown(e: SkillEntwurfT): string {
   return matter.stringify(`${e.anweisung.trim()}\n`, kopf);
 }
 
-/** Prüft den Entwurf wie eine echte Aktion; gibt Pfad, Markdown und ID zurück (speichert NICHT) */
+/** Felder, die der Entwurf selbst setzt – alles andere aus einer bestehenden Aktion bleibt beim Ersetzen erhalten */
+const ENTWURF_FELDER = ['name', 'gebaeude', 'beschreibung', 'motor', 'stufe', 'werkzeuge', 'fremdinhalte', 'zeitplan', 'ablage', 'eingaben'];
+const janein = (w: unknown) => w === true || w === 'ja' || w === 'true';
+
+/**
+ * Prüft den Entwurf wie eine echte Aktion; gibt Pfad, Markdown und ID zurück (speichert NICHT).
+ * Beim Ersetzen (Review zu E185) bleiben Felder der alten Fassung, die der Entwurf nicht kennt (freigabe_vor_start,
+ * zeitplan_je, anhaenge, rolle …), erhalten; `geschuetzt` nennt, was die alte Fassung an Schutz/Zeitplan hat.
+ */
 export async function skillPruefen(vault: VaultDienst, roh: unknown, opt: { ersetzen?: boolean } = {}) {
   const e = SkillEntwurf.parse(roh);
   const gebaeude = await gebaeudeListe(vault);
   if (!gebaeude.some((g) => g.id === e.gebaeude)) throw new DorfFehler(400, `Gebäude „${e.gebaeude}“ gibt es nicht.`);
   const datei = `${kurztitel(e.name) || 'aktion'}.md`;
   const pfad = `${e.gebaeude}/aktionen/${datei}`;
-  const markdown = skillMarkdown(e);
-  const a = zuInfo(e.gebaeude, datei, markdown);
-  if (a.fehler) throw new DorfFehler(400, a.fehler.replace(/^Aktion ist fehlerhaft: /, ''));
   const existiert = await vault.existiert(pfad);
   if (existiert && !opt.ersetzen) throw new DorfFehler(409, `Es gibt schon eine Aktion ${pfad} – anderen Namen wählen oder die Datei bearbeiten.`);
-  return { pfad, markdown, id: a.id, name: e.name, gebaeude: e.gebaeude, beschreibung: e.beschreibung, existiert };
+  let markdown = skillMarkdown(e);
+  const geschuetzt: string[] = [];
+  if (existiert) {
+    let alt: Record<string, unknown> = {};
+    try {
+      alt = matter((await vault.lesen(pfad)).inhalt).data as Record<string, unknown>;
+    } catch {
+      // kaputtes Frontmatter der alten Fassung: nichts zu übernehmen
+    }
+    if (janein(alt.freigabe_vor_start)) geschuetzt.push('freigabe_vor_start');
+    for (const f of ['zeitplan', 'zeitplan_je', 'rolle']) if (alt[f]) geschuetzt.push(f);
+    const bleibt = Object.fromEntries(Object.entries(alt).filter(([k]) => !ENTWURF_FELDER.includes(k)));
+    if (Object.keys(bleibt).length) {
+      const neu = matter(markdown);
+      markdown = matter.stringify(neu.content, { ...neu.data, ...bleibt });
+    }
+  }
+  const a = zuInfo(e.gebaeude, datei, markdown);
+  if (a.fehler) throw new DorfFehler(400, a.fehler.replace(/^Aktion ist fehlerhaft: /, ''));
+  return { pfad, markdown, id: a.id, name: e.name, gebaeude: e.gebaeude, beschreibung: e.beschreibung, existiert, geschuetzt };
 }
 
 /**
@@ -84,10 +108,11 @@ export async function skillPruefen(vault: VaultDienst, roh: unknown, opt: { erse
 export async function skillAnlegen(vault: VaultDienst, roh: unknown, opt: { ersetzen?: boolean; jetzt?: number } = {}) {
   const s = await skillPruefen(vault, roh, opt);
   let archiv: string | undefined;
+  let version: string;
   if (s.existiert) {
     archiv = `${s.gebaeude}/archiv/aktionen/${dateiStempel(opt.jetzt ?? Date.now())}_${s.pfad.split('/').pop()}`;
     await vault.schreiben(archiv, (await vault.lesen(s.pfad)).inhalt);
-    await vault.schreiben(s.pfad, s.markdown);
-  } else await vault.schreiben(s.pfad, s.markdown, { nurNeu: true });
-  return { id: s.id, pfad: s.pfad, archiv };
+    version = (await vault.schreiben(s.pfad, s.markdown)).version;
+  } else version = (await vault.schreiben(s.pfad, s.markdown, { nurNeu: true })).version;
+  return { id: s.id, pfad: s.pfad, archiv, version };
 }

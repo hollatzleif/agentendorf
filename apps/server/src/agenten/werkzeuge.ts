@@ -720,15 +720,17 @@ export class WerkzeugKiste {
     this.fremd = !!k.fremdinhalte;
   }
 
-  /** Notizen (.md) aus Läufen, die Fremdes gelesen haben, bekommen `fremdinhalt: true` – spätere Läufe lesen sie in der Hülle. */
+  /**
+   * NEUE Notizen (.md) aus Läufen, die Fremdes gelesen haben, bekommen `fremdinhalt: true` – spätere Läufe lesen sie in der
+   * Hülle. Nur eine Zeile wird eingefügt; das übrige Frontmatter bleibt Zeichen für Zeichen, wie der Agent es geschrieben hat
+   * (kein Neuaufbau über gray-matter – der formatierte Datum und Listen um). Bestehende Dateien stempelt niemand um.
+   */
   private stempeln(pfad: string, inhalt: string) {
     if (!this.fremd || path.posix.extname(pfad).toLowerCase() !== '.md' || istFremdinhalt(inhalt)) return inhalt;
-    try {
-      const m = matter(inhalt);
-      return matter.stringify(m.content, { ...m.data, fremdinhalt: true });
-    } catch {
-      return `---\nfremdinhalt: true\n---\n\n${inhalt}`;
-    }
+    const kopf = /^---\r?\n[\s\S]*?\r?\n(?=---[ \t]*(\r?\n|$))/.exec(inhalt);
+    if (kopf && !/^fremdinhalt\s*:/m.test(kopf[0])) return `${kopf[0]}fremdinhalt: true\n${inhalt.slice(kopf[0].length)}`;
+    if (kopf) return inhalt.replace(/^fremdinhalt\s*:.*$/m, 'fremdinhalt: true');
+    return `---\nfremdinhalt: true\n---\n\n${inhalt}`;
   }
 
   /** Etwas ohne Rückfrage getan, das Leif zurücknehmen kann (E185) */
@@ -1130,10 +1132,15 @@ export class WerkzeugKiste {
       neu = neu.replace(e.suchen, () => e.ersetzen ?? '');
     }
     if (e.anhaengen !== undefined) neu = `${neu.replace(/\n*$/, '\n')}${e.anhaengen.replace(/\n*$/, '\n')}`;
-    neu = this.stempeln(pfad, neu);
+    // kein Stempel: vault_aendern arbeitet an bestehenden Dateien (oft Leifs eigenen) – die werden nicht als Fremdinhalt markiert
     const archiv = `${this.k.gebaeude}/archiv/aenderungen/${dateiStempel(this.uhr.jetzt())}_${crypto.randomUUID().slice(0, 6)}_${path.posix.basename(pfad)}`;
     await this.vault.schreiben(archiv, d.inhalt, { nurNeu: true });
-    const r = await this.vault.schreiben(pfad, neu);
+    // basisVersion: Hat Leif (oder Syncthing) die Datei seit dem Lesen geändert, entsteht eine Konfliktkopie statt eines Überschreibens
+    const r = await this.vault.schreiben(pfad, neu, { basisVersion: d.version });
+    if (r.konflikt) {
+      this.log('vault_aendern', { pfad }, `Konflikt: ${r.konfliktPfad}`, false, pfad);
+      return { ok: false, text: `${pfad} wurde gerade von jemand anderem geändert – nichts überschrieben. Deine Fassung liegt als ${r.konfliktPfad} daneben; lies die Datei neu und versuch es noch einmal.` };
+    }
     await this.merken('datei_geaendert', `Datei geändert: ${pfad}`, { pfad, archiv, version: r.version }, true);
     this.log('vault_aendern', { pfad }, `${d.inhalt.length} → ${neu.length} Zeichen`, true, pfad, 'geschrieben');
     return { ok: true, text: `Geändert: ${pfad} (alte Fassung: ${archiv}).` };
@@ -1419,7 +1426,7 @@ export class WerkzeugKiste {
       this.log('vault_schreiben', { pfad }, `verweigert: ${grund}`, false, pfad);
       return { ok: false, text: `Verweigert: ${grund}` };
     }
-    const r = await this.vault.schreiben(pfad, this.stempeln(pfad, inhalt));
+    const r = await this.vault.schreiben(pfad, existiert ? inhalt : this.stempeln(pfad, inhalt));
     this.log('vault_schreiben', { pfad }, `${inhalt.length} Zeichen`, true, r.pfad, 'geschrieben');
     return { ok: true, text: `Gespeichert: ${r.pfad}` };
   }

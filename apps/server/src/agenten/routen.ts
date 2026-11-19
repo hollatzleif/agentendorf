@@ -36,7 +36,10 @@ export function agentenRouten(
   });
 
   // Skill anlegen (App-Formular): wird wie jede Aktion geprüft, dann als Markdown-Datei gespeichert
-  app.post('/api/aktionen/neu', async (req) => skillAnlegen(vault, req.body));
+  app.post('/api/aktionen/neu', async (req) => {
+    const r = await skillAnlegen(vault, req.body);
+    return { id: r.id, pfad: r.pfad };
+  });
   // Vorschau: Prüfen ohne Speichern (zeigt das Markdown)
   app.post('/api/aktionen/pruefen', async (req) => {
     const s = await skillPruefen(vault, req.body);

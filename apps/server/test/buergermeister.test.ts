@@ -77,7 +77,7 @@ describe('Schreibtisch und Bürgermeister', () => {
     expect(d.schreibtisch.holen(a.id).status).toBe('plan_wartet');
     expect(d.helferVon(a.chatId!)).toHaveLength(0);
     expect(d.agenten.freigaben.liste('offen')).toMatchObject([{ art: 'plan_ausfuehren' }]);
-    expect(chat().nachrichten.find((n) => n.text.startsWith('plan_vorlegen:'))!.text).toMatch(/so große Pläne bestätigt Leif/);
+    expect(chat().nachrichten.find((n) => n.text.startsWith('plan_vorlegen:'))!.text).toMatch(/so viele Helfer für eine Aufgabe bestätigt Leif/);
   });
 
   it('E185 Reihenfolge: „nach“ startet erst, wenn der Vorgänger fertig ist, und bekommt dessen Ergebnis und Dateien mit', async () => {

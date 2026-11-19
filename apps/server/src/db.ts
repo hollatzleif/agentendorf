@@ -392,6 +392,14 @@ const MIGRATIONEN: string[] = [
   CREATE TABLE rueckfragen (id TEXT PRIMARY KEY, chat_id TEXT NOT NULL, frage TEXT NOT NULL, optionen_json TEXT NOT NULL, antwort TEXT, erstellt INTEGER NOT NULL);
   CREATE TABLE plan_uebersprungen (plan_id TEXT NOT NULL, nr INTEGER NOT NULL, grund TEXT NOT NULL, PRIMARY KEY (plan_id, nr));
   `,
+  // 25: Review zu E185 – welche Einzelhelfer (ohne Plan) dem Bürgermeister schon gemeldet sind: jeder Abschluss genau einmal,
+  //     unabhängig vom Status der Schreibtisch-Aufgabe. Alles, was vor dieser Migration fertig war, gilt als gemeldet.
+  `
+  CREATE TABLE helfer_gemeldet (chat_id TEXT PRIMARY KEY, zeit INTEGER NOT NULL);
+  INSERT INTO helfer_gemeldet (chat_id, zeit)
+    SELECT c.id, 0 FROM chats c WHERE c.eltern_chat_id IS NOT NULL AND c.plan_id IS NULL
+      AND NOT EXISTS (SELECT 1 FROM laeufe l WHERE l.chat_id = c.id AND l.status IN ('wartet_freigabe', 'wartend', 'laeuft'));
+  `,
 ];
 
 export function dbOeffnen(datei: string): DB {
