@@ -1292,3 +1292,11 @@ input.kurz { width: 5em; }
 .heute-fokus-ziel-balken { height: 8px; border-radius: 8px; background: rgba(0, 0, 0, 0.08); overflow: hidden; }
 .heute-fokus-ziel-balken span { display: block; height: 100%; background: #e2553f; border-radius: 8px; transition: width 0.4s; }
 .heute-fokus-ziel.erreicht .heute-fokus-ziel-balken span { background: var(--gruen); }
+
+/* E136: Schritte im Fokus-Vollbild */
+.fokus-schritte { width: min(28rem, 92vw); margin: 0.8rem auto 0; display: grid; gap: 0.4rem; text-align: left; }
+.fokus-schritte ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25rem; }
+.fokus-schritte li label { display: flex; flex-direction: row; align-items: center; gap: 0.55rem; min-height: 36px; font-weight: 600; cursor: pointer; }
+.fokus-schritte li label input { width: 1.2rem; height: 1.2rem; }
+.fokus-schritte li.fertig span { text-decoration: line-through; opacity: 0.55; }
+.fokus-schritt-neu input { width: 100%; }

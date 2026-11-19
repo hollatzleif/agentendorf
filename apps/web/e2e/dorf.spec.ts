@@ -1442,6 +1442,29 @@ test('Wochenplanung (/planen): vier Schritte, Häkchen bleiben; Hinweis auf „H
   await expect(page.getByRole('link', { name: /Zeit für die Wochenplanung/ })).toHaveCount(0);
 });
 
+test('Fokus-Vollbild: Schritte des To-dos abhaken und ergänzen, ohne den Fokus zu verlassen (E136)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  const o = { origin: ORIGIN };
+  const titel = `Fokus-Schritte ${Date.now() % 100000}`;
+  const t = await (await page.request.post('/api/todos', { headers: o, data: { titel, notiz: '- [ ] Lesen\n- [ ] Rechnen' } })).json();
+  await page.request.post('/api/kirchturm', { headers: o, data: { befehl: 'pomodoro_fuer', titel, pfad: t.pfad } });
+  await page.goto('/fokus');
+  const g = page.getByRole('group', { name: 'Schritte im Fokus' });
+  await g.getByRole('checkbox', { name: 'Schritt erledigt: Lesen' }).check();
+  await g.getByRole('textbox', { name: 'Schritt hinzufügen' }).fill('Aufschreiben');
+  await g.getByRole('textbox', { name: 'Schritt hinzufügen' }).press('Enter');
+  await expect(g.getByText('Aufschreiben', { exact: true })).toBeVisible();
+  await expect
+    .poll(async () => ((await (await page.request.get('/api/todos')).json()) as { pfad: string; schritte?: { text: string; erledigt: boolean }[] }[]).find((x) => x.pfad === t.pfad)?.schritte)
+    .toEqual([
+      { text: 'Lesen', erledigt: true },
+      { text: 'Rechnen', erledigt: false },
+      { text: 'Aufschreiben', erledigt: false },
+    ]);
+  await page.request.post('/api/kirchturm', { headers: o, data: { befehl: 'pomodoro', aktion: 'stopp' } });
+});
+
 test('Seite lässt sich nicht laden (nach Deploy): einmal neu laden, dann „Neu laden“ statt weißer Seite (Review)', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'einmal reicht');
   await anmelden(page);

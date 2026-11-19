@@ -1066,3 +1066,8 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
 - **/verteilen** zeigt und übernimmt höchstens 12 Vorschläge. Der Rest zählt zu „passen nicht mehr hinein“, nichts fällt still weg.
 - **Wochenplan:** „✨ Woche verteilen“ ist gesperrt, bis der Kalender geladen ist. Sonst sähen alle Tage frei aus.
 - **To-do-Brett-Filter:** Der Filter wirkt nur, solange die Leiste sichtbar ist (ab 6 offenen). Ist der gewählte Chip verschwunden (z. B. das letzte ⭐ erledigt), gilt „Alle“. Vorher blieb die Liste ohne Weg zurück gefiltert.
+
+## E136 – Teilschritte im Fokus-Vollbild (Nacht 18./19.11.)
+
+- Läuft ein Pomodoro für ein To-do, zeigt das Fokus-Vollbild (`/fokus`) dessen Teilschritte. Man kann sie dort abhaken und mit Enter ergänzen, ohne den Fokus zu verlassen. Hat das To-do noch keine Schritte, fragt ein Feld: „Was ist der nächste Schritt?“
+- Dahinter stecken dieselben Wege wie im To-do-Brett (E119): Text-Prüfung gegen die Nummer, `basisVersion`, ein abgelehntes Häkchen springt zurück.
