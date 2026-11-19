@@ -165,6 +165,7 @@ function OffenVerteilen({ offen, heute, laedt }: { offen: TodoInfo[]; heute: str
             <span>
               {t.titel}
               {t.faellig && t.faellig < heute && <span className="rot"> · seit {t.faellig}</span>}
+              {t.verschoben && t.verschoben >= 3 ? <span className="rot" title="Zu groß? Im To-do-Brett in Schritte zerlegen – oder ehrlich streichen."> · ↻ {t.verschoben}× verschoben</span> : null}
             </span>
             <span className="zeile">
               <button type="button" className="klein" disabled={laeuft} onClick={() => void aendern([t], () => ({ erledigt: true }))} aria-label={`${t.titel} erledigt`}>

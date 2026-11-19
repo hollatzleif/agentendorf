@@ -1715,3 +1715,16 @@ test('Energie am To-do: im Brett 🧠 wählen, Abzeichen im Brett und auf Heute 
   await page.goto('/heute');
   await expect(page.locator('.heute-todo', { hasText: `Beweis ${n}` }).locator('[title="braucht Konzentration"]')).toBeVisible();
 });
+
+test('Aufschiebe-Zähler: nach dreimal Verschieben ↻ 3× auf Heute (E153)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+  const tag = (n: number) => new Date(Date.parse(`${heute}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+  const titel = `Steuer ${Date.now() % 100000}`;
+  let t = (await (await page.request.post('/api/todos', { headers: { origin: ORIGIN }, data: { titel, faellig: tag(-1) } })).json()) as { pfad: string; version: string };
+  for (const f of [tag(1), tag(-1), tag(1), tag(-1), tag(1)])
+    t = (await (await page.request.patch('/api/todos', { headers: { origin: ORIGIN }, data: { pfad: t.pfad, basisVersion: t.version, faellig: f } })).json()) as typeof t;
+  await page.goto('/heute');
+  await expect(page.locator('.heute-todo', { hasText: titel }).getByText('↻ 3×')).toBeVisible();
+});

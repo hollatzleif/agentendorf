@@ -96,6 +96,9 @@ export class Wochenrueckblick {
           .join('; ')}`,
       );
     }
+    // E153: was immer wieder geschoben wird, ist meist zu groß oder unklar
+    const geschoben = offen.filter((t) => (t.verschoben ?? 0) >= 3).sort((a, b) => b.verschoben! - a.verschoben!);
+    if (geschoben.length) z1.push(`↻ Oft verschoben: ${geschoben.slice(0, 5).map((t) => `${einzeilig(t.titel, 50)} (${t.verschoben}×)`).join('; ')} – zerlegen, delegieren oder streichen?`);
     abschnitte.push({ titel: 'Erledigt und offen', zeilen: z1 });
 
     const f = this.o.fokus?.fokusStatistik();

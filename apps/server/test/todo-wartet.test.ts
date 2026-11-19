@@ -51,3 +51,30 @@ describe('Energie am To-do (E151)', () => {
     expect(t.energie).toBeUndefined();
   });
 });
+
+describe('Aufschiebe-Zähler (E153)', () => {
+  it('zählt nur, wenn ein fälliges To-do später gelegt wird; Vorausplanen und Erledigen zählen nicht; Rückblick nennt es', async () => {
+    const d = await testDorf();
+    // TestUhr: Mo 16.11.2026
+    let t = await d.todos.anlegen({ titel: 'Steuer', faellig: '2026-11-20' }, 'Leif');
+    t = await d.todos.aendern(t.pfad, { faellig: '2026-11-25' }); // noch nicht fällig → Planung
+    expect(t.verschoben).toBeUndefined();
+    t = await d.todos.aendern(t.pfad, { faellig: '2026-11-14' }); // nach vorn
+    expect(t.verschoben).toBeUndefined();
+    t = await d.todos.aendern(t.pfad, { faellig: '2026-11-17' }); // überfällig → morgen
+    expect(t.verschoben).toBe(1);
+    d.uhr.vor(86_400_000);
+    t = await d.todos.aendern(t.pfad, { faellig: '' }); // heute fällig → ohne Datum
+    expect(t.verschoben).toBe(2);
+    t = await d.todos.aendern(t.pfad, { faellig: '2026-11-17' });
+    t = await d.todos.aendern(t.pfad, { faellig: '2026-11-18' });
+    expect(t.verschoben).toBe(3);
+    const { todoZeile } = await import('../src/todos.js');
+    expect(todoZeile(t)).toContain('↻ 3× verschoben');
+    const r = await d.wochenrueckblick.fakten();
+    expect(r.abschnitte.find((x) => x.titel === 'Erledigt und offen')!.zeilen.join('\n')).toContain('↻ Oft verschoben: Steuer (3×)');
+    // Erledigen mit Datum zählt nicht
+    const u = await d.todos.anlegen({ titel: 'Brief', faellig: '2026-11-17' }, 'Leif');
+    expect((await d.todos.aendern(u.pfad, { erledigt: true, faellig: '2026-11-20' })).verschoben).toBeUndefined();
+  });
+});

@@ -1228,3 +1228,13 @@ Ein unabhängiger Prüfdurchgang über die neuen Server-Teile ergab nichts an Si
   - Das gilt nur innerhalb derselben Dringlichkeit, Überfälliges und ⭐ bleiben vorn.
   - Der Grund steht dabei: „🧠 deine beste Zeit“ bzw. „🪶 etwas Leichtes“.
 - **Warum:** Nicht jede Stunde ist gleich viel wert. Wer das Schwere in seine konzentrierteste Zeit legt und das Leichte in die Randzeiten, schafft mehr mit weniger Kraft. Die Daten (beste Zeit) gab es schon, jetzt werden sie genutzt.
+
+## E153 – Aufschiebe-Zähler (19.11.)
+
+- **`verschoben`** (Frontmatter, vom Code gepflegt) zählt, wie oft ein **fälliges oder überfälliges** To-do auf später gelegt wurde: auf einen späteren Tag oder ohne Datum. Das gilt von überall (App, Wochenplan, /aufraeumen, Abschluss, Agenten). Nicht gezählt werden Vorausplanen (noch nicht fällig), nach vorn Holen und Erledigen. Nachfolger wiederkehrender To-dos beginnen bei 0.
+- **Anzeige ab 3×:**
+  - Heute: rotes „↻ 3×“; „Jetzt dran“ ohne Schritte rät „fang mit 10 Minuten an oder zerleg es“.
+  - Tag abschließen
+  - /aufraeumen: „zerlegen oder löschen ist auch eine Entscheidung“
+  - Wochenrückblick: „↻ Oft verschoben: … – zerlegen, delegieren oder streichen?“
+- **Warum:** Was immer wieder geschoben wird, ist fast nie Faulheit, sondern zu groß, zu unklar oder eigentlich unwichtig. Der Zähler macht das sichtbar, und die Lösung (Teilschritte, E119) gibt es schon.

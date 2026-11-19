@@ -178,6 +178,7 @@ export class TodoDienst {
       ...(typeof k.dauer === 'number' && Number.isInteger(k.dauer) && k.dauer >= 5 && k.dauer <= 600 ? { dauer: k.dauer } : {}),
       ...(typeof k.wartet === 'string' && k.wartet.trim() ? { wartet: k.wartet.trim().slice(0, 80) } : {}),
       ...(k.energie === 'hoch' || k.energie === 'niedrig' ? { energie: k.energie } : {}),
+      ...(typeof k.verschoben === 'number' && Number.isInteger(k.verschoben) && k.verschoben > 0 ? { verschoben: Math.min(k.verschoben, 99) } : {}),
       quelle: typeof k.quelle === 'string' ? k.quelle : undefined,
       erstellt: typeof k.erstellt === 'string' ? k.erstellt : k.erstellt instanceof Date ? k.erstellt.toISOString() : undefined,
       erledigtAm: typeof k.erledigt_am === 'string' ? k.erledigt_am : k.erledigt_am instanceof Date ? k.erledigt_am.toISOString() : undefined,
@@ -307,6 +308,11 @@ export class TodoDienst {
       delete k.erledigt;
     }
     if (a.faellig !== undefined) {
+      // E153: ein fälliges (oder überfälliges) To-do auf später schieben = einmal aufgeschoben; vorausplanen zählt nicht
+      const heuteW = new Date(this.o.uhr.jetzt()).toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+      const alt = datumText(k.faellig);
+      const offen = !(k.status === 'erledigt' || k.status === 'fertig' || k.erledigt === true) && a.erledigt !== true;
+      if (offen && alt && alt <= heuteW && (!a.faellig || a.faellig > alt)) k.verschoben = Math.min(99, (typeof k.verschoben === 'number' ? k.verschoben : 0) + 1);
       if (a.faellig) k.faellig = a.faellig;
       else delete k.faellig;
     }
@@ -410,7 +416,7 @@ export class TodoDienst {
 
 /** Kurzer Text für Agenten und Telegram */
 export function todoZeile(t: TodoInfo) {
-  return `${t.erledigt ? '[x]' : '[ ]'} ${t.wichtig ? '⭐ ' : ''}${t.titel}${t.schritte?.length ? ` (${t.schritte.filter((s) => s.erledigt).length}/${t.schritte.length} Schritte)` : ''}${t.faellig ? ` (fällig ${t.faellig})` : ''}${t.wiederholen ? ` 🔁 ${t.wiederholen}` : ''}${t.dauer ? ` ⏱ ${t.dauer} min` : ''}${t.wartet ? ` ⏳ wartet auf ${t.wartet}` : ''}${t.energie === 'hoch' ? ' 🧠' : t.energie === 'niedrig' ? ' 🪶' : ''}${t.gruppe ? ` [${t.gruppe}]` : ''}${t.gebaeude ? ` #${t.gebaeude}` : ''} – ${t.pfad}`;
+  return `${t.erledigt ? '[x]' : '[ ]'} ${t.wichtig ? '⭐ ' : ''}${t.titel}${t.schritte?.length ? ` (${t.schritte.filter((s) => s.erledigt).length}/${t.schritte.length} Schritte)` : ''}${t.faellig ? ` (fällig ${t.faellig})` : ''}${t.wiederholen ? ` 🔁 ${t.wiederholen}` : ''}${t.dauer ? ` ⏱ ${t.dauer} min` : ''}${t.wartet ? ` ⏳ wartet auf ${t.wartet}` : ''}${t.energie === 'hoch' ? ' 🧠' : t.energie === 'niedrig' ? ' 🪶' : ''}${t.verschoben && t.verschoben >= 3 ? ` ↻ ${t.verschoben}× verschoben` : ''}${t.gruppe ? ` [${t.gruppe}]` : ''}${t.gebaeude ? ` #${t.gebaeude}` : ''} – ${t.pfad}`;
 }
 
 /** Alle Listen (E65 + Etappe 7) – eine Instanz je Ordner */

@@ -1483,7 +1483,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     const k = this.todoKennung(t.pfad);
     const tage = Math.round((Date.parse(`${heute}T12:00:00Z`) - Date.parse(`${t.faellig}T12:00:00Z`)) / 86_400_000);
     return {
-      text: `🧹 <b>Aufräumen</b> · noch ${offen.length}\n\n<b>${h(t.titel)}</b>\n<i>seit ${tage} ${tage === 1 ? 'Tag' : 'Tagen'} überfällig (${h(t.faellig!)})</i>`,
+      text: `🧹 <b>Aufräumen</b> · noch ${offen.length}\n\n<b>${h(t.titel)}</b>\n<i>seit ${tage} ${tage === 1 ? 'Tag' : 'Tagen'} überfällig (${h(t.faellig!)})${t.verschoben && t.verschoben >= 3 ? ` · schon ${t.verschoben}× verschoben – zu groß? Zerlegen oder löschen ist auch eine Entscheidung.` : ''}</i>`,
       extra: {
         reply_markup: {
           inline_keyboard: [

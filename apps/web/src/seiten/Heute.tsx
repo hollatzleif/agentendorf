@@ -503,6 +503,12 @@ function TodoZeile({ t, heute }: { t: TodoInfo; heute: string }) {
         <input type="checkbox" checked={haken} onChange={(e) => void abhaken(e.target.checked)} aria-label={`${t.titel} erledigt`} />
         <span className="heute-todo-titel">{t.titel}</span>
       </label>
+      {t.verschoben && t.verschoben >= 3 && !haken ? (
+        // E153: oft aufgeschoben – meist ist es zu groß oder unklar
+        <span className="heute-todo-datum rot" title="Schon oft verschoben – zu groß? Im To-do-Brett mit ☑ in Schritte zerlegen.">
+          ↻ {t.verschoben}×
+        </span>
+      ) : null}
       {t.energie && (
         <span className="heute-todo-datum" title={t.energie === 'hoch' ? 'braucht Konzentration' : 'geht nebenbei'}>
           {t.energie === 'hoch' ? '🧠' : '🪶'}
@@ -748,6 +754,9 @@ function JetztDran({ d }: { d: NonNullable<ReturnType<typeof jetztDran>> }) {
       <div className="heute-jetztdran-text">
         <strong>{d.todo.titel}</strong>
         {d.schritt && <span className="heute-jetztdran-schritt">nächster Schritt: {d.schritt}</span>}
+        {!d.schritt && d.todo.verschoben && d.todo.verschoben >= 3 ? (
+          <span className="heute-jetztdran-schritt">schon {d.todo.verschoben}× verschoben – fang mit 10 Minuten an, oder zerleg es im Brett in Schritte</span>
+        ) : null}
         <span className="leise">
           {d.passt ? `passt in die ${lueckeText}` : `für einen 🍅 reicht's (${lueckeText})`}
           {d.todo.dauer ? ` · ⏱ ${minutenText(d.todo.dauer)}` : ''}

@@ -221,6 +221,8 @@ export interface TodoInfo {
   wartet?: string;
   /** E151: hoch = braucht Konzentration (🧠), niedrig = geht nebenbei (🪶) */
   energie?: 'hoch' | 'niedrig';
+  /** E153: wie oft ein fälliges/überfälliges To-do auf später geschoben wurde */
+  verschoben?: number;
   notiz?: string;
 }
 
