@@ -1804,3 +1804,13 @@ Leifs Befund mit 1.2: Der Pegel-Balken schlägt kaum aus, egal von welcher Seite
 - **Update ohne Neu-Einrichten:** Startlader und Partitionen (0x0–0x10000) sind Byte für Byte die von 1.2 (verglichen); gespeicherte Werte unverändert. Nur-Programm-Datei an 0x10000.
 - **Geprüft:** Host-Test 184/184 (neu: Pegel einer −30-dBFS-Aufnahme ≈ 44 %, Start-/Stopp-Fehler mit Grund, Fortschritt, nie-antwortendes Netz → Meldung nach 4½ min), Server-Tests für `lautAngleichen`. Nie am echten Gerät gehört – die Register-Werte stammen aus dem Bibliotheks-Quelltext, nicht aus einer Messung am Cardputer.
 
+## E202 – Review zu E199–E201 (20.11.)
+
+Unabhängiges Review des Diffs E199–E201; behoben:
+
+- **Fremdes über die Rechenraum-Werkzeuge (mittel):** `pdf_bearbeiten`/`daten_abfragen`/… erkannten Fremdes nur an `anhaenge/` oder `fremdinhalt: true` – PDF-Metadaten, Formularfelder, Excel aus Moodle kamen ohne Hülle zurück, der Lauf blieb ungestempelt (und damit ein Coding-Helfer ohne Freigabe möglich, E195). Neu `vaultDateiFremd` (anhaenge.ts): alles außer reinem Text, Hochgeladenes, `fremdinhalt: true|ja`, die Literaturliste. Gilt für die Dorfwerk-Werkzeuge und jetzt auch für `rechenraum_vault_kopieren` (stempelt den Lauf, weil das Fremde sonst über `rechenraum_befehl` ungehüllt herauskäme).
+- **`doi_bibtex` mit merken (mittel):** schreibt `Uni/literatur.bib` nur noch aus dem Uni-Gebäude und für den Bürgermeister (sonst 403, ohne merken weiter überall); auch der erste Eintrag hat „Rückgängig“ (Liste wird erst mit Kopf angelegt, dann wie jede Änderung archiviert); nur bibliografische Felder (kein `abstract`/`keywords` – frei wählbarer Text des DOI-Inhabers), je ≤ 500 Zeichen; `vault_lesen` behandelt die Liste als fremd.
+- **Kleineres:** Währungen gerundet statt abgeschnitten (`betragText`, Kleinstbeträge mit 3 gültigen Ziffern); `post_anhang_lesen` überschreibt nie (gleicher Inhalt → wiederverwendet, sonst `<nr>_name`, sonst 409); Antworten fremder Dienste höchstens 5 MB.
+- **Firmware 1.3.1:** Speicherleck (24 KB je hängendem Mikrofon) weg – Puffer werden nach `Mic.end()` immer freigegeben. Die Aufnahme-Aufgabe wartet nicht mehr blind in `Mic.record()` (das ohne Ende wartet, wenn beide Plätze belegt bleiben): eigene Wartegrenze 2 s, dann „Mikrofon hängt“. In dem Fall ruft die Hauptschleife `Mic.end()` gar nicht erst auf (könnte selbst hängen) und rät zum Neustart, statt einzufrieren. Wache der Eingabe 420 s (die Anfrage kann vor dem Senden warten).
+- **Bewusst offen:** gleichzeitige Rechenraum-Werkzeuge im selben Raum (feste Zwischennamen) – der api-Motor ruft nacheinander auf; Rundgang-Aktivitäten, die einen Vermerk der KI brauchen, feuern ohne Vermerk am nächsten Tag erneut (gedeckelt durch das Tagesbudget, sichtbar im Protokoll).
+

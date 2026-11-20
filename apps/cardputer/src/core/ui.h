@@ -112,7 +112,7 @@ public:
     bool animated() const override { return true; }
     uint32_t animMs() const override { return sprache_ == Sprache::Aus ? 500 : 150; }   // Pegel/Fortschritt fluessig
     bool wach() const override { return sprache_ != Sprache::Aus; }
-    static constexpr uint32_t SPRACHE_WACHE_MS = 300000;      // zweites Netz hinter dem Zeitlimit im Dorf-Kern (270 s)
+    static constexpr uint32_t SPRACHE_WACHE_MS = 420000;      // zweites Netz hinter dem Zeitlimit im Dorf-Kern (270 s ab dem Senden; davor kann sie warten)
     void draw(Gfx& g, App& app, uint32_t now) override;
     void key(const Input& in, App& app, uint32_t now) override;
     void tick(App& app, uint32_t now) override;

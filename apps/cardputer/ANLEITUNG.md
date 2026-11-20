@@ -1,21 +1,21 @@
-# Agentendorf auf dem Cardputer Adv – Firmware 1.3
+# Agentendorf auf dem Cardputer Adv – Firmware 1.3.1
 
-## Update auf 1.3 (Einstellungen bleiben)
+## Update auf 1.3.1 (Einstellungen bleiben)
 
-Du hast schon 1.1 oder 1.2 auf dem Cardputer? Dann nur diese vier Blöcke – **WLAN-Netze, Kopplung mit dem Dorf und alle
+Du hast schon 1.1, 1.2 oder 1.3 auf dem Cardputer? Dann nur diese vier Blöcke – **WLAN-Netze, Kopplung mit dem Dorf und alle
 anderen Einstellungen bleiben erhalten**, weil nur das Programm ersetzt wird. Cardputer per USB-C an den PC,
 einschalten, PowerShell öffnen. Jeden Block einzeln kopieren, einfügen, Enter.
 
-**1. Neue ZIP auspacken** (in denselben Ordner wie beim letzten Mal; `agentendorf-cardputer-1.3.zip` liegt in „Downloads“)
+**1. Neue ZIP auspacken** (in denselben Ordner wie beim letzten Mal; `agentendorf-cardputer-1.3.1.zip` liegt in „Downloads“)
 
 ```powershell
-$zip = Get-ChildItem "$HOME\Downloads\agentendorf-cardputer-1.3*.zip" | Sort-Object LastWriteTime | Select-Object -Last 1; Unblock-File $zip.FullName; Expand-Archive -Force $zip.FullName "$HOME\Agentendorf-Cardputer"; cd "$HOME\Agentendorf-Cardputer"; dir
+$zip = Get-ChildItem "$HOME\Downloads\agentendorf-cardputer-1.3.1*.zip" | Sort-Object LastWriteTime | Select-Object -Last 1; Unblock-File $zip.FullName; Expand-Archive -Force $zip.FullName "$HOME\Agentendorf-Cardputer"; cd "$HOME\Agentendorf-Cardputer"; dir
 ```
 
 **2. Prüfsumme der Update-Datei** – erwartet: `True`
 
 ```powershell
-cd "$HOME\Agentendorf-Cardputer"; (Get-FileHash agentendorf-cardputer-1.3-nur-programm.bin -Algorithm SHA256).Hash.ToLower() -eq ((Get-Content SHA256.txt)[1] -split ' ')[0]
+cd "$HOME\Agentendorf-Cardputer"; (Get-FileHash agentendorf-cardputer-1.3.1-nur-programm.bin -Algorithm SHA256).Hash.ToLower() -eq ((Get-Content SHA256.txt)[1] -split ' ')[0]
 ```
 
 **3. Verbindung prüfen** (das Flash-Werkzeug ist vom letzten Mal noch da; fehlt der Ordner `.venv`, zuerst
@@ -31,14 +31,14 @@ einschalten, loslassen) und den Befehl wiederholen.
 **4. Nur das Programm aufspielen** – an die Adresse `0x10000`, **nicht** `0x0`:
 
 ```powershell
-cd "$HOME\Agentendorf-Cardputer"; .\.venv\Scripts\python.exe -m esptool --chip esp32s3 write_flash 0x10000 agentendorf-cardputer-1.3-nur-programm.bin
+cd "$HOME\Agentendorf-Cardputer"; .\.venv\Scripts\python.exe -m esptool --chip esp32s3 write_flash 0x10000 agentendorf-cardputer-1.3.1-nur-programm.bin
 ```
 
 Erwartet: `Hash of data verified.` und `Hard resetting`. Der Cardputer startet neu, oben steht
-„HaloOS · Agentendorf 1.3“. `2` drücken – er verbindet sich mit deinem WLAN und ist weiter gekoppelt.
+„HaloOS · Agentendorf 1.3.1“. `2` drücken – er verbindet sich mit deinem WLAN und ist weiter gekoppelt.
 (Deine Sicherung vom ersten Mal, `cardputer-sicherung-vor-agentendorf.bin`, gilt weiter.)
 
-**Nicht** für das Update verwenden: `agentendorf-cardputer-1.3.bin` an `0x0` – das ist das volle Abbild für
+**Nicht** für das Update verwenden: `agentendorf-cardputer-1.3.1.bin` an `0x0` – das ist das volle Abbild für
 die Erstinstallation (Teil 1) und löscht WLAN-Netze und Kopplung.
 
 ---
@@ -52,11 +52,12 @@ Beim Einschalten zeigt der Cardputer ein Startmenü:
    **Kirchturm** (Pomodoro, Timer, Wecker), **Kalender**, **Freigaben**, **Fristen**, **Gewohnheiten**,
    **Notiz**, **Post**. Alles als Listen – das 3D-Dorf gibt es hier nicht.
 
-**Neu in 1.3 – Spracheingabe repariert:** In 1.2 kam die Stimme kaum an (der Pegel-Balken zuckte nur) und
+**Neu in 1.3 / 1.3.1 – Spracheingabe repariert:** In 1.2 kam die Stimme kaum an (der Pegel-Balken zuckte nur) und
 nach dem Stoppen konnte der Cardputer hängen bleiben. Jetzt ist das Mikrofon richtig verstärkt (dieselben
 Werte, die M5Stack für andere Geräte mit demselben Audio-Chip nimmt), der Balken zeigt den Pegel in dB, beim
 Senden siehst du den Fortschritt in Prozent, und wenn etwas schiefgeht, steht da **warum** („Mikrofon
-antwortet nicht“, „Keine Verbindung“ …) statt dass er hängt. Das Dorf hebt leise Aufnahmen zusätzlich an,
+antwortet nicht“, „Keine Verbindung“ …) statt dass er hängt. Sollte das Mikrofon selbst einmal hängen, sagt er
+„Mikrofon hängt – Cardputer neu starten“ (Seitentaste aus/an), statt einzufrieren. Das Dorf hebt leise Aufnahmen zusätzlich an,
 bevor es abschreibt.
 
 **Seit 1.2 – Spracheingabe:** In jeder Texteingabe (To-do, Nachricht an den Bürgermeister, Notiz, Termin,
@@ -81,23 +82,23 @@ Punkt ist beim nächsten Einschalten vorgewählt.
 
 Nur für einen Cardputer, auf dem noch **keine** Agentendorf-Firmware ist. Von 1.1 oder 1.2 kommend: siehe ganz oben.
 
-Du brauchst: den Cardputer, ein USB-C-**Daten**kabel und `agentendorf-cardputer-1.3.zip` im Ordner
+Du brauchst: den Cardputer, ein USB-C-**Daten**kabel und `agentendorf-cardputer-1.3.1.zip` im Ordner
 „Downloads“. Python ist auf dem PC schon da. PowerShell öffnen (Windows-Taste, „PowerShell“ tippen, Enter).
 **Jeden Block einzeln kopieren, einfügen, Enter.**
 
 **1. Auspacken** – nach `Agentendorf-Cardputer` in deinem Benutzerordner:
 
 ```powershell
-$zip = Get-ChildItem "$HOME\Downloads\agentendorf-cardputer-1.3*.zip" | Sort-Object LastWriteTime | Select-Object -Last 1; Unblock-File $zip.FullName; Expand-Archive -Force $zip.FullName "$HOME\Agentendorf-Cardputer"; cd "$HOME\Agentendorf-Cardputer"; dir
+$zip = Get-ChildItem "$HOME\Downloads\agentendorf-cardputer-1.3.1*.zip" | Sort-Object LastWriteTime | Select-Object -Last 1; Unblock-File $zip.FullName; Expand-Archive -Force $zip.FullName "$HOME\Agentendorf-Cardputer"; cd "$HOME\Agentendorf-Cardputer"; dir
 ```
 
-Du siehst: `ANLEITUNG.md`, `agentendorf-cardputer-1.3.bin`, `agentendorf-cardputer-1.3-nur-programm.bin`,
+Du siehst: `ANLEITUNG.md`, `agentendorf-cardputer-1.3.1.bin`, `agentendorf-cardputer-1.3.1-nur-programm.bin`,
 `SHA256.txt` und den Ordner `bilder`.
 
 **2. Prüfsumme** – ist die Datei heil angekommen? Erwartet: `True`
 
 ```powershell
-cd "$HOME\Agentendorf-Cardputer"; (Get-FileHash agentendorf-cardputer-1.3.bin -Algorithm SHA256).Hash.ToLower() -eq ((Get-Content SHA256.txt)[0] -split ' ')[0]
+cd "$HOME\Agentendorf-Cardputer"; (Get-FileHash agentendorf-cardputer-1.3.1.bin -Algorithm SHA256).Hash.ToLower() -eq ((Get-Content SHA256.txt)[0] -split ' ')[0]
 ```
 
 **3. Flash-Werkzeug einrichten** (einmalig, ca. 1 Minute; landet nur in diesem Ordner)
@@ -133,13 +134,13 @@ Prüfen – es muss genau `8388608` herauskommen:
 **6. Agentendorf aufspielen**
 
 ```powershell
-cd "$HOME\Agentendorf-Cardputer"; .\.venv\Scripts\python.exe -m esptool --chip esp32s3 write_flash 0x0 agentendorf-cardputer-1.3.bin
+cd "$HOME\Agentendorf-Cardputer"; .\.venv\Scripts\python.exe -m esptool --chip esp32s3 write_flash 0x0 agentendorf-cardputer-1.3.1.bin
 ```
 
 Erwartet am Ende: `Hash of data verified.` und `Hard resetting`.
 
 **7. Neustart.** Der Cardputer startet von selbst neu und zeigt das Startmenü, oben steht
-„HaloOS · Agentendorf 1.3“. Bleibt der Bildschirm dunkel (nach Download-Modus von Hand): einmal aus- und
+„HaloOS · Agentendorf 1.3.1“. Bleibt der Bildschirm dunkel (nach Download-Modus von Hand): einmal aus- und
 einschalten.
 
 Was beim Aufspielen verloren geht: die im Cardputer gespeicherten **Einstellungen der Fernbedienung** (der Hub
@@ -310,12 +311,12 @@ cd "$HOME\Agentendorf-Cardputer"; .\.venv\Scripts\python.exe -m esptool --chip e
 
 ### Spätere Versionen aufspielen, ohne neu einzurichten
 
-Immer wie ganz oben („Update auf 1.3“): neue ZIP auspacken und die **Nur-Programm-Datei** an `0x10000`
+Immer wie ganz oben („Update auf 1.3.1“): neue ZIP auspacken und die **Nur-Programm-Datei** an `0x10000`
 schreiben – WLAN, Kopplung und Warteschlange bleiben. Das volle Abbild (Teil 1, Schritt 6) löscht sie.
 Versionsnummer der neuen Datei einsetzen:
 
 ```powershell
-cd "$HOME\Agentendorf-Cardputer"; .\.venv\Scripts\python.exe -m esptool --chip esp32s3 write_flash 0x10000 agentendorf-cardputer-1.3-nur-programm.bin
+cd "$HOME\Agentendorf-Cardputer"; .\.venv\Scripts\python.exe -m esptool --chip esp32s3 write_flash 0x10000 agentendorf-cardputer-1.3.1-nur-programm.bin
 ```
 
 Nur verwenden, wenn schon eine Agentendorf-Firmware drauf ist – sonst Schritt 6.

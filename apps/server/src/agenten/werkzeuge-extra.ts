@@ -11,12 +11,13 @@ import { KARTEN_DATEI, kartenLesen } from '../karten.js';
 import { fremdinhaltHuelle, istHochgeladen } from './leine.js';
 import type { ExtraWerkzeug } from './leine-extra.js';
 import { ablageName, type RechenraumKlient } from './rechenraum.js';
-import { groesseText, MAX_ANHANG_BYTES, typText } from './anhaenge.js';
+import { groesseText, LITERATUR_BIB, MAX_ANHANG_BYTES, typText, vaultDateiFremd } from './anhaenge.js';
 import { dateiStempel } from './hilfen.js';
 import type { RueckgaengigArt } from './rueckgaengig.js';
 import type { LaufKontext, WerkzeugAufrufErgebnis, WerkzeugDefinition } from './werkzeuge.js';
 import {
   arxivParsen,
+  betragText,
   bibtexAufbereiten,
   crossrefParsen,
   doiNormalisieren,
@@ -241,7 +242,27 @@ async function holen(n: ExtraNetz, dienst: string, adresse: string, kopf: Record
   if (r.status === 404) throw new DorfFehler(404, `${dienst}: nicht gefunden.`);
   if (r.status === 429) throw new DorfFehler(429, `${dienst}: zu viele Anfragen – später noch einmal.`);
   if (!r.ok) throw new DorfFehler(502, `${dienst} antwortet mit HTTP ${r.status}.`);
-  return r;
+  return begrenzt(r, dienst);
+}
+
+/** Höchstens 5 MB einer Antwort lesen (Review E199: ein fehlerhafter Dienst soll den Server-Speicher nicht füllen) */
+export const MAX_ANTWORT_BYTES = 5 * 1024 * 1024;
+async function begrenzt(r: Response, dienst: string): Promise<Response> {
+  if (!r.body) return r;
+  const leser = r.body.getReader();
+  const teile: Uint8Array[] = [];
+  let n = 0;
+  for (;;) {
+    const { done, value } = await leser.read();
+    if (done) break;
+    n += value.byteLength;
+    if (n > MAX_ANTWORT_BYTES) {
+      await leser.cancel().catch(() => undefined);
+      throw new DorfFehler(502, `${dienst}: Antwort zu groß.`);
+    }
+    teile.push(value);
+  }
+  return new Response(Buffer.concat(teile), { status: r.status, headers: r.headers });
 }
 const json = async (r: Response, dienst: string) => {
   try {
@@ -365,7 +386,7 @@ export async function extraAufrufen(name: ExtraWerkzeug, eingabe: unknown, u: Ex
         const k = await ezbKurse(netz, u.uhr.jetzt());
         if (!k.kurse[a] || !k.kurse[b]) throw new DorfFehler(400, `Für ${!k.kurse[a] ? a : b} gibt es keinen EZB-Referenzkurs.`);
         const ergebnis = (e.wert / k.kurse[a]!) * k.kurse[b]!;
-        const text = `${zahlText(e.wert)} ${a} = ${zahlText(ergebnis, 8).replace(/(,\d{2})\d+$/, '$1')} ${b} (EZB-Referenzkurs vom ${tagText(k.datum)}; 1 EUR = ${zahlText(k.kurse[a === 'EUR' ? b : a]!)} ${a === 'EUR' ? b : a}). Banken und Karten rechnen mit eigenem Kurs.`;
+        const text = `${zahlText(e.wert)} ${a} = ${betragText(ergebnis)} ${b} (EZB-Referenzkurs vom ${tagText(k.datum)}; 1 EUR = ${zahlText(k.kurse[a === 'EUR' ? b : a]!)} ${a === 'EUR' ? b : a}). Banken und Karten rechnen mit eigenem Kurs.`;
         u.log(name, e, text, true);
         return { ok: true, text };
       }
@@ -425,7 +446,7 @@ async function dorfwerk(u: ExtraUmgebung, werkzeug: ExtraWerkzeug, dateien: stri
     if (st.size > 50 * 1024 * 1024) throw new DorfFehler(413, `${pfad}: zu groß (höchstens 50 MB).`);
     const d = await u.vault.puffer(pfad, { max: 50 * 1024 * 1024 });
     if (!d) throw new DorfFehler(404, `Gibt es nicht: ${pfad}`);
-    if (istHochgeladen(pfad) || /^---[\s\S]*?\nfremdinhalt:\s*true/m.test(d.inhalt.subarray(0, 2000).toString('utf8'))) fremd = true;
+    if (vaultDateiFremd(pfad, d.inhalt, istHochgeladen(pfad))) fremd = true;
     const ziel = `.dorfwerk/ein/${i + 1}_${path.posix.basename(pfad).replace(/[^A-Za-z0-9._-]+/g, '_')}`;
     await r.klient.schreiben(raum, ziel, d.inhalt);
     u.log(werkzeug, { pfad }, `→ Rechenraum`, true, pfad, 'gelesen');
@@ -504,17 +525,20 @@ async function literatur(u: ExtraUmgebung, eingabe: unknown): Promise<WerkzeugAu
   return { ok, text: fremdinhaltHuelle('literatur', teile.join('\n\n')) };
 }
 
-export const LITERATUR_BIB = 'Uni/literatur.bib';
+export { LITERATUR_BIB };
 
 async function bibtex(u: ExtraUmgebung, eingabe: unknown): Promise<WerkzeugAufrufErgebnis> {
   const netz = netzNoetig(u);
   const e = z.object({ doi: z.string().trim().min(5).max(300), merken: z.boolean().optional() }).parse(eingabe);
   const doi = doiNormalisieren(e.doi);
   if (!doi) throw new DorfFehler(400, `„${e.doi}“ ist keine DOI (Form 10.xxxx/…).`);
+  // Uni/literatur.bib liegt im Uni-Gebäude: direkt schreiben nur von dort und für den Bürgermeister (Review E199)
+  if (e.merken && u.k.gebaeude !== 'Uni' && u.k.gebaeude !== 'Rathaus')
+    throw new DorfFehler(403, `${LITERATUR_BIB} gehört zum Uni-Gebäude – von hier nur ohne „merken“ (den Eintrag dann zeigen).`);
   // DOIs sind unabhängig von Groß-/Kleinschreibung; steht sie schon in der .bib, braucht es keinen Abruf
-  const alt = e.merken ? await u.vault.lesen(LITERATUR_BIB).catch(() => null) : null;
+  const altGelesen = e.merken ? await u.vault.lesen(LITERATUR_BIB).catch(() => null) : null;
   const doiMuster = new RegExp(`doi\\s*=\\s*[{"]${doi.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[}"]`, 'i');
-  if (alt && doiMuster.test(alt.inhalt)) {
+  if (altGelesen && doiMuster.test(altGelesen.inhalt)) {
     u.log('doi_bibtex', e, `steht schon in ${LITERATUR_BIB}`, true);
     return { ok: true, text: `DOI ${doi} steht schon in ${LITERATUR_BIB} – nichts geändert.` };
   }
@@ -526,18 +550,24 @@ async function bibtex(u: ExtraUmgebung, eingabe: unknown): Promise<WerkzeugAufru
     u.log('doi_bibtex', e, `@${schluessel}`, true, undefined, 'web');
     return { ok: true, text: fremdinhaltHuelle(`doi:${doi}`, eintrag) };
   }
+  // Neue Liste: erst mit Kopf anlegen, dann wie unten anhängen – so gibt es auch beim ersten Eintrag „Rückgängig“
+  let alt = altGelesen;
+  if (!alt) {
+    await u.vault.schreiben(LITERATUR_BIB, '% Literatur (vom Agentendorf gepflegt, in Obsidian/LaTeX nutzbar)\n', { nurNeu: true });
+    alt = await u.vault.lesen(LITERATUR_BIB);
+  }
   // Schlüssel eindeutig halten (lecun2015deep, lecun2015deepb, …)
   let schl = schluessel;
   for (let i = 0; alt && new RegExp(`@\\w+\\{${schl},`).test(alt.inhalt); i++) schl = `${schluessel}${String.fromCharCode(98 + i)}`;
   const neu = eintrag.replace(`{${schluessel},`, `{${schl},`);
-  if (alt) {
+  {
     // wie vault_aendern: alte Fassung ins Archiv, Schreiben nur auf die gelesene Fassung, Leif kann es zurücknehmen
     const archiv = `Uni/archiv/aenderungen/${dateiStempel(u.uhr.jetzt())}_${crypto.randomUUID().slice(0, 6)}_literatur.bib`;
     await u.vault.schreiben(archiv, alt.inhalt, { nurNeu: true });
     const w = await u.vault.schreiben(LITERATUR_BIB, `${alt.inhalt.replace(/\n*$/, '\n\n')}${neu}\n`, { basisVersion: alt.version });
     if (w.konflikt) throw new DorfFehler(409, `${LITERATUR_BIB} wurde gerade geändert – noch einmal versuchen.`);
     await u.merken('datei_geaendert', `Literatur ergänzt: ${schl}`, { pfad: LITERATUR_BIB, archiv, version: w.version }, true);
-  } else await u.vault.schreiben(LITERATUR_BIB, `% Literatur (vom Agentendorf gepflegt, in Obsidian/LaTeX nutzbar)\n\n${neu}\n`, { nurNeu: true });
+  }
   u.log('doi_bibtex', e, `@${schl} → ${LITERATUR_BIB}`, true, LITERATUR_BIB, 'geschrieben');
   return { ok: true, text: `${fremdinhaltHuelle(`doi:${doi}`, neu)}\nIn ${LITERATUR_BIB} eingetragen als \\cite{${schl}}.` };
 }
@@ -626,10 +656,22 @@ async function postAnhang(u: ExtraUmgebung, eingabe: unknown): Promise<WerkzeugA
   // Ablage vom Code bestimmt: Post/anhaenge/<Tag der Mail>_<Mail-ID>/ – „anhaenge/“ heißt für jedes spätere Lesen: Fremdinhalt
   const ordner = `Post/anhaenge/${tagIn(mail.datum)}_${mail.id.replace(/[^A-Za-z0-9]/g, '').slice(0, 20)}`;
   const name = dateinameBereinigen(a.name) || `anhang-${a.nr}`;
-  let pfad = `${ordner}/${name}`;
-  const vorhanden = await u.vault.puffer(pfad, { max: MAX_ANHANG_BYTES }).catch(() => null);
-  if (vorhanden && !vorhanden.inhalt.equals(daten)) pfad = `${ordner}/${a.nr}_${name}`;
-  if (!vorhanden || pfad !== `${ordner}/${name}`) await u.vault.schreiben(pfad, daten);
+  // Nie überschreiben (Review E199): gleicher Inhalt → wiederverwenden, sonst nächster freier Name
+  let pfad = '';
+  for (const kandidat of [`${ordner}/${name}`, `${ordner}/${a.nr}_${name}`]) {
+    const st = await u.vault.stat(kandidat);
+    if (!st) {
+      await u.vault.schreiben(kandidat, daten, { nurNeu: true });
+      pfad = kandidat;
+      break;
+    }
+    const vorhanden = st.isFile() && st.size === daten.length ? await u.vault.puffer(kandidat, { max: MAX_ANHANG_BYTES }).catch(() => null) : null;
+    if (vorhanden?.inhalt.equals(daten)) {
+      pfad = kandidat;
+      break;
+    }
+  }
+  if (!pfad) throw new DorfFehler(409, `In ${ordner} liegt schon eine andere Datei namens ${name}.`);
   u.log('post_anhang_lesen', { mail_id: e.mail_id, nr: e.nr }, `${groesseText(daten.length)} → ${pfad}`, true, pfad, 'geschrieben');
   const gelesen = await u.lesen(pfad);
   return {

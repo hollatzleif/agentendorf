@@ -1,4 +1,4 @@
-// Agentendorf-Firmware fuer den M5Stack Cardputer Adv - Version 1.3 (auf Basis von HaloOS 0.3).
+// Agentendorf-Firmware fuer den M5Stack Cardputer Adv - Version 1.3.1 (auf Basis von HaloOS 0.3).
 //
 // Beim Einschalten erscheint ein Startmenue:
 //   1 Fernbedienung  - wie HaloOS 0.3: meldet Tasten, Akku und Bewegung per Bluetooth an den Hub der Brille
@@ -223,7 +223,16 @@ void aufnahmeSchreiben(const int16_t* p) {
 void aufnahmeAufgabe(void*) {
     size_t i = 0;
     while (!g_aufn.stoppen && !g_aufn.fehler) {
-        // wartet, solange beide Plaetze der Bibliothek belegt sind; danach ist der Puffer von vor zwei Runden voll
+        // Mic.record() wartet ohne Ende, solange beide Plaetze der Bibliothek belegt sind. Liefert das Mikrofon nichts
+        // mehr, kaeme die Aufgabe da nie heraus - darum selbst warten, mit Grenze (ein Puffer = 256 ms). Nur diese
+        // Aufgabe belegt Plaetze, also blockiert record() danach nicht mehr.
+        const uint32_t wartSeit = millis();
+        while (M5Cardputer.Mic.isRecording() >= 2 && millis() - wartSeit < 2000) vTaskDelay(pdMS_TO_TICKS(2));
+        if (M5Cardputer.Mic.isRecording() >= 2) {
+            g_aufn.mikroHaengt = true;
+            g_aufn.fehler = true;
+            break;
+        }
         if (!M5Cardputer.Mic.record(g_aufn.puffer[i % 3], AUFN_WERTE, AUFN_RATE)) {
             g_aufn.fehler = true;
             break;
@@ -248,10 +257,12 @@ void aufnahmeAufgabe(void*) {
     vTaskDelete(nullptr);
 }
 
+// Nur aufrufen, wenn die Bibliothek die Puffer nicht mehr haelt (Mikrofon nie gestartet oder Mic.end() fertig)
 void aufnahmeAufraeumen() {
-    if (!g_aufn.mikroHaengt)        // haengt das Mikrofon, gehoeren die Puffer noch der Bibliothek: lieber liegen lassen
-        for (auto& p : g_aufn.puffer) free(p);
-    for (auto& p : g_aufn.puffer) p = nullptr;
+    for (auto& p : g_aufn.puffer) {
+        free(p);
+        p = nullptr;
+    }
     g_aufn.laeuft = false;
 }
 
@@ -267,7 +278,8 @@ void aufnahmePflege();
 bool aufnahmeStart(const std::string& pfad) {
     g_aufn_grund.clear();
     aufnahmePflege();
-    if (g_aufn.laeuft || g_aufn.aufgabe || g_codec_mikro) { g_aufn_grund = "Aufnahme laeuft noch"; return false; }
+    if (g_aufn.mikroHaengt && g_codec_mikro) { g_aufn_grund = "h\xC3\xA4ngt \xE2\x80\x93 Cardputer neu starten"; return false; }
+    if (g_aufn.laeuft || g_aufn.aufgabe || g_codec_mikro) { g_aufn_grund = "Aufnahme l\xC3\xA4uft noch"; return false; }
     if (!g_fs || !M5Cardputer.Mic.isEnabled()) { g_aufn_grund = "kein Mikrofon"; return false; }
     g_notes.clear();
     g_aufn.mikroHaengt = false;
@@ -323,21 +335,25 @@ bool aufnahmeStopp(bool behalten) {
     const uint32_t seit = millis();
     while (!g_aufn.fertig && millis() - seit < 4000) delay(5);
     const bool fertig = g_aufn.fertig;
-    if (fertig) codecZurueck();       // Aufgabe ist weg: Mikrofon aus, Lautsprecher an
-    // Haengt die Aufgabe noch (Mikrofon liefert nichts), bleibt das Mikrofon an, bis sie fertig ist (aufnahmePflege)
-    const bool ok = fertig && !g_aufn.fehler && g_aufn.bytes > 0;
-    if (!ok) {
-        g_aufn_grund = !fertig || g_aufn.mikroHaengt ? "Mikrofon antwortet nicht" : g_aufn.bytes == 0 ? "nichts aufgenommen" : "Speicher voll";
+    // Haengt das Mikrofon, koennte Mic.end() selbst haengen (es wartet auf die Aufgabe der Bibliothek) - dann den Codec
+    // lieber so lassen (Toene bleiben stumm) und zum Neustart raten, statt die Oberflaeche einzufrieren.
+    const bool mikroKaputt = !fertig || g_aufn.mikroHaengt;
+    if (fertig && !mikroKaputt) {
+        codecZurueck();               // Aufgabe ist weg: Mikrofon aus, Lautsprecher an
+        aufnahmeAufraeumen();
+    } else {
+        g_aufn.laeuft = false;        // Puffer gehoeren evtl. noch der Bibliothek: liegen lassen (einmalig 24 KB)
     }
-    if (fertig) aufnahmeAufraeumen();
-    else g_aufn.laeuft = false;
+    const bool ok = fertig && !g_aufn.fehler && g_aufn.bytes > 0;
+    if (!ok)
+        g_aufn_grund = mikroKaputt ? "Mikrofon h\xC3\xA4ngt \xE2\x80\x93 Cardputer neu starten" : g_aufn.bytes == 0 ? "nichts aufgenommen" : "Speicher voll";
     if ((!ok || !behalten) && g_fs && fertig) g_fs->remove(g_aufn.pfad.c_str());
     return ok && behalten;
 }
 
 // Aus der Hauptschleife: eine Aufgabe, die beim Stoppen noch hing, nachtraeglich abraeumen
 void aufnahmePflege() {
-    if (g_aufn.laeuft || !g_codec_mikro || !g_aufn.fertig) return;
+    if (g_aufn.laeuft || !g_codec_mikro || !g_aufn.fertig || g_aufn.mikroHaengt) return;
     codecZurueck();
     aufnahmeAufraeumen();
     if (g_fs) g_fs->remove(g_aufn.pfad.c_str());

@@ -27,6 +27,22 @@ export const TEXT_ENDUNGEN = new Set(
     .split(' ')
     .map((e) => `.${e}`),
 );
+/** Literaturliste: Titel, Autoren … stammen von doi.org (Registrierungsstellen) – Daten von außen */
+export const LITERATUR_BIB = 'Uni/literatur.bib';
+
+/**
+ * Ist eine Vault-Datei Daten von außen? (Review E199) – alles, was nicht reiner Text ist (PDF, Office, Bilder … kommen
+ * fast immer von draußen), Hochgeladenes, Dateien mit `fremdinhalt: true|ja` im Kopf und die Literaturliste.
+ * Werkzeuge, die Vault-Dateien in den Rechenraum geben, stempeln den Lauf damit wie vault_lesen.
+ */
+export function vaultDateiFremd(pfad: string, inhalt: Buffer | string, hochgeladen: boolean): boolean {
+  if (hochgeladen || pfad === LITERATUR_BIB) return true;
+  const ext = path.posix.extname(pfad).toLowerCase();
+  if (!TEXT_ENDUNGEN.has(ext)) return true;
+  const kopf = (typeof inhalt === 'string' ? inhalt.slice(0, 4000) : inhalt.subarray(0, 4000).toString('utf8')).replace(/^\uFEFF/, '');
+  return /^---\r?\n[\s\S]*?^fremdinhalt:\s*(?:true|ja|"ja"|'ja')\s*$/m.test(kopf) && kopf.startsWith('---');
+}
+
 const BILD_NATIV: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp' };
 /** Größer schickt die API ein Bild nicht (5 MB) – darüber verkleinert der Rechenraum */
 const BILD_NATIV_MAX = 3_750_000;

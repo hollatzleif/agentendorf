@@ -19,7 +19,7 @@ import type { Notizen } from '../notizen.js';
 import { ortszeitText, terminAusAngaben, terminVorschau, type GoogleKalender } from '../kalender-google.js';
 import { tagIn, tagPlus } from '../zeit.js';
 import { ablageName, type RechenraumKlient } from './rechenraum.js';
-import { anhangKopf, type DateiVerstehen } from './anhaenge.js';
+import { anhangKopf, LITERATUR_BIB, type DateiVerstehen, vaultDateiFremd } from './anhaenge.js';
 import type { EntwurfEingabe, GmailKlient } from '../post/gmail.js';
 import { AGENTEN_ARTEN, type Freigaben } from './freigaben.js';
 import { LISTEN, LISTEN_NAMEN, todoZeile, type ListenName, type TodoDienst } from '../todos.js';
@@ -1302,6 +1302,9 @@ export class WerkzeugKiste {
         const d = await this.vault.puffer(pfad, { max: 50 * 1024 * 1024 });
         if (!d) throw new DorfFehler(404, `Gibt es nicht: ${pfad}`);
         await r.klient.schreiben(raum, ziel, d.inhalt);
+        // Review E199: was von außen stammt (PDF, Office, Hochgeladenes …), macht den Lauf fremd – auch wenn es nur
+        // über rechenraum_befehl wieder herauskommt
+        if (vaultDateiFremd(pfad, d.inhalt, istHochgeladen(pfad))) this.fremd = true;
         this.log(name, eingabe, `→ ${ziel}`, true, pfad, 'gelesen');
         return { ok: true, text: `Kopiert nach ${ziel} (${Math.round(st.size / 1024)} KB).` };
       }
@@ -1486,7 +1489,7 @@ export class WerkzeugKiste {
       }
       // E190: jedes Format – Text direkt, Bilder als Bild, alles andere über den Rechenraum (Fremdinhalt → Hülle)
       const v = await this.k.dateien.verstehen(pfad, { pdfNativ: false, bildNativ: true });
-      const fremd = v.art === 'umgewandelt' || v.art === 'bild' || istHochgeladen(pfad);
+      const fremd = v.art === 'umgewandelt' || v.art === 'bild' || istHochgeladen(pfad) || pfad === LITERATUR_BIB;
       if (fremd) this.fremd = true;
       const kopf = `${pfad} – ${anhangKopf(v)}`;
       let text = kopf;

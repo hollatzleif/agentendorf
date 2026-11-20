@@ -179,6 +179,14 @@ export function waehrungsCode(t: string): string | null {
 }
 
 /** Zahl schön (deutsch): bis 6 signifikante Stellen, Komma als Dezimalzeichen */
+/** Geldbetrag: kaufmännisch auf 2 Stellen gerundet; Kleinstbeträge (< 0,01) mit 3 gültigen Ziffern statt „0,00“ */
+export function betragText(n: number): string {
+  if (!Number.isFinite(n)) return String(n);
+  if (n !== 0 && Math.abs(n) < 0.01) return zahlText(n, 3);
+  const r = Math.round(n * 100) / 100;
+  return r.toLocaleString('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: Math.abs(r) >= 10000 });
+}
+
 export function zahlText(n: number, stellen = 6) {
   if (!Number.isFinite(n)) return String(n);
   const g = Number(n.toPrecision(stellen));
@@ -331,6 +339,10 @@ export function doiNormalisieren(roh: string): string | null {
 }
 
 /** BibTeX von doi.org: eigenen, stabilen Schlüssel setzen (Nachname + Jahr + erstes Titelwort) und lesbar umbrechen */
+const BIB_FELDER = new Set(
+  'author editor title booktitle journal year month volume number pages publisher address edition series chapter school institution organization type doi url isbn issn'.split(' '),
+);
+
 export function bibtexAufbereiten(bib: string): { eintrag: string; schluessel: string } {
   const b = bib.trim();
   const kopf = /^@(\w+)\s*\{\s*([^,]*),/.exec(b);
@@ -349,10 +361,13 @@ export function bibtexAufbereiten(bib: string): { eintrag: string; schluessel: s
   const schluessel = `${nachname.toLowerCase()}${feld('year')}${wort}`.slice(0, 60) || `quelle${Date.now()}`;
   const rumpf = b.slice(kopf[0].length).replace(/\}\s*$/, '');
   // Felder auf eigene Zeilen: an Kommas zwischen „}“ und dem nächsten Feldnamen trennen
+  // Nur bibliografische Felder, je höchstens 500 Zeichen (Review E199: kein abstract/keywords – frei vom DOI-Inhaber
+  // gewählter Text gehört nicht dauerhaft in die Literaturliste)
   const felder = rumpf
     .split(/,\s*(?=[A-Za-z]+\s*=)/)
     .map((f) => f.trim())
-    .filter(Boolean);
+    .filter((f) => BIB_FELDER.has((/^([A-Za-z]+)\s*=/.exec(f)?.[1] ?? '').toLowerCase()))
+    .map((f) => (f.length > 500 ? `${f.slice(0, 497).replace(/[{}"]/g, '')}…}` : f));
   return { eintrag: `@${kopf[1]}{${schluessel},\n${felder.map((f) => `  ${f}`).join(',\n')}\n}`, schluessel };
 }
 

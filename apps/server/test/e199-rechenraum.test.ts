@@ -101,7 +101,8 @@ describe('E199 – Rechenraum-Werkzeuge (echter Runner)', () => {
     // gleicher Chat, gleicher Name: die eigene Datei wird ersetzt, kein _3
     const r2 = await k.aufrufen('pdf_bearbeiten', { aktion: 'seiten_loeschen', dateien: [`${ABLAGE}/Abgabe_2.pdf`], seiten: '1', name: 'Abgabe_2' });
     expect(r2.text).toContain(`- ${ABLAGE}/Abgabe_2.pdf`);
-    expect(r2.text).not.toContain('fremdinhalt'); // nur Leifs/eigene Vault-Dateien gelesen
+    // Review E199: ein PDF ist immer Daten von außen (Metadaten, Formularfelder …) → Hülle, auch aus dem eigenen Ordner
+    expect(r2.text).toContain('<fremdinhalt quelle="pdf_bearbeiten">');
     // Fehler kommen ehrlich zurück
     const f = await k.aufrufen('pdf_bearbeiten', { aktion: 'teilen', dateien: ['Uni/deckblatt.pdf'], seiten: '5' });
     expect(f.ok).toBe(false);
