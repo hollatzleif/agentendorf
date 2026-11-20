@@ -206,8 +206,19 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
     if ((!['GET', 'HEAD', 'OPTIONS'].includes(req.method) || istWs) && !herkunftOk(req)) {
       return reply.status(403).send({ fehler: 'Anfrage von fremder Herkunft abgelehnt.' });
     }
+    // E203: Der Router dekodiert den Pfad (/%61pi/vault → Route /api/vault), die rohe URL nicht – entschieden wird darum
+    // über BEIDES: Gehört die Route oder der dekodierte Pfad zur API, braucht es eine Sitzung. Offen ist nur, was Route
+    // UND rohe URL wörtlich als offen führen (kodierte Umwege landen nie in OFFEN).
     const url = req.url.split('?')[0]!;
-    if (!url.startsWith('/api/') || OFFEN.has(url)) return;
+    let dekodiert = url;
+    try {
+      dekodiert = decodeURIComponent(url);
+    } catch {
+      return reply.status(400).send({ fehler: 'Ungültige Adresse.' });
+    }
+    const istApi = url.startsWith('/api/') || dekodiert.toLowerCase().startsWith('/api/') || route.startsWith('/api/') || route.startsWith('/api');
+    if (!istApi) return;
+    if (OFFEN.has(url) && (route === '' || route === url)) return;
     const s = sitzungen.pruefen(req.cookies[COOKIE], req.ip);
     if (!s) return reply.status(401).send({ fehler: 'Nicht angemeldet.' });
     req.sitzung = s;
