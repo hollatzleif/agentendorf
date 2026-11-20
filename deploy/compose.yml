@@ -106,6 +106,9 @@ services:
     #   das Python-Kind) + Runner und ein LaTeX-/Python-Befehl ~120 = 1280.
     # Die Adressraum-Grenze je Umwandlung (1024 MB) liegt darüber – sie kann nicht kleiner sein (runner.py). Belegt eine
     # Umwandlung wirklich so viel, beendet der Kernel genau sie (oom_score_adj 1000), der Runner läuft weiter.
+    # E199: Dorfwerk-Werkzeuge (PDF, Graphviz, QR, Anki, DuckDB) laufen einzeln (WERKZEUG_GLEICHZEITIG=1) mit denselben
+    #   Regeln; DuckDB belegt höchstens 256 MB. Nur wenn alles gleichzeitig voll läuft, reicht es nicht – dann trifft der
+    #   Kernel ein Werkzeug oder eine Umwandlung (oom_score_adj 1000), nie den Runner.
     mem_limit: 1280m
     cpus: 1.0
     pids_limit: 256

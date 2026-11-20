@@ -198,8 +198,8 @@ jobs:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
         run: |
-          # Kennung = Hash über Dockerfile und Runner; gleiches Rezept → gleiches Image → nicht erneut schicken
-          RV=$(cat apps/rechenraum/Dockerfile apps/rechenraum/runner.py | sha256sum | cut -c1-16)
+          # Kennung = Hash über Dockerfile, Runner und Dorfwerk (E199); gleiches Rezept → gleiches Image → nicht erneut schicken
+          RV=$(cat apps/rechenraum/Dockerfile apps/rechenraum/runner.py apps/rechenraum/dorfwerk.py | sha256sum | cut -c1-16)
           echo "kennung=$RV" >> "$GITHUB_OUTPUT"
           HAT=nein
           if [ -n "$DEPLOY_HOST" ] && [ "${{ github.ref }}" = refs/heads/main ] && [ "${{ github.event_name }}" != pull_request ]; then

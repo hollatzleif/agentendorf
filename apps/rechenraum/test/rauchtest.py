@@ -121,6 +121,37 @@ else:
     if "Bayesian" not in e["text"]:
         fehler.append(f"PDF → Text: {e['hinweise']}")
     print("Umwandeln geprüft: docx, xlsx, pptx, svg, wav (Transkript), pdf")
+# E199: Dorfwerk – jede Art einmal im echten Image (pypdf, Ghostscript, Graphviz, segno, genanki, DuckDB + pandas)
+def werkzeug(auftrag):
+    e = post("/werkzeug", {"raum": "rauch", "auftrag": auftrag})
+    print(f"werkzeug {auftrag.get('art')}/{auftrag.get('aktion', '')} → {'ok' if e.get('ok') else e.get('fehler')}")
+    return e
+
+
+post("/schreiben", {"raum": "rauch", "pfad": "umsaetze.csv", "inhalt_b64": base64.b64encode("monat;betrag\nJänner;12,5\nJänner;30\nFeber;7\n".encode()).decode()})
+pruefungen = [
+    ({"art": "pdf", "aktion": "zusammenfuegen", "eingaben": ["Blatt3_Loesung.pdf", "Blatt3_Loesung_mit_Erklaerung.pdf"], "name": "beide"}, ["beide.pdf"]),
+    ({"art": "pdf", "aktion": "wasserzeichen", "eingaben": ["beide.pdf"], "text": "ENTWURF"}, ["beide_wasserzeichen.pdf"]),
+    ({"art": "pdf", "aktion": "seiten_drehen", "eingaben": ["beide.pdf"], "seiten": "1", "grad": 90}, ["beide_gedreht.pdf"]),
+    ({"art": "diagramm", "quelle": "digraph { Mathe -> Statistik }", "format": "png", "name": "kurse"}, ["kurse.png"]),
+    ({"art": "qr", "inhalt": "https://www.jku.at"}, ["qr-code.png"]),
+    ({"art": "anki", "fach": "Rauchtest", "karten": [{"frage": "Was ist $1+1$?", "antwort": "2"}]}, ["Rauchtest.apkg"]),
+    ({"art": "daten", "eingaben": ["umsaetze.csv"], "sql": "SELECT monat, SUM(betrag) AS summe FROM umsaetze GROUP BY monat ORDER BY monat"}, []),
+]
+for auftrag, dateien in pruefungen:
+    e = werkzeug(auftrag)
+    if not e.get("ok") or e.get("dateien") != dateien:
+        fehler.append(f"Dorfwerk {auftrag['art']}: {e}")
+e = werkzeug({"art": "daten", "eingaben": ["umsaetze.csv"], "sql": "SELECT monat, SUM(betrag) AS summe FROM umsaetze GROUP BY monat ORDER BY monat"})
+if "DuckDB" not in e.get("text", "") or "| Jänner | 42.5 |" not in e.get("text", ""):
+    fehler.append(f"DuckDB (Komma als Dezimalzeichen?): {e}")
+e = werkzeug({"art": "pdf", "aktion": "komprimieren", "eingaben": ["beide.pdf"]})
+if not e.get("ok"):
+    fehler.append(f"PDF verkleinern (Ghostscript): {e}")
+r = befehl("gs --version && dot -V 2>&1 && python3 -c 'import pypdf, segno, genanki, duckdb, pandas; print(pypdf.__version__, duckdb.__version__)'")
+if r["code"] != 0:
+    fehler.append("Dorfwerk-Pakete fehlen:\n" + r["ausgabe"])
+
 r = befehl("tesseract --list-langs 2>&1 | grep -c -E '^(deu|eng)$'")
 if r["ausgabe"].strip() != "2":
     fehler.append("tesseract ohne deu/eng: " + r["ausgabe"])
