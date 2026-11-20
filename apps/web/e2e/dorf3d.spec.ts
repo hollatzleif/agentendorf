@@ -19,6 +19,9 @@ interface DorfTest {
   uhrzeiger(id: string): { stunde: number[]; minute: number[] } | null;
   blueteStand(): { stufe: string | null; blumen: number; fahne: boolean; feuerwerk: boolean; feuerwerkLaeuft: boolean; feuerwerkRunden: number; helleHaeuser: number; haeuser: number };
   tagStand(): { tafel: string | null; fokus: boolean };
+  kameraStand(): { ziel: [number, number, number]; pos: [number, number, number] };
+  freieSichtAn: boolean;
+  zentrieren(): void;
 }
 declare global {
   interface Window {
@@ -547,3 +550,32 @@ test('Kirchturm: Turmuhr auf vier Seiten zeigt die Wiener Zeit; Häuschen stehen
   await expect(leiste.locator('.bau-auswahl')).toHaveText('Häuschen');
   await page.getByRole('button', { name: 'Bau-Modus beenden' }).click();
 });
+
+test('Kamera: mittlere Maustaste dreht frei und kippt bis fast auf Augenhöhe; „Zum Rathaus“ kehrt zur Schrägansicht zurück', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'Maus mit mittlerer Taste gibt es nur am Rechner');
+  await imDorf(page);
+  // Winkel zwischen Senkrechter und Blickrichtung (0 = genau von oben, π/2 = waagrecht)
+  const kippen = () =>
+    page.evaluate(() => {
+      const k = window.__dorf!.kameraStand();
+      const v = [k.pos[0] - k.ziel[0], k.pos[1] - k.ziel[1], k.pos[2] - k.ziel[2]];
+      return Math.acos(v[1]! / Math.hypot(v[0]!, v[1]!, v[2]!));
+    });
+  const vorher = await kippen();
+  expect(vorher).toBeLessThanOrEqual(1.21);
+  const box = (await page.getByTestId('dorf-leinwand').boundingBox())!;
+  const mitte = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  await page.mouse.move(mitte.x, mitte.y);
+  await page.mouse.down({ button: 'middle' });
+  for (let i = 1; i <= 12; i++) await page.mouse.move(mitte.x + i * 8, mitte.y - i * 18); // nach oben ziehen = Kamera kippt nach unten
+  await page.mouse.up({ button: 'middle' });
+  await expect.poll(() => page.evaluate(() => window.__dorf!.freieSichtAn)).toBe(true);
+  await expect.poll(kippen, { timeout: 5000 }).toBeGreaterThan(1.3); // tiefer als die normale Grenze (1,2)
+  // nie unter den Boden
+  const hoehe = await page.evaluate(() => window.__dorf!.kameraStand().pos[1]);
+  expect(hoehe).toBeGreaterThan(0.5);
+  await page.getByRole('button', { name: 'Zum Rathaus' }).click();
+  await expect.poll(() => page.evaluate(() => window.__dorf!.freieSichtAn)).toBe(false);
+  expect(await kippen()).toBeLessThanOrEqual(1.21);
+});
+

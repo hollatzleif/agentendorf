@@ -1,4 +1,4 @@
-// Agentendorf-Firmware fuer den M5Stack Cardputer Adv - Version 1.3.1 (auf Basis von HaloOS 0.3).
+// Agentendorf-Firmware fuer den M5Stack Cardputer Adv - Version 1.3.2 (auf Basis von HaloOS 0.3).
 //
 // Beim Einschalten erscheint ein Startmenue:
 //   1 Fernbedienung  - wie HaloOS 0.3: meldet Tasten, Akku und Bewegung per Bluetooth an den Hub der Brille

@@ -180,7 +180,7 @@ def main() -> int:
     print("Startmenü")
     g.lauf(250)
     pruefe(g.sieht("Fernbedienung") and g.sieht("Agentendorf") and g.sieht("HaloOS"), "Startmenü zeigt 1 Fernbedienung / 2 Agentendorf")
-    pruefe(g.sieht("Agentendorf 1.3.1"), "Startmenü zeigt die Version", g.text())
+    pruefe(g.sieht("Agentendorf 1.3.2"), "Startmenü zeigt die Version", g.text())
     pruefe(g.sieht("To-dos, Bürgermeister, Kirchturm"), "Untertitel von Agentendorf")
     g.foto("01-startmenue")
     g.cmd("REMOTESHOT " + str(ROOT / "build" / "fb.ppm") + " 0")
@@ -815,24 +815,26 @@ def main() -> int:
     g.waehle("Bürgermeister")
     g.taste("enter")
     g.warte_auf("Neues Gespräch")
+    vorher = len(dorf.anfragen("POST", "/buergermeister"))
     g.taste("enter", "tab")
     g.lauf(2000)
     g.taste("tab")
-    pruefe(g.warte_auf("Was steht morgen an?") and g.sieht("Was soll der Bürgermeister tun?"), "Bürgermeister-Nachricht per Sprache: Text steht im Feld", g.text())
-    vorher = len(dorf.anfragen("POST", "/buergermeister"))
-    g.taste("enter")
     g.lauf(1000)
     p = dorf.anfragen("POST", "/buergermeister")
-    pruefe(len(p) == vorher + 1 and p[-1][2] == {"text": "Was steht morgen an?"}, "Enter schickt die gesprochene Nachricht ab", p[-1])
+    pruefe(len(p) == vorher + 1 and p[-1][2] == {"text": "Was steht morgen an?"} and g.sieht("Was steht morgen an?"),
+           "1.3.2: Bürgermeister per Sprache – der erkannte Text geht gleich raus (ohne Enter)", p[-1:])
     g.lauf(9000)
-    g.taste("enter")      # weiterreden: Sprache hängt an Getipptes an
+    g.taste("enter")      # weiterreden: Sprache hängt an Getipptes an und geht gleich mit raus
     g.tippe("Und:")
     dorf.sprache_text = " trag den Zahnarzt ein\n"
     g.taste("tab")
     g.lauf(1500)
     g.taste("tab")
-    pruefe(g.warte_auf("Und: trag den Zahnarzt ein"), "Leerzeichen und Zeilenwechsel im erkannten Text werden bereinigt", g.text())
-    g.taste("esc", "esc", "esc")
+    g.lauf(1000)
+    pruefe(dorf.anfragen("POST", "/buergermeister")[-1][2].get("text") == "Und: trag den Zahnarzt ein",
+           "Getipptes + Gesprochenes gehen zusammen raus; Leerzeichen/Zeilenwechsel bereinigt", dorf.anfragen("POST", "/buergermeister")[-1:])
+    g.lauf(9000)
+    g.taste("esc", "esc")
     g.waehle("Sprechen")
     pruefe(g.sieht("→ Bürgermeister"), "Startseite: Schnellfunktion „Sprechen → Bürgermeister“", g.text())
     g.foto("17d-sprechen-startseite")
@@ -842,11 +844,31 @@ def main() -> int:
     pruefe("AUFNAHME start" in g.ausgaben[marke:] and g.sieht("Aufnahme 0:00"), "… startet sofort die Aufnahme", g.text())
     g.lauf(2000)
     g.taste("tab")
-    pruefe(g.warte_auf("Wie wird das Wetter?"), "… und schlägt den Text als Nachricht vor", g.text())
-    g.taste("enter")
     g.lauf(1000)
-    pruefe(dorf.anfragen("POST", "/buergermeister")[-1][2] == {"text": "Wie wird das Wetter?"} and g.sieht("denkt nach"), "Enter schickt sie an den Bürgermeister", g.text())
+    pruefe(dorf.anfragen("POST", "/buergermeister")[-1][2] == {"text": "Wie wird das Wetter?"} and g.sieht("denkt nach"),
+           "… und schickt den erkannten Text gleich an den Bürgermeister", g.text())
     g.lauf(9000)
+    g.taste("esc")
+
+    # 1.3.2: „nichts verstanden“ bleibt stehen (mit höchstem Pegel), nichts geht raus; Einstellungen zeigen die letzte Spracheingabe
+    dorf.sprache_text = ""
+    vorher = len(dorf.anfragen("POST", "/buergermeister"))
+    g.waehle("Sprechen")
+    g.taste("enter")
+    g.lauf(2000)
+    g.taste("tab")
+    g.lauf(4000)
+    pruefe(g.sieht("Nichts verstanden (Pegel") and len(dorf.anfragen("POST", "/buergermeister")) == vorher,
+           "leerer Text: Meldung bleibt stehen (nicht nur kurz), nichts wird abgeschickt", g.text())
+    g.taste("esc")
+    g.lauf(500)
+    log = g.cmd("EINST sprachlog")[0]
+    pruefe(log.startswith("EINST 2 s") and "Pegel max" in log and log.endswith("nichts verstanden"), "letzte Spracheingabe wird gemerkt (Dauer, Pegel, Ergebnis)", log)
+    g.waehle("Einstellungen")
+    g.taste("enter")
+    for _ in range(12):
+        g.taste("down")
+    pruefe(g.sieht("Letzte Sprache: 2 s"), "… und steht unten in den Einstellungen", g.text())
     g.taste("esc")
 
     # Notiz, Termin-Titel, Freigabe-Begründung, Timer: überall dieselbe Eingabe; Passwortfelder ohne Sprache
@@ -884,7 +906,7 @@ def main() -> int:
     pruefe(g.sieht("WLAN-Netze") and g.sieht("Neu koppeln") and g.sieht("Gerät entkoppeln"), "Einstellungen", g.text())
     g.foto("15-einstellungen")
     g.waehle("Zum Startmenü")
-    pruefe(g.sieht("Firmware 1.3.1 · Dorf abc1234") and g.sieht("187 KB RAM frei"), "Einstellungen zeigen Version und freien Speicher", g.text())
+    pruefe(g.sieht("Firmware 1.3.2 · Dorf abc1234") and g.sieht("187 KB RAM frei"), "Einstellungen zeigen Version und freien Speicher", g.text())
     g.waehle("WLAN-Netze")
     g.taste("enter")
     pruefe(g.sieht("Gespeichert") and g.sieht("verbunden"), "WLAN-Netze verwalten: gespeicherte Netze, eines verbunden", g.text())

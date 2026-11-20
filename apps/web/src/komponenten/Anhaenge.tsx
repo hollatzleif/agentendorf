@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef } from 'react';
 import { MAX_ANHANG_BYTES, type DateiKarte } from '@dorf/shared';
 import { rohUrl } from '../api';
 
@@ -26,7 +26,11 @@ export function dateiSymbol(name: string) {
 }
 
 /** Kärtchen für Dateien im Vault: Symbol, Name, Größe, Vorschau für Bilder; Klick öffnet (Rohdatei mit CSP sandbox). */
+/** Wer das bereitstellt (der Chat), zeigt Dateien in einer Seitenleiste statt in einem neuen Tab. */
+export const DateiOeffnenKontext = createContext<((k: DateiKarte) => void) | null>(null);
+
 export function DateiKarten({ karten, titel }: { karten: DateiKarte[]; titel?: string }) {
+  const oeffnen = useContext(DateiOeffnenKontext);
   if (!karten.length) return null;
   return (
     <div className="datei-karten" aria-label={titel ?? 'Dateien'}>
@@ -39,7 +43,13 @@ export function DateiKarten({ karten, titel }: { karten: DateiKarte[]; titel?: s
           target="_blank"
           rel="noopener noreferrer"
           title={k.pfad}
-          download={ANZEIGBAR.test(k.name) ? undefined : k.name}
+          download={ANZEIGBAR.test(k.name) || oeffnen ? undefined : k.name}
+          onClick={(e) => {
+            // normaler Klick → Seitenleiste; Strg/⌘/Shift/Mittelklick behalten das gewohnte Verhalten (neuer Tab)
+            if (!oeffnen || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+            e.preventDefault();
+            oeffnen(k);
+          }}
         >
           {BILD.test(k.name) && !/\.svg$/i.test(k.name) ? <img src={rohUrl(k.pfad)} alt="" loading="lazy" /> : <span className="datei-symbol">{dateiSymbol(k.name)}</span>}
           <span className="datei-name">{k.name}</span>

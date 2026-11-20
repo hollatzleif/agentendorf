@@ -118,6 +118,7 @@ public:
     void tick(App& app, uint32_t now) override;
     void netz(App& app, const Ergebnis& e, uint32_t now) override;
     void gleichSprechen() { sofort_ = true; }      // Aufnahme startet beim Oeffnen
+    void direktSenden() { direkt_ = true; }        // 1.3.2: erkannter Text geht sofort raus (Buergermeister), ohne Enter
 
 private:
     // Spracheingabe (Tab): aufnehmen -> hochladen -> der erkannte Text wird an der Schreibmarke (= am Ende)
@@ -133,8 +134,11 @@ private:
     bool roh_;
     Sprache sprache_ = Sprache::Aus;
     uint32_t spracheSeit_ = 0;
-    int maxSek_ = 0, lauf_ = 0, pegel_ = 0;
-    bool sofort_ = false;
+    int maxSek_ = 0, lauf_ = 0, pegel_ = 0, pegelMax_ = 0;
+    uint32_t aufnahmeMs_ = 0;
+    bool sofort_ = false, direkt_ = false;
+    std::string meldung_;      // bleibt stehen (statt kurzer Einblendung), bis getippt oder neu gesprochen wird
+    void sprachLog(App& app, uint32_t now, const std::string& ergebnis);
 };
 
 class ChoiceView : public ListView {

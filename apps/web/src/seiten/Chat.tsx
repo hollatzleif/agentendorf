@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ChatDetail, ChatNachricht, DateiKarte, LaufInfo } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
@@ -6,7 +6,8 @@ import { bibliothekUrl, linkKlick } from '../router';
 import { useLiveText } from '../live';
 import { Markdown } from '../komponenten/Markdown';
 import { laufStatusText, stufeText } from '../texte';
-import { AnhangWahl, DateiKarten, dateienAus, dateienHinzufuegen, nachrichtTeilen } from '../komponenten/Anhaenge';
+import { AnhangWahl, DateiKarten, DateiOeffnenKontext, dateienAus, dateienHinzufuegen, nachrichtTeilen } from '../komponenten/Anhaenge';
+import { DateiSeitenleiste } from '../komponenten/DateiSeitenleiste';
 
 /** `eingebettet` (E197): als Seitenleiste im Editor – ohne Rücksprung und Kopfzeilen */
 export function ChatSeite({ id, eingebettet }: { id: string; eingebettet?: boolean }) {
@@ -17,6 +18,9 @@ export function ChatSeite({ id, eingebettet }: { id: string; eingebettet?: boole
   const [laedt, setLaedt] = useState(false);
   const [ziehen, setZiehen] = useState(false);
   const [fehler, setFehler] = useState('');
+  // Datei in der Seitenleiste (nur in der vollen Chat-Seite; eingebettet – z. B. im Editor – bleibt es beim neuen Tab)
+  const [seite, setSeite] = useState<DateiKarte | null>(null);
+  const seiteSchliessen = useCallback(() => setSeite(null), []);
   const unten = useRef<HTMLDivElement>(null);
   const aktiv = chat.data?.laeufe.find((l) => ['wartend', 'laeuft', 'wartet_freigabe'].includes(l.status));
   const live = useLiveText(aktiv?.status === 'laeuft' ? aktiv.id : undefined);
@@ -62,8 +66,10 @@ export function ChatSeite({ id, eingebettet }: { id: string; eingebettet?: boole
   for (const n of c.nachrichten) if (n.laufId) letzteJeLauf.set(n.laufId, n.id);
 
   return (
+    <DateiOeffnenKontext.Provider value={eingebettet ? null : setSeite}>
+    {seite && !eingebettet && <DateiSeitenleiste datei={seite} schliessen={seiteSchliessen} />}
     <section
-      className={`chat${ziehen ? ' ziehen' : ''}${eingebettet ? ' eingebettet' : ''}`}
+      className={`chat${ziehen ? ' ziehen' : ''}${eingebettet ? ' eingebettet' : ''}${seite && !eingebettet ? ' mit-seitenleiste' : ''}`}
       onDragOver={(e) => {
         if (Array.from(e.dataTransfer.types).includes('Files')) {
           e.preventDefault();
@@ -212,6 +218,7 @@ export function ChatSeite({ id, eingebettet }: { id: string; eingebettet?: boole
         {fehler && <p className="fehler">{fehler}</p>}
       </form>
     </section>
+    </DateiOeffnenKontext.Provider>
   );
 }
 

@@ -827,10 +827,13 @@ protected:
         const uint32_t k = kennung;
         std::string start = entwurf_;
         if (buchstabe) start += in.ch;
-        app.push(neu(new TextInputView("Nachricht", "An den B\xC3\xBCrgermeister", start, "Enter schickt ab. Die Antwort kann eine Weile dauern.",
+        TextInputView* eingabe = new TextInputView("Nachricht", "An den B\xC3\xBCrgermeister", start,
+            "Enter schickt ab \xC2\xB7 Tab sprechen = geht gleich raus. Die Antwort kann dauern.",
             [k](App& a, const std::string& text, uint32_t t) {
                 if (View* v = a.ansicht(k)) static_cast<BmChatView*>(v)->schicken(a, text, t);
-            }, false, 400)));
+            }, false, 400);
+        eingabe->direktSenden();
+        app.push(neu(eingabe));
         return true;
     }
 
@@ -915,9 +918,11 @@ public:
 private:
     void neuesGespraech(App& app, const std::string& start) {
         geladenUm_ -= 60000;
-        app.push(neu(new TextInputView("Neues Gespr\xC3\xA4" "ch", "Was soll der B\xC3\xBCrgermeister tun?", start,
-            "Enter schickt ab. Er f\xC3\xA4ngt sofort an.",
-            [](App& a, const std::string& text, uint32_t) { a.push(neu(new BmChatView("", text))); }, false, 400)));
+        TextInputView* eingabe = new TextInputView("Neues Gespr\xC3\xA4" "ch", "Was soll der B\xC3\xBCrgermeister tun?", start,
+            "Enter schickt ab \xC2\xB7 Tab sprechen = geht gleich raus.",
+            [](App& a, const std::string& text, uint32_t) { a.push(neu(new BmChatView("", text))); }, false, 400);
+        eingabe->direktSenden();
+        app.push(neu(eingabe));
     }
     struct C {
         std::string id, titel, status, zeit;
@@ -1432,6 +1437,13 @@ public:
         h.style = Row::Header;
         h.text = std::string("Firmware ") + FIRMWARE_VERSION + (d.start.version.empty() ? "" : std::string(DOT) + "Dorf " + d.start.version);
         rows.push_back(h);
+        const std::string sprache = app.platform.setting("sprachlog");
+        if (!sprache.empty()) {      // 1.3.2: letzte Spracheingabe – hilft, wenn „nichts ankommt“
+            Row sp;
+            sp.style = Row::Header;
+            sp.text = "Letzte Sprache: " + sprache;
+            rows.push_back(sp);
+        }
         Row h2;
         h2.style = Row::Header;
         const uint32_t frei = app.platform.freeHeap();
@@ -1593,11 +1605,12 @@ public:
                     }, false, 300)));
                 break;
             case 10: app.push(neu(new PostView())); break;
-            case 12: {      // gleich aufnehmen; der erkannte Text steht dann zum Korrigieren da, Enter schickt ihn ab
+            case 12: {      // gleich aufnehmen; der erkannte Text geht sofort an den Buergermeister (1.3.2, Leifs Wunsch)
                 TextInputView* v = new TextInputView("Neues Gespr\xC3\xA4" "ch", "Was soll der B\xC3\xBCrgermeister tun?", "",
-                    "Enter schickt ab. Er f\xC3\xA4ngt sofort an.",
+                    "Sprechen, dann Tab \xE2\x80\x93 geht gleich raus.",
                     [](App& a, const std::string& text, uint32_t) { a.push(neu(new BmChatView("", text))); }, false, 400);
                 v->gleichSprechen();
+                v->direktSenden();
                 app.push(neu(v));
                 break;
             }

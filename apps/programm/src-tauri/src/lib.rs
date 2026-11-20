@@ -112,8 +112,10 @@ fn dorf_oeffnen(app: &AppHandle, url: Url, sichtbar: bool) -> tauri::Result<()> 
     }
 
     let dorf = url.clone();
+    let dorf_dl = url.clone();
     let h = app.clone();
     let h2 = app.clone();
+    let h3 = app.clone();
     #[allow(unused_mut)]
     let mut haupt = WebviewWindowBuilder::new(app, HAUPT, WebviewUrl::External(url.clone()));
     // Nur in Debug-Builds: Selbsttest der Freigaben (DORF_PROGRAMM_SELBSTTEST=1), siehe test/selbsttest.sh
@@ -140,6 +142,32 @@ fn dorf_oeffnen(app: &AppHandle, url: Url, sichtbar: bool) -> tauri::Result<()> 
         .on_new_window(move |ziel, _| {
             let _ = h2.opener().open_url(ziel.as_str(), None::<&str>);
             tauri::webview::NewWindowResponse::Deny
+        })
+        // E207: Downloads aus dem Dorf (Bibliothek, Chat, Atelier …) – ohne eigenen Handler lädt WKWebView (Mac) gar nichts,
+        // und die WebView zeigt nirgends, wo die Datei landet. Ziel ist der Download-Ordner (Vorschlag der WebView, gleiche
+        // Namen bekommen „(1)“ …); danach Meldung und der Ordner mit der Datei geht auf. Nur vom eigenen Dorf.
+        .on_download(move |_w, ereignis| match ereignis {
+            tauri::webview::DownloadEvent::Requested { url, .. } => adresse::intern(&dorf_dl, &url),
+            tauri::webview::DownloadEvent::Finished { path, success, .. } => {
+                let name = path
+                    .as_ref()
+                    .and_then(|p| p.file_name())
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_else(|| "Datei".into());
+                let _ = h3
+                    .notification()
+                    .builder()
+                    .title(if success { "Heruntergeladen" } else { "Download fehlgeschlagen" })
+                    .body(if success { format!("{name} liegt im Download-Ordner.") } else { format!("{name} konnte nicht gespeichert werden.") })
+                    .show();
+                if success {
+                    if let Some(p) = path {
+                        let _ = h3.opener().reveal_item_in_dir(p);
+                    }
+                }
+                true
+            }
+            _ => true,
         })
         .build()?;
 

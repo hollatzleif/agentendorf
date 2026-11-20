@@ -183,8 +183,8 @@ void TextInputView::draw(Gfx& g, App& app, uint32_t now) {
         app.footer(g, "Esc abbrechen", col::AMBER);
         return;
     }
-    const auto lines = wrapText(FONT_SMALL, hint_, 222, 2);
-    for (size_t i = 0; i < lines.size(); ++i) g.text(FONT_SMALL, 10, 93 + static_cast<int>(i) * 13, lines[i], col::TEXT2);
+    const auto lines = wrapText(FONT_SMALL, meldung_.empty() ? hint_ : meldung_, 222, 2);
+    for (size_t i = 0; i < lines.size(); ++i) g.text(FONT_SMALL, 10, 93 + static_cast<int>(i) * 13, lines[i], meldung_.empty() ? col::TEXT2 : col::AMBER);
     if (roh_) app.footer(g, "Enter OK" + std::string(DOT) + "Esc abbrechen" + DOT + "Esc = fn + `");
     else app.footer(g, "Enter OK" + std::string(DOT) + "Esc" + DOT + "Tab sprechen" + DOT + "opt+a = \xC3\xA4");
 }
@@ -200,16 +200,19 @@ void TextInputView::spracheStart(App& app, uint32_t now) {
     if (maxSek_ < 3) { app.toast("Kein Mikrofon oder kein Speicherplatz", now); return; }
     if (!app.platform.aufnahmeStart(Dorf::SPRACH_DATEI)) {
         const std::string grund = app.platform.aufnahmeGrund();
-        app.toast(grund.empty() ? "Mikrofon l\xC3\xA4sst sich nicht starten" : "Mikrofon: " + grund, now);
+        meldung_ = grund.empty() ? "Mikrofon l\xC3\xA4sst sich nicht starten" : "Mikrofon: " + grund;
+        app.toast(meldung_, now);
         return;
     }
     sprache_ = Sprache::Aufnahme;
     spracheSeit_ = now;
-    pegel_ = 0;
+    pegel_ = pegelMax_ = 0;
+    meldung_.clear();
 }
 
 void TextInputView::spracheStopp(App& app, uint32_t now) {
     const uint32_t dauer = now - spracheSeit_;
+    aufnahmeMs_ = dauer;
     sprache_ = Sprache::Aus;
     if (dauer < 600) {
         app.platform.aufnahmeStopp(false);
@@ -218,7 +221,9 @@ void TextInputView::spracheStopp(App& app, uint32_t now) {
     }
     if (!app.platform.aufnahmeStopp(true)) {
         const std::string grund = app.platform.aufnahmeGrund();
-        app.toast(grund.empty() ? "Aufnahme fehlgeschlagen" : "Aufnahme: " + grund, now);
+        meldung_ = grund.empty() ? "Aufnahme fehlgeschlagen" : "Aufnahme: " + grund;
+        app.toast(meldung_, now);
+        sprachLog(app, now, meldung_);
         return;
     }
     if (!app.dorf.verbunden()) {      // Netz waehrend der Aufnahme verloren
@@ -253,11 +258,14 @@ void TextInputView::tick(App& app, uint32_t now) {
     // Wache: kommt vom Netz gar nichts zurueck (Senden hoechstens 90 s + Abschreiben hoechstens 120 s), nicht ewig warten
     if (sprache_ == Sprache::Abschreiben && now - spracheSeit_ > SPRACHE_WACHE_MS) {
         sprache_ = Sprache::Aus;
-        app.toast("Keine Antwort vom Dorf \xE2\x80\x93 bitte nochmal", now);
+        meldung_ = "Keine Antwort vom Dorf \xE2\x80\x93 bitte nochmal";
+        app.toast(meldung_, now);
+        sprachLog(app, now, "keine Antwort");
         return;
     }
     if (sprache_ != Sprache::Aufnahme) return;
     pegel_ = app.platform.aufnahmePegel();
+    pegelMax_ = std::max(pegelMax_, pegel_);
     if (now - spracheSeit_ >= static_cast<uint32_t>(maxSek_) * 1000u) {
         app.toast("H\xC3\xB6" "chstdauer erreicht", now);
         spracheStopp(app, now);
@@ -268,16 +276,42 @@ void TextInputView::netz(App& app, const Ergebnis& e, uint32_t now) {
     if (sprache_ != Sprache::Abschreiben || e.marke != lauf_) return;      // abgebrochen: Antwort verfaellt
     sprache_ = Sprache::Aus;
     if (!e.ok) {
-        app.toast(e.status == 0 ? "Keine Verbindung \xE2\x80\x93 Aufnahme verworfen" :
-                  e.status == 413 ? "Aufnahme zu lang" :
-                  e.status == 503 ? "Spracherkennung nicht verf\xC3\xBCgbar" : e.fehler, now);
+        meldung_ = e.status == 0 ? "Keine Verbindung \xE2\x80\x93 Aufnahme verworfen" :
+                   e.status == 413 ? "Aufnahme zu lang" :
+                   e.status == 503 ? "Spracherkennung nicht verf\xC3\xBCgbar" : e.fehler;
+        app.toast(meldung_, now);
+        sprachLog(app, now, "HTTP " + std::to_string(e.status) + " " + meldung_);
         return;
     }
     const std::string t = e.j["text"].text();
     bool leer = true;
     for (char c : t) leer = leer && (c == ' ' || c == '\n');
-    if (leer) { app.toast("Nichts verstanden", now); return; }
+    if (leer) {
+        // bleibt stehen; der hoechste Pegel verraet, ob ueberhaupt etwas ankam
+        meldung_ = "Nichts verstanden (Pegel h\xC3\xB6" "chstens " + std::to_string(pegelMax_) + " %) \xE2\x80\x93 n\xC3\xA4her ran oder Mikrofon \xE2\x80\x9Elaut\xE2\x80\x9C";
+        app.toast("Nichts verstanden", now);
+        sprachLog(app, now, "nichts verstanden");
+        return;
+    }
+    sprachLog(app, now, std::to_string(charCount(t)) + " Zeichen");
     einfuegen(t);
+    if (direkt_) {      // Buergermeister: gleich abschicken – wie Enter
+        std::string s = text_;
+        while (!s.empty() && s.back() == ' ') s.pop_back();
+        while (!s.empty() && s.front() == ' ') s.erase(0, 1);
+        if (s.empty()) return;
+        TextCb cb = cb_;
+        app.pop();
+        app.toast("Geschickt \xE2\x9C\x93", now);
+        cb(app, s, now);
+    }
+}
+
+// 1.3.2: letzte Spracheingabe merken (Einstellungen zeigen sie) – Dauer, hoechster Pegel, Ergebnis
+void TextInputView::sprachLog(App& app, uint32_t now, const std::string& ergebnis) {
+    (void)now;
+    const int sek = static_cast<int>((aufnahmeMs_ + 500) / 1000);
+    app.platform.setSetting("sprachlog", std::to_string(sek) + " s" + DOT + "Pegel max " + std::to_string(pegelMax_) + " %" + DOT + ergebnis);
 }
 
 void TextInputView::key(const Input& in, App& app, uint32_t now) {
@@ -301,6 +335,7 @@ void TextInputView::key(const Input& in, App& app, uint32_t now) {
     }
     if (esc) { app.pop(); return; }
     if (in.k == K::Tab && !roh_) { spracheStart(app, now); return; }
+    meldung_.clear();
     if (in.k == K::Del) { popChar(text_); return; }
     if (in.k == K::Enter) {
         std::string t = text_;

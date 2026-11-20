@@ -141,6 +141,29 @@ describe('Anmeldung', () => {
   });
 });
 
+describe('E207: Vorschau für alle Formate', () => {
+  it('Word & Co. über die Umwandlung im Rechenraum; ohne Sitzung 401; Pfad-Tricks abgelehnt', async () => {
+    const d = await angemeldetesDorf();
+    await d.vault.schreiben('Rathaus/dateien/bericht.docx', Buffer.from('PK\x03\x04 kein echtes docx'));
+    const gesehen: string[] = [];
+    d.agenten.rechenraum = {
+      umwandeln: async (name: string) => {
+        gesehen.push(name);
+        return { version: '1', typ: 'Word-Dokument', text: '# Bericht\n\nErster Absatz', bilder: [{ mime: 'image/png', b64: 'iVBORw0KGgo=', titel: 'Seite 1' }, { mime: 'image/svg+xml', b64: 'PHN2Zz4=', titel: 'x' }], hinweise: ['ok'] };
+      },
+    } as unknown as NonNullable<typeof d.agenten.rechenraum>;
+    const r = await d.app.inject({ method: 'GET', url: '/api/vault/vorschau?pfad=Rathaus%2Fdateien%2Fbericht.docx', headers: { cookie: d.cookie } });
+    expect(r.statusCode, r.body).toBe(200);
+    const j = r.json();
+    expect(j).toMatchObject({ name: 'bericht.docx', typ: 'Word-Dokument', art: 'umgewandelt', text: '# Bericht\n\nErster Absatz' });
+    expect(j.bilder).toEqual([{ mime: 'image/png', base64: 'iVBORw0KGgo=', titel: 'Seite 1' }]); // kein SVG
+    expect(gesehen).toEqual(['bericht.docx']);
+    expect((await d.app.inject({ method: 'GET', url: '/api/vault/vorschau?pfad=Rathaus%2Fdateien%2Fbericht.docx' })).statusCode).toBe(401);
+    expect((await d.app.inject({ method: 'GET', url: '/%61pi/vault/vorschau?pfad=Rathaus%2Fdateien%2Fbericht.docx' })).statusCode).toBe(401);
+    expect((await d.app.inject({ method: 'GET', url: '/api/vault/vorschau?pfad=..%2F..%2Fetc%2Fpasswd', headers: { cookie: d.cookie } })).statusCode).toBe(400);
+  });
+});
+
 describe('Bibliothek über die API', () => {
   it('Vault aus Vorlage, Gebäude erkannt', async () => {
     const d = await angemeldetesDorf();

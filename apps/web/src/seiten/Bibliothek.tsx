@@ -242,7 +242,7 @@ function OrdnerAnsicht({ pfad }: { pfad: string }) {
   );
 }
 
-function DateiAnsicht({ pfad }: { pfad: string }) {
+export function DateiAnsicht({ pfad }: { pfad: string }) {
   const e = endung(pfad);
   if (TEXT_ENDUNGEN.has(e)) return <TextAnsicht pfad={pfad} />;
   if (e === 'html' || e === 'htm')
@@ -269,12 +269,63 @@ function DateiAnsicht({ pfad }: { pfad: string }) {
         {BILD_ENDUNGEN.has(e) ? <img className="bild" src={rohUrl(pfad)} alt={pfad} /> : <p className="leise">Für dieses Format gibt es hier keine Vorschau – das Atelier kann es öffnen.</p>}
       </>
     );
-  if (['mp3', 'm4a'].includes(e)) return <audio controls src={rohUrl(pfad)} />;
-  if (e === 'mp4') return <video controls src={rohUrl(pfad)} className="bild" />;
+  if (['mp3', 'm4a', 'wav', 'ogg', 'oga', 'opus'].includes(e)) return <audio controls src={rohUrl(pfad)} />;
+  if (['mp4', 'webm', 'mov'].includes(e)) return <video controls src={rohUrl(pfad)} className="bild" />;
+  // E207: alles andere (Word, Excel, PowerPoint, OpenDocument, Mails, Archive …) über die Umwandlung im Rechenraum
+  return <UmgewandeltAnsicht pfad={pfad} />;
+}
+
+interface Vorschau {
+  name: string;
+  typ: string;
+  art: string;
+  text: string;
+  bilder: { mime: string; base64: string; titel: string }[];
+  hinweise: string[];
+}
+
+/** E207: Vorschau als umgewandelter Text (Markdown, ohne HTML) + Bilder – das Original bleibt unverändert im Vault */
+function UmgewandeltAnsicht({ pfad }: { pfad: string }) {
+  const v = useQuery({
+    queryKey: ['vorschau', pfad],
+    queryFn: () => api<Vorschau>(`/api/vault/vorschau?pfad=${encodeURIComponent(pfad)}`),
+    staleTime: 60_000,
+    retry: false,
+  });
+  if (v.isLoading) return <p className="leise">Vorschau wird erstellt … (bei großen Dateien ein paar Sekunden)</p>;
+  if (v.error || !v.data)
+    return (
+      <p className="karte">
+        Vorschau nicht möglich{v.error instanceof ApiFehler ? ` (${v.error.message})` : ''}. <a href={rohUrl(pfad, true)}>Herunterladen</a>
+      </p>
+    );
+  const d = v.data;
+  const leer = !d.text.trim() && d.bilder.length === 0;
   return (
-    <p className="karte">
-      Für diesen Dateityp gibt es keine Vorschau. <a href={rohUrl(pfad, true)}>Herunterladen</a>
-    </p>
+    <div className="karte umgewandelt">
+      <p className="leise">
+        {d.typ} · Vorschau (umgewandelt – Layout kann abweichen) · <a href={rohUrl(pfad, true)}>Original herunterladen</a>
+      </p>
+      {leer ? <p>Für diese Datei gibt es keine Vorschau.</p> : <Markdown inhalt={d.text} pfad={pfad} />}
+      {d.bilder.map((b, i) => (
+        <figure key={i}>
+          <img className="bild" src={`data:${b.mime};base64,${b.base64}`} alt={b.titel || `Bild ${i + 1}`} />
+          {b.titel && <figcaption className="leise">{b.titel}</figcaption>}
+        </figure>
+      ))}
+      {d.hinweise.length > 0 && (
+        <details>
+          <summary className="leise">Hinweise zur Umwandlung</summary>
+          <ul>
+            {d.hinweise.map((h, i) => (
+              <li key={i} className="leise">
+                {h}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
   );
 }
 

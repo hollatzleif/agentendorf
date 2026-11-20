@@ -229,6 +229,13 @@ export interface KameraStand {
   pos: [number, number, number];
 }
 
+/** Kamera: Normal schaut man schräg von oben; mit der mittleren Maustaste (freie Sicht) bis knapp über den Horizont */
+const SZENE_KIPP_NORMAL = 1.2;
+const SZENE_KIPP_FREI = 1.5;
+const SZENE_NAH_NORMAL = 7;
+const SZENE_NAH_FREI = 2.5;
+const SZENE_MIN_HOEHE = 0.6;
+
 export class DorfSzene {
   readonly renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -245,6 +252,7 @@ export class DorfSzene {
   private gebaeude = new Map<string, GebaeudeEintrag>();
   private statisch: { schluessel: string; gruppe: THREE.Group } | null = null;
   private gelaende: { schluessel: string; g: Gelaende } | null = null;
+  private freiAn = false;
   private autos: Autos | null = null;
   private himmelsGruppe: Himmel | null = null;
   /** Lichtschein der Laternen (nachts sichtbar) */
@@ -344,15 +352,18 @@ export class DorfSzene {
     this.steuerung.enableDamping = !o.reduziert && !this.sparsam;
     this.steuerung.dampingFactor = 0.12;
     this.steuerung.screenSpacePanning = false;
-    this.steuerung.minDistance = 7;
+    this.steuerung.minDistance = SZENE_NAH_NORMAL;
     this.steuerung.maxDistance = 90;
     this.steuerung.minPolarAngle = 0.35;
-    this.steuerung.maxPolarAngle = 1.2;
-    this.steuerung.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+    this.steuerung.maxPolarAngle = SZENE_KIPP_NORMAL;
+    // Mittlere Maustaste (Leifs Wunsch): frei um das Dorf drehen und bis fast auf Augenhöhe kippen, näher heran;
+    // Shift + mittlere Taste verschiebt (OrbitControls: ROTATE mit Shift/Strg = PAN). Zoomen weiter mit dem Mausrad.
+    this.steuerung.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: THREE.MOUSE.ROTATE };
     this.steuerung.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE };
     this.steuerung.zoomToCursor = true;
     this.steuerung.addEventListener('change', () => {
       this.zielBegrenzen();
+      this.ueberBoden();
       this.schmutzig = true;
     });
     if (o.kamera) {
@@ -1066,6 +1077,7 @@ export class DorfSzene {
     const abstand = THREE.MathUtils.clamp(breite * (hochkant ? 2.5 : 1.35), 20, 95);
     // Hochformat: steiler von oben, damit das Dorf die Höhe nutzt
     const richtung = (hochkant ? new THREE.Vector3(0.36, 1.3, 0.74) : new THREE.Vector3(0.42, 0.78, 0.86)).normalize();
+    this.freieSicht(false);      // zurück zur gewohnten Schrägansicht
     this.steuerung.target.copy(ziel);
     this.kamera.position.copy(ziel).addScaledVector(richtung, abstand);
     void sanft;
@@ -1095,6 +1107,30 @@ export class DorfSzene {
 
   kameraStand(): KameraStand {
     return { ziel: this.steuerung.target.toArray() as [number, number, number], pos: this.kamera.position.toArray() as [number, number, number] };
+  }
+
+  /** Freie Sicht (mittlere Maustaste): bis knapp über den Horizont kippen und nah heran. */
+  freieSicht(an: boolean) {
+    if (this.freiAn === an) return;
+    this.freiAn = an;
+    this.steuerung.maxPolarAngle = an ? SZENE_KIPP_FREI : SZENE_KIPP_NORMAL;
+    this.steuerung.minDistance = an ? SZENE_NAH_FREI : SZENE_NAH_NORMAL;
+    if (!an) this.steuerung.update();      // zurück in die normalen Grenzen (OrbitControls klemmt selbst)
+    this.schmutzig = true;
+  }
+
+  get freieSichtAn() {
+    return this.freiAn;
+  }
+
+  /** Die Kamera bleibt immer über dem Gelände (Hügel!) – sonst schaut man in freier Sicht von unten durch den Boden. */
+  private ueberBoden() {
+    const p = this.kamera.position;
+    const boden = Math.max(0, this.gelaende?.g.hoehe(p.x, p.z) ?? 0) + SZENE_MIN_HOEHE;
+    if (p.y < boden) {
+      p.y = boden;
+      this.kamera.lookAt(this.steuerung.target);
+    }
   }
 
   private zielBegrenzen() {
@@ -1209,6 +1245,11 @@ export class DorfSzene {
     const c = this.renderer.domElement;
     // vor OrbitControls registriert → kann Gesten für den Bau-Modus übernehmen
     c.addEventListener('pointerdown', (e) => {
+      // Mittlere Taste: freie Sicht freischalten (bleibt an, bis die Ansicht zentriert wird – zentrieren())
+      if (e.pointerType === 'mouse' && e.button === 1) {
+        e.preventDefault();      // kein Auto-Scroll des Browsers
+        this.freieSicht(true);
+      }
       this.zeiger = { x: e.clientX, y: e.clientY, zeit: performance.now(), id: e.pointerId };
       if (this.bau && e.isPrimary && e.button === 0) {
         const t = this.treffer(e);

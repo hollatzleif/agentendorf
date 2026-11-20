@@ -402,6 +402,31 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
    * eigenen, undurchsichtigen Ursprung (kein allow-same-origin → kein Zugriff auf App, Cookies, API)
    * und ohne Netz (default-src 'none'): nichts nachladen, nichts hinausschicken.
    */
+  /**
+   * E207: Vorschau für Formate ohne eigene Anzeige (Word, Excel, PowerPoint, OpenDocument, Mails, Archive …) – dieselbe
+   * Umwandlung im Rechenraum wie für Anhänge (E190, mit Zwischenspeicher). Nur lesen; der Text geht als Daten an die App
+   * (dort Markdown-Anzeige ohne HTML), Bilder als PNG/JPEG. Höchstens 12 Bilder.
+   */
+  app.get('/api/vault/vorschau', async (req) => {
+    const q = z.object({ pfad: z.string().min(1).max(1000) }).parse(req.query);
+    const pfad = normalisieren(q.pfad);
+    const d = a.agenten.dateien;
+    if (!d) throw new DorfFehler(503, 'Vorschau ist auf diesem Server nicht eingerichtet.');
+    const v = await d.verstehen(pfad, { pdfNativ: false, bildNativ: false });
+    return {
+      name: v.name,
+      typ: v.typ,
+      groesse: v.groesse,
+      art: v.art,
+      text: v.text ?? '',
+      bilder: v.bilder
+        .filter((b) => b.mime === 'image/png' || b.mime === 'image/jpeg' || b.mime === 'image/webp')
+        .slice(0, 12)
+        .map((b) => ({ mime: b.mime, base64: b.base64, titel: b.titel ?? '' })),
+      hinweise: v.hinweise.slice(0, 10),
+    };
+  });
+
   app.get('/api/vault/seite', async (req, reply) => {
     const q = z.object({ pfad: z.string(), v: z.string().optional() }).parse(req.query);
     if (!/\.html?$/i.test(q.pfad)) throw new DorfFehler(400, 'Nur .html-Dateien.');

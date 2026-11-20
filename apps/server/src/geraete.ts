@@ -581,6 +581,7 @@ export function geraeteRouten(app: FastifyInstance, a: Abhaengigkeiten, o: { ger
     // E195: 503, wenn NICHT transkribiert wurde (whisper/Modell fehlt, Prozessor ohne AVX2, Zeitlimit, Rechenraum weg) –
     // ein leerer Text mit 200 hieße für das Gerät „nichts verstanden“, und Leif spräche umsonst noch einmal.
     let e: Awaited<ReturnType<typeof rr.umwandeln>>;
+    const start = Date.now();
     try {
       e = await rr.umwandeln('sprache.wav', lautAngleichen(wav));
     } catch (err) {
@@ -591,7 +592,10 @@ export function geraeteRouten(app: FastifyInstance, a: Abhaengigkeiten, o: { ger
       console.warn(`Spracheingabe: keine Transkription – ${e.hinweise.join(' | ').slice(0, 500) || 'kein Hinweis'}`);
       throw new DorfFehler(503, 'Die Spracherkennung ist gerade nicht verfügbar.');
     }
-    return { text: transkriptAus(e.text) };
+    const text = transkriptAus(e.text);
+    // E206: nur Größe, Dauer und Länge – nie der Inhalt (`dorf logs` zeigt so, ob Aufnahmen ankommen und ob etwas erkannt wurde)
+    console.info(`Spracheingabe: ${Math.round(wav.length / 1024)} KB, ${Date.now() - start} ms, ${text.length} Zeichen erkannt`);
+    return { text };
   });
 
   // ---- Weiteres ----

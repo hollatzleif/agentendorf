@@ -2045,7 +2045,7 @@ test('E190 Anhänge: Schreibtisch mit Datei, im Chat Dateien anhängen – als K
   test.setTimeout(90_000);
   await anmelden(page);
   await page.goto('/gebaeude/Rathaus');
-  const titel = `Anhang-Test ${info.project.name}`;
+  const titel = `Anhang-Test ${info.project.name} ${Date.now()}`;
   await page.getByLabel('Neue Aufgabe für den Bürgermeister').fill(titel);
   await page.getByTestId('anhang-eingabe').first().setInputFiles({ name: 'Übung 3.txt', mimeType: 'text/plain', buffer: Buffer.from('Aufgabe 1: 6 * 7') });
   await expect(page.locator('.datei-karten.gewaehlt .datei-karte', { hasText: 'Übung 3.txt' })).toBeVisible();
@@ -2056,7 +2056,7 @@ test('E190 Anhänge: Schreibtisch mit Datei, im Chat Dateien anhängen – als K
   await zeile.getByRole('link', { name: titel }).click();
   await expect(page).toHaveURL(/\/chats\//);
   // Lauf 1 zeigt die hochgeladene Datei als Kärtchen (ASCII-Name im Vault)
-  await expect(page.locator('.nachricht.nutzer .datei-karte', { hasText: 'Uebung 3.txt' })).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('.nachricht.nutzer .datei-karte', { hasText: /Uebung 3( \(\d+\))?\.txt/ })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText(/Lauf 1: fertig/)).toBeVisible({ timeout: 30_000 });
   // im Chat: Bild + Text anhängen
   const png = fs.readFileSync(new URL('../../server/test/fixtures/anhaenge/foto.png', import.meta.url));
@@ -2070,10 +2070,42 @@ test('E190 Anhänge: Schreibtisch mit Datei, im Chat Dateien anhängen – als K
   await expect(page.locator('.datei-karten.gewaehlt')).toHaveCount(0);
   const blase = page.locator('.nachricht.nutzer', { hasText: 'Hier noch die Skizze' });
   await expect(blase.locator('.datei-karte')).toHaveCount(2, { timeout: 30_000 });
-  const bild = blase.locator('.datei-karte', { hasText: 'skizze.png' });
+  const bild = blase.locator('.datei-karte', { hasText: /skizze( \(\d+\))?\.png/ });
   await expect(bild.locator('img')).toBeVisible();
   await expect(bild).toHaveAttribute('href', /\/api\/vault\/roh\?pfad=Rathaus%2Fchats%2Fanhaenge%2F/);
   await expect(page.getByText(/Lauf 2: fertig/)).toBeVisible({ timeout: 30_000 });
   // was der Agent vom Anhang gesehen hat, ist eingeklappt
   await expect(blase.locator('details.anhang-inhalt summary')).toHaveText('Anhänge, wie der Agent sie sieht');
+  // Klick auf ein Kärtchen öffnet die Datei in der Seitenleiste des Chats (kein neuer Tab); Esc schließt
+  const tabs = page.context().pages().length;
+  await blase.locator('.datei-karte', { hasText: /notiz( \(\d+\))?\.md/ }).click();
+  const leiste = page.getByRole('dialog', { name: /Datei notiz/ });
+  await expect(leiste).toBeVisible();
+  await expect(leiste.getByRole('heading', { name: 'Notiz' })).toBeVisible();
+  expect(page.context().pages().length).toBe(tabs);
+  await expect(page).toHaveURL(/\/chats\//); // der Chat bleibt offen
+  await leiste.getByRole('button', { name: 'Seitenleiste schließen' }).click(); // am Handy deckt die Leiste den Chat ganz ab
+  await expect(leiste).toHaveCount(0);
+  await bild.click();
+  await expect(page.getByRole('dialog', { name: /Datei skizze/ }).locator('img.bild')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: /Datei / })).toHaveCount(0);
 });
+
+test('E207 Bibliothek: Vorschau für jedes Format (Word …) und „Herunterladen“ lädt die Datei', async ({ page }, info) => {
+  await anmelden(page);
+  const ordner = `E207-${info.project.name}`;
+  const r = await page.request.post(`/api/vault/hochladen?ordner=${encodeURIComponent(ordner)}`, {
+    headers: { origin: new URL(page.url()).origin },
+    multipart: { datei: { name: 'Bericht.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: Buffer.from('PK\u0003\u0004 Testinhalt') } },
+  });
+  expect(r.ok(), await r.text()).toBe(true);
+  await page.goto(`/bibliothek?pfad=${encodeURIComponent(`${ordner}/Bericht.docx`)}`);
+  // kein „keine Vorschau“ mehr: die Umwandlung wird versucht (im Test ohne Rechenraum → ehrlicher Hinweis + Original)
+  await expect(page.getByText(/Vorschau \(umgewandelt/)).toBeVisible({ timeout: 15_000 });
+  await page.getByText('Hinweise zur Umwandlung').click();
+  await expect(page.getByText(/Rechenraum ist auf diesem Server nicht eingerichtet/)).toBeVisible();
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('link', { name: 'Herunterladen', exact: true }).first().click()]);
+  expect(dl.suggestedFilename()).toBe('Bericht.docx');
+});
+
