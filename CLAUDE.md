@@ -275,3 +275,4 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E206 (20.11.): Kamera frei mit mittlerer Maustaste (kippen bis zum Horizont, über dem Gelände), Dateien im Seitenfenster des Chats, Cardputer 1.3.2 (Bürgermeister per Sprache direkt, Meldungen bleiben stehen, „Letzte Sprache“ in den Einstellungen)
 - [x] E207 (20.11.): Programm lädt Dateien herunter (on_download → Download-Ordner, Meldung, Ordner öffnen), Vorschau für jedes Format über die Rechenraum-Umwandlung (`/api/vault/vorschau`) – Programm-Update nötig
 - [x] E208 (20.11.): Cardputer 1.3.3 – Mikrofon-Test (Puffer/s, Pegel), Codec-Register nur auf Wunsch (Vorgabe Software-Verstärkung wie 1.2)
+- [x] E209 (20.11.): Cardputer 1.3.4 – Aufnahme nur anhängen, WAV-Kopf erst beim Hochladen (LittleFS schrieb beim Kopf-Überschreiben die ganze Datei neu → „keinen Ton (33 Puffer)“); nie am Gerät gehört

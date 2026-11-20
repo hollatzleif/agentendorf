@@ -1,4 +1,4 @@
-// Agentendorf-Firmware fuer den M5Stack Cardputer Adv - Version 1.3.3 (auf Basis von HaloOS 0.3).
+// Agentendorf-Firmware fuer den M5Stack Cardputer Adv - Version 1.3.4 (auf Basis von HaloOS 0.3).
 //
 // Beim Einschalten erscheint ein Startmenue:
 //   1 Fernbedienung  - wie HaloOS 0.3: meldet Tasten, Akku und Bewegung per Bluetooth an den Hub der Brille
@@ -192,8 +192,10 @@ bool g_codec_mikro = false;       // Codec gehoert gerade dem Mikrofon (Lautspre
 volatile int g_hoch_prozent = -1; // Fortschritt beim Hochladen der Aufnahme (-1 = nicht dabei)
 
 
-void wavKopf(File& f, uint32_t datenBytes) {
-    uint8_t k[44];
+// 1.3.4: Die Aufnahme-Datei enthaelt nur die rohen Werte; den WAV-Kopf setzt hochladen() davor. Vorher wurde der Kopf
+// am Ende an den Anfang der Datei geschrieben - LittleFS schreibt dafuer die GANZE Datei neu (Sekunden, braucht
+// doppelt Platz). Darum wurde die Aufnahme nie rechtzeitig fertig ("liefert keinen Ton (33 Puffer)").
+void wavKopf(uint8_t (&k)[44], uint32_t datenBytes) {
     auto u32 = [&](int at, uint32_t v) { for (int i = 0; i < 4; ++i) k[at + i] = static_cast<uint8_t>(v >> (8 * i)); };
     auto u16 = [&](int at, uint16_t v) { k[at] = static_cast<uint8_t>(v); k[at + 1] = static_cast<uint8_t>(v >> 8); };
     memcpy(k, "RIFF", 4);
@@ -208,7 +210,6 @@ void wavKopf(File& f, uint32_t datenBytes) {
     u16(34, 16);
     memcpy(k + 36, "data", 4);
     u32(40, datenBytes);
-    f.write(k, sizeof k);
 }
 
 void aufnahmeSchreiben(const int16_t* p) {
@@ -255,11 +256,7 @@ void aufnahmeAufgabe(void*) {
     }
     if (!g_aufn.fehler && i >= 2) aufnahmeSchreiben(g_aufn.puffer[(i - 2) % 3]);
     if (!g_aufn.fehler && i >= 1) aufnahmeSchreiben(g_aufn.puffer[(i - 1) % 3]);
-    if (!g_aufn.nurMessen) {
-        if (!g_aufn.datei.seek(0)) g_aufn.fehler = true;
-        else wavKopf(g_aufn.datei, g_aufn.bytes);
-        g_aufn.datei.close();
-    }
+    if (!g_aufn.nurMessen) g_aufn.datei.close();    // nur Rohdaten - der WAV-Kopf kommt beim Hochladen davor
     g_aufn.fertig = true;
     g_aufn.aufgabe = nullptr;
     vTaskDelete(nullptr);
@@ -302,7 +299,6 @@ bool aufnahmeStart(const std::string& pfad) {
         if (g_fs->exists(pfad.c_str())) g_fs->remove(pfad.c_str());
         g_aufn.datei = g_fs->open(pfad.c_str(), FILE_WRITE);
         if (!g_aufn.datei) { aufnahmeAufraeumen(); g_aufn_grund = "Datei"; return false; }
-        wavKopf(g_aufn.datei, 0);     // Platzhalter, wird am Ende ueberschrieben
     }
     M5Cardputer.Speaker.end();
     auto cfg = M5Cardputer.Mic.config();
@@ -346,12 +342,12 @@ bool aufnahmeStart(const std::string& pfad) {
     return true;
 }
 
-// Haelt die Oberflaeche kurz an (bis die letzten ~0,5 s Ton geschrieben sind) - hoechstens 4 s
+// Haelt die Oberflaeche kurz an (bis die letzten ~0,5 s Ton geschrieben sind) - hoechstens 6 s
 bool aufnahmeStopp(bool behalten) {
     if (!g_aufn.laeuft) return false;
     g_aufn.stoppen = true;
     const uint32_t seit = millis();
-    while (!g_aufn.fertig && millis() - seit < 4000) delay(5);
+    while (!g_aufn.fertig && millis() - seit < 6000) delay(5);
     const bool fertig = g_aufn.fertig;
     // Haengt das Mikrofon, koennte Mic.end() selbst haengen (es wartet auf die Aufgabe der Bibliothek) - dann den Codec
     // lieber so lassen (Toene bleiben stumm) und zum Neustart raten, statt die Oberflaeche einzufrieren.
@@ -364,8 +360,9 @@ bool aufnahmeStopp(bool behalten) {
     }
     const bool ok = fertig && !g_aufn.fehler && g_aufn.bytes > 0;
     if (!ok)
-        g_aufn_grund = mikroKaputt ? "Mikrofon liefert keinen Ton (" + std::to_string(g_aufn.gefuellt) + " Puffer) \xE2\x80\x93 Einstellungen \xE2\x86\x92 Mikrofon-Test"
-                                   : g_aufn.bytes == 0 ? "nichts aufgenommen" : "Speicher voll";
+        g_aufn_grund = g_aufn.mikroHaengt ? "Mikrofon liefert keinen Ton (" + std::to_string(g_aufn.gefuellt) + " Puffer) \xE2\x80\x93 Einstellungen \xE2\x86\x92 Mikrofon-Test"
+                     : !fertig ? "Aufnahme wird nicht fertig (" + std::to_string(g_aufn.gefuellt) + " Puffer) \xE2\x80\x93 Cardputer neu starten"
+                     : g_aufn.bytes == 0 ? "nichts aufgenommen" : "Speicher voll";
     if ((!ok || !behalten) && g_fs && fertig && !g_aufn.nurMessen) g_fs->remove(g_aufn.pfad.c_str());
     return ok && behalten;
 }
@@ -441,7 +438,19 @@ void hochladen(WiFiClientSecure& tls, const Anfrage& a, const std::string& host,
     if (!g_fs) { r.grund = "kein Speicher"; return; }
     File f = g_fs->open((std::string(DIR) + "/" + a.datei).c_str(), FILE_READ);
     if (!f) { r.grund = "Datei fehlt"; return; }
-    const size_t groesse = f.size();
+    // Aufnahmen liegen als Rohdaten im Speicher (1.3.4): den WAV-Kopf hier davorsetzen
+    uint8_t wav[44];
+    size_t vorn = 0;
+    if (a.inhaltTyp.rfind("audio/wav", 0) == 0) {
+        char anfang[4] = {0, 0, 0, 0};
+        const bool schonWav = f.read(reinterpret_cast<uint8_t*>(anfang), 4) == 4 && memcmp(anfang, "RIFF", 4) == 0;
+        f.seek(0);
+        if (!schonWav) {
+            wavKopf(wav, static_cast<uint32_t>(f.size()));
+            vorn = sizeof wav;
+        }
+    }
+    const size_t groesse = f.size() + vorn;
     if (!tls.connect(host.c_str(), port, VERBINDEN_MS)) {
         f.close();
         r.grund = "keine Verbindung";
@@ -451,8 +460,9 @@ void hochladen(WiFiClientSecure& tls, const Anfrage& a, const std::string& host,
     if (!a.token.empty()) kopf += "Authorization: Bearer " + a.token + "\r\n";
     kopf += "Content-Type: " + a.inhaltTyp + "\r\nContent-Length: " + std::to_string(groesse) + "\r\n\r\n";
     bool ok = tls.write(reinterpret_cast<const uint8_t*>(kopf.data()), kopf.size()) == kopf.size();
+    if (ok && vorn) ok = tls.write(wav, vorn) == vorn;
     uint8_t* stueck = static_cast<uint8_t*>(malloc(2048));
-    size_t gesendet = 0;
+    size_t gesendet = vorn;
     g_hoch_prozent = 0;
     const uint32_t sendeSeit = millis();
     while (ok && stueck && gesendet < groesse) {
