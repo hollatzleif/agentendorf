@@ -1581,3 +1581,10 @@ a.datei-karte:hover { border-color: #1f5a1d; }
 .nachricht.erzeugt { background: #f4f9ff; }
 .anhang-inhalt pre { max-height: 16rem; overflow: auto; white-space: pre-wrap; font-size: 0.8rem; }
 .chat.ziehen { outline: 3px dashed #1f5a1d; outline-offset: 4px; }
+
+/* E198 Atelier: Bilderliste im Gebäude (der Editor selbst bringt sein eigenes Stylesheet mit) */
+.atelier-bilder { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: 0.7rem; }
+.atelier-bilder a { display: flex; flex-direction: column; gap: 0.15rem; text-decoration: none; color: var(--text); border: 2px solid var(--rand); border-radius: 12px; padding: 0.4rem; background: #fff; }
+.atelier-bilder a:hover { border-color: var(--navy); }
+.atelier-bilder img, .atelier-bilder .datei-symbol { width: 100%; height: 6.5rem; object-fit: contain; display: grid; place-items: center; font-size: 2.4rem; background: repeating-conic-gradient(#fff 0 25%, #eef1f5 0 50%) 0 0 / 16px 16px; border-radius: 8px; }
+.atelier-bilder strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.9rem; }

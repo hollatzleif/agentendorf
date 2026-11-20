@@ -23,6 +23,8 @@ const ChatSeite = lazy(() => import('./seiten/Chat').then((m) => ({ default: m.C
 const Anleitung = lazy(() => import('./seiten/Anleitung').then((m) => ({ default: m.Anleitung })));
 const WochePlanen = lazy(() => import('./seiten/WochePlanen').then((m) => ({ default: m.WochePlanen })));
 const TagAbschliessen = lazy(() => import('./seiten/TagAbschliessen').then((m) => ({ default: m.TagAbschliessen })));
+// E198: der Bildeditor (und sein Stylesheet) wird nur auf dieser Seite geladen
+const AtelierSeite = lazy(() => import('./atelier/Atelier').then((m) => ({ default: m.AtelierSeite })));
 const FokusVollbild = lazy(() => import('./seiten/FokusVollbild').then((m) => ({ default: m.FokusVollbild })));
 
 export function App() {
@@ -92,6 +94,7 @@ function Rahmen() {
   else if (pfad.startsWith('/gebaeude/')) seite = <GebaeudeSeite id={decodeURIComponent(pfad.slice('/gebaeude/'.length))} />;
   else if (pfad === '/heute') seite = <Heute />;
   else if (pfad === '/fokus') seite = <FokusVollbild />;
+  else if (pfad === '/atelier') seite = <AtelierSeite />;
   else if (pfad === '/anleitung') seite = <Anleitung />;
   else if (pfad === '/planen') seite = <WochePlanen />;
   else if (pfad === '/abschluss') seite = <TagAbschliessen />;
@@ -113,7 +116,7 @@ function Rahmen() {
           <img src="/favicon.svg" alt="" width={28} height={28} /> Agentendorf
         </a>
         <nav>
-          {nav('/', 'Dorf', pfad === '/' || pfad.startsWith('/gebaeude') || pfad.startsWith('/chats'))}
+          {nav('/', 'Dorf', pfad === '/' || pfad.startsWith('/gebaeude') || pfad.startsWith('/chats') || pfad === '/atelier')}
           {nav('/heute', 'Heute', pfad === '/heute')}
           {nav('/bibliothek', 'Bibliothek', pfad === '/bibliothek')}
           {nav('/einstellungen', 'Einstellungen', pfad === '/einstellungen')}

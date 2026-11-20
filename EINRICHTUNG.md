@@ -382,6 +382,22 @@ dorf coding-aus
 
 `dorf coding-aus` hält das Codehaus an; Projekte, Einstellungen und Token bleiben.
 
+## 13. Atelier: Bilder bearbeiten (und, wenn du willst, generieren)
+
+Das Atelier ist ohne Einrichtung da: Dorf → **Atelier** → **Bildeditor öffnen**. Bilder aus dem Vault öffnest du im Editor (Datei → Öffnen) oder in der Bibliothek über „Im Atelier bearbeiten“.
+
+- **Hintergrund entfernen** und **Hochskalieren** rechnet der Rechenraum auf deinem Server (ohne Internet, ohne Kosten). Die beiden Modelle kommen mit dem nächsten Rechenraum-Image – also mit dem ersten Deploy nach diesem Stand. Bis dahin sind die Menüpunkte ausgegraut und sagen, warum.
+- **Bild generieren** und **generatives Füllen** sind freiwillig und brauchen ein (kostenloses) Cloudflare-Konto:
+  1. dash.cloudflare.com → anmelden → links *Workers & Pages* → rechts steht die **Konto-ID**.
+  2. Profil (oben rechts) → *API-Tokens* → *Token erstellen* → Vorlage **Workers AI** → erstellen und kopieren.
+  3. Auf dem Server:
+
+     ```bash
+     dorf bilder-einrichten
+     ```
+
+  Frei sind 10 000 „Neuronen“ pro Tag (rund 90 Bilder in 1024 × 1024); danach lehnt Cloudflare bis 00:00 UTC ab – es entstehen keine Kosten, solange du keinen Bezahlplan abschließt. Dabei verlässt der Beschreibungstext das Dorf, beim Füllen auch der gewählte Bildausschnitt. Agenten können keine Bilder generieren.
+
 ## Alltag
 
 ```bash

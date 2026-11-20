@@ -458,6 +458,33 @@ cmd_boerse_schluessel() {
   gruen "Börsen-Schlüssel gespeichert, Dorf neu gestartet. Kurse kommen innerhalb der nächsten Stunde (oder: Börse → Kurse holen)."
 }
 
+# E198 Atelier: „Bild generieren“ über Cloudflare Workers AI (kostenloses Tageskontingent) – Konto-ID und API-Token eintragen.
+# Token anlegen: dash.cloudflare.com → Profil → API-Tokens → Token erstellen → Vorlage „Workers AI“ (Lesen + Bearbeiten).
+cmd_bilder_einrichten() {
+  local konto token code
+  echo "Bilder generieren im Atelier – Cloudflare Workers AI (FLUX.2 klein)."
+  echo "Kostenlos sind 10 000 Neuronen pro Tag (rund 90 Bilder in 1024×1024); ohne Bezahlplan ist danach bis 00:00 UTC Schluss."
+  echo "Was dabei das Dorf verlässt: der Beschreibungstext, beim generativen Füllen auch der gewählte Bildausschnitt."
+  read -r -p "Cloudflare-Konto-ID (dash.cloudflare.com → Workers & Pages → rechts Konto-ID): " konto
+  konto=$(printf '%s' "$konto" | tr -d '\r\n ')
+  [[ "$konto" =~ ^[0-9a-f]{32}$ ]] || { rot "Das sieht nicht wie eine Konto-ID aus (32 Zeichen, 0–9 und a–f)."; return 1; }
+  read -r -s -p "API-Token (Vorlage Workers AI, Eingabe unsichtbar): " token; echo
+  token=$(printf '%s' "$token" | tr -d '\r\n ')
+  [[ "$token" =~ ^[A-Za-z0-9_-]{20,200}$ ]] || { rot "Das sieht nicht wie ein Cloudflare-API-Token aus."; return 1; }
+  # kostet nichts: nur die Modellliste lesen – prüft, ob Token und Konto zusammenpassen
+  code=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $token" "https://api.cloudflare.com/client/v4/accounts/$konto/ai/models/search?per_page=1" || echo 000)
+  case "$code" in
+    200) gruen "Zugang funktioniert." ;;
+    401|403) rot "Cloudflare lehnt Token oder Konto ab (HTTP $code). Hat das Token die Rechte Workers AI – Lesen/Bearbeiten für dieses Konto?"; return 1 ;;
+    *) info "Cloudflare antwortet mit HTTP $code – ich trage den Zugang trotzdem ein; das Atelier zeigt den Fehler, falls etwas nicht stimmt." ;;
+  esac
+  sed -i '/^#\? *CLOUDFLARE_ACCOUNT_ID=/d; /^#\? *CLOUDFLARE_API_TOKEN=/d' "$ENV_DATEI"
+  { echo "CLOUDFLARE_ACCOUNT_ID=$konto"; echo "CLOUDFLARE_API_TOKEN=$token"; } >> "$ENV_DATEI"
+  compose up -d --force-recreate dorf
+  gruen "Gespeichert, Dorf neu gestartet. Im Atelier: Menü KI → Bild generieren und Generatives Füllen."
+  echo "Wieder abschalten: die beiden CLOUDFLARE_-Zeilen aus $ENV_DATEI löschen, dann: dorf deploy"
+}
+
 # E73: Saxo (nur lesen) – App-Schlüssel und -Secret der Live-App eintragen. Anleitung: EINRICHTUNG.md (Saxo)
 cmd_saxo_einrichten() {
   local domain k sec
@@ -817,6 +844,7 @@ Agentendorf – Befehle auf dem Server
   dorf claude-anmelden           Abo für den claude-code-Motor anmelden (Token 1 Jahr gültig)
   dorf api-schluessel            API-Schlüssel für den api-Motor eintragen
   dorf boerse-schluessel         EODHD-Schlüssel für die Börsenkurse eintragen (kostenlos, eodhd.com)
+  dorf bilder-einrichten         Atelier: Bilder generieren über Cloudflare Workers AI (kostenloses Tageskontingent)
   dorf saxo-einrichten           Saxo-App (nur lesen) eintragen – danach in der App: Mit Saxo verbinden (EINRICHTUNG.md)
   dorf telegram-einrichten       eigenen Telegram-Bot koppeln (Token von @BotFather)
   dorf gmail-anmelden            Google verbinden: Gmail (nur Lesen + Entwürfe) und Kalender (Marktplatz)
@@ -860,6 +888,7 @@ case "$befehl" in
   claude-anmelden) cmd_claude_anmelden ;;
   api-schluessel) cmd_api_schluessel ;;
   boerse-schluessel) cmd_boerse_schluessel ;;
+  bilder-einrichten) cmd_bilder_einrichten ;;
   saxo-einrichten) cmd_saxo_einrichten ;;
   telegram-einrichten) cmd_telegram_einrichten ;;
   moodle-anmelden) cmd_moodle_anmelden "$@" ;;

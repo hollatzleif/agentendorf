@@ -257,7 +257,18 @@ function DateiAnsicht({ pfad }: { pfad: string }) {
         <PdfAnsicht url={rohUrl(pfad)} />
       </Suspense>
     );
-  if (BILD_ENDUNGEN.has(e)) return <img className="bild" src={rohUrl(pfad)} alt={pfad} />;
+  if (BILD_ENDUNGEN.has(e) || ['heic', 'heif', 'tif', 'tiff', 'bmp', 'avif', 'atelier'].includes(e))
+    return (
+      <>
+        {/* E198: Bilder (und Atelier-Projekte) direkt im Bildeditor öffnen */}
+        <p>
+          <a className="knopf" href={`/atelier?pfad=${encodeURIComponent(pfad)}`} onClick={linkKlick}>
+            🎨 Im Atelier bearbeiten
+          </a>
+        </p>
+        {BILD_ENDUNGEN.has(e) ? <img className="bild" src={rohUrl(pfad)} alt={pfad} /> : <p className="leise">Für dieses Format gibt es hier keine Vorschau – das Atelier kann es öffnen.</p>}
+      </>
+    );
   if (['mp3', 'm4a'].includes(e)) return <audio controls src={rohUrl(pfad)} />;
   if (e === 'mp4') return <video controls src={rohUrl(pfad)} className="bild" />;
   return (
