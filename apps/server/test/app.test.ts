@@ -59,6 +59,28 @@ describe('Anmeldung', () => {
     expect(fremd.statusCode).toBe(403);
   });
 
+  it('E203: kodierte Pfade (/%61pi/…) kommen ohne Sitzung nirgends an – weder lesen noch schreiben noch WebSocket', async () => {
+    const d = await testDorf();
+    await d.vault.schreiben('Rathaus/geheim.md', 'nur für Leif');
+    for (const url of ['/%61pi/vault/baum', '/%61pi/vault/datei?pfad=Rathaus%2Fgeheim.md', '/%61%70%69/todos', '/%2561pi/sitzungen', '/api/%76ault/baum', '/%61pi/gesundheit']) {
+      const r = await d.app.inject({ method: 'GET', url });
+      expect(r.statusCode, url).not.toBe(200);
+      expect(r.body).not.toContain('nur für Leif');
+    }
+    const w = await d.app.inject({
+      method: 'PUT',
+      url: '/%61pi/vault/datei',
+      headers: { origin: ORIGIN, 'content-type': 'application/json' },
+      payload: { pfad: 'Rathaus/boese.md', inhalt: 'x' },
+    });
+    expect([401, 404]).toContain(w.statusCode);
+    expect(await d.vault.existiert('Rathaus/boese.md')).toBe(false);
+    expect((await d.app.inject({ method: 'GET', url: '/%E0%A4%A' })).statusCode).toBe(400);
+    // der normale offene Weg bleibt offen
+    expect((await d.app.inject({ method: 'GET', url: '/api/gesundheit' })).statusCode).toBe(200);
+    expect((await d.app.inject({ method: 'GET', url: '/api/anmeldung/info' })).statusCode).toBe(200);
+  });
+
   it('Drosselung greift nach 5 Fehlversuchen', async () => {
     const d = await testDorf();
     await passwortSetzen(d.db, d.uhr, PW);
