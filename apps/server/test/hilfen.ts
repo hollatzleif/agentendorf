@@ -17,8 +17,17 @@ import type { MoodleBrowserKlient } from '../src/agenten/moodle-browser.js';
 
 export const ORIGIN = 'https://dorf.test';
 
+// Jeder Testlauf legte ~1000 Ordner (≈ 3 GB) unter /tmp an und räumte sie nie weg – die Platte lief voll (E204).
+// Darum merken und beim Ende des Test-Prozesses löschen (dann läuft nichts mehr, das darin schreibt).
+const angelegt: string[] = [];
+process.once('exit', () => {
+  for (const d of angelegt) fs.rmSync(d, { recursive: true, force: true });
+});
+
 export function tempOrdner(praefix = 'dorf-test-') {
-  return fs.mkdtempSync(path.join(os.tmpdir(), praefix));
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), praefix));
+  angelegt.push(d);
+  return d;
 }
 
 export async function testDorf(

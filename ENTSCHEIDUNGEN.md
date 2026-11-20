@@ -1899,6 +1899,10 @@ Unabhängiges Review des Diffs E199–E201; behoben:
 - **Bewusst offen:** gleichzeitige Rechenraum-Werkzeuge im selben Raum (feste Zwischennamen) – der api-Motor ruft nacheinander auf; Rundgang-Aktivitäten, die einen Vermerk der KI brauchen, feuern ohne Vermerk am nächsten Tag erneut (gedeckelt durch das Tagesbudget, sichtbar im Protokoll).
 
 
+## E203 – Sicherheit: kodierte Pfade umgehen die Anmeldung nicht mehr (20.11.)
+
+Gefunden im Review zu E197/E198, Fehler aber älter: Der Anmelde-Haken prüfte `req.url.startsWith('/api/')` auf der ROHEN URL, der Router (find-my-way) dekodiert den Pfad vor dem Routing. `/%61pi/vault/baum` erreichte so `/api/vault/baum` ohne Sitzung – lesen und schreiben (die Herkunftsprüfung setzt ein Angreifer ohne Browser selbst). Jetzt entscheidet Route ODER dekodierter Pfad: gehört eines davon zur API, braucht es eine Sitzung; offen ist nur, was wörtlich UND als Route in `OFFEN` steht; nicht dekodierbare Pfade → 400. Regressionstest mit `/%61pi/…`, `/%2561pi/…`, `/api/%76ault/…` (GET und PUT). Sofort einzeln gepusht. Nicht nachweisbar, ob die Lücke ausgenutzt wurde – Leif sollte nach dem Deploy unter Einstellungen → Sitzungen und im Vault-Verlauf (Syncthing/Obsidian) nach Ungewohntem schauen.
+
 ## E204 – Review zu E197/E198 (20.11.)
 
 Unabhängiges Review des Editors im Codehaus (E197) und des Ateliers (E198); der kritische Befund (kodierte Pfade) war schon mit E203 behoben. Behoben, jeweils mit Test:
