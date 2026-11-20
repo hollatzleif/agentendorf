@@ -14,6 +14,7 @@ import {
   ostersonntag,
 } from '../src/agenten/extra-quellen.js';
 import { strictTauglich } from '../src/agenten/motor-api.js';
+import { systemPromptBauen } from '../src/agenten/kontext.js';
 import type { GmailKlient, MailAnhang } from '../src/post/gmail.js';
 import { anhaengeFinden } from '../src/post/gmail.js';
 import { testDorf } from './hilfen.js';
@@ -74,6 +75,17 @@ describe('E199 – Leine der neuen Werkzeuge', () => {
       expect(d.description.length).toBeLessThan(700);
       expect(strictTauglich(d.input_schema)).toBe(n !== 'pdf_bearbeiten');
     }
+  });
+
+  it('Systemprompt nennt nur, was der Lauf hat', async () => {
+    const d = await testDorf();
+    const p = (dorf: DorfWerkzeug[], web = false) => systemPromptBauen(d.vault, { gebaeude: 'Rathaus', aktionName: 'Test', profil: { dorf, web }, jetzt: d.uhr.jetzt(), motor: 'api', stufe: 'klein' });
+    const ohne = await p(['vault_lesen', 'feiertage', 'umrechnen']);
+    expect(ohne).toContain('- feiertage (AT, Baden-Württemberg), umrechnen');
+    expect(ohne).not.toContain('literatur_suchen');
+    expect(ohne).not.toContain('pdf_bearbeiten');
+    const mit = await p(werkzeugprofil({ werkzeuge: ['vault_lesen', 'web', 'rechenraum', 'post'], fremdinhalte: false }).dorf, true);
+    for (const w of ['pdf_bearbeiten', 'literatur_suchen', 'verbindung_suchen', 'post_anhang_lesen', 'mermaid']) expect(mit).toContain(w);
   });
 
   it('ohne Erlaubnis: abgelehnt und protokolliert, kein Abruf', async () => {
@@ -321,6 +333,19 @@ describe('E199 – Gmail-Anhänge lesen', () => {
     expect((await k.aufrufen('post_anhang_lesen', { mail_id: 'fremd', nr: 1 })).text).toMatch(/kennt das Dorf nicht/);
     expect(log().some((x) => x.werkzeug === 'post_anhang_lesen' && x.art === 'geschrieben' && x.pfad === 'Post/anhaenge/2026-11-15_m123/Abrechnung Okt.csv')).toBe(true);
     expect(k.hatFremdesGelesen).toBe(true);
+  });
+
+  it('post_lesen nennt die Anhänge und den Weg dorthin', async () => {
+    const { g } = gmail([], {});
+    const post: GmailKlient = {
+      ...g,
+      nachricht: async (id) => ({ id, threadId: 't', von: 'a@b.at', an: 'leif@example.com', betreff: 'Bescheid', datum: 0, labels: [], schnipsel: '', text: 'Siehe Anhang.', messageId: '', referenzen: '', anhaenge: [{ name: 'Bescheid.pdf', groesse: 1000 }] }),
+    };
+    const { d, k } = await kiste(['post_lesen', 'post_anhang_lesen'], { post });
+    d.db.prepare('INSERT INTO post_mails (id, thread_id, datum) VALUES (?, ?, ?)').run('m9', 't', 0);
+    const r = await k.aufrufen('post_lesen', { mail_id: 'm9' });
+    expect(r.text).toContain('Betreff: Bescheid\nAnhänge: 1. Bescheid.pdf\n');
+    expect(r.text).toContain('(Anhänge lesen: post_anhang_lesen mit mail_id „m9“ und nr.)');
   });
 });
 

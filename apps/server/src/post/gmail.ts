@@ -14,6 +14,8 @@ export interface Mail {
   text: string;
   messageId: string; // Header Message-ID (für Antworten)
   referenzen: string;
+  /** E199: Namen und Größen der Anhänge (Inhalt über anhangLaden) */
+  anhaenge?: { name: string; groesse: number }[];
 }
 
 export interface GmailKlient {
@@ -202,6 +204,7 @@ export function gmailKlient(zugang: GoogleZugang, basis = 'https://gmail.googlea
         text,
         messageId: kopf('message-id'),
         referenzen: kopf('references'),
+        anhaenge: anhaengeFinden(m.payload).map((a) => ({ name: a.name, groesse: a.groesse })),
       };
     },
     async entwurf(e) {

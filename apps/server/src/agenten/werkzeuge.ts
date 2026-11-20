@@ -1101,7 +1101,10 @@ export class WerkzeugKiste {
       this.fremd = true;
       this.log(name, eingabe, `„${m.betreff.slice(0, 80)}“`, true, undefined, 'gelesen');
       const datum = m.datum ? new Date(m.datum).toISOString() : '';
-      return { ok: true, text: fremdinhaltHuelle(`gmail:${mail_id}`, `Von: ${m.von}\nAn: ${m.an}\nDatum: ${datum}\nBetreff: ${m.betreff}\n\n${m.text}`) };
+      // E199: Anhänge nennen – lesen mit post_anhang_lesen (falls der Lauf es hat)
+      const anh = m.anhaenge?.length ? `\nAnhänge: ${m.anhaenge.map((a, i) => `${i + 1}. ${a.name}`).join(', ')}` : '';
+      const hinweis = anh && (this.k.erlaubt as string[]).includes('post_anhang_lesen') ? `\n(Anhänge lesen: post_anhang_lesen mit mail_id „${mail_id}“ und nr.)` : '';
+      return { ok: true, text: `${fremdinhaltHuelle(`gmail:${mail_id}`, `Von: ${m.von}\nAn: ${m.an}\nDatum: ${datum}\nBetreff: ${m.betreff}${anh}\n\n${m.text}`)}${hinweis}` };
     }
     const e = z.object({ mail_id: z.string().min(1).max(100), text: z.string().min(1).max(20_000) }).parse(eingabe);
     this.postMail(e.mail_id);

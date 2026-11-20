@@ -955,6 +955,27 @@ test('Karteikarten: Fach mit karten.md, lernen mit Leertaste und 1–4', async (
   await expect(k).toContainText('0 heute dran');
 });
 
+test('E199 Karteikarten „Für Anki“: Fehler sichtbar ohne Rechenraum, sonst Download als .apkg', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  const o = { origin: ORIGIN };
+  await page.request.post('/api/uni/fach', { headers: o, data: { name: 'Anki-Fach' } });
+  expect((await page.request.put('/api/vault/datei', { headers: o, data: { pfad: 'Uni/faecher/Anki-Fach/karten.md', inhalt: 'Frage :: Antwort\n' } })).ok()).toBe(true);
+  await page.goto('/gebaeude/Uni');
+  await page.getByRole('button', { name: 'Karteikarten', exact: true }).click();
+  const k = page.getByRole('region', { name: 'Karten Anki-Fach' });
+  // der e2e-Server hat keinen Rechenraum → ehrliche Meldung statt kaputter Datei
+  await k.getByRole('button', { name: 'Für Anki' }).click();
+  await expect(k.getByRole('alert')).toContainText('Rechenraum');
+  // mit Rechenraum (hier nachgestellt): Download mit dem Namen aus dem Server
+  await page.route('**/api/karten/anki?*', (r) =>
+    r.fulfill({ status: 200, body: Buffer.from('PK\u0003\u0004'), headers: { 'content-type': 'application/octet-stream', 'content-disposition': "attachment; filename*=UTF-8''Anki-Fach.apkg" } }),
+  );
+  const [download] = await Promise.all([page.waitForEvent('download'), k.getByRole('button', { name: 'Für Anki' }).click()]);
+  expect(download.suggestedFilename()).toBe('Anki-Fach.apkg');
+  await expect(k.getByRole('alert')).toHaveCount(0);
+});
+
 test('„Heute“ als Startseite: nach dem Haken öffnet „/“ direkt „Heute“', async ({ page }, info) => {
   test.skip(info.project.name !== 'handy', 'am Handy am sinnvollsten');
   await anmelden(page);
