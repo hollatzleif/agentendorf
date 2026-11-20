@@ -50,6 +50,9 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
   src/kontakte.ts Adressbuch (E186): Rathaus/kontakte.md + Absender im Posteingang + gesendete Mails (kontakt_suchen/kontakt_merken)
   src/coding.ts   E191 Codehaus: Zugang zu VS Code auf code.<domain> (Einmal-Karte → Cookie dorf_coding, nur Hash, an die Sitzung
                   gebunden), /api/coding (Projekte vom Runner), /api/coding/oeffnen|eintritt; forward_auth-Prüfung in intern.ts
+  src/coding-editor.ts E197 Editor im Codehaus: /api/coding/editor/* (Baum, Datei mit basisVersion/409, neu, umbenennen, löschen, hochladen,
+                  roh nur als Download, Schnell-/Volltextsuche, Git mit festen Befehlen) + WebSocket /api/coding/terminal – nur Sitzung + Origin,
+                  Pfadprüfung, dann Durchreiche an den Runner im Coding-Container; Abmelden kappt die Terminals der Sitzung
   src/todos.ts    To-do-Brett (E65): eine Datei je To-do in Marktplatz/todos/, Version/409, Löschen = Papierkorb, wiederholen (E92), Teilschritte (E119, KI-Vorschlag todo-schritte.ts); App, Telegram /todo, todo_* für alle Agenten
   src/schreibtisch.ts  Aufgaben = Notizen in Rathaus/schreibtisch/ (DB führt Status, Frontmatter spiegelt ihn); App/Telegram starten
                        den Bürgermeister sofort, Notizen aus Obsidian/von Agenten werden nur aufgenommen
@@ -104,10 +107,19 @@ apps/web        React + Vite, eigener Mini-Router (src/router.ts), TanStack Quer
     bluete.ts       E112: Blüte sichtbar – Blumen (instanziert), Wiesentönung, Fensterlicht, Fahne am Rathaus, Feuerwerk (?bluete=praechtig, ?fahne, ?feuerwerk)
     bauen.ts        Bau-Modus: Gesten → Layout (Prüfung wie Server: layoutPruefen aus packages/shared)
     DorfAnsicht.tsx Seite: Szene, Knöpfe, Gebäude-Menü (GebaeudeInhalt), Figurenkarte, Bau-Leiste, Speichern mit basisVersion
+  src/codeeditor/ E197: Editor im Codehaus (/codehaus/editor, nur dort geladen; Build nach assets/editor/, nicht im PWA-Vorrat)
+    monaco.ts       Monaco aus dem eigenen Build (Worker über ?worker, Themen dorf-hell/dorf-dunkel, TS nur Syntaxprüfung)
+    CodeEditor.tsx  Seite: Reiter, Speichern (Strg+S, basisVersion → Konflikt-Leiste), Diff-Editor, Schnellsuche (Strg+P), Handy-Bereiche;
+                    Testhilfe window.__editor
+    Leisten.tsx     Dateibaum, Volltextsuche, Git-Leiste, Coding-Agent (Aktion Codehaus/programmieren, ChatSeite eingebettet), Rückfrage-Fenster
+    TerminalFeld.tsx xterm.js ↔ WebSocket /api/coding/terminal
 apps/werkstatt  eigener Container: unverändertes claude-CLI (Version im Dockerfile gepinnt) + Runner (HTTP, startet
                 claude, streamt stream-json) + stdio-MCP-Server "dorf" (reicht Werkzeugaufrufe an intern.ts weiter).
                 Baut die claude-Argumente SELBST (auftrag.ts): nur Read/Glob/Grep (+Web wenn erlaubt), kein Bash/Edit/Write,
                 --strict-mcp-config, --setting-sources user, kein --bare (bare liest kein Abo-Token).
+                E197, nur Profil coding: editor.ts (/editor/* – Dateien strikt unter /arbeit/<projekt>, Symlinks nie verfolgt, O_NOFOLLOW wie
+                vault/pfade.ts; Text ≤ 2 MB, Hochladen ≤ 20 MB, Löschen = /arbeit/.papierkorb; rg und git nur mit festen Argumentlisten) und
+                terminal.ts (/terminal – Shell am PTY über einen Python-Helfer aus der Standardbibliothek, kein natives Node-Modul, höchstens 8).
 apps/rechenraum eigener Container: pdflatex (texlive), Python (numpy/sympy/scipy/matplotlib), poppler; runner.py nur
                 Standardbibliothek. Internes Netz ohne Internet, kein Vault, Arbeitsordner pro Chat, 120 s pro Befehl.
                 Image-Kennung = Hash(Dockerfile+runner.py), wird nur ausgeliefert, wenn der Server es nicht hat.
@@ -160,7 +172,7 @@ pnpm install
 pnpm dev                 # Server (3000, tsx watch) + Web (5173, Proxy auf /api)
 pnpm --filter @dorf/server cli passwort   # lokales Passwort setzen (Daten in apps/server/daten/)
 pnpm typecheck
-pnpm test                # Vitest (Server inkl. Ende-zu-Ende über Werkstatt mit Fake-claude, Werkstatt)
+pnpm test                # Vitest (Server inkl. Ende-zu-Ende über Werkstatt mit Fake-claude, Werkstatt; braucht ripgrep, git, python3 für den Editor E197)
 pnpm build
 pnpm e2e                 # Playwright, Desktop + Handy, startet eigenen Testserver (Port 3999); WebGL über SwiftShader
                          # Dorf-Debug: /?voll (volle Qualität trotz Software-Grafik), /?animiert (Animation erzwingen)
@@ -220,3 +232,4 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E194 (19.11., Server): Spracheingabe für Geräte – `POST /api/geraet/sprache` (WAV → Text über whisper.cpp im Rechenraum, nichts gespeichert)
 - [x] E194 (19.11., Firmware): Cardputer 1.2 – Spracheingabe überall (Tab), Update ohne Neu-Einrichten (Nur-Programm-Datei); Host-Test grün (177), Mikrofon nie am Gerät erprobt
 - [x] E195 (19.11.): Review zu E190–E194 – Vault folgt keinen Symlinks mehr (wettlauf-sicher), Coding-Freigabe nicht mehr umgehbar, X-Forwarded-For nur von Caddy, Abmelden kappt VS Code, Rechenraum-Speicher gemessen, Codehaus-Image nur auf Wunsch
+- [x] E197 (20.11.): Editor im Codehaus – „wie VS Code“ direkt in der App (Monaco mit Reitern/Diff, Dateibaum, Schnell- und Volltextsuche, Terminal am PTY, Git-Leiste, Coding-Agent daneben; Desktop + Handy); braucht das neue Coding-Image (kommt mit dem Deploy von selbst) – Abnahme auf dem Server steht aus

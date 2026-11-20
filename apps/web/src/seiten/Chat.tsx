@@ -8,7 +8,8 @@ import { Markdown } from '../komponenten/Markdown';
 import { laufStatusText, stufeText } from '../texte';
 import { AnhangWahl, DateiKarten, dateienAus, dateienHinzufuegen, nachrichtTeilen } from '../komponenten/Anhaenge';
 
-export function ChatSeite({ id }: { id: string }) {
+/** `eingebettet` (E197): als Seitenleiste im Editor – ohne Rücksprung und Kopfzeilen */
+export function ChatSeite({ id, eingebettet }: { id: string; eingebettet?: boolean }) {
   const qc = useQueryClient();
   const chat = useQuery({ queryKey: ['chat', id], queryFn: () => api<ChatDetail>(`/api/chats/${id}`) });
   const [text, setText] = useState('');
@@ -62,7 +63,7 @@ export function ChatSeite({ id }: { id: string }) {
 
   return (
     <section
-      className={`chat${ziehen ? ' ziehen' : ''}`}
+      className={`chat${ziehen ? ' ziehen' : ''}${eingebettet ? ' eingebettet' : ''}`}
       onDragOver={(e) => {
         if (Array.from(e.dataTransfer.types).includes('Files')) {
           e.preventDefault();
@@ -80,10 +81,20 @@ export function ChatSeite({ id }: { id: string }) {
         dateienHinzufuegen(dateien, neu, setDateien, setFehler);
       }}
     >
-      <a href={`/gebaeude/${encodeURIComponent(c.gebaeude)}?reiter=chats`} onClick={linkKlick} className="zurueck">
-        ← {c.gebaeude}
-      </a>
-      <h1>{c.titel}</h1>
+      {eingebettet ? (
+        <p className="leise">
+          <a href={`/chats/${id}`} onClick={linkKlick}>
+            {c.titel}
+          </a>
+        </p>
+      ) : (
+        <>
+          <a href={`/gebaeude/${encodeURIComponent(c.gebaeude)}?reiter=chats`} onClick={linkKlick} className="zurueck">
+            ← {c.gebaeude}
+          </a>
+          <h1>{c.titel}</h1>
+        </>
+      )}
       {c.elternChatId && (
         <p className="leise">
           Helfer des{' '}

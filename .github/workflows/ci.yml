@@ -28,7 +28,7 @@ jobs:
         run: pnpm build
       - name: Server- und Werkstatt-Tests (Leine, Freigaben, Motoren, Vault-Regeln, Login, Moodle, Rechenraum)
         run: |
-          sudo apt-get update -q && sudo apt-get install -y -q poppler-utils
+          sudo apt-get update -q && sudo apt-get install -y -q poppler-utils ripgrep
           pnpm test
       - name: Codehaus – Start des Containers ohne Docker (Geheimnisse, Token nicht im Protokoll, Git/GitHub, Projektliste)
         run: bash apps/coding/test/start-test.sh
