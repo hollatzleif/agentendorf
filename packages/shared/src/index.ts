@@ -433,6 +433,54 @@ export interface CodingUebersicht {
   befehl: string;
 }
 
+// ---- E197 Editor im Codehaus (Dateien, Suche, Git im Coding-Container) ----
+export interface EditorEintrag {
+  name: string;
+  /** link = Symlink (wird nie verfolgt, nicht zu öffnen) */
+  art: 'ordner' | 'datei' | 'link' | 'sonst';
+  groesse?: number;
+}
+export interface EditorBaum {
+  pfad: string;
+  eintraege: EditorEintrag[];
+  gekuerzt: boolean;
+}
+export interface EditorDatei {
+  pfad: string;
+  groesse: number;
+  /** nur Textdateien bis 2 MB */
+  text?: string;
+  /** sha256 des geladenen Stands – geht beim Speichern als basisVersion mit (409 statt Überschreiben) */
+  version?: string;
+  binaer?: boolean;
+  zuGross?: boolean;
+}
+export interface EditorGitStatus {
+  ok: boolean;
+  git: boolean;
+  branch: string;
+  upstream: string;
+  voraus: number;
+  zurueck: number;
+  /** x = vorgemerkt (Index), y = Arbeitsordner – wie `git status --porcelain` */
+  dateien: { pfad: string; x: string; y: string; alt?: string }[];
+  ausgabe?: string;
+}
+export interface EditorGitAntwort {
+  ok: boolean;
+  code?: number;
+  ausgabe?: string;
+}
+export interface EditorTreffer {
+  pfad: string;
+  zeile: number;
+  spalte: number;
+  text: string;
+}
+/** Terminal-WebSocket /api/coding/terminal: Browser → Dorf (Text, JSON). Dorf → Browser: Binär = Ausgabe, Text = TerminalMeldung */
+export type TerminalEingabe = { typ: 'eingabe'; daten: string } | { typ: 'groesse'; spalten: number; zeilen: number };
+export type TerminalMeldung = { typ: 'bereit' } | { typ: 'ende' } | { typ: 'fehler'; text: string };
+
 export interface MotorenKonfig {
   /** Notschalter – nie „coding“ (dort hätte jede Aktion Shell und Vollzugriff); Coding-Läufe lässt er unberührt */
   alleAuf: 'keiner' | Exclude<Motor, 'coding'>;

@@ -19,7 +19,8 @@ const SPRUENGE: Record<string, [string, string]> = {
 
 const tippt = (z: EventTarget | null) => {
   const e = z as HTMLElement | null;
-  return !!e && (e.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.tagName));
+  // E197: im Editor und im Terminal des Codehauses wird immer getippt (xterm/Monaco haben eigene Eingabe-Elemente)
+  return !!e && (e.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.tagName) || !!e.closest?.('.ce-monaco, .ce-terminal'));
 };
 
 /** offenes Fenster/Dialog oder Fokus in einem Formular/Dialog: Kürzel ruhen (Review – sonst springt „g h“ aus einem Dialog heraus) */

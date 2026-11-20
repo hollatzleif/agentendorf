@@ -10,6 +10,9 @@ import { ChatListe } from './ChatListe';
 /** Adresse, die VS Code über das Dorf öffnet (Einmal-Karte → eigener Ursprung des Code-Hosts), optional gleich im Projektordner */
 export const vscodeLink = (projekt?: string) => `/api/coding/oeffnen${projekt ? `?projekt=${encodeURIComponent(projekt)}` : ''}`;
 
+/** Editor in der Dorf-App (E197) – eigene Seite, Monaco wird erst dort geladen */
+export const editorLink = (projekt?: string) => `/codehaus/editor${projekt ? `?projekt=${encodeURIComponent(projekt)}` : ''}`;
+
 /**
  * Knopf „VS Code öffnen“ (Fix 20.11.): holt die Einmal-Adresse als JSON und öffnet genau sie.
  * - Browser: Tab sofort beim Klick öffnen (sonst blockiert der Popup-Schutz nach dem await), dann dorthin leiten.
@@ -91,6 +94,10 @@ export function CodehausUebersicht() {
                   </>
                 )}
                 {' · '}
+                <a href={editorLink(p.name)} onClick={linkKlick}>
+                  im Editor öffnen
+                </a>
+                {' · '}
                 <a href={`/gebaeude/Codehaus?reiter=aktionen`} onClick={linkKlick}>
                   Agent beauftragen
                 </a>
@@ -106,6 +113,37 @@ export function CodehausUebersicht() {
         Ordner wie du in VS Code – mit Shell, Internet und GitHub.
       </p>
       <ChatListe gebaeude="Codehaus" />
+    </div>
+  );
+}
+
+/** Reiter „Editor“ im Codehaus (E197): Einstieg in den Editor der Dorf-App – die Seite selbst lädt Monaco erst beim Öffnen. */
+export function CodehausEditorStart() {
+  const q = useQuery({ queryKey: ['coding'], queryFn: () => api<CodingUebersicht>('/api/coding'), refetchInterval: 60_000 });
+  const d = q.data;
+  return (
+    <div className="codehaus">
+      <p>
+        <a className="knopf" href={editorLink()} onClick={linkKlick} data-testid="editor-oeffnen">
+          📝 Editor öffnen
+        </a>{' '}
+        <span className="leise">Programmieren direkt im Dorf – Editor, Dateien, Terminal, Git und der Coding-Agent daneben. Geht auch am Handy.</span>
+      </p>
+      {q.isError && <p className="fehler">{q.error.message}</p>}
+      {d?.fehler && <p className="fehler">{d.fehler}</p>}
+      {d && d.projekte.length > 0 && (
+        <ul className="chatliste">
+          {d.projekte.map((p) => (
+            <li key={p.name}>
+              <a href={editorLink(p.name)} onClick={linkKlick}>
+                {p.name}
+              </a>{' '}
+              {p.git && <span className="abzeichen">git</span>}
+              <div className="leise">geändert {zeitKurz(p.geaendert)}</div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

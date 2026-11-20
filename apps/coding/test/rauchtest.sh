@@ -68,6 +68,24 @@ ok "claude $V, git, gh, node/npm/pnpm, python3/pip, rg, jq, gcc, make vorhanden"
 drin sh -c 'cd /arbeit/rauch && git init -q && echo hallo > a.txt && git add a.txt && git commit -qm "Rauchtest" && git log -1 --format="%an <%ae>"' | grep -qx 'Rauch Test <rauch@example.org>' || fehler "git commit mit Namen/E-Mail"
 printf 'protocol=https\nhost=github.com\n\n' | docker exec -i "$NAME" git credential fill 2>/dev/null | grep -qx 'password=ghp_rauchtest' || fehler "git bekommt das GitHub-Token nicht über gh"
 drin sh -c '! grep -rq ghp_rauchtest /arbeit/.heim 2>/dev/null' || fehler "GitHub-Token liegt in einer Datei im Heimordner"
+# Editor der Dorf-App (E197): Dateien, Suche (rg), Git und ein echtes Terminal (PTY über python3) – im Image, nicht nur im Test
+K=(-H "x-werkstatt-geheimnis: $GEHEIMNIS" -H 'content-type: application/json')
+[ "$(st 'http://127.0.0.1:4000/editor/baum?projekt=rauch&pfad=')" = 401 ] || fehler "Editor ohne Geheimnis erreichbar"
+drin curl -fs "${K[@]}" 'http://127.0.0.1:4000/editor/baum?projekt=rauch&pfad=' | grep -q '"name":"a.txt"' || fehler "Editor: Baum zeigt a.txt nicht"
+drin curl -fs "${K[@]}" -d '{"projekt":"rauch","text":"hallo"}' http://127.0.0.1:4000/editor/suche | grep -q '"pfad":"a.txt"' || fehler "Editor: Volltextsuche (rg) findet nichts"
+drin curl -fs "${K[@]}" -d '{"projekt":"rauch","befehl":"status"}' http://127.0.0.1:4000/editor/git | grep -q '"git":true' || fehler "Editor: Git-Status"
+TID=00000000-0000-4000-8000-000000000001
+drin curl -s -m 20 "${K[@]}" -d "{\"id\":\"$TID\",\"projekt\":\"rauch\",\"spalten\":90,\"zeilen\":20}" http://127.0.0.1:4000/terminal > "$TMP/terminal.log" 2>&1 &
+TERMINAL_PID=$!
+sleep 2
+drin curl -fs "${K[@]}" --data-binary 'test -t 0 && echo pty-$((40+2)); stty size; echo "g=[${CODING_GEHEIMNIS:-leer}]"; exit
+' "http://127.0.0.1:4000/terminal/$TID/eingabe" >/dev/null || fehler "Terminal nimmt keine Eingabe an: $(cat "$TMP/terminal.log")"
+wait "$TERMINAL_PID" || true
+grep -q 'pty-42' "$TMP/terminal.log" || fehler "Terminal: kein echtes PTY: $(tail -c 600 "$TMP/terminal.log")"
+grep -q '20 90' "$TMP/terminal.log" || fehler "Terminal: Größe stimmt nicht: $(tail -c 600 "$TMP/terminal.log")"
+grep -q 'g=\[leer\]' "$TMP/terminal.log" || fehler "Terminal kennt das Runner-Geheimnis"
+ok "Editor: Baum, Volltextsuche, Git-Status; Terminal am echten PTY (Größe stimmt, ohne Runner-Geheimnis)"
+
 drin sh -c 'cd /arbeit/rauch && python3 -m venv .venv && .venv/bin/python -c "print(6*7)"' | grep -qx 42 || fehler "python venv"
 drin sh -c 'printf "#!/bin/sh\necho läuft\n" > "$TMPDIR/probe.sh" && chmod +x "$TMPDIR/probe.sh" && "$TMPDIR/probe.sh"' | grep -qx 'läuft' || fehler "Ausführen in TMPDIR geht nicht"
 [ "$(drin npm config get prefix)" = /arbeit/.heim/.npm-global ] || fehler "npm-Global-Ordner liegt nicht im Heimordner"

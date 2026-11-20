@@ -1581,3 +1581,119 @@ a.datei-karte:hover { border-color: #1f5a1d; }
 .nachricht.erzeugt { background: #f4f9ff; }
 .anhang-inhalt pre { max-height: 16rem; overflow: auto; white-space: pre-wrap; font-size: 0.8rem; }
 .chat.ziehen { outline: 3px dashed #1f5a1d; outline-offset: 4px; }
+
+/* ---- E197: Editor im Codehaus (Monaco, Dateibaum, Terminal, Git, Agent) ------------------------------ */
+.rahmen:has(.codeeditor) { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+.rahmen:has(.codeeditor) > main { max-width: none; width: 100%; margin: 0; padding: 0; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.codeeditor {
+  --ce-grund: #fffdf6; --ce-flaeche: #f3f0e4; --ce-rand: #cdd6e3; --ce-text: #2b3a55; --ce-leise: #5c677a; --ce-wahl: #e3f3d8; --ce-akzent: #2f8a2b;
+  flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--ce-grund); color: var(--ce-text); font-size: 0.9rem;
+}
+.codeeditor.dunkel { --ce-grund: #1b2538; --ce-flaeche: #243049; --ce-rand: #3a4a68; --ce-text: #e8edf5; --ce-leise: #9aa7bd; --ce-wahl: #33466b; --ce-akzent: #9fe07f; }
+.codeeditor .leise { color: var(--ce-leise); }
+.codeeditor.dunkel a:not(.knopf) { color: var(--ce-akzent); }
+.codeeditor.dunkel input, .codeeditor.dunkel textarea, .codeeditor.dunkel select { background: #182033; color: var(--ce-text); border-color: var(--ce-rand); }
+.codeeditor.dunkel .nachricht { color: #2b3a55; }
+.codeeditor.dunkel .ce-ausgabe, .codeeditor.dunkel kbd { background: #182033; color: var(--ce-text); border-color: var(--ce-rand); }
+.codeeditor button.klein { margin-left: 0; }
+.ce-kopf { display: flex; align-items: center; gap: 0.6rem; padding: 0.3rem 0.6rem; border-bottom: 2px solid var(--ce-rand); background: var(--ce-flaeche); min-height: 2.4rem; }
+.ce-kopf .zurueck { margin: 0; white-space: nowrap; }
+.ce-projekt { text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ce-kopf-rechts { margin-left: auto; display: flex; gap: 0.4rem; align-items: center; }
+.ce-schnell-knopf kbd { font-size: 0.7rem; }
+.ce-mitte { flex: 1; min-height: 0; display: flex; }
+.ce-aktleiste { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.3rem 0.2rem; background: var(--ce-flaeche); border-right: 2px solid var(--ce-rand); }
+.codeeditor .ce-akt, .codeeditor .ce-zeile, .codeeditor .ce-tab-name, .codeeditor .ce-tab-zu {
+  background: none; border: 0; box-shadow: none; border-radius: 6px; font-weight: 500; color: inherit; text-shadow: none; transform: none; text-align: left;
+}
+.codeeditor .ce-akt { display: flex; flex-direction: column; align-items: center; gap: 0; padding: 0.3rem 0.35rem; font-size: 1.2rem; line-height: 1.2; border-left: 3px solid transparent; border-radius: 0 6px 6px 0; opacity: 0.7; }
+.codeeditor .ce-akt small { font-size: 0.62rem; font-weight: 700; }
+.codeeditor .ce-akt.gewaehlt { opacity: 1; border-left-color: var(--ce-akzent); background: var(--ce-wahl); }
+.ce-akt.nur-handy { display: none; }
+.ce-seite { width: 300px; flex: none; min-width: 0; border-right: 2px solid var(--ce-rand); display: flex; flex-direction: column; min-height: 0; }
+.ce-leiste { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0.4rem 0.5rem; gap: 0.35rem; }
+.ce-leiste > p, .ce-leiste h4 { margin: 0.1rem 0; }
+.ce-leiste-kopf { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; flex-wrap: wrap; }
+.ce-leiste-inhalt { flex: 1; min-height: 0; overflow: auto; }
+.ce-leiste-fuss { font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ce-knoepfe { display: inline-flex; gap: 0.3rem; flex-wrap: wrap; align-items: center; }
+.codeeditor .ce-symbol { padding: 0.05rem 0.35rem; min-width: 1.7rem; text-align: center; }
+.codeeditor a.ce-symbol { font-size: 0.8rem; border-radius: 9px; box-shadow: 0 2px 0 var(--navy); }
+.codeeditor .ce-symbol.aktiv { background: var(--gruen-hell); }
+.codeeditor .ce-zeile { display: block; width: 100%; padding: 0.16rem 0.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.86rem; }
+.codeeditor .ce-eintrag:hover { background: var(--ce-flaeche); }
+.codeeditor .ce-eintrag.aktiv { font-weight: 800; }
+.codeeditor .ce-eintrag.markiert { background: var(--ce-wahl); }
+.ce-suchform { display: flex; flex-direction: column; gap: 0.3rem; }
+.ce-treffer-datei { font-weight: 800; font-size: 0.8rem; margin-top: 0.4rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ce-branch { display: flex; align-items: center; gap: 0.4rem; }
+.ce-branch select { flex: 1; min-width: 0; padding: 0.2rem 0.4rem; }
+.ce-git-knoepfe { margin: 0.2rem 0; }
+.ce-git-liste { list-style: none; margin: 0 0 0.5rem; padding: 0; }
+.ce-git-liste li { display: flex; align-items: center; gap: 0.2rem; }
+.ce-git-liste li .ce-zeile { flex: 1; min-width: 0; }
+.ce-git-liste li.vorgemerkt .ce-zeile { font-weight: 800; }
+.ce-stand { display: inline-block; font-size: 0.68rem; font-weight: 800; padding: 0 0.3rem; border-radius: 6px; background: #e6ebf2; color: #2b3a55; }
+.ce-stand.s-M { background: #fde8c4; }
+.ce-stand.s-neu, .ce-stand.s-A { background: #d6f0c8; }
+.ce-stand.s-D { background: #ffd2cc; }
+.ce-stand.s-U { background: #d2352a; color: #fff; }
+.ce-leiste textarea { width: 100%; font-size: 0.86rem; }
+.ce-ausgabe { background: #f3f0e4; border: 1px solid var(--ce-rand); border-radius: 8px; padding: 0.4rem; font-size: 0.75rem; white-space: pre-wrap; word-break: break-word; max-height: 14rem; overflow: auto; margin: 0.4rem 0 0; }
+.ce-agent-form { display: flex; flex-direction: column; gap: 0.4rem; }
+.ce-agent-geaendert { border: 2px solid var(--ce-rand); border-radius: 10px; padding: 0.3rem; margin-bottom: 0.5rem; }
+.chat.eingebettet { max-width: none; }
+.chat.eingebettet .chat-eingabe { position: static; background: none; }
+.chat.eingebettet .nachrichten { margin: 0.4rem 0; }
+.ce-haupt { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+.ce-arbeit { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.ce-reiter { display: flex; overflow-x: auto; background: var(--ce-flaeche); border-bottom: 2px solid var(--ce-rand); min-height: 2rem; scrollbar-width: thin; flex: none; }
+.ce-tab { display: inline-flex; align-items: center; border-right: 1px solid var(--ce-rand); white-space: nowrap; flex: none; }
+.ce-tab.aktiv { background: var(--ce-grund); box-shadow: inset 0 3px 0 var(--ce-akzent); }
+.codeeditor .ce-tab-name { padding: 0.3rem 0.2rem 0.3rem 0.7rem; font-size: 0.86rem; }
+.ce-tab.aktiv .ce-tab-name { font-weight: 800; }
+.codeeditor .ce-tab-zu { padding: 0.2rem 0.45rem; font-size: 0.7rem; opacity: 0.6; }
+.codeeditor .ce-tab-zu:hover { opacity: 1; background: var(--ce-wahl); }
+.ce-punkt { color: var(--dach); }
+.ce-konflikt { background: #fde8c4; color: #2b3a55; border-bottom: 2px solid var(--dach); padding: 0.4rem 0.6rem; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+.ce-editor { flex: 1; min-height: 0; position: relative; }
+.ce-monaco { position: absolute; inset: 0; }
+.ce-leer { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 1.5rem; gap: 0.4rem; }
+.ce-leer p { max-width: 34rem; margin: 0; }
+.ce-terminals { height: 38%; min-height: 150px; flex: none; display: flex; flex-direction: column; border-top: 2px solid var(--ce-rand); }
+.ce-terminal-kopf { display: flex; align-items: center; gap: 0.3rem; background: var(--ce-flaeche); padding: 0 0.4rem; min-height: 1.9rem; overflow-x: auto; flex: none; }
+.ce-terminal-kopf .ce-tab { border: 0; border-radius: 6px; }
+.ce-terminal-kopf .ce-tab.aktiv { box-shadow: inset 0 -3px 0 var(--ce-akzent); }
+.ce-terminal { flex: 1; min-height: 0; position: relative; background: #fffdf6; }
+.ce-terminal.dunkel { background: #1b2538; }
+.ce-terminal-kasten { position: absolute; inset: 4px 0 0 6px; }
+.ce-terminal-meldung { position: absolute; right: 0.6rem; bottom: 0.4rem; background: var(--ce-flaeche); border: 2px solid var(--ce-rand); border-radius: 10px; padding: 0.2rem 0.5rem; z-index: 2; }
+.ce-fuss { display: flex; gap: 1rem; align-items: center; padding: 0.1rem 0.6rem; font-size: 0.75rem; background: var(--navy); color: #fff; min-height: 1.5rem; white-space: nowrap; overflow: hidden; flex: none; }
+.ce-fuss-pfad { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ce-meldung { margin-left: auto; font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
+.ce-meldung.fehler { background: var(--rot); color: #fff; padding: 0 0.5rem; border-radius: 6px; }
+.ce-frage { width: min(460px, 100%); }
+.ce-schnell-hintergrund { place-items: start center; padding-top: 12vh; }
+.ce-schnell { width: min(560px, 100%); max-height: 70vh; display: flex; flex-direction: column; padding: 0.6rem; }
+.ce-schnell-liste { list-style: none; margin: 0.4rem 0 0; padding: 0; overflow: auto; }
+.ce-schnell .ce-zeile { display: block; width: 100%; background: none; border: 0; box-shadow: none; border-radius: 6px; font-weight: 600; text-align: left; padding: 0.3rem 0.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ce-schnell .ce-zeile.markiert, .ce-schnell .ce-zeile:hover { background: var(--gruen-hell); }
+.ce-wahl { max-width: 640px; margin: 1rem auto; }
+.ce-neu-projekt { display: flex; gap: 0.4rem; }
+@media (max-width: 800px) {
+  .ce-breit, .ce-nur-breit { display: none; }
+  .ce-mitte { flex-direction: column; }
+  .ce-aktleiste { order: 3; flex-direction: row; justify-content: space-around; border-right: 0; border-top: 2px solid var(--ce-rand); padding: 0.15rem 0.2rem max(0.15rem, env(safe-area-inset-bottom)); }
+  .codeeditor .ce-akt { border-left: 0; border-bottom: 3px solid transparent; border-radius: 6px; flex: 1; padding: 0.25rem 0.1rem; }
+  .codeeditor .ce-akt.gewaehlt { background: none; border-color: transparent; opacity: 0.7; }
+  .codeeditor .ce-akt.aktiv { opacity: 1; background: var(--ce-wahl); border-bottom-color: var(--ce-akzent); }
+  .ce-akt.nur-handy { display: flex; }
+  .ce-seite { width: 100%; flex: 1; border-right: 0; display: none; }
+  .b-seite .ce-seite { display: flex; }
+  .b-seite .ce-haupt { display: none; }
+  .b-editor .ce-terminals { display: none; }
+  .b-terminal .ce-arbeit { display: none; }
+  .b-terminal .ce-terminals { height: auto; flex: 1; border-top: 0; }
+  .codeeditor .ce-zeile { padding-top: 0.4rem; padding-bottom: 0.4rem; font-size: 0.95rem; }
+  .ce-fuss > span:nth-child(2) { display: none; }
+}

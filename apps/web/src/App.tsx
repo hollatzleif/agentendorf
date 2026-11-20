@@ -23,6 +23,8 @@ const ChatSeite = lazy(() => import('./seiten/Chat').then((m) => ({ default: m.C
 const Anleitung = lazy(() => import('./seiten/Anleitung').then((m) => ({ default: m.Anleitung })));
 const WochePlanen = lazy(() => import('./seiten/WochePlanen').then((m) => ({ default: m.WochePlanen })));
 const TagAbschliessen = lazy(() => import('./seiten/TagAbschliessen').then((m) => ({ default: m.TagAbschliessen })));
+// E197: Editor im Codehaus – Monaco und xterm werden nur hier geladen
+const CodeEditorSeite = lazy(() => import('./codeeditor/CodeEditor'));
 const FokusVollbild = lazy(() => import('./seiten/FokusVollbild').then((m) => ({ default: m.FokusVollbild })));
 
 export function App() {
@@ -95,6 +97,7 @@ function Rahmen() {
   else if (pfad === '/anleitung') seite = <Anleitung />;
   else if (pfad === '/planen') seite = <WochePlanen />;
   else if (pfad === '/abschluss') seite = <TagAbschliessen />;
+  else if (pfad === '/codehaus/editor') seite = <CodeEditorSeite />;
   else if (pfad === '/bibliothek') seite = <Bibliothek />;
   else if (pfad === '/einstellungen') seite = <Einstellungen />;
   else if (pfad.startsWith('/chats/')) seite = <ChatSeite key={pfad} id={decodeURIComponent(pfad.slice('/chats/'.length))} />;
@@ -113,7 +116,7 @@ function Rahmen() {
           <img src="/favicon.svg" alt="" width={28} height={28} /> Agentendorf
         </a>
         <nav>
-          {nav('/', 'Dorf', pfad === '/' || pfad.startsWith('/gebaeude') || pfad.startsWith('/chats'))}
+          {nav('/', 'Dorf', pfad === '/' || pfad.startsWith('/gebaeude') || pfad.startsWith('/chats') || pfad.startsWith('/codehaus'))}
           {nav('/heute', 'Heute', pfad === '/heute')}
           {nav('/bibliothek', 'Bibliothek', pfad === '/bibliothek')}
           {nav('/einstellungen', 'Einstellungen', pfad === '/einstellungen')}

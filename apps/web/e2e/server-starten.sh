@@ -19,8 +19,27 @@ export GOOGLE_PFLICHT_ICS="http://127.0.0.1:$MOODLE_PORT/calendar/ical/pflicht/p
 CODING_PORT=${E2E_CODING_PORT:-$((MOODLE_PORT - 2))}
 export CODING_URL="http://127.0.0.1:$CODING_PORT" CODING_ADRESSE="http://127.0.0.1:$CODING_PORT" \
   CODING_GEHEIMNIS=e2e-coding-geheimnis-e2e-coding-geheimnis-12 CODING_VSCODE_TOKEN=e2e-vscode-token-e2e-vscode-token-123456
-CODING_PORT=$CODING_PORT node ../web/e2e/coding-attrappe.mjs &
+# Editor im Codehaus (E197): der ECHTE Runner im Profil coding mit einem Wegwerf-Arbeitsordner; die Attrappe reicht
+# /editor/* und /terminal* an ihn weiter. Ein Projekt „spielwiese“ (Git-Repository mit einem Commit) liegt bereit.
+RUNNER_PORT=${E2E_RUNNER_PORT:-$((MOODLE_PORT - 3))}
+ARBEIT="$DATEN/arbeit"
+mkdir -p "$ARBEIT/spielwiese/src" "$DATEN/heim" "$DATEN/lauf"
+printf '# Spielwiese\n\nEin Projekt zum Ausprobieren. Suchwort: Apfelstrudel.\n' > "$ARBEIT/spielwiese/README.md"
+printf 'export function gruss(name: string) {\n  return `Hallo ${name}`;\n}\n' > "$ARBEIT/spielwiese/src/haupt.ts"
+export GIT_AUTHOR_NAME=E2E GIT_AUTHOR_EMAIL=e2e@dorf.test GIT_COMMITTER_NAME=E2E GIT_COMMITTER_EMAIL=e2e@dorf.test
+(
+  cd "$ARBEIT/spielwiese"
+  HOME="$DATEN/heim" git init -q -b main
+  HOME="$DATEN/heim" git add -A
+  HOME="$DATEN/heim" git commit -q -m 'Anfang'
+)
+(
+  cd ../werkstatt
+  HOME="$DATEN/heim" PORT=$RUNNER_PORT RUNNER_PROFIL=coding ARBEIT_DIR="$ARBEIT" LAUF_DIR="$DATEN/lauf" exec node --import tsx src/runner.ts
+) &
+RUNNER_PID=$!
+CODING_PORT=$CODING_PORT RUNNER_PORT=$RUNNER_PORT node ../web/e2e/coding-attrappe.mjs &
 CODING_PID=$!
-trap 'kill $MOODLE_PID $CODING_PID 2>/dev/null || true' EXIT
+trap 'kill $MOODLE_PID $CODING_PID $RUNNER_PID 2>/dev/null || true' EXIT
 echo -n 'e2e-Passwort-sehr-lang-1' | npx tsx src/cli.ts passwort --stdin
 npx tsx src/start.ts

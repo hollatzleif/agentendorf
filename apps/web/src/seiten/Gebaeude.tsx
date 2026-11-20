@@ -23,7 +23,7 @@ import { BankUebersicht } from '../komponenten/BankUebersicht';
 import { CorpsUebersicht } from '../komponenten/CorpsUebersicht';
 import { BoerseUebersicht } from '../komponenten/BoerseUebersicht';
 import { KirchturmUhr } from '../komponenten/KirchturmUhr';
-import { CodehausUebersicht } from '../komponenten/CodehausUebersicht';
+import { CodehausEditorStart, CodehausUebersicht } from '../komponenten/CodehausUebersicht';
 import { KartenLernen } from '../komponenten/KartenLernen';
 import { WochenrueckblickAnsicht } from '../komponenten/WochenrueckblickAnsicht';
 import { StatistikAnsicht } from '../komponenten/StatistikAnsicht';
@@ -61,7 +61,10 @@ const MARKT_VORNE = [
 const BANK_VORNE = [['konto', 'Konto']] as const;
 const BOERSE_VORNE = [['depot', 'Depot']] as const;
 const KIRCHTURM_VORNE = [['uhr', 'Uhr']] as const;
-const CODEHAUS_VORNE = [['code', 'Projekte & VS Code']] as const;
+const CODEHAUS_VORNE = [
+  ['code', 'Projekte & VS Code'],
+  ['editor', 'Editor'],
+] as const;
 const CORPS_VORNE = [
   ['termine', 'Termine'],
   ['aemter', 'Ämter & Aufgaben'],
@@ -155,6 +158,7 @@ export function GebaeudeInhalt({ id, reiter, reiterWaehlen, kompakt }: { id: str
         {reiter === 'depot' && <BoerseUebersicht />}
         {reiter === 'uhr' && <KirchturmUhr />}
         {reiter === 'code' && <CodehausUebersicht />}
+        {reiter === 'editor' && <CodehausEditorStart />}
         {reiter === 'karten' && <KartenLernen />}
         {reiter === 'noten' && <NotenAnsicht />}
         {reiter === 'kalender' && <MarktKalender />}

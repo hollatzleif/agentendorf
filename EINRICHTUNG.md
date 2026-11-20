@@ -380,6 +380,8 @@ dorf logs coding
 dorf coding-aus
 ```
 
+**Editor direkt im Dorf (E197):** Codehaus → Reiter **Editor** (oder `/codehaus/editor`). Dort hast du ohne zweiten Tab einen Editor wie in VS Code (Reiter, Suchen/Ersetzen, Minimap, hell/dunkel), den Dateibaum deiner Projekte, ein Terminal, Git (Status, Vergleich, Commit, Push/Pull, Branches) und den Coding-Agenten daneben – auch am Handy. Der Editor braucht den Coding-Container in der Fassung ab E197; nach dem Update kommt das neue Image mit demselben Deploy von selbst (bis dahin sagt der Editor „kommt mit dem nächsten Deploy“). VS Code im Browser bleibt daneben bestehen (Erweiterungen, Debugger).
+
 `dorf coding-aus` hält das Codehaus an; Projekte, Einstellungen und Token bleiben.
 
 ## Alltag

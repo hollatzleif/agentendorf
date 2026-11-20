@@ -1760,6 +1760,49 @@ Ein unabhängiger Review hat Lücken gefunden. Jede ist behoben und hat einen Te
 - **Problem 2:** Im Programm wurde die Adresse zweimal geöffnet (`window.open` und `location.href` → `on_navigation`). Der zweite Aufruf fand die Karte verbraucht und meldete „Dieser Link gilt nicht (mehr)“.
 - **Lösung 2:** Nur noch `window.open`. Zusätzlich: Ist die Karte verbraucht, der Browser hat aber schon ein gültiges `dorf_coding`-Cookie, geht es direkt zu VS Code. Die Karte bleibt einmalig, ein erfundenes Cookie hilft nicht.
 
+## E197 – Editor im Codehaus (20.11.)
+
+Leif: „eine eigene Coding-Umgebung innerhalb der App, die einfach wie VS Code ist – alles aber nativ in der App“. VS Code im Browser (E191) bleibt daneben bestehen (Erweiterungen, Debugger); neu ist eine Seite der Dorf-App: `/codehaus/editor` (Codehaus → Reiter „Editor“).
+
+- **Was es gibt:**
+  - **Editor:** Monaco (MIT, das Editor-Herz von VS Code) mit Reitern, Marke für Ungespeichertes, Strg+S, Suchen/Ersetzen, Minimap, Thema „Dorf hell“ und dunkel (gemerkt).
+  - **Dateibaum** der Projekte unter `/arbeit`: öffnen, neu, umbenennen, löschen (mit Rückfrage), hochladen, herunterladen; Projekt anlegen.
+  - **Suche:** Strg+P über Dateinamen, Volltext mit ripgrep.
+  - **Git-Leiste:** Status, Vergleich mit dem letzten Commit im Diff-Editor, vormerken/verwerfen, Commit, Push/Pull/Fetch, Branch wechseln und anlegen.
+  - **Terminal:** xterm.js (MIT), mehrere gleichzeitig, Größe folgt dem Fenster.
+  - **Coding-Agent daneben:** startet die vorhandene Aktion `Codehaus/programmieren` für das offene Projekt; der Chat steht in der Leiste. Nach dem Lauf werden offene Dateien neu geladen, die geänderten Dateien stehen zum Anklicken bereit.
+  - **Handy:** immer ein Bereich sichtbar (Dateien, Suche, Git, Agent, Editor, Terminal), Leiste unten.
+- **Weg der Daten:** Browser → Dorf (`/api/coding/editor/*`, WebSocket `/api/coding/terminal`) → Runner im Coding-Container (Profil coding, Runner-Geheimnis). Der Browser spricht nie selbst mit dem Container; es gibt kein neues Geheimnis und keine neue Adresse.
+  - Das Dorf prüft Sitzung und Herkunft wie bei jeder anderen Route (keine Ausnahme), dazu Projektname und Pfad. Der Runner prüft alles noch einmal.
+  - Im Werkstatt-Profil gibt es diese Endpunkte nicht (404, getestet).
+- **Dateizugriff im Runner (`apps/werkstatt/src/editor.ts`), gleiche Sorgfalt wie E195:**
+  - Pfade nur relativ unter `/arbeit/<projekt>`: kein `..`, kein absoluter Pfad, keine leeren Teile, keine Steuerzeichen.
+  - **Symlinks werden nie verfolgt** (Ordner für Ordner über Deskriptoren mit `O_NOFOLLOW`, auch ein Projekt, das selbst ein Link ist). Grund: Im Projekt arbeiten Agenten mit Shell; ein untergeschobener Link soll den Editor weder zum Lesen noch zum Schreiben hinausführen. Folge: Links zeigt der Baum an, öffnen lässt sie nur das Terminal. Ein Wettlauf-Test tauscht eine Datei pausenlos gegen einen Link.
+  - `.git` ist über den Editor nicht erreichbar (Hooks und Konfiguration ändert man bewusst im Terminal).
+  - Grenzen: Text bis 2 MB, Hochladen bis 20 MB je Datei, Herunterladen bis 200 MB. Binärdateien nur als Download; das Dorf liefert sie als Anhang mit `Content-Security-Policy: sandbox` aus.
+  - Speichern mit `basisVersion` (sha256 des geladenen Stands): Hat inzwischen ein Agent oder das Terminal die Datei geändert, kommt 409 und nichts wird überschrieben. Der Editor fragt dann: neu laden oder die eigene Fassung speichern. Geschrieben wird atomar, die Dateirechte bleiben.
+  - Löschen verschiebt nach `/arbeit/.papierkorb/<projekt>/` (14 Tage) – wie der Papierkorb im Vault.
+- **Git und Suche:** nur feste Befehle mit Argumentlisten, nie über eine Shell. Branch-Namen und Pfade sind geprüft, die Commit-Nachricht geht über die Standardeingabe, der Suchtext hinter `-e`. Pull nur `--ff-only`, kein force-push; alles andere macht Leif im Terminal. Fehler von git stehen als Ausgabe in der Leiste. `gh` braucht die Leiste nicht: git holt das Token wie bisher über `gh auth git-credential`.
+- **Terminal ohne natives Modul:**
+  - Node kann kein Pseudo-Terminal öffnen; `node-pty` müsste im Image gebaut werden. `script` kann die Größe nicht nachträglich ändern.
+  - Gewählt: ein kleiner Helfer aus Pythons Standardbibliothek (`pty.fork`, `TIOCSWINSZ`), gestartet mit `python3 -c` – Python ist im Image schon da, es kommt keine Datei dazu. Getestet gegen ein echtes PTY (`test -t 0`, `stty size`).
+  - Dorf ↔ Runner ohne WebSocket-Bibliothek: Die Ausgabe ist der Antwortstrom eines POST, Eingaben sind kleine POSTs, die das Dorf streng der Reihe nach schickt.
+  - Die Shell bekommt dieselbe Umgebung wie der Agent (GitHub-Token ja, Runner-Geheimnis und VS-Code-Token nie). `bash` ohne `-l`, weil `/etc/profile` den PATH des Images ersetzen würde.
+  - Eine Verbindung = eine Shell: Schließt man das Terminal oder lädt die Seite neu, endet sie. Wer etwas lange laufen lassen will, nimmt `nohup`/`tmux` oder VS Code.
+  - **Abmelden kappt** die Terminals dieser Sitzung sofort (wie E195 bei VS Code); der Runner beendet dann die Shell. Wie dort nicht erfasst: Sitzungen, die durch Zeitablauf enden.
+  - Höchstens 8 Terminals.
+- **Was das am Risiko ändert:** nichts Grundsätzliches. Wer im Dorf angemeldet ist, hatte über VS Code schon Shell und Dateien im Coding-Container (E191). Neu ist nur, dass dieselbe Macht jetzt auch am Ursprung der Dorf-App hängt: Ein Fehler in der App (XSS) reichte dann bis zur Shell im Codehaus. Dagegen stehen die CSP der App, `SameSite=Strict` und die Herkunftsprüfung. Dateiinhalte aus Projekten zeigt nur Monaco (als Text) – nie als HTML.
+- **Größe:** Monaco, Sprachen, Worker und xterm liegen in `assets/editor/` (rund 16 MB ohne Quelltext-Karten, die für diesen Ordner entfallen) und werden nur auf der Editor-Seite geladen. Der PWA-Vorrat lässt den Ordner aus; der Start der App bleibt gleich groß.
+  - TypeScript/JavaScript: nur Syntaxprüfung. Der Editor sieht einzelne Dateien, nicht `node_modules`; eine Typprüfung würde jede Import-Zeile rot färben. Typen prüft `tsc` im Terminal.
+  - Monaco läuft mit dem klassischen Eingabefeld (`editContext: false`), damit die Tastenkürzel der App („n“, „f“ …) es als Texteingabe erkennen.
+- **Deploy:** Der Runner steckt im Coding-Image; dessen Kennung hängt an `apps/werkstatt/src/*.ts`. Ist das Codehaus eingeschaltet, baut und liefert die CI das neue Image mit demselben Deploy. Trifft der Editor noch auf ein altes Image, sagt er das („kommt mit dem nächsten Deploy“) statt zu scheitern.
+- **Tests:** Runner (echter Runner im Profil coding und im Werkstatt-Profil), Dorf-Routen vor dem echten Runner (401, Herkunft, Pfad-Tricks, Symlinks, Größen, Terminal über WebSocket, Kappen beim Abmelden), Browser (Desktop + Handy) über die Attrappe, die an den echten Runner weiterreicht. Die Tests brauchen `ripgrep` (in der CI ergänzt).
+- **Nicht gebaut / offen:**
+  - Vault-Dateien im selben Editor (war optional) – dafür gibt es die Bibliothek.
+  - Kein Sprachserver über Dateien hinweg, kein Debugger, keine Erweiterungen: dafür bleibt VS Code.
+  - Pull Requests anlegen: im Terminal (`gh pr create`) oder über den Agenten.
+  - Abnahme auf dem Server und an Leifs Handy steht aus.
+
 ## E199 – Neue Werkzeuge aus der Ideen-Liste (20.11.)
 
 - **Auftrag:** Aus `docs/werkzeug-ideen.md` (Top 15 + Nutzen für Leif) bauen, was sauber mit Tests geht. Schon da waren Umwandeln/OCR/Transkript und Office erzeugen (E190) und Websuche. Bildbearbeitung (E198), Code-Editor (E197) und Rundgang (E200) bauen andere.
