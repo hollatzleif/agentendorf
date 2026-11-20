@@ -10,6 +10,8 @@ import type { Uni } from './uni/abgleich.js';
 import type { Postbote } from './post/postbote.js';
 import type { TodoDienst } from './todos.js';
 import type { KalenderEintrag } from './agenten/werkzeuge.js';
+import type { Gewohnheiten } from './gewohnheiten.js';
+import { vaultDateien, WEITERE_AKTIVITAETEN } from './rundgang-aktivitaeten.js';
 import { MEINE_TODOS_ORDNER, type MeineTodos } from './agenten/meine-todos.js';
 import { GEDAECHTNIS_PFAD, MAX_GEDAECHTNIS } from './agenten/gedaechtnis.js';
 import { aktionenListe } from './agenten/aktionen.js';
@@ -30,7 +32,11 @@ const STUNDE = 3_600_000;
 const TAG = 24 * STUNDE;
 
 export type Gewicht = 'klein' | 'mittel' | 'gross';
-/** Grobe Kosten eines Bürgermeister-Laufs über die API je Aktivität (US-Dollar) – nur für die Auswahl nach Restbudget */
+/**
+ * Grobe Kosten eines Bürgermeister-Laufs über die API je Aktivität (US-Dollar) – nur für die Auswahl nach Restbudget.
+ * Standardwerte; Leif stellt sie in rundgang.md unter `kosten_usd` ein (E200), sobald echte Läufe zeigen, was es kostet
+ * (die Rundgang-Protokollzeile nennt die echten Kosten jedes Laufs).
+ */
 export const KOSTEN_USD: Record<Gewicht, number> = { klein: 0.08, mittel: 0.25, gross: 0.8 };
 
 export interface RundgangQuellen {
@@ -44,6 +50,10 @@ export interface RundgangQuellen {
   todos?: TodoDienst;
   bank?: { zeitungsZeilen(): Promise<string[]> };
   kalender?: (von: number, bis: number) => Promise<KalenderEintrag[]>;
+  /** E200: Gewohnheiten (nur lesen) */
+  gewohnheiten?: Pick<Gewohnheiten, 'liste'>;
+  /** E200: Moodle-Browser eingerichtet? (sonst startet „Neue Moodle-Inhalte prüfen“ keinen Helfer) */
+  moodleBereit?: () => boolean;
   log?: (text: string) => void;
 }
 
@@ -66,8 +76,6 @@ export interface Aktivitaet {
 
 // ---- Fakten-Sammler (ohne KI) ------------------------------------------------------------------
 
-const AUSGELASSEN = new Set(['protokolle', 'chats', 'archiv', 'node_modules']);
-
 export interface VaultBefund {
   konflikte: string[];
   leer: string[];
@@ -77,17 +85,7 @@ export interface VaultBefund {
 
 /** Durchsucht den Vault ohne KI: Konfliktkopien, leere Notizen, inhaltsgleiche Dateien, Wikilinks ohne Ziel. */
 export async function vaultBefund(vault: VaultDienst, max = 5000): Promise<VaultBefund> {
-  const alle: string[] = [];
-  const laufen = async (rel: string) => {
-    if (alle.length >= max) return;
-    for (const n of await vault.namen(rel).catch(() => [])) {
-      const k = rel ? `${rel}/${n.name}` : n.name;
-      if (n.ordner) {
-        if (!AUSGELASSEN.has(n.name)) await laufen(k);
-      } else alle.push(k);
-    }
-  };
-  await laufen('');
+  const alle = await vaultDateien(vault, max);
   const b: VaultBefund = { konflikte: [], leer: [], doppelt: [], toteLinks: [] };
   const pfade = new Set(alle.map((p) => p.toLowerCase()));
   const namen = new Set(alle.map((p) => path.posix.basename(p).toLowerCase()));
@@ -525,6 +523,8 @@ Gibt es nichts wirklich Neues, schreib das Gedächtnis NICHT neu.`,
       return z.length ? z : null;
     },
   },
+  // E200: die übrigen umsetzbaren Aktivitäten (rundgang-aktivitaeten.ts)
+  ...WEITERE_AKTIVITAETEN,
 ];
 
 // ---- Einstellungen (00_Stadtordnung/rundgang.md) --------------------------------------------------
@@ -546,6 +546,11 @@ const EinstellungenSchema = z
     aktivitaeten_je_rundgang: z.number().int().min(1).max(3).default(2),
     /** Was er auf den Rundgängen für Leif getan hat: einmal am Tag gebündelt in der Morgenzeitung */
     meldung: JaNein.default(true),
+    /** E200: geschätzte Kosten je Gewicht (US-Dollar) für die Auswahl nach Restbudget – fehlende gelten als Standard */
+    kosten_usd: z
+      .object({ klein: z.number().min(0).max(10).optional(), mittel: z.number().min(0).max(10).optional(), gross: z.number().min(0).max(10).optional() })
+      .strict()
+      .default({}),
     aktivitaeten: z.record(z.string(), Wert).default({}),
   })
   .strict()
@@ -555,6 +560,9 @@ const EinstellungenSchema = z
       if (!bekannt.has(id)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['aktivitaeten', id], message: `unbekannte Aktivität – bekannt sind: ${[...bekannt].join(', ')}` });
   });
 export type RundgangEinstellungen = z.infer<typeof EinstellungenSchema>;
+
+/** Wirksame Kosten je Gewicht: Leifs Werte aus rundgang.md, sonst die Standardwerte */
+export const kostenVon = (e: Pick<RundgangEinstellungen, 'kosten_usd'>): Record<Gewicht, number> => ({ ...KOSTEN_USD, ...e.kosten_usd });
 
 /** Liest rundgang.md. Fehlt die Datei, gelten die Standardwerte; ist sie fehlerhaft, auch – und der Fehler wird angezeigt. */
 export async function rundgangEinstellungen(vault: VaultDienst): Promise<{ e: RundgangEinstellungen; fehler: string | null }> {
@@ -611,7 +619,8 @@ export function faelligeAktivitaeten(a: { katalog: Aktivitaet[]; e: RundgangEins
  * - teure (groß) nur, wenn noch mindestens das halbe Tagesbudget da ist; mittlere ab einem Viertel;
  * - höchstens EINE nicht-kleine je Rundgang, höchstens `max` insgesamt.
  */
-export function budgetWahl(faellig: Aktivitaet[], a: { restbudget: number; tagesbudget: number; max: number }): Aktivitaet[] {
+export function budgetWahl(faellig: Aktivitaet[], a: { restbudget: number; tagesbudget: number; max: number; kosten?: Record<Gewicht, number> }): Aktivitaet[] {
+  const kosten = a.kosten ?? KOSTEN_USD;
   let frei = a.restbudget - 0.1 * a.tagesbudget;
   const wahl: Aktivitaet[] = [];
   for (const x of faellig) {
@@ -619,9 +628,9 @@ export function budgetWahl(faellig: Aktivitaet[], a: { restbudget: number; tages
     if (x.gewicht === 'gross' && a.restbudget < 0.5 * a.tagesbudget) continue;
     if (x.gewicht === 'mittel' && a.restbudget < 0.25 * a.tagesbudget) continue;
     if (x.gewicht !== 'klein' && wahl.some((w) => w.gewicht !== 'klein')) continue;
-    if (KOSTEN_USD[x.gewicht] > frei) continue;
+    if (kosten[x.gewicht] > frei) continue;
     wahl.push(x);
-    frei -= KOSTEN_USD[x.gewicht];
+    frei -= kosten[x.gewicht];
   }
   return wahl;
 }
@@ -664,6 +673,9 @@ export function fuerLeif(antwort: string): string | null {
   return t.length >= 8 && !/^(nichts|keine?[rs]?)\b.{0,30}$/i.test(t) ? t.slice(0, 400) : null;
 }
 
+/** E200: echte Kosten eines Laufs für das Protokoll, z. B. „0,12 $“ */
+export const dollar = (usd: number) => `${usd.toFixed(2).replace('.', ',')} $`;
+
 export class Rundgang {
   constructor(private q: RundgangQuellen) {}
 
@@ -700,6 +712,7 @@ export class Rundgang {
   async waehlen(a: { restbudget: number; tagesbudget: number; nacht: boolean }): Promise<GewaehlteAktivitaet[]> {
     const jetzt = this.q.uhr.jetzt();
     const { e } = await rundgangEinstellungen(this.q.vault);
+    const kosten = kostenVon(e);
     const zuletzt = this.zuletzt();
     const geprueft = this.json<Record<string, number>>('rundgang_geprueft', {});
     const faellig = faelligeAktivitaeten({ katalog: KATALOG, e, zuletzt, jetzt, nacht: a.nacht }).filter(
@@ -709,7 +722,7 @@ export class Rundgang {
     const mitAnlass: Aktivitaet[] = [];
     for (const x of faellig) {
       // nur so viele prüfen, wie überhaupt gewählt werden könnten – der Rest bleibt fällig für das nächste Mal
-      if (budgetWahl(mitAnlass, { ...a, max: e.aktivitaeten_je_rundgang }).length >= e.aktivitaeten_je_rundgang) break;
+      if (budgetWahl(mitAnlass, { ...a, max: e.aktivitaeten_je_rundgang, kosten }).length >= e.aktivitaeten_je_rundgang) break;
       // E195: Scheitert die Prüfung des Codes (Kalender nicht erreichbar, Datei kaputt …), ist das KEIN Anlass –
       // sonst liefe die KI ohne Fakten los. Nur als geprüft merken (nächster Versuch nach der üblichen Frist) und melden.
       const f = x.fakten
@@ -724,7 +737,7 @@ export class Rundgang {
         mitAnlass.push(x);
       }
     }
-    const wahl = budgetWahl(mitAnlass, { ...a, max: e.aktivitaeten_je_rundgang });
+    const wahl = budgetWahl(mitAnlass, { ...a, max: e.aktivitaeten_je_rundgang, kosten });
     for (const x of wahl) zuletzt[x.id] = jetzt;
     this.standSetzen('rundgang_zuletzt', JSON.stringify(zuletzt));
     this.standSetzen('rundgang_geprueft', JSON.stringify(geprueft));
@@ -738,6 +751,7 @@ export class Rundgang {
     return {
       fehler,
       jeRundgang: e.aktivitaeten_je_rundgang,
+      kosten: kostenVon(e),
       aktivitaeten: KATALOG.map((a) => {
         const h = haeufigkeitVon(a, e);
         return { id: a.id, titel: a.titel, gruppe: a.gruppe, haeufigkeit: h, aktiv: h !== 'aus', gewicht: a.gewicht, nachts: a.nachts, zuletzt: zuletzt[a.id] ? new Date(zuletzt[a.id]!).toISOString() : null };
@@ -766,11 +780,11 @@ export class Rundgang {
     delete offen[c.s];
     this.standSetzen('rundgang_offen', JSON.stringify(offen));
     const jetzt = this.q.uhr.jetzt();
-    const l = this.q.db.prepare('SELECT zusammenfassung, fehler FROM laeufe WHERE id = ?').get(e.laufId) as { zusammenfassung: string | null; fehler: string | null } | undefined;
+    const l = this.q.db.prepare('SELECT zusammenfassung, fehler, kosten_usd FROM laeufe WHERE id = ?').get(e.laufId) as { zusammenfassung: string | null; fehler: string | null; kosten_usd: number } | undefined;
     const antwort = (this.q.db.prepare("SELECT text FROM nachrichten WHERE lauf_id = ? AND rolle = 'agent' ORDER BY id DESC LIMIT 1").get(e.laufId) as { text: string } | undefined)?.text ?? '';
     const meldung = e.status === 'fertig' ? fuerLeif(antwort) : null;
     const getan = e.status === 'fertig' ? einzeilig(abschnitt(l?.zusammenfassung, 'Getan'), 300) || '–' : `${e.status}: ${einzeilig(l?.fehler ?? '', 200)}`;
-    const zeile = `- **${uhrzeitIn(jetzt)}** ${r.art}${r.todos ? ` · eigene To-dos fällig: ${r.todos}` : ''}${r.aktivitaeten.length ? ` · Aktivitäten: ${r.aktivitaeten.join(', ')}` : ''} · Getan: ${getan}${meldung ? ` · Für Leif: ${einzeilig(meldung, 300)}` : ''} · [Chat](/chats/${e.chatId})`;
+    const zeile = `- **${uhrzeitIn(jetzt)}** ${r.art}${r.todos ? ` · eigene To-dos fällig: ${r.todos}` : ''}${r.aktivitaeten.length ? ` · Aktivitäten: ${r.aktivitaeten.join(', ')}` : ''} · Kosten: ${dollar(l?.kosten_usd ?? 0)} · Getan: ${getan}${meldung ? ` · Für Leif: ${einzeilig(meldung, 300)}` : ''} · [Chat](/chats/${e.chatId})`;
     const pfad = `${RUNDGANG_PROTOKOLL}/${tagIn(jetzt)}.md`;
     for (let versuch = 0; versuch < 3; versuch++) {
       const alt = await this.q.vault.lesen(pfad).catch(() => null);

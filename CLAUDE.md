@@ -83,8 +83,9 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
   src/aufwachen.ts     Bürgermeister wacht zu zufälligen Zeiten auf (alle 3–7 h, 24/7, E56/E181; Termin in dorf_stand): Code prüft ohne KI; Reihenfolge
                        (E192): fällige eigene To-dos → neue Anlässe (Lagebericht) → Rundgang mit 1–3 Katalog-Aktivitäten; ohne Anlass kein KI-Lauf;
                        Tagesbudget; Nachtruhe 22–7 (istNacht, telegram/bot.ts nachtNachholen)
-  src/rundgang.ts      E192: Aktivitäten-Katalog (18) mit Fakten-Sammlern ohne KI, Auswahl nach Fälligkeit/Restbudget/Nacht (dorf_stand),
-                       00_Stadtordnung/rundgang.md (Zod, an/ab, Häufigkeit), Protokoll Rathaus/rundgang/, „Für Leif“ → Morgenzeitung
+  src/rundgang.ts      E192/E200: Aktivitäten-Katalog (40; 22 davon in rundgang-aktivitaeten.ts) mit Fakten-Sammlern ohne KI (schon
+                       Erledigtes zählt nicht als Anlass), Auswahl nach Fälligkeit/Restbudget/Nacht (dorf_stand), 00_Stadtordnung/rundgang.md
+                       (Zod, an/ab, Häufigkeit, kosten_usd je Gewicht), Protokoll Rathaus/rundgang/ mit echten Kosten, „Für Leif“ → Morgenzeitung
   src/intern.ts   interner Port 3001 (nur Docker-Netz): Werkzeugaufrufe der Werkstatt per Lauf-Token
   src/geraete.ts  E182: Geräte koppeln (6-stelliger Code, 5 min, einmalig) + Geräte-API /api/geraet/* für den Cardputer (Vertrag
                   apps/cardputer/API.md): NUR Bearer-Schlüssel (sha256 in DB), kein Cookie/Origin; ruft nur vorhandene Dienste
@@ -220,3 +221,4 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E194 (19.11., Server): Spracheingabe für Geräte – `POST /api/geraet/sprache` (WAV → Text über whisper.cpp im Rechenraum, nichts gespeichert)
 - [x] E194 (19.11., Firmware): Cardputer 1.2 – Spracheingabe überall (Tab), Update ohne Neu-Einrichten (Nur-Programm-Datei); Host-Test grün (177), Mikrofon nie am Gerät erprobt
 - [x] E195 (19.11.): Review zu E190–E194 – Vault folgt keinen Symlinks mehr (wettlauf-sicher), Coding-Freigabe nicht mehr umgehbar, X-Forwarded-For nur von Caddy, Abmelden kappt VS Code, Rechenraum-Speicher gemessen, Codehaus-Image nur auf Wunsch
+- [x] E200 (20.11.): Rundgang komplett – 22 weitere Aktivitäten (40 von 50; 9 begründet „bleibt Idee“), Kosten je Gewicht in `rundgang.md`, echte Kosten im Rundgang-Protokoll – echte Läufe und Kosten abzunehmen
