@@ -263,6 +263,42 @@ test('Erweiterungen neben VS Code: Panel auf der VS-Code-Seite, nach dem Install
   await erweiterungenLeeren(page);
 });
 
+test('Erweiterungen (Review): Antwort ohne Liste stürzt nicht ab; ungewöhnliche Kennungen ohne „Entfernen“; jede Kennung nur einmal', async ({ page }) => {
+  const fehler: string[] = [];
+  page.on('pageerror', (e) => fehler.push(e.message));
+  page.on('console', (m) => {
+    if (m.type() === 'error' && /same key|unique "key"/i.test(m.text())) fehler.push(m.text());
+  });
+  let antwort: unknown = {};
+  await page.route('**/api/coding/erweiterungen', (route) => route.fulfill({ json: antwort }));
+  await anmelden(page);
+  await page.goto('/gebaeude/Codehaus?reiter=vscode');
+  const feld = page.getByTestId('erweiterungen');
+  await expect(feld.getByTestId('erw-installiert-reiter')).toHaveText('Installiert (0)');
+  await feld.getByTestId('erw-installiert-reiter').click();
+  await expect(feld).toContainText('Noch keine Erweiterungen installiert');
+
+  antwort = {
+    erweiterungen: [
+      { id: 'esbenp.prettier-vscode', version: '12.4.0' },
+      { id: 'esbenp.prettier-vscode', version: '12.4.0' },
+      { id: 'mit_unterstrich.name', version: '1.0.0' },
+      { id: 'drei.teile.name', version: '2.0.0' },
+    ],
+  };
+  await page.reload();
+  await feld.getByTestId('erw-installiert-reiter').click();
+  const da = feld.getByTestId('erw-installiert').locator('li');
+  await expect(da).toHaveCount(3);
+  await expect(feld.getByTestId('erw-installiert-reiter')).toHaveText('Installiert (3)');
+  await expect(da.filter({ hasText: 'esbenp.prettier-vscode' }).getByRole('button', { name: 'Entfernen' })).toBeVisible();
+  for (const id of ['mit_unterstrich.name', 'drei.teile.name']) {
+    await expect(da.filter({ hasText: id }).getByRole('button')).toHaveCount(0);
+    await expect(da.filter({ hasText: id })).toContainText('nur in VS Code selbst entfernbar');
+  }
+  expect(fehler).toEqual([]);
+});
+
 test('Erweiterungen und Karte: ohne Anmeldung nichts', async ({ request }) => {
   expect((await request.get('/api/coding/erweiterungen')).status()).toBe(401);
   expect((await request.get('/api/coding/erweiterungen/suche?q=prettier')).status()).toBe(401);

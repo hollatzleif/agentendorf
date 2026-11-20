@@ -142,24 +142,58 @@ coding_env_setzen() { # name wert
   chmod 600 "$datei.neu" && mv "$datei.neu" "$datei"
 }
 
-# E205: Der Caddyfile ist als einzelne Datei eingehängt, über den Link „aktuell“. Compose erstellt Caddy nur neu, wenn sich
+# E205: Der Caddyfile ist als einzelne Datei eingehängt, über den Link „current“. Compose erstellt Caddy nur neu, wenn sich
 # seine Beschreibung in compose.yml ändert – der Container behält sonst die Datei der Version, mit der er erstellt wurde.
-# Darum vergleichen: Weicht der Caddyfile im Container von dem der aktuellen Version ab, wird Caddy neu erstellt
-# (Zertifikate liegen im Volume und bleiben). Läuft Caddy nicht oder lässt sich nicht fragen, passiert nichts.
+# Darum vergleichen: Weicht der Caddyfile im Container von dem der aktuellen Version ab – oder lässt sich Caddy nicht fragen
+# (läuft nicht) –, wird er neu erstellt (Zertifikate liegen im Volume und bleiben).
+# Review E205: nichts verschlucken. Der neue Caddyfile wird VORHER mit dem Caddy-Image geprüft (caddy validate); danach muss
+# Caddy laufen und seine Verwaltungs-Schnittstelle im Container antworten (Standard localhost:2019). Sonst Fehler → der
+# Deploy gilt als gescheitert und `empfangen` kehrt zur vorherigen Version zurück (dort läuft dieselbe Prüfung mit deren Caddyfile).
+caddy_laeuft() {
+  compose exec -T caddy wget -q -O /dev/null http://localhost:2019/config/ 2>/dev/null
+}
+# Ausweich-Prüfung, falls die Verwaltungs-Schnittstelle nicht erreichbar ist (anderes Image, kein wget): Der Container muss
+# dreimal hintereinander ansprechbar sein – ein Caddy, der beim Start abstürzt und neu startet, ist das nicht.
+caddy_steht() {
+  local i
+  for i in 1 2 3; do
+    compose exec -T caddy caddy version > /dev/null 2>&1 || return 1
+    [ "$i" = 3 ] || sleep "${CADDY_PAUSE:-2}"
+  done
+}
 caddy_abgleichen() {
-  local drin
-  drin=$(compose exec -T caddy cat /etc/caddy/Caddyfile 2>/dev/null) || return 0
-  if [ -n "$drin" ] && [ "$drin" != "$(cat "$AKTUELL/deploy/Caddyfile")" ]; then
-    info "Der Caddyfile hat sich geändert – Caddy wird neu erstellt (das Dorf ist ein paar Sekunden nicht erreichbar) …"
-    compose up -d --force-recreate caddy || true
+  local neu drin
+  neu=$(readlink -f "$AKTUELL/deploy/Caddyfile" 2>/dev/null || true)
+  [ -n "$neu" ] && [ -f "$neu" ] || return 0
+  if drin=$(compose exec -T caddy cat /etc/caddy/Caddyfile 2>/dev/null) && [ "$drin" = "$(cat "$neu")" ]; then
+    return 0
   fi
+  info "Der Caddyfile hat sich geändert (oder Caddy läuft nicht) – prüfe ihn und erstelle Caddy neu …"
+  if ! compose run --rm --no-deps -T -v "$neu:/tmp/Caddyfile.neu:ro" caddy caddy validate --config /tmp/Caddyfile.neu --adapter caddyfile > /dev/null 2>&1; then
+    rot "Der neue Caddyfile ist ungültig (caddy validate) – Caddy bleibt, wie er ist."
+    return 1
+  fi
+  if ! compose up -d --force-recreate caddy; then
+    rot "Caddy ließ sich nicht neu erstellen."
+    return 1
+  fi
+  for _ in $(seq 1 "${CADDY_WARTEN:-30}"); do
+    if caddy_laeuft; then return 0; fi
+    sleep "${CADDY_PAUSE:-2}"
+  done
+  if caddy_steht; then
+    info "Hinweis: Caddy läuft, aber seine Verwaltungs-Schnittstelle antwortet nicht – bitte prüfen: dorf logs caddy"
+    return 0
+  fi
+  rot "Caddy läuft nach dem Neu-Erstellen nicht (dorf logs caddy)."
+  return 1
 }
 
 cmd_deploy() {
   [ -n "${DORF_TEST:-}" ] || geheimnisse_sicherstellen
   info "Starte Version $(cat "$AKTUELL/VERSION") …"
   compose up -d --remove-orphans
-  caddy_abgleichen
+  caddy_abgleichen || return 1
   if gesund_warten; then gruen "Dorf läuft: https://$(grep -E '^DORF_DOMAIN=' "$ENV_DATEI" | cut -d= -f2)"; else return 1; fi
 }
 

@@ -16,6 +16,12 @@ fs.mkdirSync(daten, { recursive: true });
 const standDatei = path.join(daten, 'fake-erweiterungen.json');
 const stand = fs.existsSync(standDatei) ? JSON.parse(fs.readFileSync(standDatei, 'utf8')) : {};
 const sichern = () => fs.writeFileSync(standDatei, JSON.stringify(stand));
+// Arbeitsordner vermerken (der Runner startet jeden Aufruf in einem frischen, leeren Ordner)
+if (process.env.FAKE_LOG) fs.appendFileSync(`${process.env.FAKE_LOG}.cwd`, `${JSON.stringify({ cwd: process.cwd(), inhalt: fs.readdirSync(process.cwd()) })}\n`);
+if (a.includes('--list-extensions')) {
+  for (const [id, v] of Object.entries(stand)) console.log(a.includes('--show-versions') ? `${id}@${v}` : id);
+  process.exit(0);
+}
 // zwei Aufrufe gleichzeitig? (der Runner muss sie nacheinander ausführen)
 const sperre = path.join(daten, 'fake-sperre');
 try {
@@ -29,10 +35,6 @@ const ende = (code) => {
 };
 const warte = (ms) => new Promise((r) => setTimeout(r, ms));
 
-if (a.includes('--list-extensions')) {
-  for (const [id, v] of Object.entries(stand)) console.log(a.includes('--show-versions') ? `${id}@${v}` : id);
-  ende(0);
-}
 const inst = wert('--install-extension');
 if (inst !== undefined) {
   console.log('Installing extensions...');
@@ -41,6 +43,7 @@ if (inst !== undefined) {
     fs.rmSync(sperre, { force: true });
     await warte(600_000);
   }
+  if (inst === 'dauert.lange') await warte(1500);
   if (inst.startsWith('/')) {
     // VSIX-Datei: muss existieren und ein ZIP sein
     const kopf = fs.readFileSync(inst).subarray(0, 4).toString('latin1');

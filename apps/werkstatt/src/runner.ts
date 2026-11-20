@@ -84,8 +84,12 @@ async function rohKoerper(req: http.IncomingMessage, max: number) {
   return Buffer.concat(teile);
 }
 
+/** JSON-Körper – immer ein Objekt (Review E205: `null`, Zahlen oder Listen führten beim Zugriff auf ein Feld zu 500 statt 400) */
 async function koerper(req: http.IncomingMessage) {
-  return JSON.parse((await rohKoerper(req, 5_000_000)).toString('utf8'));
+  const j: unknown = JSON.parse((await rohKoerper(req, 5_000_000)).toString('utf8'));
+  if (typeof j !== 'object' || j === null || Array.isArray(j)) throw new EditorFehler(400, 'Ungültige Anfrage.');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return j as Record<string, any>;
 }
 
 const server = http.createServer((req, res) => {

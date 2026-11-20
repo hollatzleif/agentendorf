@@ -454,6 +454,8 @@ export interface CodingUebersicht {
 }
 
 // ---- E205 Erweiterungen für VS Code im Codehaus (Open VSX) ----
+/** Kennung, die sich über die App entfernen lässt (herausgeber.name, klein, ohne Unterstrich/weitere Punkte, nie „….vsix“) – wie Dorf und Runner prüfen */
+export const erweiterungEntfernbar = (id: string) => id.length <= 200 && /^[a-z0-9][a-z0-9-]*\.[a-z0-9][a-z0-9-]*$/.test(id) && !/\.vsix$/i.test(id);
 export interface ErweiterungInstalliert {
   /** herausgeber.name, klein geschrieben */
   id: string;

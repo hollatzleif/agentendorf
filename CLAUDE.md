@@ -143,7 +143,8 @@ apps/werkstatt  eigener Container: unverändertes claude-CLI (Version im Dockerf
                 vault/pfade.ts; Text ≤ 2 MB, Hochladen ≤ 20 MB, Löschen = /arbeit/.papierkorb; rg und git nur mit festen Argumentlisten) und
                 terminal.ts (/terminal – Shell am PTY über einen Python-Helfer aus der Standardbibliothek, kein natives Node-Modul, höchstens 8).
                 E205, nur Profil coding: erweiterungen.ts (/erweiterungen* – openvscode-server mit festen Argumenten: --list-extensions,
-                --install-extension <id|vsix> --force, --uninstall-extension; Kennung streng geprüft, nie Pfad/Adresse/Option; OPENVSCODE_BIN).
+                --install-extension <id|vsix> --force, --uninstall-extension; Kennung streng geprüft – nie Option/Adresse und nie mit Endung .vsix
+                (die läse VS Code als Datei im Arbeitsordner), Aufruf in leerem cwd; Schreibendes nacheinander, Warten ≤ 60 s; OPENVSCODE_BIN).
 apps/rechenraum eigener Container: pdflatex (texlive), Python (numpy/sympy/scipy/matplotlib), poppler; runner.py nur
                 Standardbibliothek. Internes Netz ohne Internet, kein Vault, Arbeitsordner pro Chat, 120 s pro Befehl.
                 Image-Kennung = Hash(Dockerfile+runner.py), wird nur ausgeliefert, wenn der Server es nicht hat.

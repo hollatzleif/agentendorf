@@ -64,7 +64,10 @@ export default function VsCodeSeite() {
   useEffect(() => {
     if (bereit) void laden();
   }, [bereit, laden]);
-  // Kommt nach einer Weile nichts an (ältere Programm-Version, Browser sperrt Cookies im Rahmen …): Ausweg anbieten
+  // Kommt nach einer Weile nichts an (ältere Programm-Version bricht die Navigation ab …): Ausweg anbieten.
+  // Grenze (Review E205): `load` meldet der Browser auch für eine Fehlerseite im Rahmen (z. B. 401 ohne Cookies) – die App
+  // kann in den fremden Ursprung nicht hineinsehen und hört bewusst auf keine Nachrichten von dort. Für diesen Fall steht
+  // „↗ in neuem Tab“ immer in der Kopfleiste.
   useEffect(() => {
     if (!rahmen || geladen) return;
     const t = setTimeout(() => setHaengt(true), 12_000);

@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EditorFehler } from '../src/editor.js';
-import { ERWEITERUNG_ID, Erweiterungen, erweiterungIdPruefen, listeLesen } from '../src/erweiterungen.js';
+import { ERWEITERUNG_ID, Erweiterungen, ZEIT_ENTFERNEN_MS, ZEIT_INSTALLIEREN_MS, ZEIT_LISTE_MS, ZEIT_WARTEN_MS, erweiterungIdPruefen, listeLesen } from '../src/erweiterungen.js';
 
 /**
  * E205 – Erweiterungen für VS Code im Codehaus: Endpunkte des Runners (/erweiterungen*).
@@ -171,6 +171,11 @@ describe('Auflisten, installieren, entfernen – feste Argumente', () => {
       'a.b@latest',
       'a.b@1.0 --x',
       'a.b@1/../2',
+      // Review E205: VS Code hält jedes Argument auf „.vsix“ für eine Datei relativ zum Arbeitsordner
+      'a.vsix',
+      'boese.vsix',
+      'a.b@1.vsix',
+      'a.b@1.0.0.VSIX',
       'A.b',
       'ms-python.Python',
       'a_b.c',
@@ -186,12 +191,17 @@ describe('Auflisten, installieren, entfernen – feste Argumente', () => {
     ];
     const vorher = aufrufe().length;
     for (const id of boese) {
-      expect(ERWEITERUNG_ID.test(String(id)) && String(id).length <= 200 && typeof id === 'string', JSON.stringify(id)).toBe(false);
+      expect(ERWEITERUNG_ID.test(String(id)) && !/\.vsix$/i.test(String(id)) && String(id).length <= 200 && typeof id === 'string', JSON.stringify(id)).toBe(false);
       expect((await post('/erweiterungen/installieren', { id })).status, `installieren ${JSON.stringify(id)}`).toBe(400);
       expect((await post('/erweiterungen/entfernen', { id })).status, `entfernen ${JSON.stringify(id)}`).toBe(400);
     }
     expect((await hole('/erweiterungen/installieren', { method: 'POST', body: 'kein json' })).status).toBe(400);
     expect((await hole('/erweiterungen/installieren', { method: 'POST', body: '"a.b"' })).status).toBe(400);
+    // Review E205: Körper, die kein Objekt sind, sind eine ungültige Anfrage (400), kein Absturz (500)
+    for (const body of ['null', '42', '[]', 'true']) {
+      expect((await hole('/erweiterungen/installieren', { method: 'POST', body })).status, body).toBe(400);
+      expect((await hole('/erweiterungen/entfernen', { method: 'POST', body })).status, body).toBe(400);
+    }
     expect(aufrufe().length).toBe(vorher);
     // Gegenprobe: gültige Kennungen
     for (const id of ['a.b', 'ms-python.python', '4ops.terraform', 'a-b.c-d@0.1.0', 'esbenp.prettier-vscode@12.4.0']) expect(() => erweiterungIdPruefen(id), id).not.toThrow();
@@ -203,6 +213,51 @@ describe('Auflisten, installieren, entfernen – feste Argumente', () => {
     expect(fs.existsSync(path.join(daten, 'fake-ueberlappt'))).toBe(false);
     const ids = ((await hole('/erweiterungen')).j.erweiterungen as { id: string }[]).map((e) => e.id);
     expect(ids).toEqual(['eins.a', 'esbenp.prettier-vscode', 'zwei.b']);
+  });
+});
+
+describe('Arbeitsordner und Wartezeit (Review E205)', () => {
+  it('jeder Aufruf läuft in einem frischen, leeren Ordner außerhalb der Projekte – danach ist er weg', async () => {
+    // eine Datei mit passendem Namen im Arbeitsordner der Projekte darf nie erreichbar sein
+    fs.writeFileSync(path.join(tmp, 'arbeit', 'boese.vsix'), 'PK\u0003\u0004');
+    expect((await post('/erweiterungen/installieren', { id: 'boese.vsix' })).status).toBe(400);
+    expect((await post('/erweiterungen/installieren', { id: 'ordner.probe' })).status).toBe(200);
+    const orte = fs
+      .readFileSync(`${logDatei}.cwd`, 'utf8')
+      .split('\n')
+      .filter(Boolean)
+      .map((z) => JSON.parse(z) as { cwd: string; inhalt: string[] });
+    expect(orte.length).toBeGreaterThan(3);
+    for (const o of orte) {
+      expect(o.inhalt, o.cwd).toEqual([]);
+      expect(o.cwd.startsWith(path.join(tmp, 'arbeit'))).toBe(false);
+      expect(o.cwd).not.toBe(HIER);
+      expect(fs.existsSync(o.cwd), o.cwd).toBe(false);
+    }
+    expect((await post('/erweiterungen/entfernen', { id: 'ordner.probe' })).status).toBe(200);
+  });
+
+  it('die Liste antwortet auch während einer Installation; wer zu lange ansteht, bekommt 409 und wird nicht mehr ausgeführt', async () => {
+    const d = path.join(tmp, 'daten-warten');
+    const e = new Erweiterungen(FAKE, d, path.join(tmp, 'vsix-warten'), () => ({ PATH: process.env.PATH }), 10_000, 400);
+    const lang = e.installieren('dauert.lange');
+    const zweite = e.installieren('zu.spaet').catch((x: unknown) => x);
+    await new Promise((x) => setTimeout(x, 300));
+    const t = Date.now();
+    expect((await e.liste()).erweiterungen).toEqual([]);
+    expect(Date.now() - t).toBeLessThan(1000);
+    expect((await lang).erweiterungen).toEqual([{ id: 'dauert.lange', version: '9.9.9' }]);
+    const f = (await zweite) as EditorFehler;
+    expect(f).toBeInstanceOf(EditorFehler);
+    expect(f.status).toBe(409);
+    expect((await e.liste()).erweiterungen).toEqual([{ id: 'dauert.lange', version: '9.9.9' }]);
+    // danach ist die Reihe wieder frei
+    expect((await e.installieren('wieder.frei')).erweiterungen).toHaveLength(2);
+  });
+
+  it('Grenzen passen zusammen: Warten + Aufruf + Liste bleibt unter dem, was das Dorf wartet (300 s / 170 s)', () => {
+    expect(ZEIT_WARTEN_MS + ZEIT_INSTALLIEREN_MS + ZEIT_LISTE_MS).toBeLessThanOrEqual(270_000);
+    expect(ZEIT_WARTEN_MS + ZEIT_ENTFERNEN_MS + ZEIT_LISTE_MS).toBeLessThanOrEqual(150_000);
   });
 });
 
@@ -266,5 +321,7 @@ describe('Erweiterungen (Klasse)', () => {
       { id: 'esbenp.prettier-vscode', version: '12.4.0' },
       { id: 'pkief.material-icon-theme', version: '5.40.0' },
     ]);
+    // zwei Schreibweisen derselben Kennung ergeben EINEN Eintrag (sonst doppelte Zeilen in der App)
+    expect(listeLesen('PKief.thema@1.0.0\npkief.thema@2.0.0\n')).toEqual([{ id: 'pkief.thema', version: '1.0.0' }]);
   });
 });

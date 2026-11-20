@@ -5,7 +5,8 @@ import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { WERKZEUG_DEFINITIONEN } from '../src/agenten/werkzeuge.js';
 import { codingEinbettbar } from '../src/coding.js';
-import { ERWEITERUNG_ID, OPENVSX_ANTWORT_MAX } from '../src/coding-erweiterungen.js';
+import { erweiterungEntfernbar } from '@dorf/shared';
+import { ERWEITERUNG_ID, OPENVSX_ANTWORT_MAX, ZEIT_ENTFERNEN_MS, ZEIT_INSTALLIEREN_MS, ZEIT_VSIX_MS, erweiterungIdOk } from '../src/coding-erweiterungen.js';
 import type { Konfig } from '../src/konfig.js';
 import { kopf } from './etappe7.test.js';
 import { ORIGIN, tempOrdner, testDorf } from './hilfen.js';
@@ -106,9 +107,11 @@ describe('Erweiterungs-Routen: Schutz', () => {
   });
 
   it('Kennung: Optionen, Shell-Zeichen, Pfade, Adressen scheitern schon im Dorf (400) – der Runner wird nicht gefragt', async () => {
-    const boese: unknown[] = ['--foo', '-a.b', 'a.b;rm', 'a.b && id', '../x', '/etc/passwd', 'a/b.c', 'https://marketplace.visualstudio.com/_apis/public/gallery/x.vsix', 'https://open-vsx.org/x.vsix', 'a.b --force', 'a.b\n--x', 'A.b', 'a', 'a.b.c', 'a.b@', 'a.b@latest', '', `a.${'b'.repeat(300)}`, 42, null, ['a.b']];
+    const boese: unknown[] = ['--foo', '-a.b', 'a.b;rm', 'a.b && id', '../x', '/etc/passwd', 'a/b.c', 'https://marketplace.visualstudio.com/_apis/public/gallery/x.vsix', 'https://open-vsx.org/x.vsix', 'a.b --force', 'a.b\n--x', 'A.b', 'a', 'a.b.c', 'a.b@', 'a.b@latest', '', `a.${'b'.repeat(300)}`, 42, null, ['a.b'], 'a.vsix', 'boese.vsix', 'a.b@1.vsix', 'a.b@1.0.VSIX'];
+    // Review E205: die Regel allein ließe „a.vsix“ durch – VS Code läse das als Datei im Arbeitsordner
+    expect(ERWEITERUNG_ID.test('a.vsix')).toBe(true);
     for (const id of boese) {
-      expect(typeof id === 'string' && id.length <= 200 && ERWEITERUNG_ID.test(id), JSON.stringify(id)).toBe(false);
+      expect(typeof id === 'string' && erweiterungIdOk(id), JSON.stringify(id)).toBe(false);
       expect((await post('/api/coding/erweiterungen/installieren', { id })).statusCode, `installieren ${JSON.stringify(id)}`).toBe(400);
       expect((await post('/api/coding/erweiterungen/entfernen', { id })).statusCode, `entfernen ${JSON.stringify(id)}`).toBe(400);
     }
@@ -339,6 +342,47 @@ describe('Installieren, entfernen, hochladen – über das Dorf bis zum (nachgeb
     await altDorf.app.close();
     alt.close();
     for (const x of [leer, weg, altDorf]) fs.rmSync(x.daten, { recursive: true, force: true });
+  });
+});
+
+describe('Review E205: Antworten des Runners, Zeitgrenzen, entfernbare Kennungen', () => {
+  it('Runner-Antwort ohne Liste oder mit fremder Form → leere/gesäuberte Liste, nie etwas Ungeprüftes an die App', async () => {
+    let antwort = '{}';
+    const schief = http.createServer((_q, res) => res.writeHead(200, { 'content-type': 'application/json' }).end(antwort));
+    await new Promise<void>((r) => schief.listen(0, '127.0.0.1', r));
+    const x = await testDorf({ env: { CODING_URL: `http://127.0.0.1:${(schief.address() as { port: number }).port}`, CODING_GEHEIMNIS: GEHEIMNIS } });
+    const hx = await kopf(x);
+    const liste = async () => (await x.app.inject({ url: '/api/coding/erweiterungen', headers: hx })).json() as unknown;
+    expect(await liste()).toEqual({ erweiterungen: [] });
+    for (const a of ['null', '[]', '"text"', '{"erweiterungen":null}', '{"erweiterungen":"nein"}', '{"erweiterungen":{"id":"a.b"}}']) {
+      antwort = a;
+      expect(await liste(), a).toEqual({ erweiterungen: [] });
+    }
+    antwort = JSON.stringify({ erweiterungen: [{ id: 'gut.eins', version: '1.0.0', html: '<b>x</b>' }, null, 'text', { id: 7, version: '1' }, { id: 'ohne.version' }], geheim: 'x' });
+    expect(await liste()).toEqual({ erweiterungen: [{ id: 'gut.eins', version: '1.0.0' }] });
+    antwort = JSON.stringify({ ausgabe: { boese: true }, zusatz: 'x' });
+    const r = await x.app.inject({ method: 'POST', url: '/api/coding/erweiterungen/installieren', headers: hx, payload: { id: 'a.b' } });
+    expect(r.json()).toEqual({ ok: true, ausgabe: '', erweiterungen: [] });
+    await x.app.close();
+    schief.close();
+    fs.rmSync(x.daten, { recursive: true, force: true });
+  });
+
+  it('das Dorf wartet länger, als der Runner höchstens braucht (Warten 60 s + Aufruf + Liste 30 s)', () => {
+    expect(ZEIT_INSTALLIEREN_MS).toBeGreaterThan(60_000 + 180_000 + 30_000);
+    expect(ZEIT_VSIX_MS).toBeGreaterThan(60_000 + 180_000 + 30_000);
+    expect(ZEIT_ENTFERNEN_MS).toBeGreaterThan(60_000 + 60_000 + 30_000);
+  });
+
+  it('die App zeigt „Entfernen“ nur für Kennungen, die Dorf und Runner auch annehmen', async () => {
+    for (const id of ['esbenp.prettier-vscode', 'a.b', '4ops.terraform']) {
+      expect(erweiterungEntfernbar(id), id).toBe(true);
+      expect((await post('/api/coding/erweiterungen/entfernen', { id })).statusCode, id).not.toBe(400);
+    }
+    for (const id of ['mit_unterstrich.name', 'a.b.c', 'A.b', 'a.vsix', 'a.b@1.0.0', '', `a.${'b'.repeat(300)}`]) {
+      expect(erweiterungEntfernbar(id), id).toBe(false);
+      expect((await post('/api/coding/erweiterungen/entfernen', { id })).statusCode, id).toBe(400);
+    }
   });
 });
 

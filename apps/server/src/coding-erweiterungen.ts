@@ -20,7 +20,10 @@ import type { Konfig } from './konfig.js';
  *   Codehaus, installiert wird nur auf Leifs Klick.
  */
 
-/** wie im Runner: herausgeber.name, optional @version – beginnt nie mit „-“, kein Pfad, keine Adresse */
+/**
+ * wie im Runner: herausgeber.name, optional @version – beginnt nie mit „-“, keine Adresse, und nie mit der Endung „.vsix“
+ * (VS Code hält jedes Argument auf .vsix für eine Datei relativ zu seinem Arbeitsordner – Review E205)
+ */
 export const ERWEITERUNG_ID = /^[a-z0-9][a-z0-9-]*\.[a-z0-9][a-z0-9-]*(@[0-9][0-9A-Za-z.+-]*)?$/;
 const ERWEITERUNG_OHNE_VERSION = /^[a-z0-9][a-z0-9-]*\.[a-z0-9][a-z0-9-]*$/;
 export const VSIX_MAX = 50 * 1024 * 1024;
@@ -31,8 +34,29 @@ const TREFFER_JE_SEITE = 10;
 const MERKEN_MS = 60 * 60 * 1000;
 const MERKEN_MAX = 500;
 
-const id = z.string().max(200).regex(ERWEITERUNG_ID, 'Ungültige Erweiterungs-Kennung – erwartet wird „herausgeber.name“ (klein geschrieben), optional „@version“.');
-const idOhneVersion = z.string().max(200).regex(ERWEITERUNG_OHNE_VERSION, 'Ungültige Erweiterungs-Kennung – erwartet wird „herausgeber.name“ (klein geschrieben).');
+const keinVsix = (w: string) => !/\.vsix$/i.test(w);
+export const erweiterungIdOk = (w: string) => w.length <= 200 && ERWEITERUNG_ID.test(w) && keinVsix(w);
+const id = z.string().max(200).regex(ERWEITERUNG_ID, 'Ungültige Erweiterungs-Kennung – erwartet wird „herausgeber.name“ (klein geschrieben), optional „@version“.').refine(keinVsix, 'Ungültige Erweiterungs-Kennung (endet auf „.vsix“).');
+const idOhneVersion = z.string().max(200).regex(ERWEITERUNG_OHNE_VERSION, 'Ungültige Erweiterungs-Kennung – erwartet wird „herausgeber.name“ (klein geschrieben).').refine(keinVsix, 'Ungültige Erweiterungs-Kennung (endet auf „.vsix“).');
+/**
+ * Zeitgrenzen (Review E205): Der Runner braucht für einen Auftrag höchstens Warten in der Reihe (60 s) + Aufruf (180 s
+ * installieren, 60 s entfernen) + Liste (30 s). Das Dorf wartet jeweils länger – sonst meldete es einen Fehler, obwohl der
+ * Runner die Erweiterung noch fertig installiert (ein abgebrochener Aufruf beendet den Auftrag im Runner nicht).
+ */
+export const ZEIT_INSTALLIEREN_MS = 300_000;
+export const ZEIT_ENTFERNEN_MS = 170_000;
+export const ZEIT_VSIX_MS = 330_000;
+const ZEIT_LISTE_MS = 45_000;
+/** Antwort des Runners: nur die Liste zählt – fehlt sie oder hat sie eine andere Form, ist sie leer (nie ein Absturz in der App) */
+const eintrag = z.object({ id: z.string().max(200), version: z.string().max(60) });
+const STAND = z.object({ erweiterungen: z.array(z.unknown()).max(1000).catch([]) }).catch({ erweiterungen: [] });
+const stand = (j: unknown) => ({
+  erweiterungen: STAND.parse(j ?? {}).erweiterungen.flatMap((e) => {
+    const r = eintrag.safeParse(e);
+    return r.success ? [r.data] : [];
+  }),
+});
+const ergebnis = (j: unknown) => ({ ok: true as const, ausgabe: text((j as { ausgabe?: unknown } | null)?.ausgabe, 6000), ...stand(j) });
 
 /** Namensteile, wie Open VSX sie vergibt (auch Großbuchstaben/Unterstrich) – nur solche gehen in eine Adresse */
 const TEIL = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$/;
@@ -145,7 +169,7 @@ export function codingErweiterungenRouten(app: FastifyInstance, d: { konfig: Kon
           lizenz: await lizenz(e.namespace, e.name),
           // die Adresse baut das Dorf selbst aus den geprüften Namensteilen – nie eine aus der Antwort
           seite: `https://open-vsx.org/extension/${encodeURIComponent(e.namespace)}/${encodeURIComponent(e.name)}`,
-          installierbar: ERWEITERUNG_OHNE_VERSION.test(kennung),
+          installierbar: ERWEITERUNG_OHNE_VERSION.test(kennung) && keinVsix(kennung),
         };
       }),
     );
@@ -178,10 +202,10 @@ export function codingErweiterungenRouten(app: FastifyInstance, d: { konfig: Kon
     throw new DorfFehler(r.status === 401 ? 502 : r.status, text(j.fehler, 2000) || `Coding-Container: Antwort ${r.status}`);
   }
 
-  app.get('/api/coding/erweiterungen', async () => runner('/erweiterungen', { ms: 40_000 }));
-  // Installieren kann dauern (Herunterladen, Auspacken): der Runner bricht nach 180 s ab, das Dorf wartet etwas länger
-  app.post('/api/coding/erweiterungen/installieren', async (req) => runner('/erweiterungen/installieren', { json: z.object({ id }).strict().parse(req.body), ms: 200_000 }));
-  app.post('/api/coding/erweiterungen/entfernen', async (req) => runner('/erweiterungen/entfernen', { json: z.object({ id: idOhneVersion }).strict().parse(req.body), ms: 100_000 }));
+  app.get('/api/coding/erweiterungen', async () => stand(await runner('/erweiterungen', { ms: ZEIT_LISTE_MS })));
+  // Installieren kann dauern (Herunterladen, Auspacken) – Grenzen siehe oben
+  app.post('/api/coding/erweiterungen/installieren', async (req) => ergebnis(await runner('/erweiterungen/installieren', { json: z.object({ id }).strict().parse(req.body), ms: ZEIT_INSTALLIEREN_MS })));
+  app.post('/api/coding/erweiterungen/entfernen', async (req) => ergebnis(await runner('/erweiterungen/entfernen', { json: z.object({ id: idOhneVersion }).strict().parse(req.body), ms: ZEIT_ENTFERNEN_MS })));
 
   // VSIX hochladen und installieren (z. B. eine selbst gebaute oder eine vom Hersteller): roh im Körper, eigener Rahmen für den Parser
   void app.register(async (teil) => {
@@ -189,7 +213,7 @@ export function codingErweiterungenRouten(app: FastifyInstance, d: { konfig: Kon
     teil.post('/api/coding/erweiterungen/vsix', { bodyLimit: VSIX_MAX }, async (req) => {
       if (!Buffer.isBuffer(req.body) || req.body.length === 0) throw new DorfFehler(400, 'Datei fehlt (Content-Type: application/octet-stream).');
       if (!req.body.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x03, 0x04]))) throw new DorfFehler(400, 'Das ist keine VSIX-Datei (kein ZIP-Archiv).');
-      return runner('/erweiterungen/vsix', { daten: req.body, ms: 240_000 });
+      return ergebnis(await runner('/erweiterungen/vsix', { daten: req.body, ms: ZEIT_VSIX_MS }));
     });
   });
 }

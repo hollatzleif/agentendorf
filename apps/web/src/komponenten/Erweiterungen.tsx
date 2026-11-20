@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ErweiterungErgebnis, ErweiterungTreffer, ErweiterungenStand, ErweiterungenSuche } from '@dorf/shared';
+import { erweiterungEntfernbar, type ErweiterungErgebnis, type ErweiterungTreffer, type ErweiterungenStand, type ErweiterungenSuche } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 
 /**
@@ -33,7 +33,9 @@ export function Erweiterungen({ beiAenderung }: { beiAenderung?: () => void }) {
   const dateiFeld = useRef<HTMLInputElement>(null);
 
   const stand = useQuery({ queryKey: ['coding-erweiterungen'], queryFn: () => api<ErweiterungenStand>(B), retry: false });
-  const installiert = new Map((stand.data?.erweiterungen ?? []).map((e) => [e.id, e.version]));
+  // nie von der Form der Antwort abhängen (fehlende Liste = leer), und je Kennung nur eine Zeile
+  const liste = [...new Map((Array.isArray(stand.data?.erweiterungen) ? stand.data.erweiterungen : []).map((e) => [e.id, e])).values()];
+  const installiert = new Map(liste.map((e) => [e.id, e.version]));
 
   const suchen = async (text: string, versatz = 0) => {
     setSucht(true);
@@ -55,11 +57,14 @@ export function Erweiterungen({ beiAenderung }: { beiAenderung?: () => void }) {
     setMeldung(null);
     try {
       const r = await tat();
-      qc.setQueryData(['coding-erweiterungen'], { erweiterungen: r.erweiterungen });
+      qc.setQueryData(['coding-erweiterungen'], { erweiterungen: Array.isArray(r.erweiterungen) ? r.erweiterungen : [] });
       setMeldung({ text: `${fertig} Schon offenes VS Code zeigt das nach „Neu laden“.` });
       beiAenderung?.();
     } catch (e) {
       setMeldung({ text: (e as Error).message, fehler: true });
+      // Nach einem Fehler oder Abbruch ist offen, was im Codehaus wirklich geschehen ist – die Liste neu holen
+      void qc.invalidateQueries({ queryKey: ['coding-erweiterungen'] });
+      beiAenderung?.();
     } finally {
       setArbeit(null);
     }
@@ -80,7 +85,8 @@ export function Erweiterungen({ beiAenderung }: { beiAenderung?: () => void }) {
     void ausfuehren('vsix', () => vsixHochladen(datei), `„${datei.name}“ ist installiert.`);
   };
 
-  const treffer = seiten.flatMap((s) => s.treffer);
+  // „Mehr laden“ kann einen Treffer zweimal bringen (das Verzeichnis ändert sich zwischen zwei Seiten) – je Kennung eine Zeile
+  const treffer = [...new Map(seiten.flatMap((s) => s.treffer).map((t) => [t.id, t])).values()];
   const gesamt = seiten[0]?.gesamt ?? 0;
 
   return (
@@ -100,7 +106,7 @@ export function Erweiterungen({ beiAenderung }: { beiAenderung?: () => void }) {
           Suchen
         </button>
         <button type="button" role="tab" aria-selected={ansicht === 'installiert'} className={ansicht === 'installiert' ? 'aktiv' : ''} onClick={() => setAnsicht('installiert')} data-testid="erw-installiert-reiter">
-          Installiert{stand.data ? ` (${stand.data.erweiterungen.length})` : ''}
+          Installiert{stand.data ? ` (${liste.length})` : ''}
         </button>
       </div>
       {meldung && (
@@ -163,7 +169,7 @@ export function Erweiterungen({ beiAenderung }: { beiAenderung?: () => void }) {
               );
             })}
           </ul>
-          {treffer.length > 0 && treffer.length < gesamt && seiten.length < 20 && (
+          {treffer.length > 0 && seiten.length * 10 < gesamt && seiten.length < 20 && (
             <button type="button" className="klein" disabled={sucht} onClick={() => void suchen(frage ?? '', seiten.length * 10)}>
               Mehr laden ({treffer.length} von {gesamt})
             </button>
@@ -174,14 +180,18 @@ export function Erweiterungen({ beiAenderung }: { beiAenderung?: () => void }) {
       {ansicht === 'installiert' && (
         <>
           {stand.isPending && <p className="leise">Lade …</p>}
-          {stand.data && stand.data.erweiterungen.length === 0 && <p className="leise">Noch keine Erweiterungen installiert (die eingebauten von VS Code zählen nicht).</p>}
+          {stand.data && liste.length === 0 && <p className="leise">Noch keine Erweiterungen installiert (die eingebauten von VS Code zählen nicht).</p>}
           <ul className="erw-liste" data-testid="erw-installiert">
-            {(stand.data?.erweiterungen ?? []).map((e) => (
+            {liste.map((e) => (
               <li key={e.id} data-id={e.id}>
                 <code>{e.id}</code> <span className="leise">v{e.version}</span>
-                <button type="button" className="klein" disabled={arbeit !== null} onClick={() => entfernen(e.id)}>
-                  {arbeit === e.id ? 'Entferne …' : rueckfrage === `e:${e.id}` ? 'Wirklich entfernen?' : 'Entfernen'}
-                </button>
+                {erweiterungEntfernbar(e.id) ? (
+                  <button type="button" className="klein" disabled={arbeit !== null} onClick={() => entfernen(e.id)}>
+                    {arbeit === e.id ? 'Entferne …' : rueckfrage === `e:${e.id}` ? 'Wirklich entfernen?' : 'Entfernen'}
+                  </button>
+                ) : (
+                  <span className="leise"> – nur in VS Code selbst entfernbar (ungewöhnliche Kennung)</span>
+                )}
               </li>
             ))}
           </ul>
