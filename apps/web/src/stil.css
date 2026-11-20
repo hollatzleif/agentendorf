@@ -1720,6 +1720,8 @@ a.datei-karte:hover { border-color: #1f5a1d; }
 @media (max-width: 800px) {
   .datei-seitenleiste { width: 100vw; border-left: 0; }
   .chat.mit-seitenleiste { margin-right: 0; }
+}
+
 /* ---- E205: VS Code in der App (eingebettet, eigener Ursprung) + Erweiterungen aus Open VSX ------------ */
 .rahmen:has(.vscode-seite) { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
 .rahmen:has(.vscode-seite) > main { max-width: none; width: 100%; margin: 0; padding: 0; flex: 1; min-height: 0; display: flex; flex-direction: column; }
