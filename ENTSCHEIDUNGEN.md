@@ -1749,3 +1749,13 @@ Ein unabhängiger Review hat Lücken gefunden. Jede ist behoben und hat einen Te
   - `dorf coding-einrichten` geht jetzt ohne Image: Es richtet alles ein und sagt, dass das Image mit dem nächsten Deploy kommt. Danach startet das Codehaus von selbst.
   - `coding.env` wird als Datei eingehängt und von `start.sh` gelesen (nur die sechs bekannten Namen, Werte wörtlich). Die frühere Form `env_file` mit `required: false` braucht Compose ≥ 2.24; ob der Server das hat, ließ sich von hier nicht prüfen.
 
+
+## E196 – Codehaus: „VS Code öffnen“ zuverlässig (20.11.)
+
+- **Problem 1:** Der Knopf war ein einfacher Link mit `target=_blank`. Im Programm landet ein neues Fenster im normalen Browser, der keine Dorf-Sitzung hat. Fehler blieben unsichtbar.
+- **Lösung 1:** Die App holt die Einmal-Adresse als JSON (`/api/coding/oeffnen?json=1`) und öffnet genau sie.
+  - Im Browser öffnet sie einen sofort geöffneten Tab, wegen des Popup-Schutzes.
+  - Im Programm öffnet sie nur einmal `window.open`, das an den normalen Browser geht.
+  - Fehler stehen neben dem Knopf.
+- **Problem 2:** Im Programm wurde die Adresse zweimal geöffnet (`window.open` und `location.href` → `on_navigation`). Der zweite Aufruf fand die Karte verbraucht und meldete „Dieser Link gilt nicht (mehr)“.
+- **Lösung 2:** Nur noch `window.open`. Zusätzlich: Ist die Karte verbraucht, der Browser hat aber schon ein gültiges `dorf_coding`-Cookie, geht es direkt zu VS Code. Die Karte bleibt einmalig, ein erfundenes Cookie hilft nicht.
