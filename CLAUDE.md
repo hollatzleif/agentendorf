@@ -54,6 +54,9 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
   src/boerse.ts   Etappe 7 (E70): Depot/Watchlist (Boerse/depot.md), EODHD-Schlusskurse (≤ 19 Abrufe/Tag, ISIN → Kürzel gemerkt), EZB Euro/Dollar
   src/corps.ts    Etappe 7 (E69): Corps-Termine (Hauptkalender per Stichwort), Absenderliste für den Postboten (Corpshaus/einstellungen.md)
   src/kontakte.ts Adressbuch (E186): Rathaus/kontakte.md + Absender im Posteingang + gesendete Mails (kontakt_suchen/kontakt_merken)
+  src/coding-erweiterungen.ts E205: Erweiterungen für VS Code im Codehaus – /api/coding/erweiterungen* (Suche NUR in Open VSX vom Dorf aus:
+                  feste Adresse OPENVSX_URL, 8 s/1 MB, Zod, nur geprüfte Felder; installieren/entfernen/VSIX ≤ 50 MB → Runner im Coding-Container).
+                  Nie den Microsoft-Marketplace anbinden (Nutzungsbedingungen). Kein Agenten-Werkzeug dafür – nur Leifs Klick
   src/atelier.ts  E198 Atelier: /api/atelier/* – öffnen (HEIC/TIFF/SVG nur über den Rechenraum), speichern (nur PNG/JPG/WebP/.atelier,
                   Anfangsbytes geprüft, VaultDienst mit basisVersion → Konfliktkopie), ki (Hintergrund/Hochskalieren im Rechenraum),
                   generieren/fuellen (Cloudflare Workers AI, nur mit CLOUDFLARE_* – der einzige Weg nach draußen, nur auf Leifs Klick)
@@ -123,6 +126,9 @@ apps/web        React + Vite, eigener Mini-Router (src/router.ts), TanStack Quer
                     Testhilfe window.__editor
     Leisten.tsx     Dateibaum, Volltextsuche, Git-Leiste, Coding-Agent (Aktion Codehaus/programmieren, ChatSeite eingebettet), Rückfrage-Fenster
     TerminalFeld.tsx xterm.js ↔ WebSocket /api/coding/terminal
+  src/seiten/VsCodeSeite.tsx E205: /codehaus/vscode – das echte VS Code (code.<domain>, eigener Ursprung) im iframe: src = Einmal-Adresse
+                  (/api/coding/oeffnen?json=1), sandbox ohne allow-top-navigation, keine postMessage-Brücke; daneben
+                  komponenten/Erweiterungen.tsx (Open VSX: suchen, installieren, entfernen, VSIX)
   src/atelier/    E198: Bildeditor (/atelier, nur dort geladen, eigenes atelier.css) – Canvas 2D ohne Bibliothek
     kern.ts         Dokument: Ebenen (je eine Leinwand), Auswahl-Maske, Verlauf (Schnappschüsse, unveränderte Ebenen geteilt),
                     Bildgröße/Arbeitsfläche/Zuschneiden/Drehen, Projekt .atelier (ZIP ohne Kompression, projekt.ts)
@@ -136,6 +142,9 @@ apps/werkstatt  eigener Container: unverändertes claude-CLI (Version im Dockerf
                 E197, nur Profil coding: editor.ts (/editor/* – Dateien strikt unter /arbeit/<projekt>, Symlinks nie verfolgt, O_NOFOLLOW wie
                 vault/pfade.ts; Text ≤ 2 MB, Hochladen ≤ 20 MB, Löschen = /arbeit/.papierkorb; rg und git nur mit festen Argumentlisten) und
                 terminal.ts (/terminal – Shell am PTY über einen Python-Helfer aus der Standardbibliothek, kein natives Node-Modul, höchstens 8).
+                E205, nur Profil coding: erweiterungen.ts (/erweiterungen* – openvscode-server mit festen Argumenten: --list-extensions,
+                --install-extension <id|vsix> --force, --uninstall-extension; Kennung streng geprüft – nie Option/Adresse und nie mit Endung .vsix
+                (die läse VS Code als Datei im Arbeitsordner), Aufruf in leerem cwd; Schreibendes nacheinander, Warten ≤ 60 s; OPENVSCODE_BIN).
 apps/rechenraum eigener Container: pdflatex (texlive), Python (numpy/sympy/scipy/matplotlib), poppler; runner.py nur
                 Standardbibliothek. Internes Netz ohne Internet, kein Vault, Arbeitsordner pro Chat, 120 s pro Befehl.
                 Image-Kennung = Hash(Dockerfile+runner.py), wird nur ausgeliefert, wenn der Server es nicht hat.
@@ -180,6 +189,7 @@ deploy          compose.yml, Caddyfile, dorf (Server-Verwaltung), bootstrap.sh (
 - Ein Gebäude = Ordner auf oberster Ebene mit `gebaeude.md` (Frontmatter per Zod geprüft; Fehler werden angezeigt, nicht verschluckt).
 - `X-Forwarded-For` gilt nur von `VERTRAUTER_PROXY` (im Server `caddy`, `src/proxy.ts`, E195) – Werkstatt, Codehaus, Rechenraum und Browser erreichen `dorf:3000` direkt und zählen mit ihrer echten Adresse.
 - Schreibende Anfragen und WebSocket brauchen passende `Origin` (CSRF-Schutz) und ein gültiges Sitzungs-Cookie (`HttpOnly`, `Secure`, `SameSite=Strict`). Einzige Ausnahme: `/api/geraet/*` (E182) – dort gilt nur der Bearer-Schlüssel eines gekoppelten Geräts, und der gilt nirgends sonst.
+- Einbetten (E205): Die Dorf-App ist nie einbettbar (`frame-ancestors 'none'`) und bettet nur sich selbst und `code.<domain>` ein (`frame-src`); VS Code darf nur vom Dorf-Ursprung eingebettet werden (`frame-ancestors` im Caddyfile, zweite CSP neben der von VS Code). Der Rahmen bekommt nie `allow-top-navigation`, die App hört auf keine Nachrichten aus ihm.
 - Rohdateien aus dem Vault werden mit `Content-Security-Policy: sandbox` ausgeliefert, HTML/SVG nur als Download (Vault-Inhalte können aus fremden Quellen stammen). Anzeigen lässt sich `.html` nur über `/api/vault/seite`: Skripte ja, aber undurchsichtiger Ursprung und kein Netz (E36).
 - Geheimnisse nur auf dem Server – nie im Repo, nie im Vault: `/srv/dorf/.env` (Dorf: ANTHROPIC_API_KEY, EODHD_API_KEY, CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN (optional, Atelier), WERKSTATT_GEHEIMNIS, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, GOOGLE_FRISTEN_ICS, GOOGLE_PFLICHT_ICS, GOOGLE_TERMINE_ICS, GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN, MOODLE_KALENDER_URL, MOODLE_URL, MOODLE_TOKEN, RECHENRAUM_GEHEIMNIS), `/srv/dorf/rechenraum.env` (nur RECHENRAUM_GEHEIMNIS), `/srv/dorf/browser.env` (nur Browser-Container: BROWSER_GEHEIMNIS, MOODLE_BENUTZER, MOODLE_PASSWORT, BROWSER_HOSTS, MOODLE_WEB_URL) und `/srv/dorf/werkstatt.env` (Werkstatt: CLAUDE_CODE_OAUTH_TOKEN, WERKSTATT_GEHEIMNIS). Der API-Schlüssel erreicht die Werkstatt nie, das Abo-Token das Dorf nie.
 - **Die Leine sitzt im Code** (`agenten/leine.ts`, `werkzeuge.ts`, Werkstatt-Argumente): Agenten haben kein eingebautes Schreiben/Shell. Senden, Abgeben, Zahlen gibt es nicht (nur Entwürfe). Seit E185 gilt Leifs Regel „bestätigen nur, wenn ich einen Plan will“: Was sich zurückholen lässt (Termin im eigenen Kalender, Skill ohne Zeitplan, Datei im eigenen Gebäude), tun Agenten direkt, und Leif bekommt „Rückgängig“ (`rueckgaengig.ts`, App + Telegram). Freigaben (`freigaben.ts`, Ausführung erst nach Leifs Klick) bleiben für Dateien außerhalb des eigenen Gebäudes, Termine mit Gästen, Skills mit Zeitplan, die Persönlichkeit und gewünschte oder große Pläne. Web darf mit Post/Moodle/Kalender/Fremdinhalten zusammen laufen – Leif hat das Abfluss-Risiko bewusst in Kauf genommen (E185); jeder Web-Abruf steht im `werkzeug_log`, die Fremdinhalt-Hülle bleibt. Zeitgesteuerte Läufe des Bürgermeisters laufen über `api` mit Tagesbudget (`00_Stadtordnung/aufwachen.md`); Helfer, die er startet, über den Motor ihrer Aktion – meist claude-code/Abo (E56, ersetzt E51); Notschalter `alle_auf` übersteuert alles.
@@ -261,6 +271,7 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E202 (20.11.): Review zu E199–E201 – Fremdes über Rechenraum-Werkzeuge immer gehüllt/gestempelt (`vaultDateiFremd`), `doi_bibtex` nur Uni/Bürgermeister mit Rückgängig und ohne abstract, Rundung, Antwort-Grenze; Cardputer 1.3.1 ohne Leck/Hänger
 - [x] E203 (20.11.): Sicherheit – Anmelde-Haken entscheidet über Route ODER dekodierten Pfad (`/%61pi/…` kam vorher ohne Sitzung an die API); sofort ausgeliefert
 - [x] E204 (20.11.): Review zu E197/E198 – Terminal mit Gegendruck (Dorf ≤ 1 MB im WebSocket, Runner hält die Shell an), Sitzungsabgleich alle 30 s (CLI/Ablauf kappt Terminals, VS Code, Live), Git-Pfade wörtlich + Prozessgruppe, Atelier „Speichern unter“ fragt vor dem Überschreiben, Bilder nur als geprüftes PNG/JPEG/WebP mit sandbox, `bild_bearbeiten` ersetzt nie, Grenzen (Download, JSON, Rechenraum-Antwort)
+- [x] E205 (20.11.): Echtes VS Code in der App (`/codehaus/vscode`, eingebettet, eigener Ursprung bleibt) + Erweiterungen aus Open VSX (suchen, installieren, entfernen, VSIX; nie Microsoft-Marketplace) – braucht das neue Coding-Image und den neuen Caddyfile (kommen mit dem Deploy); Mac-Programm braucht die neue Programm-Version; Abnahme auf dem Server/am Handy steht aus
 - [x] E206 (20.11.): Kamera frei mit mittlerer Maustaste (kippen bis zum Horizont, über dem Gelände), Dateien im Seitenfenster des Chats, Cardputer 1.3.2 (Bürgermeister per Sprache direkt, Meldungen bleiben stehen, „Letzte Sprache“ in den Einstellungen)
 - [x] E207 (20.11.): Programm lädt Dateien herunter (on_download → Download-Ordner, Meldung, Ordner öffnen), Vorschau für jedes Format über die Rechenraum-Umwandlung (`/api/vault/vorschau`) – Programm-Update nötig
 - [x] E208 (20.11.): Cardputer 1.3.3 – Mikrofon-Test (Puffer/s, Pegel), Codec-Register nur auf Wunsch (Vorgabe Software-Verstärkung wie 1.2)

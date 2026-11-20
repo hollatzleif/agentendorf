@@ -133,7 +133,9 @@ fn dorf_oeffnen(app: &AppHandle, url: Url, sichtbar: bool) -> tauri::Result<()> 
         .min_inner_size(420.0, 520.0)
         .visible(sichtbar)
         .on_navigation(move |ziel| {
-            if adresse::intern(&dorf, ziel) {
+            // E205: VS Code im Codehaus erscheint als Rahmen in der App (auf Mac/Linux läuft auch dessen Navigation hier durch)
+            // … und die seiner Webviews (*.vscode-cdn.net), sonst blieben Vorschau und Erweiterungs-Seiten leer (Review E205)
+            if adresse::intern(&dorf, ziel) || adresse::codehaus(&dorf, ziel) || adresse::vscode_webview(ziel) {
                 return true;
             }
             let _ = h.opener().open_url(ziel.as_str(), None::<&str>);

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Start-Test des Codehaus-Containers ohne Docker: start.sh mit dem echten Runner (apps/werkstatt/dist, vorher `pnpm build`)
 # und einem nachgebauten openvscode-server. Prüft: kein Start ohne Geheimnisse, Git/GitHub-Einrichtung, Token nicht im
-# Protokoll und nicht in der Umgebung von VS Code, Gesundheit, Projektliste nur mit Geheimnis, Ende wenn ein Dienst endet.
+# Protokoll und nicht in der Umgebung von VS Code, Gesundheit, Projektliste nur mit Geheimnis, Ende wenn ein Dienst endet,
+# Erweiterungen (E205) im selben Datenordner wie das laufende VS Code.
 set -euo pipefail
 HIER=$(cd "$(dirname "$0")" && pwd)
 WURZEL=$(cd "$HIER/../../.." && pwd)
@@ -72,6 +73,15 @@ P=$(curl -fs -H "x-werkstatt-geheimnis: $GEHEIMNIS" "http://127.0.0.1:$PORT_R/pr
 jq -e '[.projekte[].name] | sort == ["mein-repo","zweites"]' <<<"$P" >/dev/null || fehler "Projektliste falsch (versteckte Ordner dürfen nicht erscheinen): $P"
 jq -e '.projekte[] | select(.name == "mein-repo") | .git == true' <<<"$P" >/dev/null || fehler "Git-Kennzeichen fehlt"
 ok "Projektliste: nur mit Geheimnis, ohne versteckte Ordner (.heim, .tmp)"
+
+# E205: Erweiterungen – der Runner ruft DASSELBE Programm mit DEMSELBEN Datenordner auf, mit dem start.sh VS Code gestartet
+# hat (sonst landeten Erweiterungen dort, wo das laufende VS Code nicht nachsieht)
+[ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT_R/erweiterungen")" = 401 ] || fehler "Erweiterungen ohne Geheimnis"
+ORDNER=$(jq -r '.args as $a | $a[($a | index("--server-data-dir")) + 1]' <<<"$U")
+[ "$ORDNER" = "$TMP/arbeit/.heim/.openvscode-server" ] || fehler "unerwarteter Datenordner von VS Code: $ORDNER"
+E=$(curl -fs -H "x-werkstatt-geheimnis: $GEHEIMNIS" "http://127.0.0.1:$PORT_R/erweiterungen")
+jq -e --arg id "attrappe.ordner-$(printf '%s' "$ORDNER" | od -An -tx1 | tr -d ' \n')" '.erweiterungen == [{ id: $id, version: "1.0.0" }]' <<<"$E" >/dev/null || fehler "Runner fragt die Erweiterungen nicht im Datenordner von VS Code ab: $E"
+ok "Erweiterungen: nur mit Geheimnis; Runner nutzt Programm und Datenordner des laufenden VS Code"
 
 # E195: VS Code lauscht nur lokal, nach außen führt das Tor im Runner – und das Dorf kann offene Verbindungen kappen
 jq -e '.args | index("127.0.0.1") != null and index("0.0.0.0") == null' <<<"$U" >/dev/null || fehler "VS Code lauscht nicht nur lokal: $U"

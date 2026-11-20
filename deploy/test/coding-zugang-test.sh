@@ -3,6 +3,8 @@
 # Dorf-Server und einem nachgebauten VS Code. Prüft die Kette Dorf-Anmeldung → Einmal-Karte → Code-Cookie → forward_auth:
 # ohne Anmeldung nichts, das Sitzungs-Cookie des Dorfs erreicht den Coding-Container nie, WebSockets gehen nur mit Cookie,
 # Abmelden sperrt, und über die Code-Adresse ist die Dorf-API nicht erreichbar.
+# E205: VS Code erscheint eingebettet in der Dorf-App – einbetten darf es nur der Ursprung des Dorfs (frame-ancestors),
+# die Dorf-App darf nur sich selbst und die Code-Adresse einbetten (frame-src) und bleibt selbst nicht einbettbar.
 # Braucht caddy (CADDY_BIN) und curl. Ohne caddy wird übersprungen – außer CADDY_PFLICHT=1 (CI).
 # Mit OPENVSCODE_BIN=/pfad/zu/openvscode-server läuft derselbe Test gegen das echte VS Code.
 set -euo pipefail
@@ -56,7 +58,9 @@ PIDS+=("$!")
 PIDS+=("$!")
 
 # --- Caddy mit dem echten Caddyfile: nur Dienstnamen → lokale Ports, kein HTTPS ---
-{ printf '{\n\tadmin off\n\tauto_https off\n}\n'; sed -e "s/dorf:3000/127.0.0.1:$PD/g; s/dorf:3001/127.0.0.1:$PI/g; s/coding:3000/127.0.0.1:$PV/g" "$WURZEL/deploy/Caddyfile"; } > "$TMP/Caddyfile"
+# (im Test stehen in DORF_DOMAIN/CODING_DOMAIN ganze Ursprünge mit http:// – das „https://“ davor in den Kopfzeilen entfällt darum)
+{ printf '{\n\tadmin off\n\tauto_https off\n}\n'; sed -e "s/dorf:3000/127.0.0.1:$PD/g; s/dorf:3001/127.0.0.1:$PI/g; s/coding:3000/127.0.0.1:$PV/g" \
+  -e 's#https://{\$DORF_DOMAIN}#{$DORF_DOMAIN}#g; s#https://{\$CODING_DOMAIN}#{$CODING_DOMAIN}#g' "$WURZEL/deploy/Caddyfile"; } > "$TMP/Caddyfile"
 grep -q "127.0.0.1:$PI" "$TMP/Caddyfile" && grep -q "127.0.0.1:$PV" "$TMP/Caddyfile" || fehler "Caddyfile: forward_auth oder VS-Code-Ziel nicht gefunden"
 DORF_DOMAIN="$DORF" CODING_DOMAIN="$CODE" XDG_DATA_HOME="$TMP/caddy-daten" XDG_CONFIG_HOME="$TMP/caddy-konfig" \
   setsid "$CADDY" run --config "$TMP/Caddyfile" --adapter caddyfile > "$TMP/caddy.log" 2>&1 &
@@ -115,6 +119,31 @@ if [ -z "${OPENVSCODE_BIN:-}" ]; then
   [ "$(status -H "Cookie: dorf_coding=$sitzung" "$CODE/")" = 401 ] || fehler "Sitzungs-Token als Code-Cookie angenommen"
   ok "das Sitzungs-Cookie des Dorfs kommt im Coding-Container nicht an und öffnet dort nichts"
 fi
+
+# 4b. Einbetten (E205): VS Code darf nur vom Ursprung des Dorfs (und von sich selbst) eingebettet werden – auf JEDER Antwort
+#     der Code-Adresse (Seite, Eintritt, Ablehnung). Die Policy von VS Code selbst bleibt daneben bestehen.
+kopfzeilen() { curl -s -o /dev/null -m 10 -D - "${AUF[@]}" "$@" | tr -d '\r'; }
+ERWARTET="content-security-policy: frame-ancestors 'self' $DORF"
+for fall in "seite|-b $JAR $CODE/" "abgelehnt|$CODE/" "eintritt|$CODE/_dorf/eintritt?karte=erfunden" "unbekannt|$CODE/_dorf/x"; do
+  name=${fall%%|*}
+  # shellcheck disable=SC2086  # bewusst in Wörter zerlegt (Optionen + Adresse)
+  k=$(kopfzeilen ${fall#*|})
+  n=$(grep -ci '^content-security-policy:.*frame-ancestors' <<<"$k" || true)
+  [ "$n" = 1 ] || fehler "Code-Adresse ($name): $n Kopfzeilen mit frame-ancestors statt genau einer"
+  grep -qixF "$ERWARTET" <<<"$k" || fehler "Code-Adresse ($name): frame-ancestors erlaubt nicht genau das Dorf: $(grep -i '^content-security-policy' <<<"$k")"
+  ! grep -qi '^x-frame-options:' <<<"$k" || fehler "Code-Adresse ($name): X-Frame-Options sperrt das Einbetten: $(grep -i '^x-frame-options' <<<"$k")"
+done
+k=$(kopfzeilen -b "$JAR" "$CODE/")
+if [ -z "${OPENVSCODE_BIN:-}" ]; then
+  [ "$(grep -ci '^content-security-policy:' <<<"$k")" = 2 ] || fehler "die eigene Content-Security-Policy von VS Code ging verloren: $(grep -i '^content-security-policy' <<<"$k")"
+fi
+grep -qi "^content-security-policy: default-src 'self'" <<<"$k" || fehler "die eigene Content-Security-Policy von VS Code fehlt"
+# Das Dorf selbst: nicht einbettbar, und es bettet nur sich selbst und die Code-Adresse ein
+k=$(kopfzeilen -b "$JAR" "$DORF/api/ich")
+grep -qi "^content-security-policy:.*frame-ancestors 'none'" <<<"$k" || fehler "das Dorf ist einbettbar: $(grep -i '^content-security-policy' <<<"$k")"
+grep -qi '^x-frame-options: DENY' <<<"$k" || fehler "das Dorf schickt kein X-Frame-Options: DENY"
+grep -qi "^content-security-policy:.*; frame-src 'self' $CODE;" <<<"$k" || fehler "das Dorf darf die Code-Adresse nicht einbetten (frame-src): $(grep -i '^content-security-policy' <<<"$k")"
+ok "Einbetten: VS Code nur vom Dorf-Ursprung (frame-ancestors, kein X-Frame-Options), VS-Code-Policy bleibt; das Dorf bleibt selbst nicht einbettbar"
 
 # 5. WebSocket (so verbindet sich VS Code mit seinem Server) – nur mit Cookie
 [ "$(status -b "$JAR" "${WS[@]}" "$CODE/")" = 101 ] || fehler "WebSocket mit Cookie: $(status -b "$JAR" "${WS[@]}" "$CODE/") statt 101"

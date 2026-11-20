@@ -9,8 +9,9 @@
 		?X-Frame-Options "DENY"
 		Referrer-Policy "same-origin"
 		Permissions-Policy "camera=(), microphone=(), geolocation=()"
-		# Nur setzen, wenn das Dorf selbst keine strengere Regel schickt (z. B. für Rohdateien aus dem Vault)
-		?Content-Security-Policy "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self' wss://{$DORF_DOMAIN} ipc: http://ipc.localhost; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		# Nur setzen, wenn das Dorf selbst keine strengere Regel schickt (z. B. für Rohdateien aus dem Vault).
+		# frame-src (E205): einbetten darf die App nur sich selbst (abgeschottete Lernzettel) und VS Code im Codehaus.
+		?Content-Security-Policy "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self' wss://{$DORF_DOMAIN} ipc: http://ipc.localhost; frame-src 'self' https://{$CODING_DOMAIN}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 		-Server
 	}
 
@@ -28,10 +29,19 @@
 	header {
 		Strict-Transport-Security "max-age=31536000"
 		X-Content-Type-Options "nosniff"
-		# VS Code setzt seine eigene Content-Security-Policy; einbetten darf es nur sich selbst
-		?X-Frame-Options "SAMEORIGIN"
 		Referrer-Policy "same-origin"
 		-Server
+	}
+
+	# E205: VS Code erscheint als eingebettetes Fenster in der Dorf-App (/codehaus/vscode). Einbetten dürfen es nur es selbst
+	# und der Ursprung des Dorfs – sonst niemand (Schutz vor untergeschobenen Rahmen auf fremden Seiten).
+	# VS Code schickt seine eigene Content-Security-Policy (ohne frame-ancestors); diese ZWEITE Kopfzeile kommt dazu –
+	# Browser halten alle Policies gleichzeitig ein. X-Frame-Options kennt keine Liste erlaubter Ursprünge („SAMEORIGIN“
+	# sperrte das Dorf aus) und wird entfernt; frame-ancestors ersetzt es in allen heutigen Browsern und WebViews.
+	header {
+		+Content-Security-Policy "frame-ancestors 'self' https://{$DORF_DOMAIN}"
+		-X-Frame-Options
+		defer
 	}
 
 	# Der EINZIGE Pfad dieser Adresse, der ans Dorf geht: Karte einlösen (die Dorf-API ist hier sonst nicht erreichbar)

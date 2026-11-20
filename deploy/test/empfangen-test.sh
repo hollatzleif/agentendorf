@@ -182,4 +182,62 @@ rm "$AKTUELL/CODING_VERSION"
 rm "$AKTUELL/BROWSER_VERSION"
 [ "$(compose ps)" = "BV=fehlt PROFIL=" ] || fehler "ohne BROWSER_VERSION darf kein Profil gesetzt sein: $(compose ps)"
 echo "Compose-Profil für den Browser: bestanden"
+
+# E205 (+ Review): Caddy bekommt einen geänderten Caddyfile – geprüft (caddy validate), neu erstellt, danach muss er antworten.
+# Nichts wird verschluckt: ungültige Datei, gescheitertes Neu-Erstellen oder ein stummer Caddy → Fehler (→ Rollback).
+CADDY_LOG=$(mktemp)
+CADDY_DRIN=$(mktemp)
+export CADDY_WARTEN=3 CADDY_PAUSE=0
+mkdir -p "$AKTUELL/deploy"
+printf 'neu {\n\theader x\n}\n' > "$AKTUELL/deploy/Caddyfile"
+CADDY_AN=ja; CADDY_GUELTIG=ja; CADDY_ERSTELLBAR=ja; CADDY_ANTWORTET=ja; CADDY_STEHT=nein
+docker() {
+  [ "$1" = compose ] || return 0
+  case "$*" in
+    *"exec -T caddy cat /etc/caddy/Caddyfile"*) [ "$CADDY_AN" = ja ] || return 1; cat "$CADDY_DRIN" ;;
+    *"exec -T caddy wget -q -O /dev/null http://localhost:2019/config/"*) [ "$CADDY_AN" = ja ] && [ "$CADDY_ANTWORTET" = ja ] ;;
+    *"exec -T caddy caddy version"*) echo steht >> "$CADDY_LOG"; [ "$CADDY_AN" = ja ] && [ "$CADDY_STEHT" = ja ] ;;
+    *"run --rm --no-deps -T -v "*"/deploy/Caddyfile:/tmp/Caddyfile.neu:ro caddy caddy validate --config /tmp/Caddyfile.neu --adapter caddyfile"*)
+      echo pruefen >> "$CADDY_LOG"; [ "$CADDY_GUELTIG" = ja ] ;;
+    *"up -d --force-recreate caddy"*) echo neu >> "$CADDY_LOG"; [ "$CADDY_ERSTELLBAR" = ja ] || return 1; CADDY_AN=ja; cp "$AKTUELL/deploy/Caddyfile" "$CADDY_DRIN" ;;
+    *" run "*) fehler "unerwarteter Aufruf: docker $*" ;;
+  esac
+}
+cp "$AKTUELL/deploy/Caddyfile" "$CADDY_DRIN"
+caddy_abgleichen > /dev/null || fehler "gleicher Caddyfile: Fehler gemeldet"
+[ ! -s "$CADDY_LOG" ] || fehler "Caddy angefasst, obwohl der Caddyfile gleich ist"
+printf 'alt {\n}\n' > "$CADDY_DRIN"
+caddy_abgleichen > /dev/null || fehler "geänderter Caddyfile: Fehler gemeldet"
+[ "$(tr '\n' ' ' < "$CADDY_LOG")" = "pruefen neu " ] || fehler "geänderter Caddyfile: nicht erst geprüft, dann neu erstellt: $(tr '\n' ' ' < "$CADDY_LOG")"
+caddy_abgleichen > /dev/null
+[ "$(wc -l < "$CADDY_LOG")" = 2 ] || fehler "Caddy neu erstellt, obwohl der Caddyfile jetzt gleich ist"
+# ungültiger Caddyfile: Fehler, Caddy wird NICHT neu erstellt
+: > "$CADDY_LOG"; printf 'alt {\n}\n' > "$CADDY_DRIN"; CADDY_GUELTIG=nein
+if caddy_abgleichen > /dev/null 2>&1; then fehler "ungültiger Caddyfile gilt als Erfolg"; fi
+[ "$(tr '\n' ' ' < "$CADDY_LOG")" = "pruefen " ] || fehler "ungültiger Caddyfile: Caddy trotzdem neu erstellt"
+CADDY_GUELTIG=ja
+# Neu-Erstellen scheitert (z. B. Port belegt): Fehler
+: > "$CADDY_LOG"; CADDY_ERSTELLBAR=nein
+if caddy_abgleichen > /dev/null 2>&1; then fehler "gescheitertes Neu-Erstellen gilt als Erfolg"; fi
+CADDY_ERSTELLBAR=ja
+# neu erstellt, antwortet aber nicht (stürzt beim Start ab): Fehler
+: > "$CADDY_LOG"; printf 'alt {\n}\n' > "$CADDY_DRIN"; CADDY_ANTWORTET=nein
+if caddy_abgleichen > /dev/null 2>&1; then fehler "stummer Caddy gilt als Erfolg"; fi
+# … läuft er aber nachweislich stabil (dreimal ansprechbar), ist es nur eine Warnung
+: > "$CADDY_LOG"; printf 'alt {\n}\n' > "$CADDY_DRIN"; CADDY_STEHT=ja
+caddy_abgleichen > /dev/null 2>&1 || fehler "stabil laufender Caddy ohne Verwaltungs-Schnittstelle gilt als Fehler"
+[ "$(grep -c steht "$CADDY_LOG")" = 3 ] || fehler "Ausweich-Prüfung fragt nicht dreimal"
+CADDY_ANTWORTET=ja; CADDY_STEHT=nein
+# Caddy läuft gar nicht (exec scheitert): trotzdem prüfen und neu erstellen
+: > "$CADDY_LOG"; CADDY_AN=nein
+caddy_abgleichen > /dev/null || fehler "Caddy lief nicht: Fehler statt Neu-Erstellen"
+[ "$(tr '\n' ' ' < "$CADDY_LOG")" = "pruefen neu " ] || fehler "Caddy lief nicht und wurde nicht neu erstellt: $(tr '\n' ' ' < "$CADDY_LOG")"
+# im Deploy: ein Fehler bei Caddy lässt cmd_deploy scheitern (→ empfangen kehrt zur vorherigen Version zurück)
+printf 'alt {\n}\n' > "$CADDY_DRIN"; CADDY_GUELTIG=nein
+[ -f "$AKTUELL/VERSION" ] || echo vtest > "$AKTUELL/VERSION"
+if (gesund_warten() { return 0; }; cmd_deploy) > /dev/null 2>&1; then fehler "cmd_deploy meldet Erfolg trotz ungültigem Caddyfile"; fi
+CADDY_GUELTIG=ja
+(gesund_warten() { return 0; }; cmd_deploy) > /dev/null 2>&1 || fehler "cmd_deploy scheitert mit gültigem Caddyfile"
+rm -f "$CADDY_LOG" "$CADDY_DRIN"
+echo "Caddy bei geändertem Caddyfile prüfen und neu erstellen, Fehler nicht verschlucken: bestanden"
 echo "ALLE EMPFANGS-TESTS BESTANDEN"

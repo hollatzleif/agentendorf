@@ -446,6 +446,52 @@ export interface CodingUebersicht {
   projekte: { name: string; git: boolean; geaendert: string }[];
   fehler?: string;
   befehl: string;
+  /**
+   * E205: VS Code lässt sich in der App einbetten (iframe) – nur wenn die Code-Adresse zur selben „Site“ gehört wie das Dorf
+   * (Unteradresse des Dorfs, gleiches Schema). Sonst schickt der Browser im eingebetteten Fenster keine Cookies mit.
+   */
+  einbettbar: boolean;
+}
+
+// ---- E205 Erweiterungen für VS Code im Codehaus (Open VSX) ----
+/** Kennung, die sich über die App entfernen lässt (herausgeber.name, klein, ohne Unterstrich/weitere Punkte, nie „….vsix“) – wie Dorf und Runner prüfen */
+export const erweiterungEntfernbar = (id: string) => id.length <= 200 && /^[a-z0-9][a-z0-9-]*\.[a-z0-9][a-z0-9-]*$/.test(id) && !/\.vsix$/i.test(id);
+export interface ErweiterungInstalliert {
+  /** herausgeber.name, klein geschrieben */
+  id: string;
+  version: string;
+}
+export interface ErweiterungTreffer {
+  /** herausgeber.name, klein geschrieben – so installiert sie VS Code */
+  id: string;
+  name: string;
+  herausgeber: string;
+  beschreibung: string;
+  version: string;
+  downloads: number;
+  bewertung: number | null;
+  /** Open VSX: Der Namensraum gehört nachweislich dem, der veröffentlicht hat (keine Prüfung des Codes) */
+  verifiziert: boolean;
+  veraltet: boolean;
+  /** Lizenz laut Open VSX (SPDX-Kürzel); null = nicht angegeben oder nicht abrufbar */
+  lizenz: string | null;
+  /** Seite der Erweiterung bei open-vsx.org */
+  seite: string;
+  /** false: Die Kennung passt nicht zu den Regeln des Dorfs (z. B. Unterstrich) – nur in VS Code selbst installierbar */
+  installierbar: boolean;
+}
+export interface ErweiterungenSuche {
+  treffer: ErweiterungTreffer[];
+  gesamt: number;
+  versatz: number;
+}
+export interface ErweiterungenStand {
+  erweiterungen: ErweiterungInstalliert[];
+}
+export interface ErweiterungErgebnis extends ErweiterungenStand {
+  ok: true;
+  /** Ausgabe von VS Code (gekürzt) */
+  ausgabe: string;
 }
 
 // ---- E197 Editor im Codehaus (Dateien, Suche, Git im Coding-Container) ----

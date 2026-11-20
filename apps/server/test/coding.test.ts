@@ -533,7 +533,7 @@ describe('Zugang zu VS Code (Code-Host, Einmal-Karte, Prüfung für Caddy)', () 
     const leer = await testDorf();
     expect((await leer.app.inject({ url: '/api/coding' })).statusCode).toBe(401);
     const h0 = await kopf(leer);
-    expect((await leer.app.inject({ url: '/api/coding', headers: h0 })).json()).toEqual({ eingerichtet: false, adresse: null, erreichbar: false, projekte: [], befehl: 'dorf coding-einrichten' });
+    expect((await leer.app.inject({ url: '/api/coding', headers: h0 })).json()).toEqual({ eingerichtet: false, adresse: null, erreichbar: false, projekte: [], befehl: 'dorf coding-einrichten', einbettbar: false });
     expect((await leer.app.inject({ url: '/api/coding/oeffnen', headers: h0 })).statusCode).toBe(503);
     expect(anschluesse(leer.konfig, { kalenderVerbunden: false }).find((a) => a.name.startsWith('Codehaus'))).toMatchObject({ ok: false, befehl: 'dorf coding-einrichten' });
     await leer.app.close();
