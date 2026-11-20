@@ -296,7 +296,8 @@ describe('Geräte-API (Vertrag apps/cardputer/API.md)', () => {
   it('Bürgermeister: neue Aufgabe startet sofort (Attrappe bis fertig), weiterreden, Liste, Markdown weg', async () => {
     const x = await aufbau();
     const { d } = x;
-    const r = await x.senden('/api/geraet/buergermeister', { text: 'Wie spät ist es?' });
+    // [warte] hält die Attrappe kurz auf – sonst ist der Lauf manchmal fertig, bevor „laeuft“ abgefragt wird (CI)
+    const r = await x.senden('/api/geraet/buergermeister', { text: 'Wie spät ist es? [warte 400]' });
     expect(r.status).toBe(200);
     const chatId = r.json.chatId as string;
     expect((await x.holen('/api/geraet/start')).buergermeister.laeuft).toBe(true);
@@ -304,7 +305,7 @@ describe('Geräte-API (Vertrag apps/cardputer/API.md)', () => {
     await d.agenten.leerlauf();
     const c = await x.holen(`/api/geraet/buergermeister/${chatId}`);
     expect(c.status).toBe('fertig');
-    expect(c.nachrichten[0]).toEqual({ von: 'du', text: 'Wie spät ist es?' });
+    expect(c.nachrichten[0]).toEqual({ von: 'du', text: 'Wie spät ist es? [warte 400]' });
     expect(c.nachrichten.at(-1).von).toBe('bm');
     expect(c.nachrichten.at(-1).text).not.toMatch(/##|\*\*/);
     expect(Array.from(c.nachrichten.at(-1).text as string).length).toBeLessThanOrEqual(1500);
@@ -312,7 +313,7 @@ describe('Geräte-API (Vertrag apps/cardputer/API.md)', () => {
     expect((await x.senden('/api/geraet/buergermeister', { text: 'Danke!', chatId })).json).toEqual({ chatId });
     await d.agenten.leerlauf();
     const c2 = await x.holen(`/api/geraet/buergermeister/${chatId}`);
-    expect(c2.nachrichten.filter((n: { von: string }) => n.von === 'du').map((n: { text: string }) => n.text)).toEqual(['Wie spät ist es?', 'Danke!']);
+    expect(c2.nachrichten.filter((n: { von: string }) => n.von === 'du').map((n: { text: string }) => n.text)).toEqual(['Wie spät ist es? [warte 400]', 'Danke!']);
     const l = await x.holen('/api/geraet/buergermeister');
     expect(l.chats).toEqual([{ chatId, titel: expect.stringContaining('Wie spät'), status: 'fertig', zeit: '13:00' }]);
     // nur Chats des Bürgermeisters
