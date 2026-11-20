@@ -4,6 +4,7 @@ import base64
 import json
 import os
 import sys
+import urllib.error
 import urllib.request
 
 GEHEIM = os.environ["RECHENRAUM_GEHEIMNIS"]
@@ -152,6 +153,46 @@ r = befehl("gs --version && dot -V 2>&1 && python3 -c 'import pypdf, segno, gena
 if r["code"] != 0:
     fehler.append("Dorfwerk-Pakete fehlen:\n" + r["ausgabe"])
 
+# E198: Bildbearbeitung (/bild) – Pillow-Schritte immer; die KI-Schritte, wenn die Modelle im Image sind (der Bau lädt sie
+# mit Prüfsumme; war eine Quelle nicht erreichbar, fehlen sie – dann hier nur eine Warnung, kein Fehlschlag)
+BILD = r"""
+from PIL import Image, ImageDraw
+b = Image.new("RGB", (400, 300), (245, 245, 240)); z = ImageDraw.Draw(b)
+z.ellipse((130, 60, 270, 240), fill=(190, 40, 30)); z.ellipse((170, 100, 230, 160), fill=(250, 220, 60)); b.save("motiv.png")
+print("gemalt")
+"""
+post("/schreiben", {"raum": "rauch", "pfad": "bild.py", "inhalt_b64": base64.b64encode(BILD.encode()).decode()})
+r = befehl("python3 bild.py")
+if "gemalt" not in r["ausgabe"]:
+    fehler.append("Testbild malen (Pillow):\n" + r["ausgabe"])
+else:
+    motiv = post("/lesen", {"raum": "rauch", "pfad": "motiv.png"})["inhalt_b64"]
+    kann = post("/bild/kann", {})
+    print("Bildbearbeitung kann:", kann)
+
+    def bild(schritte, fmt="png"):
+        try:
+            return post("/bild", {"name": "motiv.png", "inhalt_b64": motiv, "schritte": schritte, "format": fmt})
+        except urllib.error.HTTPError as e:
+            return {"fehler": e.read().decode("utf-8", "replace")}
+    e = bild([{"art": "zuschneiden", "x": 100, "y": 50, "breite": 200, "hoehe": 200}, {"art": "drehen", "grad": 90}, {"art": "groesse", "breite": 100}], "webp")
+    if (e.get("breite"), e.get("hoehe"), e.get("mime")) != (100, 100, "image/webp"):
+        fehler.append(f"/bild zuschneiden/drehen/groesse/webp: {str(e)[:300]}")
+    if kann.get("hintergrund_entfernen"):
+        e = bild([{"art": "hintergrund_entfernen"}])
+        if not e.get("transparenz"):
+            fehler.append(f"/bild hintergrund_entfernen: {str(e)[:300]}")
+    else:
+        print("WARNUNG: Hintergrund entfernen fehlt in diesem Image (onnxruntime oder u2netp nicht da).")
+    if kann.get("hochskalieren"):
+        e = bild([{"art": "groesse", "breite": 200}, {"art": "hochskalieren", "faktor": 4}])
+        if (e.get("breite"), e.get("hoehe")) != (800, 600):
+            fehler.append(f"/bild hochskalieren: {str(e)[:300]}")
+    else:
+        print("WARNUNG: Hochskalieren fehlt in diesem Image (onnxruntime oder Real-ESRGAN nicht da).")
+    if not kann.get("heic"):
+        fehler.append("/bild: heif-convert fehlt (HEIC öffnen im Atelier)")
+    print("Bildbearbeitung geprüft.")
 r = befehl("tesseract --list-langs 2>&1 | grep -c -E '^(deu|eng)$'")
 if r["ausgabe"].strip() != "2":
     fehler.append("tesseract ohne deu/eng: " + r["ausgabe"])

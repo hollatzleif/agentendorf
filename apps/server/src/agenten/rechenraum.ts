@@ -23,6 +23,45 @@ export interface DorfwerkErgebnis {
   dateien: string[];
 }
 
+/** E198: ein Schritt der Bildbearbeitung im Rechenraum (/bild) – dieselben Namen wie in runner.py (BILD_SCHRITTE) */
+export const BILD_SCHRITT_ARTEN = [
+  'zuschneiden', 'groesse', 'drehen', 'spiegeln', 'hintergrund_entfernen', 'hochskalieren', 'graustufen', 'invertieren',
+  'helligkeit', 'kontrast', 'saettigung', 'weichzeichnen', 'schaerfen', 'automatisch',
+] as const;
+export interface BildSchritt {
+  art: (typeof BILD_SCHRITT_ARTEN)[number];
+  x?: number;
+  y?: number;
+  breite?: number;
+  hoehe?: number;
+  grad?: number;
+  richtung?: 'horizontal' | 'vertikal';
+  faktor?: number;
+  wert?: number;
+  radius?: number;
+  staerke?: number;
+}
+export type BildFormat = 'png' | 'jpg' | 'webp';
+export interface BildErgebnis {
+  inhalt: Buffer;
+  breite: number;
+  hoehe: number;
+  eingang: [number, number];
+  format: BildFormat;
+  mime: string;
+  transparenz: boolean;
+  hinweise: string[];
+}
+/** E198: was der Rechenraum an Bildbearbeitung kann (Modelle sind nur im Image) */
+export interface BildKann {
+  bilder: boolean;
+  hintergrund_entfernen: boolean;
+  hochskalieren: boolean;
+  heic: boolean;
+  max_pixel: number;
+  skalieren_max_pixel: number;
+}
+
 export interface RechenraumKlient {
   befehl(raum: string, befehl: string): Promise<{ code: number | null; abgelaufen: boolean; sekunden: number; ausgabe: string }>;
   schreiben(raum: string, pfad: string, inhalt: Buffer): Promise<void>;
@@ -34,6 +73,9 @@ export interface RechenraumKlient {
   umwandeln(name: string, inhalt: Buffer): Promise<UmwandelErgebnis>;
   /** E199: festes Werkzeug (PDF, Diagramm, QR, Anki, Daten) im Arbeitsordner des Raums – JSON-Auftrag statt Shell */
   werkzeug?(raum: string, auftrag: Record<string, unknown>): Promise<DorfwerkErgebnis>;
+  /** E198: Bild bearbeiten (Schritte nacheinander, eigener Kindprozess mit Grenzen wie umwandeln) */
+  bild(name: string, inhalt: Buffer, schritte: BildSchritt[], format: BildFormat, qualitaet?: number): Promise<BildErgebnis>;
+  bildKann(): Promise<BildKann>;
 }
 
 export function rechenraumKlient(url: string, geheimnis: string): RechenraumKlient {
@@ -82,6 +124,16 @@ export function rechenraumKlient(url: string, geheimnis: string): RechenraumKlie
       const r = await post<DorfwerkErgebnis>('/werkzeug', { raum, auftrag }, 200_000);
       return { ok: !!r.ok, text: r.text, fehler: r.fehler, dateien: Array.isArray(r.dateien) ? r.dateien : [] };
     },
+    async bild(name, inhalt, schritte, format, qualitaet) {
+      // Hochskalieren kann bis ans Zeitlimit des Rechenraums gehen (420 s)
+      const r = await post<Omit<BildErgebnis, 'inhalt'> & { inhalt_b64: string }>(
+        '/bild',
+        { name, inhalt_b64: inhalt.toString('base64'), schritte, format, ...(qualitaet ? { qualitaet } : {}) },
+        600_000,
+      );
+      return { inhalt: Buffer.from(r.inhalt_b64, 'base64'), breite: r.breite, hoehe: r.hoehe, eingang: r.eingang, format: r.format, mime: r.mime, transparenz: !!r.transparenz, hinweise: r.hinweise ?? [] };
+    },
+    bildKann: () => post<BildKann>('/bild/kann', {}, 10_000),
   };
 }
 

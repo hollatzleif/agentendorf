@@ -24,6 +24,7 @@ import { CorpsUebersicht } from '../komponenten/CorpsUebersicht';
 import { BoerseUebersicht } from '../komponenten/BoerseUebersicht';
 import { KirchturmUhr } from '../komponenten/KirchturmUhr';
 import { CodehausEditorStart, CodehausUebersicht } from '../komponenten/CodehausUebersicht';
+import { AtelierUebersicht } from '../komponenten/AtelierUebersicht';
 import { KartenLernen } from '../komponenten/KartenLernen';
 import { WochenrueckblickAnsicht } from '../komponenten/WochenrueckblickAnsicht';
 import { StatistikAnsicht } from '../komponenten/StatistikAnsicht';
@@ -65,6 +66,7 @@ const CODEHAUS_VORNE = [
   ['code', 'Projekte & VS Code'],
   ['editor', 'Editor'],
 ] as const;
+const ATELIER_VORNE = [['bilder', 'Bilder']] as const;
 const CORPS_VORNE = [
   ['termine', 'Termine'],
   ['aemter', 'Ämter & Aufgaben'],
@@ -83,11 +85,11 @@ const RATHAUS_REITER = [
 
 /** Alle Reiter eines Gebäudes (Schlüssel, Titel) – auch für die Knöpfe im Dorf */
 export function reiterFuer(id: string): readonly (readonly [string, string])[] {
-  return id === 'Rathaus' ? [...RATHAUS_VORNE, ...REITER, ...RATHAUS_REITER] : id === 'Uni' ? [...UNI_VORNE, ...REITER] : id === 'Post' ? [...POST_VORNE, ...REITER] : id === 'Marktplatz' ? [...MARKT_VORNE, ...REITER] : id === 'Einkaufsladen' ? [...EINKAUF_VORNE, ...REITER] : id === 'Bank' ? [...BANK_VORNE, ...REITER] : id === 'Corpshaus' ? [...CORPS_VORNE, ...REITER] : id === 'Boerse' ? [...BOERSE_VORNE, ...REITER] : id === 'Kirchturm' ? [...KIRCHTURM_VORNE, ...REITER] : id === 'Codehaus' ? [...CODEHAUS_VORNE, ...REITER] : REITER;
+  return id === 'Rathaus' ? [...RATHAUS_VORNE, ...REITER, ...RATHAUS_REITER] : id === 'Uni' ? [...UNI_VORNE, ...REITER] : id === 'Post' ? [...POST_VORNE, ...REITER] : id === 'Marktplatz' ? [...MARKT_VORNE, ...REITER] : id === 'Einkaufsladen' ? [...EINKAUF_VORNE, ...REITER] : id === 'Bank' ? [...BANK_VORNE, ...REITER] : id === 'Corpshaus' ? [...CORPS_VORNE, ...REITER] : id === 'Boerse' ? [...BOERSE_VORNE, ...REITER] : id === 'Kirchturm' ? [...KIRCHTURM_VORNE, ...REITER] : id === 'Codehaus' ? [...CODEHAUS_VORNE, ...REITER] : id === 'Atelier' ? [...ATELIER_VORNE, ...REITER] : REITER;
 }
 
 export function standardReiter(id: string) {
-  return id === 'Rathaus' ? 'schreibtisch' : id === 'Uni' ? 'studium' : id === 'Post' ? 'eingang' : id === 'Marktplatz' ? 'todo' : id === 'Einkaufsladen' ? 'einkauf' : id === 'Bank' ? 'konto' : id === 'Corpshaus' ? 'termine' : id === 'Boerse' ? 'depot' : id === 'Kirchturm' ? 'uhr' : id === 'Codehaus' ? 'code' : 'aktionen';
+  return id === 'Rathaus' ? 'schreibtisch' : id === 'Uni' ? 'studium' : id === 'Post' ? 'eingang' : id === 'Marktplatz' ? 'todo' : id === 'Einkaufsladen' ? 'einkauf' : id === 'Bank' ? 'konto' : id === 'Corpshaus' ? 'termine' : id === 'Boerse' ? 'depot' : id === 'Kirchturm' ? 'uhr' : id === 'Codehaus' ? 'code' : id === 'Atelier' ? 'bilder' : 'aktionen';
 }
 
 export function GebaeudeSeite({ id }: { id: string }) {
@@ -159,6 +161,7 @@ export function GebaeudeInhalt({ id, reiter, reiterWaehlen, kompakt }: { id: str
         {reiter === 'uhr' && <KirchturmUhr />}
         {reiter === 'code' && <CodehausUebersicht />}
         {reiter === 'editor' && <CodehausEditorStart />}
+        {reiter === 'bilder' && <AtelierUebersicht />}
         {reiter === 'karten' && <KartenLernen />}
         {reiter === 'noten' && <NotenAnsicht />}
         {reiter === 'kalender' && <MarktKalender />}

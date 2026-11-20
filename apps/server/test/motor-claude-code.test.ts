@@ -71,6 +71,8 @@ describe('claude-code-Motor über die Werkstatt', () => {
       seite: async () => ({ png: Buffer.from('PNG!'), seiten: 1 }),
       aufraeumen: async () => undefined,
       umwandeln: async () => ({ version: '1', typ: '', text: '', bilder: [], hinweise: [] }),
+      bild: async () => { throw new Error('nicht in diesem Test'); },
+      bildKann: async () => { throw new Error('nicht in diesem Test'); },
     };
     try {
       const { chatId } = await d.agenten.aktionStarten('Uni/cc-bild', {});

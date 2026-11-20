@@ -1803,6 +1803,47 @@ Leif: „eine eigene Coding-Umgebung innerhalb der App, die einfach wie VS Code 
   - Pull Requests anlegen: im Terminal (`gh pr create`) oder über den Agenten.
   - Abnahme auf dem Server und an Leifs Handy steht aus.
 
+## E198 – Atelier: Bildbearbeitung in der App (20.11.)
+
+- **Wunsch (Leif):** „Jemand hat mit AI Adobe Photoshop kostenlos nachgebaut. Kannst du das implementieren? Alles aber nativ in der App.“ Gemeint ist vermutlich ArtCraft/PhotoCraft – ein Desktop-Programm in Rust im frühen Alpha, das sich nicht in eine Web-App einbetten lässt. Darum ein **eigener Bildeditor** in der Dorf-App.
+- **Wo:** neues Gebäude **Atelier** (🎨, Vorlage, eigenes 3D-Modell, Reiter „Bilder“), Editor auf `/atelier`. Die Bibliothek bekommt „Im Atelier bearbeiten“.
+- **Grundlage: Canvas 2D des Browsers, keine Bibliothek.**
+  - Geprüft: Konva und Fabric.js (beide MIT) sind Szenengraphen für Objekte – Pinsel mit Härte, Zauberstab, Pixelfilter und Rasterebenen müsste man trotzdem selbst bauen, zahlt aber 150–300 KB. PixiJS (MIT) ist ein WebGL-Renderer; Pixel zurückzulesen (Filter, Füllen, Speichern) ist dort der teure Weg. miniPaint (MIT) ist ein ganzes Programm mit eigener Oberfläche und eigenem Dateidialog, kein Baustein für React, den Vault und die Handy-Bedienung.
+  - Canvas 2D bringt alles Nötige mit: 16 Mischmodi (`globalCompositeOperation`), Pixelzugriff, Zeigerereignisse mit Stiftdruck.
+  - Ergebnis: 29 KB (gzip), nur auf dieser Seite geladen; keine neue Abhängigkeit, keine GPL.
+  - Die Einschätzung der Bibliotheken stammt aus meinem Wissen über sie, nicht aus einer frischen Messung.
+- **Was der Editor kann:**
+  - Ebenen: neu, duplizieren, löschen, Reihenfolge, Deckkraft, Sichtbarkeit, 16 Mischmodi, vereinen, reduzieren, umbenennen.
+  - Werkzeuge: Pinsel und Radierer (Größe, Härte, Deckkraft, Stiftdruck), Formen, Text, Auswahl (Rechteck, Ellipse, Lasso, Zauberstab; hinzufügen/abziehen), Verschieben, frei Transformieren (skalieren, drehen, spiegeln), Zuschneiden, Pipette, Füllen, Verlauf, Zoom, Hand.
+  - Bild: Bildgröße, Arbeitsfläche, drehen, spiegeln; Helligkeit/Kontrast, Farbton/Sättigung, Belichtung, Kurve (Tiefen/Mitten/Lichter), Graustufen, Invertieren, Sepia, Schwellenwert; Weichzeichnen, Schärfen, Rauschen – mit Vorschau, auf Wunsch nur in der Auswahl.
+  - Verlauf mit 40 Schritten (unveränderte Ebenen werden zwischen den Schritten geteilt, Speichergrenze), Tastenkürzel wie in Photoshop, am Handy ein Finger = Werkzeug, zwei Finger = Zoomen/Verschieben.
+- **Bewusst nicht (steht auch in der Hilfe im Editor):** Text ist nach dem Setzen ein Bild; keine Einstellungsebenen, Ebenenmasken, Smartobjekte, CMYK, PSD. Was beim Verschieben über den Bildrand geschoben wird, ist weg.
+- **Dateien:**
+  - Öffnen aus dem Vault und vom Gerät. Was der Browser nicht lesen kann (HEIC, TIFF, SVG), wandelt nur der Rechenraum um.
+  - Speichern nur über `/api/atelier/speichern` → `VaultDienst.schreiben` mit `basisVersion`: Hat sich die Datei inzwischen geändert, entsteht eine Konfliktkopie. Erlaubt sind PNG, JPG, WebP und `.atelier`; der Inhalt muss zur Endung passen; höchstens 60 MB.
+  - **Projektformat `.atelier` = eine ZIP-Datei** (unkomprimiert, `projekt.json` + je Ebene ein PNG + Vorschau). Begründung: Eine Datei bleibt atomar und die Konfliktkopie gilt fürs ganze Projekt; ein Ordner mit Einzeldateien könnte halb geschrieben oder von Syncthing halb übertragen sein. PNG ist schon komprimiert, darum reicht „store“ – ohne Bibliothek, und jedes ZIP-Programm kommt an die Ebenen.
+  - Ungespeichertes bleibt offen, wenn man im Dorf woanders hingeht; beim Schließen des Fensters warnt der Browser.
+- **KI ohne Kosten, im Rechenraum (`/bild`, ohne Internet):**
+  - Hintergrund entfernen: U²-Net „u2netp“ (4,6 MB, Apache-2.0). Hochskalieren 2×/4×: Real-ESRGAN „general-x4v3“ (4,8 MB, BSD-3-Clause, ONNX von Qualcomm AI Hub) in Kacheln. Laufzeit: onnxruntime 1.19.2 (MIT), nur CPU. Alle drei mit fester Version bzw. Prüfsumme im Dockerfile.
+  - rembg selbst verworfen (zieht viele Pakete nach) – die Vor- und Nachbereitung steht in `runner.py`.
+  - **Gemessen** (onnxruntime 1.19.2, numpy 1.24.2, Python 3.11 wie im Image, 1 Kern, außerhalb des Containers): u2netp belegt 349 MB und braucht 0,6 s; Real-ESRGAN 76 MB und 0,36 s je Kachel (1024×1024 ≈ 30 s). Unter dem Riegel von 1024 MB Adressraum laufen beide.
+  - Eine Bildbearbeitung belegt **beide** Umwandlungs-Plätze (2 × 260 MB), und es läuft immer nur eine: Die Rechnung für `mem_limit: 1280m` aus E195 bleibt gültig. Bilder bis 24 Megapixel, Hochskalieren bis etwa 1024×1024.
+  - Ehrlich: u2netp findet das Hauptmotiv, feine Haare und Glas nicht zuverlässig. Fehlt ein Modell im Image, sind die Menüpunkte ausgegraut und nennen den Grund.
+- **Bild generieren / generatives Füllen (optional):** Cloudflare Workers AI, `@cf/black-forest-labs/flux-2-klein-4b` (Text → Bild und Bild + Text → Bild, 256–1920 Pixel).
+  - Frei sind 10 000 Neuronen pro Tag; ein Bild 1024×1024 kostet rund 104 → etwa 90 Bilder. Ohne Bezahlplan lehnt Cloudflare danach ab, Kosten entstehen nicht.
+  - Zugang nur in `/srv/dorf/.env` (`CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`) über `dorf bilder-einrichten`; ohne ihn ist der Knopf ausgegraut mit genau diesem Hinweis.
+  - „Generatives Füllen“ ist kein Masken-Inpainting: Der Ausschnitt um die Auswahl geht (höchstens 504 Pixel groß) mit dem Text ans Modell, das Ergebnis kommt als neue Ebene nur innerhalb der Auswahl zurück. Das Inpainting-Modell von Cloudflare (Stable Diffusion 1.5) ist laut Modellliste zum 20.11.2026 abgekündigt.
+  - FLUX.1 schnell wäre billiger (58 Neuronen), nimmt laut Schema aber weder Bildgröße noch Vorlage.
+  - Das ist der einzige Weg, auf dem im Atelier etwas das Dorf verlässt – nur auf Leifs Klick. **Agenten haben dafür kein Werkzeug.**
+  - **Nicht geprüft:** Es gab keinen Cloudflare-Zugang. Endpunkt, Felder und Preise stammen aus der Dokumentation; die Tests laufen gegen einen nachgebauten Endpunkt. Dass die Antwort das Bild als Base64 unter `result.image` trägt, ist eine Annahme nach der üblichen Hülle der REST-API – der Code nimmt auch `image` direkt und rohe Bilddaten. Auch die Prüfadresse in `dorf bilder-einrichten` (Modellliste) ist nicht gegen ein echtes Konto gelaufen; bei unerwarteter Antwort trägt der Befehl den Zugang trotzdem ein.
+- **Agenten: `bild_bearbeiten`** (`agenten/bild.ts`): zuschneiden, Größe, drehen, spiegeln, Format, Hintergrund entfernen, hochskalieren, einfache Korrekturen.
+  - Nur mit `werkzeuge: [rechenraum]` (der Bürgermeister hat es); gerechnet wird im Rechenraum.
+  - Das Original bleibt. Das Ergebnis ist eine neue Datei im Ablage-Ordner des Chats, den der Code bestimmt (wie `rechenraum_ablegen`); fremde Dateien werden nie überschrieben.
+  - Der Lauf bekommt eine Vorschau und gilt danach als „hat Fremdes gesehen“ (wie bei `vault_lesen` mit Bildern, E195).
+  - Dazu die Aktion `Atelier/bild-bearbeiten`.
+- **Quellen (20.11.2026):** cloudflare/cloudflare-docs auf GitHub (`workers-ai/platform/pricing.mdx`, Changelog „FLUX.2 [klein] 4B“ vom 15.01.2026, Modell-Schemata); huggingface.co/qualcomm/Real-ESRGAN-General-x4v3 (`release_assets.json`); github.com/danielgatis/rembg (Release v0.0.0, `u2netp.onnx`); onnxruntime 1.19.2 auf PyPI. developers.cloudflare.com war von hier nicht erreichbar.
+- **Offen:** Das Rechenraum-Image wurde hier nicht gebaut (Vorgabe: kein Docker) – die neuen Zeilen im Dockerfile prüft erst die CI samt Rauchtest. Ist eine Modellquelle beim Bau nicht erreichbar, baut das Image trotzdem und der Runner meldet „Modell fehlt“. Stift mit Druck und echte Finger-Gesten sind nur mit nachgebauten Zeigerereignissen getestet.
+
 ## E199 – Neue Werkzeuge aus der Ideen-Liste (20.11.)
 
 - **Auftrag:** Aus `docs/werkzeug-ideen.md` (Top 15 + Nutzen für Leif) bauen, was sauber mit Tests geht. Schon da waren Umwandeln/OCR/Transkript und Office erzeugen (E190) und Websuche. Bildbearbeitung (E198), Code-Editor (E197) und Rundgang (E200) bauen andere.

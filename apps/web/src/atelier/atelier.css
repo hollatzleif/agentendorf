@@ -1,0 +1,149 @@
+/* E198 Atelier: dunkle Arbeitsoberfläche wie in Bildprogrammen – nur innerhalb von .atelier (wird nur mit der Seite geladen) */
+.rahmen:has(.atelier) { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+.rahmen:has(.atelier) > main { max-width: none; width: 100%; margin: 0; padding: 0; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+.atelier {
+  --at-grund: #23272f; --at-flaeche: #2d323c; --at-hell: #3a404c; --at-rand: #14171c; --at-text: #e8ebf0; --at-leise: #9aa3b2; --at-akzent: #3aa0ff;
+  flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--at-grund); color: var(--at-text); font-size: 0.86rem;
+  user-select: none; -webkit-user-select: none; position: relative; overflow: hidden; min-width: 0;
+}
+.atelier button {
+  font: inherit; font-weight: 600; color: var(--at-text); background: var(--at-hell); border: 1px solid var(--at-rand); border-radius: 6px;
+  padding: 0.25rem 0.55rem; box-shadow: none; text-shadow: none; transition: none; min-height: 1.9rem; cursor: pointer;
+}
+.atelier button:hover { background: #474e5c; }
+.atelier button:active { transform: none; box-shadow: none; background: #525a6a; }
+.atelier button:disabled { opacity: 0.4; }
+.atelier button.aktiv { background: var(--at-akzent); color: #06121f; border-color: #0c3a66; }
+.atelier button.haupt, .atelier form button[type='submit'].haupt { background: #2f8a2b; border-color: #17480f; color: #fff; text-shadow: none; box-shadow: none; }
+.atelier form button[type='submit'] { box-shadow: none; text-shadow: none; }
+.atelier input, .atelier select, .atelier textarea {
+  font: inherit; color: var(--at-text); background: #1b1e24; border: 1px solid var(--at-rand); border-radius: 6px; padding: 0.25rem 0.4rem; box-shadow: none; width: auto;
+  user-select: text; -webkit-user-select: text;
+}
+.atelier input[type='range'] { padding: 0; accent-color: var(--at-akzent); min-width: 4.5rem; flex: 1; }
+.atelier input[type='number'] { width: 4.2rem; }
+.atelier input[type='checkbox'] { accent-color: var(--at-akzent); }
+.atelier input[type='color'] { padding: 0; width: 2rem; height: 2rem; border-radius: 6px; cursor: pointer; }
+.atelier kbd { font: inherit; font-size: 0.78em; color: var(--at-leise); background: none; }
+.at-leise { color: var(--at-leise); font-size: 0.8rem; }
+.at-fehler { color: #ff9a8f; }
+
+/* Kopf: Menüs, Dateiname, Rückgängig, Speichern */
+.at-kopf { display: flex; align-items: center; gap: 0.4rem; padding: 0.25rem 0.4rem; background: var(--at-flaeche); border-bottom: 1px solid var(--at-rand); min-height: 2.5rem; }
+.at-zurueck { color: var(--at-text); text-decoration: none; padding: 0.2rem 0.5rem; font-size: 1.1rem; }
+.at-menues { display: flex; gap: 0.1rem; overflow-x: auto; scrollbar-width: none; flex: 1; min-width: 0; }
+.at-menues::-webkit-scrollbar { display: none; }
+.at-menue-gruppe > button { background: none; border-color: transparent; white-space: nowrap; }
+.at-menue-liste {
+  position: fixed; z-index: 950; margin-top: 2px; min-width: 15rem; max-width: calc(100vw - 1rem); max-height: 70dvh; overflow: auto; background: var(--at-flaeche);
+  border: 1px solid var(--at-rand); border-radius: 8px; padding: 0.25rem; box-shadow: 0 10px 30px rgb(0 0 0 / 0.5); display: flex; flex-direction: column;
+}
+.at-menue-liste button { display: flex; justify-content: space-between; gap: 1.2rem; background: none; border: 0; text-align: left; font-weight: 500; border-radius: 5px; min-height: 2rem; align-items: center; }
+.at-menue-liste button.aus { opacity: 0.45; }
+.at-menue-liste hr { border: 0; border-top: 1px solid var(--at-rand); margin: 0.2rem 0; width: 100%; }
+.at-datei { color: var(--at-leise); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 16rem; }
+.at-gruppe { display: inline-flex; gap: 0.2rem; align-items: center; }
+.at-nur-schmal { display: none; }
+
+/* Optionen des Werkzeugs */
+.at-optionen { display: flex; align-items: center; gap: 0.7rem; padding: 0.25rem 0.6rem; background: var(--at-flaeche); border-bottom: 1px solid var(--at-rand); min-height: 2.5rem; overflow-x: auto; white-space: nowrap; scrollbar-width: thin; }
+.at-opt { display: inline-flex; flex-direction: row; align-items: center; gap: 0.35rem; flex: none; }
+.at-optionen > * { flex: none; }
+.at-optionen input[type='range'] { width: 6.5rem; flex: none; }
+.at-haken { display: inline-flex; align-items: center; gap: 0.3rem; cursor: pointer; }
+
+.at-mitte { flex: 1; min-height: 0; min-width: 0; display: flex; position: relative; overflow: hidden; }
+.at-werkzeuge { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.35rem; background: var(--at-flaeche); border-right: 1px solid var(--at-rand); overflow-y: auto; scrollbar-width: none; }
+.at-werkzeuge::-webkit-scrollbar { display: none; }
+.at-werkzeuge button { width: 2.3rem; height: 2.3rem; padding: 0; font-size: 1.05rem; flex: none; }
+.at-farben { display: flex; flex-direction: column; gap: 0.2rem; margin-top: 0.4rem; align-items: center; flex: none; }
+.at-buehne { flex: 1; min-width: 0; position: relative; overflow: hidden; background: #1a1d22; }
+.at-leinwand { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; display: block; }
+.atelier[data-werkzeug='hand'] .at-leinwand { cursor: grab; }
+.atelier[data-werkzeug='verschieben'] .at-leinwand { cursor: move; }
+.atelier[data-werkzeug='zoom'] .at-leinwand { cursor: zoom-in; }
+.atelier[data-werkzeug='text'] .at-leinwand { cursor: text; }
+.at-text { position: absolute; z-index: 5; transform: translate(-1px, -1px); }
+.at-text textarea { background: rgb(255 255 255 / 0.12); border: 1px dashed var(--at-akzent); border-radius: 0; padding: 0; margin: 0; min-width: 8rem; resize: none; overflow: hidden; white-space: pre; outline: none; }
+.at-hinweis {
+  position: absolute; left: 50%; bottom: 0.8rem; transform: translateX(-50%); max-width: min(34rem, calc(100% - 1.5rem)); background: #11141a; color: var(--at-text);
+  border: 1px solid var(--at-hell); border-radius: 8px; padding: 0.45rem 0.8rem; z-index: 6; box-shadow: 0 6px 20px rgb(0 0 0 / 0.5); white-space: normal; user-select: text;
+}
+.at-hinweis.fehler { border-color: #d2352a; }
+.at-arbeit { position: absolute; inset: 0; display: grid; place-content: center; grid-auto-flow: column; gap: 0.6rem; align-items: center; background: rgb(10 12 16 / 0.6); z-index: 7; font-weight: 700; }
+.at-kreisel { width: 1.1rem; height: 1.1rem; border: 3px solid var(--at-hell); border-top-color: var(--at-akzent); border-radius: 50%; animation: at-drehen 0.8s linear infinite; }
+@keyframes at-drehen { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .at-kreisel { animation: none; } }
+
+/* rechte Seite: Farbe, Ebenen, Verlauf */
+.at-seite { width: 15.5rem; flex: none; background: var(--at-flaeche); border-left: 1px solid var(--at-rand); overflow-y: auto; display: flex; flex-direction: column; }
+.at-feld { padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--at-rand); }
+.at-feld h3 { margin: 0 0 0.4rem; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--at-leise); font-weight: 700; }
+.at-zeile { display: flex; gap: 0.3rem; align-items: center; flex-wrap: wrap; }
+.at-zeile select { flex: 1; min-width: 0; }
+.at-regler-klein { display: flex; align-items: center; gap: 0.3rem; flex: 1 1 100%; }
+.at-regler-klein span { width: 3rem; text-align: right; color: var(--at-leise); }
+.at-palette { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; margin-bottom: 0.4rem; }
+.at-palette button { min-height: 0; height: 1.25rem; padding: 0; border-radius: 4px; }
+.at-palette button.aktiv { outline: 2px solid var(--at-akzent); outline-offset: 1px; }
+.at-ebenen { list-style: none; margin: 0.4rem 0; padding: 0; max-height: 15rem; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.at-ebenen li { display: flex; align-items: stretch; gap: 2px; border-radius: 6px; }
+.at-ebenen li.aktiv .at-ebene-name { background: #1f4f7d; border-color: var(--at-akzent); }
+.at-ebenen .at-auge { width: 2rem; padding: 0; flex: none; background: none; }
+.at-ebene-name { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.4rem; text-align: left; background: #262a32; padding: 0.15rem 0.3rem; }
+.at-ebene-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.at-miniatur { width: 40px; height: 30px; flex: none; border-radius: 3px; background: repeating-conic-gradient(#fff 0 25%, #d5d9e0 0 50%) 0 0 / 10px 10px; }
+.at-knoepfe button { flex: 1; padding: 0; }
+.at-verlauf { list-style: none; margin: 0; padding: 0; max-height: 11rem; overflow-y: auto; }
+.at-verlauf button { width: 100%; text-align: left; background: none; border: 0; font-weight: 500; min-height: 1.6rem; padding: 0.1rem 0.4rem; }
+.at-verlauf li.aktiv button { background: #1f4f7d; }
+.at-verlauf li.spaeter button { color: var(--at-leise); font-style: italic; }
+
+.at-status { display: flex; align-items: center; gap: 0.5rem; padding: 0.2rem 0.6rem; background: var(--at-flaeche); border-top: 1px solid var(--at-rand); font-size: 0.8rem; padding-bottom: max(0.2rem, env(safe-area-inset-bottom)); }
+.at-status button { min-height: 1.6rem; padding: 0 0.5rem; }
+
+/* Fenster */
+.at-fenster-grund { position: fixed; inset: 0; background: rgb(0 0 0 / 0.5); display: grid; place-items: center; z-index: 960; padding: 0.8rem; }
+.at-fenster-grund.seitlich { background: none; pointer-events: none; place-items: start end; padding-top: 6.2rem; }
+.at-fenster-grund.seitlich .at-fenster { pointer-events: auto; }
+.at-fenster { width: min(34rem, 100%); max-height: 88dvh; overflow: auto; background: var(--at-flaeche); color: var(--at-text); border: 1px solid var(--at-rand); border-radius: 10px; box-shadow: 0 16px 50px rgb(0 0 0 / 0.6); user-select: text; }
+.at-fenster.schmal { width: min(22rem, 100%); }
+.at-fenster > header { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--at-rand); position: sticky; top: 0; background: var(--at-flaeche); z-index: 1; }
+.at-fenster > header button { background: none; border: 0; }
+.at-formular { display: flex; flex-direction: column; gap: 0.6rem; padding: 0.7rem; }
+.at-formular label { display: flex; flex-direction: column; gap: 0.2rem; }
+.at-formular label.at-haken { flex-direction: row; align-items: center; }
+.at-formular label > span { display: flex; justify-content: space-between; }
+.at-formular input:not([type='checkbox']):not([type='range']), .at-formular select, .at-formular textarea { width: 100%; }
+.at-formular p { margin: 0; white-space: normal; }
+.at-ende { justify-content: flex-end; }
+.at-datei-knopf { background: var(--at-hell); border: 1px dashed var(--at-leise); border-radius: 8px; padding: 0.6rem; text-align: center; cursor: pointer; font-weight: 600; }
+.at-datei-knopf input { display: none; }
+.at-dateiliste { list-style: none; margin: 0; padding: 0; max-height: 45dvh; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.at-dateiliste button { width: 100%; display: flex; flex-direction: column; align-items: flex-start; text-align: left; background: #262a32; }
+.at-dateiliste button span { color: var(--at-leise); font-size: 0.78rem; font-weight: 400; }
+.at-anker { display: grid; grid-template-columns: repeat(3, 2.1rem); gap: 3px; margin-top: 0.3rem; }
+.at-anker button { padding: 0; }
+.at-tasten { border-collapse: collapse; width: 100%; }
+.at-tasten td { padding: 0.15rem 0.4rem; border-bottom: 1px solid var(--at-rand); vertical-align: top; }
+.at-tasten kbd { color: var(--at-text); font-weight: 700; white-space: nowrap; }
+
+/* Handy und schmale Fenster: Werkzeuge als Leiste unten, Ebenen/Farbe/Verlauf als ausklappbares Blatt */
+@media (max-width: 820px), (pointer: coarse) and (max-width: 1000px) {
+  .at-nur-schmal { display: inline-block; }
+  .at-nur-breit { display: none; }
+  .at-datei { display: none; }
+  .at-mitte { flex-direction: column-reverse; }
+  .at-werkzeuge { flex-direction: row; border-right: 0; border-top: 1px solid var(--at-rand); overflow-x: auto; overflow-y: hidden; padding: 0.3rem; }
+  .at-werkzeuge button { width: 2.7rem; height: 2.7rem; font-size: 1.2rem; }
+  .at-farben { flex-direction: row; margin: 0 0 0 0.4rem; }
+  .at-farben input[type='color'] { width: 2.5rem; height: 2.5rem; }
+  /* zugeklappt gar nicht da (ein hinausgeschobenes Blatt machte die Seite seitlich rollbar) */
+  .at-seite { display: none; position: absolute; right: 0; top: 0; bottom: 3.4rem; width: min(17rem, 86vw); z-index: 8; box-shadow: -8px 0 24px rgb(0 0 0 / 0.5); }
+  .at-seite.offen { display: flex; }
+  .at-optionen { gap: 0.5rem; }
+  .atelier button { min-height: 2.2rem; }
+  .at-fenster-grund.seitlich { place-items: end center; padding: 0 0.4rem 4.2rem; }
+  .at-fenster-grund.seitlich .at-fenster { width: 100%; max-height: 46dvh; }
+}

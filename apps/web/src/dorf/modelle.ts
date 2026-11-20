@@ -1040,6 +1040,52 @@ const haus: Bauer = (b, g, rnd) => {
   return { rauch, hoehe: BODEN + h + 2.0 };
 };
 
+/** Atelier (E198): helles Künstlerhaus mit großem Schrägfenster (Nordlicht), Staffelei mit buntem Bild und Farbtöpfen davor */
+const atelier: Bauer = (b, _g, rnd) => {
+  grundstueck(b);
+  const wf = '#f3ead8';
+  const holz = '#8a5a35';
+  const dach = '#c9573f';
+  b.mit(0, 0, -0.4, 0, () => {
+    wand(b, 3.0, 1.7, 2.2, wf, { sockel: '#b9a98c', gesims: holz });
+    // Eingang links, daneben ein breites Atelierfenster
+    tuer(b, -0.95, 1.1, 0, '#3a7ca5', { w: 0.5, h: 0.95 });
+    fenster(b, 0.45, BODEN + 0.9, 1.1, 0, { w: 1.5, h: 1.0, sprossen: true, rahmen: holz, licht: true });
+    for (const s of [-1, 1]) fenster(b, s * 1.5, BODEN + 0.9, 0.1, (s * Math.PI) / 2, { w: 0.6, h: 0.7, rahmen: holz });
+    // Pultdach, zur Straße hin hoch; darin das schräge Glas
+    b.teil(kasten(3.2, 0.12, 2.5, 0.03), dach, 0, BODEN + 2.02, 0, { rx: 0.3, name: 'dach' });
+    b.teil(quader(1.7, 0.03, 1.1), '#9fd3ee', 0.3, BODEN + 2.13, 0.25, { rx: 0.3, leuchten: '#bfe6ff' });
+    for (const fx of [-0.55, 0.3, 1.15]) b.teil(quader(0.04, 0.05, 1.12), holz, fx, BODEN + 2.15, 0.25, { rx: 0.3 });
+    // Giebeldreiecke schließen die Seiten unter dem Pultdach
+    for (const s of [-1, 1]) b.teil(quader(0.06, 0.5, 2.1), wf, s * 1.47, BODEN + 1.85, 0.1, { rx: 0.3 });
+    tafel(b, 'ATELIER', -0.2, BODEN + 1.52, 1.12, 0, 1.2, 0.2, { grund: '#2b3a55', schrift: '#ffffff', rahmen: holz });
+    b.licht(0.45, BODEN + 1.0, 1.4, 1.4);
+  });
+  // Staffelei mit Bild
+  b.mit(1.35, BODEN, 1.45, -0.35, () => {
+    for (const s of [-1, 1]) b.teil(quader(0.035, 0.95, 0.035), holz, s * 0.2, 0.47, 0, { rz: s * -0.16 });
+    b.teil(quader(0.035, 0.9, 0.035), holz, 0, 0.44, -0.22, { rx: 0.42 });
+    b.teil(quader(0.5, 0.03, 0.06), holz, 0, 0.42, 0.03);
+    b.teil(quader(0.56, 0.44, 0.025), '#fffdf6', 0, 0.66, 0.03, { rx: -0.08 });
+    // ein paar Farbflächen als „Gemälde“
+    b.teil(quader(0.5, 0.16, 0.01), '#7ec8f2', 0, 0.78, 0.05, { rx: -0.08, keinSchatten: true });
+    b.teil(quader(0.5, 0.2, 0.01), '#7fc96b', 0, 0.58, 0.045, { rx: -0.08, keinSchatten: true });
+    b.teil(kugel(0.06, 10, 8), '#f2b51e', 0.14, 0.8, 0.06, { keinSchatten: true });
+  });
+  // Farbtöpfe und ein Hocker
+  const farben = ['#d2352a', '#f2b51e', '#3aa0ff', '#2f8a2b'];
+  farben.forEach((f, i) => {
+    b.teil(zylinder(0.07, 0.07, 0.12, 10), '#dfe5ea', 0.55 + i * 0.19, BODEN + 0.06, 1.75 + (i % 2) * 0.12);
+    b.teil(zylinder(0.06, 0.06, 0.02, 10), f, 0.55 + i * 0.19, BODEN + 0.125, 1.75 + (i % 2) * 0.12);
+  });
+  b.teil(zylinder(0.16, 0.14, 0.05, 12), holz, 1.75, BODEN + 0.32, 0.9);
+  for (const [px, pz] of [[1.66, 0.82], [1.84, 0.82], [1.75, 0.99]] as const) b.teil(quader(0.03, 0.3, 0.03), holz, px, BODEN + 0.15, pz);
+  baum(b, -1.8, 1.7, 0.8, rnd);
+  blumenbeet(b, -1.2, 1.75, 0.9, 0.4, rnd);
+  busch(b, 1.9, -1.8, 0.9, rnd);
+  return { rauch: [new THREE.Vector3(-1.0, BODEN + 2.5, -0.9)], hoehe: BODEN + 2.9 };
+};
+
 const BAUER: Record<string, Bauer> = {
   rathaus,
   uni,
@@ -1052,6 +1098,7 @@ const BAUER: Record<string, Bauer> = {
   einkaufsladen,
   kirchturm,
   codehaus,
+  atelier,
 };
 
 export function modellArt(g: Gebaeude): string {
