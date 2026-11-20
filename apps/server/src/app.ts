@@ -50,6 +50,7 @@ import { gebaeudeAendern, gebaeudeAnlegen, gebaeudeListe } from './vault/gebaeud
 import { Suchindex } from './vault/suche.js';
 import { LiveHub } from './live.js';
 import { CODING_OFFEN, codingRouten } from './coding.js';
+import { codingEditorRouten } from './coding-editor.js';
 import type { AgentenDienst } from './agenten/dienst.js';
 import { agentenRouten } from './agenten/routen.js';
 import type { Schreibtisch } from './schreibtisch.js';
@@ -628,6 +629,7 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
   // ---- Etappe 6: Programme für Mac und Windows ----
   programmeRouten(app, { ordner: path.join(konfig.datenDir, 'programme'), ursprung: konfig.origins[0] ?? '' });
   codingRouten(app, { konfig, db, uhr, sitzungen });
+  codingEditorRouten(app, { konfig, sitzungen });
 
   // ---- E65: To-do-Brett (Marktplatz) ----
   // Etappe 7: alle Listen unter /api/listen/<name>; /api/todos bleibt für die To-do-Liste
