@@ -351,8 +351,8 @@ test('Editor: läuft unter der Content-Security-Policy des echten Servers (Caddy
   await page.keyboard.press('Control+End');
   await page.keyboard.type('\nconst = ;');
   await expect(page.getByTestId('monaco').locator('.squiggly-error').first()).toBeAttached({ timeout: 20_000 });
-  // Symbolschrift (codicon) geladen
-  expect(await page.evaluate(() => document.fonts.check('16px codicon'))).toBe(true);
+  // Symbolschrift (codicon) geladen – warten, bis sie da ist (auf langsamen Rechnern lädt sie noch); sperrt die Richtlinie sie, bleibt es false
+  await expect.poll(() => page.evaluate(() => document.fonts.check('16px codicon')), { timeout: 15_000 }).toBe(true);
   // zweite Datei
   await bereich(page, info, 'Dateien');
   await baum.getByRole('button', { name: 'README.md' }).click();
