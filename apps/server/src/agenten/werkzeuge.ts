@@ -25,6 +25,8 @@ import { AGENTEN_ARTEN, type Freigaben } from './freigaben.js';
 import { LISTEN, LISTEN_NAMEN, todoZeile, type ListenName, type TodoDienst } from '../todos.js';
 import { meinTodoZeile, type MeineTodos } from './meine-todos.js';
 import { aenderungText, ersetzen, GEDAECHTNIS_PFAD, MAX_GEDAECHTNIS, MAX_PERSOENLICHKEIT, PERSOENLICHKEIT_PFAD, textPruefen } from './gedaechtnis.js';
+import { istExtra } from './leine-extra.js';
+import { EXTRA_DEFINITIONEN, extraAufrufen, type ExtraNetz } from './werkzeuge-extra.js';
 
 /** Beschreibung der Dorf-Werkzeuge – identisch für den api-Motor (Tool-Definition) und den MCP-Server der Werkstatt. */
 export interface WerkzeugDefinition {
@@ -677,6 +679,8 @@ export const WERKZEUG_DEFINITIONEN: Record<DorfWerkzeug, WerkzeugDefinition> = {
       additionalProperties: false,
     },
   },
+  // ---- E199: Werkzeuge aus der Ideen-Liste (werkzeuge-extra.ts) ----
+  ...EXTRA_DEFINITIONEN,
 };
 
 /** Führt die Sonder-Werkzeuge einer Rolle aus (Bürgermeister). */
@@ -725,6 +729,8 @@ export interface LaufKontext {
   kontakte?: Kontakte;
   rueckgaengig?: Rueckgaengig;
   rueckfrage?: (f: { chatId: string; frage: string; optionen: string[] }) => Promise<void>;
+  /** E199: Abrufe freier Schnittstellen (Literatur, Zug, Wetter, EZB) – feste Adressen, eigene Kennung */
+  netz?: ExtraNetz;
 }
 
 export interface KalenderEintrag {
@@ -812,6 +818,20 @@ export class WerkzeugKiste {
       return { ok: false, text: t };
     }
     try {
+      // E199: neue Werkzeuge in eigener Datei (werkzeuge-extra.ts) – gleiche Leine, gleiches Protokoll
+      if (istExtra(name))
+        return await extraAufrufen(name, eingabe, {
+          db: this.db,
+          uhr: this.uhr,
+          vault: this.vault,
+          k: this.k,
+          log: (...a) => this.log(...a),
+          fremd: () => {
+            this.fremd = true;
+          },
+          lesen: (p) => this.lesen(p),
+          merken: (art, titel, daten, leise) => this.merken(art, titel, daten, leise),
+        });
       switch (name as DorfWerkzeug) {
         case 'vault_lesen':
           return await this.lesen(z.object({ pfad: z.string() }).parse(eingabe).pfad);
@@ -1081,7 +1101,10 @@ export class WerkzeugKiste {
       this.fremd = true;
       this.log(name, eingabe, `„${m.betreff.slice(0, 80)}“`, true, undefined, 'gelesen');
       const datum = m.datum ? new Date(m.datum).toISOString() : '';
-      return { ok: true, text: fremdinhaltHuelle(`gmail:${mail_id}`, `Von: ${m.von}\nAn: ${m.an}\nDatum: ${datum}\nBetreff: ${m.betreff}\n\n${m.text}`) };
+      // E199: Anhänge nennen – lesen mit post_anhang_lesen (falls der Lauf es hat)
+      const anh = m.anhaenge?.length ? `\nAnhänge: ${m.anhaenge.map((a, i) => `${i + 1}. ${a.name}`).join(', ')}` : '';
+      const hinweis = anh && (this.k.erlaubt as string[]).includes('post_anhang_lesen') ? `\n(Anhänge lesen: post_anhang_lesen mit mail_id „${mail_id}“ und nr.)` : '';
+      return { ok: true, text: `${fremdinhaltHuelle(`gmail:${mail_id}`, `Von: ${m.von}\nAn: ${m.an}\nDatum: ${datum}\nBetreff: ${m.betreff}${anh}\n\n${m.text}`)}${hinweis}` };
     }
     const e = z.object({ mail_id: z.string().min(1).max(100), text: z.string().min(1).max(20_000) }).parse(eingabe);
     this.postMail(e.mail_id);

@@ -7,6 +7,8 @@ Rechenraum-Runner: führt pdflatex/python3/pdftoppm in einem abgeschotteten Cont
 - Ein Raum pro Chat unter ARBEIT_DIR/<raum>; Pfade bleiben im Raum, Zeitlimit pro Befehl, alte Räume werden aufgeräumt.
 - /umwandeln (E190): eine fremde Datei (Word, Excel, PowerPoint, Mail, Archiv, Audio, Video, Bild …) wird in einem
   eigenen Kindprozess mit Zeit- und Speichergrenze zu Text und Bildern für das Modell. Das Dorf parst Fremdes nie selbst.
+- /werkzeug (E199): feste Werkzeuge aus dorfwerk.py (PDF bearbeiten, Graphviz, QR, Anki, DuckDB) im Arbeitsordner eines
+  Raums – JSON-Auftrag statt Shell, gleiche Grenzen wie eine Umwandlung.
 Nur Standardbibliothek; die Umwandlung nutzt Werkzeuge aus dem Image (ffmpeg, whisper-cli, tesseract, rsvg-convert,
 heif-convert, catdoc, Pillow, xlrd, olefile), wenn vorhanden – fehlt eines, sagt das Ergebnis es ehrlich.
 """
@@ -1454,8 +1456,9 @@ def umwandeln_kind(pfad, name):
     sys.stdout.write(json.dumps(erg.als_dict()))
 
 
-def _grenzen_setzen():
+def _grenzen_setzen(speicher=None):
     import resource
+    speicher = speicher or UMWANDELN_SPEICHER
     os.setsid()
     # Wird der Speicher des Containers knapp, soll der Kernel diese Umwandlung (und ihre Werkzeuge – das vererbt sich)
     # beenden, nicht den Runner: höchste Punktzahl. Hochsetzen darf jeder Prozess ohne Rechte.
@@ -1464,7 +1467,7 @@ def _grenzen_setzen():
             f.write("1000")
     except OSError:
         pass
-    resource.setrlimit(resource.RLIMIT_AS, (UMWANDELN_SPEICHER, UMWANDELN_SPEICHER))
+    resource.setrlimit(resource.RLIMIT_AS, (speicher, speicher))
     resource.setrlimit(resource.RLIMIT_FSIZE, (300 * 1024 * 1024, 300 * 1024 * 1024))
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 
@@ -1510,6 +1513,58 @@ def umwandeln(name, inhalt):
                 return erg.als_dict()
         finally:
             shutil.rmtree(d, ignore_errors=True)
+
+
+# ---- Dorfwerk (E199): feste Werkzeuge (PDF, Diagramm, QR, Anki, Daten) – dorfwerk.py als Kindprozess -------------
+#
+# Ohne Shell: Das Dorf schickt einen JSON-Auftrag, dorfwerk.py arbeitet im Arbeitsordner des Raums mit denselben Grenzen
+# wie eine Umwandlung (eigene Sitzung, Adressraum 1024 MB, Opfer bei Speichernot) und dem Zeitlimit eines Befehls.
+DORFWERK = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dorfwerk.py")
+# eines nach dem anderen (Speicher, siehe deploy/compose.yml); wer länger als 60 s wartet, bekommt „belegt“ statt Stillstand
+WERKZEUG_GLEICHZEITIG = threading.BoundedSemaphore(int(os.environ.get("WERKZEUG_GLEICHZEITIG", "1")))
+# Adressraum, nicht belegter Speicher (vgl. E195): DuckDB 2.0 reserviert beim Start rund 1,3 GB Adressraum, belegt aber
+# nur ~80 MB (gemessen: VmPeak 1 372 MB, VmHWM 80 MB; unter 1 300 MB stürzt es ab). Belegt wird wie bei einer
+# Umwandlung (DuckDB-Grenze 256 MB); reißt der Container seine Grenze, trifft der Kernel dieses Werkzeug (oom_score_adj).
+WERKZEUG_SPEICHER = int(os.environ.get("WERKZEUG_SPEICHER_MB", "1536")) * 1024 * 1024
+
+
+def werkzeug(raum_dir, auftrag):
+    if not isinstance(auftrag, dict) or not isinstance(auftrag.get("art"), str):
+        raise Fehler(400, "Auftrag fehlt.")
+    if not os.path.isfile(DORFWERK):
+        raise Fehler(503, "dorfwerk.py fehlt im Rechenraum.")
+    d = os.path.join(raum_dir, ".dorfwerk")
+    os.makedirs(d, exist_ok=True)
+    datei = os.path.join(d, "auftrag.json")
+    with open(datei, "w", encoding="utf-8") as f:
+        json.dump(auftrag, f)
+    umgebung = {
+        "PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": raum_dir, "TMPDIR": d, "LANG": "C.UTF-8", "MPLBACKEND": "Agg",
+        "MPLCONFIGDIR": os.path.join(raum_dir, ".mpl"), "PYTHONDONTWRITEBYTECODE": "1", "OMP_NUM_THREADS": "1",
+    }
+    if os.environ.get("PYTHONPATH"):  # nur Tests außerhalb des Images (Pakete in einem eigenen Ordner)
+        umgebung["PYTHONPATH"] = os.environ["PYTHONPATH"]
+    if not WERKZEUG_GLEICHZEITIG.acquire(timeout=60):
+        return {"ok": False, "fehler": "Der Rechenraum ist gerade mit einem anderen Werkzeug beschäftigt – gleich noch einmal versuchen.", "dateien": []}
+    try:
+        start = time.time()
+        p = subprocess.Popen([sys.executable, DORFWERK, datei], cwd=raum_dir, env=umgebung, stdin=subprocess.DEVNULL,
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, preexec_fn=lambda: _grenzen_setzen(WERKZEUG_SPEICHER))
+        try:
+            aus, fehler = p.communicate(timeout=ZEITLIMIT)
+        except subprocess.TimeoutExpired:
+            os.killpg(p.pid, signal.SIGKILL)
+            p.communicate()
+            return {"ok": False, "fehler": f"Nach {ZEITLIMIT} s abgebrochen (Zeitlimit).", "dateien": []}
+    finally:
+        WERKZEUG_GLEICHZEITIG.release()
+    try:
+        erg = json.loads(aus.decode("utf-8"))
+        erg["sekunden"] = round(time.time() - start, 2)
+        return erg
+    except ValueError:
+        letzte = fehler.decode("utf-8", "replace").strip().splitlines()[-1:] or [f"Exit-Code {p.returncode}"]
+        return {"ok": False, "fehler": f"Werkzeug abgestürzt ({letzte[0][:300]}).", "dateien": []}
 
 
 def aufraeumen_alt():
@@ -1568,6 +1623,8 @@ class Handler(BaseHTTPRequestHandler):
             raum = raum_pfad(b.get("raum"))
             if weg == "/befehl":
                 return self.antwort(200, befehl(raum, b.get("befehl"), b.get("zeitlimit")))
+            if weg == "/werkzeug":
+                return self.antwort(200, werkzeug(raum, b.get("auftrag")))
             if weg == "/schreiben":
                 ziel = im_raum(raum, b.get("pfad"))
                 inhalt = base64.b64decode(b.get("inhalt_b64") or "", validate=True)

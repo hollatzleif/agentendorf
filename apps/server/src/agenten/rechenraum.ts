@@ -15,6 +15,14 @@ export interface UmwandelErgebnis {
   meta?: Record<string, unknown>;
 }
 
+/** E199: Ergebnis eines festen Werkzeugs aus dorfwerk.py (/werkzeug) – Dateien liegen danach im Arbeitsordner des Raums */
+export interface DorfwerkErgebnis {
+  ok: boolean;
+  text?: string;
+  fehler?: string;
+  dateien: string[];
+}
+
 export interface RechenraumKlient {
   befehl(raum: string, befehl: string): Promise<{ code: number | null; abgelaufen: boolean; sekunden: number; ausgabe: string }>;
   schreiben(raum: string, pfad: string, inhalt: Buffer): Promise<void>;
@@ -24,6 +32,8 @@ export interface RechenraumKlient {
   aufraeumen(raum: string): Promise<void>;
   /** E190: fremde Datei → Text/Bilder (eigener Kindprozess im Rechenraum, mit Zeit- und Speichergrenze) */
   umwandeln(name: string, inhalt: Buffer): Promise<UmwandelErgebnis>;
+  /** E199: festes Werkzeug (PDF, Diagramm, QR, Anki, Daten) im Arbeitsordner des Raums – JSON-Auftrag statt Shell */
+  werkzeug?(raum: string, auftrag: Record<string, unknown>): Promise<DorfwerkErgebnis>;
 }
 
 export function rechenraumKlient(url: string, geheimnis: string): RechenraumKlient {
@@ -66,6 +76,11 @@ export function rechenraumKlient(url: string, geheimnis: string): RechenraumKlie
       // Zeitlimit im Rechenraum: 420 s (Transkription bis 6 min Audio, OCR) – hier etwas mehr für Warten und Übertragung
       const r = await post<UmwandelErgebnis>('/umwandeln', { name, inhalt_b64: inhalt.toString('base64') }, 600_000);
       return { version: r.version, typ: r.typ, text: r.text ?? '', bilder: r.bilder ?? [], hinweise: r.hinweise ?? [], meta: r.meta };
+    },
+    async werkzeug(raum, auftrag) {
+      // im Rechenraum: bis 60 s warten (eines nach dem anderen) + 120 s Zeitlimit
+      const r = await post<DorfwerkErgebnis>('/werkzeug', { raum, auftrag }, 200_000);
+      return { ok: !!r.ok, text: r.text, fehler: r.fehler, dateien: Array.isArray(r.dateien) ? r.dateien : [] };
     },
   };
 }
@@ -115,6 +130,8 @@ export function ablageOrdner(c: { gebaeude: string; titel: string; erstellt: num
 export const ABLAGE_ENDUNGEN = [
   '.pdf', '.tex', '.bib', '.docx', '.xlsx', '.pptx', '.odt', '.ods', '.odp', '.rtf', '.csv', '.tsv', '.txt', '.md', '.json',
   '.png', '.jpg', '.jpeg', '.svg', '.gif', '.webp', '.zip', '.ics', '.vcf', '.mp3', '.wav',
+  // E199: Anki-Paket (Karteikarten, eine SQLite-Datenbank im ZIP – nichts Ausführbares)
+  '.apkg',
 ];
 
 export function ablageName(datei: string) {

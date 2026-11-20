@@ -1,0 +1,48 @@
+[
+ {
+  "type": "STOP",
+  "tokens": [
+   [
+    0.0,
+    8.0
+   ]
+  ],
+  "name": "Konstanz",
+  "id": "de-DELFI_de:08335:6554",
+  "lat": 47.65874,
+  "lon": 9.177332999999999,
+  "country": "DE",
+  "zip": "78462",
+  "tz": "Europe/Berlin",
+  "score": -19.87268829345703,
+  "modes": [
+   "HIGHSPEED_RAIL",
+   "LONG_DISTANCE",
+   "REGIONAL_RAIL",
+   "SUBURBAN",
+   "BUS"
+  ],
+  "importance": 0.006020164582878351
+ },
+ {
+  "type": "STOP",
+  "tokens": [
+   [
+    0.0,
+    8.0
+   ]
+  ],
+  "name": "Konstanz, P+R",
+  "id": "de-amarillo-bw_osm:w138037190",
+  "lat": 47.67693500000001,
+  "lon": 9.162911,
+  "country": "DE",
+  "zip": "78467",
+  "tz": "Europe/Berlin",
+  "score": -16.850000381469727,
+  "modes": [
+   "RIDE_SHARING"
+  ],
+  "importance": 7.866762530284177e-07
+ }
+]

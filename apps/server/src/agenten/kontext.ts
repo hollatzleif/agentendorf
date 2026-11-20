@@ -2,6 +2,7 @@ import type { VaultDienst } from '../vault/dienst.js';
 import { normalisieren } from '../vault/pfade.js';
 import { fremdinhaltHuelle, istHochgeladen, type DorfWerkzeug, type Werkzeugprofil } from './leine.js';
 import { istFremdinhalt } from './werkzeuge.js';
+import { extraHinweise } from './werkzeuge-extra.js';
 import type { Anhang } from './motor.js';
 import { anhangKopf, DateiVerstehen } from './anhaenge.js';
 import { GEDAECHTNIS_PFAD, PERSOENLICHKEIT_PFAD, type BuergermeisterWissen } from './gedaechtnis.js';
@@ -65,6 +66,8 @@ export async function systemPromptBauen(
       : []),
     ...(hat('kontakt_suchen') ? ['- kontakt_suchen, kontakt_merken: Adressbuch (Rathaus/kontakte.md), Absender im Posteingang, gesendete Mails – Adressen selbst finden und merken'] : []),
     ...(hat('rueckfrage') ? ['- rueckfrage: Leif EINE kurze Frage stellen – nur wenn du es nicht selbst herausfinden kannst'] : []),
+    // E199: neue Werkzeuge aus der Ideen-Liste
+    ...extraHinweise(hat),
   ].join('\n');
 
   return `Du bist ein Agent im Agentendorf von Leif. Gebäude: ${a.gebaeude}. Aktion: ${a.aktionName}.

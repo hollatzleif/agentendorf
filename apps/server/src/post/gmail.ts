@@ -14,6 +14,8 @@ export interface Mail {
   text: string;
   messageId: string; // Header Message-ID (für Antworten)
   referenzen: string;
+  /** E199: Namen und Größen der Anhänge (Inhalt über anhangLaden) */
+  anhaenge?: { name: string; groesse: number }[];
 }
 
 export interface GmailKlient {
@@ -27,6 +29,21 @@ export interface GmailKlient {
   entwurf(e: EntwurfEingabe): Promise<{ id: string }>;
   /** E185: ersetzt einen bestehenden ENTWURF (drafts.update) – gesendet wird nie */
   entwurfAendern?(id: string, e: EntwurfEingabe): Promise<{ id: string }>;
+  /** E199: Anhänge einer Mail (Name, Typ, Größe) – nur lesen (Bereich gmail.readonly) */
+  anhaenge?(id: string): Promise<MailAnhang[]>;
+  /** E199: Inhalt eines Anhangs (users.messages.attachments.get bzw. eingebettete Daten) */
+  anhangLaden?(id: string, a: MailAnhang): Promise<Buffer>;
+}
+
+/** E199: ein Anhang einer Mail. Die attachmentId kann sich je Abruf ändern – darum immer frisch aus anhaenge() nehmen. */
+export interface MailAnhang {
+  nr: number;
+  name: string;
+  mime: string;
+  groesse: number;
+  anhangId?: string;
+  /** kleine Anhänge liefert Gmail direkt im Teil mit (base64url) */
+  daten?: string;
 }
 
 export interface EntwurfEingabe {
@@ -57,10 +74,21 @@ function base64urlText(d: string) {
 
 interface Teil {
   mimeType?: string;
+  filename?: string;
   headers?: { name: string; value: string }[];
-  body?: { data?: string; size?: number };
+  body?: { data?: string; size?: number; attachmentId?: string };
   parts?: Teil[];
 }
+
+/** E199: alle Teile mit Dateinamen (Anhänge, auch eingebettete Bilder mit Namen), in Reihenfolge der Mail */
+export function anhaengeFinden(t: Teil, aus: MailAnhang[] = []): MailAnhang[] {
+  if (t.filename && (t.body?.attachmentId || t.body?.data))
+    aus.push({ nr: aus.length + 1, name: t.filename, mime: t.mimeType ?? 'application/octet-stream', groesse: t.body?.size ?? 0, anhangId: t.body?.attachmentId, daten: t.body?.data });
+  for (const p of t.parts ?? []) anhaengeFinden(p, aus);
+  return aus;
+}
+
+const base64urlPuffer = (d: string) => Buffer.from(d.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
 
 function textFinden(t: Teil, typ: string): string | null {
   if (t.mimeType === typ && t.body?.data) return base64urlText(t.body.data);
@@ -176,11 +204,22 @@ export function gmailKlient(zugang: GoogleZugang, basis = 'https://gmail.googlea
         text,
         messageId: kopf('message-id'),
         referenzen: kopf('references'),
+        anhaenge: anhaengeFinden(m.payload).map((a) => ({ name: a.name, groesse: a.groesse })),
       };
     },
     async entwurf(e) {
       const r = await anfrage<{ id: string }>('/drafts', { method: 'POST', body: JSON.stringify({ message: { raw: rohNachricht(e), ...(e.threadId ? { threadId: e.threadId } : {}) } }) });
       return { id: r.id };
+    },
+    async anhaenge(id) {
+      const m = await anfrage<{ payload: Teil }>(`/messages/${encodeURIComponent(id)}?format=full`);
+      return anhaengeFinden(m.payload);
+    },
+    async anhangLaden(id, a) {
+      if (a.daten) return base64urlPuffer(a.daten);
+      if (!a.anhangId) throw new GmailFehler(404, 'Gmail: Anhang ohne Inhalt.');
+      const r = await anfrage<{ data?: string }>(`/messages/${encodeURIComponent(id)}/attachments/${encodeURIComponent(a.anhangId)}`);
+      return base64urlPuffer(r.data ?? '');
     },
     async entwurfAendern(id, e) {
       const r = await anfrage<{ id: string }>(`/drafts/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify({ message: { raw: rohNachricht(e), ...(e.threadId ? { threadId: e.threadId } : {}) } }) });

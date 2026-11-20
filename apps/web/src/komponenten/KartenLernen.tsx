@@ -16,9 +16,29 @@ const BEWERTUNG: [string, string, string][] = [
  * Karteikarten (Nacht 18./19.11.): je Fach `karten.md` im Fach-Ordner („Frage :: Antwort“ oder „### Frage“ + Text).
  * Wiederholung in wachsenden Abständen; Tastatur: Leertaste = Antwort, 1–4 = bewerten.
  */
+/** E199: Karten eines Fachs als Anki-Paket herunterladen (gebaut im Rechenraum) – Fehler sichtbar statt einer kaputten Datei */
+async function ankiHerunterladen(fach: string): Promise<string> {
+  const r = await fetch(`/api/karten/anki?fach=${encodeURIComponent(fach)}`, { credentials: 'same-origin' });
+  if (!r.ok) {
+    const j = (await r.json().catch(() => ({}))) as { fehler?: string };
+    return j.fehler ?? `Anki-Export fehlgeschlagen (HTTP ${r.status}).`;
+  }
+  const name = /filename\*=UTF-8''([^;]+)/.exec(r.headers.get('content-disposition') ?? '')?.[1];
+  const url = URL.createObjectURL(await r.blob());
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name ? decodeURIComponent(name) : `${fach}.apkg`;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  return '';
+}
+
 export function KartenLernen() {
   const ueb = useQuery({ queryKey: ['uni', 'karten'], queryFn: () => api<KartenFach[]>('/api/karten') });
   const [fach, setFach] = useState<string | null>(() => new URLSearchParams(location.search).get('fach'));
+  const [anki, setAnki] = useState<{ fach: string; text: string } | null>(null);
   if (fach) return <Lernen fach={fach} zurueck={() => setFach(null)} />;
   return (
     <div className="karten">
@@ -48,7 +68,26 @@ export function KartenLernen() {
               <a href={bibliothekUrl(`Uni/faecher/${f.fach}/karten.md`)} onClick={linkKlick} className="leise">
                 Karten bearbeiten
               </a>
+              <button
+                type="button"
+                title="Alle Karten als Anki-Paket (.apkg) – für AnkiDroid/AnkiMobile; erneuter Import aktualisiert"
+                disabled={anki?.fach === f.fach && anki.text === '…'}
+                onClick={() => {
+                  setAnki({ fach: f.fach, text: '…' });
+                  void ankiHerunterladen(f.fach).then(
+                    (text) => setAnki(text ? { fach: f.fach, text } : null),
+                    (e: unknown) => setAnki({ fach: f.fach, text: String(e) }),
+                  );
+                }}
+              >
+                {anki?.fach === f.fach && anki.text === '…' ? 'Baue …' : 'Für Anki'}
+              </button>
             </div>
+            {anki?.fach === f.fach && anki.text !== '…' && (
+              <p className="fehler" role="alert">
+                {anki.text}
+              </p>
+            )}
           </section>
         ))}
       </div>

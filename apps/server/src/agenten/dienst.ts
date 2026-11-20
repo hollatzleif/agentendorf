@@ -23,6 +23,8 @@ import { DateiVerstehen } from './anhaenge.js';
 import { wissenLaden } from './gedaechtnis.js';
 import type { MeineTodos } from './meine-todos.js';
 import { WERKZEUG_DEFINITIONEN, WerkzeugKiste, type KalenderEintrag, type RollenHandler } from './werkzeuge.js';
+import type { ExtraNetz } from './werkzeuge-extra.js';
+import { EXTRA_DATEI_WERKZEUGE } from './leine-extra.js';
 import type { Ablage } from './automatik.js';
 import { Freigaben } from './freigaben.js';
 import { AbbruchFehler, type Anhang, type Verlauf } from './motor.js';
@@ -185,6 +187,8 @@ export class AgentenDienst {
   quellen: QuellenFn = () => [];
   /** Rechenraum (pdflatex/Python ohne Netz) – nur gesetzt, wenn eingerichtet */
   rechenraum?: RechenraumKlient;
+  /** E199: Abrufe freier Schnittstellen für die neuen Werkzeuge (Literatur, Zug, Wetter, EZB) */
+  netz?: ExtraNetz;
   /** Moodle-Browser (eigener Container) – nur für Aktionen mit werkzeuge: [moodle] */
   moodleBrowser?: MoodleBrowserKlient;
   /** Gmail (nur Lesen + Entwürfe) – nur gesetzt, wenn verbunden */
@@ -662,6 +666,7 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
           kontakte: this.kontakte,
           rueckgaengig: this.rueckgaengig,
           rueckfrage: (f) => this.rueckfrageStellen(f),
+          netz: this.netz,
         },
         c.rolle === 'buergermeister' ? this.rollenWerkzeuge : undefined,
       ));
@@ -900,7 +905,7 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
     const c = this.chatZeile(id);
     const geschrieben = this.db
       .prepare(
-        "SELECT lauf_id, pfad FROM werkzeug_log WHERE chat_id = ? AND art = 'geschrieben' AND erlaubt = 1 AND pfad IS NOT NULL AND werkzeug IN ('rechenraum_ablegen', 'vault_schreiben', 'moodle_herunterladen') ORDER BY id",
+        `SELECT lauf_id, pfad FROM werkzeug_log WHERE chat_id = ? AND art = 'geschrieben' AND erlaubt = 1 AND pfad IS NOT NULL AND werkzeug IN ('rechenraum_ablegen', 'vault_schreiben', 'moodle_herunterladen', ${EXTRA_DATEI_WERKZEUGE.map((w) => `'${w}'`).join(', ')}) ORDER BY id`,
       )
       .all(id) as { lauf_id: string; pfad: string }[];
     const laeufe = (this.db.prepare('SELECT * FROM laeufe WHERE chat_id = ? ORDER BY nummer').all(id) as LaufZeile[]).map((l) => {
