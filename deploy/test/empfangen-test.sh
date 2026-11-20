@@ -182,4 +182,27 @@ rm "$AKTUELL/CODING_VERSION"
 rm "$AKTUELL/BROWSER_VERSION"
 [ "$(compose ps)" = "BV=fehlt PROFIL=" ] || fehler "ohne BROWSER_VERSION darf kein Profil gesetzt sein: $(compose ps)"
 echo "Compose-Profil für den Browser: bestanden"
+
+# E205: Caddy bekommt einen geänderten Caddyfile – der Container wird nur dann neu erstellt, wenn seine Datei von der der
+# aktuellen Version abweicht; läuft Caddy nicht (oder antwortet nicht), passiert nichts
+CADDY_LOG=$(mktemp)
+CADDY_DRIN=$(mktemp)
+mkdir -p "$AKTUELL/deploy"
+printf 'neu {\n\theader x\n}\n' > "$AKTUELL/deploy/Caddyfile"
+docker() {
+  [ "$1" = compose ] || return 0
+  case "$*" in
+    *"exec -T caddy cat /etc/caddy/Caddyfile"*) [ -s "$CADDY_DRIN" ] || return 1; cat "$CADDY_DRIN" ;;
+    *"up -d --force-recreate caddy"*) echo neu >> "$CADDY_LOG"; cp "$AKTUELL/deploy/Caddyfile" "$CADDY_DRIN" ;;
+  esac
+}
+caddy_abgleichen > /dev/null
+[ ! -s "$CADDY_LOG" ] || fehler "Caddy neu erstellt, obwohl er nicht läuft"
+printf 'alt {\n}\n' > "$CADDY_DRIN"
+caddy_abgleichen > /dev/null
+[ "$(wc -l < "$CADDY_LOG")" = 1 ] || fehler "Caddy bei geändertem Caddyfile nicht (genau einmal) neu erstellt"
+caddy_abgleichen > /dev/null
+[ "$(wc -l < "$CADDY_LOG")" = 1 ] || fehler "Caddy neu erstellt, obwohl der Caddyfile gleich ist"
+rm -f "$CADDY_LOG" "$CADDY_DRIN"
+echo "Caddy bei geändertem Caddyfile neu erstellen: bestanden"
 echo "ALLE EMPFANGS-TESTS BESTANDEN"

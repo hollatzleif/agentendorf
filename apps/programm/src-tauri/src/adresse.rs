@@ -33,6 +33,19 @@ pub fn intern(dorf: &Url, ziel: &Url) -> bool {
     matches!(ziel.scheme(), "about" | "data" | "blob") || ziel.origin() == dorf.origin()
 }
 
+/// E205: Ist das die Adresse von VS Code im Codehaus (`code.<Dorf-Rechner>`, gleiches Schema, gleicher Port)?
+/// Die Dorf-App bettet sie als Rahmen ein (/codehaus/vscode). WKWebView (Mac) und WebKitGTK (Linux) fragen den
+/// Navigations-Filter auch für eingebettete Rahmen – ohne diese Ausnahme landete VS Code im normalen Browser statt im Rahmen.
+/// Befehle des Programms bekommt diese Adresse nicht: die Freigabe gilt nur für den Ursprung des Dorfs (`ursprung`).
+pub fn codehaus(dorf: &Url, ziel: &Url) -> bool {
+    match (dorf.host_str(), ziel.host_str()) {
+        (Some(d), Some(z)) => {
+            ziel.scheme() == dorf.scheme() && ziel.port_or_known_default() == dorf.port_or_known_default() && z == format!("code.{d}")
+        }
+        _ => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -64,5 +77,22 @@ mod tests {
         assert!(!intern(&d, &Url::parse("http://dorf.example.at/").unwrap()));
         assert!(!intern(&d, &Url::parse("https://dorf.example.at.boese.de/").unwrap()));
         assert_eq!(ursprung(&d), "https://dorf.example.at");
+    }
+
+    #[test]
+    fn codehaus_nur_code_unteradresse_des_dorfs() {
+        let d = pruefen("dorf.example.at").unwrap();
+        assert!(codehaus(&d, &Url::parse("https://code.dorf.example.at/_dorf/eintritt?karte=x").unwrap()));
+        assert!(codehaus(&d, &Url::parse("https://code.dorf.example.at/?folder=/arbeit/x").unwrap()));
+        assert!(!codehaus(&d, &Url::parse("http://code.dorf.example.at/").unwrap()));
+        assert!(!codehaus(&d, &Url::parse("https://code.dorf.example.at:8443/").unwrap()));
+        assert!(!codehaus(&d, &Url::parse("https://code.dorf.example.at.boese.de/").unwrap()));
+        assert!(!codehaus(&d, &Url::parse("https://xcode.dorf.example.at/").unwrap()));
+        assert!(!codehaus(&d, &Url::parse("https://code.code.dorf.example.at/").unwrap()));
+        assert!(!codehaus(&d, &Url::parse("https://code.example.at/").unwrap()));
+        assert!(!codehaus(&d, &Url::parse("https://dorf.example.at/").unwrap()));
+        assert!(!codehaus(&d, &Url::parse("about:blank").unwrap()));
+        // die Freigabe der Befehle bleibt beim Dorf
+        assert!(!intern(&d, &Url::parse("https://code.dorf.example.at/").unwrap()));
     }
 }

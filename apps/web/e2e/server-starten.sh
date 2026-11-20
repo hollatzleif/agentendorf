@@ -19,6 +19,8 @@ export GOOGLE_PFLICHT_ICS="http://127.0.0.1:$MOODLE_PORT/calendar/ical/pflicht/p
 CODING_PORT=${E2E_CODING_PORT:-$((MOODLE_PORT - 2))}
 export CODING_URL="http://127.0.0.1:$CODING_PORT" CODING_ADRESSE="http://127.0.0.1:$CODING_PORT" \
   CODING_GEHEIMNIS=e2e-coding-geheimnis-e2e-coding-geheimnis-12 CODING_VSCODE_TOKEN=e2e-vscode-token-e2e-vscode-token-123456
+# Erweiterungen (E205): Open VSX ist nachgebaut (echte, gespeicherte Antworten) – die Tests brauchen kein Netz
+export OPENVSX_URL="http://127.0.0.1:$CODING_PORT/_openvsx"
 # Editor im Codehaus (E197): der ECHTE Runner im Profil coding mit einem Wegwerf-Arbeitsordner; die Attrappe reicht
 # /editor/* und /terminal* an ihn weiter. Ein Projekt „spielwiese“ (Git-Repository mit einem Commit) liegt bereit.
 RUNNER_PORT=${E2E_RUNNER_PORT:-$((MOODLE_PORT - 3))}
@@ -35,7 +37,10 @@ export GIT_AUTHOR_NAME=E2E GIT_AUTHOR_EMAIL=e2e@dorf.test GIT_COMMITTER_NAME=E2E
 )
 (
   cd ../werkstatt
-  HOME="$DATEN/heim" PORT=$RUNNER_PORT RUNNER_PROFIL=coding ARBEIT_DIR="$ARBEIT" LAUF_DIR="$DATEN/lauf" exec node --import tsx src/runner.ts
+  # E205: Erweiterungen – der Runner ruft ein nachgebautes openvscode-server auf (kein Netz, nichts wird wirklich installiert)
+  chmod +x test/fake-openvscode.mjs
+  HOME="$DATEN/heim" PORT=$RUNNER_PORT RUNNER_PROFIL=coding ARBEIT_DIR="$ARBEIT" LAUF_DIR="$DATEN/lauf" \
+    OPENVSCODE_BIN="$(pwd)/test/fake-openvscode.mjs" exec node --import tsx src/runner.ts
 ) &
 RUNNER_PID=$!
 CODING_PORT=$CODING_PORT RUNNER_PORT=$RUNNER_PORT node ../web/e2e/coding-attrappe.mjs &

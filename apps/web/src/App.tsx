@@ -25,6 +25,8 @@ const WochePlanen = lazy(() => import('./seiten/WochePlanen').then((m) => ({ def
 const TagAbschliessen = lazy(() => import('./seiten/TagAbschliessen').then((m) => ({ default: m.TagAbschliessen })));
 // E197: Editor im Codehaus – Monaco und xterm werden nur hier geladen
 const CodeEditorSeite = lazy(() => import('./codeeditor/CodeEditor'));
+// E205: das echte VS Code des Codehauses, eingebettet (eigener Ursprung) + Erweiterungen
+const VsCodeSeite = lazy(() => import('./seiten/VsCodeSeite'));
 // E198: der Bildeditor (und sein Stylesheet) wird nur auf dieser Seite geladen
 const AtelierSeite = lazy(() => import('./atelier/Atelier').then((m) => ({ default: m.AtelierSeite })));
 const FokusVollbild = lazy(() => import('./seiten/FokusVollbild').then((m) => ({ default: m.FokusVollbild })));
@@ -101,6 +103,7 @@ function Rahmen() {
   else if (pfad === '/planen') seite = <WochePlanen />;
   else if (pfad === '/abschluss') seite = <TagAbschliessen />;
   else if (pfad === '/codehaus/editor') seite = <CodeEditorSeite />;
+  else if (pfad === '/codehaus/vscode') seite = <VsCodeSeite />;
   else if (pfad === '/bibliothek') seite = <Bibliothek />;
   else if (pfad === '/einstellungen') seite = <Einstellungen />;
   else if (pfad.startsWith('/chats/')) seite = <ChatSeite key={pfad} id={decodeURIComponent(pfad.slice('/chats/'.length))} />;

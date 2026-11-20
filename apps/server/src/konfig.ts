@@ -34,6 +34,8 @@ const Schema = z.object({
   CODING_GEHEIMNIS: z.string().optional(),
   CODING_ADRESSE: z.string().optional(),
   CODING_VSCODE_TOKEN: z.string().optional(),
+  // E205: Verzeichnis der Erweiterungen für VS Code im Codehaus (Open VSX, Eclipse Foundation); andere Adresse nur für Tests
+  OPENVSX_URL: z.string().default('https://open-vsx.org'),
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_CHAT_ID: z.string().optional(),
   TELEGRAM_API_URL: z.string().default('https://api.telegram.org'),
@@ -98,6 +100,7 @@ export interface Konfig {
   /** Öffentliche Adresse von VS Code, z. B. https://code.dorf.example.de (ohne Schrägstrich am Ende) */
   codingAdresse?: string;
   codingVscodeToken?: string;
+  openvsxUrl: string;
   telegramToken?: string;
   telegramChatId?: string;
   telegramApiUrl: string;
@@ -149,6 +152,7 @@ export function konfigLaden(env: NodeJS.ProcessEnv = process.env): Konfig {
     codingGeheimnis: e.CODING_GEHEIMNIS || undefined,
     codingAdresse: e.CODING_ADRESSE?.trim().replace(/\/$/, '') || undefined,
     codingVscodeToken: e.CODING_VSCODE_TOKEN || undefined,
+    openvsxUrl: e.OPENVSX_URL.trim().replace(/\/$/, ''),
     telegramToken: e.TELEGRAM_BOT_TOKEN || undefined,
     telegramChatId: e.TELEGRAM_CHAT_ID || undefined,
     telegramApiUrl: e.TELEGRAM_API_URL,

@@ -323,7 +323,11 @@ test('Editor: ohne Anmeldung gibt es weder Dateien noch Terminal; Pfad-Tricks ko
 test('Editor: läuft unter der Content-Security-Policy des echten Servers (Caddyfile) – Monaco, Worker, Schrift, xterm ohne Verstoß', async ({ page }, info) => {
   // Der Testserver hat kein Caddy davor: die Richtlinie aus deploy/Caddyfile wird hier an die Seite gehängt
   const caddy = fs.readFileSync(path.resolve(import.meta.dirname, '../../../deploy/Caddyfile'), 'utf8');
-  const csp = /\?Content-Security-Policy "([^"]+)"/.exec(caddy)![1]!.replace('wss://{$DORF_DOMAIN}', `ws://127.0.0.1:${process.env.E2E_PORT ?? 3999}`); // auf dem Server wss://<Dorf-Adresse> – wie für /api/live
+  const csp = /\?Content-Security-Policy "([^"]+)"/
+    .exec(caddy)![1]!
+    .replace('wss://{$DORF_DOMAIN}', `ws://127.0.0.1:${process.env.E2E_PORT ?? 3999}`) // auf dem Server wss://<Dorf-Adresse> – wie für /api/live
+    .replace('https://{$CODING_DOMAIN}', `http://127.0.0.1:${process.env.E2E_CODING_PORT ?? Number(process.env.E2E_MOODLE_PORT ?? 3998) - 2}`); // E205: die Code-Adresse (frame-src)
+  expect(csp).not.toContain('{$');
   expect(csp).toContain("script-src 'self'");
   await page.route(
     (u) => !u.pathname.startsWith('/api/') && !u.pathname.startsWith('/assets/'),

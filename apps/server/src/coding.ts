@@ -102,6 +102,22 @@ export function codingEingerichtet(k: Konfig) {
   return !!(k.codingGeheimnis && k.codingAdresse && k.codingVscodeToken);
 }
 
+/**
+ * E205: Lässt sich VS Code in der Dorf-App einbetten? Die Cookies des Code-Hosts (dorf_coding, vscode-tkn) sind SameSite=Lax;
+ * in einem eingebetteten Fenster schickt und speichert der Browser sie nur, wenn Code-Host und Dorf zur selben „Site“
+ * gehören. Sicher der Fall ist das bei gleichem Schema und einer Unteradresse des Dorfs (code.<Dorf-Adresse>, der Standard)
+ * bzw. demselben Rechnernamen mit anderem Port (Tests). Eine ganz andere Adresse (CODING_DOMAIN) → nur „in neuem Tab“.
+ */
+export function codingEinbettbar(k: Konfig): boolean {
+  try {
+    const code = new URL(k.codingAdresse ?? '');
+    const dorf = new URL(k.origins[0] ?? '');
+    return code.protocol === dorf.protocol && (code.hostname === dorf.hostname || code.hostname.endsWith(`.${dorf.hostname}`));
+  } catch {
+    return false;
+  }
+}
+
 export function codingRouten(app: FastifyInstance, d: { konfig: Konfig; db: DB; uhr: Uhr; holen?: typeof fetch; sitzungen?: Sitzungen }) {
   const { konfig } = d;
   const holen = d.holen ?? fetch;
@@ -133,7 +149,7 @@ export function codingRouten(app: FastifyInstance, d: { konfig: Konfig; db: DB; 
 
   // Übersicht für das Gebäude: Adresse, Projektordner (Namen vom Runner im Coding-Container), was fehlt
   app.get('/api/coding', async (): Promise<CodingUebersicht> => {
-    const aus: CodingUebersicht = { eingerichtet: codingEingerichtet(konfig), adresse: konfig.codingAdresse ?? null, erreichbar: false, projekte: [], befehl: 'dorf coding-einrichten' };
+    const aus: CodingUebersicht = { eingerichtet: codingEingerichtet(konfig), adresse: konfig.codingAdresse ?? null, erreichbar: false, projekte: [], befehl: 'dorf coding-einrichten', einbettbar: codingEinbettbar(konfig) };
     if (!konfig.codingGeheimnis) return aus;
     try {
       const r = await holen(`${konfig.codingUrl}/projekte`, { headers: { 'x-werkstatt-geheimnis': konfig.codingGeheimnis }, signal: AbortSignal.timeout(4000) });

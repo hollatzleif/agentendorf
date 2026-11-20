@@ -3,6 +3,7 @@
 # Startet den Container so, wie compose.yml es tut (nur lesbar, nicht root, keine Rechte), und prüft: VS Code und Runner
 # laufen, VS Code nur mit Token, Werkzeuge vorhanden (claude in der festgelegten Version, git, gh, node, python …),
 # /arbeit und /vault beschreibbar, Abbild nicht, Token nicht im Protokoll, ohne Geheimnisse kein Start.
+# E205: Erweiterungen – `--list-extensions` und Installation einer lokalen Test-VSIX (test-vsix.py, kein Netz nötig).
 set -euo pipefail
 BILD=${1:?Aufruf: rauchtest.sh <image>}
 HIER=$(cd "$(dirname "$0")" && pwd)
@@ -85,6 +86,22 @@ grep -q 'pty-42' "$TMP/terminal.log" || fehler "Terminal: kein echtes PTY: $(tai
 grep -q '20 90' "$TMP/terminal.log" || fehler "Terminal: Größe stimmt nicht: $(tail -c 600 "$TMP/terminal.log")"
 grep -q 'g=\[leer\]' "$TMP/terminal.log" || fehler "Terminal kennt das Runner-Geheimnis"
 ok "Editor: Baum, Volltextsuche, Git-Status; Terminal am echten PTY (Größe stimmt, ohne Runner-Geheimnis)"
+
+# Erweiterungen (E205): das echte openvscode-server des Images über den Runner – auflisten, eine lokale Test-VSIX
+# installieren (kein Netz nötig), entfernen; Kennungen mit Option/Pfad/Adresse lehnt der Runner ab
+[ "$(st http://127.0.0.1:4000/erweiterungen)" = 401 ] || fehler "Erweiterungen ohne Geheimnis erreichbar"
+drin /opt/openvscode-server/bin/openvscode-server --server-data-dir /arbeit/.heim/.openvscode-server --list-extensions --show-versions > "$TMP/erw-direkt.log" 2>&1 || fehler "openvscode-server --list-extensions scheitert: $(tail -3 "$TMP/erw-direkt.log")"
+drin curl -fs "${K[@]}" http://127.0.0.1:4000/erweiterungen | grep -q '"erweiterungen":\[\]' || fehler "Erweiterungs-Liste ist anfangs nicht leer oder nicht lesbar"
+docker exec -i "$NAME" python3 - /arbeit/.tmp/rauchtest.vsix < "$HIER/test-vsix.py" || fehler "Test-VSIX ließ sich nicht bauen"
+drin curl -s -m 120 -H "x-werkstatt-geheimnis: $GEHEIMNIS" -H 'content-type: application/octet-stream' --data-binary @/arbeit/.tmp/rauchtest.vsix http://127.0.0.1:4000/erweiterungen/vsix > "$TMP/erw.log" 2>&1 || true
+grep -q '"id":"dorf-test.rauchtest","version":"0.0.1"' "$TMP/erw.log" || fehler "VSIX wurde nicht installiert: $(cat "$TMP/erw.log")"
+drin /opt/openvscode-server/bin/openvscode-server --server-data-dir /arbeit/.heim/.openvscode-server --list-extensions --show-versions | grep -qx 'dorf-test.rauchtest@0.0.1' || fehler "VS Code selbst listet die Erweiterung nicht"
+drin sh -c '[ -z "$(ls -A /arbeit/.heim/vsix)" ]' || fehler "die hochgeladene VSIX-Datei blieb liegen"
+for boese in '--foo' 'a.b;rm' '../x' 'https://marketplace.visualstudio.com/x.vsix' '/arbeit/.tmp/rauchtest.vsix'; do
+  [ "$(st "${K[@]}" -d "{\"id\":\"$boese\"}" http://127.0.0.1:4000/erweiterungen/installieren)" = 400 ] || fehler "Runner nimmt eine unerlaubte Kennung an: $boese"
+done
+drin curl -fs "${K[@]}" -d '{"id":"dorf-test.rauchtest"}' http://127.0.0.1:4000/erweiterungen/entfernen | grep -q '"erweiterungen":\[\]' || fehler "Erweiterung ließ sich nicht entfernen"
+ok "Erweiterungen: Liste, lokale VSIX installiert und entfernt (echtes openvscode-server), böse Kennungen abgelehnt"
 
 drin sh -c 'cd /arbeit/rauch && python3 -m venv .venv && .venv/bin/python -c "print(6*7)"' | grep -qx 42 || fehler "python venv"
 drin sh -c 'printf "#!/bin/sh\necho läuft\n" > "$TMPDIR/probe.sh" && chmod +x "$TMPDIR/probe.sh" && "$TMPDIR/probe.sh"' | grep -qx 'läuft' || fehler "Ausführen in TMPDIR geht nicht"

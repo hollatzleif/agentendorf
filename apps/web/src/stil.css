@@ -1703,3 +1703,44 @@ a.datei-karte:hover { border-color: #1f5a1d; }
 .atelier-bilder a:hover { border-color: var(--navy); }
 .atelier-bilder img, .atelier-bilder .datei-symbol { width: 100%; height: 6.5rem; object-fit: contain; display: grid; place-items: center; font-size: 2.4rem; background: repeating-conic-gradient(#fff 0 25%, #eef1f5 0 50%) 0 0 / 16px 16px; border-radius: 8px; }
 .atelier-bilder strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.9rem; }
+
+/* ---- E205: VS Code in der App (eingebettet, eigener Ursprung) + Erweiterungen aus Open VSX ------------ */
+.rahmen:has(.vscode-seite) { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+.rahmen:has(.vscode-seite) > main { max-width: none; width: 100%; margin: 0; padding: 0; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.vscode-seite { flex: 1; min-height: 0; display: flex; flex-direction: column; background: #fffdf6; }
+.vs-kopf { display: flex; align-items: center; gap: 0.6rem; padding: 0.3rem 0.6rem; border-bottom: 2px solid #cdd6e3; background: #f3f0e4; min-height: 2.4rem; }
+.vs-kopf .zurueck { margin: 0; white-space: nowrap; }
+.vs-kopf select { max-width: 14rem; min-width: 0; padding: 0.1rem 0.4rem; }
+.vs-kopf button.klein { margin-left: 0; white-space: nowrap; }
+.vs-kopf button.aktiv { background: linear-gradient(#f2fbe9, #d9f0c9); }
+.vs-kopf button.vs-hinweis { outline: 3px solid #f2b51e; }
+.vs-kopf-rechts { margin-left: auto; display: flex; gap: 0.4rem; align-items: center; }
+.vs-mitte { flex: 1; min-height: 0; display: flex; position: relative; }
+.vs-buehne { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
+.vs-rahmen { flex: 1; width: 100%; min-height: 0; border: 0; background: #1f1f1f; }
+.vs-text { margin: 1rem; max-width: 46rem; }
+.vs-haengt { position: absolute; left: 50%; bottom: 1rem; transform: translateX(-50%); width: min(34rem, calc(100% - 2rem)); margin: 0; padding: 0.6rem 0.9rem; background: #fff7dd; border: 2px solid #b98a00; border-radius: 12px; color: #2b3a55; }
+.vs-panel { width: min(26rem, 100%); flex: none; border-left: 2px solid #cdd6e3; background: #fffdf6; overflow-y: auto; padding: 0.6rem 0.8rem 1.5rem; }
+.vs-panel-kopf { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem; }
+.erweiterungen { font-size: 0.92rem; }
+.erw-warnung { background: #fff3d6; border: 2px solid #b98a00; border-radius: 12px; padding: 0.45rem 0.7rem; margin: 0 0 0.5rem; }
+.erw-suche { display: flex; gap: 0.4rem; margin: 0.6rem 0; }
+.erw-suche input { flex: 1; min-width: 0; }
+.erw-meldung { margin: 0.5rem 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.erw-liste { list-style: none; padding: 0; margin: 0.4rem 0; }
+.erw-liste li { padding: 0.5rem 0; border-bottom: 1px solid #dde3ec; overflow-wrap: anywhere; }
+.erw-liste li button.klein { margin-left: 0.4rem; }
+.erw-text { margin: 0.15rem 0; }
+.erw-daten { font-size: 0.8rem; }
+.erw-knoepfe { margin-top: 0.3rem; }
+.erw-knoepfe button.klein { margin-left: 0; }
+.erw-knoepfe .abzeichen + button.klein { margin-left: 0.4rem; }
+.erw-vsix { margin-top: 0.8rem; }
+.erw-vsix label.knopf { display: inline-block; cursor: pointer; }
+@media (max-width: 760px) {
+  .vs-breit { display: none; }
+  .vs-kopf { gap: 0.35rem; padding: 0.25rem 0.4rem; }
+  .vs-kopf select { max-width: 8.5rem; }
+  /* Handy: das Panel liegt über VS Code (das läuft darunter weiter) */
+  .vs-panel { position: absolute; inset: 0; width: auto; border-left: 0; z-index: 2; }
+}

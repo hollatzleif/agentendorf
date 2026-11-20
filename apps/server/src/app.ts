@@ -53,6 +53,7 @@ import { Suchindex } from './vault/suche.js';
 import { LiveHub } from './live.js';
 import { CODING_OFFEN, codingRouten } from './coding.js';
 import { codingEditorRouten } from './coding-editor.js';
+import { codingErweiterungenRouten } from './coding-erweiterungen.js';
 import { atelierRouten } from './atelier.js';
 import type { AgentenDienst } from './agenten/dienst.js';
 import { agentenRouten } from './agenten/routen.js';
@@ -680,6 +681,7 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
   programmeRouten(app, { ordner: path.join(konfig.datenDir, 'programme'), ursprung: konfig.origins[0] ?? '' });
   codingRouten(app, { konfig, db, uhr, sitzungen });
   codingEditorRouten(app, { konfig, sitzungen });
+  codingErweiterungenRouten(app, { konfig });
   atelierRouten(app, { konfig, vault, rechenraum: () => a.agenten.rechenraum }); // E198
 
   // ---- E65: To-do-Brett (Marktplatz) ----

@@ -6,9 +6,13 @@ import { istProgramm } from '../programm/desktop';
 import { linkKlick } from '../router';
 import { zeitKurz } from '../texte';
 import { ChatListe } from './ChatListe';
+import { Erweiterungen } from './Erweiterungen';
 
 /** Adresse, die VS Code über das Dorf öffnet (Einmal-Karte → eigener Ursprung des Code-Hosts), optional gleich im Projektordner */
 export const vscodeLink = (projekt?: string) => `/api/coding/oeffnen${projekt ? `?projekt=${encodeURIComponent(projekt)}` : ''}`;
+
+/** Das echte VS Code als Seite der Dorf-App (E205) – eingebettet, eigener Ursprung bleibt */
+export const vscodeSeiteLink = (projekt?: string) => `/codehaus/vscode${projekt ? `?projekt=${encodeURIComponent(projekt)}` : ''}`;
 
 /** Editor in der Dorf-App (E197) – eigene Seite, Monaco wird erst dort geladen */
 export const editorLink = (projekt?: string) => `/codehaus/editor${projekt ? `?projekt=${encodeURIComponent(projekt)}` : ''}`;
@@ -19,7 +23,7 @@ export const editorLink = (projekt?: string) => `/codehaus/editor${projekt ? `?p
  * - Programm: window.open geht an den normalen Browser – der hat keine Dorf-Sitzung, die Einmal-Karte reicht dort aber.
  * - Fehler (nicht eingerichtet, abgemeldet …) stehen unter dem Knopf statt still zu verschwinden.
  */
-export function VsCodeKnopf({ projekt, klein }: { projekt?: string; klein?: boolean }) {
+export function VsCodeKnopf({ projekt, klein, text, testid }: { projekt?: string; klein?: boolean; text?: string; testid?: string }) {
   const [fehler, setFehler] = useState('');
   const [laeuft, setLaeuft] = useState(false);
   const oeffnen = async () => {
@@ -44,8 +48,8 @@ export function VsCodeKnopf({ projekt, klein }: { projekt?: string; klein?: bool
   };
   return (
     <>
-      <button type="button" className={klein ? 'klein' : undefined} onClick={() => void oeffnen()} disabled={laeuft} data-testid={projekt ? undefined : 'vscode-oeffnen'}>
-        {klein ? 'in VS Code öffnen' : '💻 VS Code öffnen'}
+      <button type="button" className={klein ? 'klein' : undefined} onClick={() => void oeffnen()} disabled={laeuft} data-testid={testid ?? (projekt ? undefined : 'vscode-oeffnen')}>
+        {text ?? (klein ? 'in VS Code öffnen' : '💻 VS Code öffnen')}
       </button>
       {fehler && <span className="fehler"> {fehler}</span>}
     </>
@@ -70,7 +74,12 @@ export function CodehausUebersicht() {
       ) : (
         <p>
           <VsCodeKnopf />{' '}
-          <span className="leise">öffnet {d.adresse} in einem neuen Tab – mit Terminal, Git und Erweiterungen.</span>
+          <span className="leise">öffnet {d.adresse} in einem neuen Tab – mit Terminal, Git und Erweiterungen.</span>{' '}
+          {d.einbettbar && (
+            <a href={vscodeSeiteLink()} onClick={linkKlick} data-testid="vscode-in-app">
+              Oder hier in der App öffnen
+            </a>
+          )}
         </p>
       )}
       {d.fehler && <p className="fehler">{d.fehler}</p>}
@@ -91,6 +100,14 @@ export function CodehausUebersicht() {
                   <>
                     {' · '}
                     <VsCodeKnopf projekt={p.name} klein />
+                    {d.einbettbar && (
+                      <>
+                        {' · '}
+                        <a href={vscodeSeiteLink(p.name)} onClick={linkKlick}>
+                          VS Code in der App
+                        </a>
+                      </>
+                    )}
                   </>
                 )}
                 {' · '}
@@ -143,6 +160,42 @@ export function CodehausEditorStart() {
             </li>
           ))}
         </ul>
+      )}
+    </div>
+  );
+}
+
+/** Reiter „VS Code“ im Codehaus (E205): das echte VS Code in der App öffnen und Erweiterungen aus Open VSX verwalten. */
+export function CodehausVsCodeStart() {
+  const q = useQuery({ queryKey: ['coding'], queryFn: () => api<CodingUebersicht>('/api/coding'), refetchInterval: 60_000 });
+  const d = q.data;
+  return (
+    <div className="codehaus">
+      {q.isError && <p className="fehler">{q.error.message}</p>}
+      {d && !d.eingerichtet && (
+        <p className="karte">
+          Das Codehaus ist noch nicht eingerichtet. Auf dem Server: <code>{d.befehl}</code> (Anleitung: EINRICHTUNG.md → „Codehaus einrichten“).
+        </p>
+      )}
+      {d?.eingerichtet && (
+        <p>
+          {d.einbettbar && (
+            <>
+              <a className="knopf" href={vscodeSeiteLink()} onClick={linkKlick} data-testid="vscode-seite-oeffnen">
+                🖥️ VS Code in der App öffnen
+              </a>{' '}
+            </>
+          )}
+          <VsCodeKnopf klein text="↗ in neuem Tab" testid="vscode-tab-start" />{' '}
+          <span className="leise">Das vollständige VS Code des Codehauses – mit Erweiterungen, Debugger und Terminal. Geht auch im Programm und am Handy.</span>
+        </p>
+      )}
+      {d?.fehler && <p className="fehler">{d.fehler}</p>}
+      {d?.eingerichtet && (
+        <>
+          <h3>Erweiterungen</h3>
+          <Erweiterungen />
+        </>
       )}
     </div>
   );

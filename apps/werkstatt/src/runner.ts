@@ -8,6 +8,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { ARBEIT, Auftrag, claudeArgumente, claudeUmgebung, codingOrdner, codingUmgebung, profilLesen } from './auftrag.js';
 import { Editor, EditorFehler, HOCHLADEN_MAX, TEXT_MAX, projektPruefen } from './editor.js';
+import { Erweiterungen } from './erweiterungen.js';
 import { TERMINAL_MAX, Terminals } from './terminal.js';
 
 /**
@@ -19,6 +20,8 @@ import { TERMINAL_MAX, Terminals } from './terminal.js';
  * ausführen, arbeitet in /arbeit/<projekt> und es gibt GET /projekte. Das Profil bestimmt der Container, nie der Auftrag.
  * Nur dort gibt es auch die Endpunkte für den Editor in der Dorf-App (E197): /editor/* (Dateien, Suche, Git – editor.ts)
  * und /terminal (Shell am PTY – terminal.ts). Im Werkstatt-Profil antworten sie mit 404.
+ * Ebenso nur dort (E205): /erweiterungen* – Erweiterungen des VS Code im Container auflisten, installieren, entfernen
+ * (erweiterungen.ts; feste Argumente an openvscode-server, Kennung streng geprüft).
  */
 const PORT = Number(process.env.PORT ?? 4000);
 const PROFIL = profilLesen(process.env.RUNNER_PROFIL);
@@ -56,6 +59,14 @@ const laufend = new Map<string, ChildProcess>();
 // GitHub-Token und Git-Name ja, Runner-Geheimnis und VS-Code-Token nie.
 const editor = new Editor(arbeit, () => codingUmgebung(process.env));
 const terminals = new Terminals();
+// Erweiterungen von VS Code (E205) – derselbe Datenordner wie in start.sh (--server-data-dir "$HOME/.openvscode-server")
+const HEIM = process.env.HOME ?? path.join(arbeit, '.heim');
+const erweiterungen = new Erweiterungen(
+  process.env.OPENVSCODE_BIN ?? '/opt/openvscode-server/bin/openvscode-server',
+  process.env.OPENVSCODE_DATEN ?? path.join(HEIM, '.openvscode-server'),
+  path.join(HEIM, 'vsix'),
+  () => codingUmgebung(process.env),
+);
 
 function berechtigt(req: http.IncomingMessage) {
   const h = String(req.headers['x-werkstatt-geheimnis'] ?? '');
@@ -110,7 +121,7 @@ async function behandeln(req: http.IncomingMessage, res: http.ServerResponse) {
   // Coding: Projektliste für das Codehaus (nur Ordnernamen direkt unter /arbeit, keine Inhalte)
   if (CODING && req.method === 'GET' && req.url === '/projekte') return ende(200, { projekte: projekteListe() });
 
-  if (CODING && (req.url?.startsWith('/editor/') || req.url?.startsWith('/terminal'))) {
+  if (CODING && (req.url?.startsWith('/editor/') || req.url?.startsWith('/terminal') || req.url?.startsWith('/erweiterungen'))) {
     try {
       return await editorBehandeln(req, res, ende);
     } catch (e) {
@@ -240,6 +251,15 @@ async function editorBehandeln(req: http.IncomingMessage, res: http.ServerRespon
       const b = await koerper(req);
       return ende(200, await editor.git(text(b.projekt), b));
     }
+    // Erweiterungen von VS Code (E205): feste Befehle, Kennung im Runner geprüft (erweiterungen.ts)
+    case 'GET /erweiterungen':
+      return ende(200, await erweiterungen.liste());
+    case 'POST /erweiterungen/installieren':
+      return ende(200, await erweiterungen.installieren((await koerper(req)).id));
+    case 'POST /erweiterungen/entfernen':
+      return ende(200, await erweiterungen.entfernen((await koerper(req)).id));
+    case 'POST /erweiterungen/vsix':
+      return ende(200, await erweiterungen.vsix(req));
     // Terminal: die Antwort ist der Ausgabestrom der Shell (roh); schließt das Dorf die Verbindung, endet die Shell.
     case 'POST /terminal': {
       const b = await koerper(req);

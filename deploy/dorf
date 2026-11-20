@@ -142,10 +142,24 @@ coding_env_setzen() { # name wert
   chmod 600 "$datei.neu" && mv "$datei.neu" "$datei"
 }
 
+# E205: Der Caddyfile ist als einzelne Datei eingehängt, über den Link „aktuell“. Compose erstellt Caddy nur neu, wenn sich
+# seine Beschreibung in compose.yml ändert – der Container behält sonst die Datei der Version, mit der er erstellt wurde.
+# Darum vergleichen: Weicht der Caddyfile im Container von dem der aktuellen Version ab, wird Caddy neu erstellt
+# (Zertifikate liegen im Volume und bleiben). Läuft Caddy nicht oder lässt sich nicht fragen, passiert nichts.
+caddy_abgleichen() {
+  local drin
+  drin=$(compose exec -T caddy cat /etc/caddy/Caddyfile 2>/dev/null) || return 0
+  if [ -n "$drin" ] && [ "$drin" != "$(cat "$AKTUELL/deploy/Caddyfile")" ]; then
+    info "Der Caddyfile hat sich geändert – Caddy wird neu erstellt (das Dorf ist ein paar Sekunden nicht erreichbar) …"
+    compose up -d --force-recreate caddy || true
+  fi
+}
+
 cmd_deploy() {
   [ -n "${DORF_TEST:-}" ] || geheimnisse_sicherstellen
   info "Starte Version $(cat "$AKTUELL/VERSION") …"
   compose up -d --remove-orphans
+  caddy_abgleichen
   if gesund_warten; then gruen "Dorf läuft: https://$(grep -E '^DORF_DOMAIN=' "$ENV_DATEI" | cut -d= -f2)"; else return 1; fi
 }
 
