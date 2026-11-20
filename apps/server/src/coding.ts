@@ -146,11 +146,13 @@ export function codingRouten(app: FastifyInstance, d: { konfig: Konfig; db: DB; 
   //    GET, damit ein normaler Link/ein Lesezeichen reicht; von einer fremden Seite kommt wegen SameSite=Strict kein Cookie mit.
   app.get('/api/coding/oeffnen', async (req, reply) => {
     if (!codingEingerichtet(konfig)) throw new DorfFehler(503, 'Das Codehaus ist noch nicht eingerichtet. Auf dem Server: dorf coding-einrichten');
-    const q = z.object({ projekt: z.string().regex(PROJEKT_MUSTER).optional() }).parse(req.query);
+    const q = z.object({ projekt: z.string().regex(PROJEKT_MUSTER).optional(), json: z.literal('1').optional() }).parse(req.query);
     const ziel = new URL(`${konfig.codingAdresse}/_dorf/eintritt`);
     ziel.searchParams.set('karte', zugang.karteAusstellen(req.sitzung!.id));
     if (q.projekt) ziel.searchParams.set('projekt', q.projekt);
     nichtMerken(reply);
+    // ?json=1: die App öffnet die Adresse selbst (Programm → normaler Browser ohne Dorf-Sitzung; die Karte reicht dort)
+    if ((req.query as { json?: string }).json === '1') return { url: ziel.toString() };
     return reply.redirect(ziel.toString(), 302);
   });
 

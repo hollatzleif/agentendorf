@@ -1,12 +1,50 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { CodingUebersicht } from '@dorf/shared';
-import { api } from '../api';
+import { api, ApiFehler } from '../api';
+import { istProgramm } from '../programm/desktop';
 import { linkKlick } from '../router';
 import { zeitKurz } from '../texte';
 import { ChatListe } from './ChatListe';
 
 /** Adresse, die VS Code über das Dorf öffnet (Einmal-Karte → eigener Ursprung des Code-Hosts), optional gleich im Projektordner */
 export const vscodeLink = (projekt?: string) => `/api/coding/oeffnen${projekt ? `?projekt=${encodeURIComponent(projekt)}` : ''}`;
+
+/**
+ * Knopf „VS Code öffnen“ (Fix 20.11.): holt die Einmal-Adresse als JSON und öffnet genau sie.
+ * - Browser: Tab sofort beim Klick öffnen (sonst blockiert der Popup-Schutz nach dem await), dann dorthin leiten.
+ * - Programm: window.open geht an den normalen Browser – der hat keine Dorf-Sitzung, die Einmal-Karte reicht dort aber.
+ * - Fehler (nicht eingerichtet, abgemeldet …) stehen unter dem Knopf statt still zu verschwinden.
+ */
+export function VsCodeKnopf({ projekt, klein }: { projekt?: string; klein?: boolean }) {
+  const [fehler, setFehler] = useState('');
+  const [laeuft, setLaeuft] = useState(false);
+  const oeffnen = async () => {
+    setFehler('');
+    setLaeuft(true);
+    const tab = istProgramm() ? null : window.open('about:blank', '_blank');
+    try {
+      const { url } = await api<{ url: string }>(`${vscodeLink(projekt)}${projekt ? '&' : '?'}json=1`);
+      if (tab && !tab.closed) {
+        tab.opener = null;
+        tab.location.href = url;
+      } else if (!window.open(url, '_blank')) location.href = url;
+    } catch (e) {
+      tab?.close();
+      setFehler(e instanceof ApiFehler ? e.message : 'VS Code ließ sich nicht öffnen.');
+    } finally {
+      setLaeuft(false);
+    }
+  };
+  return (
+    <>
+      <button type="button" className={klein ? 'klein' : undefined} onClick={() => void oeffnen()} disabled={laeuft} data-testid={projekt ? undefined : 'vscode-oeffnen'}>
+        {klein ? 'in VS Code öffnen' : '💻 VS Code öffnen'}
+      </button>
+      {fehler && <span className="fehler"> {fehler}</span>}
+    </>
+  );
+}
 
 /**
  * Codehaus (E191): VS Code im Browser öffnen, Projektordner im Coding-Container, laufende Coding-Agenten.
@@ -25,9 +63,7 @@ export function CodehausUebersicht() {
         </p>
       ) : (
         <p>
-          <a className="knopf" href={vscodeLink()} target="_blank" rel="noopener" data-testid="vscode-oeffnen">
-            💻 VS Code öffnen
-          </a>{' '}
+          <VsCodeKnopf />{' '}
           <span className="leise">öffnet {d.adresse} in einem neuen Tab – mit Terminal, Git und Erweiterungen.</span>
         </p>
       )}
@@ -48,9 +84,7 @@ export function CodehausUebersicht() {
                 {d.eingerichtet && (
                   <>
                     {' · '}
-                    <a href={vscodeLink(p.name)} target="_blank" rel="noopener">
-                      in VS Code öffnen
-                    </a>
+                    <VsCodeKnopf projekt={p.name} klein />
                   </>
                 )}
                 {' · '}

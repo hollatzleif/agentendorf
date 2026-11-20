@@ -38,9 +38,9 @@ test('Codehaus: Gebäude mit Projektliste (leer / mit Ordnern), „VS Code öffn
 
   // „VS Code öffnen“: neuer Tab, über das Dorf (Einmal-Karte) zur konfigurierten Code-Adresse
   const knopf = page.getByTestId('vscode-oeffnen');
-  await expect(knopf).toHaveAttribute('href', '/api/coding/oeffnen');
-  await expect(knopf).toHaveAttribute('target', '_blank');
   const [tab] = await Promise.all([page.context().waitForEvent('page'), knopf.click()]);
+  // der Tab öffnet sofort (Popup-Schutz) und bekommt dann die Einmal-Adresse
+  await tab.waitForURL((u) => u.href !== 'about:blank');
   await tab.waitForLoadState();
   expect(tab.url().startsWith(`${CODING}/_dorf/eintritt?karte=`)).toBe(true);
   expect(new URL(tab.url()).searchParams.get('karte')!.length).toBeGreaterThanOrEqual(40);
@@ -50,8 +50,8 @@ test('Codehaus: Gebäude mit Projektliste (leer / mit Ordnern), „VS Code öffn
   await tab.close();
 
   // ein Projekt direkt öffnen: der Ordner reist mit
-  const [tab2] = await Promise.all([page.context().waitForEvent('page'), liste.locator('li').first().getByRole('link', { name: 'in VS Code öffnen' }).click()]);
-  await tab2.waitForLoadState();
+  const [tab2] = await Promise.all([page.context().waitForEvent('page'), liste.locator('li').first().getByRole('button', { name: 'in VS Code öffnen' }).click()]);
+  await tab2.waitForURL((u) => u.searchParams.get('projekt') === 'agentendorf');
   expect(new URL(tab2.url()).searchParams.get('projekt')).toBe('agentendorf');
   await expect(tab2.locator('#projekt')).toHaveText('agentendorf');
   await tab2.close();

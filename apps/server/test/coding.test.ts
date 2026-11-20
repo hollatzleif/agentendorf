@@ -568,6 +568,14 @@ describe('Zugang zu VS Code (Code-Host, Einmal-Karte, Prüfung für Caddy)', () 
     const ziel = new URL(String(o.headers.location));
     expect(`${ziel.origin}${ziel.pathname}`).toBe(`${CODE}/_dorf/eintritt`);
     expect(ziel.searchParams.get('projekt')).toBe('mein-repo');
+    // ?json=1 (Knopf in der App, Fix 20.11.): dieselbe Einmal-Adresse als JSON statt Weiterleitung – und die Karte gilt einmal
+    const j = await d.app.inject({ url: '/api/coding/oeffnen?projekt=mein-repo&json=1', headers: h });
+    expect(j.statusCode).toBe(200);
+    const jz = new URL(j.json().url as string);
+    expect(`${jz.origin}${jz.pathname}`).toBe(`${CODE}/_dorf/eintritt`);
+    expect(jz.searchParams.get('projekt')).toBe('mein-repo');
+    expect(jz.searchParams.get('karte')).not.toBe(ziel.searchParams.get('karte'));
+    expect((await d.app.inject({ url: '/api/coding/oeffnen?json=1' })).statusCode).toBe(401);
     const karte = ziel.searchParams.get('karte')!;
     expect(karte.length).toBeGreaterThanOrEqual(40);
     // die Weiterleitung enthält weder das VS-Code-Token noch die Sitzung
