@@ -1760,6 +1760,16 @@ Ein unabhängiger Review hat Lücken gefunden. Jede ist behoben und hat einen Te
 - **Problem 2:** Im Programm wurde die Adresse zweimal geöffnet (`window.open` und `location.href` → `on_navigation`). Der zweite Aufruf fand die Karte verbraucht und meldete „Dieser Link gilt nicht (mehr)“.
 - **Lösung 2:** Nur noch `window.open`. Zusätzlich: Ist die Karte verbraucht, der Browser hat aber schon ein gültiges `dorf_coding`-Cookie, geht es direkt zu VS Code. Die Karte bleibt einmalig, ein erfundenes Cookie hilft nicht.
 
+## E200 – Rundgang komplett (20.11.)
+
+- **Wunsch (Leif):** die restlichen Aktivitäten aus `docs/buergermeister-aktivitaeten.md` umsetzen, soweit sinnvoll.
+- **22 neue Aktivitäten** in `apps/server/src/rundgang-aktivitaeten.ts`, nach Nutzen sortiert (Rang bei Gleichstand): Wartet-auf nachfassen (Entwurf, mittel), Fristen aus Mails, Abgaben-Nachlese, Prüfungs-Countdown (mittel), Helfer gegenlesen, volle Tage, Dauer schätzen, Altklausuren-Lücken, neue Moodle-Inhalte (Helfer, nur mit Moodle-Browser), Wochenvorschau, Adressbuch, Gewohnheiten, Fach-Steckbriefe, Moodle-Downloads einsortieren, Tagesrhythmus, Monatsrückblick (mittel), Aufträge verdichten (mittel), Rathaus-Ablage, verwaiste Notizen, Tags, Newsletter, JKU-Fristen (Web, groß, nur tagsüber). Damit 40 von 50.
+- **Kein Anlass zweimal:** Die Fakten-Sammler schließen aus, was schon erledigt ist – Marker in der To-do-Notiz („Nachfass-Entwurf JJJJ-MM-TT“, „Nachlese JJJJ-MM-TT“), vorhandene Datei (Wochenvorschau je KW, Rückblick je Monat, JKU-Notiz unter 25 Tagen), „seit dem letzten Lauf“ (Mails, Helfer, Countdown-Stufe, volle Tage). Sonst würde dieselbe Lage jeden Tag einen bezahlten Lauf auslösen.
+- **Neun bleiben Ideen** (mit Grund in der Doku): Entwürfe nachfassen (kein Werkzeug „Entwurf noch da?“), Übersichtsseiten (Obsidian kann das), Persönlichkeit (braucht Leifs Klick), Noten (KUSSS nicht angebunden), Corps-Termine, Einkaufsliste und Depot (erledigen Aktionen mit eigenem Zeitplan), Reise Konstanz–Linz (Aufenthaltsort unbekannt, keine Buchungs-Schnittstelle), Fixkosten (Lastschriften laufen von selbst).
+- **Leine unverändert:** nichts senden, zahlen, abgeben; Termine nie (nur Vorschläge in Notizen); außerhalb des Rathauses nur Leifs Listen (Notiz/Dauer am To-do, neue To-dos) und Entwürfe. Helfer nur bei „Moodle durchsehen“ und einem zweiten Versuch nach „Helfer gegenlesen“. Ein Test prüft, dass jede Aktivität nur Werkzeuge nennt, die der Bürgermeister hat.
+- **Kosten:** `kosten_usd` (klein/mittel/gross) steht jetzt in `rundgang.md` statt nur als Konstante; die Protokollzeile in `Rathaus/rundgang/` zeigt die echten Kosten des Laufs (`laeufe.kosten_usd`). 17 der 22 neuen sind klein. Neu fix im Monat: JKU-Recherche ≈ 0,80 $ (beim ersten Rundgang am Tag mit vollem Budget gleich dabei).
+- **Vorlage:** `rundgang.md` mit allen 40 und den Kosten; die Fassung aus E192 (sha256 `60d05e9a…`) wird beim Start ersetzt, geänderte Fassungen nicht (fehlende Einträge = Standard).
+
 ## E201 – Cardputer 1.3: Spracheingabe hört richtig zu und hängt nicht mehr (20.11.)
 
 Leifs Befund mit 1.2: Der Pegel-Balken schlägt kaum aus, egal von welcher Seite er spricht; nach dem Stoppen (von Hand oder nach 60 s) hängt das Gerät und nichts wird abgeschickt.

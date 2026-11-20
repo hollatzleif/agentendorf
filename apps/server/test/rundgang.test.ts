@@ -22,7 +22,7 @@ const kal = (...ev: string[]) => `BEGIN:VCALENDAR\r\n${ev.join('')}END:VCALENDAR
 const ev = (uid: string, titel: string, ende: string) => `BEGIN:VEVENT\r\nUID:${uid}\r\nSUMMARY:${titel}\r\nDTSTART:${ende}\r\nDTEND:${ende}\r\nEND:VEVENT\r\n`;
 
 const akt = (id: string, a: Partial<Aktivitaet> = {}): Aktivitaet => ({ id, titel: id, gruppe: 'Test', haeufigkeit: 'täglich', gewicht: 'klein', nachts: true, auftrag: 'x', ergebnis: 'x', ...a });
-const standard = (aktivitaeten: Record<string, string> = {}): RundgangEinstellungen => ({ aktivitaeten_je_rundgang: 2, meldung: true, aktivitaeten });
+const standard = (aktivitaeten: Record<string, string> = {}): RundgangEinstellungen => ({ aktivitaeten_je_rundgang: 2, meldung: true, kosten_usd: {}, aktivitaeten });
 
 /** Attrappe, deren letzte Antwort sich umschreiben lässt (z. B. „Offen“-Abschnitt, „Für Leif“) */
 const mitAntwort = (f: (text: string) => string): Motor => {
@@ -131,8 +131,8 @@ describe('Auswahl der Aktivitäten (E192)', () => {
     expect(KOSTEN_USD.mittel).toBeLessThan(KOSTEN_USD.gross);
   });
 
-  it('Katalog: 18 Aktivitäten, eindeutige IDs, jede mit Auftrag und Ergebnis-Ort; die Vorlage nennt genau diese', async () => {
-    expect(KATALOG).toHaveLength(18);
+  it('Katalog: 40 Aktivitäten (E192: 18, E200: 22), eindeutige IDs, jede mit Auftrag und Ergebnis-Ort; die Vorlage nennt genau diese', async () => {
+    expect(KATALOG).toHaveLength(40);
     expect(new Set(KATALOG.map((a) => a.id)).size).toBe(KATALOG.length);
     for (const a of KATALOG) {
       expect(a.id).toMatch(/^[a-z]+(-[a-z]+)*$/);
@@ -156,6 +156,7 @@ describe('00_Stadtordnung/rundgang.md (E192)', () => {
     expect(r.e).toEqual({
       aktivitaeten_je_rundgang: 3,
       meldung: false,
+      kosten_usd: {},
       aktivitaeten: { 'vault-pflegen': 'aus', 'leif-kennenlernen': 'täglich', 'todos-doppelt': 'aus', 'uni-lernstand': 'alle 3 tage', 'notizen-sichten': 'wöchentlich', 'dorf-gesundheit': 'aus' },
     });
     const stand = await x.d.aufwachen.rundgang.uebersicht();
@@ -174,11 +175,14 @@ describe('00_Stadtordnung/rundgang.md (E192)', () => {
       const r = await rundgangEinstellungen(x.d.vault);
       expect(r.fehler).toMatch(muster);
       expect(r.fehler).toContain('gelten die Standardwerte');
-      expect(r.e).toEqual({ aktivitaeten_je_rundgang: 2, meldung: true, aktivitaeten: {} });
+      expect(r.e).toEqual({ aktivitaeten_je_rundgang: 2, meldung: true, kosten_usd: {}, aktivitaeten: {} });
     };
     await pruefen('aktivitaeten:\n  vault-pflegn: wöchentlich', /aktivitaeten\.vault-pflegn: unbekannte Aktivität – bekannt sind: .*vault-pflegen/);
     await pruefen('aktivitaeten:\n  vault-pflegen: stündlich', /aktivitaeten\.vault-pflegen: erlaubt sind: aus, jedes, täglich/);
     await pruefen('aktivitaeten_je_rundgang: 9', /aktivitaeten_je_rundgang/);
+    // E200: Kosten je Gewicht – nur klein/mittel/gross, Zahlen zwischen 0 und 10
+    await pruefen('kosten_usd:\n  riesig: 2', /kosten_usd: Unrecognized key/);
+    await pruefen('kosten_usd:\n  gross: 50', /kosten_usd\.gross/);
     await pruefen('aktivitäten:\n  vault-pflegen: aus', /Kopf: /);
     await pruefen('aktivitaeten: [vault-pflegen', /Kopf nicht lesbar/);
     // sichtbar in der App (Rathaus) – und als Punkt der Aktivität „Dorf-Gesundheit“
@@ -461,7 +465,7 @@ describe('Aufwachen: eigene To-dos, Lagebericht, Katalog (E192)', () => {
     expect(x.texte).toHaveLength(0);
     // Rundgang-Protokoll vom Code: Uhrzeit, Aktivitäten, Getan, Für Leif
     const protokoll = (await d.vault.lesen('Rathaus/rundgang/2026-11-16.md')).inhalt;
-    expect(protokoll).toMatch(/- \*\*23:00\*\* Rundgang · eigene To-dos fällig: 1 · Aktivitäten: Überfällige To-dos zerlegen, Doppelte To-dos zusammenführen · Getan: Test-Lauf\. · Für Leif: Zwei überfällige To-dos in kleine Schritte zerlegt\. · \[Chat\]\(\/chats\/[0-9a-f-]+\)/);
+    expect(protokoll).toMatch(/- \*\*23:00\*\* Rundgang · eigene To-dos fällig: 1 · Aktivitäten: Überfällige To-dos zerlegen, Doppelte To-dos zusammenführen · Kosten: \d+,\d{2} \$ · Getan: Test-Lauf\. · Für Leif: Zwei überfällige To-dos in kleine Schritte zerlegt\. · \[Chat\]\(\/chats\/[0-9a-f-]+\)/);
     // gemerkt, wann was dran war (App zeigt es)
     const stand = await d.aufwachen.rundgang.uebersicht();
     expect(stand.aktivitaeten.find((s) => s.id === 'todos-doppelt')!.zuletzt).toBe(new Date(d.uhr.jetzt()).toISOString());
@@ -471,7 +475,7 @@ describe('Aufwachen: eigene To-dos, Lagebericht, Katalog (E192)', () => {
     const bm = async () => (await d.morgenzeitung.fakten()).abschnitte.find((s) => s.titel === 'Der Bürgermeister seit gestern')?.zeilen ?? [];
     expect(await bm()).toEqual(['🧭 23:00 – Zwei überfällige To-dos in kleine Schritte zerlegt.']);
     // … und abschaltbar
-    await x.rundgangMd('meldung: nein\naktivitaeten:\n  recherche-auf-vorrat: aus\n  todos-doppelt: täglich');
+    await x.rundgangMd('meldung: nein\naktivitaeten:\n  recherche-auf-vorrat: aus\n  jku-fristen: aus\n  todos-doppelt: täglich');
     expect((await bm()).join(' ')).not.toContain('🧭');
 
     // 03:00: zu früh für die täglichen (20 h) – und sein To-do bekam er schon vorgelegt, also wieder ein Lauf nur dafür

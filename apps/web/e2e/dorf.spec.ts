@@ -2010,10 +2010,13 @@ test('Rathaus: eigene To-dos des Bürgermeisters – er trägt ein, Leif setzt e
   // Leif hakt seins ab
   await zeileLeif.getByRole('checkbox').click(); // der Haken folgt dem Server (kontrolliertes Feld)
   await expect(zeileLeif).toHaveClass(/fertig/);
-  // Katalog des Rundgangs: 18 Aktivitäten, mit ID zum Abschalten in rundgang.md
-  await bereich.getByText(/Rundgang: 18 von 18 Aktivitäten an, höchstens 2 je Rundgang/).click();
+  // Katalog des Rundgangs: 40 Aktivitäten (E192 + E200), mit ID zum Abschalten in rundgang.md und den Kosten je Gewicht
+  await bereich.getByText(/Rundgang: 40 von 40 Aktivitäten an, höchstens 2 je Rundgang/).click();
   await expect(bereich.getByText('Leif kennenlernen', { exact: true })).toBeVisible();
   await expect(bereich.getByText('leif-kennenlernen', { exact: true })).toBeVisible();
+  const jku = bereich.locator('li', { hasText: 'Förderungen und Fristen der JKU' });
+  await expect(jku.getByText('jku-fristen', { exact: true })).toBeVisible();
+  await expect(jku).toContainText('Kosten ··· (≈ 0,80 $) · nur tagsüber');
   await expect(bereich.getByRole('link', { name: '00_Stadtordnung/rundgang.md' })).toBeVisible();
 });
 

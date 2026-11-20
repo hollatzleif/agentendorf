@@ -110,7 +110,7 @@ export function BuergermeisterTodos() {
               <li key={a.id} className={a.aktiv ? '' : 'leise'}>
                 <b>{a.titel}</b> <span className="leise">({a.gruppe})</span>
                 <div className="leise">
-                  {a.aktiv ? a.haeufigkeit : 'aus'} · Kosten {GEWICHT[a.gewicht]} · {a.nachts ? 'auch nachts' : 'nur tagsüber'} · {a.zuletzt ? `zuletzt ${zeitKurz(a.zuletzt)}` : 'noch nie'} · <code>{a.id}</code>
+                  {a.aktiv ? a.haeufigkeit : 'aus'} · Kosten {GEWICHT[a.gewicht]}{r.kosten ? ` (≈ ${r.kosten[a.gewicht].toFixed(2).replace('.', ',')} $)` : ''} · {a.nachts ? 'auch nachts' : 'nur tagsüber'} · {a.zuletzt ? `zuletzt ${zeitKurz(a.zuletzt)}` : 'noch nie'} · <code>{a.id}</code>
                 </div>
               </li>
             ))}

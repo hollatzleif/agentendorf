@@ -4,6 +4,12 @@ titel: Rundgang des Bürgermeisters
 aktivitaeten_je_rundgang: 2
 # Was er auf den Rundgängen für dich getan hat: einmal am Tag gebündelt in der Morgenzeitung (ja/nein). Einzelne Meldungen gibt es nie.
 meldung: ja
+# Geschätzte Kosten eines Laufs je Gewicht (US-Dollar) – danach wählt das Dorf nach Restbudget. Die echten Kosten jedes
+# Laufs stehen in Rathaus/rundgang/; passen die Schätzungen nicht, hier anpassen.
+kosten_usd:
+  klein: 0.08
+  mittel: 0.25
+  gross: 0.8
 # Je Aktivität: aus · jedes (bei jedem Rundgang) · täglich · wöchentlich · monatlich · alle N tage
 # Eine Zeile löschen = Standard. Das Dorf wählt nur Aktivitäten, für die es gerade einen Anlass findet und die ins Restbudget passen.
 aktivitaeten:
@@ -25,6 +31,28 @@ aktivitaeten:
   wochenziele-abgleich: wöchentlich
   gedaechtnis-verdichten: monatlich
   recherche-auf-vorrat: wöchentlich
+  wartet-nachfassen: täglich
+  mail-fristen: täglich
+  abgaben-nachlese: täglich
+  pruefungs-countdown: täglich
+  helfer-gegenlesen: täglich
+  volle-tage: täglich
+  dauer-schaetzen: wöchentlich
+  altklausuren: wöchentlich
+  moodle-neues: wöchentlich
+  wochenvorschau: wöchentlich
+  adressbuch-pflegen: wöchentlich
+  gewohnheiten-reissen: wöchentlich
+  fach-steckbriefe: wöchentlich
+  moodle-einsortieren: wöchentlich
+  tagesrhythmus: monatlich
+  monatsrueckblick: monatlich
+  auftraege-verdichten: monatlich
+  rathaus-ablage: monatlich
+  verwaiste-notizen: monatlich
+  tags-vereinheitlichen: monatlich
+  newsletter-flut: monatlich
+  jku-fristen: monatlich
 ---
 
 # Rundgang des Bürgermeisters
@@ -55,11 +83,33 @@ Wacht der Bürgermeister auf und es gibt nichts Neues, **arbeitet er von selbst*
 | `wochenziele-abgleich` | Wochenziele ohne To-do und ohne Termin | klein |
 | `gedaechtnis-verdichten` | sein Gedächtnis kürzen, wenn es lang geworden ist | mittel |
 | `recherche-auf-vorrat` | zu einer nahen Frist im Web recherchieren (nur tagsüber, nur mit halbem Tagesbudget) | groß |
+| `wartet-nachfassen` | To-dos „wartet auf …“ am Nachfass-Tag: höflicher Nachfass-Entwurf (nie senden), Hinweis am To-do | mittel |
+| `mail-fristen` | Fristen, die der Postbote in Mails erkannt hat, als To-do sichern | klein |
+| `abgaben-nachlese` | 2–7 Tage nach einer Frist: abgegeben? Hinweis am offenen Uni-To-do | klein |
+| `pruefungs-countdown` | 14, 7 und 3 Tage vor einer Prüfung: Lernplan-Vorschlag bzw. Stand (nichts eingetragen) | mittel |
+| `helfer-gegenlesen` | fertige Helfer ohne oder mit fast leerer Ergebnisdatei aufgreifen | klein |
+| `volle-tage` | morgen/übermorgen über 6 h verplant: Vorschlag in deiner Tagesnotiz, was sich schieben ließe | klein |
+| `dauer-schaetzen` | To-dos der nächsten 7 Tage ohne Schätzung: Dauer eintragen (nur dieses Feld) | klein |
+| `altklausuren` | Prüfung in Sicht, `altklausuren/` leer → To-do „Altklausuren besorgen“ | klein |
+| `moodle-neues` | Fach mit der nächsten Frist: Helfer „Moodle durchsehen“ (über dein Abo, nur mit Moodle-Browser) | klein |
+| `wochenvorschau` | Samstag bis Montagfrüh: eine Seite zur kommenden Woche | klein |
+| `adressbuch-pflegen` | wichtige Absender, die öfter schreiben, ins Adressbuch (nur Name, Adresse, Rolle) | klein |
+| `gewohnheiten-reissen` | Gewohnheiten unter der Hälfte: ein Vorschlag in der Morgenzeitung (ändert nichts) | klein |
+| `fach-steckbriefe` | eine Zeile Wissen je Fach (Lehrende, Abgabe, Prüfung, Unterlagen) in `Rathaus/wissen/` | klein |
+| `moodle-einsortieren` | Dateien in `Uni/moodle/` ohne Fach: Vorschlag, wohin sie gehören | klein |
+| `tagesrhythmus` | aus Fokuszeiten und erledigten To-dos deinen Tagesrhythmus ins Gedächtnis | klein |
+| `monatsrueckblick` | in der ersten Woche des Monats: Rückblick auf den Vormonat | mittel |
+| `auftraege-verdichten` | erledigte Aufträge des Vormonats auf einer Seite | mittel |
+| `rathaus-ablage` | Notizen im Rathaus älter als 30 Tage nach `Rathaus/ablage/JJJJ-MM/` (mit „Rückgängig“) | klein |
+| `verwaiste-notizen` | Notizen ohne Verweis, seit 60 Tagen unverändert → Vorschläge | klein |
+| `tags-vereinheitlichen` | Tags in mehreren Schreibweisen → Vorschlag alt → neu | klein |
+| `newsletter-flut` | Absender mit vielen unwichtigen Mails → „abbestellen?“ (bestellt nichts ab) | klein |
+| `jku-fristen` | Fristen und Förderungen der JKU im Web (nur tagsüber, nur mit halbem Tagesbudget) | groß |
 
-**Budget:** Alles läuft im Tagesbudget aus `aufwachen.md`. Teure Aktivitäten kommen nur dran, wenn noch genug übrig ist; je Rundgang höchstens eine mittlere oder große.
+**Budget:** Alles läuft im Tagesbudget aus `aufwachen.md`. Teure Aktivitäten kommen nur dran, wenn noch genug übrig ist; je Rundgang höchstens eine mittlere oder große. Die Schätzungen je Gewicht stehen oben unter `kosten_usd`, die echten Kosten jedes Laufs im Rundgang-Protokoll.
 **Nachts** (22–7 Uhr) macht er nur stille Pflege – keine Recherche, keine Rückfragen, keine Meldungen.
 **Leine:** Er sendet, bezahlt und gibt nichts ab. Außerhalb des Rathauses ändert er nichts außer deinen Listen (To-dos mit Papierkorb) und Mail-Entwürfen.
 
 Steht hier ein Tippfehler (unbekannte Aktivität, unbekannte Häufigkeit), zeigt das Rathaus den Fehler an, und bis dahin gelten die Standardwerte.
 
-Weitere Ideen (50 Aktivitäten, davon 18 umgesetzt): `docs/buergermeister-aktivitaeten.md` im Repository.
+Alle 50 Ideen (40 umgesetzt, die übrigen mit Begründung): `docs/buergermeister-aktivitaeten.md` im Repository.

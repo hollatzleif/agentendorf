@@ -156,7 +156,8 @@ describe('Aufwachen des Bürgermeisters', () => {
     // Anlass für „Überfällige To-dos zerlegen“: ein To-do, das seit einer Woche fällig ist
     await d.todos.anlegen({ titel: 'Steuererklärung', faellig: '2026-11-05' }, 'Leif');
     const r = await d.aufwachen.aufwachen();
-    expect(r).toMatchObject({ lagebericht: null, budgetErreicht: false, aktivitaeten: ['todos-ueberfaellig'] });
+    // E200: tagsüber mit vollem Budget kommt beim ersten Mal auch die monatliche JKU-Recherche (groß) dazu
+    expect(r).toMatchObject({ lagebericht: null, budgetErreicht: false, aktivitaeten: ['todos-ueberfaellig', 'jku-fristen'] });
     expect(r.rundgang).not.toBeNull();
     await d.agenten.leerlauf();
     const a = d.schreibtisch.holen(r.rundgang!);

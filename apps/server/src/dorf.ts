@@ -127,6 +127,7 @@ const VORLAGE_FRUEHERE_FASSUNGEN: Record<string, string[]> = {
   'Bank/gebaeude.md': ['c2349ea31d50afc797ea1c70c9bc3d43ef0f7f605bb5a6f7d5e43555cb482b37'], // geschlossen bis Etappe 7
   'Einkaufsladen/gebaeude.md': ['b334b038336be925930e612231f6129a7f25a723f111d08af9568117fe45e87f'], // geschlossen bis Etappe 7
   'Marktplatz/gebaeude.md': ['b7332c301634c2889f157d87138f392c3f2a49500a7fb31cc30a9d2d41157358'], // bis E64
+  '00_Stadtordnung/rundgang.md': ['60d05e9a34a9e8acce98164fed4eceea9ce8378ec38696613546e08c94697fb8'], // E192–E199 (18 Aktivitäten)
 };
 
 /** Baut das ganze Dorf zusammen (für Start und Integrationstests). */
@@ -335,7 +336,7 @@ export async function dorfStarten(
   const meineTodos = new MeineTodos({ db, vault, uhr });
   meineTodos.beiAenderung = () => hub.gebuendelt({ typ: 'schreibtisch.geaendert' });
   agenten.meineTodos = meineTodos;
-  const rundgang = new Rundgang({ db, uhr, vault, uni, postbote, meineTodos, todos: listen.todo, kalender: agenten.kalender, log: (t) => console.warn(t) });
+  const rundgang = new Rundgang({ db, uhr, vault, uni, postbote, meineTodos, todos: listen.todo, kalender: agenten.kalender, moodleBereit: () => !!agenten.moodleBrowser, log: (t) => console.warn(t) });
   // Nach jedem Bürgermeister-Lauf: Offenes aus der Zusammenfassung übernehmen (wenn er es nicht selbst eingetragen hat), Rundgang protokollieren
   agenten.beiLaufEnde.push(async (e) => {
     await meineTodos.nachLauf(e).catch((x) => console.warn(`Eigene To-dos: ${(x as Error).message}`));
@@ -386,6 +387,7 @@ export async function dorfStarten(
   // Nacht 18./19.11.: Karteikarten je Fach
   const karten = new Karteikasten({ db, uhr, vault, hub });
   const gewohnheiten = new Gewohnheiten({ db, uhr, vault, hub });
+  rundgang.ergaenzen({ gewohnheiten });
   const wochenziele = new Wochenziele({ uhr, vault, hub });
   const notizen = new Notizen({ uhr, vault });
   // E183: Agenten stellen Timer/Wecker/Pomodoro und schreiben Notizen direkt (termin_anlegen als Freigabe-Art bleibt für alte Anträge)

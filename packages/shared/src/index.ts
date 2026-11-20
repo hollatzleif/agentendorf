@@ -495,6 +495,8 @@ export interface RundgangStand {
   /** Fehler in rundgang.md (dann gelten die Standardwerte) */
   fehler: string | null;
   jeRundgang: number;
+  /** E200: geschätzte Kosten je Gewicht (US-Dollar), einstellbar in rundgang.md (kosten_usd) */
+  kosten: { klein: number; mittel: number; gross: number };
   aktivitaeten: { id: string; titel: string; gruppe: string; haeufigkeit: string; aktiv: boolean; gewicht: 'klein' | 'mittel' | 'gross'; nachts: boolean; zuletzt: string | null }[];
 }
 
