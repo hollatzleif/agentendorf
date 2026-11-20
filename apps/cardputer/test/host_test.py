@@ -180,7 +180,7 @@ def main() -> int:
     print("Startmenü")
     g.lauf(250)
     pruefe(g.sieht("Fernbedienung") and g.sieht("Agentendorf") and g.sieht("HaloOS"), "Startmenü zeigt 1 Fernbedienung / 2 Agentendorf")
-    pruefe(g.sieht("Agentendorf 1.3.2"), "Startmenü zeigt die Version", g.text())
+    pruefe(g.sieht("Agentendorf 1.3.3"), "Startmenü zeigt die Version", g.text())
     pruefe(g.sieht("To-dos, Bürgermeister, Kirchturm"), "Untertitel von Agentendorf")
     g.foto("01-startmenue")
     g.cmd("REMOTESHOT " + str(ROOT / "build" / "fb.ppm") + " 0")
@@ -871,6 +871,25 @@ def main() -> int:
     pruefe(g.sieht("Letzte Sprache: 2 s"), "… und steht unten in den Einstellungen", g.text())
     g.taste("esc")
 
+    # 1.3.3: Mikrofon-Test in den Einstellungen – zeigt, ob Ton ankommt; Enter schaltet die Codec-Verstärkung um
+    g.waehle("Einstellungen")
+    g.taste("enter")
+    pruefe(g.cmd("MIKROREG")[0] == "MIKROREG 0", "Vorgabe: ohne Codec-Register (wie 1.2)")
+    g.waehle("Mikrofon-Test")
+    g.taste("enter")
+    g.lauf(2000)
+    pruefe(g.sieht("Puffer in 2 s") and g.sieht("soll 3,9") and g.sieht("Ton kommt an") and "AUFNAHME" not in "".join(g.ausgaben[-3:]), "Mikrofon-Test: Puffer zählen, Ton kommt an (nichts gespeichert)", g.text())
+    g.foto("17f-mikrofon-test")
+    g.cmd("MIKROSTUMM an")
+    g.taste("enter")      # Codec-Verstärkung an → Test startet neu
+    g.lauf(2500)
+    pruefe(g.sieht("0 Puffer") and g.sieht("Kein Ton vom Mikrofon.") and g.cmd("MIKROREG")[0] == "MIKROREG 1" and g.cmd("EINST mikroreg")[0] == "EINST 1",
+           "liefert das Mikrofon nichts: klar gesagt; Enter schaltet die Codec-Verstärkung um (gespeichert)", g.text())
+    g.cmd("MIKROSTUMM aus")
+    g.taste("enter")
+    pruefe(g.cmd("EINST mikroreg")[0] == "EINST " and g.cmd("MIKROREG")[0] == "MIKROREG 0", "… und wieder aus", g.cmd("EINST mikroreg"))
+    g.taste("esc", "esc")
+
     # Notiz, Termin-Titel, Freigabe-Begründung, Timer: überall dieselbe Eingabe; Passwortfelder ohne Sprache
     dorf.sprache_text = "Idee für das Referat"
     g.waehle("Notiz")
@@ -906,7 +925,7 @@ def main() -> int:
     pruefe(g.sieht("WLAN-Netze") and g.sieht("Neu koppeln") and g.sieht("Gerät entkoppeln"), "Einstellungen", g.text())
     g.foto("15-einstellungen")
     g.waehle("Zum Startmenü")
-    pruefe(g.sieht("Firmware 1.3.2 · Dorf abc1234") and g.sieht("187 KB RAM frei"), "Einstellungen zeigen Version und freien Speicher", g.text())
+    pruefe(g.sieht("Firmware 1.3.3 · Dorf abc1234") and g.sieht("187 KB RAM frei"), "Einstellungen zeigen Version und freien Speicher", g.text())
     g.waehle("WLAN-Netze")
     g.taste("enter")
     pruefe(g.sieht("Gespeichert") and g.sieht("verbunden"), "WLAN-Netze verwalten: gespeicherte Netze, eines verbunden", g.text())

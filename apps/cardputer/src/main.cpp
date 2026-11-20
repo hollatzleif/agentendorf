@@ -1,4 +1,4 @@
-// Agentendorf-Firmware fuer den M5Stack Cardputer Adv - Version 1.3.2 (auf Basis von HaloOS 0.3).
+// Agentendorf-Firmware fuer den M5Stack Cardputer Adv - Version 1.3.3 (auf Basis von HaloOS 0.3).
 //
 // Beim Einschalten erscheint ein Startmenue:
 //   1 Fernbedienung  - wie HaloOS 0.3: meldet Tasten, Akku und Bewegung per Bluetooth an den Hub der Brille
@@ -174,6 +174,8 @@ constexpr uint8_t ES8311_ADR = 0x18;
 
 struct Aufnahme {
     volatile bool laeuft = false, stoppen = false, fertig = false, fehler = false, mikroHaengt = false;
+    volatile bool nurMessen = false;      // 1.3.3 Mikrofon-Test: nichts in eine Datei schreiben
+    volatile int gefuellt = 0;            // fertige Puffer seit dem Start (zeigt, ob ueberhaupt Ton ankommt)
     volatile int pegel = 0;
     volatile uint32_t bytes = 0;
     int16_t* puffer[3] = {nullptr, nullptr, nullptr};
@@ -183,6 +185,8 @@ struct Aufnahme {
 };
 Aufnahme g_aufn;
 uint8_t g_mikro_adc = 0xCB;       // ES8311 REG17 (ADC-Lautstaerke): 0xBF = 0 dB, je Schritt 0,5 dB
+uint8_t g_mikro_faktor = 32;      // Software-Verstaerkung der Bibliothek (mic_config_t::magnification), wenn ohne Register
+bool g_mikro_register = false;    // 1.3.3: Codec-Register schreiben? Vorgabe aus – mit 1.2 (ohne) kam Ton an, mit 1.3 nicht
 std::string g_aufn_grund;         // warum die letzte Aufnahme scheiterte (fuer die Meldung)
 bool g_codec_mikro = false;       // Codec gehoert gerade dem Mikrofon (Lautsprecher aus)
 volatile int g_hoch_prozent = -1; // Fortschritt beim Hochladen der Aufnahme (-1 = nicht dabei)
@@ -214,6 +218,8 @@ void aufnahmeSchreiben(const int16_t* p) {
         if (v > peak) peak = v;
     }
     g_aufn.pegel = peak;            // Rohwert 0..32767; die Anzeige rechnet in dB um
+    g_aufn.gefuellt = g_aufn.gefuellt + 1;
+    if (g_aufn.nurMessen) return;   // Mikrofon-Test: nur zaehlen und messen
     const size_t n = AUFN_WERTE * sizeof(int16_t);
     if (g_aufn.datei.write(reinterpret_cast<const uint8_t*>(p), n) != n) g_aufn.fehler = true;   // Speicher voll?
     else g_aufn.bytes = g_aufn.bytes + n;
@@ -249,9 +255,11 @@ void aufnahmeAufgabe(void*) {
     }
     if (!g_aufn.fehler && i >= 2) aufnahmeSchreiben(g_aufn.puffer[(i - 2) % 3]);
     if (!g_aufn.fehler && i >= 1) aufnahmeSchreiben(g_aufn.puffer[(i - 1) % 3]);
-    if (!g_aufn.datei.seek(0)) g_aufn.fehler = true;
-    else wavKopf(g_aufn.datei, g_aufn.bytes);
-    g_aufn.datei.close();
+    if (!g_aufn.nurMessen) {
+        if (!g_aufn.datei.seek(0)) g_aufn.fehler = true;
+        else wavKopf(g_aufn.datei, g_aufn.bytes);
+        g_aufn.datei.close();
+    }
     g_aufn.fertig = true;
     g_aufn.aufgabe = nullptr;
     vTaskDelete(nullptr);
@@ -278,7 +286,7 @@ void aufnahmePflege();
 bool aufnahmeStart(const std::string& pfad) {
     g_aufn_grund.clear();
     aufnahmePflege();
-    if (g_aufn.mikroHaengt && g_codec_mikro) { g_aufn_grund = "h\xC3\xA4ngt \xE2\x80\x93 Cardputer neu starten"; return false; }
+    if (g_aufn.mikroHaengt && g_codec_mikro) { g_aufn_grund = "liefert keinen Ton \xE2\x80\x93 Cardputer neu starten"; return false; }
     if (g_aufn.laeuft || g_aufn.aufgabe || g_codec_mikro) { g_aufn_grund = "Aufnahme l\xC3\xA4uft noch"; return false; }
     if (!g_fs || !M5Cardputer.Mic.isEnabled()) { g_aufn_grund = "kein Mikrofon"; return false; }
     g_notes.clear();
@@ -289,27 +297,35 @@ bool aufnahmeStart(const std::string& pfad) {
         g_aufn_grund = "zu wenig Speicher";
         return false;
     }
-    if (g_fs->exists(pfad.c_str())) g_fs->remove(pfad.c_str());
-    g_aufn.datei = g_fs->open(pfad.c_str(), FILE_WRITE);
-    if (!g_aufn.datei) { aufnahmeAufraeumen(); g_aufn_grund = "Datei"; return false; }
-    wavKopf(g_aufn.datei, 0);         // Platzhalter, wird am Ende ueberschrieben
+    g_aufn.nurMessen = pfad.empty();
+    if (!g_aufn.nurMessen) {
+        if (g_fs->exists(pfad.c_str())) g_fs->remove(pfad.c_str());
+        g_aufn.datei = g_fs->open(pfad.c_str(), FILE_WRITE);
+        if (!g_aufn.datei) { aufnahmeAufraeumen(); g_aufn_grund = "Datei"; return false; }
+        wavKopf(g_aufn.datei, 0);     // Platzhalter, wird am Ende ueberschrieben
+    }
     M5Cardputer.Speaker.end();
     auto cfg = M5Cardputer.Mic.config();
-    cfg.magnification = 16;           // Vorgabe der Bibliothek; die Verstaerkung macht jetzt der Codec
+    // Mit Codec-Register macht der Codec die Verstaerkung (Bibliotheks-Vorgabe 16); ohne – wie 1.2, da kam Ton an – die Software
+    cfg.magnification = g_mikro_register ? 16 : g_mikro_faktor;
     M5Cardputer.Mic.config(cfg);
     if (!M5Cardputer.Mic.begin()) {
-        g_aufn.datei.close();
-        g_fs->remove(pfad.c_str());
+        if (!g_aufn.nurMessen) {
+            g_aufn.datei.close();
+            g_fs->remove(pfad.c_str());
+        }
         M5Cardputer.Speaker.begin();
         aufnahmeAufraeumen();
         g_aufn_grund = "Mikrofon startet nicht";
         return false;
     }
     g_codec_mikro = true;
-    // Verstaerkung nachsetzen (siehe oben) - der Codec laeuft schon, die Register gelten sofort
-    M5Cardputer.In_I2C.writeRegister8(ES8311_ADR, 0x14, 0x17, 100000);       // Mic1p-Mic1n, PGA +21 dB
-    M5Cardputer.In_I2C.writeRegister8(ES8311_ADR, 0x17, g_mikro_adc, 100000);
-    M5Cardputer.In_I2C.writeRegister8(ES8311_ADR, 0x1C, 0x64, 100000);       // Hochpass gegen Brummen, EQ aus
+    if (g_mikro_register) {           // nur auf Wunsch (Einstellungen → Mikrofon-Test): Register wie _microphone_enabled_cb_stopwatch
+        M5Cardputer.In_I2C.writeRegister8(ES8311_ADR, 0x14, 0x17, 100000);   // Mic1p-Mic1n, PGA +21 dB
+        M5Cardputer.In_I2C.writeRegister8(ES8311_ADR, 0x17, g_mikro_adc, 100000);
+        M5Cardputer.In_I2C.writeRegister8(ES8311_ADR, 0x1C, 0x64, 100000);   // Hochpass gegen Brummen, EQ aus
+    }
+    g_aufn.gefuellt = 0;
     g_aufn.pfad = pfad;
     g_aufn.stoppen = g_aufn.fertig = g_aufn.fehler = false;
     g_aufn.bytes = 0;
@@ -317,8 +333,10 @@ bool aufnahmeStart(const std::string& pfad) {
     g_aufn.laeuft = true;
     TaskHandle_t h = nullptr;
     if (xTaskCreatePinnedToCore(aufnahmeAufgabe, "aufnahme", 8192, nullptr, 2, &h, 1) != pdPASS) {
-        g_aufn.datei.close();
-        g_fs->remove(pfad.c_str());
+        if (!g_aufn.nurMessen) {
+            g_aufn.datei.close();
+            g_fs->remove(pfad.c_str());
+        }
         codecZurueck();
         aufnahmeAufraeumen();
         g_aufn_grund = "zu wenig Speicher";
@@ -346,8 +364,9 @@ bool aufnahmeStopp(bool behalten) {
     }
     const bool ok = fertig && !g_aufn.fehler && g_aufn.bytes > 0;
     if (!ok)
-        g_aufn_grund = mikroKaputt ? "Mikrofon h\xC3\xA4ngt \xE2\x80\x93 Cardputer neu starten" : g_aufn.bytes == 0 ? "nichts aufgenommen" : "Speicher voll";
-    if ((!ok || !behalten) && g_fs && fertig) g_fs->remove(g_aufn.pfad.c_str());
+        g_aufn_grund = mikroKaputt ? "Mikrofon liefert keinen Ton (" + std::to_string(g_aufn.gefuellt) + " Puffer) \xE2\x80\x93 Einstellungen \xE2\x86\x92 Mikrofon-Test"
+                                   : g_aufn.bytes == 0 ? "nichts aufgenommen" : "Speicher voll";
+    if ((!ok || !behalten) && g_fs && fertig && !g_aufn.nurMessen) g_fs->remove(g_aufn.pfad.c_str());
     return ok && behalten;
 }
 
@@ -356,7 +375,7 @@ void aufnahmePflege() {
     if (g_aufn.laeuft || !g_codec_mikro || !g_aufn.fertig || g_aufn.mikroHaengt) return;
     codecZurueck();
     aufnahmeAufraeumen();
-    if (g_fs) g_fs->remove(g_aufn.pfad.c_str());
+    if (g_fs && !g_aufn.nurMessen) g_fs->remove(g_aufn.pfad.c_str());
 }
 
 // Wie viele Sekunden passen in den Speicher? Intern (LittleFS, 1,5 MB) reicht es fuer rund 40 s, mit SD-Karte fuer 60.
@@ -749,7 +768,24 @@ public:
     std::string aufnahmeGrund() override { return g_aufn_grund; }
     int hochladenProzent() override { return g_hoch_prozent; }
     // ADC-Lautstaerke des ES8311: leise 0 dB, normal +6 dB, laut +12 dB
-    void mikroStufe(int stufe) override { g_mikro_adc = stufe <= 1 ? 0xBF : stufe >= 3 ? 0xD7 : 0xCB; }
+    // Stufe: mit Register die ADC-Lautstaerke (0/+6/+12 dB), ohne die Software-Verstaerkung (x16/x32/x64 → f_gain 8/16/32)
+    void mikroStufe(int stufe) override {
+        g_mikro_adc = stufe <= 1 ? 0xBF : stufe >= 3 ? 0xD7 : 0xCB;
+        g_mikro_faktor = stufe <= 1 ? 16 : stufe >= 3 ? 64 : 32;
+    }
+    void mikroRegister(bool an) override { g_mikro_register = an; }
+    bool mikroTestStart() override { return ::aufnahmeStart(""); }
+    MikroStand mikroTestStand() override {
+        MikroStand m;
+        m.laeuft = g_aufn.laeuft && g_aufn.nurMessen && !g_aufn.fehler;
+        m.puffer = g_aufn.gefuellt;
+        m.pegel = g_aufn.laeuft ? pegelProzent(g_aufn.pegel) : 0;
+        m.grund = g_aufn.mikroHaengt ? "Mikrofon liefert keinen Ton" : g_aufn_grund;
+        return m;
+    }
+    void mikroTestStopp() override {
+        if (g_aufn.laeuft && g_aufn.nurMessen) ::aufnahmeStopp(false);
+    }
 };
 
 DevicePlatform g_platform;

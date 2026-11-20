@@ -129,6 +129,8 @@ public:
     bool spracheLaeuft() const;
     int mikro = 2;                         // Mikrofon-Verstaerkung 1..3 (NVS "mikro")
     void mikroSetzen(int v);
+    bool mikroRegister = false;            // 1.3.3: Verstaerkung im Codec statt Software (NVS "mikroreg", Vorgabe aus)
+    void mikroRegisterSetzen(bool an);
     const std::deque<Wartend>& wartend() const { return wartend_; }
     uint32_t schreibStand() const { return schreibStand_; }   // zaehlt hoch, wenn etwas beim Server ankam
     void schreibStandErhoehen() { ++schreibStand_; }

@@ -24,6 +24,8 @@
 //   MIKROFEHLER start|stopp <grund>   naechster Start bzw. Stopp scheitert mit diesem Grund; MIKROFEHLER aus = wieder normal
 //   HOCHLADEN <prozent> Fortschritt beim Senden der Aufnahme vorgeben (-1 = nicht dabei)
 //   PEGEL               aktuellen Pegel (0..100) ausgeben
+//   MIKROSTUMM an|aus   Mikrofon liefert keine Puffer (wie „Mikrofon liefert keinen Ton“ am Geraet)
+//   MIKROREG            ausgeben, ob die Codec-Verstaerkung an ist (1/0)
 //   EINST mikrostufe    (Sonderfall) eingestellte Mikrofon-Verstaerkung ausgeben
 //   EINST <key>         gespeicherte Einstellung ausgeben
 //   SETZE <key> <wert>  Einstellung vorgeben
@@ -139,6 +141,24 @@ public:
         return true;
     }
     void mikroStufe(int s) override { stufe = s; }
+    // 1.3.3 Mikrofon-Test: liefert alle 256 ms einen Puffer – ausser das Mikrofon ist „stumm“ (MIKROSTUMM an)
+    bool stumm = false, testLaeuft = false, registerAn = false;
+    uint32_t testSeit = 0;
+    void mikroRegister(bool an) override { registerAn = an; }
+    bool mikroTestStart() override {
+        if (quelle.empty()) { grund = "kein Mikrofon"; return false; }
+        testLaeuft = nimmtAuf = true;
+        testSeit = aufnahmeSeit = jetzt;
+        return true;
+    }
+    MikroStand mikroTestStand() override {
+        MikroStand m;
+        m.laeuft = testLaeuft;
+        m.puffer = testLaeuft && !stumm ? static_cast<int>((jetzt - testSeit) / 256) : 0;
+        m.pegel = testLaeuft && !stumm ? aufnahmePegel() : 0;
+        return m;
+    }
+    void mikroTestStopp() override { testLaeuft = nimmtAuf = false; }
 };
 
 struct SimNetz {
@@ -408,6 +428,12 @@ int main() {
             if (wo == "start") plat.fehlerStart = grund;
             else if (wo == "stopp") plat.fehlerStopp = grund;
             else plat.fehlerStart.clear(), plat.fehlerStopp.clear();
+        } else if (cmd == "MIKROSTUMM") {      // MIKROSTUMM an|aus – das Mikrofon liefert keine Puffer
+            std::string w;
+            in >> w;
+            plat.stumm = w == "an";
+        } else if (cmd == "MIKROREG") {
+            std::cout << "MIKROREG " << (plat.registerAn ? 1 : 0) << "\n";
         } else if (cmd == "HOCHLADEN") {
             in >> plat.hochProzent;
         } else if (cmd == "PEGEL") {

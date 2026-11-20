@@ -62,6 +62,8 @@ void Dorf::laden() {
     const std::string mik = platform_.setting("mikro");
     if (mik == "1" || mik == "2" || mik == "3") mikro = mik[0] - '0';
     platform_.mikroStufe(mikro);
+    mikroRegister = platform_.setting("mikroreg") == "1";
+    platform_.mikroRegister(mikroRegister);
     wartend_.clear();
     std::string text;
     if (platform_.readFile(DATEI_SCHLANGE, text)) {
@@ -97,6 +99,12 @@ void Dorf::mikroSetzen(int v) {
     mikro = std::max(1, std::min(3, v));
     platform_.setSetting("mikro", std::to_string(mikro));
     platform_.mikroStufe(mikro);
+}
+
+void Dorf::mikroRegisterSetzen(bool an) {
+    mikroRegister = an;
+    platform_.setSetting("mikroreg", an ? "1" : "");
+    platform_.mikroRegister(an);
 }
 
 void Dorf::spracheSenden(uint32_t besitzer, int marke) {

@@ -1397,6 +1397,71 @@ public:
     }
 };
 
+// ------------------------------------------------------------------ Mikrofon-Test (1.3.3)
+// Nimmt auf, ohne zu speichern oder zu senden, und zeigt live: kommen ueberhaupt Puffer an (je 256 ms), wie laut ist es.
+// Enter schaltet die Verstaerkung im Codec an/aus (startet den Test neu) – so laesst sich am Geraet klaeren, was geht.
+class MikroTestView : public View {
+public:
+    bool animated() const override { return true; }
+    uint32_t animMs() const override { return 150; }
+    bool wach() const override { return true; }
+    void tick(App& app, uint32_t now) override {
+        if (!gestartet_) {
+            gestartet_ = true;
+            seit_ = now;
+            spitze_ = 0;
+            ok_ = app.platform.mikroTestStart();
+        }
+        stand_ = app.platform.mikroTestStand();
+        spitze_ = std::max(spitze_, stand_.pegel);
+    }
+    void draw(Gfx& g, App& app, uint32_t now) override {
+        app.header(g, "Mikrofon-Test", now);
+        const int sek = std::max<int>(1, static_cast<int>((now - seit_) / 1000));
+        g.text(FONT_SMALL, 10, 42, std::string("Verst\xC3\xA4rkung: ") + (app.dorf.mikroRegister ? "im Codec (Register)" : "Software (wie 1.2)"), col::GREY);
+        if (!ok_ && !stand_.laeuft) {
+            g.text(FONT_BODY, 10, 66, "Startet nicht", col::RED);
+            const auto z = wrapText(FONT_SMALL, stand_.grund.empty() ? app.platform.aufnahmeGrund() : stand_.grund, 222, 2);
+            for (size_t i = 0; i < z.size(); ++i) g.text(FONT_SMALL, 10, 82 + static_cast<int>(i) * 13, z[i], col::TEXT2);
+        } else {
+            // Soll: 16 000 Werte/s, 4096 je Puffer = 3,9 Puffer/s. Deutlich weniger = Takt stimmt nicht (Ton kommt zu langsam)
+            const uint32_t ms = std::max<uint32_t>(1, now - seit_);
+            const int zehntel = static_cast<int>(stand_.puffer * 10000u / ms);
+            const std::string puffer = std::to_string(stand_.puffer) + " Puffer in " + std::to_string(sek) + " s (" + std::to_string(zehntel / 10) + "," +
+                                       std::to_string(zehntel % 10) + "/s, soll 3,9)";
+            g.text(FONT_BODY, 10, 64, puffer, stand_.puffer == 0 && sek >= 2 ? col::RED : col::WHITE);
+            g.rrect(10, 72, 220, 8, 4, col::LINE);
+            if (stand_.pegel > 0) g.rrect(10, 72, std::max(6, 220 * stand_.pegel / 100), 8, 4, stand_.pegel > 90 ? col::RED : col::GREEN);
+            g.text(FONT_SMALL, 10, 96, "Pegel " + std::to_string(stand_.pegel) + " % \xC2\xB7 Spitze " + std::to_string(spitze_) + " %", col::TEXT2);
+            const char* deutung = stand_.puffer == 0 && sek >= 2   ? "Kein Ton vom Mikrofon."
+                                  : sek >= 3 && zehntel < 30         ? "Ton kommt zu langsam (Takt) \xE2\x80\x93 bitte Zahl melden."
+                                  : spitze_ < 25                     ? "Ton kommt an, aber leise \xE2\x80\x93 lauter/n\xC3\xA4her sprechen."
+                                                                     : "Ton kommt an \xE2\x9C\x93";
+            g.text(FONT_SMALL, 10, 110, deutung, stand_.puffer == 0 && sek >= 2 ? col::RED : col::AMBER);
+        }
+        app.footer(g, "Enter: Codec-Verst\xC3\xA4rkung an/aus \xC2\xB7 Esc zur\xC3\xBC" "ck", col::AMBER);
+    }
+    void key(const Input& in, App& app, uint32_t now) override {
+        if (in.k == K::Esc || (in.k == K::Char && in.ch == "`")) {
+            app.platform.mikroTestStopp();
+            app.pop();
+            return;
+        }
+        if (in.k == K::Enter) {
+            app.platform.mikroTestStopp();
+            app.dorf.mikroRegisterSetzen(!app.dorf.mikroRegister);
+            app.toast(app.dorf.mikroRegister ? "Codec-Verst\xC3\xA4rkung an" : "Codec-Verst\xC3\xA4rkung aus", now);
+            gestartet_ = false;      // neu starten mit der anderen Einstellung
+        }
+    }
+
+private:
+    bool gestartet_ = false, ok_ = false;
+    uint32_t seit_ = 0;
+    int spitze_ = 0;
+    Platform::MikroStand stand_;
+};
+
 // ------------------------------------------------------------------ Einstellungen
 class EinstellungenView : public ListView {
 public:
@@ -1432,6 +1497,7 @@ public:
         m.right = d.mikro == 1 ? "leise" : d.mikro == 3 ? "laut" : "normal";
         m.action = 7;
         rows.push_back(m);
+        add(8, "Mikrofon-Test", d.mikroRegister ? "Codec" : "Software");
         add(6, "Zum Startmen\xC3\xBC", "Neustart");
         Row h;
         h.style = Row::Header;
@@ -1472,6 +1538,7 @@ public:
                 break;
             case 6: zumStartmenue(app); break;
             case 7: app.dorf.mikroSetzen(app.dorf.mikro % 3 + 1); break;
+            case 8: app.push(neu(new MikroTestView())); break;
             default: break;
         }
     }

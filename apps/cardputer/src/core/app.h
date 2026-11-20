@@ -18,7 +18,7 @@
 
 namespace haloos {
 
-constexpr const char* FIRMWARE_VERSION = "1.3.2";
+constexpr const char* FIRMWARE_VERSION = "1.3.3";
 
 enum class Sound { FocusStart, ShortBreak, LongBreak, BreakEnd, AllDone, Test };
 
@@ -49,6 +49,18 @@ public:
     virtual std::string aufnahmeGrund() { return ""; }            // warum Start/Stopp scheiterte (fuer die Meldung)
     virtual int hochladenProzent() { return -1; }                 // Aufnahme wird gesendet: 0..100, sonst -1
     virtual void mikroStufe(int stufe) = 0;                       // Verstaerkung 1 leise, 2 normal, 3 laut
+    // 1.3.3: Verstaerkung im Codec (ES8311-Register) statt nur in Software – kann am Geraet Ton verhindern, darum abschaltbar
+    virtual void mikroRegister(bool an) { (void)an; }
+    // 1.3.3: Mikrofon-Test – nimmt auf, ohne zu speichern; zeigt, ob und wie viel Ton ankommt
+    struct MikroStand {
+        bool laeuft = false;
+        int puffer = 0;          // fertige Puffer (je 256 ms) seit dem Start
+        int pegel = 0;           // aktueller Pegel 0..100 (dB-Skala)
+        std::string grund;       // warum der Test nicht laeuft / abbrach
+    };
+    virtual bool mikroTestStart() { return false; }
+    virtual MikroStand mikroTestStand() { return {}; }
+    virtual void mikroTestStopp() {}
 };
 
 // Pegel als Balken: in dB, damit normale Sprache (-30..-10 dBFS) sichtbar ausschlaegt. roh = Spitzenwert 0..32767;
