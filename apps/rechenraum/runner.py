@@ -1512,6 +1512,372 @@ def umwandeln(name, inhalt):
             shutil.rmtree(d, ignore_errors=True)
 
 
+# ---- E198: Bildbearbeitung (/bild) -----------------------------------------------------------------------------------
+# Für das Atelier (Bildeditor der App) und das Agenten-Werkzeug bild_bearbeiten: zuschneiden, Größe, drehen, spiegeln,
+# einfache Korrekturen, Format – und zwei KI-Schritte OHNE Internet und ohne Kosten, nur CPU:
+#   hintergrund_entfernen: U²-Net „u2netp“ (4,6 MB, Apache-2.0) über onnxruntime (MIT)
+#   hochskalieren:         Real-ESRGAN „general-x4v3“ (4,8 MB, BSD-3-Clause; ONNX-Fassung von Qualcomm AI Hub), Kacheln 128×128
+# Läuft wie /umwandeln NIE im Server-Thread, sondern als Kindprozess `runner.py --bild …` mit denselben Grenzen
+# (Zeitlimit, RLIMIT_AS, eigener Ordner, oom_score_adj).
+# Speicher – gemessen mit onnxruntime 1.19.2, numpy 1.24.2, 1 Thread (Xeon 2,1 GHz):
+#   u2netp:      349 MB belegt (VmHWM), 399 MB Adressraum, 0,57 s je Bild (immer 320×320)
+#   Real-ESRGAN:  76 MB belegt, 126 MB Adressraum, 0,36 s je Kachel (1024×1024 → 81 Kacheln ≈ 30 s)
+# Dazu das Bild selbst (24 MP RGBA = 96 MB, beim Drehen kurz doppelt). Darum belegt eine Bildbearbeitung BEIDE Plätze der
+# Umwandlung (2 × UMWANDELN_BELEGT_MB = 520 MB) und es läuft immer nur eine – die Rechnung in deploy/compose.yml bleibt.
+BILD_VERSION = "1"
+BILD_MAX_PIXEL = 24_000_000
+BILD_MAX_KANTE = 12_000
+BILD_MAX_SCHRITTE = 20
+BILD_MODELL_HINTERGRUND = os.environ.get("BILD_MODELL_HINTERGRUND", "/opt/bild/u2netp.onnx")
+BILD_MODELL_SKALIEREN = os.environ.get("BILD_MODELL_SKALIEREN", "/opt/bild/real_esrgan_general_x4v3.onnx")
+# Hochskalieren: Eingang höchstens so viele Pixel (4× → 16,8 MP Ergebnis; ~81 Kacheln je Megapixel)
+SKALIEREN_MAX_PIXEL = 1_050_000
+BILD_EINZELN = threading.Lock()
+BILD_FORMATE = {"png": ("PNG", "image/png", ".png"), "jpg": ("JPEG", "image/jpeg", ".jpg"), "webp": ("WEBP", "image/webp", ".webp")}
+BILD_SCHRITTE = (
+    "zuschneiden", "groesse", "drehen", "spiegeln", "hintergrund_entfernen", "hochskalieren", "graustufen", "invertieren",
+    "helligkeit", "kontrast", "saettigung", "weichzeichnen", "schaerfen", "automatisch",
+)
+
+
+class BildFehler(Exception):
+    pass
+
+
+def bild_faehigkeiten():
+    """Was dieses Image kann (für die Knöpfe in der App): Pillow, onnxruntime und die beiden Modelle."""
+    import importlib.util
+
+    def modul(n):
+        return importlib.util.find_spec(n) is not None
+    ort = modul("onnxruntime") and modul("numpy") and modul("PIL")
+    return {
+        "version": BILD_VERSION,
+        "bilder": modul("PIL"),
+        "hintergrund_entfernen": bool(ort and os.path.isfile(BILD_MODELL_HINTERGRUND)),
+        "hochskalieren": bool(ort and os.path.isfile(BILD_MODELL_SKALIEREN)),
+        "heic": _hat("heif-convert"),
+        "max_pixel": BILD_MAX_PIXEL,
+        "skalieren_max_pixel": SKALIEREN_MAX_PIXEL,
+    }
+
+
+def _zahl(s, name, lo, hi, ganz=False, standard=None):
+    w = s.get(name, standard)
+    if w is None:
+        raise BildFehler(f"Schritt „{s.get('art')}“: {name} fehlt.")
+    if isinstance(w, bool) or not isinstance(w, (int, float)) or w != w:
+        raise BildFehler(f"Schritt „{s.get('art')}“: {name} muss eine Zahl sein.")
+    if w < lo or w > hi:
+        raise BildFehler(f"Schritt „{s.get('art')}“: {name} muss zwischen {lo} und {hi} liegen.")
+    return int(round(w)) if ganz else float(w)
+
+
+def _bild_oeffnen(pfad, name):
+    from PIL import Image, ImageOps
+    Image.MAX_IMAGE_PIXELS = BILD_MAX_PIXEL
+    quelle = pfad
+    e = _endung(name)
+    if e in (".heic", ".heif", ".avif"):
+        if not _hat("heif-convert"):
+            raise BildFehler("HEIC/HEIF: Umwandler (heif-convert) fehlt im Rechenraum.")
+        quelle = pfad + ".png"
+        r = _werkzeug(["heif-convert", pfad, quelle], 60)
+        if r.returncode != 0 or not os.path.isfile(quelle):
+            raise BildFehler("HEIC/HEIF ließ sich nicht lesen.")
+    elif e == ".svg":
+        if not _hat("rsvg-convert"):
+            raise BildFehler("SVG: Umwandler (rsvg-convert) fehlt im Rechenraum.")
+        quelle = pfad + ".png"
+        # der Container hat kein Internet – nachgeladen wird nichts
+        r = _werkzeug(["rsvg-convert", "-w", "2000", "--keep-aspect-ratio", "-o", quelle, pfad], 30)
+        if r.returncode != 0 or not os.path.isfile(quelle):
+            raise BildFehler("SVG ließ sich nicht lesen.")
+    try:
+        b = Image.open(quelle)
+        if b.width * b.height > BILD_MAX_PIXEL:
+            raise BildFehler(f"Bild zu groß ({b.width}×{b.height}, höchstens {BILD_MAX_PIXEL // 1_000_000} Megapixel).")
+        b.seek(0)
+        b.load()
+    except BildFehler:
+        raise
+    except Image.DecompressionBombError:
+        raise BildFehler(f"Bild zu groß (höchstens {BILD_MAX_PIXEL // 1_000_000} Megapixel).")
+    except Exception as ex:  # noqa: BLE001
+        raise BildFehler(f"Kein lesbares Bild ({type(ex).__name__}).")
+    try:
+        b = ImageOps.exif_transpose(b)  # Handyfotos: so drehen, wie man sie sieht
+    except Exception:  # noqa: BLE001 – kaputtes EXIF ist kein Grund zu scheitern
+        pass
+    hat_alpha = b.mode in ("RGBA", "LA", "PA") or (b.mode == "P" and "transparency" in b.info)
+    return b.convert("RGBA" if hat_alpha else "RGB")
+
+
+def _onnx_sitzung(modell, was):
+    try:
+        import numpy  # noqa: F401
+        import onnxruntime as ort
+    except ImportError:
+        raise BildFehler(f"{was}: onnxruntime fehlt im Rechenraum (kommt mit dem nächsten Rechenraum-Image).")
+    if not os.path.isfile(modell):
+        raise BildFehler(f"{was}: Modell fehlt im Rechenraum (kommt mit dem nächsten Rechenraum-Image).")
+    o = ort.SessionOptions()
+    o.intra_op_num_threads = cpu_kontingent()
+    o.inter_op_num_threads = 1
+    o.enable_cpu_mem_arena = False  # u2netp: 349 statt 552 MB belegt, gleich schnell
+    o.log_severity_level = 3
+    return ort.InferenceSession(modell, o, providers=["CPUExecutionProvider"])
+
+
+def bild_hintergrund_entfernen(b):
+    """U²-Net (u2netp): Maske des Hauptmotivs bei 320×320, auf Bildgröße gebracht und als Deckkraft gesetzt."""
+    import numpy as np
+    from PIL import Image
+    s = _onnx_sitzung(BILD_MODELL_HINTERGRUND, "Hintergrund entfernen")
+    klein = np.asarray(b.convert("RGB").resize((320, 320), Image.Resampling.LANCZOS), dtype=np.float32)
+    klein = klein / max(float(klein.max()), 1e-6)
+    klein = (klein - np.array([0.485, 0.456, 0.406], dtype=np.float32)) / np.array([0.229, 0.224, 0.225], dtype=np.float32)
+    ein = s.get_inputs()[0]
+    aus = s.run([s.get_outputs()[0].name], {ein.name: klein.transpose(2, 0, 1)[None].astype(np.float32)})[0][0, 0]
+    del s
+    lo, hi = float(aus.min()), float(aus.max())
+    aus = (aus - lo) / max(hi - lo, 1e-6)
+    maske = Image.fromarray((aus * 255).astype(np.uint8), "L").resize(b.size, Image.Resampling.LANCZOS)
+    b = b.convert("RGBA")
+    if b.getextrema()[3][0] < 255:  # schon durchsichtige Stellen bleiben durchsichtig
+        from PIL import ImageChops
+        maske = ImageChops.multiply(maske, b.getchannel("A"))
+    b.putalpha(maske)
+    return b
+
+
+def bild_hochskalieren(b, faktor):
+    """Real-ESRGAN general-x4v3 in Kacheln (128×128 → 512×512, 16 px Überlappung); 2× = 4× und sauber halbiert."""
+    import numpy as np
+    from PIL import Image
+    if b.width * b.height > SKALIEREN_MAX_PIXEL:
+        raise BildFehler(
+            f"Hochskalieren: Bild zu groß ({b.width}×{b.height}). Höchstens rund {SKALIEREN_MAX_PIXEL // 1000} Tausend Pixel "
+            "(z. B. 1024×1024) – vorher verkleinern oder zuschneiden."
+        )
+    s = _onnx_sitzung(BILD_MODELL_SKALIEREN, "Hochskalieren")
+    ein, aus_name = s.get_inputs()[0], s.get_outputs()[0].name
+    K, UE = 128, 16
+    schritt = K - UE
+    rgb = np.asarray(b.convert("RGB"), dtype=np.uint8)
+    h, w = rgb.shape[:2]
+
+    def aufgefuellt(n):  # kleinste Länge ≥ n, die sich mit Kacheln im Abstand `schritt` genau belegen lässt
+        return K if n <= K else K + -(-(n - K) // schritt) * schritt
+    hp, wp = aufgefuellt(h), aufgefuellt(w)
+    rgb = np.pad(rgb, ((0, hp - h), (0, wp - w), (0, 0)), mode="edge")
+    gross = np.zeros((hp * 4, wp * 4, 3), dtype=np.uint8)
+    for y0 in range(0, hp - K + 1, schritt):
+        for x0 in range(0, wp - K + 1, schritt):
+            if _ENDE[0] and _uebrig() < 15:
+                raise BildFehler("Hochskalieren: Zeitlimit erreicht – bitte ein kleineres Bild nehmen.")
+            kachel = rgb[y0:y0 + K, x0:x0 + K].astype(np.float32) / 255.0
+            r = s.run([aus_name], {ein.name: kachel.transpose(2, 0, 1)[None]})[0][0]
+            r = (np.clip(r, 0.0, 1.0) * 255.0 + 0.5).astype(np.uint8).transpose(1, 2, 0)
+            # Ränder der Kachel verwerfen (dort sieht das Netz zu wenig Umgebung) – außer am Bildrand
+            a_y = 0 if y0 == 0 else UE // 2
+            a_x = 0 if x0 == 0 else UE // 2
+            e_y = K if y0 + K >= hp else K - UE // 2
+            e_x = K if x0 + K >= wp else K - UE // 2
+            gross[(y0 + a_y) * 4:(y0 + e_y) * 4, (x0 + a_x) * 4:(x0 + e_x) * 4] = r[a_y * 4:e_y * 4, a_x * 4:e_x * 4]
+    del s
+    erg = Image.fromarray(gross[:h * 4, :w * 4], "RGB")
+    del gross
+    if b.mode == "RGBA":
+        erg.putalpha(b.getchannel("A").resize(erg.size, Image.Resampling.LANCZOS))
+    if faktor == 2:
+        erg = erg.resize((w * 2, h * 2), Image.Resampling.LANCZOS)
+    return erg
+
+
+def _mit_alpha(b, f):
+    """Wendet f auf die Farbe an und lässt die Deckkraft unberührt."""
+    if b.mode != "RGBA":
+        return f(b)
+    a = b.getchannel("A")
+    r = f(b.convert("RGB")).convert("RGBA")
+    r.putalpha(a)
+    return r
+
+
+def bild_schritt(b, s):
+    from PIL import Image, ImageEnhance, ImageFilter, ImageOps
+    if not isinstance(s, dict) or s.get("art") not in BILD_SCHRITTE:
+        raise BildFehler(f"Unbekannter Schritt: {s.get('art') if isinstance(s, dict) else s!r}. Möglich: {', '.join(BILD_SCHRITTE)}.")
+    art = s["art"]
+    if art == "zuschneiden":
+        x, y = _zahl(s, "x", 0, BILD_MAX_KANTE, True, 0), _zahl(s, "y", 0, BILD_MAX_KANTE, True, 0)
+        bw, bh = _zahl(s, "breite", 1, BILD_MAX_KANTE, True), _zahl(s, "hoehe", 1, BILD_MAX_KANTE, True)
+        if x >= b.width or y >= b.height:
+            raise BildFehler(f"zuschneiden: Der Ausschnitt liegt außerhalb des Bildes ({b.width}×{b.height}).")
+        return b.crop((x, y, min(b.width, x + bw), min(b.height, y + bh)))
+    if art == "groesse":
+        bw, bh = s.get("breite"), s.get("hoehe")
+        if bw is None and bh is None:
+            raise BildFehler("groesse: breite oder hoehe angeben (fehlt eine, bleibt das Seitenverhältnis).")
+        bw = _zahl(s, "breite", 1, BILD_MAX_KANTE, True) if bw is not None else None
+        bh = _zahl(s, "hoehe", 1, BILD_MAX_KANTE, True) if bh is not None else None
+        if bw is None:
+            bw = max(1, round(b.width * bh / b.height))
+        if bh is None:
+            bh = max(1, round(b.height * bw / b.width))
+        if bw * bh > BILD_MAX_PIXEL:
+            raise BildFehler(f"groesse: höchstens {BILD_MAX_PIXEL // 1_000_000} Megapixel.")
+        return b.resize((bw, bh), Image.Resampling.LANCZOS)
+    if art == "drehen":
+        grad = _zahl(s, "grad", -360, 360) % 360
+        if grad == 0:
+            return b
+        # im Uhrzeigersinn, wie man es erwartet (Pillow dreht gegen den Uhrzeigersinn)
+        if grad in (90, 180, 270):
+            return b.transpose({90: Image.Transpose.ROTATE_270, 180: Image.Transpose.ROTATE_180, 270: Image.Transpose.ROTATE_90}[grad])
+        b = b.convert("RGBA")  # freie Ecken werden durchsichtig
+        r = b.rotate(-grad, resample=Image.Resampling.BICUBIC, expand=True)
+        if r.width * r.height > BILD_MAX_PIXEL:
+            raise BildFehler("drehen: Das gedrehte Bild wäre zu groß.")
+        return r
+    if art == "spiegeln":
+        richtung = s.get("richtung", "horizontal")
+        if richtung not in ("horizontal", "vertikal"):
+            raise BildFehler("spiegeln: richtung ist horizontal oder vertikal.")
+        return b.transpose(Image.Transpose.FLIP_LEFT_RIGHT if richtung == "horizontal" else Image.Transpose.FLIP_TOP_BOTTOM)
+    if art == "hintergrund_entfernen":
+        return bild_hintergrund_entfernen(b)
+    if art == "hochskalieren":
+        faktor = _zahl(s, "faktor", 2, 4, True, 2)
+        if faktor not in (2, 4):
+            raise BildFehler("hochskalieren: faktor ist 2 oder 4.")
+        return bild_hochskalieren(b, faktor)
+    if art == "graustufen":
+        return _mit_alpha(b, lambda x: ImageOps.grayscale(x).convert("RGB"))
+    if art == "invertieren":
+        return _mit_alpha(b, ImageOps.invert)
+    if art == "automatisch":
+        return _mit_alpha(b, lambda x: ImageOps.autocontrast(x, cutoff=1))
+    if art in ("helligkeit", "kontrast", "saettigung"):
+        wert = _zahl(s, "wert", -100, 100)
+        klasse = {"helligkeit": ImageEnhance.Brightness, "kontrast": ImageEnhance.Contrast, "saettigung": ImageEnhance.Color}[art]
+        return _mit_alpha(b, lambda x: klasse(x).enhance(1 + wert / 100))
+    if art == "weichzeichnen":
+        return b.filter(ImageFilter.GaussianBlur(_zahl(s, "radius", 0.1, 100, False, 2)))
+    if art == "schaerfen":
+        st = _zahl(s, "staerke", 1, 500, True, 100)
+        return _mit_alpha(b, lambda x: x.filter(ImageFilter.UnsharpMask(radius=2, percent=st, threshold=2)))
+    raise BildFehler(f"Unbekannter Schritt: {art}")
+
+
+def bild_kind(pfad, auftrag_pfad, ausgang):
+    """Einstieg des Kindprozesses: Ergebnisbild nach `ausgang`, Bericht als JSON auf stdout."""
+    _ENDE[0] = time.time() + float(os.environ.get("UMWANDELN_REST_S", UMWANDELN_ZEITLIMIT))
+    try:
+        with open(auftrag_pfad, encoding="utf-8") as f:
+            auftrag = json.load(f)
+        try:
+            from PIL import Image
+        except ImportError:
+            raise BildFehler("Bildbibliothek (Pillow) fehlt im Rechenraum.")
+        b = _bild_oeffnen(pfad, auftrag["name"])
+        eingang = [b.width, b.height]
+        for s in auftrag["schritte"]:
+            if _uebrig() < 5:
+                raise BildFehler("Zeitlimit erreicht.")
+            b = bild_schritt(b, s)
+        fmt = auftrag["format"]
+        pil, mime, _ = BILD_FORMATE[fmt]
+        hinweise = []
+        if fmt == "jpg" and b.mode == "RGBA":
+            # JPEG kennt keine Durchsichtigkeit: auf Weiß legen und es sagen
+            if b.getextrema()[3][0] < 255:
+                hinweise.append("JPG kennt keine Durchsichtigkeit – durchsichtige Stellen sind weiß.")
+            weiss = Image.new("RGB", b.size, (255, 255, 255))
+            weiss.paste(b, mask=b.getchannel("A"))
+            b = weiss
+        q = int(auftrag.get("qualitaet") or 90)
+        if fmt == "png":
+            b.save(ausgang, pil, compress_level=6)
+        else:
+            b.save(ausgang, pil, quality=q)
+        sys.stdout.write(json.dumps({"ok": True, "breite": b.width, "hoehe": b.height, "eingang": eingang, "format": fmt, "mime": mime,
+                                     "transparenz": b.mode == "RGBA", "hinweise": hinweise}))
+    except BildFehler as ex:
+        sys.stdout.write(json.dumps({"ok": False, "fehler": str(ex)}))
+    except subprocess.TimeoutExpired:
+        sys.stdout.write(json.dumps({"ok": False, "fehler": "Ein Werkzeug brauchte zu lange und wurde abgebrochen."}))
+    except MemoryError:
+        sys.stdout.write(json.dumps({"ok": False, "fehler": "Zu wenig Speicher für dieses Bild – bitte kleiner."}))
+    except Exception as ex:  # noqa: BLE001 – nie abstürzen, sondern ehrlich melden
+        sys.stdout.write(json.dumps({"ok": False, "fehler": f"Bildbearbeitung fehlgeschlagen ({type(ex).__name__}: {str(ex)[:200]})."}))
+
+
+def bild(name, inhalt, schritte, fmt, qualitaet=None):
+    """Bearbeitet ein Bild in einem Kindprozess (Schritte nacheinander) und gibt das Ergebnis als Datei zurück."""
+    if not isinstance(name, str) or not name or len(name) > 300:
+        raise Fehler(400, "Dateiname fehlt.")
+    if len(inhalt) > MAX_UMWANDELN:
+        raise Fehler(413, f"Bild zu groß (höchstens {MAX_UMWANDELN // 1024 // 1024} MB).")
+    if not isinstance(schritte, list) or len(schritte) > BILD_MAX_SCHRITTE or not all(isinstance(s, dict) for s in schritte):
+        raise Fehler(400, f"schritte: Liste mit höchstens {BILD_MAX_SCHRITTE} Einträgen erwartet.")
+    if fmt not in BILD_FORMATE:
+        raise Fehler(400, f"format: {', '.join(BILD_FORMATE)}.")
+    if qualitaet is not None and (isinstance(qualitaet, bool) or not isinstance(qualitaet, int) or not 1 <= qualitaet <= 100):
+        raise Fehler(400, "qualitaet: 1 bis 100.")
+    basis = os.path.join(ARBEIT, ".umwandeln")
+    os.makedirs(basis, exist_ok=True)
+    # eine Bildbearbeitung belegt beide Plätze der Umwandlung (Speicher, siehe oben) – und nur eine holt sie sich
+    with BILD_EINZELN:
+        geholt = 0
+        try:
+            for _ in range(UMWANDELN_GLEICHZEITIG._initial_value):
+                UMWANDELN_GLEICHZEITIG.acquire()
+                geholt += 1
+            d = tempfile.mkdtemp(dir=basis)
+            try:
+                e = _endung(name)
+                datei = os.path.join(d, "eingang" + (e if re.match(r"^[.a-z0-9]{1,12}$", e) else ""))
+                with open(datei, "wb") as f:
+                    f.write(inhalt)
+                auftrag = os.path.join(d, "auftrag.json")
+                with open(auftrag, "w", encoding="utf-8") as f:
+                    json.dump({"name": name, "schritte": schritte, "format": fmt, "qualitaet": qualitaet}, f)
+                ausgang = os.path.join(d, "ausgang" + BILD_FORMATE[fmt][2])
+                umgebung = {
+                    "PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": d, "TMPDIR": d, "LANG": "C.UTF-8",
+                    "PYTHONDONTWRITEBYTECODE": "1", "UMWANDELN_REST_S": str(UMWANDELN_ZEITLIMIT - 5), "OMP_NUM_THREADS": "2",
+                }
+                for k in ("WHISPER_THREADS", "UMWANDELN_SPEICHER_MB", "UMWANDELN_ZEITLIMIT_S", "BILD_MODELL_HINTERGRUND", "BILD_MODELL_SKALIEREN"):
+                    if k in os.environ:
+                        umgebung[k] = os.environ[k]
+                p = subprocess.Popen([sys.executable, os.path.abspath(__file__), "--bild", datei, auftrag, ausgang], cwd=d, env=umgebung,
+                                     stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, preexec_fn=_grenzen_setzen)
+                try:
+                    aus, fehler = p.communicate(timeout=UMWANDELN_ZEITLIMIT)
+                except subprocess.TimeoutExpired:
+                    os.killpg(p.pid, signal.SIGKILL)
+                    p.communicate()
+                    raise Fehler(408, f"Bildbearbeitung nach {UMWANDELN_ZEITLIMIT} s abgebrochen (Zeitlimit).")
+                try:
+                    r = json.loads(aus.decode("utf-8"))
+                except ValueError:
+                    letzte = fehler.decode("utf-8", "replace").strip().splitlines()[-1:] or [f"Exit-Code {p.returncode}"]
+                    raise Fehler(500, f"Bildbearbeitung abgestürzt ({letzte[0][:200]}) – vermutlich zu wenig Speicher für dieses Bild.")
+                if not r.get("ok"):
+                    raise Fehler(422, r.get("fehler") or "Bildbearbeitung fehlgeschlagen.")
+                with open(ausgang, "rb") as f:
+                    daten = f.read()
+                del r["ok"]
+                return {"version": BILD_VERSION, **r, "groesse": len(daten), "inhalt_b64": base64.b64encode(daten).decode()}
+            finally:
+                shutil.rmtree(d, ignore_errors=True)
+        finally:
+            for _ in range(geholt):
+                UMWANDELN_GLEICHZEITIG.release()
+
+
 def aufraeumen_alt():
     while True:
         jetzt = time.time()
@@ -1562,6 +1928,11 @@ class Handler(BaseHTTPRequestHandler):
                 p = raum_pfad(b.get("raum"), anlegen=False)
                 shutil.rmtree(p, ignore_errors=True)
                 return self.antwort(200, {"ok": True})
+            if weg == "/bild":  # E198
+                inhalt = base64.b64decode(b.get("inhalt_b64") or "", validate=True)
+                return self.antwort(200, bild(b.get("name"), inhalt, b.get("schritte"), b.get("format") or "png", b.get("qualitaet")))
+            if weg == "/bild/kann":  # E198
+                return self.antwort(200, bild_faehigkeiten())
             if weg == "/umwandeln":
                 inhalt = base64.b64decode(b.get("inhalt_b64") or "", validate=True)
                 return self.antwort(200, umwandeln(b.get("name"), inhalt))
@@ -1601,6 +1972,8 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     if len(sys.argv) == 4 and sys.argv[1] == "--umwandeln":
         return umwandeln_kind(sys.argv[2], sys.argv[3])
+    if len(sys.argv) == 5 and sys.argv[1] == "--bild":  # E198
+        return bild_kind(sys.argv[2], sys.argv[3], sys.argv[4])
     if not GEHEIMNIS:
         raise SystemExit("RECHENRAUM_GEHEIMNIS fehlt.")
     os.makedirs(ARBEIT, exist_ok=True)

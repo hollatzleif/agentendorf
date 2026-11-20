@@ -19,6 +19,7 @@ import type { Notizen } from '../notizen.js';
 import { ortszeitText, terminAusAngaben, terminVorschau, type GoogleKalender } from '../kalender-google.js';
 import { tagIn, tagPlus } from '../zeit.js';
 import { ablageName, type RechenraumKlient } from './rechenraum.js';
+import { BILD_WERKZEUG_DEFINITION, bildBearbeiten } from './bild.js';
 import { anhangKopf, type DateiVerstehen } from './anhaenge.js';
 import type { EntwurfEingabe, GmailKlient } from '../post/gmail.js';
 import { AGENTEN_ARTEN, type Freigaben } from './freigaben.js';
@@ -497,6 +498,7 @@ export const WERKZEUG_DEFINITIONEN: Record<DorfWerkzeug, WerkzeugDefinition> = {
       additionalProperties: false,
     },
   },
+  bild_bearbeiten: BILD_WERKZEUG_DEFINITION, // E198 (agenten/bild.ts)
   // ---- E183: Alltag – Kirchturm, Notizen, Termin-Vorschläge, neue Mail-Entwürfe ----
   kirchturm_lesen: {
     name: 'kirchturm_lesen',
@@ -999,6 +1001,18 @@ export class WerkzeugKiste {
         case 'rechenraum_seite_ansehen':
         case 'rechenraum_ablegen':
           return await this.rechenraum(name, eingabe);
+        case 'bild_bearbeiten': {
+          // E198: Bild aus dem Vault im Rechenraum bearbeiten, Ergebnis als neue Datei im Ablage-Ordner des Chats
+          const r = this.k.rechenraum;
+          if (!r) throw new DorfFehler(503, 'Der Rechenraum ist auf diesem Server nicht eingerichtet.');
+          const vonDiesemChat = (pfad: string) =>
+            !!this.db.prepare("SELECT 1 FROM werkzeug_log WHERE chat_id = ? AND pfad = ? AND art = 'geschrieben' AND erlaubt = 1 LIMIT 1").get(this.k.chatId, pfad);
+          const b = await bildBearbeiten({ vault: this.vault, klient: r.klient, ablage: r.ablage, vonDiesemChat, eingabe });
+          // der Lauf sieht das Bild (Vorschau) – Bilder gelten wie bei vault_lesen als Fremdinhalt
+          this.fremd = true;
+          this.log(name, eingabe, `${b.quelle}: ${b.kurz}`, true, b.ziel, 'geschrieben');
+          return b.ergebnis;
+        }
         case 'freigabe_beantragen': {
           const e = z
             .object({ art: z.enum(AGENTEN_ARTEN), titel: z.string().min(1), begruendung: z.string().default(''), inhalt: z.unknown() })

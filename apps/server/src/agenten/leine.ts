@@ -61,7 +61,8 @@ export type DorfWerkzeug =
   | 'post_entwurf_neu'
   | 'meine_todos_lesen'
   | 'meine_todos_anlegen'
-  | 'meine_todos_erledigen';
+  | 'meine_todos_erledigen'
+  | 'bild_bearbeiten'; // E198
 export const LESE_WERKZEUGE: DorfWerkzeug[] = ['vault_lesen', 'vault_liste', 'vault_suchen'];
 /**
  * Nur Aktionen mit werkzeuge: [post]: Mails aus dem Posteingang (dem Dorf bekannt) suchen und lesen, Entwürfe anlegen
@@ -101,6 +102,7 @@ export const RECHENRAUM_WERKZEUGE: DorfWerkzeug[] = [
   'rechenraum_vault_kopieren',
   'rechenraum_seite_ansehen',
   'rechenraum_ablegen',
+  'bild_bearbeiten', // E198: Bilder aus dem Vault bearbeiten – gerechnet im Rechenraum, Ergebnis nur im Ablage-Ordner des Chats
 ];
 /**
  * Nur Aktionen mit werkzeuge: [moodle]. Der Browser-Container liest nur (Leine dort: nur JKU-Domains, kein

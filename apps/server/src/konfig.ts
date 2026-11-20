@@ -39,6 +39,10 @@ const Schema = z.object({
   TELEGRAM_API_URL: z.string().default('https://api.telegram.org'),
   RECHENRAUM_URL: z.string().default('http://rechenraum:4100'),
   RECHENRAUM_GEHEIMNIS: z.string().optional(),
+  // E198 Atelier: „Bild generieren“ über Cloudflare Workers AI (optional, Gratiskontingent) – nur in .env (dorf bilder-einrichten)
+  CLOUDFLARE_ACCOUNT_ID: z.string().optional(),
+  CLOUDFLARE_API_TOKEN: z.string().optional(),
+  CLOUDFLARE_API_URL: z.string().default('https://api.cloudflare.com/client/v4'),
   BROWSER_URL: z.string().default('http://browser:4200'),
   WETTER_URL: z.string().optional(),
   WETTER_ORT: z.string().default('Konstanz'),
@@ -107,6 +111,8 @@ export interface Konfig {
   googleTokenUrl: string;
   googleCalendarApiUrl: string;
   googlePflichtIcs?: string;
+  /** E198: Zugang zu Cloudflare Workers AI für „Bild generieren“ im Atelier (fehlt → Knopf ausgegraut) */
+  cloudflare?: { accountId: string; token: string; url: string };
   rechenraumUrl: string;
   rechenraumGeheimnis?: string;
   browserUrl: string;
@@ -159,6 +165,10 @@ export function konfigLaden(env: NodeJS.ProcessEnv = process.env): Konfig {
     googleTokenUrl: e.GOOGLE_TOKEN_URL,
     googleCalendarApiUrl: e.GOOGLE_CALENDAR_API_URL.replace(/\/$/, ''),
     googlePflichtIcs: e.GOOGLE_PFLICHT_ICS || undefined,
+    cloudflare:
+      e.CLOUDFLARE_ACCOUNT_ID && e.CLOUDFLARE_API_TOKEN
+        ? { accountId: e.CLOUDFLARE_ACCOUNT_ID, token: e.CLOUDFLARE_API_TOKEN, url: e.CLOUDFLARE_API_URL.replace(/\/$/, '') }
+        : undefined,
     rechenraumUrl: e.RECHENRAUM_URL,
     rechenraumGeheimnis: e.RECHENRAUM_GEHEIMNIS || undefined,
     browserUrl: e.BROWSER_URL,

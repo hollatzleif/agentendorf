@@ -249,6 +249,21 @@ export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 /** E190: Anhänge an Chat, Schreibtisch und Telegram – je Datei höchstens so groß (Telegram selbst lädt nur bis 20 MB) */
 export const MAX_ANHANG_BYTES = 25 * 1024 * 1024;
 /** E190: Datei-Kärtchen im Chat (Anhang von Leif oder vom Agenten erzeugte Datei) */
+/** E198 Atelier: so groß darf ein gespeichertes Bild oder Projekt höchstens sein */
+export const ATELIER_MAX_BYTES = 60 * 1024 * 1024;
+/** E198 Atelier: was dieser Server für den Bildeditor kann (Knöpfe ohne Funktion sind ausgegraut und sagen, warum) */
+export interface AtelierStand {
+  /** Rechenraum erreichbar und kann Bilder (HEIC/TIFF öffnen) */
+  rechenraum: boolean;
+  hintergrund: boolean;
+  hochskalieren: boolean;
+  heic: boolean;
+  skalierenMaxPixel: number;
+  /** Cloudflare-Zugang eingerichtet (dorf bilder-einrichten) */
+  generieren: boolean;
+  maxBytes: number;
+}
+
 export interface DateiKarte {
   pfad: string;
   name: string;

@@ -181,6 +181,8 @@ describe('api-Motor: Bilder in Werkzeug-Ergebnissen', () => {
       },
       aufraeumen: async () => undefined,
       umwandeln: async () => ({ version: '1', typ: '', text: '', bilder: [], hinweise: [] }),
+      bild: async () => { throw new Error('nicht in diesem Test'); },
+      bildKann: async () => { throw new Error('nicht in diesem Test'); },
     };
     const { chatId } = await d.agenten.aktionStarten('Uni/a', {});
     await d.agenten.leerlauf();

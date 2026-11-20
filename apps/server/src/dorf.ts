@@ -92,6 +92,9 @@ const PFLICHT_DATEIEN = [
   'Codehaus/aktionen/programmieren.md',
   'Codehaus/aktionen/repo-klonen.md',
   'Codehaus/aktionen/pr-pruefen.md',
+  // E198 Atelier
+  'Atelier/gebaeude.md',
+  'Atelier/aktionen/bild-bearbeiten.md',
 ];
 
 /**
