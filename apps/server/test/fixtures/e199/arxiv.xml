@@ -1,0 +1,52 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
+  <id>https://arxiv.org/api/oDYYP2/gNgQ3Gd0/aH5ZqOB2+U8</id>
+  <title>arXiv Query: search_query=all:"bayesian networks"&amp;id_list=&amp;start=0&amp;max_results=2</title>
+  <updated>2026-11-20T01:52:59Z</updated>
+  <link href="https://arxiv.org/api/query?search_query=all:%22bayesian+networks%22&amp;start=0&amp;max_results=2&amp;id_list=" type="application/atom+xml"/>
+  <opensearch:itemsPerPage>2</opensearch:itemsPerPage>
+  <opensearch:totalResults>2031</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <entry>
+    <id>http://arxiv.org/abs/1209.5350v3</id>
+    <title>Learning Topic Models and Latent Bayesian Networks Under Expansion Constraints</title>
+    <updated>2013-05-24T18:25:32Z</updated>
+    <link href="https://arxiv.org/abs/1209.5350v3" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1209.5350v3" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Unsupervised estimation of latent variable models is a fundamental problem central to numerous applications of machine learning and statistics. This work presents a principled approach for estimating broad classes of such models, including probabilistic topic models and latent linear Bayesian networks, using only second-order observed moments. The sufficient conditions for identifiability of these models are primarily based on weak expansion constraints on the topic-word matrix, for topic models, and on the directed acyclic graph, for Bayesian networks. Because no assumptions are made on the distribution among the latent variables, the approach can handle arbitrary correlations among the topics or latent factors. In addition, a tractable learning method via $\ell_1$ optimization is proposed and studied in numerical experiments.</summary>
+    <category term="stat.ML" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="stat.AP" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2012-09-24T18:11:02Z</published>
+    <arxiv:comment>38 pages, 6 figures, 2 tables, applications in topic models and Bayesian networks are studied. Simulation section is added</arxiv:comment>
+    <arxiv:primary_category term="stat.ML"/>
+    <author>
+      <name>Animashree Anandkumar</name>
+    </author>
+    <author>
+      <name>Daniel Hsu</name>
+    </author>
+    <author>
+      <name>Adel Javanmard</name>
+    </author>
+    <author>
+      <name>Sham M. Kakade</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2212.03103v1</id>
+    <title>A Comprehensively Improved Hybrid Algorithm for Learning Bayesian Networks: Multiple Compound Memory Erasing</title>
+    <updated>2022-12-05T12:52:07Z</updated>
+    <link href="https://arxiv.org/abs/2212.03103v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2212.03103v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Using a Bayesian network to analyze the causal relationship between nodes is a hot spot. The existing network learning algorithms are mainly constraint-based and score-based network generation methods. The constraint-based method is mainly the application of conditional independence (CI) tests, but the inaccuracy of CI tests in the case of high dimensionality and small samples has always been a problem for the constraint-based method. The score-based method uses the scoring function and search strategy to find the optimal candidate network structure, but the search space increases too much with the increase of the number of nodes, and the learning efficiency is very low. This paper presents a new hybrid algorithm, MCME (multiple compound memory erasing). This method retains the advantages of the first two methods, solves the shortcomings of the above CI tests, and makes innovations in the scoring function in the direction discrimination stage. A large number of experiments show that MCME has better or similar performance than some existing algorithms.</summary>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2022-12-05T12:52:07Z</published>
+    <arxiv:comment>Bayesian networks, Structure learning, Conditional independence tests, Scoring function</arxiv:comment>
+    <arxiv:primary_category term="cs.LG"/>
+    <author>
+      <name>Baokui Mou</name>
+    </author>
+  </entry>
+</feed>

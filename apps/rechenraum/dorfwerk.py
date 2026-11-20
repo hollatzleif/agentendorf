@@ -587,7 +587,7 @@ def daten(a):
     if a.get("als_csv"):
         n = ausgabe_name(a.get("name"), ".csv", "ergebnis")
         with open(im_ordner(n), "w", encoding="utf-8", newline="") as f:
-            w = csv.writer(f)
+            w = csv.writer(f, lineterminator="\n")
             w.writerow(spalten)
             for z in zeilen:
                 w.writerow(["" if x is None else x for x in z])

@@ -5,6 +5,8 @@ import { etappenPlan, fachPasst, fachZuordnen, projekteAus, terminAusText, type 
 import { tagPlanen } from './tagesplan.js';
 import type { Wochenrueckblick } from './wochenrueckblick.js';
 import type { Karteikasten } from './karten.js';
+import { ankiBauen } from './agenten/werkzeuge-extra.js';
+import crypto from 'node:crypto';
 import type { Gewohnheiten } from './gewohnheiten.js';
 import type { Wochenziele } from './wochenziele.js';
 import type { Notizen } from './notizen.js';
@@ -580,6 +582,24 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
     app.post('/api/karten/antwort', async (req) => {
       const b = z.object({ fach: z.string().min(1).max(100), id: z.string().regex(/^[0-9a-f]{20}$/), bewertung: z.enum(['nochmal', 'schwer', 'gut', 'leicht']) }).parse(req.body);
       return k.antworten(b.fach, b.id, b.bewertung);
+    });
+    // E199: Karteikarten eines Fachs als Anki-Paket (.apkg) – gebaut im Rechenraum (genanki), nichts bleibt liegen
+    app.get('/api/karten/anki', async (req, reply) => {
+      const q = z.object({ fach: z.string().min(1).max(100) }).parse(req.query);
+      const rr = a.agenten.rechenraum;
+      if (!rr) throw new DorfFehler(503, 'Der Rechenraum ist auf diesem Server nicht eingerichtet.');
+      const raum = `anki-${crypto.randomUUID()}`;
+      try {
+        const p = await ankiBauen(rr, vault, q.fach, raum);
+        return reply
+          .header('Content-Type', 'application/octet-stream')
+          .header('X-Content-Type-Options', 'nosniff')
+          .header('Cache-Control', 'no-store')
+          .header('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(p.name)}`)
+          .send(p.inhalt);
+      } finally {
+        void rr.aufraeumen(raum).catch(() => undefined);
+      }
     });
   }
 

@@ -2,6 +2,7 @@ import path from 'node:path';
 import type { AktionsWerkzeug } from '@dorf/shared';
 import { normalisieren } from '../vault/pfade.js';
 import { DorfFehler } from '../fehler.js';
+import { EXTRA_ALLTAG, EXTRA_NETZ, EXTRA_POST, EXTRA_RECHENRAUM, type ExtraWerkzeug } from './leine-extra.js';
 
 /**
  * Die Leine: EINE Stelle im Code, die festlegt, was Agenten dürfen – für beide Motoren.
@@ -61,13 +62,15 @@ export type DorfWerkzeug =
   | 'post_entwurf_neu'
   | 'meine_todos_lesen'
   | 'meine_todos_anlegen'
-  | 'meine_todos_erledigen';
+  | 'meine_todos_erledigen'
+  // E199: Werkzeuge aus der Ideen-Liste (Gruppen und Einstufung in leine-extra.ts)
+  | ExtraWerkzeug;
 export const LESE_WERKZEUGE: DorfWerkzeug[] = ['vault_lesen', 'vault_liste', 'vault_suchen'];
 /**
  * Nur Aktionen mit werkzeuge: [post]: Mails aus dem Posteingang (dem Dorf bekannt) suchen und lesen, Entwürfe anlegen
  * und eigene Entwürfe ändern. Senden gibt es nicht – Leif schickt selbst ab.
  */
-export const POST_WERKZEUGE: DorfWerkzeug[] = ['post_suchen', 'post_lesen', 'post_entwurf', 'post_entwurf_neu', 'post_entwurf_aendern'];
+export const POST_WERKZEUGE: DorfWerkzeug[] = ['post_suchen', 'post_lesen', 'post_entwurf', 'post_entwurf_neu', 'post_entwurf_aendern', ...EXTRA_POST];
 /** Nur Aktionen mit werkzeuge: [kalender]: Hauptkalender + Uni-Kalender lesen (Titel sind Fremdinhalt). */
 export const KALENDER_WERKZEUGE: DorfWerkzeug[] = ['kalender_lesen'];
 /**
@@ -90,6 +93,8 @@ export const BUERGERMEISTER_WERKZEUGE: DorfWerkzeug[] = [
   ...MEINE_TODOS_WERKZEUGE,
   ...POST_WERKZEUGE,
   ...KALENDER_WERKZEUGE,
+  // E199: Literatur, Zugverbindungen, Wetter – der Bürgermeister hat Web immer (dienst.ts)
+  ...EXTRA_NETZ,
 ];
 /**
  * Nur Aktionen mit werkzeuge: [rechenraum]. Der Rechenraum hat weder Internet noch Vault. Heraus kommt nur, was
@@ -101,6 +106,8 @@ export const RECHENRAUM_WERKZEUGE: DorfWerkzeug[] = [
   'rechenraum_vault_kopieren',
   'rechenraum_seite_ansehen',
   'rechenraum_ablegen',
+  // E199: feste Werkzeuge im Rechenraum (dorfwerk.py) – PDF, Diagramm, Daten, QR, Anki
+  ...EXTRA_RECHENRAUM,
 ];
 /**
  * Nur Aktionen mit werkzeuge: [moodle]. Der Browser-Container liest nur (Leine dort: nur JKU-Domains, kein
@@ -131,6 +138,8 @@ export const ALLTAG_WERKZEUGE: DorfWerkzeug[] = [
   'kontakt_suchen',
   'kontakt_merken',
   'rueckfrage',
+  // E199: rechnen lokal bzw. holen nur die feste EZB-Tabelle – kein Text des Agenten geht hinaus
+  ...EXTRA_ALLTAG,
 ];
 /** Dateien im eigenen Gebäude ändern/verschieben – nur für Läufe, die auch schreiben dürfen */
 export const VAULT_PFLEGE_WERKZEUGE: DorfWerkzeug[] = ['vault_aendern', 'vault_verschieben'];
@@ -182,6 +191,8 @@ export function werkzeugprofil(a: { werkzeuge: AktionsWerkzeug[]; fremdinhalte: 
   if (a.werkzeuge.includes('post')) dorf.push(...POST_WERKZEUGE);
   if (a.werkzeuge.includes('moodle')) dorf.push(...MOODLE_WERKZEUGE);
   if (a.werkzeuge.includes('kalender')) dorf.push(...KALENDER_WERKZEUGE);
+  // E199: Werkzeuge, die frei gewählten Text nach draußen schicken (Suchwörter, Orte), nur mit Web – wie die Websuche
+  if (a.werkzeuge.includes('web')) dorf.push(...EXTRA_NETZ);
   return { dorf, web: a.werkzeuge.includes('web') };
 }
 

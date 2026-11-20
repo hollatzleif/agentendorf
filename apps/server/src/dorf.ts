@@ -25,6 +25,7 @@ import { telegramApi, type TelegramSchnittstelle } from './telegram/api.js';
 import { Uni, kalenderQuelle, type KalenderQuelle } from './uni/abgleich.js';
 import { moodleKlient, type MoodleKlient } from './uni/moodle.js';
 import { rechenraumKlient } from './agenten/rechenraum.js';
+import { netzBauen } from './agenten/werkzeuge-extra.js';
 import { moodleBrowserKlient, type MoodleBrowserKlient } from './agenten/moodle-browser.js';
 import { SystemAufrufe } from './agenten/system.js';
 import { sdkKlient, type ModellKlient } from './agenten/motor-api.js';
@@ -216,6 +217,8 @@ export async function dorfStarten(
   const motoren: Motoren = typeof opt.motoren === 'function' ? opt.motoren(register) : (opt.motoren ?? motorenBauen(konfig, register));
   const agenten = new AgentenDienst(db, uhr, vault, suche, hub, motoren);
   if (konfig.rechenraumGeheimnis) agenten.rechenraum = rechenraumKlient(konfig.rechenraumUrl, konfig.rechenraumGeheimnis);
+  // E199: Literatur, Zugverbindungen, Wetter, EZB-Kurse – feste Adressen, Kennung mit der Dorf-Adresse als Kontakt
+  agenten.netz = netzBauen({ version: konfig.version, kontakt: konfig.origins[0] ?? 'privat', wetterOrt: konfig.wetterOrt });
   // E190: Umwandlungen fremder Anhänge zwischenspeichern (Daten-Ordner, nicht der Vault – Syncthing muss das nicht tragen)
   agenten.dateien.cacheOrdner = path.join(konfig.datenDir, 'umwandlung');
   if (opt.moodleBrowser) agenten.moodleBrowser = opt.moodleBrowser;
