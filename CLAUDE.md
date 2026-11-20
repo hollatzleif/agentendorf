@@ -40,6 +40,10 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
     gedaechtnis.ts  Rathaus/memory.md (Bürgermeister pflegt selbst, Archiv, Version) + personality.md (nur per Freigabe) – E61
     meine-todos.ts  E192: eigene To-do-Liste des Bürgermeisters (Rathaus/buergermeister-todos/, eine Datei je Eintrag, „wieder ansehen am“,
                     Bezug zu Aufgabe/Chat); meine_todos_* nur für ihn; nach jedem Lauf übernimmt der Code „Offen“ ohne Dubletten
+    werkzeuge-extra.ts E199: neue Werkzeuge in eigener Datei – im Rechenraum (dorfwerk.py): pdf_bearbeiten, diagramm_zeichnen (Graphviz),
+                    daten_abfragen (DuckDB), qr_code, karten_anki; nur mit Web: literatur_suchen, doi_bibtex (→ Uni/literatur.bib),
+                    verbindung_suchen (Transitous), wetter_vorhersage; für alle: feiertage, umrechnen (EZB); Post: post_anhang_lesen
+                    (→ Post/anhaenge/). Gruppen/Einstufung in leine-extra.ts, Parser freier Schnittstellen in extra-quellen.ts
     buergermeister.ts     Bürgermeister (Etappe 2b, E185/E186): erledigt Kurzes selbst; aktionen_liste, helfer_starten (max. 5 je Aufgabe),
                           plan_vorlegen (max. 10, Reihenfolge über `nach`, startet sofort – Freigabe nur auf Leifs Wunsch oder wenn groß/teuer),
                           Plan-Ausführung durch den CODE, Abschluss genau einmal, Status der Schreibtisch-Aufgabe
@@ -113,6 +117,8 @@ apps/rechenraum eigener Container: pdflatex (texlive), Python (numpy/sympy/scipy
                 Image-Kennung = Hash(Dockerfile+runner.py), wird nur ausgeliefert, wenn der Server es nicht hat.
                 /umwandeln (E190): fremde Dateien → Text/Bilder in eigenem Kindprozess (420 s, 1024 MB Adressraum – kleiner geht nicht, Messwerte in runner.py; Zip-Bomben-Grenzen); dazu ffmpeg,
                 whisper.cpp (base-q5_1, im Image), tesseract deu+eng, rsvg, heif-convert, catdoc, xlrd, olefile; python-docx/openpyxl/python-pptx/odfpy.
+                /werkzeug (E199): dorfwerk.py mit JSON-Auftrag statt Shell (PDF mit pypdf/Ghostscript, Graphviz, segno, genanki, DuckDB/pandas),
+                einzeln, 120 s, Adressraum 1536 MB (DuckDB reserviert ~1,3 GB, belegt ~80 MB); pip-Pakete mit Prüfsumme; Image-Kennung inkl. dorfwerk.py.
 apps/browser    Moodle-Browser (E57): Chromium über playwright-core + Runner (HTTP, Bearer-Geheimnis). leine.ts = DIE Regeln
                 (nur Domains aus BROWSER_HOSTS, GET ja außer sesskey/Abmelden, POST nur Anmeldeformular als Seiten-
                 navigation oder lesende Moodle-Ajax-Funktionen), browser.ts = Sitzung je Lauf, nummerierte Links,
@@ -220,3 +226,4 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E194 (19.11., Server): Spracheingabe für Geräte – `POST /api/geraet/sprache` (WAV → Text über whisper.cpp im Rechenraum, nichts gespeichert)
 - [x] E194 (19.11., Firmware): Cardputer 1.2 – Spracheingabe überall (Tab), Update ohne Neu-Einrichten (Nur-Programm-Datei); Host-Test grün (177), Mikrofon nie am Gerät erprobt
 - [x] E195 (19.11.): Review zu E190–E194 – Vault folgt keinen Symlinks mehr (wettlauf-sicher), Coding-Freigabe nicht mehr umgehbar, X-Forwarded-For nur von Caddy, Abmelden kappt VS Code, Rechenraum-Speicher gemessen, Codehaus-Image nur auf Wunsch
+- [x] E199 (20.11.): Neue Werkzeuge aus der Ideen-Liste – PDF bearbeiten, Graphviz, DuckDB, QR, Anki-Export (+ Knopf „Für Anki“), Literatur (Crossref/arXiv/Open Library), DOI → BibTeX, Zugverbindungen (Transitous), Wetter 16 Tage, Feiertage AT/BW, Umrechnen (EZB), Gmail-Anhänge – Rechenraum-Image kommt mit dem nächsten Deploy; Transitous-Nutzungsregeln (quelloffen) offen

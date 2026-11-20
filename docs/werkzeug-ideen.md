@@ -1,6 +1,6 @@
 # Werkzeug-Ideen für die Agenten
 
-Stand: 19.11.2026 · Recherche-Dokument, kein Beschluss. Nichts davon ist gebaut. Vor jeder Umsetzung gilt wie immer: kurzer Plan, offene Fragen, Leifs Freigabe, Eintrag in `ENTSCHEIDUNGEN.md`.
+Stand: 19.11.2026 · Recherche-Dokument, kein Beschluss. **Seit E199 (20.11.) gebaut:** Nr. 2, 3, 4 (Wasserzeichen), 36, 52, 32 (nur erzeugen), 71, 72, 78, 94, 95, 101 (nur Feiertage), 102, 104 sowie Einheiten (61, ohne Pint) – siehe `docs/werkzeuge-heute.md`. Davor schon: 1, 5, 7–10, 20, 86 (E190). Der Rest ist nicht gebaut. Vor jeder Umsetzung gilt wie immer: kurzer Plan, offene Fragen, Leifs Freigabe, Eintrag in `ENTSCHEIDUNGEN.md`.
 
 ## Einleitung
 

@@ -1,6 +1,6 @@
-# Werkzeuge der Agenten – Stand 19.11.2026 (nach E185–E189)
+# Werkzeuge der Agenten – Stand 20.11.2026 (nach E199)
 
-Automatisch aus `apps/server/src/agenten/werkzeuge.ts` erzeugt (50 Dorf-Werkzeuge, seit E192 mit `meine_todos_*`) plus die eingebauten Fähigkeiten der Motoren.
+Aus `apps/server/src/agenten/werkzeuge.ts` und `werkzeuge-extra.ts` (E199) zusammengestellt: 62 Dorf-Werkzeuge plus die eingebauten Fähigkeiten der Motoren.
 Wer welches Werkzeug bekommt, regelt `agenten/leine.ts`: Der **Bürgermeister** hat Vault, To-dos, Kalender, Post, Adressbuch, Kirchturm, Notizen, Web und seine Organisations-Werkzeuge immer; **Helfer** bekommen, was ihre Aktion nennt (`werkzeuge: [...]`) bzw. freie Helfer per `faehigkeiten`; To-dos, Kirchturm, Notizen und Termine haben alle.
 
 **Nie möglich:** Mails senden, bezahlen, Abgaben einreichen, Shell/Schreiben außerhalb der Leine. Was sich zurückholen lässt, tun Agenten direkt (Leif bekommt „Rückgängig“).
@@ -62,6 +62,7 @@ Wer welches Werkzeug bekommt, regelt `agenten/leine.ts`: Der **Bürgermeister** 
 | `post_entwurf_aendern` | Ersetzt Text (und auf Wunsch Betreff) eines Entwurfs, den DIESER Chat angelegt hat – statt einen zweiten anzulegen |
 | `kontakt_suchen` | Sucht eine Mail-Adresse zu einem Namen: in Leifs Adressbuch (Rathaus/kontakte.md), in den Absendern seines Posteingangs und in seinen gesendeten Mails |
 | `kontakt_merken` | Trägt eine gefundene Adresse in Leifs Adressbuch ein, damit sie beim nächsten Mal sofort da ist |
+| `post_anhang_lesen` | E199: Anhänge einer Mail auflisten; mit `nr` speichern (Post/anhaenge/) und lesen wie `vault_lesen` – Fremdinhalt |
 
 ## Kirchturm (Uhren)
 
@@ -92,7 +93,23 @@ Wer welches Werkzeug bekommt, regelt `agenten/leine.ts`: Der **Bürgermeister** 
 | `rechenraum_schreiben` | Schreibt eine Textdatei in den Arbeitsordner des Rechenraums (z |
 | `rechenraum_vault_kopieren` | Kopiert eine Datei aus dem Vault (z |
 | `rechenraum_seite_ansehen` | Rendert eine Seite eines PDFs im Arbeitsordner als Bild und zeigt sie dir – für die Sichtprüfung (Ränder, Layout, Vergleich mit dem Original). |
-| `rechenraum_ablegen` | Legt eine fertige .pdf- oder .tex-Datei aus dem Arbeitsordner im Vault ab |
+| `rechenraum_ablegen` | Legt eine fertige Datei aus dem Arbeitsordner im Vault ab (PDF, TeX, Office, CSV, Bilder, ZIP, ICS, Anki …) |
+| `pdf_bearbeiten` | E199: PDFs zusammenfügen, teilen, Seiten drehen/löschen/ordnen, komprimieren, Wasserzeichen, Formular lesen/ausfüllen – Ergebnis im Ablage-Ordner |
+| `diagramm_zeichnen` | E199: Graphviz-DOT → SVG/PNG/PDF (Mermaid nur als Block in einer Notiz) |
+| `daten_abfragen` | E199: SQL (DuckDB) über CSV/Excel/ODS/JSON/Parquet aus dem Vault; ohne SQL Spalten und erste Zeilen; Ergebnis auf Wunsch als CSV |
+| `qr_code` | E199: QR-Code (PNG/SVG) für Link, Text, WLAN, vCard |
+| `karten_anki` | E199: Karteikarten eines Fachs als Anki-Paket (.apkg) – auch als Knopf „Für Anki“ in der App |
+
+## Recherche, Unterwegs, Alltag (E199)
+
+| Werkzeug | Wer | Was es tut |
+|---|---|---|
+| `literatur_suchen` | nur mit Web | Echte Literatur: Crossref (DOI, Zitationen), arXiv (Preprints mit Abstract), Open Library (Bücher mit ISBN) |
+| `doi_bibtex` | nur mit Web | BibTeX zu einer DOI (doi.org); mit `merken` an `Uni/literatur.bib` (jede DOI einmal, „Rückgängig“) |
+| `verbindung_suchen` | nur mit Web | Zug-/Öffi-Verbindungen (Transitous): Abfahrt, Ankunft, Dauer, Umstiege, Gleise – nur Auskunft, kein Buchen |
+| `wetter_vorhersage` | nur mit Web | Vorhersage bis 16 Tage für einen Ort (Open-Meteo) |
+| `feiertage` | alle | Gesetzliche Feiertage Österreich + Baden-Württemberg (lokal gerechnet) |
+| `umrechnen` | alle | Einheiten (lokal) und Währungen zum EZB-Referenzkurs |
 
 ## Freigaben (nur echte Außenwirkung)
 
@@ -110,4 +127,4 @@ Wer welches Werkzeug bekommt, regelt `agenten/leine.ts`: Der **Bürgermeister** 
 | `Read`, `Glob`, `Grep` | claude-code-Motor | Vault lesen und durchsuchen (Read kann auch PDFs und Bilder ansehen) |
 | Bilder/PDFs ansehen | beide Motoren | Anhänge eines Chats werden dem Modell gezeigt (siehe Anhänge) |
 
-Insgesamt: **50 Dorf-Werkzeuge** + die eingebauten Fähigkeiten der beiden Motoren.
+Insgesamt: **62 Dorf-Werkzeuge** + die eingebauten Fähigkeiten der beiden Motoren.
