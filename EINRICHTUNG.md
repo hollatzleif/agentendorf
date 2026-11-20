@@ -382,6 +382,14 @@ dorf coding-aus
 
 **Editor direkt im Dorf (E197):** Codehaus → Reiter **Editor** (oder `/codehaus/editor`). Dort hast du ohne zweiten Tab einen Editor wie in VS Code (Reiter, Suchen/Ersetzen, Minimap, hell/dunkel), den Dateibaum deiner Projekte, ein Terminal, Git (Status, Vergleich, Commit, Push/Pull, Branches) und den Coding-Agenten daneben – auch am Handy. Der Editor braucht den Coding-Container in der Fassung ab E197; nach dem Update kommt das neue Image mit demselben Deploy von selbst (bis dahin sagt der Editor „kommt mit dem nächsten Deploy“). VS Code im Browser bleibt daneben bestehen (Erweiterungen, Debugger).
 
+**VS Code in der App und Erweiterungen (E205):** Codehaus → Reiter **VS Code** → „VS Code in der App öffnen“ (oder `/codehaus/vscode`). Das ist dasselbe VS Code wie im eigenen Tab, nur eingebettet – auch im Programm und am Handy. Du musst dafür nichts einrichten; es kommt mit dem Deploy (neues Coding-Image, neuer Caddyfile – Caddy startet dabei einmal kurz neu).
+
+- **Erweiterungen** suchst und installierst du im selben Reiter oder über 🧩 auf der VS-Code-Seite. Quelle ist Open VSX (open-vsx.org). Erweiterungen, die Microsoft nur im eigenen Marketplace anbietet (Pylance, C/C++, Remote, Copilot …), gibt es dort nicht – der Microsoft-Marketplace darf laut seinen Nutzungsbedingungen nur aus Microsoft-Produkten genutzt werden, darum bindet das Dorf ihn nicht an. Bitte auch keine VSIX-Dateien von dort hochladen.
+- Erweiterungen laufen mit vollem Zugriff im Codehaus (Shell, Internet, GitHub-Token, Vault). Installiere nur, was du für vertrauenswürdig hältst; „verifiziert“ heißt nur, dass der Herausgeber echt ist, nicht dass jemand den Code geprüft hat.
+- Nach dem Installieren: auf der VS-Code-Seite „↻ Neu laden“. Die Erweiterungen wirken nur im VS Code, nicht im schlanken Editor (Reiter „Editor“).
+- **Programm am Mac:** Das eingebettete VS Code braucht die neue Programm-Version (aktualisiert sich von selbst). Mit der alten öffnet sich VS Code stattdessen im normalen Browser – das funktioniert auch.
+- Bleibt das eingebettete Fenster leer: „↗ in neuem Tab“ geht immer. Hast du mit `CODING_DOMAIN` eine Adresse gewählt, die keine Unteradresse deines Dorfs ist, bietet die App nur den eigenen Tab an (der Browser schickt sonst keine Cookies ins eingebettete Fenster).
+
 `dorf coding-aus` hält das Codehaus an; Projekte, Einstellungen und Token bleiben.
 
 ## 13. Atelier: Bilder bearbeiten (und, wenn du willst, generieren)

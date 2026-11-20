@@ -15,6 +15,7 @@ Alle Gebäude, Figuren, Autos, Bäume, Symbole und Effekte des 3D-Dorfs sind **e
 | pdfjs-dist | PDF-Anzeige | Apache-2.0 |
 | fastify, better-sqlite3, zod | Server | MIT |
 | openvscode-server (Gitpod, auf Basis von Code – OSS von Microsoft) | VS Code im Browser im Codehaus-Container (`apps/coding/Dockerfile`, unverändert aus dem Release-Archiv, Version dort festgelegt) | MIT |
+| Open VSX (open-vsx.org, Eclipse Foundation) | Verzeichnis der Erweiterungen für VS Code im Codehaus (E205): Suche über die öffentliche API, Installation durch openvscode-server. Kein Code von dort liegt im Repo; jede Erweiterung hat ihre eigene Lizenz (die App zeigt sie an). Der Visual Studio Marketplace von Microsoft wird nicht genutzt (seine Nutzungsbedingungen erlauben ihn nur in Microsoft-Produkten). | Dienst (Eclipse Public License 2.0 für die Server-Software) |
 | monaco-editor (Microsoft) | Editor im Codehaus der Dorf-App (E197): Editor, Diff, Sprachen und Worker aus dem eigenen Build, nur auf der Editor-Seite geladen | MIT |
 | @xterm/xterm, @xterm/addon-fit | Terminal im Editor des Codehauses (E197) | MIT |
 | onnxruntime 1.19.2 (Microsoft) | Rechenraum: führt die beiden Bildmodelle auf der CPU aus (`apps/rechenraum/Dockerfile`, E198) | MIT |
