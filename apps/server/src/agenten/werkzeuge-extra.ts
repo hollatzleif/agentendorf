@@ -474,7 +474,15 @@ async function literatur(u: ExtraUmgebung, eingabe: unknown): Promise<WerkzeugAu
         ).slice(0, n),
     ]);
   if (quelle === 'alle' || quelle === 'arxiv')
-    aufgaben.push(['arXiv', async () => arxivParsen(await (await holen(netz, 'arXiv', `${url(netz, 'arxiv')}?search_query=all:${q}&start=0&max_results=${n}&sortBy=relevance`)).text())]);
+    aufgaben.push([
+      'arXiv',
+      async () => {
+        // arXiv-Suchsprache: jedes Wort als all:<wort>, verbunden mit AND (sonst zählt nur das erste Feld)
+        const woerter = e.anfrage.split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}-]/gu, '')).filter(Boolean).slice(0, 8);
+        const p = new URLSearchParams({ search_query: woerter.map((w) => `all:${w}`).join(' AND '), start: '0', max_results: String(n), sortBy: 'relevance' });
+        return arxivParsen(await (await holen(netz, 'arXiv', `${url(netz, 'arxiv')}?${p}`)).text());
+      },
+    ]);
   if (quelle === 'alle' || quelle === 'buecher')
     aufgaben.push([
       'Open Library',
@@ -566,7 +574,7 @@ async function verbindung(u: ExtraUmgebung, eingabe: unknown): Promise<WerkzeugA
   netz.planZaehler.anzahl++;
   const p = new URLSearchParams({ fromPlace: von.id, toPlace: nach.id, time: new Date(zeit).toISOString(), arriveBy: String(!!e.ankunft), numItineraries: String(e.anzahl ?? 3) });
   const plan = await json(await holen(netz, 'Transitous', `${url(netz, 'transitous')}/api/v5/plan?${p}`), 'Transitous');
-  const text = `Verbindungen ${von.name} → ${nach.name} (${e.ankunft ? 'Ankunft bis' : 'ab'} ${new Intl.DateTimeFormat('de-AT', { timeZone: 'Europe/Vienna', weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(zeit)}, Ortszeit):\n${verbindungenText(plan, e.anzahl ?? 3)}`;
+  const text = `Verbindungen ${von.name} → ${nach.name} (${e.ankunft ? 'Ankunft bis' : 'ab'} ${new Intl.DateTimeFormat('de-AT', { timeZone: 'Europe/Vienna', weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(zeit)}; alle Zeiten MEZ/MESZ):\n${verbindungenText(plan, e.anzahl ?? 3)}`;
   u.fremd();
   u.log('verbindung_suchen', e, `${von.name} → ${nach.name}`, true, undefined, 'web');
   return { ok: true, text: `${fremdinhaltHuelle('transitous', text)}\nDaten: Transitous (transitous.org/sources), ohne Gewähr. Preise und Buchung nur bei ÖBB/DB/SBB – nichts wird gebucht.` };

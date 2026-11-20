@@ -163,6 +163,7 @@ describe('E199 – Literatur und BibTeX', () => {
     expect(r.text).toContain('arXiv 1209.5350v3');
     expect(r.text).toContain('Open Library\n(nicht erreichbar: Open Library antwortet mit HTTP 503.)');
     expect(aufrufe.map((a) => new URL(a.url).hostname).sort()).toEqual(['api.crossref.org', 'export.arxiv.org', 'openlibrary.org']);
+    expect(new URL(aufrufe.find((a) => a.url.includes('arxiv'))!.url).searchParams.get('search_query')).toBe('all:Bayesian AND all:networks AND all:tutorial');
     expect(log().at(-1)).toMatchObject({ werkzeug: 'literatur_suchen', art: 'web', erlaubt: 1 });
     // Bücher allein
     const b = netzAttrappe({ 'openlibrary.org': fix('openlibrary.json') });
