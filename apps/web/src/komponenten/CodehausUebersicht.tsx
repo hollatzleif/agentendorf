@@ -25,7 +25,10 @@ export function VsCodeKnopf({ projekt, klein }: { projekt?: string; klein?: bool
     const tab = istProgramm() ? null : window.open('about:blank', '_blank');
     try {
       const { url } = await api<{ url: string }>(`${vscodeLink(projekt)}${projekt ? '&' : '?'}json=1`);
-      if (tab && !tab.closed) {
+      // Programm: window.open geht genau EINMAL an den normalen Browser (kein Ausweichen auf location.href – das würde die
+      // Hülle ein zweites Mal nach außen schicken und die Einmal-Karte wäre beim zweiten Öffnen verbraucht)
+      if (istProgramm()) window.open(url, '_blank');
+      else if (tab && !tab.closed) {
         tab.opener = null;
         tab.location.href = url;
       } else if (!window.open(url, '_blank')) location.href = url;

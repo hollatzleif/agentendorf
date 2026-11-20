@@ -163,6 +163,12 @@ export function codingRouten(app: FastifyInstance, d: { konfig: Konfig; db: DB; 
     if (!codingEingerichtet(konfig) || req.host !== codeHost()) return reply.status(404).send({ fehler: 'Nicht gefunden.' });
     const q = z.object({ karte: z.string().max(100).optional(), projekt: z.string().regex(PROJEKT_MUSTER).optional() }).safeParse(req.query);
     const token = q.success ? zugang.karteEinloesen(q.data.karte) : null;
+    // Karte schon verbraucht (Link doppelt geöffnet, neu geladen), dieser Browser hat aber schon einen gültigen Zugang → einfach weiter
+    if (!token && zugang.pruefen(req.cookies[CODING_COOKIE])) {
+      const weiter = new URLSearchParams({ tkn: konfig.codingVscodeToken! });
+      if (q.success && q.data.projekt) weiter.set('folder', `/arbeit/${q.data.projekt}`);
+      return reply.redirect(`/?${weiter.toString()}`, 302);
+    }
     if (!token) return reply.status(401).type('text/plain; charset=utf-8').send('Dieser Link gilt nicht (mehr). Öffne VS Code bitte über das Codehaus im Dorf.');
     reply.setCookie(CODING_COOKIE, token, {
       httpOnly: true,

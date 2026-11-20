@@ -599,6 +599,13 @@ describe('Zugang zu VS Code (Code-Host, Einmal-Karte, Prüfung für Caddy)', () 
     expect((await d.app.inject({ url: `/api/coding/eintritt?karte=${karte}`, headers: codeKopf })).statusCode).toBe(401);
     expect((await d.app.inject({ url: '/api/coding/eintritt', headers: codeKopf })).statusCode).toBe(401);
     expect((await d.app.inject({ url: '/api/coding/eintritt?karte=erfunden', headers: codeKopf })).statusCode).toBe(401);
+    // derselbe Link noch einmal, aber dieser Browser hat schon einen gültigen Zugang (Link doppelt geöffnet) → weiter zu VS Code
+    const nochmal = await d.app.inject({ url: `/api/coding/eintritt?karte=${karte}&projekt=mein-repo`, headers: { ...codeKopf, cookie: codeCookie } });
+    expect(nochmal.statusCode).toBe(302);
+    expect(nochmal.headers.location).toBe(`/?tkn=${VSCODE_TOKEN}&folder=%2Farbeit%2Fmein-repo`);
+    expect(nochmal.headers['set-cookie']).toBeUndefined();
+    // mit einem fremden/erfundenen Cookie hilft das nicht
+    expect((await d.app.inject({ url: `/api/coding/eintritt?karte=${karte}`, headers: { ...codeKopf, cookie: `${CODING_COOKIE}=erfunden` } })).statusCode).toBe(401);
     // nach 60 s verfallen
     const o2 = await d.app.inject({ url: '/api/coding/oeffnen', headers: h });
     d.uhr.vor(61_000);
