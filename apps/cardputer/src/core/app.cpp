@@ -1,11 +1,18 @@
 #include "app.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 
 #include "ui.h"
 
 namespace haloos {
+
+int pegelProzent(int roh) {
+    if (roh <= 0) return 0;
+    const double db = 20.0 * std::log10(static_cast<double>(roh) / 32767.0);
+    return std::max(0, std::min(100, static_cast<int>((db + 54.0) * 100.0 / 54.0)));
+}
 
 namespace ui {
 
@@ -164,8 +171,15 @@ void TextInputView::draw(Gfx& g, App& app, uint32_t now) {
     }
     if (sprache_ == Sprache::Abschreiben) {
         const int sek = static_cast<int>((now - spracheSeit_) / 1000);
-        g.text(FONT_BODY, 10, 97, "Schreibe ab \xE2\x80\xA6 " + std::to_string(sek) + " s", col::AMBER);
-        g.text(FONT_SMALL, 10, 111, "Dauert etwa so lang wie die Aufnahme.", col::TEXT2, Align::Left, 222);
+        const int proz = app.platform.hochladenProzent();
+        if (proz >= 0) {
+            g.text(FONT_BODY, 10, 97, "Sende Aufnahme \xE2\x80\xA6 " + std::to_string(proz) + " %", col::AMBER);
+            g.rrect(10, 104, 220, 6, 3, col::LINE);
+            if (proz > 0) g.rrect(10, 104, std::max(6, 220 * proz / 100), 6, 3, col::ACCENT);
+        } else {
+            g.text(FONT_BODY, 10, 97, "Schreibe ab \xE2\x80\xA6 " + std::to_string(sek) + " s", col::AMBER);
+            g.text(FONT_SMALL, 10, 111, "Dauert etwa so lang wie die Aufnahme.", col::TEXT2, Align::Left, 222);
+        }
         app.footer(g, "Esc abbrechen", col::AMBER);
         return;
     }
@@ -184,7 +198,11 @@ void TextInputView::spracheStart(App& app, uint32_t now) {
     if (d.spracheLaeuft()) { app.toast("Letzte Aufnahme wird noch \xC3\xBC" "bertragen", now); return; }
     maxSek_ = std::min(60, app.platform.aufnahmeMaxSek());
     if (maxSek_ < 3) { app.toast("Kein Mikrofon oder kein Speicherplatz", now); return; }
-    if (!app.platform.aufnahmeStart(Dorf::SPRACH_DATEI)) { app.toast("Mikrofon l\xC3\xA4sst sich nicht starten", now); return; }
+    if (!app.platform.aufnahmeStart(Dorf::SPRACH_DATEI)) {
+        const std::string grund = app.platform.aufnahmeGrund();
+        app.toast(grund.empty() ? "Mikrofon l\xC3\xA4sst sich nicht starten" : "Mikrofon: " + grund, now);
+        return;
+    }
     sprache_ = Sprache::Aufnahme;
     spracheSeit_ = now;
     pegel_ = 0;
@@ -198,7 +216,11 @@ void TextInputView::spracheStopp(App& app, uint32_t now) {
         app.toast("Zu kurz \xE2\x80\x93 Tab, sprechen, Tab", now);
         return;
     }
-    if (!app.platform.aufnahmeStopp(true)) { app.toast("Aufnahme fehlgeschlagen (Speicher?)", now); return; }
+    if (!app.platform.aufnahmeStopp(true)) {
+        const std::string grund = app.platform.aufnahmeGrund();
+        app.toast(grund.empty() ? "Aufnahme fehlgeschlagen" : "Aufnahme: " + grund, now);
+        return;
+    }
     if (!app.dorf.verbunden()) {      // Netz waehrend der Aufnahme verloren
         app.platform.removeFile(Dorf::SPRACH_DATEI);
         app.toast("Spracheingabe braucht Verbindung", now);
@@ -227,6 +249,12 @@ void TextInputView::tick(App& app, uint32_t now) {
     if (sofort_) {
         sofort_ = false;
         spracheStart(app, now);
+    }
+    // Wache: kommt vom Netz gar nichts zurueck (Senden hoechstens 90 s + Abschreiben hoechstens 120 s), nicht ewig warten
+    if (sprache_ == Sprache::Abschreiben && now - spracheSeit_ > SPRACHE_WACHE_MS) {
+        sprache_ = Sprache::Aus;
+        app.toast("Keine Antwort vom Dorf \xE2\x80\x93 bitte nochmal", now);
+        return;
     }
     if (sprache_ != Sprache::Aufnahme) return;
     pegel_ = app.platform.aufnahmePegel();
@@ -706,7 +734,7 @@ void App::tick(uint32_t now) {
 bool App::needsRender(uint32_t now) {
     if (dirty_) return true;
     const bool anim = dorf.alarm() || (!stack_.empty() && stack_.back()->animated());
-    if (anim && now - lastDraw_ >= 500) return true;
+    if (anim && now - lastDraw_ >= (stack_.empty() ? 500u : stack_.back()->animMs())) return true;
     return now - lastDraw_ >= 20000;   // Uhr im Kopf
 }
 

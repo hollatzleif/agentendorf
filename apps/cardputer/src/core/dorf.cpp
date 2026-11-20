@@ -11,6 +11,7 @@ namespace {
 
 const char* const DATEI_SCHLANGE = "dorf-warten.txt";
 constexpr uint32_t ZEITLIMIT_MS = 30000;      // Sicherheitsnetz, falls die Netz-Schicht nie antwortet
+constexpr uint32_t HOCHLADEN_MS = 90000;      // Datei senden (Aufnahme bis 2 MB): so lange darf es dazu dauern (1.3)
 constexpr uint32_t WLAN_VERSUCH_MS = 20000;       // von Hand
 constexpr uint32_t WLAN_GESEHEN_MS = 15000;       // Automatik: Netz war in der Suche
 constexpr uint32_t WLAN_DIREKT_MS = 8000;         // Automatik: Netz nicht gesehen, direkt versuchen
@@ -500,7 +501,8 @@ void Dorf::abschicken(App& app, uint32_t now) {
             laeuft_ = false;
             const Offen o = std::move(aktuell_);
             antwort(app, o, r, now);
-        } else if (now - gestartet_ > ZEITLIMIT_MS + (aktuell_.a.fristMs ? aktuell_.a.fristMs + 30000 : 0)) {
+        } else if (now - gestartet_ > ZEITLIMIT_MS + (aktuell_.a.fristMs ? aktuell_.a.fristMs + 30000 : 0) +
+                                          (aktuell_.a.datei.empty() ? 0 : HOCHLADEN_MS)) {
             laeuft_ = false;
             const Offen o = std::move(aktuell_);
             r.id = o.a.id;

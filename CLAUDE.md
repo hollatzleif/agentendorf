@@ -220,3 +220,4 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E194 (19.11., Server): Spracheingabe für Geräte – `POST /api/geraet/sprache` (WAV → Text über whisper.cpp im Rechenraum, nichts gespeichert)
 - [x] E194 (19.11., Firmware): Cardputer 1.2 – Spracheingabe überall (Tab), Update ohne Neu-Einrichten (Nur-Programm-Datei); Host-Test grün (177), Mikrofon nie am Gerät erprobt
 - [x] E195 (19.11.): Review zu E190–E194 – Vault folgt keinen Symlinks mehr (wettlauf-sicher), Coding-Freigabe nicht mehr umgehbar, X-Forwarded-For nur von Caddy, Abmelden kappt VS Code, Rechenraum-Speicher gemessen, Codehaus-Image nur auf Wunsch
+- [x] E201 (20.11.): Cardputer 1.3 – Mikrofon richtig verstärkt (ES8311-PGA/ADC wie M5Unified für andere Geräte), Pegel in dB, kein Hängen nach der Aufnahme (Codec nur in der Hauptschleife, Zeitgrenzen, Gründe), Fortschritt beim Senden; Server hebt leise WAVs an – Host-Test grün (184), nie am Gerät gehört

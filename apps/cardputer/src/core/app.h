@@ -18,7 +18,7 @@
 
 namespace haloos {
 
-constexpr const char* FIRMWARE_VERSION = "1.2";
+constexpr const char* FIRMWARE_VERSION = "1.3";
 
 enum class Sound { FocusStart, ShortBreak, LongBreak, BreakEnd, AllDone, Test };
 
@@ -44,10 +44,16 @@ public:
     // Waehrend der Aufnahme bleibt der Lautsprecher stumm (beide haengen am selben Codec).
     virtual int aufnahmeMaxSek() = 0;                             // wie lange Platz ist (0 = kein Mikrofon/kein Platz)
     virtual bool aufnahmeStart(const std::string& name) = 0;
-    virtual int aufnahmePegel() = 0;                              // 0..100, laufender Pegel
+    virtual int aufnahmePegel() = 0;                              // 0..100, laufender Pegel (in dB: -54..0 dBFS)
     virtual bool aufnahmeStopp(bool behalten) = 0;                // Datei abschliessen (false = verwerfen/Fehler)
+    virtual std::string aufnahmeGrund() { return ""; }            // warum Start/Stopp scheiterte (fuer die Meldung)
+    virtual int hochladenProzent() { return -1; }                 // Aufnahme wird gesendet: 0..100, sonst -1
     virtual void mikroStufe(int stufe) = 0;                       // Verstaerkung 1 leise, 2 normal, 3 laut
 };
+
+// Pegel als Balken: in dB, damit normale Sprache (-30..-10 dBFS) sichtbar ausschlaegt. roh = Spitzenwert 0..32767;
+// -54 dBFS = 0 %, 0 dBFS = 100 %
+int pegelProzent(int roh);
 
 enum class K { Char, Enter, Del, Esc, Up, Down, Left, Right, Tab };   // Tab = in Textfeldern: Spracheingabe
 struct Input {
@@ -65,6 +71,7 @@ public:
     virtual void draw(Gfx& g, App& app, uint32_t now) = 0;
     virtual void key(const Input& in, App& app, uint32_t now) = 0;
     virtual bool animated() const { return false; }    // zweimal je Sekunde neu zeichnen
+    virtual uint32_t animMs() const { return 500; }    // ... oder schneller (Pegel bei der Aufnahme)
     virtual bool wach() const { return false; }        // Bildschirm hell halten (Aufnahme laeuft)
     virtual void tick(App&, uint32_t) {}               // nur fuer die oberste Ansicht
     virtual void netz(App&, const Ergebnis&, uint32_t) {}   // Antwort auf eine eigene Anfrage

@@ -14,12 +14,16 @@
 //   SHOT <datei.ppm>    Bildschirm speichern
 //   AUSWAHL             Text der gewaehlten Listenzeile ausgeben
 //   TEXT                alle Texte auf dem Bildschirm ausgeben (zwischen TEXT-BEGIN und TEXT-END)
-//   NETZ an|aus|stumm   Internet da / weg / Anfrage geht raus, aber die Antwort geht verloren
+//   NETZ an|aus|stumm|haengt   Internet da / weg / Anfrage geht raus, aber die Antwort geht verloren /
+//                       Anfrage kommt nie zurueck (erst bei NETZ an: Abbruch ohne Antwort)
 //   WLAN <name>|<rssi>|<passwort oder - fuer offen>[|versteckt];...   Netze in Reichweite festlegen
 //                       (versteckt = verbindbar, fehlt aber in der Suche - wie ein iPhone-Hotspot)
 //   WLANWEG             WLAN-Verbindung bricht ab
 //   MIKRO <datei.wav>   Mikrofon nachstellen: diese WAV-Datei (16 kHz mono 16 Bit) wird "gehoert"; MIKRO aus = keins
 //   PLATZ <sekunden>    so viele Sekunden Aufnahme passen in den Speicher (Vorgabe 60)
+//   MIKROFEHLER start|stopp <grund>   naechster Start bzw. Stopp scheitert mit diesem Grund; MIKROFEHLER aus = wieder normal
+//   HOCHLADEN <prozent> Fortschritt beim Senden der Aufnahme vorgeben (-1 = nicht dabei)
+//   PEGEL               aktuellen Pegel (0..100) ausgeben
 //   EINST mikrostufe    (Sonderfall) eingestellte Mikrofon-Verstaerkung ausgeben
 //   EINST <key>         gespeicherte Einstellung ausgeben
 //   SETZE <key> <wert>  Einstellung vorgeben
@@ -89,8 +93,14 @@ public:
     int stufe = 2;
     std::string aufnahmeName;
     int aufnahmeMaxSek() override { return quelle.empty() ? 0 : platzSek; }
+    std::string fehlerStart, fehlerStopp, grund;
+    int hochProzent = -1;
+    std::string aufnahmeGrund() override { return grund; }
+    int hochladenProzent() override { return hochProzent; }
     bool aufnahmeStart(const std::string& name) override {
+        grund.clear();
         if (quelle.empty()) return false;
+        if (!fehlerStart.empty()) { grund = fehlerStart; return false; }
         nimmtAuf = true;
         aufnahmeSeit = jetzt;
         aufnahmeName = name;
@@ -107,13 +117,14 @@ public:
             const int v = static_cast<int16_t>(static_cast<uint8_t>(quelle[k]) | (static_cast<uint8_t>(quelle[k + 1]) << 8));
             peak = std::max(peak, v < 0 ? -v : v);
         }
-        return peak * 100 / 32768;
+        return pegelProzent(peak);      // wie auf dem Geraet: in dB
     }
     bool aufnahmeStopp(bool behalten) override {
         if (!nimmtAuf) return false;
         nimmtAuf = false;
         std::cout << "AUFNAHME " << (behalten ? "fertig" : "verworfen") << "\n";
         if (!behalten) return false;
+        if (!fehlerStopp.empty()) { grund = fehlerStopp; return false; }
         const uint32_t bytes = (jetzt - aufnahmeSeit) * 32;      // 16000 Werte/s, 2 Bytes je Wert
         std::string wav = "RIFF";
         auto u32 = [&](uint32_t v) { for (int i = 0; i < 4; ++i) wav += static_cast<char>((v >> (8 * i)) & 0xFF); };
@@ -140,7 +151,7 @@ struct SimNetz {
 class HostNetz : public Net {
 public:
     HostPlatform* plattform = nullptr;      // fuer das Hochladen von Dateien
-    enum class Modus { An, Aus, Stumm };
+    enum class Modus { An, Aus, Stumm, Haengt };
     Modus modus = Modus::An;
     std::vector<SimNetz> sichtbar;
     WlanZustand zustand = WlanZustand::Getrennt;
@@ -183,9 +194,14 @@ public:
     bool nurHttps() const override { return false; }
 
     bool start(const Anfrage& a) override {
-        if (hat_) return false;
+        if (hat_ || haengt_) return false;
         antwort_ = Antwort();
         antwort_.id = a.id;
+        if (modus == Modus::Haengt) {      // Anfrage bleibt einfach stehen
+            std::cout << "HTTP " << (a.post ? "POST " : "GET ") << a.pfad << " haengt\n";
+            haengt_ = true;
+            return true;
+        }
         if (modus != Modus::Aus) abrufen(a);
         if (modus == Modus::Stumm) {      // beim Server angekommen, Antwort verloren
             antwort_ = Antwort();
@@ -196,6 +212,10 @@ public:
         return true;
     }
     bool poll(Antwort& out) override {
+        if (haengt_ && modus != Modus::Haengt) {      // Netz wieder normal: die haengende Anfrage bricht ohne Antwort ab
+            haengt_ = false;
+            hat_ = true;
+        }
         if (!hat_) return false;
         out = antwort_;
         hat_ = false;
@@ -251,7 +271,7 @@ private:
         const size_t ra = kopf.find("retry-after:");
         if (ra != std::string::npos) antwort_.wartenSek = std::atoi(kopf.c_str() + ra + 12);
     }
-    bool hat_ = false;
+    bool hat_ = false, haengt_ = false;
     Antwort antwort_;
 };
 
@@ -347,7 +367,8 @@ int main() {
         } else if (cmd == "NETZ") {
             std::string m;
             in >> m;
-            netz.modus = m == "aus" ? HostNetz::Modus::Aus : m == "stumm" ? HostNetz::Modus::Stumm : HostNetz::Modus::An;
+            netz.modus = m == "aus" ? HostNetz::Modus::Aus : m == "stumm" ? HostNetz::Modus::Stumm
+                       : m == "haengt" ? HostNetz::Modus::Haengt : HostNetz::Modus::An;
         } else if (cmd == "WLAN") {
             netz.sichtbar.clear();
             std::string rest = line.size() > 5 ? line.substr(5) : "";
@@ -379,6 +400,18 @@ int main() {
             }
         } else if (cmd == "PLATZ") {
             in >> plat.platzSek;
+        } else if (cmd == "MIKROFEHLER") {      // MIKROFEHLER start|stopp <grund ...> | MIKROFEHLER aus
+            std::string wo, grund;
+            in >> wo;
+            std::getline(in, grund);
+            if (!grund.empty() && grund[0] == ' ') grund.erase(0, 1);
+            if (wo == "start") plat.fehlerStart = grund;
+            else if (wo == "stopp") plat.fehlerStopp = grund;
+            else plat.fehlerStart.clear(), plat.fehlerStopp.clear();
+        } else if (cmd == "HOCHLADEN") {
+            in >> plat.hochProzent;
+        } else if (cmd == "PEGEL") {
+            std::cout << "PEGEL " << plat.aufnahmePegel() << "\n";
         } else if (cmd == "WLANWEG") {
             netz.wlanTrennen();
         } else if (cmd == "EINST") {

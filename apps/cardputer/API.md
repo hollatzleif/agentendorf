@@ -101,5 +101,6 @@ Die Uhren laufen auf dem Server – der Cardputer zeigt sie nur an und piept.
 - `POST /api/geraet/sprache` – Körper: eine WAV-Datei (PCM 16 Bit, mono, 16 kHz; `Content-Type: audio/wav`), höchstens 2 MB
   (≈ 60 s). Antwort: `{ "text": "erkannter Text" }` (leer, wenn nichts verstanden wurde).
   - Abgeschrieben wird auf dem Server im Rechenraum (whisper.cpp, Deutsch zuerst), ohne Cloud. Dauer etwa 1,5 × Länge der Aufnahme.
+  - Leise Aufnahmen hebt der Server vorher an (Spitze auf ~70 %, höchstens ×16 = 24 dB; E201).
   - Fehler: 413 (zu lang/zu groß), 503 (Spracherkennung gerade nicht verfügbar), 400 (kein gültiges WAV).
   - Die Aufnahme wird nach dem Abschreiben gelöscht, nicht im Vault gespeichert.

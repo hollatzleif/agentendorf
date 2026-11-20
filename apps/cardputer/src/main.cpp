@@ -1,4 +1,4 @@
-// Agentendorf-Firmware fuer den M5Stack Cardputer Adv - Version 1.2 (auf Basis von HaloOS 0.3).
+// Agentendorf-Firmware fuer den M5Stack Cardputer Adv - Version 1.3 (auf Basis von HaloOS 0.3).
 //
 // Beim Einschalten erscheint ein Startmenue:
 //   1 Fernbedienung  - wie HaloOS 0.3: meldet Tasten, Akku und Bewegung per Bluetooth an den Hub der Brille
@@ -23,7 +23,9 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 
+#include <algorithm>
 #include <bitset>
+#include <cmath>
 #include <cstring>
 #include <deque>
 
@@ -152,24 +154,39 @@ void queueSound(Sound s) {
 // Codec zurueck und schaltet den ADC ein). Deshalb wie im Beispiel der Bibliothek (M5Cardputer/examples/Basic/
 // mic_wav_record): Speaker.end() -> Mic.begin() -> aufnehmen -> Mic.end() -> Speaker.begin(). Toene sind solange aus.
 //
+// Verstaerkung (1.3): M5Unified 0.2.29 stellt beim Cardputer Adv die analoge Vorverstaerkung des ES8311 auf das
+// Minimum (REG14 = 0x10, „PGA GAIN (minimum)“) und die ADC-Lautstaerke auf 0 dB (REG17 = 0xBF) - Sprache kam dadurch
+// nur mit wenigen Prozent Pegel an. Fuer andere Geraete mit demselben Codec nimmt die Bibliothek +21 dB PGA
+// (REG14 = 0x17, „SNR plateaus by this level“), +6 dB ADC (REG17 = 0xCB) und einen Hochpass gegen Brummen
+// (REG1C = 0x64), siehe _microphone_enabled_cb_stopwatch. Genau diese Werte setzen wir nach Mic.begin() nach;
+// die Stufe in den Einstellungen waehlt die ADC-Lautstaerke: leise 0 dB, normal +6 dB, laut +12 dB (0,5 dB/Schritt).
+//
 // Kein PSRAM: Es wird nie die ganze Aufnahme im RAM gehalten. Eine eigene Aufgabe reicht drei Puffer zu je
 // 4096 Werten (256 ms) reihum an Mic.record() - die Bibliothek fuellt immer einen und haelt einen in Reserve -
 // und schreibt den jeweils fertigen in die WAV-Datei. So darf ein Schreibvorgang bis ~250 ms haengen, ohne dass
 // Ton verloren geht. Der WAV-Kopf wird am Ende mit der wahren Laenge ueberschrieben.
+// Seit 1.3 schaltet NUR die Hauptschleife den Codec um (Mic.begin/end, Speaker.begin/end, I2C) - die Aufgabe nimmt
+// nur auf und schreibt. Jede Warterei hat eine Grenze; was haengt, wird gemeldet statt das Geraet einzufrieren.
 constexpr size_t AUFN_WERTE = 4096;
 constexpr uint32_t AUFN_RATE = 16000;
 constexpr uint32_t AUFN_BYTES_JE_SEK = AUFN_RATE * 2;
+constexpr uint8_t ES8311_ADR = 0x18;
 
 struct Aufnahme {
-    volatile bool laeuft = false, stoppen = false, fertig = false, fehler = false;
+    volatile bool laeuft = false, stoppen = false, fertig = false, fehler = false, mikroHaengt = false;
     volatile int pegel = 0;
     volatile uint32_t bytes = 0;
     int16_t* puffer[3] = {nullptr, nullptr, nullptr};
     File datei;
     std::string pfad;
+    TaskHandle_t aufgabe = nullptr;
 };
 Aufnahme g_aufn;
-uint8_t g_mikro_faktor = 16;      // mic_config_t::magnification (Vorgabe der Bibliothek: 16)
+uint8_t g_mikro_adc = 0xCB;       // ES8311 REG17 (ADC-Lautstaerke): 0xBF = 0 dB, je Schritt 0,5 dB
+std::string g_aufn_grund;         // warum die letzte Aufnahme scheiterte (fuer die Meldung)
+bool g_codec_mikro = false;       // Codec gehoert gerade dem Mikrofon (Lautsprecher aus)
+volatile int g_hoch_prozent = -1; // Fortschritt beim Hochladen der Aufnahme (-1 = nicht dabei)
+
 
 void wavKopf(File& f, uint32_t datenBytes) {
     uint8_t k[44];
@@ -196,12 +213,13 @@ void aufnahmeSchreiben(const int16_t* p) {
         const int v = p[i] < 0 ? -p[i] : p[i];
         if (v > peak) peak = v;
     }
-    g_aufn.pegel = peak * 100 / 32768;
+    g_aufn.pegel = peak;            // Rohwert 0..32767; die Anzeige rechnet in dB um
     const size_t n = AUFN_WERTE * sizeof(int16_t);
     if (g_aufn.datei.write(reinterpret_cast<const uint8_t*>(p), n) != n) g_aufn.fehler = true;   // Speicher voll?
     else g_aufn.bytes = g_aufn.bytes + n;
 }
 
+// Nur aufnehmen und schreiben - kein Codec, kein I2C, kein Lautsprecher (das macht die Hauptschleife).
 void aufnahmeAufgabe(void*) {
     size_t i = 0;
     while (!g_aufn.stoppen && !g_aufn.fehler) {
@@ -213,73 +231,116 @@ void aufnahmeAufgabe(void*) {
         if (i >= 2) aufnahmeSchreiben(g_aufn.puffer[(i - 2) % 3]);
         ++i;
     }
-    while (M5Cardputer.Mic.isRecording()) vTaskDelay(pdMS_TO_TICKS(5));     // die beiden letzten Puffer fertig fuellen
+    // die beiden letzten Puffer fertig fuellen lassen (normal ~0,5 s) - aber nie endlos
+    const uint32_t seit = millis();
+    while (M5Cardputer.Mic.isRecording() && millis() - seit < 1500) vTaskDelay(pdMS_TO_TICKS(5));
+    if (M5Cardputer.Mic.isRecording()) {
+        g_aufn.mikroHaengt = true;  // die Bibliothek haelt die Puffer noch: nicht anfassen
+        g_aufn.fehler = true;
+    }
     if (!g_aufn.fehler && i >= 2) aufnahmeSchreiben(g_aufn.puffer[(i - 2) % 3]);
     if (!g_aufn.fehler && i >= 1) aufnahmeSchreiben(g_aufn.puffer[(i - 1) % 3]);
-    M5Cardputer.Mic.end();
     if (!g_aufn.datei.seek(0)) g_aufn.fehler = true;
     else wavKopf(g_aufn.datei, g_aufn.bytes);
     g_aufn.datei.close();
-    M5Cardputer.Speaker.begin();      // Lautsprecher wieder an (Codec zurueck auf Wiedergabe)
     g_aufn.fertig = true;
+    g_aufn.aufgabe = nullptr;
     vTaskDelete(nullptr);
 }
 
 void aufnahmeAufraeumen() {
-    for (auto& p : g_aufn.puffer) {
-        free(p);
-        p = nullptr;
-    }
+    if (!g_aufn.mikroHaengt)        // haengt das Mikrofon, gehoeren die Puffer noch der Bibliothek: lieber liegen lassen
+        for (auto& p : g_aufn.puffer) free(p);
+    for (auto& p : g_aufn.puffer) p = nullptr;
     g_aufn.laeuft = false;
 }
 
+// Codec zurueck auf Wiedergabe - immer in der Hauptschleife
+void codecZurueck() {
+    M5Cardputer.Mic.end();
+    M5Cardputer.Speaker.begin();
+    g_codec_mikro = false;
+}
+
+void aufnahmePflege();
+
 bool aufnahmeStart(const std::string& pfad) {
-    if (g_aufn.laeuft || !g_fs || !M5Cardputer.Mic.isEnabled()) return false;
+    g_aufn_grund.clear();
+    aufnahmePflege();
+    if (g_aufn.laeuft || g_aufn.aufgabe || g_codec_mikro) { g_aufn_grund = "Aufnahme laeuft noch"; return false; }
+    if (!g_fs || !M5Cardputer.Mic.isEnabled()) { g_aufn_grund = "kein Mikrofon"; return false; }
     g_notes.clear();
+    g_aufn.mikroHaengt = false;
     for (auto& p : g_aufn.puffer) p = static_cast<int16_t*>(malloc(AUFN_WERTE * sizeof(int16_t)));
-    if (!g_aufn.puffer[0] || !g_aufn.puffer[1] || !g_aufn.puffer[2]) { aufnahmeAufraeumen(); return false; }
+    if (!g_aufn.puffer[0] || !g_aufn.puffer[1] || !g_aufn.puffer[2]) {
+        aufnahmeAufraeumen();
+        g_aufn_grund = "zu wenig Speicher";
+        return false;
+    }
     if (g_fs->exists(pfad.c_str())) g_fs->remove(pfad.c_str());
     g_aufn.datei = g_fs->open(pfad.c_str(), FILE_WRITE);
-    if (!g_aufn.datei) { aufnahmeAufraeumen(); return false; }
+    if (!g_aufn.datei) { aufnahmeAufraeumen(); g_aufn_grund = "Datei"; return false; }
     wavKopf(g_aufn.datei, 0);         // Platzhalter, wird am Ende ueberschrieben
     M5Cardputer.Speaker.end();
     auto cfg = M5Cardputer.Mic.config();
-    cfg.magnification = g_mikro_faktor;
+    cfg.magnification = 16;           // Vorgabe der Bibliothek; die Verstaerkung macht jetzt der Codec
     M5Cardputer.Mic.config(cfg);
     if (!M5Cardputer.Mic.begin()) {
         g_aufn.datei.close();
         g_fs->remove(pfad.c_str());
         M5Cardputer.Speaker.begin();
         aufnahmeAufraeumen();
+        g_aufn_grund = "Mikrofon startet nicht";
         return false;
     }
+    g_codec_mikro = true;
+    // Verstaerkung nachsetzen (siehe oben) - der Codec laeuft schon, die Register gelten sofort
+    M5Cardputer.In_I2C.writeRegister8(ES8311_ADR, 0x14, 0x17, 100000);       // Mic1p-Mic1n, PGA +21 dB
+    M5Cardputer.In_I2C.writeRegister8(ES8311_ADR, 0x17, g_mikro_adc, 100000);
+    M5Cardputer.In_I2C.writeRegister8(ES8311_ADR, 0x1C, 0x64, 100000);       // Hochpass gegen Brummen, EQ aus
     g_aufn.pfad = pfad;
     g_aufn.stoppen = g_aufn.fertig = g_aufn.fehler = false;
     g_aufn.bytes = 0;
     g_aufn.pegel = 0;
     g_aufn.laeuft = true;
-    if (xTaskCreatePinnedToCore(aufnahmeAufgabe, "aufnahme", 4096, nullptr, 2, nullptr, 1) != pdPASS) {
-        M5Cardputer.Mic.end();
+    TaskHandle_t h = nullptr;
+    if (xTaskCreatePinnedToCore(aufnahmeAufgabe, "aufnahme", 8192, nullptr, 2, &h, 1) != pdPASS) {
         g_aufn.datei.close();
         g_fs->remove(pfad.c_str());
-        M5Cardputer.Speaker.begin();
+        codecZurueck();
         aufnahmeAufraeumen();
+        g_aufn_grund = "zu wenig Speicher";
         return false;
     }
+    g_aufn.aufgabe = h;
     return true;
 }
 
-// Haelt die Oberflaeche kurz an (bis die letzten ~0,5 s Ton geschrieben sind)
+// Haelt die Oberflaeche kurz an (bis die letzten ~0,5 s Ton geschrieben sind) - hoechstens 4 s
 bool aufnahmeStopp(bool behalten) {
     if (!g_aufn.laeuft) return false;
     g_aufn.stoppen = true;
     const uint32_t seit = millis();
-    while (!g_aufn.fertig && millis() - seit < 5000) delay(5);
-    const bool ok = g_aufn.fertig && !g_aufn.fehler && g_aufn.bytes > 0;
-    if (g_aufn.fertig) aufnahmeAufraeumen();      // sonst haengt die Aufgabe noch: Puffer lieber nicht freigeben
+    while (!g_aufn.fertig && millis() - seit < 4000) delay(5);
+    const bool fertig = g_aufn.fertig;
+    if (fertig) codecZurueck();       // Aufgabe ist weg: Mikrofon aus, Lautsprecher an
+    // Haengt die Aufgabe noch (Mikrofon liefert nichts), bleibt das Mikrofon an, bis sie fertig ist (aufnahmePflege)
+    const bool ok = fertig && !g_aufn.fehler && g_aufn.bytes > 0;
+    if (!ok) {
+        g_aufn_grund = !fertig || g_aufn.mikroHaengt ? "Mikrofon antwortet nicht" : g_aufn.bytes == 0 ? "nichts aufgenommen" : "Speicher voll";
+    }
+    if (fertig) aufnahmeAufraeumen();
     else g_aufn.laeuft = false;
-    if ((!ok || !behalten) && g_fs) g_fs->remove(g_aufn.pfad.c_str());
+    if ((!ok || !behalten) && g_fs && fertig) g_fs->remove(g_aufn.pfad.c_str());
     return ok && behalten;
+}
+
+// Aus der Hauptschleife: eine Aufgabe, die beim Stoppen noch hing, nachtraeglich abraeumen
+void aufnahmePflege() {
+    if (g_aufn.laeuft || !g_codec_mikro || !g_aufn.fertig) return;
+    codecZurueck();
+    aufnahmeAufraeumen();
+    if (g_fs) g_fs->remove(g_aufn.pfad.c_str());
 }
 
 // Wie viele Sekunden passen in den Speicher? Intern (LittleFS, 1,5 MB) reicht es fuer rund 40 s, mit SD-Karte fuer 60.
@@ -294,7 +355,7 @@ int aufnahmeMaxSek() {
 }
 
 void pumpSound(uint32_t now) {
-    if (g_aufn.laeuft) return;
+    if (g_aufn.laeuft || g_codec_mikro) return;
     if (g_notes.empty() || static_cast<int32_t>(now - g_next_note) < 0) return;
     const Note n = g_notes.front();
     g_notes.pop_front();
@@ -357,17 +418,22 @@ void hochladen(WiFiClientSecure& tls, const Anfrage& a, const std::string& host,
     bool ok = tls.write(reinterpret_cast<const uint8_t*>(kopf.data()), kopf.size()) == kopf.size();
     uint8_t* stueck = static_cast<uint8_t*>(malloc(2048));
     size_t gesendet = 0;
+    g_hoch_prozent = 0;
+    const uint32_t sendeSeit = millis();
     while (ok && stueck && gesendet < groesse) {
         const int n = f.read(stueck, 2048);
         if (n <= 0) break;
         ok = tls.write(stueck, static_cast<size_t>(n)) == static_cast<size_t>(n);
         gesendet += static_cast<size_t>(n);
+        g_hoch_prozent = static_cast<int>(gesendet * 100 / (groesse ? groesse : 1));
+        if (millis() - sendeSeit > 90000) ok = false;      // ~2 MB brauchen bei schwachem WLAN keine 90 s
     }
     free(stueck);
     f.close();
+    g_hoch_prozent = -1;
     if (!ok || gesendet != groesse) {
         tls.stop();
-        r.grund = "Hochladen abgebrochen";
+        r.grund = stueck ? "Hochladen abgebrochen" : "zu wenig Speicher";
         return;
     }
     // Antwort lesen: Geduld bis fristMs (der Server schreibt erst ab), dann Kopf und Text
@@ -613,7 +679,7 @@ void startRemote();
 class DevicePlatform : public Platform {
 public:
     void play(Sound s, int volume) override {
-        if (g_aufn.laeuft) return;      // waehrend der Aufnahme gehoert der Codec dem Mikrofon
+        if (g_aufn.laeuft || g_codec_mikro) return;      // waehrend der Aufnahme gehoert der Codec dem Mikrofon
         M5Cardputer.Speaker.setVolume(volume <= 1 ? 70 : volume >= 3 ? 230 : 150);
         queueSound(s);
     }
@@ -662,9 +728,12 @@ public:
         return ::aufnahmeMaxSek();
     }
     bool aufnahmeStart(const std::string& name) override { return ::aufnahmeStart(std::string(DIR) + "/" + name); }
-    int aufnahmePegel() override { return g_aufn.laeuft ? g_aufn.pegel : 0; }
+    int aufnahmePegel() override { return g_aufn.laeuft ? pegelProzent(g_aufn.pegel) : 0; }
     bool aufnahmeStopp(bool behalten) override { return ::aufnahmeStopp(behalten); }
-    void mikroStufe(int stufe) override { g_mikro_faktor = stufe <= 1 ? 8 : stufe >= 3 ? 32 : 16; }
+    std::string aufnahmeGrund() override { return g_aufn_grund; }
+    int hochladenProzent() override { return g_hoch_prozent; }
+    // ADC-Lautstaerke des ES8311: leise 0 dB, normal +6 dB, laut +12 dB
+    void mikroStufe(int stufe) override { g_mikro_adc = stufe <= 1 ? 0xBF : stufe >= 3 ? 0xD7 : 0xCB; }
 };
 
 DevicePlatform g_platform;
@@ -973,6 +1042,7 @@ void setup() {
 void loop() {
     M5Cardputer.update();
     const uint32_t now = millis();
+    aufnahmePflege();
     pumpSound(now);
     if (g_mode == Mode::Remote) loopRemote(now);
     else loopApp(now);

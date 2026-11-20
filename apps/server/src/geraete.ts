@@ -582,7 +582,7 @@ export function geraeteRouten(app: FastifyInstance, a: Abhaengigkeiten, o: { ger
     // ein leerer Text mit 200 hieße für das Gerät „nichts verstanden“, und Leif spräche umsonst noch einmal.
     let e: Awaited<ReturnType<typeof rr.umwandeln>>;
     try {
-      e = await rr.umwandeln('sprache.wav', wav);
+      e = await rr.umwandeln('sprache.wav', lautAngleichen(wav));
     } catch (err) {
       console.warn(`Spracheingabe: Rechenraum – ${(err as Error).message}`);
       throw new DorfFehler(503, 'Die Spracherkennung ist gerade nicht verfügbar.');
@@ -637,6 +637,38 @@ export function geraeteRouten(app: FastifyInstance, a: Abhaengigkeiten, o: { ger
         .map((m) => ({ von: kurz(m.von, 60), betreff: kurz(m.betreff, 120), zusammenfassung: kurz(m.zusammenfassung ?? '', 300), antwortNoetig: m.antwortNoetig })),
     };
   });
+}
+
+/**
+ * Leise Aufnahmen hörbar machen (Cardputer 1.2 kam nur mit wenigen Prozent Pegel an): PCM 16 Bit wird so verstärkt,
+ * dass die Spitze bei ~70 % liegt – höchstens 24 dB (×16), damit Rauschen in Stille nicht zu Brüllen wird. Alles
+ * andere (anderes Format, schon laut genug, kaputter Kopf) geht unverändert durch.
+ */
+export function lautAngleichen(wav: Buffer, ziel = 0.7, maxFaktor = 16): Buffer {
+  if (wav.length < 44 || wav.toString('ascii', 0, 4) !== 'RIFF' || wav.toString('ascii', 8, 12) !== 'WAVE') return wav;
+  let pcm16 = false;
+  let daten = -1;
+  let laenge = 0;
+  for (let i = 12; i + 8 <= wav.length; ) {
+    const id = wav.toString('ascii', i, i + 4);
+    const n = wav.readUInt32LE(i + 4);
+    if (id === 'fmt ' && i + 8 + 16 <= wav.length) pcm16 = wav.readUInt16LE(i + 8) === 1 && wav.readUInt16LE(i + 22) === 16;
+    if (id === 'data') {
+      daten = i + 8;
+      laenge = Math.min(n, wav.length - daten) & ~1;
+      break;
+    }
+    i += 8 + n + (n & 1);
+  }
+  if (!pcm16 || daten < 0 || laenge === 0) return wav;
+  let spitze = 0;
+  for (let i = daten; i < daten + laenge; i += 2) spitze = Math.max(spitze, Math.abs(wav.readInt16LE(i)));
+  if (spitze === 0) return wav;
+  const faktor = Math.min(maxFaktor, (ziel * 32767) / spitze);
+  if (faktor <= 1.05) return wav;
+  const aus = Buffer.from(wav);
+  for (let i = daten; i < daten + laenge; i += 2) aus.writeInt16LE(Math.max(-32768, Math.min(32767, Math.round(wav.readInt16LE(i) * faktor))), i);
+  return aus;
 }
 
 /** E194: höchstens ≈ 60 s Sprache (16 kHz, 16 Bit, mono = 32 KB/s) */

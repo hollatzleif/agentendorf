@@ -442,6 +442,57 @@ describe('Spracheingabe am Gerät (E194)', () => {
     expect((await post(wav(1), {})).statusCode).toBe(401);
   });
 
+  it('lautAngleichen: leise Sprache wird verstärkt (höchstens ×16), laute/fremde Formate bleiben, nichts übersteuert', async () => {
+    const { lautAngleichen } = await import('../src/geraete.js');
+    const mitWerten = (werte: number[]) => {
+      const w = wav(0);
+      const daten = Buffer.alloc(werte.length * 2);
+      werte.forEach((v, i) => daten.writeInt16LE(v, i * 2));
+      w.writeUInt32LE(36 + daten.length, 4);
+      w.writeUInt32LE(daten.length, 40);
+      return Buffer.concat([w, daten]);
+    };
+    const werte = (b: Buffer) => Array.from({ length: (b.length - 44) / 2 }, (_, i) => b.readInt16LE(44 + i * 2));
+    // leise (Spitze 2000 ≈ -24 dBFS) → Spitze bei ~70 %
+    const leise = lautAngleichen(mitWerten([0, 1000, -2000, 500]));
+    expect(werte(leise)).toEqual([0, 11468, -22937, 5734]);
+    expect(leise.subarray(0, 44)).toEqual(mitWerten([0, 1000, -2000, 500]).subarray(0, 44));
+    // sehr leise (Rauschen): höchstens ×16
+    expect(werte(lautAngleichen(mitWerten([10, -20, 5])))).toEqual([160, -320, 80]);
+    // schon laut genug: unverändert (dasselbe Objekt)
+    const laut = mitWerten([0, 30000, -25000]);
+    expect(lautAngleichen(laut)).toBe(laut);
+    // Stille, kein WAV, 8 Bit: unverändert
+    const still = mitWerten([0, 0, 0]);
+    expect(lautAngleichen(still)).toBe(still);
+    const kein = Buffer.from('kein wav, nur Text, lang genug für den Kopf …………………');
+    expect(lautAngleichen(kein)).toBe(kein);
+    const achtBit = mitWerten([100, 200]);
+    achtBit.writeUInt16LE(8, 34);
+    expect(lautAngleichen(achtBit)).toBe(achtBit);
+    // kaputte Längenangabe (größer als die Datei): nur bis zum Ende, kein Absturz
+    const kaputt = mitWerten([1000, -1000]);
+    kaputt.writeUInt32LE(999_999, 40);
+    expect(werte(lautAngleichen(kaputt))).toEqual([16000, -16000]);
+  });
+
+  it('der Rechenraum bekommt die angeglichene Aufnahme', async () => {
+    const { d, g } = await aufbau();
+    let bekommen: Buffer | undefined;
+    d.agenten.rechenraum = {
+      umwandeln: async (_name: string, inhalt: Buffer) => {
+        bekommen = inhalt;
+        return { version: '1', typ: 'audio', text: '## Transkript (x)\nHallo', bilder: [], hinweise: [] };
+      },
+    } as unknown as NonNullable<typeof d.agenten.rechenraum>;
+    const w = wav(1);
+    w.writeInt16LE(1000, 44);
+    const r = await d.app.inject({ method: 'POST', url: '/api/geraet/sprache', headers: { ...g, 'content-type': 'audio/wav' }, payload: w });
+    expect(r.statusCode, r.body).toBe(200);
+    expect(bekommen!.readInt16LE(44)).toBe(16000);
+    expect(bekommen!.length).toBe(w.length);
+  });
+
   it('transkriptAus: ohne Transkript leer, Geräusch-Marken raus', async () => {
     const { transkriptAus } = await import('../src/geraete.js');
     expect(transkriptAus('## Datei\n- Dauer: 2 s')).toBe('');

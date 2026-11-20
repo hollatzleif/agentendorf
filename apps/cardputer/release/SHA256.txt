@@ -1,2 +1,2 @@
-b5fb6ed5cf8e39a2aa898ddfc4f57366fb958ba653c5894a0196d5d11ffdc4b6  agentendorf-cardputer-1.2.bin
-ee6fd685434e5400bd6b5b0e5554daa30ecf783f80ce168d8685e9fcdcebd140  agentendorf-cardputer-1.2-nur-programm.bin
+00b6635cf6ce256f25ff9cd9f6e64ff1457ddcff76caa66d32745ab013818337  agentendorf-cardputer-1.3.bin
+10bc7f87a615dd1bc51348fe58e8ed32b0ecd56fb6c9e925630334bd3b5004d9  agentendorf-cardputer-1.3-nur-programm.bin
