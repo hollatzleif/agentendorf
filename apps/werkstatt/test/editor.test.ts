@@ -1,8 +1,10 @@
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Editor } from '../src/editor.js';
 
 /**
  * E197 – Editor im Codehaus: Endpunkte des Runners für Dateien, Suche, Git und Terminal.
@@ -74,7 +76,7 @@ describe('Editor-Endpunkte: nur Profil coding, nur mit Geheimnis', () => {
     expect((await hole('/editor/datei', { method: 'PUT', body: JSON.stringify({ projekt: P, pfad: 'x', text: 'x' }) }, PORT_W)).status).toBe(404);
     expect((await post('/editor/git', { projekt: P, befehl: 'status' }, PORT_W)).status).toBe(404);
     expect((await post('/terminal', { id: crypto.randomUUID() }, PORT_W)).status).toBe(404);
-    expect((await post('/terminal/trennen', {}, PORT_W)).status).toBe(404);
+    expect((await hole(`/terminal/${crypto.randomUUID()}`, { method: 'DELETE' }, PORT_W)).status).toBe(404);
   });
 });
 
@@ -277,6 +279,56 @@ describe('Git', () => {
     expect(p.j.ok).toBe(false);
     expect(String(p.j.ausgabe)).toMatch(/origin/);
   });
+
+  it('E204: Pfade sind wörtlich, nie Muster – „*“ vormerken/zurücknehmen/verwerfen trifft nur die Datei „*“', async () => {
+    const G = 'stern-repo';
+    const o = path.join(arbeit, G);
+    fs.mkdirSync(o);
+    const inhalt = (n: string) => fs.readFileSync(path.join(o, n), 'utf8');
+    for (const [n, t] of [['a.txt', 'a1\n'], ['b.txt', 'b1\n'], ['*', 'stern1\n']]) fs.writeFileSync(path.join(o, n!), t!);
+    const g = (befehl: string, mehr: Record<string, unknown> = {}) => post('/editor/git', { projekt: G, befehl, ...mehr });
+    expect((await g('init')).j.ok).toBe(true);
+    expect((await g('commit', { nachricht: 'Start', alle: true })).j.ok).toBe(true);
+    for (const [n, t] of [['a.txt', 'a2\n'], ['b.txt', 'b2\n'], ['*', 'stern2\n']]) fs.writeFileSync(path.join(o, n!), t!);
+    // vormerken: nur „*“ landet im Index, nicht alles, was auf * passt
+    expect((await g('vormerken', { pfad: '*' })).j.ok).toBe(true);
+    const status = () => (async () => ((await g('status')).j.dateien as { pfad: string; x: string; y: string }[]).sort((a, b) => a.pfad.localeCompare(b.pfad)))();
+    expect(await status()).toEqual([
+      { pfad: '*', x: 'M', y: ' ' },
+      { pfad: 'a.txt', x: ' ', y: 'M' },
+      { pfad: 'b.txt', x: ' ', y: 'M' },
+    ]);
+    expect((await g('zuruecknehmen', { pfad: '*' })).j.ok).toBe(true);
+    expect((await g('verwerfen', { pfad: '*' })).j.ok).toBe(true);
+    expect(inhalt('*')).toBe('stern1\n');
+    expect(inhalt('a.txt')).toBe('a2\n');
+    expect(inhalt('b.txt')).toBe('b2\n');
+    // Pathspec-Magie ist ebenfalls nur ein Name
+    expect((await g('verwerfen', { pfad: ':(glob)*.txt' })).j.ok).toBe(false);
+    expect(inhalt('a.txt')).toBe('a2\n');
+  });
+
+  it('E204: nach dem Zeitlimit endet die ganze Prozessgruppe – auch was ein Git-Hook gestartet hat', async () => {
+    const wurzel = fs.mkdtempSync(path.join(os.tmpdir(), 'dorf-test-hook-'));
+    try {
+      const o = path.join(wurzel, 'hook-repo');
+      fs.mkdirSync(o);
+      execFileSync('git', ['init', '-q'], { cwd: o });
+      fs.writeFileSync(path.join(o, '.git/hooks/pre-commit'), '#!/bin/sh\nsleep 6211 &\nexec sleep 6212\n', { mode: 0o755 });
+      fs.writeFileSync(path.join(o, 'x.txt'), 'x\n');
+      const env = { PATH: process.env.PATH ?? '', HOME: nebenher[0]!, GIT_AUTHOR_NAME: 'T', GIT_AUTHOR_EMAIL: 't@dorf.test', GIT_COMMITTER_NAME: 'T', GIT_COMMITTER_EMAIL: 't@dorf.test' };
+      const ed = new Editor(wurzel, () => env, 1500);
+      const laeuft = () => execFileSync('sh', ['-c', 'ps -eo args | grep "^sleep 621[12]" || true']).toString();
+      const r = await ed.git('hook-repo', { befehl: 'commit', nachricht: 'mit Hook', alle: true });
+      expect(r.ok).toBe(false);
+      expect(String(r.ausgabe)).toContain('Zeitlimit');
+      for (let i = 0; i < 40 && laeuft(); i++) await new Promise((x) => setTimeout(x, 50));
+      expect(laeuft()).toBe('');
+    } finally {
+      execFileSync('sh', ['-c', 'pkill -f "^sleep 621[12]" || true']);
+      fs.rmSync(wurzel, { recursive: true, force: true });
+    }
+  }, 20_000);
 });
 
 describe('Terminal', () => {
@@ -338,8 +390,48 @@ describe('Terminal', () => {
     for (const v of viele) expect(v.r.status).toBe(200);
     const neun = await post('/terminal', { id: crypto.randomUUID() });
     expect(neun.status).toBe(429);
-    expect((await post('/terminal/trennen', {})).j.getrennt).toBe(8);
+    // E204: „alle trennen“ gab es nur auf dem Papier (niemand rief es) – das Dorf schließt jedes Terminal einzeln
+    expect((await post('/terminal/trennen', {})).status).toBe(404);
+    for (const v of viele) expect((await hole(`/terminal/${v.id}`, { method: 'DELETE' })).status).toBe(200);
     await Promise.all(viele.map((v) => v.fertig));
+    expect((await hole(`/terminal/${viele[0]!.id}`, { method: 'DELETE' })).status).toBe(404);
     expect((await post('/terminal', { id: 'keine-uuid' })).status).toBe(400);
+  }, 30_000);
+
+  it('E204: Gegendruck – liest niemand die Ausgabe, steht die Shell, statt dass der Runner Speicher sammelt', async () => {
+    const id = crypto.randomUUID();
+    // http.request statt fetch: der Test hält das Lesen wirklich an
+    const antwort = await new Promise<http.IncomingMessage>((ok, kaputt) => {
+      const a = http.request(url('/terminal'), { method: 'POST', headers: kopf }, ok);
+      a.on('error', kaputt);
+      a.end(JSON.stringify({ id, projekt: P }));
+    });
+    expect(antwort.statusCode).toBe(200);
+    antwort.pause();
+    const tippe = (t: string) => fetch(url(`/terminal/${id}/eingabe`), { method: 'POST', headers: kopf, body: t }).then((x) => x.status);
+    const rss = () => Number(/VmRSS:\s+(\d+)/.exec(fs.readFileSync(`/proc/${runner.pid}/status`, 'utf8'))![1]) * 1024;
+    const yes = () => execFileSync('sh', ['-c', 'ps -eo stat,args | grep " yes dorf-gegendruck-2$" || true']).toString().trim();
+    const vorher = rss();
+    expect(await tippe('yes dorf-gegendruck-$((1+1))\n')).toBe(200);
+    for (let i = 0; i < 100 && !yes(); i++) await new Promise((x) => setTimeout(x, 30));
+    await new Promise((x) => setTimeout(x, 2000));
+    // ohne Gegendruck: > 100 MB in zwei Sekunden (gemessen 85 MB/s im Dorf); mit: ein paar Puffer
+    expect(rss() - vorher).toBeLessThan(40 * 1024 * 1024);
+    // yes wartet aufs PTY (S), statt zu rechnen (R)
+    expect(yes()).toMatch(/^S/);
+    // weiterlesen: Strg+C kommt durch, die Shell antwortet wieder
+    let aus = '';
+    antwort.on('data', (d: Buffer) => {
+      aus = (aus + d.toString('latin1')).slice(-4000);
+    });
+    antwort.resume();
+    expect(await tippe('\x03')).toBe(200);
+    expect(await tippe('echo wieder-$((40+2))\n')).toBe(200);
+    for (let i = 0; i < 300 && !/wieder-42/.test(aus); i++) await new Promise((x) => setTimeout(x, 50));
+    expect(aus).toMatch(/wieder-42/);
+    expect(yes()).toBe('');
+    const ende = new Promise((x) => antwort.on('end', x));
+    await tippe('exit\n');
+    await ende;
   }, 30_000);
 });

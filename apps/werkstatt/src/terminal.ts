@@ -108,8 +108,11 @@ export class Terminals {
     return this.offen.has(id);
   }
 
-  /** Startet eine Shell am PTY. `aus` bekommt alles, was sie schreibt; `ende` genau einmal. */
-  starten(s: TerminalStart, aus: (d: Buffer) => void, ende: (code: number | null) => void): void {
+  /**
+   * Startet eine Shell am PTY. `aus` bekommt alles, was sie schreibt; gibt `aus` false zurück (Empfänger voll), liest das
+   * Terminal nicht weiter, bis `fortsetzen` kommt (E204: Gegendruck). `ende` genau einmal.
+   */
+  starten(s: TerminalStart, aus: (d: Buffer) => boolean | void, ende: (code: number | null) => void): void {
     const p = spawn(s.python ?? 'python3', ['-u', '-c', PTY_HELFER, String(zahl(s.spalten, 2, 1000, 80)), String(zahl(s.zeilen, 2, 500, 24)), ...(s.befehl ?? ['bash'])], {
       cwd: s.cwd,
       env: { ...s.umgebung, TERM: 'xterm-256color', COLORTERM: 'truecolor', DORF_TERMINAL: '1' },
@@ -123,14 +126,31 @@ export class Terminals {
       this.offen.delete(s.id);
       ende(code);
     };
-    p.stdout!.on('data', aus);
-    p.stderr!.on('data', aus);
+    const weiter = (d: Buffer) => {
+      if (aus(d) === false) this.anhalten(s.id);
+    };
+    p.stdout!.on('data', weiter);
+    p.stderr!.on('data', weiter);
     for (const strom of [p.stdin!, p.stdio[3] as Writable]) strom.on('error', () => {});
     p.on('error', (e) => {
       aus(Buffer.from(`\r\nTerminal ließ sich nicht starten: ${e.message}\r\n`));
       schluss(null);
     });
     p.on('close', (code) => schluss(code));
+  }
+
+  /** E204: Ausgabe nicht weiterlesen – der Helfer blockiert beim Schreiben, die Shell beim nächsten Schreiben ans PTY */
+  anhalten(id: string) {
+    const p = this.offen.get(id);
+    p?.stdout?.pause();
+    p?.stderr?.pause();
+  }
+
+  /** E204: Empfänger hat wieder Platz */
+  fortsetzen(id: string) {
+    const p = this.offen.get(id);
+    p?.stdout?.resume();
+    p?.stderr?.resume();
   }
 
   eingabe(id: string, daten: Buffer): boolean {

@@ -76,6 +76,10 @@ declare module 'fastify' {
     /** E182: angemeldetes Gerät (nur unter /api/geraet/) */
     geraet?: Geraet;
   }
+  interface FastifyInstance {
+    /** E204: Sitzungen abgleichen (läuft alle 30 s von selbst; Tests rufen es direkt) */
+    sitzungenAbgleichen(): string[];
+  }
 }
 
 export interface Abhaengigkeiten {
@@ -160,6 +164,20 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
   });
   if (proxy) app.addHook('onClose', async () => proxy.stoppen());
   const sitzungen = new Sitzungen(db, uhr);
+  // E204: Sitzungen, die in einem anderen Prozess (dorf sitzungen-beenden / dorf passwort) oder durch Zeitablauf enden,
+  // kappen ihre offenen Verbindungen spätestens nach 30 s – Live, Terminals, VS Code (Zuhörer in coding*.ts)
+  sitzungen.halter.push(() => hub.sitzungIds());
+  sitzungen.beiEnde.push((ids) => hub.sitzungenTrennen(ids));
+  app.decorate('sitzungenAbgleichen', () => sitzungen.abgleichen());
+  const abgleichTakt = setInterval(() => {
+    try {
+      sitzungen.abgleichen();
+    } catch (e) {
+      console.warn(`Sitzungsabgleich: ${(e as Error).message}`);
+    }
+  }, 30_000);
+  abgleichTakt.unref();
+  app.addHook('onClose', async () => clearInterval(abgleichTakt));
   const drossel = new Drossel(db, uhr);
   const einmaligAusfuehren = einmaligBauen(db, uhr);
   const geraete = new Geraete({ db, uhr });

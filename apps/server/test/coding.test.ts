@@ -699,6 +699,46 @@ describe('Zugang zu VS Code (Code-Host, Einmal-Karte, Prüfung für Caddy)', () 
     await d.app.close();
   });
 
+  it('E204: Sitzung per CLI beendet (anderer Prozess) oder abgelaufen → der Abgleich sperrt VS Code und kappt die Verbindungen', async () => {
+    const d = await eingerichtet();
+    const warten = async (n: number) => {
+      for (let i = 0; i < 100 && getrennt < n; i++) await new Promise((r) => setTimeout(r, 10));
+      await new Promise((r) => setTimeout(r, 30));
+    };
+    const zugaenge = () => (d.db.prepare('SELECT COUNT(*) AS n FROM coding_zugang').get() as { n: number }).n;
+    const vsCode = async (h: Record<string, string>) => {
+      const o = await d.app.inject({ url: '/api/coding/oeffnen', headers: h });
+      const e = await d.app.inject({ url: `/api/coding/eintritt?karte=${new URL(String(o.headers.location)).searchParams.get('karte')}`, headers: codeKopf });
+      return cookieAus(e.headers['set-cookie']);
+    };
+    const zugang = async (cookie: string) => (await d.intern.inject({ url: '/intern/coding/zugang', headers: { ...codeKopf, cookie } })).statusCode;
+    const a = await kopf(d);
+    const code = await vsCode(a);
+    expect(await zugang(code)).toBe(200);
+    getrennt = 0;
+    // nichts geändert → kein Kappen
+    expect(d.app.sitzungenAbgleichen()).toEqual([]);
+    await warten(1);
+    expect(getrennt).toBe(0);
+    // `dorf sitzungen-beenden` läuft als eigener Prozess: nur die Zeilen verschwinden
+    d.db.prepare('DELETE FROM sitzungen').run();
+    expect(await zugang(code)).toBe(401);
+    expect(d.app.sitzungenAbgleichen()).toHaveLength(1);
+    await warten(1);
+    expect(getrennt).toBe(1);
+    expect(zugaenge()).toBe(0);
+    // Zeitablauf ohne weitere Anfrage
+    const b = await kopf(d);
+    await vsCode(b);
+    expect(zugaenge()).toBe(1);
+    d.uhr.vor(31 * 24 * 60 * 60 * 1000);
+    expect(d.app.sitzungenAbgleichen()).toHaveLength(1);
+    await warten(2);
+    expect(getrennt).toBe(2);
+    expect(zugaenge()).toBe(0);
+    await d.app.close();
+  });
+
   it('echte WebSocket-Anfrage (wie Caddys forward_auth sie weiterreicht) wird mit 200/401 beantwortet, nicht abgewiesen', async () => {
     const d = await eingerichtet();
     const h = await kopf(d);

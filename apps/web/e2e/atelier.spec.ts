@@ -216,6 +216,25 @@ test('Atelier: Gebäude → Editor, Ebene anlegen, malen, Filter, Rückgängig, 
   expect(baum).toMatch(new RegExp(`${name}\\.konflikt-[0-9-]+\\.png`));
   // das Original ist die fremde Fassung geblieben
   expect((await (await page.request.get(`/api/vault/roh?pfad=Atelier/bilder/${name}.png`)).body()).equals(anders)).toBe(true);
+
+  // E204: „Speichern unter“ auf den vorhandenen Namen fragt erst – abbrechen ändert nichts, bestätigen ersetzt
+  const fragen: string[] = [];
+  page.removeAllListeners('dialog'); // statt „immer bestätigen“ (anmelden): hier zuerst ablehnen
+  page.once('dialog', (d) => {
+    fragen.push(d.message());
+    void d.dismiss();
+  });
+  await menue(page, 'Datei', /Speichern unter/);
+  await sp.getByLabel('Name').fill(name);
+  await sp.getByLabel('Format').selectOption('png');
+  await sp.getByRole('button', { name: 'Im Vault speichern' }).click();
+  await expect(page.getByTestId('at-hinweis')).toContainText('Nicht gespeichert');
+  expect(fragen[0]).toContain(`Atelier/bilder/${name}.png`);
+  expect((await (await page.request.get(`/api/vault/roh?pfad=Atelier/bilder/${name}.png`)).body()).equals(anders)).toBe(true);
+  page.on('dialog', (d) => void d.accept());
+  await sp.getByRole('button', { name: 'Im Vault speichern' }).click();
+  await expect(page.getByTestId('at-hinweis')).toContainText(`Gespeichert: Atelier/bilder/${name}.png`);
+  expect((await (await page.request.get(`/api/vault/roh?pfad=Atelier/bilder/${name}.png`)).body()).equals(anders)).toBe(false);
 });
 
 test('Atelier: Auswahl, Füllen, Zauberstab, Verschieben, Transformieren, Zuschneiden, Bildgröße, Text – mit Photoshop-Tastenkürzeln', async ({ page }) => {

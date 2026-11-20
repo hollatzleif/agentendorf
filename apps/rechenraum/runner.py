@@ -1581,6 +1581,9 @@ BILD_VERSION = "1"
 BILD_MAX_PIXEL = 24_000_000
 BILD_MAX_KANTE = 12_000
 BILD_MAX_SCHRITTE = 20
+# E204: Ergebnis höchstens 40 MB (24 MP als PNG mit Rauschen kann darüber liegen) – als Base64 in der JSON-Antwort ~54 MB;
+# das Dorf nimmt höchstens 80 MB an. BILD_AUSGABE_MAX nur für Tests anders.
+BILD_AUSGABE_MAX = int(os.environ.get("BILD_AUSGABE_MAX", str(40 * 1024 * 1024)))
 BILD_MODELL_HINTERGRUND = os.environ.get("BILD_MODELL_HINTERGRUND", "/opt/bild/u2netp.onnx")
 BILD_MODELL_SKALIEREN = os.environ.get("BILD_MODELL_SKALIEREN", "/opt/bild/real_esrgan_general_x4v3.onnx")
 # Hochskalieren: Eingang höchstens so viele Pixel (4× → 16,8 MP Ergebnis; ~81 Kacheln je Megapixel)
@@ -1920,6 +1923,8 @@ def bild(name, inhalt, schritte, fmt, qualitaet=None):
                     raise Fehler(500, f"Bildbearbeitung abgestürzt ({letzte[0][:200]}) – vermutlich zu wenig Speicher für dieses Bild.")
                 if not r.get("ok"):
                     raise Fehler(422, r.get("fehler") or "Bildbearbeitung fehlgeschlagen.")
+                if os.path.getsize(ausgang) > BILD_AUSGABE_MAX:
+                    raise Fehler(413, f"Ergebnis zu groß (über {BILD_AUSGABE_MAX // 1024 // 1024} MB) – bitte kleiner oder als JPG.")
                 with open(ausgang, "rb") as f:
                     daten = f.read()
                 del r["ok"]

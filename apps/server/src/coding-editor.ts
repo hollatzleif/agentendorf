@@ -23,6 +23,13 @@ import { PROJEKT_MUSTER } from './agenten/motor-claude-code.js';
 
 export const EDITOR_TEXT_MAX = 2 * 1024 * 1024;
 export const EDITOR_HOCHLADEN_MAX = 20 * 1024 * 1024;
+/**
+ * E204: Grenze für den JSON-Körper beim Speichern. JSON maskiert ein Steuerzeichen als \u00XX – aus einem Byte werden sechs.
+ * Damit jede Textdatei bis 2 MB passt, darf der Körper sechsmal so groß sein; die eigentliche Grenze (2 MB Text) gilt nach dem Parsen.
+ */
+export const EDITOR_JSON_MAX = EDITOR_TEXT_MAX * 6 + 100_000;
+/** E204: so viel darf im WebSocket zum Browser höchstens warten, bevor das Dorf die Ausgabe des Terminals nicht weiterliest */
+export const TERMINAL_PUFFER_MAX = 1024 * 1024;
 const TERMINALS_JE_SITZUNG = 8;
 
 /** Relativer Pfad im Projekt – dieselben Regeln wie im Runner (dort wird noch einmal geprüft). */
@@ -50,6 +57,19 @@ const GIT = z.discriminatedUnion('befehl', [
   }),
 ]);
 
+/**
+ * E204: Zeitgrenze nur, bis die Kopfzeilen da sind. Der Körper (Download bis 200 MB) hat kein festes Gesamtlimit – sonst
+ * bräche ein großer Download über eine langsame Leitung mittendrin ab. Abbrechen bleibt über `ab` möglich.
+ */
+export async function holenMitKopfZeit(holen: typeof fetch, url: string, init: RequestInit, ms: number, ab = new AbortController()): Promise<Response> {
+  const uhr = setTimeout(() => ab.abort(new Error(`keine Antwort nach ${Math.round(ms / 1000)} s`)), ms);
+  try {
+    return await holen(url, { ...init, signal: ab.signal });
+  } finally {
+    clearTimeout(uhr);
+  }
+}
+
 interface OffenesTerminal {
   sitzungId: string;
   schliessen(code: number, grund: string): void;
@@ -60,7 +80,9 @@ export function codingEditorRouten(app: FastifyInstance, d: { konfig: Konfig; ho
   const holen = d.holen ?? fetch;
   const terminals = new Map<string, OffenesTerminal>();
 
-  // Abmelden / „Gerät abmelden“ / „alle abmelden“: Terminals dieser Sitzungen sofort kappen (wie E195 bei VS Code)
+  // Abmelden / „Gerät abmelden“ / „alle abmelden“: Terminals dieser Sitzungen sofort kappen (wie E195 bei VS Code).
+  // E204: Sitzungen, die per CLI oder durch Zeitablauf enden, findet der Abgleich in app.ts (alle 30 s) über den Halter.
+  d.sitzungen?.halter.push(() => [...terminals.values()].map((t) => t.sitzungId));
   d.sitzungen?.beiEnde.push((ids) => {
     for (const t of [...terminals.values()]) if (ids.includes(t.sitzungId)) t.schliessen(4001, 'Sitzung beendet');
   });
@@ -71,7 +93,7 @@ export function codingEditorRouten(app: FastifyInstance, d: { konfig: Konfig; ho
   };
 
   /** Anfrage an den Runner; Fehler des Runners kommen mit seiner Meldung und seinem Status zurück. */
-  async function roh(weg: string, init: { methode?: string; json?: unknown; daten?: Buffer; ms?: number } = {}): Promise<Response> {
+  async function roh(weg: string, init: { methode?: string; json?: unknown; daten?: Buffer; ms?: number; nurKopf?: AbortController } = {}): Promise<Response> {
     const headers = kopf();
     let body: BodyInit | undefined;
     if (init.json !== undefined) {
@@ -83,7 +105,10 @@ export function codingEditorRouten(app: FastifyInstance, d: { konfig: Konfig; ho
     }
     let r: Response;
     try {
-      r = await holen(`${konfig.codingUrl}${weg}`, { method: init.methode ?? (body ? 'POST' : 'GET'), headers, body, signal: AbortSignal.timeout(init.ms ?? 30_000) });
+      const anfrage = { method: init.methode ?? (body ? 'POST' : 'GET'), headers, body };
+      r = init.nurKopf
+        ? await holenMitKopfZeit(holen, `${konfig.codingUrl}${weg}`, anfrage, init.ms ?? 30_000, init.nurKopf)
+        : await holen(`${konfig.codingUrl}${weg}`, { ...anfrage, signal: AbortSignal.timeout(init.ms ?? 30_000) });
     } catch (e) {
       throw new DorfFehler(502, `Der Coding-Container antwortet nicht (${(e as Error).message}). Auf dem Server: dorf status – läuft „coding“?`);
     }
@@ -110,7 +135,10 @@ export function codingEditorRouten(app: FastifyInstance, d: { konfig: Konfig; ho
   // Herunterladen (auch Binärdateien): immer als Anhang, nie anzeigen – Projektdateien können aus fremden Quellen stammen
   app.get('/api/coding/editor/roh', async (req, reply) => {
     const q = z.object({ projekt, pfad }).parse(req.query);
-    const r = await roh(`/editor/roh?${frage(q)}`, { ms: 120_000 });
+    // E204: Zeitgrenze nur für die Antwort des Runners, nicht für den Körper; bricht der Browser ab, endet auch die Anfrage
+    const ab = new AbortController();
+    reply.raw.on('close', () => ab.abort());
+    const r = await roh(`/editor/roh?${frage(q)}`, { ms: 60_000, nurKopf: ab });
     const name = q.pfad.split('/').pop()!;
     reply
       .header('Content-Type', 'application/octet-stream')
@@ -128,7 +156,7 @@ export function codingEditorRouten(app: FastifyInstance, d: { konfig: Konfig; ho
     return runner(`/editor/dateien?${frage(q)}`);
   });
 
-  app.put('/api/coding/editor/datei', { bodyLimit: EDITOR_TEXT_MAX * 2 + 100_000 }, async (req) => {
+  app.put('/api/coding/editor/datei', { bodyLimit: EDITOR_JSON_MAX }, async (req) => {
     const b = z.object({ projekt, pfad, text: z.string(), basisVersion: z.string().regex(/^[0-9a-f]{64}$/).optional(), neu: z.boolean().optional() }).parse(req.body);
     if (Buffer.byteLength(b.text, 'utf8') > EDITOR_TEXT_MAX) throw new DorfFehler(413, 'Die Datei ist zu groß für den Editor (über 2 MB).');
     return runner('/editor/datei', { methode: 'PUT', json: b });
@@ -188,6 +216,8 @@ export function codingEditorRouten(app: FastifyInstance, d: { konfig: Konfig; ho
       zu = true;
       terminals.delete(id);
       ab.abort();
+      // dem Runner ausdrücklich sagen, dass die Shell enden soll (der Abbruch des Ausgabestroms tut das auch – doppelt hält besser)
+      if (bereit) void holen(`${basis}/${id}`, { method: 'DELETE', headers: kopf(), signal: AbortSignal.timeout(5000) }).catch(() => undefined);
       try {
         socket.close(code, text);
       } catch {
@@ -269,6 +299,9 @@ export function codingEditorRouten(app: FastifyInstance, d: { konfig: Konfig; ho
         for await (const stueck of r.body as unknown as AsyncIterable<Uint8Array>) {
           if (zu) break;
           socket.send(stueck, { binary: true });
+          // E204: Gegendruck – liest der Browser nicht mit (langsame Leitung, Tab im Hintergrund), wartet das Dorf, statt die
+          // Ausgabe im Speicher zu sammeln. Der Strom vom Runner staut sich dann, der Runner hält die Shell an (runner.ts).
+          while (!zu && socket.bufferedAmount > TERMINAL_PUFFER_MAX) await new Promise((x) => setTimeout(x, 25));
         }
         melden({ typ: 'ende' });
         schliessen(1000, 'beendet');

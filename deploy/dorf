@@ -471,8 +471,9 @@ cmd_bilder_einrichten() {
   read -r -s -p "API-Token (Vorlage Workers AI, Eingabe unsichtbar): " token; echo
   token=$(printf '%s' "$token" | tr -d '\r\n ')
   [[ "$token" =~ ^[A-Za-z0-9_-]{20,200}$ ]] || { rot "Das sieht nicht wie ein Cloudflare-API-Token aus."; return 1; }
-  # kostet nichts: nur die Modellliste lesen – prüft, ob Token und Konto zusammenpassen
-  code=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $token" "https://api.cloudflare.com/client/v4/accounts/$konto/ai/models/search?per_page=1" || echo 000)
+  # kostet nichts: nur die Modellliste lesen – prüft, ob Token und Konto zusammenpassen.
+  # E204: das Token über die Standardeingabe (-H @-; printf ist eingebaut) – auf der Kommandozeile stünde es in ps/proc
+  code=$(printf 'Authorization: Bearer %s\n' "$token" | curl -s -o /dev/null -w '%{http_code}' -H @- "https://api.cloudflare.com/client/v4/accounts/$konto/ai/models/search?per_page=1" || echo 000)
   case "$code" in
     200) gruen "Zugang funktioniert." ;;
     401|403) rot "Cloudflare lehnt Token oder Konto ab (HTTP $code). Hat das Token die Rechte Workers AI – Lesen/Bearbeiten für dieses Konto?"; return 1 ;;

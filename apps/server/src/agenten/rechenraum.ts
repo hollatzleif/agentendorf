@@ -78,7 +78,33 @@ export interface RechenraumKlient {
   bildKann(): Promise<BildKann>;
 }
 
-export function rechenraumKlient(url: string, geheimnis: string): RechenraumKlient {
+/**
+ * E204: so groß darf eine Antwort des Rechenraums höchstens sein (JSON mit Base64). Der Rechenraum begrenzt selbst (Dateien
+ * 50 MB, Bilder 40 MB) – das Dorf verlässt sich nicht darauf: Base64 von 50 MB + JSON ≈ 68 MB, dazu Luft.
+ */
+export const RECHENRAUM_ANTWORT_MAX = 80 * 1024 * 1024;
+
+/** Körper einer Antwort lesen, höchstens `max` Bytes – sonst Abbruch (nie unbegrenzt in den Speicher) */
+export async function koerperBegrenzt(r: Response, max: number): Promise<Buffer> {
+  const laenge = Number(r.headers.get('content-length') ?? NaN);
+  if (laenge > max) {
+    await r.body?.cancel().catch(() => undefined);
+    throw new DorfFehler(502, `Antwort des Rechenraums zu groß (${Math.round(laenge / 1024 / 1024)} MB).`);
+  }
+  const teile: Buffer[] = [];
+  let n = 0;
+  for await (const t of (r.body ?? []) as AsyncIterable<Uint8Array>) {
+    n += t.length;
+    if (n > max) {
+      await r.body?.cancel().catch(() => undefined);
+      throw new DorfFehler(502, `Antwort des Rechenraums zu groß (über ${Math.round(max / 1024 / 1024)} MB).`);
+    }
+    teile.push(Buffer.from(t));
+  }
+  return Buffer.concat(teile);
+}
+
+export function rechenraumKlient(url: string, geheimnis: string, antwortMax = RECHENRAUM_ANTWORT_MAX): RechenraumKlient {
   const basis = url.replace(/\/$/, '');
   async function post<T>(weg: string, daten: Record<string, unknown>, zeitMs = 60_000): Promise<T> {
     let r: Response;
@@ -92,7 +118,16 @@ export function rechenraumKlient(url: string, geheimnis: string): RechenraumKlie
     } catch (e) {
       throw new DorfFehler(503, `Rechenraum nicht erreichbar (${(e as Error).message}). Auf dem Server: dorf status`);
     }
-    const j = (await r.json().catch(() => ({}))) as T & { fehler?: string };
+    const roh = await koerperBegrenzt(r, antwortMax).catch((e: Error) => {
+      if (e instanceof DorfFehler) throw e;
+      throw new DorfFehler(503, `Rechenraum: Antwort abgebrochen (${e.message}).`);
+    });
+    let j = {} as T & { fehler?: string };
+    try {
+      j = JSON.parse(roh.toString('utf8')) as T & { fehler?: string };
+    } catch {
+      /* kein JSON – unten zählt der Status */
+    }
     if (!r.ok) throw new DorfFehler(r.status === 401 ? 503 : 400, j.fehler ?? `Rechenraum: HTTP ${r.status}`);
     return j;
   }

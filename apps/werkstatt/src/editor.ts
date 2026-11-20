@@ -168,6 +168,8 @@ export class Editor {
   constructor(
     private arbeit: string,
     private umgebung: () => NodeJS.ProcessEnv,
+    /** nur für Tests: Zeitlimit der Befehle kürzen */
+    private hoechstensMs = Infinity,
   ) {}
 
   /** Ordner unter <arbeit>/<projekt>/… öffnen (das Projekt selbst muss ein echter Ordner sein). */
@@ -399,20 +401,30 @@ export class Editor {
     return new Promise((fertig, kaputt) => {
       const p = spawn(bin, args, {
         cwd,
-        env: { ...this.umgebung(), GIT_TERMINAL_PROMPT: '0', GIT_PAGER: 'cat', PAGER: 'cat', GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C.UTF-8', GIT_EDITOR: 'true' },
+        // E204: GIT_LITERAL_PATHSPECS – ein Pfad ist immer genau diese Datei, nie ein Muster („*“ verwirft sonst alles)
+        env: { ...this.umgebung(), GIT_TERMINAL_PROMPT: '0', GIT_PAGER: 'cat', PAGER: 'cat', GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C.UTF-8', GIT_EDITOR: 'true', GIT_LITERAL_PATHSPECS: '1' },
         stdio: ['pipe', 'pipe', 'pipe'],
+        // E204: eigene Prozessgruppe – nach dem Zeitlimit endet alles, was git gestartet hat (Hooks, ssh, Credential-Helfer)
+        detached: true,
       });
+      const gruppeBeenden = (signal: NodeJS.Signals) => {
+        try {
+          if (p.pid) process.kill(-p.pid, signal);
+        } catch {
+          p.kill(signal);
+        }
+      };
       const teile: Buffer[] = [];
       let n = 0;
       let fehler = '';
       let gekuerzt = false;
       const uhr = setTimeout(() => {
         fehler += '\n(Zeitlimit erreicht – abgebrochen)';
-        p.kill('SIGKILL');
-      }, opt.ms ?? 30_000);
+        gruppeBeenden('SIGKILL');
+      }, Math.min(opt.ms ?? 30_000, this.hoechstensMs));
       p.stdout.on('data', (d: Buffer) => {
         if (n >= max) {
-          if (!gekuerzt) p.kill('SIGTERM');
+          if (!gekuerzt) gruppeBeenden('SIGTERM');
           gekuerzt = true;
           return;
         }

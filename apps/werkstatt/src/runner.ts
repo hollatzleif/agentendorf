@@ -207,7 +207,8 @@ async function editorBehandeln(req: http.IncomingMessage, res: http.ServerRespon
     case 'GET /editor/dateien':
       return ende(200, await editor.dateien(q('projekt')));
     case 'PUT /editor/datei': {
-      const b = JSON.parse((await rohKoerper(req, TEXT_MAX * 2 + 10_000)).toString('utf8')) as Record<string, unknown>;
+      // E204: JSON maskiert Steuerzeichen als \u00XX (1 Byte → 6) – jede Datei bis 2 MB muss passen; die Text-Grenze prüft schreiben()
+      const b = JSON.parse((await rohKoerper(req, TEXT_MAX * 6 + 10_000)).toString('utf8')) as Record<string, unknown>;
       const basis = b.basisVersion === undefined ? undefined : text(b.basisVersion);
       return ende(200, editor.schreiben(text(b.projekt), text(b.pfad), Buffer.from(text(b.text), 'utf8'), { basisVersion: basis, neu: b.neu === true }));
     }
@@ -249,16 +250,17 @@ async function editorBehandeln(req: http.IncomingMessage, res: http.ServerRespon
       const cwd = b.projekt ? editor.projektOrdner(projektPruefen(b.projekt)) : arbeit;
       res.writeHead(200, { 'content-type': 'application/octet-stream', 'cache-control': 'no-store', 'x-accel-buffering': 'no' });
       res.flushHeaders();
+      // E204: Gegendruck – kommt das Dorf mit dem Lesen nicht nach (res.write → false), hält das Terminal die Shell an
+      // (stdout pausiert → der PTY-Helfer blockiert → die Shell blockiert), bis die Verbindung wieder leer ist ('drain').
       terminals.starten(
         { id, cwd, umgebung: codingUmgebung(process.env), spalten: b.spalten, zeilen: b.zeilen, befehl: TERMINAL_BEFEHL },
         (d) => res.write(d),
         () => res.end(),
       );
+      res.on('drain', () => terminals.fortsetzen(id));
       res.on('close', () => terminals.schliessen(id));
       return;
     }
-    case 'POST /terminal/trennen':
-      return ende(200, { getrennt: terminals.alleSchliessen() });
   }
   const t = /^\/terminal\/([0-9a-f-]{36})\/(eingabe|groesse)$/.exec(u.pathname);
   if (t && req.method === 'POST') {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ATELIER_MAX_BYTES, type AtelierStand, type SchreibErgebnis } from '@dorf/shared';
-import { api } from '../api';
+import { api, ApiFehler } from '../api';
 import { linkKlick, navigieren, useOrt } from '../router';
 import { alleDateien, endung, ordnerVon, useBaum } from '../vaultHilfen';
 import { Buehne, STANDARD_OPTIONEN, type Optionen, type Werkzeug } from './buehne';
@@ -293,9 +293,23 @@ export function AtelierSeite() {
     try {
       const blob = await kodieren(format, qualitaet);
       if (blob.size > ATELIER_MAX_BYTES) throw new Error(`Zu groß zum Speichern (${Math.round(blob.size / 1024 / 1024)} MB, höchstens ${ATELIER_MAX_BYTES / 1024 / 1024} MB) – als JPG speichern oder das Bild verkleinern.`);
-      // dieselbe Datei wie beim Öffnen: Version mitschicken – hat sie sich inzwischen geändert, legt das Dorf eine Konfliktkopie an
+      // dieselbe Datei wie beim Öffnen: Version mitschicken – hat sie sich inzwischen geändert, legt das Dorf eine Konfliktkopie an.
+      // E204: ein anderes Ziel („Speichern unter“) nur als NEUE Datei; gibt es den Namen schon, fragen wir, bevor etwas ersetzt wird
       const gleich = s.pfad === pfad && s.version;
-      const r = await api<SchreibErgebnis>(`/api/atelier/speichern?pfad=${encodeURIComponent(pfad)}${gleich ? `&basisVersion=${s.version}` : ''}`, { formular: formularMit(blob, namensTeil(pfad)) });
+      const senden = (frage: string) => api<SchreibErgebnis>(`/api/atelier/speichern?pfad=${encodeURIComponent(pfad)}${frage}`, { formular: formularMit(blob, namensTeil(pfad)) });
+      let r: SchreibErgebnis;
+      try {
+        r = await senden(gleich ? `&basisVersion=${s.version}` : '&neu=1');
+      } catch (e) {
+        const version = e instanceof ApiFehler && e.status === 409 ? e.daten.version : undefined;
+        if (gleich || typeof version !== 'string') throw e;
+        if (!window.confirm(`„${pfad}“ gibt es schon. Überschreiben?`)) {
+          melden('Nicht gespeichert – die Datei gibt es schon. Bitte einen anderen Namen wählen.', true);
+          return;
+        }
+        // mit der Version, die wir eben gesehen haben: ändert sie sich bis dahin noch, entsteht eine Konfliktkopie
+        r = await senden(`&basisVersion=${version}`);
+      }
       if (r.konflikt) {
         melden(`Die Datei wurde inzwischen woanders geändert. Deine Fassung liegt als Konfliktkopie daneben: ${r.konfliktPfad}`, true);
         s.pfad = r.konfliktPfad ?? null;

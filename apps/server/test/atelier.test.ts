@@ -7,8 +7,8 @@ import zlib from 'node:zlib';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { aktionenListe } from '../src/agenten/aktionen.js';
 import { werkzeugprofil } from '../src/agenten/leine.js';
-import type { BildSchritt, RechenraumKlient } from '../src/agenten/rechenraum.js';
-import { CLOUDFLARE_MODELL, modellMass } from '../src/atelier.js';
+import { rechenraumKlient, type BildSchritt, type RechenraumKlient } from '../src/agenten/rechenraum.js';
+import { bildTyp, CLOUDFLARE_MODELL, modellMass } from '../src/atelier.js';
 import { kopf } from './etappe7.test.js';
 import { ORIGIN, tempOrdner, testDorf } from './hilfen.js';
 
@@ -58,13 +58,13 @@ function formular(datei: { name: string; inhalt: Buffer; typ?: string }, felder:
   return { payload: Buffer.concat(teile), typ: `multipart/form-data; boundary=${grenze}` };
 }
 
-/** Rechenraum-Attrappe: merkt sich die Aufträge und gibt ein PNG zurück */
-function rechenraumAttrappe(kann: Partial<Awaited<ReturnType<RechenraumKlient['bildKann']>>> = {}) {
+/** Rechenraum-Attrappe: merkt sich die Aufträge und gibt ein PNG zurück (oder, was `ergebnis` vorgibt) */
+function rechenraumAttrappe(kann: Partial<Awaited<ReturnType<RechenraumKlient['bildKann']>>> = {}, ergebnis?: { inhalt: Buffer; mime: string }) {
   const auftraege: { name: string; groesse: number; schritte: BildSchritt[]; format: string }[] = [];
   const klient = {
     bild: async (name: string, inhalt: Buffer, schritte: BildSchritt[], format: string) => {
       auftraege.push({ name, groesse: inhalt.length, schritte, format });
-      return { inhalt: png(8, 6), breite: 8, hoehe: 6, eingang: [4, 4], format, mime: 'image/png', transparenz: true, hinweise: [] };
+      return { inhalt: ergebnis?.inhalt ?? png(8, 6), breite: 8, hoehe: 6, eingang: [4, 4], format, mime: ergebnis?.mime ?? 'image/png', transparenz: true, hinweise: [] };
     },
     bildKann: async () => ({ bilder: true, hintergrund_entfernen: true, hochskalieren: false, heic: true, max_pixel: 24_000_000, skalieren_max_pixel: 1_050_000, ...kann }),
   } as unknown as RechenraumKlient;
@@ -183,6 +183,86 @@ describe('Atelier: Routen', () => {
     expect(await d.vault.existiert('Atelier/bilder/boese.png')).toBe(false);
   });
 
+  it('E204: „Speichern unter“ einen vorhandenen Namen → 409 mit der Version der Datei; überschreiben nur mit dieser Version', async () => {
+    const d = await testDorf();
+    const h = await kopf(d);
+    const speichern = (pfad: string, inhalt: Buffer, mehr = '') => {
+      const f = formular({ name: 'bild', inhalt });
+      return d.app.inject({ method: 'POST', url: `/api/atelier/speichern?pfad=${encodeURIComponent(pfad)}${mehr}`, headers: { ...h, 'content-type': f.typ }, payload: f.payload });
+    };
+    const leifs = png(7, 7);
+    await d.vault.schreiben('Atelier/bilder/plakat.png', leifs);
+    const r = await speichern('Atelier/bilder/plakat.png', png(2, 2), '&neu=1');
+    expect(r.statusCode).toBe(409);
+    expect(r.json()).toMatchObject({ existiert: true, version: sha(leifs) });
+    expect((await d.vault.puffer('Atelier/bilder/plakat.png'))!.inhalt.equals(leifs)).toBe(true);
+    // Leif sagt „überschreiben“ – geändert hat sich die Datei inzwischen aber noch einmal → Konfliktkopie, nichts geht verloren
+    const neuer = png(8, 8);
+    await d.vault.schreiben('Atelier/bilder/plakat.png', neuer);
+    const k = await speichern('Atelier/bilder/plakat.png', png(2, 2), `&basisVersion=${sha(leifs)}`);
+    expect(k.json()).toMatchObject({ konflikt: true });
+    expect((await d.vault.puffer('Atelier/bilder/plakat.png'))!.inhalt.equals(neuer)).toBe(true);
+    // mit der richtigen Version wird ersetzt
+    const ok = await speichern('Atelier/bilder/plakat.png', png(3, 3), `&basisVersion=${sha(neuer)}`);
+    expect(ok.json()).toMatchObject({ konflikt: false });
+    expect(pngMasse((await d.vault.puffer('Atelier/bilder/plakat.png'))!.inhalt)).toEqual([3, 3]);
+    // ein neuer Name geht mit neu=1 einfach durch; ein Ordner bleibt ein Ordner (409 ohne Version)
+    expect((await speichern('Atelier/bilder/neu.png', png(2, 2), '&neu=1')).statusCode).toBe(200);
+    await d.vault.ordnerAnlegen('Atelier/bilder/ordner.png');
+    const o = await speichern('Atelier/bilder/ordner.png', png(2, 2), '&neu=1');
+    expect(o.statusCode).toBe(409);
+    expect(o.json().version).toBeUndefined();
+  });
+
+  it('E204: Bilder vom Rechenraum gehen nur als PNG hinaus – Typ fest, Anfangsbytes geprüft, sandbox + nosniff', async () => {
+    const d = await testDorf();
+    const h = await kopf(d);
+    const ki = () => {
+      const f = formular({ name: 'ebene.png', inhalt: png(4, 4) });
+      return d.app.inject({ method: 'POST', url: '/api/atelier/ki?art=hintergrund', headers: { ...h, 'content-type': f.typ }, payload: f.payload });
+    };
+    // der Rechenraum behauptet HTML – zählt nicht, die Bytes sind ein PNG
+    d.agenten.rechenraum = rechenraumAttrappe({}, { inhalt: png(8, 6), mime: 'text/html' }).klient;
+    const r = await ki();
+    expect(r.statusCode).toBe(200);
+    expect(r.headers['content-type']).toBe('image/png');
+    expect(r.headers['content-security-policy']).toBe('sandbox');
+    expect(r.headers['x-content-type-options']).toBe('nosniff');
+    // Bytes, die kein PNG sind, kommen nicht unter dem Ursprung der App an
+    d.agenten.rechenraum = rechenraumAttrappe({}, { inhalt: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'), mime: 'image/png' }).klient;
+    expect((await ki()).statusCode).toBe(502);
+    const f = formular({ name: 'scan.tif', inhalt: png(4, 4) });
+    expect((await d.app.inject({ method: 'POST', url: '/api/atelier/umwandeln', headers: { ...h, 'content-type': f.typ }, payload: f.payload })).statusCode).toBe(502);
+    await d.vault.schreiben('Atelier/bilder/a.heic', Buffer.from('x'));
+    expect((await d.app.inject({ url: '/api/atelier/oeffnen?pfad=Atelier/bilder/a.heic', headers: h })).statusCode).toBe(502);
+    // auch Bilder aus dem Vault: sandbox + nosniff
+    await d.vault.schreiben('Atelier/bilder/b.png', png(2, 2));
+    expect((await d.app.inject({ url: '/api/atelier/oeffnen?pfad=Atelier/bilder/b.png', headers: h })).headers['content-security-policy']).toBe('sandbox');
+    // Erkennung nur an den Bytes
+    expect(bildTyp(png(1, 1))).toBe('image/png');
+    expect(bildTyp(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0]))).toBeNull(); // zu kurz für IHDR
+    expect(bildTyp(Buffer.from('<svg/>'))).toBeNull();
+  });
+
+  it('E204: die Antwort des Rechenraums ist begrenzt – ein zu großes Ergebnis wird abgebrochen statt gepuffert', async () => {
+    const server = http.createServer((_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      // ohne content-length (chunked): das Dorf muss beim Lesen zählen
+      res.write('{"inhalt_b64":"');
+      for (let i = 0; i < 40; i++) res.write('A'.repeat(64 * 1024));
+      res.end('","breite":1,"hoehe":1,"eingang":[1,1],"format":"png","mime":"image/png"}');
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    const url = `http://127.0.0.1:${(server.address() as net.AddressInfo).port}`;
+    try {
+      await expect(rechenraumKlient(url, 'x', 1024 * 1024).bild('a.png', png(1, 1), [], 'png')).rejects.toMatchObject({ status: 502, message: expect.stringContaining('zu groß') });
+      // mit genug Platz kommt dieselbe Antwort an
+      expect((await rechenraumKlient(url, 'x', 4 * 1024 * 1024).bild('a.png', png(1, 1), [], 'png')).breite).toBe(1);
+    } finally {
+      server.close();
+    }
+  });
+
   it('KI im Rechenraum: Hintergrund entfernen und Hochskalieren reichen genau einen Schritt weiter; ohne Rechenraum 503', async () => {
     const d = await testDorf();
     const h = await kopf(d);
@@ -220,7 +300,7 @@ describe('Atelier: Cloudflare Workers AI (nachgebauter Endpunkt)', () => {
   let server: http.Server;
   let url = '';
   const anfragen: { pfad: string; auth: string; typ: string; koerper: string }[] = [];
-  let antwort: { status: number; json: unknown } = { status: 200, json: {} };
+  let antwort: { status: number; json?: unknown; roh?: { typ: string; daten: Buffer } } = { status: 200, json: {} };
   const bild = png(16, 16, [10, 120, 200, 255]);
 
   beforeAll(async () => {
@@ -229,6 +309,7 @@ describe('Atelier: Cloudflare Workers AI (nachgebauter Endpunkt)', () => {
       req.on('data', (t: Buffer) => teile.push(t));
       req.on('end', () => {
         anfragen.push({ pfad: req.url ?? '', auth: req.headers.authorization ?? '', typ: req.headers['content-type'] ?? '', koerper: Buffer.concat(teile).toString('latin1') });
+        if (antwort.roh) return void res.writeHead(antwort.status, { 'content-type': antwort.roh.typ }).end(antwort.roh.daten);
         res.writeHead(antwort.status, { 'content-type': 'application/json' });
         res.end(JSON.stringify(antwort.json));
       });
@@ -283,6 +364,8 @@ describe('Atelier: Cloudflare Workers AI (nachgebauter Endpunkt)', () => {
     expect(anfragen[0]!.koerper).toMatch(/name="height"\r\n\r\n384\r\n/);
     expect((await fuellen(png(600, 10))).statusCode).toBe(400);
     expect((await fuellen(Buffer.from('kein png'))).statusCode).toBe(400);
+    // E204: nur die PNG-Signatur und ein paar Bytes (kein IHDR) – sauber 400 statt RangeError/500
+    expect((await fuellen(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]))).statusCode).toBe(400);
     expect(anfragen).toHaveLength(1);
   });
 
@@ -302,6 +385,18 @@ describe('Atelier: Cloudflare Workers AI (nachgebauter Endpunkt)', () => {
     expect((await los()).statusCode).toBe(502);
     antwort = { status: 200, json: { result: { image: Buffer.from('<html>').toString('base64') } } };
     expect((await los()).statusCode).toBe(502);
+    // E204: nur PNG/JPEG/WebP – erkannt an den Bytes; ein SVG (auch als „image/svg+xml“ gemeldet) kommt nie durch
+    const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
+    antwort = { status: 200, roh: { typ: 'image/svg+xml', daten: svg } };
+    expect((await los()).statusCode).toBe(502);
+    antwort = { status: 200, json: { result: { image: svg.toString('base64') } } };
+    expect((await los()).statusCode).toBe(502);
+    // rohe Bilddaten mit falschem Typ: der Typ kommt aus den Bytes
+    antwort = { status: 200, roh: { typ: 'image/gif', daten: bild } };
+    const r2 = await los();
+    expect(r2.statusCode).toBe(200);
+    expect(r2.headers['content-type']).toBe('image/png');
+    expect(r2.headers['content-security-policy']).toBe('sandbox');
   });
 
   it('Maße fürs Modell: 256–1920, Vielfache von 16', () => {
@@ -385,14 +480,18 @@ describe.skipIf(!HAT_PILLOW)('Atelier: Ende zu Ende mit dem echten Rechenraum-Ru
     const erster = await d.agenten.aktionStarten('Atelier/bild-bearbeiten', { bild: 'x', auftrag: befehl('bild_bearbeiten', { pfad: 'Atelier/bilder/foto.png', schritte: [], name: 'ergebnis' }) });
     await d.agenten.leerlauf();
     const pfad = (d.db.prepare("SELECT pfad FROM werkzeug_log WHERE chat_id = ? AND werkzeug = 'bild_bearbeiten'").get(erster.chatId) as { pfad: string }).pfad;
-    // Leif (oder ein anderer Chat) ersetzt die Datei – derselbe Chat darf seine eigene Datei neu schreiben, ein fremder Name bleibt
-    d.db.prepare("UPDATE werkzeug_log SET art = 'gelesen' WHERE chat_id = ?").run(erster.chatId);
+    // E204: Leif bearbeitet das Ergebnis danach selbst – auch derselbe Chat ersetzt es nie (früher: „eigene Datei“ → überschrieben)
     const leifs = png(3, 3);
     await d.vault.schreiben(pfad, leifs);
     await d.agenten.nachrichtSenden(erster.chatId, befehl('bild_bearbeiten', { pfad: 'Atelier/bilder/foto.png', schritte: [], name: 'ergebnis' }));
     await d.agenten.leerlauf();
     expect((await d.vault.puffer(pfad))!.inhalt.equals(leifs)).toBe(true);
     expect(await d.vault.existiert(pfad.replace(/ergebnis\.png$/, 'ergebnis-2.png'))).toBe(true);
+    // und ohne Leifs Änderung: ebenfalls ein neuer Name, nie ersetzt
+    await d.agenten.nachrichtSenden(erster.chatId, befehl('bild_bearbeiten', { pfad: 'Atelier/bilder/foto.png', schritte: [], name: 'ergebnis' }));
+    await d.agenten.leerlauf();
+    expect(await d.vault.existiert(pfad.replace(/ergebnis\.png$/, 'ergebnis-3.png'))).toBe(true);
+    expect((await d.vault.puffer(pfad))!.inhalt.equals(leifs)).toBe(true);
 
     // Aktion ohne Rechenraum
     await d.vault.schreiben('Atelier/aktionen/ohne.md', '---\nname: Ohne\nmotor: api\nstufe: klein\nwerkzeuge: [vault_lesen, vault_schreiben]\nfremdinhalte: nein\neingaben:\n  - name: auftrag\n---\n{auftrag}\n');

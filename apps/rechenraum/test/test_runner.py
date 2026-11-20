@@ -81,11 +81,13 @@ class SpeicherTest(unittest.TestCase):
 
 
 class RunnerTest(unittest.TestCase):
+    ENV_EXTRA = {}
+
     @classmethod
     def setUpClass(cls):
         cls.arbeit = tempfile.mkdtemp()
         cls.port = freier_port()
-        env = dict(os.environ, ARBEIT_DIR=cls.arbeit, PORT=str(cls.port), RECHENRAUM_GEHEIMNIS=GEHEIM, ZEITLIMIT_S="2", UMWANDELN_ZEITLIMIT_S="40")
+        env = dict(os.environ, ARBEIT_DIR=cls.arbeit, PORT=str(cls.port), RECHENRAUM_GEHEIMNIS=GEHEIM, ZEITLIMIT_S="2", UMWANDELN_ZEITLIMIT_S="40", **cls.ENV_EXTRA)
         cls.p = subprocess.Popen([sys.executable, RUNNER], env=env)
         for _ in range(50):
             try:
@@ -493,6 +495,31 @@ class BildTest(RunnerTest):
         s, r = self.bild([{"art": "hochskalieren", "faktor": 2}], daten=self.png(1200, 1000))
         self.assertEqual(s, 422)
         self.assertIn("zu groß", r["fehler"])
+
+
+@unittest.skipUnless(hat_modul("PIL"), "Pillow fehlt")
+class BildAusgabeGrenzeTest(RunnerTest):
+    """E204: Das Ergebnis einer Bildbearbeitung ist begrenzt (im Betrieb 40 MB, hier klein gestellt)."""
+
+    ENV_EXTRA = {"BILD_AUSGABE_MAX": "3000"}
+    test_geheimnis_noetig = test_schreiben_befehl_lesen = test_zeitlimit_greift = test_pfade_bleiben_im_raum = None
+    test_aufraeumen = test_seite_als_bild = None
+
+    def test_zu_grosses_ergebnis_wird_nicht_geliefert(self):
+        import io
+        from PIL import Image
+        p = io.BytesIO()
+        Image.new("RGB", (8, 8), (10, 20, 30)).save(p, "PNG")
+        klein = {"name": "a.png", "inhalt_b64": base64.b64encode(p.getvalue()).decode(), "schritte": [], "format": "png"}
+        self.assertEqual(self.post("/bild", klein)[0], 200)
+        # Rauschen lässt sich nicht komprimieren: 200×200 RGB ≈ 120 KB PNG
+        p = io.BytesIO()
+        Image.frombytes("RGB", (200, 200), os.urandom(200 * 200 * 3)).save(p, "PNG")
+        s, r = self.post("/bild", {**klein, "inhalt_b64": base64.b64encode(p.getvalue()).decode()})
+        self.assertEqual(s, 413, r)
+        self.assertIn("zu groß", r["fehler"])
+        self.assertNotIn("inhalt_b64", r)
+        self.assertEqual(os.listdir(os.path.join(self.arbeit, ".umwandeln")), [])
 
 
 if __name__ == "__main__":

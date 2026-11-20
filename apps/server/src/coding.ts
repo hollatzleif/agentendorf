@@ -78,6 +78,11 @@ export class CodingZugang {
     return n > 0;
   }
 
+  /** E204: Sitzungen, für die ein VS-Code-Zugang besteht (Sitzungsabgleich: fehlt die Sitzung, wird gekappt) */
+  sitzungenMitZugang(): string[] {
+    return (this.db.prepare('SELECT DISTINCT sitzung FROM coding_zugang').all() as { sitzung: string }[]).map((r) => r.sitzung);
+  }
+
   private sitzungGueltig(id: string) {
     const s = this.db.prepare('SELECT ablauf FROM sitzungen WHERE id = ?').get(id) as { ablauf: number } | undefined;
     return !!s && s.ablauf > this.uhr.jetzt();
@@ -104,6 +109,8 @@ export function codingRouten(app: FastifyInstance, d: { konfig: Konfig; db: DB; 
   // E195: Endet eine Dorf-Sitzung, die VS Code geöffnet hatte, kappt der Coding-Container alle offenen Verbindungen zu
   // VS Code (Tor im Runner). Neue Anfragen scheitern ohnehin an der Prüfung für Caddy – so bleiben auch schon offene
   // WebSockets (Editor, Terminal) nicht bestehen. Wer noch angemeldet ist, verbindet sich von selbst neu.
+  // E204: auch Sitzungen, die per CLI (eigener Prozess) oder durch Zeitablauf enden – der Abgleich in app.ts (alle 30 s) fragt hier nach
+  d.sitzungen?.halter.push(() => zugang.sitzungenMitZugang());
   d.sitzungen?.beiEnde.push((ids) => {
     if (!zugang.sitzungenBeendet(ids) || !konfig.codingGeheimnis) return;
     void holen(`${konfig.codingUrl}/vscode/trennen`, { method: 'POST', headers: { 'x-werkstatt-geheimnis': konfig.codingGeheimnis }, signal: AbortSignal.timeout(4000) })

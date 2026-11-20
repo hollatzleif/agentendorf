@@ -1025,9 +1025,7 @@ export class WerkzeugKiste {
           // E198: Bild aus dem Vault im Rechenraum bearbeiten, Ergebnis als neue Datei im Ablage-Ordner des Chats
           const r = this.k.rechenraum;
           if (!r) throw new DorfFehler(503, 'Der Rechenraum ist auf diesem Server nicht eingerichtet.');
-          const vonDiesemChat = (pfad: string) =>
-            !!this.db.prepare("SELECT 1 FROM werkzeug_log WHERE chat_id = ? AND pfad = ? AND art = 'geschrieben' AND erlaubt = 1 LIMIT 1").get(this.k.chatId, pfad);
-          const b = await bildBearbeiten({ vault: this.vault, klient: r.klient, ablage: r.ablage, vonDiesemChat, eingabe });
+          const b = await bildBearbeiten({ vault: this.vault, klient: r.klient, ablage: r.ablage, eingabe });
           // der Lauf sieht das Bild (Vorschau) – Bilder gelten wie bei vault_lesen als Fremdinhalt
           this.fremd = true;
           this.log(name, eingabe, `${b.quelle}: ${b.kurz}`, true, b.ziel, 'geschrieben');

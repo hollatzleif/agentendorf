@@ -47,6 +47,11 @@ export class LiveHub {
     }
   }
 
+  /** E204: Sitzungen mit offener Live-Verbindung (für den Sitzungsabgleich) */
+  sitzungIds() {
+    return new Set([...this.verbindungen].map((v) => v.sitzungId));
+  }
+
   /** Beendet alle Verbindungen der genannten Sitzungen (nach Widerruf). */
   sitzungenTrennen(ids: string[]) {
     const set = new Set(ids);

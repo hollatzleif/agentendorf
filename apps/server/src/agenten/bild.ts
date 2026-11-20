@@ -95,8 +95,6 @@ export interface BildAuftrag {
   klient: RechenraumKlient;
   /** Ablage-Ordner des Chats (vom Code bestimmt) */
   ablage: string;
-  /** Hat dieser Chat die Datei früher selbst geschrieben? (nur dann darf sie ersetzt werden) */
-  vonDiesemChat: (pfad: string) => boolean;
   eingabe: unknown;
 }
 
@@ -116,14 +114,21 @@ export async function bildBearbeiten(a: BildAuftrag): Promise<{ ergebnis: Werkze
   const format = e.format ?? (freigestellt || ['.png', '.gif', '.svg', '.webp', '.ico'].includes(ext) ? 'png' : 'jpg');
   const r = await a.klient.bild(path.posix.basename(quelle), d.inhalt, schritte, format);
 
-  // Name: vom Agenten (bereinigt) oder vom Original; nie eine fremde Datei überschreiben
+  // Name: vom Agenten (bereinigt) oder vom Original. E204: nie eine bestehende Datei ersetzen – auch keine, die dieser Chat
+  // früher geschrieben hat (Leif kann sie inzwischen bearbeitet haben); stattdessen -2, -3 …, geschrieben nur als neue Datei
   const basis = kurzname(e.name?.trim() || `${path.posix.basename(quelle, path.posix.extname(quelle))}-bearbeitet`, 60);
-  let ziel = `${a.ablage}/${basis}.${format}`;
-  for (let i = 2; (await a.vault.existiert(ziel)) && !a.vonDiesemChat(ziel); i++) {
+  let w: Awaited<ReturnType<VaultDienst['schreiben']>> | null = null;
+  for (let i = 1; !w; i++) {
     if (i > 50) throw new DorfFehler(409, 'Zu viele gleichnamige Dateien im Ablage-Ordner.');
-    ziel = `${a.ablage}/${basis}-${i}.${format}`;
+    const ziel = `${a.ablage}/${basis}${i > 1 ? `-${i}` : ''}.${format}`;
+    if (await a.vault.existiert(ziel)) continue;
+    try {
+      w = await a.vault.schreiben(ziel, r.inhalt, { nurNeu: true });
+    } catch (x) {
+      // im selben Augenblick entstanden (Wettlauf) → nächster Name
+      if (!(x instanceof DorfFehler) || x.status !== 409) throw x;
+    }
   }
-  const w = await a.vault.schreiben(ziel, r.inhalt);
 
   // Vorschau fürs Modell: das Ergebnis selbst, wenn es klein genug ist – sonst eine verkleinerte Fassung
   let bilder: WerkzeugAufrufErgebnis['bilder'];

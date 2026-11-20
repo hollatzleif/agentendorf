@@ -63,6 +63,33 @@ export class Sitzungen {
   /** E195: Zuhörer für beendete Sitzungen (Abmelden, „Gerät abmelden“, „alle abmelden“) – z. B. VS-Code-Verbindungen kappen */
   beiEnde: ((ids: string[]) => void)[] = [];
 
+  /**
+   * E204: Wer offene Verbindungen im Namen einer Sitzung hält (Terminals, VS-Code-Zugänge, Live-Verbindungen), meldet hier
+   * deren Sitzungs-IDs. `abgleichen` findet so auch Sitzungen, die NICHT über diesen Prozess endeten.
+   */
+  halter: (() => Iterable<string>)[] = [];
+
+  /**
+   * E204: alle 30 s (app.ts) – Sitzungen, die abgelaufen sind oder in der Datenbank fehlen (`dorf sitzungen-beenden` und
+   * `dorf passwort` laufen als eigener Prozess, dort greift `beiEnde` nicht), als beendet melden: Die Zuhörer kappen dann
+   * Terminals und VS Code wie beim Abmelden. Gibt die gemeldeten IDs zurück.
+   */
+  abgleichen(): string[] {
+    const jetzt = this.uhr.jetzt();
+    const ids = new Set((this.db.prepare('SELECT id FROM sitzungen WHERE ablauf <= ?').all(jetzt) as { id: string }[]).map((r) => r.id));
+    if (ids.size) this.db.prepare('DELETE FROM sitzungen WHERE ablauf <= ?').run(jetzt);
+    const besteht = this.db.prepare('SELECT 1 FROM sitzungen WHERE id = ?');
+    for (const halter of this.halter) {
+      try {
+        for (const id of halter()) if (!ids.has(id) && !besteht.get(id)) ids.add(id);
+      } catch (e) {
+        console.error('Halter beim Sitzungsabgleich fehlgeschlagen', e);
+      }
+    }
+    this.endeMelden([...ids]);
+    return [...ids];
+  }
+
   private endeMelden(ids: string[]) {
     if (!ids.length) return;
     for (const fn of this.beiEnde) {

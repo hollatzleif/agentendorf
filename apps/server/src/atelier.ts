@@ -37,6 +37,14 @@ const SPEICHERBAR: Record<string, (b: Buffer) => boolean> = {
 
 const versionVon = (b: Buffer) => crypto.createHash('sha256').update(b).digest('hex');
 
+/** E204: Bildtyp NUR aus den Anfangsbytes (nie aus einer Angabe von außen) – PNG, JPEG, WebP; sonst null */
+export function bildTyp(b: Buffer): 'image/png' | 'image/jpeg' | 'image/webp' | null {
+  if (b.length >= 24 && SPEICHERBAR['.png']!(b)) return 'image/png';
+  if (b.length >= 4 && SPEICHERBAR['.jpg']!(b)) return 'image/jpeg';
+  if (b.length >= 16 && SPEICHERBAR['.webp']!(b)) return 'image/webp';
+  return null;
+}
+
 /** Bilder aus Text – Cloudflare Workers AI, FLUX.2 [klein] 4B (Text → Bild und Bild + Text → Bild in einem Modell) */
 export interface BildGenerator {
   generieren(a: { prompt: string; breite: number; hoehe: number; vorlage?: Buffer }): Promise<{ inhalt: Buffer; mime: string }>;
@@ -70,7 +78,13 @@ export function cloudflareBilder(k: { accountId: string; token: string; url: str
         throw new DorfFehler(503, `Cloudflare nicht erreichbar (${(e as Error).message}).`);
       }
       const typ = r.headers.get('content-type') ?? '';
-      if (r.ok && typ.startsWith('image/')) return { inhalt: Buffer.from(await r.arrayBuffer()), mime: typ.split(';')[0]! };
+      // E204: nur PNG/JPEG/WebP, erkannt an den Anfangsbytes – der angegebene Typ zählt nicht (kein SVG, kein HTML)
+      if (r.ok && typ.startsWith('image/')) {
+        const inhalt = Buffer.from(await r.arrayBuffer());
+        const mime = bildTyp(inhalt);
+        if (!mime) throw new DorfFehler(502, 'Cloudflare hat ein Bildformat geliefert, das das Atelier nicht annimmt (nur PNG, JPEG, WebP).');
+        return { inhalt, mime };
+      }
       const j = (await r.json().catch(() => null)) as { result?: { image?: string }; image?: string; errors?: { code?: number; message?: string }[] } | null;
       if (!r.ok) {
         const text = j?.errors?.map((e) => e.message).filter(Boolean).join(' · ') || `HTTP ${r.status}`;
@@ -81,8 +95,8 @@ export function cloudflareBilder(k: { accountId: string; token: string; url: str
       const b64 = j?.result?.image ?? j?.image;
       if (!b64) throw new DorfFehler(502, 'Cloudflare hat kein Bild geliefert.');
       const inhalt = Buffer.from(b64, 'base64');
-      const mime = SPEICHERBAR['.png']!(inhalt) ? 'image/png' : SPEICHERBAR['.webp']!(inhalt) ? 'image/webp' : 'image/jpeg';
-      if (mime === 'image/jpeg' && !SPEICHERBAR['.jpg']!(inhalt)) throw new DorfFehler(502, 'Cloudflare hat etwas geliefert, das kein Bild ist.');
+      const mime = bildTyp(inhalt);
+      if (!mime) throw new DorfFehler(502, 'Cloudflare hat etwas geliefert, das kein Bild ist (erwartet: PNG, JPEG, WebP).');
       return { inhalt, mime };
     },
   };
@@ -131,9 +145,20 @@ export function atelierRouten(
     }
     return { name: teil.filename || 'bild', inhalt, felder };
   };
+  // Bilder kommen unter dem Ursprung der App an: nie als Dokument deutbar (sandbox, nosniff)
   const bildAntwort = (reply: import('fastify').FastifyReply, inhalt: Buffer, mime: string, kopf: Record<string, string> = {}) => {
     for (const [k, v] of Object.entries(kopf)) reply.header(k, v);
-    return reply.header('Content-Type', mime).header('X-Content-Type-Options', 'nosniff').header('Cache-Control', 'private, no-store').send(inhalt);
+    return reply
+      .header('Content-Type', mime)
+      .header('X-Content-Type-Options', 'nosniff')
+      .header('Content-Security-Policy', 'sandbox')
+      .header('Cache-Control', 'private, no-store')
+      .send(inhalt);
+  };
+  /** E204: Ergebnis des Rechenraums ist immer ein PNG – Typ fest, Anfangsbytes geprüft (die Angabe im JSON zählt nicht) */
+  const rechenraumPng = (reply: import('fastify').FastifyReply, inhalt: Buffer, kopf: Record<string, string> = {}) => {
+    if (bildTyp(inhalt) !== 'image/png') throw new DorfFehler(502, 'Der Rechenraum hat kein PNG geliefert.');
+    return bildAntwort(reply, inhalt, 'image/png', kopf);
   };
 
   app.get('/api/atelier/stand', async (): Promise<AtelierStand> => {
@@ -164,14 +189,14 @@ export function atelierRouten(
     const kopf = { 'X-Dorf-Version': versionVon(d.inhalt) };
     if (direkt) return bildAntwort(reply, d.inhalt, direkt, kopf);
     const e = await rechenraum().bild(path.posix.basename(pfad), d.inhalt, [], 'png');
-    return bildAntwort(reply, e.inhalt, e.mime, { ...kopf, 'X-Dorf-Umgewandelt': '1' });
+    return rechenraumPng(reply, e.inhalt, { ...kopf, 'X-Dorf-Umgewandelt': '1' });
   });
 
   /** Datei von der Festplatte, die der Browser nicht lesen kann (HEIC vom iPhone, TIFF …) → PNG */
   app.post('/api/atelier/umwandeln', async (req, reply) => {
     const d = await datei(req, MAX_ANHANG_BYTES);
     const e = await rechenraum().bild(d.name, d.inhalt, [], 'png');
-    return bildAntwort(reply, e.inhalt, e.mime);
+    return rechenraumPng(reply, e.inhalt);
   });
 
   /** Speichern in den Vault – nur Bilder und Projekte, nur über den VaultDienst (Konfliktkopie bei veralteter basisVersion) */
@@ -184,7 +209,16 @@ export function atelierRouten(
     if (!pfad.includes('/')) throw new DorfFehler(400, 'Bitte in einen Ordner speichern, z. B. Atelier/bilder/.');
     const d = await datei(req, ATELIER_MAX_BYTES);
     if (!pruefen(d.inhalt)) throw new DorfFehler(400, `Der Inhalt passt nicht zur Endung ${ext}.`);
-    return a.vault.schreiben(pfad, d.inhalt, { basisVersion: q.basisVersion, nurNeu: q.neu === '1' });
+    try {
+      return await a.vault.schreiben(pfad, d.inhalt, { basisVersion: q.basisVersion, nurNeu: q.neu === '1' });
+    } catch (e) {
+      // E204: „Speichern unter“ auf einen Namen, den es schon gibt → 409 mit der Version der bestehenden Datei: Die App fragt
+      // „überschreiben?“ und speichert dann mit dieser basisVersion (hat sich die Datei inzwischen geändert → Konfliktkopie).
+      if (!(e instanceof DorfFehler) || e.status !== 409 || q.neu !== '1') throw e;
+      const vorhanden = await a.vault.puffer(pfad, { max: 4 * ATELIER_MAX_BYTES }).catch(() => null);
+      if (!vorhanden) throw e; // ein Ordner, oder zu groß zum Vergleichen
+      throw new DorfFehler(409, `„${pfad}“ gibt es schon.`, { existiert: true, version: versionVon(vorhanden.inhalt) });
+    }
   });
 
   /** KI ohne Kosten und ohne Internet: rechnet der Rechenraum */
@@ -193,7 +227,7 @@ export function atelierRouten(
     if (q.art === 'hochskalieren' && q.faktor !== 2 && q.faktor !== 4) throw new DorfFehler(400, 'faktor ist 2 oder 4.');
     const d = await datei(req, MAX_ANHANG_BYTES);
     const e = await rechenraum().bild(d.name, d.inhalt, [q.art === 'hintergrund' ? { art: 'hintergrund_entfernen' } : { art: 'hochskalieren', faktor: q.faktor }], 'png');
-    return bildAntwort(reply, e.inhalt, e.mime);
+    return rechenraumPng(reply, e.inhalt);
   });
 
   const Prompt = z.string().trim().min(1).max(2000);
@@ -212,7 +246,8 @@ export function atelierRouten(
     if (!generator) throw ohneZugang();
     const d = await datei(req, 4 * 1024 * 1024);
     const f = z.object({ prompt: Prompt, breite: z.coerce.number().int().min(64).max(4096), hoehe: z.coerce.number().int().min(64).max(4096) }).parse(d.felder);
-    if (!SPEICHERBAR['.png']!(d.inhalt)) throw new DorfFehler(400, 'Die Vorlage muss ein PNG sein.');
+    // E204: unter 24 Bytes gibt es keinen IHDR-Block (sonst RangeError → 500)
+    if (bildTyp(d.inhalt) !== 'image/png') throw new DorfFehler(400, 'Die Vorlage muss ein PNG sein.');
     // PNG-Kopf: Breite und Höhe stehen an fester Stelle (IHDR) – das Modell nimmt nur kleine Vorlagen
     const [vb, vh] = [d.inhalt.readUInt32BE(16), d.inhalt.readUInt32BE(20)];
     if (vb > VORLAGE_MAX_KANTE || vh > VORLAGE_MAX_KANTE) throw new DorfFehler(400, `Die Vorlage darf höchstens ${VORLAGE_MAX_KANTE}×${VORLAGE_MAX_KANTE} Pixel haben.`);

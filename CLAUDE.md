@@ -6,7 +6,7 @@ Persönliche Agenten-Zentrale für **Leif** (einziger Nutzer). Oberfläche, Vaul
 
 ```
 apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts, Zusammenbau: src/dorf.ts, Routen: src/app.ts
-  src/auth/       Passwort (Argon2id), Sitzungen (Cookie, nur Hash in DB), Drossel, TOTP (eigene RFC-6238-Implementierung)
+  src/auth/       Passwort (Argon2id), Sitzungen (Cookie, nur Hash in DB; Abgleich alle 30 s kappt Verbindungen beendeter Sitzungen, E204), Drossel, TOTP (eigene RFC-6238-Implementierung)
   src/vault/      VaultDienst (einziger Weg zu den Dateien), Pfadregeln, Gebäude-Erkennung, Suche (FTS5), Dateiwächter.
                   pfade.ts (E195): sicherOeffnen/ordnerGriff – jeder Zugriff Ordner für Ordner über Deskriptoren mit O_NOFOLLOW,
                   Symlinks im Vault werden NIE verfolgt (ein Agent mit Shell schreibt dort). Nie readFile(vault.abs(…)) –
@@ -259,3 +259,4 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E200 (20.11.): Rundgang komplett – 22 weitere Aktivitäten (40 von 50; 9 begründet „bleibt Idee“), Kosten je Gewicht in `rundgang.md`, echte Kosten im Rundgang-Protokoll – echte Läufe und Kosten abzunehmen
 - [x] E201 (20.11.): Cardputer 1.3 (1.3.1, E202) – Mikrofon richtig verstärkt (ES8311-PGA/ADC wie M5Unified für andere Geräte), Pegel in dB, kein Hängen nach der Aufnahme (Codec nur in der Hauptschleife, Zeitgrenzen, Gründe), Fortschritt beim Senden; Server hebt leise WAVs an – Host-Test grün (184), nie am Gerät gehört
 - [x] E202 (20.11.): Review zu E199–E201 – Fremdes über Rechenraum-Werkzeuge immer gehüllt/gestempelt (`vaultDateiFremd`), `doi_bibtex` nur Uni/Bürgermeister mit Rückgängig und ohne abstract, Rundung, Antwort-Grenze; Cardputer 1.3.1 ohne Leck/Hänger
+- [x] E204 (20.11.): Review zu E197/E198 – Terminal mit Gegendruck (Dorf ≤ 1 MB im WebSocket, Runner hält die Shell an), Sitzungsabgleich alle 30 s (CLI/Ablauf kappt Terminals, VS Code, Live), Git-Pfade wörtlich + Prozessgruppe, Atelier „Speichern unter“ fragt vor dem Überschreiben, Bilder nur als geprüftes PNG/JPEG/WebP mit sandbox, `bild_bearbeiten` ersetzt nie, Grenzen (Download, JSON, Rechenraum-Antwort)

@@ -1,10 +1,11 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
-import { editorPfadOk } from '../src/coding-editor.js';
+import { SITZUNG_DAUER_MS, tokenHash } from '../src/auth/sitzungen.js';
+import { editorPfadOk, holenMitKopfZeit, TERMINAL_PUFFER_MAX } from '../src/coding-editor.js';
 import { kopf } from './etappe7.test.js';
 import { ORIGIN, tempOrdner, testDorf } from './hilfen.js';
 
@@ -171,6 +172,16 @@ describe('Editor-Routen: Dateien, Suche, Git über das Dorf', () => {
     fs.rmSync(path.join(arbeit, P, 'grenze.txt'));
   });
 
+  it('E204: jede Textdatei bis 2 MB lässt sich speichern – auch lauter Steuerzeichen (im JSON sechsmal so lang); darüber 413', async () => {
+    const voll = '\u0001'.repeat(2 * 1024 * 1024);
+    const r = await senden('PUT', '/api/coding/editor/datei', { projekt: P, pfad: 'steuer.txt', text: voll });
+    expect(r.statusCode, r.body.slice(0, 200)).toBe(200);
+    expect(fs.statSync(path.join(arbeit, P, 'steuer.txt')).size).toBe(2 * 1024 * 1024);
+    fs.rmSync(path.join(arbeit, P, 'steuer.txt'));
+    expect((await senden('PUT', '/api/coding/editor/datei', { projekt: P, pfad: 'steuer.txt', text: `${voll}\u0001` })).statusCode).toBe(413);
+    expect(fs.existsSync(path.join(arbeit, P, 'steuer.txt'))).toBe(false);
+  });
+
   it('Schnellsuche, Volltext, Git: Status → Commit → Branch', async () => {
     const dateien = (await get(`/api/coding/editor/dateien?${q({ projekt: P })}`)).json() as { dateien: string[] };
     expect(dateien.dateien).toContain('src/haupt.py');
@@ -289,6 +300,66 @@ describe('Terminal über WebSocket', () => {
     await bleibt.zu;
   }, 30_000);
 
+  it('E204: Gegendruck – liest der Browser nicht mit, wartet im Dorf höchstens ~1 MB und die Shell steht', async () => {
+    const t = terminal();
+    expect(await t.offen).toBe('offen');
+    t.tippe('echo los-$((1+1))\n');
+    await t.bis(/los-2/);
+    const sock = (t.ws as unknown as { _socket: import('node:net').Socket })._socket;
+    sock.pause();
+    t.tippe('yes dorf-druck-$((2+3))\n');
+    const yes = () => execFileSync('sh', ['-c', 'ps -eo stat,args | grep " yes dorf-druck-5$" || true']).toString().trim();
+    for (let i = 0; i < 100 && !yes(); i++) await new Promise((x) => setTimeout(x, 30));
+    await new Promise((x) => setTimeout(x, 2500));
+    // ohne Gegendruck wuchs das hier mit ~85 MB/s (Leif: OOM bei mem_limit 768m)
+    const puffer = [...d.app.websocketServer.clients].map((c) => c.bufferedAmount);
+    expect(Math.max(...puffer)).toBeLessThan(TERMINAL_PUFFER_MAX + 512 * 1024);
+    expect(yes()).toMatch(/^S/);
+    sock.resume();
+    t.tippe('\x03');
+    t.tippe('echo wieder-$((40+2))\n');
+    await t.bis(/wieder-42/, 20_000);
+    expect(yes()).toBe('');
+    t.ws.close();
+    await t.zu;
+  }, 30_000);
+
+  it('E204: Sitzung in einem anderen Prozess beendet (dorf sitzungen-beenden) oder abgelaufen → der Abgleich kappt ihre Terminals', async () => {
+    const anmelden = async () => {
+      const r = await d.app.inject({ method: 'POST', url: '/api/anmeldung', headers: { origin: ORIGIN }, payload: { passwort: 'ein-langes-test-passwort-1' } });
+      return (Array.isArray(r.headers['set-cookie']) ? r.headers['set-cookie'][0]! : String(r.headers['set-cookie'])).split(';')[0]!;
+    };
+    const idVon = (cookie: string) => tokenHash(cookie.slice(cookie.indexOf('=') + 1));
+    const laeuft = () => execFileSync('sh', ['-c', 'ps -eo args | grep "^sleep 641" || true']).toString();
+    const c1 = await anmelden();
+    const a = terminal({ cookie: c1 });
+    const bleibt = terminal();
+    expect(await a.offen).toBe('offen');
+    expect(await bleibt.offen).toBe('offen');
+    a.tippe('sleep 641\n');
+    for (let i = 0; i < 100 && !laeuft(); i++) await new Promise((x) => setTimeout(x, 50));
+    expect(laeuft()).toContain('sleep 641');
+    // wie die CLI: nur die Zeile in der Datenbank verschwindet – in diesem Prozess meldet sich niemand
+    d.db.prepare('DELETE FROM sitzungen WHERE id = ?').run(idVon(c1));
+    expect(d.app.sitzungenAbgleichen()).toEqual([idVon(c1)]);
+    expect(await a.zu).toBe(4001);
+    for (let i = 0; i < 100 && laeuft(); i++) await new Promise((x) => setTimeout(x, 50));
+    expect(laeuft()).toBe('');
+    // Leifs andere Sitzung arbeitet weiter; ein zweiter Abgleich findet nichts
+    bleibt.tippe('echo noch-$((2+2))-da\n');
+    await bleibt.bis(/noch-4-da/);
+    expect(d.app.sitzungenAbgleichen()).toEqual([]);
+    // Zeitablauf (30 Tage ohne Benutzung): auch ohne neue Anfrage kappt der Abgleich
+    const c2 = await anmelden();
+    const b = terminal({ cookie: c2 });
+    expect(await b.offen).toBe('offen');
+    d.uhr.vor(SITZUNG_DAUER_MS + 60_000);
+    expect(d.app.sitzungenAbgleichen()).toEqual(expect.arrayContaining([idVon(c2), idVon(h.cookie)]));
+    expect(await b.zu).toBe(4001);
+    expect(await bleibt.zu).toBe(4001);
+    h = await kopf(d);
+  }, 30_000);
+
   it('falsches Projekt: Meldung statt Shell', async () => {
     const t = terminal({ frage: q({ projekt: 'gibts-nicht' }) });
     expect(await t.offen).toBe('offen');
@@ -298,6 +369,29 @@ describe('Terminal über WebSocket', () => {
     const u = terminal({ frage: q({ projekt: '../x' }) });
     expect(await u.offen).toBe('offen');
     expect(await u.zu).toBe(4400);
+  });
+});
+
+describe('E204: Download – Zeitgrenze nur bis zu den Kopfzeilen', () => {
+  it('ein langsamer Körper läuft durch; ein Runner ohne Antwort wird nach der Grenze abgebrochen', async () => {
+    const server = http.createServer((req, res) => {
+      if (req.url === '/stumm') return; // antwortet nie
+      res.writeHead(200, { 'content-type': 'application/octet-stream' });
+      res.write('anfang-');
+      setTimeout(() => res.end('ende'), 900);
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    const basis = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+    try {
+      const r = await holenMitKopfZeit(fetch, `${basis}/langsam`, {}, 300);
+      expect(await r.text()).toBe('anfang-ende');
+      const start = Date.now();
+      await expect(holenMitKopfZeit(fetch, `${basis}/stumm`, {}, 300)).rejects.toThrow(/keine Antwort nach/);
+      expect(Date.now() - start).toBeLessThan(3000);
+    } finally {
+      server.closeAllConnections();
+      server.close();
+    }
   });
 });
 
