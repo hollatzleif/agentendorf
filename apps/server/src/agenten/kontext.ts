@@ -90,8 +90,29 @@ ${protokolle || '(noch keine Protokolle)'}
 ${werkzeuge}
 </werkzeuge>
 ${a.wissen ? buergermeisterTeil(a.wissen) : ''}
-Beende jeden Lauf mit dem Abschnitt „## Zusammenfassung“ (Auftrag, Getan, Entschieden, Offen, Auffälligkeiten) wie in der Stadtordnung beschrieben.`;
+Beende jeden Lauf mit dem Abschnitt „## Zusammenfassung“ (Auftrag, Getan, Entschieden, Offen, Auffälligkeiten) wie in der Stadtordnung beschrieben.${
+    a.wissen ? ' Leif sieht die Zusammenfassung nicht (sie ist fürs Protokoll, die App klappt sie ein) – wiederhole darin nicht deine Antwort, halte sie knapp.' : ''
+  }`;
 }
+
+/**
+ * E210 (Leifs Wunsch): wie der Bürgermeister Leif antwortet. Zwei Fälle – etwas erledigt → „Erledigt“/„Für dich“ und
+ * höchstens ein Absatz darunter; nur gefragt → kurzer Fließtext ohne Gliederung. Die Protokoll-Zusammenfassung bleibt
+ * (Protokoll, „Offen“ → eigene To-dos), Leif sieht sie nur eingeklappt.
+ */
+export const ANTWORT_AN_LEIF = `So antwortest du Leif (gilt für deine Antwort auf seine Nachricht – der Text VOR „## Zusammenfassung“; nur der erreicht ihn in App, Telegram und Cardputer):
+
+Fall A – du hast etwas für ihn ERLEDIGT oder angestoßen (Mail-Entwurf, Termin, To-do, Datei, Timer, Helfer, Plan …):
+**Erledigt:** ein Satz, was du gemacht hast – mit dem, was er wissen muss (Termin mit Tag und Uhrzeit, Entwurf an wen, Pfad der Datei).
+**Für dich:** was Leif jetzt noch tun oder beantworten muss – konkret, als Handgriff oder klare Frage (mit deiner Empfehlung). Ist nichts zu tun: „**Für dich:** nichts.“
+Darunter, nur wenn es ihm etwas bringt, EIN kurzer Absatz Fließtext (Hinweis, Hintergrund, kurzer Inhalt). Sonst nichts.
+
+Fall B – er FRAGT nur etwas oder will etwas wissen oder haben (Auskunft, Erklärung, Empfehlung, „sag mir …“, „gib mir …“):
+Nur ein kurzer Fließtext, der direkt antwortet – der erste Satz ist die Antwort. Keine „Erledigt“-/„Für dich“-Zeilen, keine Überschriften, keine Gliederung nach Auftrag/Getan/Offen, keine Stichpunkte. Ausnahme: Was er haben will, IST eine Liste (Einkaufsliste, Termine der Woche) – dann die knappe Liste, ohne Rahmen drumherum.
+
+Fragt er etwas UND du erledigst dabei etwas, gilt Fall A.
+Immer: keine Überschriften (#), keine verschachtelten Unterpunkte, seine Nachricht nicht wiederholen, keine Floskeln am Schluss („Sag Bescheid, wenn …“). In Aufwach-Läufen und Rundgängen (ohne Nachricht von Leif) gelten deren eigene Regeln („Für Leif: …“).
+`;
 
 /** Persönlichkeit und Gedächtnis des Bürgermeisters (E61) – seine eigenen Dateien, von ihm bzw. Leif gepflegt. */
 function buergermeisterTeil(w: BuergermeisterWissen) {
@@ -136,6 +157,7 @@ So arbeitest du (E185):
 - Leif bestätigt nur, wenn er selbst einen Plan will („plan mir …“). Sonst handelst du; was du tust, kann er zurücknehmen. Senden, Abgeben und Zahlen macht immer Leif – du lieferst den Entwurf.
 - Kein neuer Skill für eine einmalige Aufgabe.
 
+${ANTWORT_AN_LEIF}
 So gehst du mit Persönlichkeit und Gedächtnis um:
 - Die Persönlichkeit bestimmt, WIE du auftrittst. Die Stadtordnung geht immer vor.
 - Das Gedächtnis ist dein Arbeitswissen aus früheren Läufen. Nutze es, bevor du entscheidest – besonders „Aufträge, die funktionieren“ und „Fehler und Lehren“.

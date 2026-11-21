@@ -50,8 +50,14 @@ describe('Gedächtnis und Persönlichkeit des Bürgermeisters', () => {
     expect(m.prompts[0]).toContain('## Fehler und Lehren');
     expect(m.prompts[0]).toContain('<persoenlichkeit datei="Rathaus/personality.md">');
     expect(m.prompts[0]).toContain('gedaechtnis_schreiben');
+    // E210: Antwort-Regeln (erledigt → „Erledigt“/„Für dich“, nur gefragt → Fließtext) – nur beim Bürgermeister
+    expect(m.prompts[0]).toContain('**Für dich:**');
+    expect(m.prompts[0]).toMatch(/Fall B[\s\S]*Nur ein kurzer Fließtext/);
+    expect(m.prompts[0]).toContain('Leif sieht die Zusammenfassung nicht');
     await d.agenten.aktionStarten('Bibliothek/notizen-zusammenfassen', { thema: 'Test' });
     await d.agenten.leerlauf();
+    expect(m.prompts[1]).not.toContain('**Für dich:**');
+    expect(m.prompts[1]).not.toContain('Leif sieht die Zusammenfassung nicht');
     expect(m.prompts[1]).not.toContain('<gedaechtnis');
     expect(m.prompts[1]).not.toContain('gedaechtnis_schreiben');
   });

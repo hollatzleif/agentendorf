@@ -248,11 +248,35 @@ function Nachricht({ n, anhaenge }: { n: ChatNachricht; anhaenge?: DateiKarte[] 
           <Markdown inhalt={n.text} pfad="" />
         </div>
       ) : (
-        <Markdown inhalt={n.text} pfad="" />
+        <AgentText text={n.text} />
       )}
       {anhaenge?.length ? <DateiKarten karten={anhaenge} /> : null}
       <div className="leise zeit">{new Date(n.erstellt).toLocaleString('de-AT', { dateStyle: 'short', timeStyle: 'short' })}</div>
     </div>
+  );
+}
+
+/** E210: Die Zusammenfassung (Auftrag, Getan, Offen …) ist fürs Protokoll – eingeklappt; steht sonst nichts da, offen */
+function agentTextTeilen(text: string): [string, string | null] {
+  const m = /^##\s*Zusammenfassung\s*$/m.exec(text);
+  if (!m) return [text, null];
+  return [text.slice(0, m.index).trim(), text.slice(m.index + m[0].length).trim()];
+}
+
+function AgentText({ text }: { text: string }) {
+  const [antwort, protokoll] = agentTextTeilen(text);
+  if (protokoll === null) return <Markdown inhalt={text} pfad="" />;
+  if (!antwort) return <Markdown inhalt={protokoll} pfad="" />;
+  return (
+    <>
+      <Markdown inhalt={antwort} pfad="" />
+      {protokoll && (
+        <details className="protokoll-teil" data-testid="protokoll-teil">
+          <summary className="leise">Protokoll</summary>
+          <Markdown inhalt={protokoll} pfad="" />
+        </details>
+      )}
+    </>
   );
 }
 

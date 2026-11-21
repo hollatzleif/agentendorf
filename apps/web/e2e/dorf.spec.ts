@@ -107,6 +107,12 @@ test('Aktion starten, Chat live, fortsetzen, Freigabe annehmen, Verbrauch', asyn
   // in der CI teilt sich der Testserver die Maschine mit dem Browser – großzügig warten
   await expect(page.getByText(/Erledigt\. \(claude-code, claude-opus-5-5/)).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText(/Lauf 1: fertig/)).toBeVisible({ timeout: 15_000 });
+  // E210: die Protokoll-Zusammenfassung (Auftrag, Getan, Offen …) ist eingeklappt – aufklappbar
+  const protokoll = page.getByTestId('protokoll-teil').first();
+  await expect(protokoll).toBeVisible();
+  await expect(protokoll.getByText('Test-Lauf.')).toBeHidden();
+  await protokoll.locator('summary').click();
+  await expect(protokoll.getByText('Test-Lauf.')).toBeVisible();
 
   await page.getByPlaceholder('Weiter im Gespräch …').fill('Und noch etwas?');
   await page.getByRole('button', { name: 'Senden' }).click();
