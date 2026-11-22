@@ -96,7 +96,6 @@ function MotorenForm(p: { k: MotorenKonfig; beiFehler: (e: unknown) => void; bei
 
 const SCHALTER: [keyof TelegramEinstellungen, string][] = [
   ['freigaben', 'Freigaben und Pläne (mit Ja/Nein-Knöpfen)'],
-  ['entwuerfe', 'Fertige Entwürfe (Läufe, die Dateien angelegt haben)'],
   ['fehler', 'Fehler'],
   ['beendet', 'Jede beendete Aufgabe'],
   ['morgenzeitung', 'Morgenzeitung (06:30) und Wochenrückblick (So 18:30)'],

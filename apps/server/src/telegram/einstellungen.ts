@@ -9,7 +9,7 @@ export const STANDARD: TelegramEinstellungen = { freigaben: true, entwuerfe: tru
 const JaNein = z.preprocess((w) => (w === 'ja' ? true : w === 'nein' ? false : w), z.boolean());
 const Schema = z.object({
   freigaben: JaNein.default(true),
-  entwuerfe: JaNein.default(true),
+  entwuerfe: JaNein.default(true), // seit E211 ohne Wirkung (bleibt, damit ältere Dateien gültig sind)
   fehler: JaNein.default(true),
   beendet: JaNein.default(true),
   mails: JaNein.default(false),

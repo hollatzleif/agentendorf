@@ -2326,11 +2326,8 @@ Magst du kurz sagen, warum? Antworte einfach mit einem Satz – ${f.chatId ? 'de
     }
     // Wartet ein Plan auf Freigabe, kommt die Plan-Nachricht mit Knöpfen – keine zweite Meldung.
     if (c.rolle === 'buergermeister' && this.o.db.prepare("SELECT 1 FROM plaene WHERE chat_id = ? AND status = 'wartet'").get(c.id)) return;
-    if (e.geschrieben.length && k.entwuerfe) {
-      const dateien = e.geschrieben.slice(0, 5).map((p) => `• <code>${h(p)}</code>`).join('\n');
-      await this.proaktiv(`📝 <b>Fertig mit Entwurf</b>: ${h(c.titel)}\n${dateien}\n${link}`, {}, c.id);
-      return;
-    }
+    // E211 (Leif): keine eigene „Fertig mit Entwurf“-Meldung mehr – geschriebene Dateien (oft nur das Gedächtnis) sind kein
+    // Grund für eine Nachricht; die normale Fertig-Meldung mit der Antwort reicht. Der Schalter „entwuerfe“ wirkt nicht mehr.
     if (k.beendet) {
       const antwort = (this.o.db.prepare("SELECT text FROM nachrichten WHERE lauf_id = ? AND rolle = 'agent' ORDER BY id DESC LIMIT 1").get(e.laufId) as { text: string } | undefined)?.text ?? '';
       const kurz = antwort.split(/^##\s*Zusammenfassung/m)[0]!.trim().slice(0, 600);

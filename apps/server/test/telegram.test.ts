@@ -57,6 +57,13 @@ describe('Telegram-Bot', () => {
     expect(g[0]).toMatch(/📥 Neue Aufgabe auf dem Schreibtisch: <b>Wie viele Gebäude hat das Dorf\?<\/b>/);
     expect(g[0]).toContain(`href="https://dorf.test/chats/${a!.chatId}"`);
     expect(g.some((t) => t.startsWith('✅ <b>Fertig</b>'))).toBe(true);
+    // E211: schreibt der Lauf Dateien (hier: Gedächtnis), gibt es trotzdem nur die Fertig-Meldung – nie „Fertig mit Entwurf“
+    const lauf = d.db.prepare('SELECT id FROM laeufe WHERE chat_id = ? ORDER BY rowid DESC LIMIT 1').get(a!.chatId) as { id: string };
+    const vorher = d.gesendet().length;
+    await (d.bot as unknown as { laufMelden: (e: unknown) => Promise<void> }).laufMelden({ laufId: lauf.id, chatId: a!.chatId, status: 'fertig', geschrieben: ['Rathaus/memory.md'] });
+    const neu = d.gesendet().slice(vorher);
+    expect(neu.some((t) => t.includes('Fertig mit Entwurf'))).toBe(false);
+    expect(neu.filter((t) => t.startsWith('✅ <b>Fertig</b>'))).toHaveLength(1);
     const send = d.aufrufe.find((x) => x.m === 'sendMessage')!.p;
     expect(send).toMatchObject({ chat_id: LEIF, parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
   });

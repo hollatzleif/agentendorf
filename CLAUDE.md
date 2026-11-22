@@ -277,3 +277,4 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E208 (20.11.): Cardputer 1.3.3 – Mikrofon-Test (Puffer/s, Pegel), Codec-Register nur auf Wunsch (Vorgabe Software-Verstärkung wie 1.2)
 - [x] E209 (20.11.): Cardputer 1.3.4 – Aufnahme nur anhängen, WAV-Kopf erst beim Hochladen (LittleFS schrieb beim Kopf-Überschreiben die ganze Datei neu → „keinen Ton (33 Puffer)“); nie am Gerät gehört
 - [x] E210 (21.11.): Antworten des Bürgermeisters – erledigt → „Erledigt:“/„Für dich:“ + höchstens ein Absatz; nur gefragt → kurzer Fließtext (`ANTWORT_AN_LEIF`, kontext.ts); Protokoll-Zusammenfassung in der App eingeklappt
+- [x] E211 (22.11.): Telegram-Meldung „Fertig mit Entwurf“ entfernt (Leif braucht sie nicht; Schalter `entwuerfe` ohne Wirkung)
