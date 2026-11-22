@@ -2014,3 +2014,15 @@ Leif: „Schau, ob du damit gut Rechenwege und Formeln schreiben kannst – kann
 - **Tabellen:** Markdown-Tabellen (`| a | b |`, Trennzeile = Kopfzeile) mit handgezogenem Gitter, Kopfzeile doppelt unterstrichen, Zahlen rechtsbündig, Formeln in Zellen möglich. Zu breit → verkleinert.
 - **Text daneben:** Längere Textstücke schreibt weiter das Modell. Kurze Stücke zwischen Formeln (unter 12 Buchstaben) und Tabellenzellen kommen in Druckschrift (mit echten Umlaut-Punkten). Gemessen: Das Modell braucht ganze Zeilen als Kontext – „und“ wurde zu einem Punkt, „Wert“ fehlte, „also stimmt“ wurde Gekritzel. Reine Textabsätze laufen unverändert wie in E212.
 - **Ehrlich:** Text und Formeln kommen aus zwei Quellen. Formeln sind immer korrekt lesbar, sehen aber eher nach sauberer Druckschrift aus als der Fließtext. Leif wurde gesagt, dass handschriftlich verlangte Abgaben damit zu „fälschen“ Täuschung wäre – für Lernzettel, Notizen, Karteikarten ist es gedacht.
+
+## E214 – Handschrift realistischer: gerade Linien wie in GoodNotes, klare Rechnungen, Logik-Zeichen (22.11.)
+
+Leif: „Realistischer – Tabellen oder gerade Linien sollen auch gerade sein können, als wenn man es mit GoodNotes schreibt. Fließtexte etwas weniger schön, aber Rechnungen deutlich lesbar.“
+
+- **Gerade Linien:** Tabellengitter, Bruchstriche, Wurzeldächer und □ sind jetzt wirklich gerade, wie mit „Halten zum Begradigen“ in GoodNotes. Nur Anfang und Ende sitzen nicht auf den Punkt genau, dazu ein Hauch Schräglage. Zwei-Punkt-Striche lässt `zittern()` unangetastet (Test).
+- **Rechnungen klar:** Größe, Drehung, Neigung und Höhe je Zeichen schwanken nur noch etwa halb so stark, das Zittern der Striche ist leiser.
+- **Digitaler Stift:** gleichmäßige Strichstärke (±2,5 %) statt schwankendem Druck.
+- **Fließtext freier:** Modell-bias höchstens 0,7 statt 0,75. Probiert wurde 0,6 – das brachte deutlich mehr Verschreiber („in“ → „ink“) und ist verworfen.
+- **Logik (Computational Logic):** ∧ ∨ ¬ → ↔ ≡ ⊢ ⊨ ⊤ ⊥ □ (als LaTeX \\land \\lor \\neg \\leftrightarrow \\vdash \\models \\top \\bot \\Box, als Unicode oder `<->`). Mengenklammern `{¬p, q}` ohne $ bleiben Klammern. Wahrheitstafeln: Formeln und Zahlen in Tabellenzellen stehen mittig.
+- **Platz:** Extra-Zeilen gibt es nur noch für Formeln (Brüche, ∑ …), nicht mehr für hohe Buchstaben im Fließtext. Nach Tabellen kein Extra-Abstand mehr.
+- Leifs echte Bearbeitung (Computational Logic, grüne Lösungen) liegt nur im Vault auf dem Server – aus dieser Sitzung nicht erreichbar. Gezeigt wurde ein selbst geschriebenes Logik-Beispiel. Die echte Seite kann er hochladen oder auf dem Server vom Bürgermeister schreiben lassen.

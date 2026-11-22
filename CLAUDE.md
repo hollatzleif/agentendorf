@@ -285,3 +285,4 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E211 (22.11.): Telegram-Meldung „Fertig mit Entwurf“ entfernt (Leif braucht sie nicht; Schalter `entwuerfe` ohne Wirkung)
 - [x] E212 (22.11.): Handschrift – `handschrift_schreiben` + Atelier-Aktion „In Handschrift schreiben“ (Graves-Modell, MIT, nur NumPy im Rechenraum; ordentlich bis gekritzelt, Umlaute, Durchstreichen, liniert/kariert) – Rechenraum-Image kommt mit dem Deploy
 - [x] E213 (22.11.): Handschrift kann Mathe – Formeln ($…$ oder schlicht), Rechenwege am „=“ ausgerichtet, Brüche/Wurzeln/∑∫, Markdown-Tabellen mit Handgitter (handformel.py + Hershey); „=“ wird nicht mehr zu „-“
+- [x] E214 (22.11.): Handschrift realistischer – gerade Linien wie GoodNotes (Tabellen, Bruchstriche), ruhigere Formeln, gleichmäßiger Stift, Logik-Zeichen (∧ ∨ ¬ ↔ ⊢ ⊨ ⊤ ⊥ □), Wahrheitstafeln mittig

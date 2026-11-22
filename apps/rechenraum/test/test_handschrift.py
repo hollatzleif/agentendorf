@@ -317,6 +317,26 @@ class Formeln(unittest.TestCase):
             self.assertTrue(k.striche)
             self.assertTrue(all(np.isfinite(p).all() for p in k.striche))
 
+    def test_linien_sind_gerade_wie_in_goodnotes(self):
+        h = self.hand(u=1.0)
+        for _ in range(20):
+            p = h.linie((0, 0), (200, 0))
+            self.assertEqual(len(p), 2)                    # Anfang und Ende – nichts dazwischen, also gerade
+            self.assertLess(abs(p[1, 1] - p[0, 1]), 2.0)    # höchstens ein Hauch schief
+            self.assertTrue(np.array_equal(h.zittern(p), p))
+        bruch = self.hf.formel(r"\\frac{1}{2}", h)
+        self.assertTrue(any(len(s) == 2 and abs(s[0, 1] - s[1, 1]) < 1.0 for s in bruch.striche))   # Bruchstrich
+
+    def test_logik(self):
+        h = self.hand()
+        k = self.hf.formel("(p ∧ q) → ¬r ≡ ¬p ∨ ¬q ∨ r, {¬p, q}, {p} ⊢ □, M ⊨ ⊤, ⊥", h, latex=False)
+        self.assertEqual(h.unbekannt, set())
+        self.assertTrue(k.striche)
+        k2 = self.hf.formel(r"\\Gamma \\vdash \\varphi \\land \\psi \\lor \\bot \\leftrightarrow \\top", h)
+        self.assertEqual(h.unbekannt, set())
+        self.assertIn("\\{", self.hf.vereinfacht_zu_latex("{p}"))        # Mengenklammern ohne $
+        self.assertEqual([s[0] for s in self.hf.segmente("φ = ¬(p ∧ q) → r")], ["mathe"])
+
     def test_tabelle_lesen(self):
         self.assertTrue(self.hf.ist_tabelle("| a | b |"))
         self.assertFalse(self.hf.ist_tabelle("3x = 15 | :3"))

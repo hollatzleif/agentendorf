@@ -329,8 +329,9 @@ class Schreiber:
         self.rng = rng
         self.frist = frist
         # bias: 0 = frei/wild … höher = ordentlicher. Gemessen: ab ~0,9 entgleist das Modell häufiger (Strichsalat,
-        # endlose Striche), darum höchstens 0,75
-        self.bias = 0.75 - 0.65 * self.u
+        # endlose Striche). E214 (Leif): Fließtext darf „weniger schön“ sein als die Rechnung – höchstens 0,7
+        # (0,6 brachte deutlich mehr Verschreiber: „in“ → „ink“)
+        self.bias = 0.7 - 0.6 * self.u
         self.wiederholt = 0
 
     def zeile(self, text):
@@ -516,7 +517,7 @@ def _papier(art):
 class Zeile:
     """Eine gesetzte Zeile (oder Tabelle): Striche relativ zur Grundlinie y = 0 ab x = 0."""
 
-    def __init__(self, linien, breite, oben=None, unten=None, anker=None, art="text"):
+    def __init__(self, linien, breite, oben=None, unten=None, anker=None, art="text", platz_oben=None, platz_unten=None):
         self.linien = linien
         self.breite = float(breite)
         if linien and (oben is None or unten is None):
@@ -526,6 +527,10 @@ class Zeile:
         self.oben, self.unten = oben or 0.0, unten or 0.0
         self.anker = anker
         self.art = art
+        # Wie viel Platz die Zeile über/unter der Grundlinie wirklich braucht: nur Formeln zählen (Brüche, ∑ …) – hohe
+        # Ober- und Unterlängen im Fließtext ragen wie auf echtem Papier ein Stück in die Nachbarzeile
+        self.platz_oben = self.oben if platz_oben is None else platz_oben
+        self.platz_unten = self.unten if platz_unten is None else platz_unten
 
 
 def _hershey_text(text, hand):
@@ -540,6 +545,7 @@ def gemischt(sch, hand, teile, hoehe_ziel, durchstreichen, modell_zeichen, druck
     """Teile einer Zeile ([("text", str) | ("kasten", Kasten)]) nebeneinander → Zeile. Text schreibt das Modell, Kästen
     sind fertige Formeln. Liefert dazu die Zahl der Verschreiber und die weggelassenen Zeichen."""
     linien, x, anker, fehl, weg = [], 0.0, None, 0, set()
+    p_oben, p_unten = 0.0, 0.0
     luft = hoehe_ziel * 0.45
     nur_formel = len(teile) == 1 and teile[0][0] == "kasten"
     for i, teil in enumerate(teile):
@@ -549,6 +555,7 @@ def gemischt(sch, hand, teile, hoehe_ziel, durchstreichen, modell_zeichen, druck
             k = teil[1]
             if anker is None and k.anker is not None and nur_formel:
                 anker = x + k.anker
+            p_oben, p_unten = max(p_oben, k.oben), max(p_unten, k.unten)
             linien += [p + np.array([x, 0.0]) for p in k.striche]
             x += k.breite
             continue
@@ -569,7 +576,7 @@ def gemischt(sch, hand, teile, hoehe_ziel, durchstreichen, modell_zeichen, druck
         fehl += len(f)
         linien += [p + np.array([x, 0.0]) for p in ls]
         x += breite
-    return Zeile(linien, x, anker=anker, art="formel" if nur_formel else "gemischt"), fehl, weg
+    return Zeile(linien, x, anker=anker, art="formel" if nur_formel else "gemischt", platz_oben=p_oben, platz_unten=p_unten), fehl, weg
 
 
 def _einheiten(segs, hand):
@@ -636,8 +643,8 @@ def tabelle_gestalten(sch, hand, reihen, kopf, hoehe_ziel, zeilenabstand, durchs
     for i, r in enumerate(zellen):
         grund = ys[i] + (z_hoehe[i] - z_oben[i] - z_unten[i]) / 2 + z_oben[i]
         for j, z in enumerate(r):
-            zahl = z.art == "formel"
-            x = xs[j] + (sp_breite[j] - pad_x - z.breite if zahl else pad_x)   # Zahlen rechtsbündig, Text links
+            formel = z.art == "formel"
+            x = xs[j] + ((sp_breite[j] - z.breite) / 2 if formel else pad_x)   # Formeln/Zahlen mittig (Wahrheitstafeln), Text links
             dy = rng.normal(0, hoehe_ziel * 0.04)
             linien += [p + np.array([x, grund + dy]) for p in z.linien]
     for y in ys:
@@ -769,8 +776,8 @@ def schreiben(text, unordnung=0.5, papier="blanko", tinte="blau", groesse=1.0, d
             spitze = y - zeilenabstand * 0.75
             boden = spitze + z.unten
         else:
-            oben_platz = platz(z.oben - zeilenabstand * 0.75) if z.art != "text" else 0.0
-            unten_platz = platz(z.unten - zeilenabstand * 0.3) if z.art != "text" else 0.0
+            oben_platz = platz(z.platz_oben - zeilenabstand * 0.75) if z.art != "text" else 0.0
+            unten_platz = platz(z.platz_unten - zeilenabstand * 0.3) if z.art != "text" else 0.0
             boden = y + oben_platz + z.unten
         if boden > SEITE_H - 15 * MM and papier != "keins" and (akt or y > oben0):
             seiten.append(akt)
@@ -791,7 +798,7 @@ def schreiben(text, unordnung=0.5, papier="blanko", tinte="blau", groesse=1.0, d
         if z.art == "tabelle":
             linien = [p + np.array([x0, spitze]) for p in z.linien]
             y = (spitze + z.unten + zeilenabstand * 0.75)
-            y = oben0 + math.ceil((y - oben0) / zeilenabstand) * zeilenabstand + zeilenabstand * 0.25 if raster else y + zeilenabstand * 0.4
+            y = oben0 + math.ceil((y - oben0) / zeilenabstand) * zeilenabstand if raster else y + zeilenabstand * 0.2
             akt.extend(linien)
             continue
         if z.breite > nutzbreite:                     # zu breit geraten → etwas stauchen
@@ -827,7 +834,7 @@ def schreiben(text, unordnung=0.5, papier="blanko", tinte="blau", groesse=1.0, d
         for p in linien:
             if len(p) == 1:
                 p = np.vstack([p, p + 0.6])
-            dicke = basis * (1 + rng.normal(0, 0.08 + 0.12 * u))
+            dicke = basis * (1 + rng.normal(0, 0.025))          # digitaler Stift: gleichmäßige Strichstärke
             teile.append(f'<path d="{_pfad(p + versatz)}" stroke-width="{max(0.8, dicke):.2f}"/>')
         teile.append("</g></svg>")
         svgs.append("".join(teile))

@@ -39,19 +39,19 @@ SYMBOLE = {"cdot": "cdot", "times": "times", "div": "div", "pm": "pm", "mp": "mp
            "rightarrow": "to", "leftarrow": "leftarrow", "uparrow": "uparrow", "downarrow": "downarrow", "infty": "infty",
            "partial": "partial", "nabla": "nabla", "in": "in", "subset": "subset", "supset": "supset", "cup": "cup",
            "cap": "cap", "exists": "exists", "propto": "propto", "perp": "perp", "parallel": "parallel", "angle": "angle",
-           "circ": "circ", "degree": "circ", "therefore": "therefore", "ast": "ast", "varepsilon": "epsilon",
+           "circ": "circ", "degree": "circ", "therefore": "therefore", "ast": "ast", "bot": "perp", "varepsilon": "epsilon",
            "varphi": "phi", "vartheta": "theta"}
 SYMBOLE.update({g: g for g in GRIECHISCH})
-GEZEICHNET = {"approx", "Rightarrow", "Leftrightarrow", "implies", "iff", "leftrightarrow", "forall", "emptyset", "varnothing", "mapsto",
+GEZEICHNET = {"Box", "square", "land", "wedge", "lor", "vee", "vdash", "models", "top", "approx", "Rightarrow", "Leftrightarrow", "implies", "iff", "leftrightarrow", "forall", "emptyset", "varnothing", "mapsto",
               "cdots", "ldots", "dots", "neg", "lnot"}
 FUNKTIONEN = {"sin", "cos", "tan", "cot", "arcsin", "arccos", "arctan", "sinh", "cosh", "tanh", "ln", "log", "lg", "exp",
               "max", "min", "sup", "inf", "det", "dim", "ker", "arg", "deg", "gcd", "mod", "ggT", "kgV"}
 GROSSE = {"sum": "sum", "prod": "prod", "int": "int", "iint": "int", "oint": "int", "lim": None, "bigcup": "cup",
           "bigcap": "cap"}
 ABSTAENDE = {",": 0.17, ":": 0.22, ";": 0.28, " ": 0.3, "quad": 1.0, "qquad": 2.0, "!": -0.1, "enspace": 0.5}
-RELATIONEN = {"=", "<", ">", "le", "ge", "ne", "approx", "equiv", "to", "leftarrow", "in", "subset", "supset", "propto",
+RELATIONEN = {"vdash", "models", "=", "<", ">", "le", "ge", "ne", "approx", "equiv", "to", "leftarrow", "in", "subset", "supset", "propto",
               "Rightarrow", "Leftrightarrow", "implies", "iff", "leftrightarrow", "mapsto", "perp", "parallel"}
-BINAER = {"+", "-", "cdot", "times", "div", "pm", "mp", "cup", "cap", "ast", "/"}
+BINAER = {"land", "wedge", "lor", "vee", "+", "-", "cdot", "times", "div", "pm", "mp", "cup", "cap", "ast", "/"}
 OEFFNEND = {"(", "[", "{"}
 
 UNICODE = {"≤": r"\le ", "≥": r"\ge ", "≠": r"\ne ", "≈": r"\approx ", "·": r"\cdot ", "×": r"\times ", "÷": r"\div ",
@@ -60,7 +60,8 @@ UNICODE = {"≤": r"\le ", "≥": r"\ge ", "≠": r"\ne ", "≈": r"\approx ", "
            "∂": r"\partial ", "∇": r"\nabla ", "∈": r"\in ", "⊂": r"\subset ", "∪": r"\cup ", "∩": r"\cap ", "∀": r"\forall ",
            "∃": r"\exists ", "∅": r"\emptyset ", "°": r"^\circ ", "²": "^2", "³": "^3", "¹": "^1", "⁻": "^-", "−": "-",
            "–": "-", "∗": "*", "≡": r"\equiv ", "∝": r"\propto ", "∠": r"\angle ", "⊥": r"\perp ", "∥": r"\parallel ",
-           "…": r"\dots ", "¬": r"\neg ", "Δ": r"\Delta ", "∆": r"\Delta ", "∴": r"\therefore "}
+           "…": r"\dots ", "¬": r"\neg ", "∧": r"\land ", "∨": r"\lor ", "⊢": r"\vdash ", "⊨": r"\models ",
+           "⊤": r"\top ", "⊥": r"\bot ", "□": r"\Box ", "☐": r"\Box ", "Δ": r"\Delta ", "∆": r"\Delta ", "∴": r"\therefore "}
 _GR_UNI = "αβγδεζηθικλμνξπρστυφχψωΓΔΘΛΞΠΣΦΨΩ"
 _GR_NAMEN = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta", "iota", "kappa", "lambda", "mu", "nu", "xi",
              "pi", "rho", "sigma", "tau", "upsilon", "phi", "chi", "psi", "omega", "Gamma", "Delta", "Theta", "Lambda", "Xi",
@@ -89,14 +90,16 @@ def _klammer_ende(s, i):
 
 
 def vereinfacht_zu_latex(s):
+    s = s.replace("{", "\\{").replace("}", "\\}")       # ohne $ sind { } Mengenklammern ({¬p, q}), keine Gruppen
     for k, v in UNICODE.items():
         s = s.replace(k, v)
-    for k, v in (("<=>", r"\Leftrightarrow "), ("<=", r"\le "), (">=", r"\ge "), ("!=", r"\ne "), ("=>", r"\Rightarrow "),
+    for k, v in (("<->", r"\leftrightarrow "), ("<=>", r"\Leftrightarrow "), ("<=", r"\le "), (">=", r"\ge "), ("!=", r"\ne "), ("=>", r"\Rightarrow "),
                  ("->", r"\to "), ("~=", r"\approx "), ("+-", r"\pm ")):
         s = s.replace(k, v)
     s = re.sub(r"(?<![\\a-zA-Z])\*", r"\\cdot ", s)
     # Leerzeichen, die etwas bedeuten, bleiben: „0, 12“ (Aufzählung, keine Dezimalzahl), „12,5 kg“, „f(x) dx“
     s = re.sub(r"(?<=[0-9A-Za-z)\],])[ \t]+(?=[0-9A-Za-z(\\])(?!\\(?:le|ge|ne|to|cdot|times|div|pm|Rightarrow|Leftrightarrow|approx|q?quad|umform)\b)", r"\\, ", s)
+    s = re.sub(r"(\\[A-Za-z]+)\\, ", r"\1 ", s)            # nach Befehlen (¬, →, ∧ …) regelt der Satz den Abstand
     # „… = 20 | -5“: Umformungsstrich mit Luft davor (|x| bleibt Betrag)
     s = re.sub(r"\s+\|\s+(?=[-+:*/·\\a-zA-Z0-9(])", r" \\quad\\umform ", s)
     # sqrt(…) → \sqrt{…}, ^(…) → ^{…}, _(…) → _{…}
@@ -308,10 +311,10 @@ class Hand:
             self.unbekannt.add(name)
             return Kasten(breite=0.3 * self.em * g)
         rng, u = self.rng, self.u
-        s = self.e * g * (1 + rng.normal(0, 0.05 * u + 0.025))
-        dreh = rng.normal(0, 0.035 * u + 0.012)
-        schraeg = self.neigung + rng.normal(0, 0.05 * u + 0.015)
-        dy = rng.normal(0, 0.05 * u + 0.015) * self.em * g
+        s = self.e * g * (1 + rng.normal(0, 0.03 * u + 0.012))
+        dreh = rng.normal(0, 0.018 * u + 0.006)
+        schraeg = self.neigung + rng.normal(0, 0.025 * u + 0.008)
+        dy = rng.normal(0, 0.025 * u + 0.008) * self.em * g
         # Handschrift ist proportional: Breite aus dem Strich selbst (+ etwas Luft), nicht aus Hersheys festem Raster –
         # sonst steht „12“ als „1 2“ da. Zeichen ohne Strich (Leerzeichen) behalten ihre Rasterbreite.
         xs = [pt[0] for st in gl["s"] for pt in st]
@@ -330,27 +333,24 @@ class Hand:
             p[:, 0] = x * c - y * sn - y * schraeg
             p[:, 1] = x * sn + y * c + dy
             striche.append(p)
-        breite = (r - l) * s * (1 + rng.normal(0, 0.06 * u + 0.02))
+        breite = (r - l) * s * (1 + rng.normal(0, 0.03 * u + 0.01))
         alle = np.concatenate(striche) if striche else np.zeros((1, 2))
         return Kasten(striche, breite, max(0.0, -alle[:, 1].min()), max(0.0, alle[:, 1].max()), art=art)
 
     def linie(self, p0, p1, ueberstand=True):
-        """Gezogene Linie: leicht gebogen, zittrig, an den Enden etwas über oder zu kurz."""
+        """Gerade Linie wie in GoodNotes („halten zum Begradigen“): wirklich gerade, nur Anfang und Ende sitzen nicht
+        auf den Punkt genau (leicht über- oder unterzogen). Zwei Punkte – zittern() lässt sie gerade."""
         rng, u = self.rng, self.u
         p0, p1 = np.array(p0, float), np.array(p1, float)
         d = p1 - p0
         laenge = float(np.hypot(*d)) or 1.0
         rich = d / laenge
         if ueberstand:
-            p0 = p0 - rich * rng.normal(0.02, 0.03 + 0.03 * u) * self.em
-            p1 = p1 + rich * rng.normal(0.04, 0.04 + 0.04 * u) * self.em
-        n = max(4, int(laenge / 6))
-        t = np.linspace(0, 1, n)
+            p0 = p0 - rich * abs(rng.normal(0.0, 0.015 + 0.02 * u)) * self.em
+            p1 = p1 + rich * abs(rng.normal(0.0, 0.02 + 0.03 * u)) * self.em
         normal = np.array([-rich[1], rich[0]])
-        bogen = rng.normal(0, 0.006 + 0.01 * u) * laenge * np.sin(np.pi * t)
-        welle = rng.normal(0, 0.25 + 0.5 * u) * np.sin(t * rng.uniform(2, 6) + rng.uniform(0, 6))
-        pkt = p0[None, :] + (p1 - p0)[None, :] * t[:, None] + normal[None, :] * (bogen + welle)[:, None]
-        return pkt
+        kipp = rng.normal(0, 0.0015 + 0.002 * u) * laenge      # ein Hauch schief, wie von Hand angesetzt
+        return np.array([p0, p1 + normal * kipp])
 
     def zittern(self, p):
         """Polylinie glätten (Chaikin) und mit leisem, weichem Zittern versehen – Hershey ist sonst zu technisch."""
@@ -360,8 +360,8 @@ class Hand:
                 q += [0.75 * a + 0.25 * b, 0.25 * a + 0.75 * b]
             q.append(p[-1])
             p = np.array(q)
-        if len(p) >= 2:
-            rausch = self.rng.normal(0, 0.18 + 0.35 * self.u, p.shape)
+        if len(p) >= 3:                                   # gerade Linien (2 Punkte) bleiben gerade
+            rausch = self.rng.normal(0, 0.1 + 0.15 * self.u, p.shape)
             rausch = (rausch + np.roll(rausch, 1, axis=0) + np.roll(rausch, -1, axis=0)) / 3
             p = p + rausch
         return p
@@ -655,6 +655,25 @@ class Satz:
             if name in ("Leftrightarrow", "iff", "leftrightarrow"):
                 striche.append(np.array([[0.35 * em, a - 0.22 * em], [0.08 * em, a], [0.35 * em, a + 0.22 * em]]))
             return Kasten(striche, l + 0.15 * em, 0.7 * em, 0.0, art="rel")
+        if name in ("land", "wedge", "lor", "vee"):             # ∧ ∨: Spitze nach oben bzw. unten, auf der x-Höhe
+            oben_y, unten_y = -0.78 * em, -0.02 * em
+            if name in ("land", "wedge"):
+                p = np.array([[0.04 * em, unten_y], [0.38 * em, oben_y], [0.72 * em, unten_y]])
+            else:
+                p = np.array([[0.04 * em, oben_y], [0.38 * em, unten_y], [0.72 * em, oben_y]])
+            return Kasten([np.array([p[0], p[1]]), np.array([p[1], p[2]])], 0.78 * em, 0.8 * em, 0.0, art="bin")
+        if name in ("vdash", "models"):                         # ⊢ ⊨
+            striche = [np.array([[0.08 * em, -0.8 * em], [0.08 * em, -0.06 * em]])]
+            for dy in ((0.0,) if name == "vdash" else (-0.13 * em, 0.13 * em)):
+                striche.append(np.array([[0.08 * em, a + dy], [0.7 * em, a + dy]]))
+            return Kasten(striche, 0.8 * em, 0.8 * em, 0.0, art="rel")
+        if name in ("Box", "square"):                           # □ (leere Klausel)
+            ecken = [(0.08 * em, -0.72 * em), (0.72 * em, -0.72 * em), (0.72 * em, 0.0), (0.08 * em, 0.0)]
+            seiten = [np.array([ecken[i], ecken[(i + 1) % 4]]) for i in range(4)]   # vier gerade Striche – bleiben eckig
+            return Kasten(seiten, 0.82 * em, 0.74 * em, 0.0)
+        if name == "top":                                       # ⊤
+            return Kasten([np.array([[0.05 * em, -0.75 * em], [0.7 * em, -0.75 * em]]),
+                           np.array([[0.375 * em, -0.75 * em], [0.375 * em, 0.0]])], 0.8 * em, 0.78 * em, 0.0)
         if name == "approx":
             k = h.glyphe("approx", g, "rel")
             oben = [q + np.array([0.0, -0.11 * em]) for q in k.striche]
@@ -697,7 +716,7 @@ def formel(text, hand, latex=True, g=1.0):
 
 # ---- Text in Formeln oder Mathe? -------------------------------------------------------------------------------------
 
-_MATHE_ZEICHEN = re.compile(r"[0-9=+*/^<>|_\\≤≥≠≈·×÷±∓→←↔⇒⇔∞√π∫∑∏∂∇∈∀∃∅²³°−]")
+_MATHE_ZEICHEN = re.compile(r"[0-9=+*/^<>|_\\≤≥≠≈·×÷±∓→←↔⇒⇔∞√π∫∑∏∂∇∈∀∃∅²³°−∧∨¬≡⊢⊨⊤⊥□{}]")
 _FUNKTION = re.compile(r"^(sin|cos|tan|ln|log|exp|lim|max|min|sqrt|det)\b|^[a-zA-Z]{1,2}'*\(", re.I)
 
 
