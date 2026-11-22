@@ -2026,3 +2026,12 @@ Leif: „Realistischer – Tabellen oder gerade Linien sollen auch gerade sein k
 - **Logik (Computational Logic):** ∧ ∨ ¬ → ↔ ≡ ⊢ ⊨ ⊤ ⊥ □ (als LaTeX \\land \\lor \\neg \\leftrightarrow \\vdash \\models \\top \\bot \\Box, als Unicode oder `<->`). Mengenklammern `{¬p, q}` ohne $ bleiben Klammern. Wahrheitstafeln: Formeln und Zahlen in Tabellenzellen stehen mittig.
 - **Platz:** Extra-Zeilen gibt es nur noch für Formeln (Brüche, ∑ …), nicht mehr für hohe Buchstaben im Fließtext. Nach Tabellen kein Extra-Abstand mehr.
 - Leifs echte Bearbeitung (Computational Logic, grüne Lösungen) liegt nur im Vault auf dem Server – aus dieser Sitzung nicht erreichbar. Gezeigt wurde ein selbst geschriebenes Logik-Beispiel. Die echte Seite kann er hochladen oder auf dem Server vom Bürgermeister schreiben lassen.
+
+## E215 – Eine Handschrift für alles (22.11.)
+
+Leif: „Am Ende muss alles einheitlich eine Schriftart sein – nicht 100 % gleich, aber nicht acht verschiedene Arten, Buchstaben zu schreiben. Es soll aussehen wie von Hand, nicht offensichtlich vom Computer.“ Bis E214 stammten Fließtext (KI-Modell) und Formeln/Tabellen/kurze Wörter (Hershey) aus zwei Quellen. Dazu wechselt das KI-Modell seinen Stil von Zeile zu Zeile, weil jede Zeile ein neuer „Schreiber“ ist.
+
+- **Neu Standard `stil: einheitlich`:** Alles – Fließtext, Formeln, Tabellen – kommt aus derselben Zeichengrundlage (Hershey futural/mathlow/greek) mit einem **Schreiber-Profil je Dokument** (Neigung, Breite, Abstände; der seed bestimmt den „Schreiber“). Jedes Zeichen wird einmalig verformt (weiches Verformungsfeld, Strichenden leicht verlängert oder gekürzt), so gleicht kein „o“ dem anderen. Wörter bekommen eigene Grundlinie, Größe und Lage, die Wortabstände schwanken. Bei höherer Unordnung wird ab und zu ein Wort verschrieben und gerade durchgestrichen. Unterschneiden für r/f/t/c …, sonst entstehen Lücken mitten im Wort („Ex er cis e“).
+- **Vorteile:** Einheitlich, immer korrekt geschrieben (keine Modell-Verschreiber wie „gilt“ → „gill“), jede Sprache mit lateinischen Buchstaben (Englisch, Deutsch mit Umlauten), schnell (≈ 0,3 s je Seite statt mehrerer Sekunden), braucht das KI-Modell nicht.
+- **`stil: ki`** bleibt für reinen Fließtext, der freier aussehen darf (Graves-Modell wie in E212–E214).
+- Ehrlich: Es ist eine saubere Druck-Handschrift, keine verbundene Schreibschrift. Das Hershey-Skript (verbundene Schreibschrift) hat zu verschnörkelte Großbuchstaben.

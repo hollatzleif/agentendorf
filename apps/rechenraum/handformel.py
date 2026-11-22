@@ -301,7 +301,11 @@ class Hand:
         self.rng = rng
         self.u = u
         self.e = einheit
-        self.neigung = 0.12 + rng.normal(0, 0.04)        # leicht kursiv, wie die meisten Hände
+        # Schreiber-Profil (E215): EINE Handschrift je Dokument – Neigung, Breite, Rundung und Abstände bleiben über die
+        # ganze Seite gleich; was schwankt, schwankt um diese Werte herum wie bei einem echten Menschen
+        self.neigung = 0.14 + rng.normal(0, 0.05)        # leicht kursiv, wie die meisten Hände
+        self.breite = 0.92 + rng.normal(0, 0.05)          # schmal … breit schreibend
+        self.abstand = 1.0 + rng.normal(0, 0.08)          # eng … luftig
         self.em = 21 * einheit                            # Versalhöhe
         self.unbekannt = set()
 
@@ -319,8 +323,13 @@ class Hand:
         # sonst steht „12“ als „1 2“ da. Zeichen ohne Strich (Leerzeichen) behalten ihre Rasterbreite.
         xs = [pt[0] for st in gl["s"] for pt in st]
         if xs and name not in ("-", "+", "=", "times", "cdot", "div", "pm", "mp", "to", "approx", "le", "ge", "ne"):
-            luft = 3.5 if name not in (".", ",", ":", ";", "'", "!") else 2.5
-            l, r = min(xs) - luft, max(xs) + luft
+            # Unterschneiden: Buchstaben mit Bogen/Balken nach rechts (r, f, t …) brauchen rechts kaum Luft – sonst steht
+            # „Exercise“ als „Ex er cis e“ da
+            luft = 2.2 if name not in (".", ",", ":", ";", "'", "!") else 2.0
+            rechts = 0.5 if name in ("r", "f", "t", "c", "y", "v", "w", "k", "x", "T", "F", "P", "V", "W", "Y") else luft * 0.8
+            if name in ("t", "f", "j"):                     # Querbalken/Bogen nach links: dort auch wenig Luft
+                luft = 0.8
+            l, r = min(xs) - luft, max(xs) + rechts
         else:
             l, r = gl["l"], gl["r"]
         striche = []
@@ -330,12 +339,39 @@ class Hand:
             p[:, 1] = (p[:, 1] - 9) * s
             c, sn = math.cos(dreh), math.sin(dreh)
             x, y = p[:, 0].copy(), p[:, 1].copy()
-            p[:, 0] = x * c - y * sn - y * schraeg
+            p[:, 0] = (x * c - y * sn - y * schraeg) * self.breite
             p[:, 1] = x * sn + y * c + dy
             striche.append(p)
-        breite = (r - l) * s * (1 + rng.normal(0, 0.03 * u + 0.01))
+        striche = self.verformen(striche, g)
+        breite = (r - l) * s * self.breite * (1 + rng.normal(0, 0.05 * u + 0.03))
         alle = np.concatenate(striche) if striche else np.zeros((1, 2))
         return Kasten(striche, breite, max(0.0, -alle[:, 1].min()), max(0.0, alle[:, 1].max()), art=art)
+
+    def verformen(self, striche, g):
+        """Jedes Zeichen einmalig: ein weiches Verformungsfeld (zwei Sinuswellen je Richtung) biegt die Form ein wenig,
+        Striche beginnen/enden nicht exakt (Kreise schließen nicht perfekt). So sieht kein „o“ aus wie das andere."""
+        rng = self.rng
+        em = self.em * g
+        a = (0.03 + 0.03 * self.u) * em
+        fx, fy = rng.uniform(2.0, 4.5, 2) / em
+        px, py = rng.uniform(0, 2 * np.pi, 2)
+        ax, ay = rng.normal(0, a * 0.6), rng.normal(0, a)     # waagrecht weniger: schmale Zeichen (1, l) kippen sonst
+        aus = []
+        for p in striche:
+            if len(p) < 2:
+                aus.append(p)
+                continue
+            q = p.copy()
+            q[:, 0] += ax * np.sin(q[:, 1] * fy + py)
+            q[:, 1] += ay * np.sin(q[:, 0] * fx + px)
+            if len(q) >= 4:                                 # Anfang/Ende leicht verlängern oder kürzen
+                for ende, nachbar in ((0, 1), (-1, -2)):
+                    d = q[ende] - q[nachbar]
+                    laenge = float(np.hypot(*d))
+                    if laenge > 1e-6:                       # wenig und in Strichrichtung – sonst entstehen Haken
+                        q[ende] = q[ende] + d / laenge * rng.normal(0.0, 0.025 + 0.02 * self.u) * em
+            aus.append(q)
+        return aus
 
     def linie(self, p0, p1, ueberstand=True):
         """Gerade Linie wie in GoodNotes („halten zum Begradigen“): wirklich gerade, nur Anfang und Ende sitzen nicht
@@ -475,6 +511,7 @@ class Satz:
     def wort(self, text, g):
         ks = []
         em = self.h.em * g
+        rng, u = self.h.rng, self.h.u
         for c in text.replace("ß", "ss"):
             if c == " ":
                 ks.append(Kasten(breite=0.35 * em))
@@ -487,7 +524,9 @@ class Satz:
                 k.oben += 0.2 * em
                 ks.append(k)
             else:
-                ks.append(self.h.glyphe(c, g))
+                k = self.h.glyphe(c, g)
+                k.breite *= self.h.abstand * (1 + rng.normal(0, 0.03 + 0.04 * u)) if c.isalpha() else 1.0
+                ks.append(k)
         k = nebeneinander(ks)
         k.anker = None
         return k

@@ -708,8 +708,9 @@ def handschrift(a):
     if seed is not None and not isinstance(seed, int):
         raise Fehler("seed: ganze Zahl.")
     try:
+        stil = a.get("stil") or "einheitlich"
         erg = hs.schreiben(str(a.get("text") or ""), unordnung=unordnung, papier=papier, tinte=tinte, groesse=groesse,
-                           durchstreichen=a.get("durchstreichen", True) is not False, seed=seed)
+                           durchstreichen=a.get("durchstreichen", True) is not False, seed=seed, stil=stil)
     except hs.HandschriftFehler as e:
         raise Fehler(str(e))
     seiten = erg["seiten"]
@@ -748,12 +749,13 @@ def handschrift(a):
     if erg["verschrieben"]:
         teile.append(f"{erg['verschrieben']}× verschrieben und durchgestrichen (gewollt – abschalten mit durchstreichen: false).")
     if erg.get("formeln") or erg.get("tabellen"):
-        teile.append(f"{erg.get('formeln', 0)} Formel(n) und {erg.get('tabellen', 0)} Tabelle(n) von Hand gesetzt (Druckschrift, Rechenwege am „=“ ausgerichtet).")
+        teile.append(f"{erg.get('formeln', 0)} Formel(n) und {erg.get('tabellen', 0)} Tabelle(n) von Hand gesetzt (Rechenwege am „=“ ausgerichtet).")
     if erg["weggelassen"]:
         teile.append("Diese Zeichen kann die Handschrift nicht und hat sie weggelassen: " + " ".join(erg["weggelassen"]))
     if erg.get("unbekannt"):
         teile.append("Diese Formel-Befehle kennt der Formelsatz nicht (weggelassen): " + " ".join(erg["unbekannt"]))
-    teile.append("Das Modell verschreibt sich manchmal (v. a. bei Ziffern und Großbuchstaben) – bei wichtigen Texten Bild ansehen, sonst neu erzeugen.")
+    if stil == "ki":
+        teile.append("Das KI-Modell verschreibt sich im Fließtext manchmal – bei wichtigen Texten Bild ansehen, sonst neu erzeugen.")
     return {"ok": True, "text": " ".join(teile), "dateien": dateien}
 
 

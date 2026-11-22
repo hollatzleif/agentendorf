@@ -85,7 +85,8 @@ export const EXTRA_DEFINITIONEN: Record<ExtraWerkzeug, Omit<WerkzeugDefinition, 
   handschrift_schreiben: {
     name: 'handschrift_schreiben',
     description:
-      'Schreibt Text als echt wirkende, ungleichmäßige Handschrift (KI im Rechenraum): jedes Wort etwas anders, auf Wunsch gekritzelt mit Durchgestrichenem; Umlaute ja. Formeln als $…$ (LaTeX: \\frac, \\sqrt, ^, _, \\sum, \\int, \\le …) oder schlicht „3x + 5 = 20 | -5“ – Rechenwege (eine Umformung je Zeile) stehen am „=“ untereinander. Tabellen als Markdown (| a | b |, |---|) mit handgezogenem Gitter. Höchstens 1500 Zeichen je Aufruf. Ergebnis PNG/SVG/PDF im Ablage-Ordner. Fließtext verschreibt sich manchmal – Bild prüfen oder anderen seed nehmen.',
+      'Schreibt Text als echt wirkende Handschrift – EINE Hand für alles (Text, Formeln, Tabellen), ungleichmäßig wie echt, auf Wunsch mit Verschriebenem und Durchgestrichenem; Umlaute ja. Formeln als $…$ (LaTeX: \\frac, \\sqrt, ^, _, \\sum, \\int, \\land, \\lor, \\neg, \\vdash …) oder schlicht „3x + 5 = 20 | -5“, „¬(p ∧ q) → r“ – Rechenwege (eine Umformung je Zeile) stehen am „=“/„≡“ untereinander. Tabellen als Markdown (| a | b |, |---|), gerade Linien wie in GoodNotes. Höchstens 1500 Zeichen je Aufruf. Ergebnis PNG/SVG/PDF im Ablage-Ordner.',
+
 
     input_schema: {
       type: 'object',
@@ -97,7 +98,8 @@ export const EXTRA_DEFINITIONEN: Record<ExtraWerkzeug, Omit<WerkzeugDefinition, 
         groesse: { type: 'number', description: 'Schriftgröße 0,6–1,6 (Standard 1)' },
         durchstreichen: { type: 'boolean', description: 'ab und zu ein Wort verschreiben und durchstreichen (Standard ja; nur bei unordnung > 0 spürbar)' },
         format: { type: 'string', enum: ['png', 'svg', 'pdf'] },
-        seed: { type: 'integer', description: 'gleicher seed = gleiches Schriftbild; weglassen = jedes Mal anders' },
+        seed: { type: 'integer', description: 'gleicher seed = gleiche Handschrift; weglassen = jedes Mal ein anderer „Schreiber“' },
+        stil: { type: 'string', enum: ['einheitlich', 'ki'], description: 'einheitlich (Standard): EINE Handschrift für Text, Formeln, Tabellen; ki: Fließtext vom KI-Modell (freier, aber Stilwechsel und Verschreiber)' },
         name: { type: 'string' },
       },
       required: ['text'],
@@ -371,6 +373,7 @@ export async function extraAufrufen(name: ExtraWerkzeug, eingabe: unknown, u: Ex
           durchstreichen: z.boolean().optional(),
           format: z.enum(['png', 'svg', 'pdf']).optional(),
           seed: z.number().int().min(0).max(2 ** 31).optional(),
+          stil: z.enum(['einheitlich', 'ki']).optional(),
           name: Name,
         })
         .parse(eingabe);

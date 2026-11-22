@@ -218,6 +218,22 @@ class Handschrift(unittest.TestCase):
         self.assertTrue(all(getattr(z, "ausgerichtet", False) for z in zeilen))
         self.assertFalse(getattr(text, "ausgerichtet", False))
 
+    def test_einheitlich_braucht_kein_ki_modell(self):
+        # E215: Standard ist EINE Handschrift für alles – ohne Modell-Dateien (HANDSCHRIFT_MODELL zeigt ins Leere)
+        alt = self.hs.MODELL_ORDNER
+        self.hs.MODELL_ORDNER = "/gibt/es/nicht"
+        try:
+            e = self.hs.schreiben("Exercise 1: Show that $p \\to q \\equiv \\neg p \\lor q$.\nGrüße", seed=2)
+        finally:
+            self.hs.MODELL_ORDNER = alt
+        self.assertEqual(len(e["seiten"]), 1)
+        self.assertEqual(e["weggelassen"], [])
+        with self.assertRaises(self.hs.HandschriftFehler):
+            self.hs.schreiben("Hallo", stil="comic", modell=self.m)
+        # stil „ki“ nutzt das Modell weiter
+        e = self.hs.schreiben("Hallo Welt", stil="ki", seed=1, modell=self.m)
+        self.assertEqual(e["zeilen"], 1)
+
     def test_keins_ist_durchsichtig_und_eng(self):
         e = self.hs.schreiben("kurz", papier="keins", seed=1, modell=self.m)
         svg = e["seiten"][0]

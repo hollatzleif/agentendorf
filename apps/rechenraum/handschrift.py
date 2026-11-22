@@ -533,12 +533,37 @@ class Zeile:
         self.platz_unten = self.unten if platz_unten is None else platz_unten
 
 
-def _hershey_text(text, hand):
-    """Kurze Wörter (≤ 2 Buchstaben) schreibt das Modell schlecht – die kommen aus dem Formelsatz (Hershey)."""
+def _hershey_text(text, hand, durchstreichen=False):
+    """Text in der einen Handschrift (Hershey + Schreiber-Profil): Wort für Wort mit eigener Grundlinie, Größe und Lage,
+    unregelmäßige Wortabstände – und je nach Unordnung ab und zu ein verschriebenes, durchgestrichenes Wort."""
+    rng, u = hand.rng, hand.u
+    em = hand.em
+    satz = hf.Satz(hand)
     t = text.replace("–", "-").replace("−", "-").replace("„", '"').replace("“", '"').replace("”", '"')
-    k = hf.Satz(hand).wort(t, 1.0)
-    k.striche = [hand.zittern(p) for p in k.striche]
-    return k
+    striche, x, fehl = [], 0.0, 0
+    for i, wort in enumerate(t.split()):
+        if i:
+            x += 0.42 * em * hand.abstand * (1 + rng.normal(0, 0.15 + 0.1 * u))
+        if durchstreichen and len(wort) >= 4 and wort.isalpha() and rng.random() < 0.04 * u:
+            falsch = satz.wort(_verschreiben(wort, rng), 1.0)
+            y = -0.35 * em + rng.normal(0, 0.05 * em)
+            striche += [q + np.array([x, 0.0]) for q in falsch.striche]
+            striche.append(np.array([[x - 0.05 * em, y + rng.normal(0, 0.06 * em)], [x + falsch.breite + 0.05 * em, y + rng.normal(0, 0.06 * em)]]))
+            x += falsch.breite + 0.35 * em
+            fehl += 1
+        k = satz.wort(wort, 1.0 + rng.normal(0, 0.025 + 0.03 * u))
+        dy = rng.normal(0, 0.03 + 0.04 * u) * em
+        winkel = rng.normal(0, 0.008 + 0.012 * u)
+        mitte = np.array([x + k.breite / 2, 0.0])
+        for q in k.striche:
+            q = q + np.array([x, dy])
+            striche.append(_drehen(q, winkel, mitte))
+        x += k.breite
+    erg = hf.Kasten([hand.zittern(q) if len(q) > 2 else q for q in striche], x, 0, 0)
+    alle = np.concatenate(erg.striche) if erg.striche else np.zeros((1, 2))
+    erg.oben, erg.unten = max(0.0, -float(alle[:, 1].min())), max(0.0, float(alle[:, 1].max()))
+    erg.fehl = fehl
+    return erg
 
 
 def gemischt(sch, hand, teile, hoehe_ziel, durchstreichen, modell_zeichen, druckschrift=False):
@@ -563,7 +588,8 @@ def gemischt(sch, hand, teile, hoehe_ziel, durchstreichen, modell_zeichen, druck
         # Kurze Wörter zwischen Formeln und Tabellenzellen: Druckschrift – das Modell braucht ganze Zeilen als Kontext
         # (gemessen: „und“ wurde zu einem Punkt, „Wert“ fehlte, „also stimmt“ wurde Gekritzel; ab ~12 Buchstaben geht es)
         if druckschrift or sum(c.isalpha() for c in text) < 12:
-            k = _hershey_text(text, hand)
+            k = _hershey_text(text, hand, durchstreichen and druckschrift != "tabelle")
+            fehl += getattr(k, "fehl", 0)
             linien += [p + np.array([x, 0.0]) for p in k.striche]
             x += k.breite
             continue
@@ -626,7 +652,7 @@ def tabelle_gestalten(sch, hand, reihen, kopf, hoehe_ziel, zeilenabstand, durchs
                 r.append(Zeile([], 0.0))
                 continue
             teile = [("kasten", hf.formel(s[1], hand, latex=s[2])) if s[0] == "mathe" else s for s in hf.segmente(inhalt)]
-            z, f, w = gemischt(sch, hand, teile, hoehe_ziel, durchstreichen, modell_zeichen, druckschrift=True)
+            z, f, w = gemischt(sch, hand, teile, hoehe_ziel, durchstreichen, modell_zeichen, druckschrift="tabelle")
             fehl += f
             weg |= w
             r.append(z)
@@ -676,7 +702,7 @@ def ausrichten(gesetzt):
 
 
 def schreiben(text, unordnung=0.5, papier="blanko", tinte="blau", groesse=1.0, durchstreichen=True, seed=None,
-              modell=None, frist=None):
+              modell=None, frist=None, stil="einheitlich"):
     """→ {"seiten": [svg, …], "weggelassen": [...], "unbekannt": [...], "zeilen": n, "verschrieben": n, "wiederholt": n,
     "formeln": n, "tabellen": n}"""
     if not isinstance(text, str) or not text.strip():
@@ -687,8 +713,12 @@ def schreiben(text, unordnung=0.5, papier="blanko", tinte="blau", groesse=1.0, d
         raise HandschriftFehler("papier: blanko, liniert, kariert oder keins (durchsichtig, eng zugeschnitten).")
     if tinte not in TINTEN:
         raise HandschriftFehler(f"tinte: {', '.join(TINTEN)}.")
+    if stil not in ("einheitlich", "ki"):
+        raise HandschriftFehler("stil: einheitlich (eine Handschrift für alles, Standard) oder ki (Fließtext vom KI-Modell).")
     groesse = float(min(1.6, max(0.6, groesse)))
-    m = modell or Modell()
+    einheitlich = stil == "einheitlich"
+    # E215: einheitlich braucht das KI-Modell gar nicht (nur dessen Zeichensatz-Prüfung entfällt)
+    m = modell or (Modell() if not einheitlich else None)
     rng = np.random.default_rng(seed)
     sch = Schreiber(m, unordnung, rng, frist if frist is not None else time.time() + ZEIT_BUDGET)
     u = sch.u
@@ -716,7 +746,7 @@ def schreiben(text, unordnung=0.5, papier="blanko", tinte="blau", groesse=1.0, d
                 j += 1
             reihen, kopf = hf.tabelle_lesen(eingabe[i:j])
             if reihen:
-                z, f, w = tabelle_gestalten(sch, hand, reihen, kopf, hoehe_ziel, zeilenabstand, durchstreichen, m.zeichen)
+                z, f, w = tabelle_gestalten(sch, hand, reihen, kopf, hoehe_ziel, zeilenabstand, durchstreichen, m.zeichen if m else "")
                 verschrieben += f
                 weg |= w
                 tabellen += 1
@@ -731,7 +761,7 @@ def schreiben(text, unordnung=0.5, papier="blanko", tinte="blau", groesse=1.0, d
             gesetzt.append(Zeile([], 0.0, art="leer"))
             continue
         segs = hf.segmente(zeile)
-        if all(s[0] == "text" for s in segs):
+        if all(s[0] == "text" for s in segs) and not einheitlich:
             t, um, w = vorbereiten(zeile, m.zeichen)
             weg |= w
             for tz, tum in umbrechen([(" ".join(t.split(" ")) if t.strip() else "", um)], breite_zeichen):
@@ -743,7 +773,9 @@ def schreiben(text, unordnung=0.5, papier="blanko", tinte="blau", groesse=1.0, d
             continue
         formeln += sum(1 for s in segs if s[0] == "mathe")
         for teile in _umbrechen_gemischt(_einheiten(segs, hand), nutzbreite, cw):
-            z, f, w = gemischt(sch, hand, teile, hoehe_ziel, durchstreichen, m.zeichen)
+            z, f, w = gemischt(sch, hand, teile, hoehe_ziel, durchstreichen, m.zeichen if m else "", druckschrift=einheitlich)
+            if einheitlich and z.art == "gemischt" and all(t[0] == "text" for t in teile):
+                z.art = "text"
             verschrieben += f
             weg |= w
             gesetzt.append(z)

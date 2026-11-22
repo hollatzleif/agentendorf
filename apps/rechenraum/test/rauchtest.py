@@ -157,7 +157,7 @@ if r["code"] != 0:
 if befehl("test -f /opt/handschrift/model.pt")["code"] == 0:
     for fmt, dateien in (("png", ["gruss.png"]), ("pdf", ["gruss.pdf"])):
         e = werkzeug({"art": "handschrift", "text": "Liebe Grüße aus Linz!\nÜbermorgen um 14:30.", "unordnung": 0.7,
-                      "papier": "liniert", "format": fmt, "name": "gruss", "seed": 3})
+                      "papier": "liniert", "format": fmt, "name": "gruss", "seed": 3, "stil": "ki"})
         if not e.get("ok") or e.get("dateien") != dateien or e.get("sekunden", 99) > 60:
             fehler.append(f"Handschrift {fmt}: {e}")
     # E213: Rechenweg, Formel und Tabelle
