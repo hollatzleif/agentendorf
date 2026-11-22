@@ -82,6 +82,27 @@ export const EXTRA_DEFINITIONEN: Record<ExtraWerkzeug, Omit<WerkzeugDefinition, 
       additionalProperties: false,
     },
   },
+  handschrift_schreiben: {
+    name: 'handschrift_schreiben',
+    description:
+      'Schreibt Text als echt wirkende Handschrift (KI-Modell im Rechenraum, ohne Internet): ungleichmäßig, jedes Wort etwas anders, auf Wunsch gekritzelt mit verschriebenen und durchgestrichenen Wörtern. Umlaute ja (ß wird „ss“), Ziffern und Satzzeichen ja; Emojis/Sonderzeichen fallen weg. Höchstens 1500 Zeichen je Aufruf (≈ 2 Seiten). Ergebnis als PNG, SVG oder PDF im Ablage-Ordner. Das Modell verschreibt sich manchmal von selbst (v. a. Ziffern, Großbuchstaben) – bei Wichtigem Bild prüfen oder mit anderem seed neu erzeugen.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        text: { type: 'string', description: 'Der Text; Zeilenumbrüche = neue Zeile/Absatz' },
+        unordnung: { type: 'number', description: '0 = ordentlich … 0,5 = normal (Standard) … 1 = hastig gekritzelt' },
+        papier: { type: 'string', enum: ['blanko', 'liniert', 'kariert', 'keins'], description: 'keins = durchsichtig, eng zugeschnitten (zum Einfügen)' },
+        tinte: { type: 'string', enum: ['blau', 'schwarz', 'bleistift', 'rot', 'gruen'] },
+        groesse: { type: 'number', description: 'Schriftgröße 0,6–1,6 (Standard 1)' },
+        durchstreichen: { type: 'boolean', description: 'ab und zu ein Wort verschreiben und durchstreichen (Standard ja; nur bei unordnung > 0 spürbar)' },
+        format: { type: 'string', enum: ['png', 'svg', 'pdf'] },
+        seed: { type: 'integer', description: 'gleicher seed = gleiches Schriftbild; weglassen = jedes Mal anders' },
+        name: { type: 'string' },
+      },
+      required: ['text'],
+      additionalProperties: false,
+    },
+  },
   daten_abfragen: {
     name: 'daten_abfragen',
     description:
@@ -337,6 +358,22 @@ export async function extraAufrufen(name: ExtraWerkzeug, eingabe: unknown, u: Ex
         .object({ quelle: z.string().min(1).max(100_000), format: z.enum(['svg', 'png', 'pdf']).optional(), programm: z.enum(['dot', 'neato', 'fdp', 'circo', 'twopi']).optional(), name: Name })
         .parse(eingabe);
       return dorfwerk(u, name, [], { art: 'diagramm', ...e }, { format: e.format, programm: e.programm, name: e.name, zeichen: e.quelle.length });
+    }
+    case 'handschrift_schreiben': {
+      const e = z
+        .object({
+          text: z.string().min(1).max(1500),
+          unordnung: z.number().min(0).max(1).optional(),
+          papier: z.enum(['blanko', 'liniert', 'kariert', 'keins']).optional(),
+          tinte: z.enum(['blau', 'schwarz', 'bleistift', 'rot', 'gruen']).optional(),
+          groesse: z.number().min(0.6).max(1.6).optional(),
+          durchstreichen: z.boolean().optional(),
+          format: z.enum(['png', 'svg', 'pdf']).optional(),
+          seed: z.number().int().min(0).max(2 ** 31).optional(),
+          name: Name,
+        })
+        .parse(eingabe);
+      return dorfwerk(u, name, [], { art: 'handschrift', ...e }, { ...e, text: undefined, zeichen: e.text.length });
     }
     case 'daten_abfragen': {
       const e = z.object({ dateien: Dateien, sql: z.string().max(20_000).optional(), als_csv: z.boolean().optional(), name: Name }).parse(eingabe);
@@ -686,7 +723,7 @@ export function extraHinweise(hat: (n: ExtraWerkzeug) => boolean): string[] {
   const z: string[] = [];
   if (hat('pdf_bearbeiten'))
     z.push(
-      '- pdf_bearbeiten, diagramm_zeichnen (Graphviz), daten_abfragen (SQL/DuckDB über CSV/Excel), qr_code, karten_anki (.apkg): feste Werkzeuge im Rechenraum, Ergebnis direkt im Ablage-Ordner. Mermaid: als ```mermaid-Block in eine Notiz schreiben. ZIP: python3 -m zipfile -c paket.zip … im Rechenraum.',
+      '- pdf_bearbeiten, diagramm_zeichnen (Graphviz), daten_abfragen (SQL/DuckDB über CSV/Excel), qr_code, karten_anki (.apkg), handschrift_schreiben (Text als echte, ungleichmäßige Handschrift – unordnung 0 ordentlich … 1 gekritzelt): feste Werkzeuge im Rechenraum, Ergebnis direkt im Ablage-Ordner. Mermaid: als ```mermaid-Block in eine Notiz schreiben. ZIP: python3 -m zipfile -c paket.zip … im Rechenraum.',
     );
   if (hat('literatur_suchen'))
     z.push('- literatur_suchen, doi_bibtex (merken → Uni/literatur.bib): nur echte, gefundene Quellen zitieren. verbindung_suchen: Zugverbindungen (nur Auskunft). wetter_vorhersage: bis 16 Tage.');

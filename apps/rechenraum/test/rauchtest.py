@@ -153,6 +153,16 @@ r = befehl("gs --version && dot -V 2>&1 && python3 -c 'import pypdf, segno, gena
 if r["code"] != 0:
     fehler.append("Dorfwerk-Pakete fehlen:\n" + r["ausgabe"])
 
+# E212: Handschrift – mit Modell im Image (Download beim Bau mit Prüfsumme) muss PNG und PDF gehen, auch mit Umlauten
+if befehl("test -f /opt/handschrift/model.pt")["code"] == 0:
+    for fmt, dateien in (("png", ["gruss.png"]), ("pdf", ["gruss.pdf"])):
+        e = werkzeug({"art": "handschrift", "text": "Liebe Grüße aus Linz!\nÜbermorgen um 14:30.", "unordnung": 0.7,
+                      "papier": "liniert", "format": fmt, "name": "gruss", "seed": 3})
+        if not e.get("ok") or e.get("dateien") != dateien or e.get("sekunden", 99) > 60:
+            fehler.append(f"Handschrift {fmt}: {e}")
+else:
+    print("WARNUNG: Handschrift-Modell fehlt in diesem Image (Quelle beim Bau nicht erreichbar).")
+
 # E198: Bildbearbeitung (/bild) – Pillow-Schritte immer; die KI-Schritte, wenn die Modelle im Image sind (der Bau lädt sie
 # mit Prüfsumme; war eine Quelle nicht erreichbar, fehlen sie – dann hier nur eine Warnung, kein Fehlschlag)
 BILD = r"""

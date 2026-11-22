@@ -2,7 +2,8 @@
  * E199 – Werkzeuge aus der Ideen-Liste (docs/werkzeug-ideen.md). Hier stehen NUR die Namen und Gruppen; die Leine selbst
  * bleibt in leine.ts (werkzeugprofil), die Ausführung in werkzeuge-extra.ts. Einstufung:
  *
- * - Rechenraum (wer den Rechenraum hat): PDF bearbeiten, Diagramme, QR-Codes, Datenabfragen, Anki-Export – rechnet ohne
+ * - Rechenraum (wer den Rechenraum hat): PDF bearbeiten, Diagramme, QR-Codes, Datenabfragen, Anki-Export, Handschrift
+ *   (E212) – rechnet ohne
  *   Netz im Rechenraum, Ergebnisse nur in den vom Code bestimmten Ablage-Ordner (wie rechenraum_ablegen).
  * - Netz (nur Läufe mit Web): Literatur, DOI → BibTeX, Zugverbindungen, Wetter. Der Agent bestimmt den Text, der hinausgeht
  *   (Suchwörter, Orte) – das ist ein Abflussweg wie die Websuche, darum dieselbe Regel. Antworten sind Fremdinhalt (Hülle).
@@ -12,7 +13,7 @@
  *
  * Nichts davon sendet, zahlt oder reicht ein.
  */
-export const EXTRA_RECHENRAUM = ['pdf_bearbeiten', 'diagramm_zeichnen', 'daten_abfragen', 'qr_code', 'karten_anki'] as const;
+export const EXTRA_RECHENRAUM = ['pdf_bearbeiten', 'diagramm_zeichnen', 'daten_abfragen', 'qr_code', 'karten_anki', 'handschrift_schreiben'] as const;
 export const EXTRA_NETZ = ['literatur_suchen', 'doi_bibtex', 'verbindung_suchen', 'wetter_vorhersage'] as const;
 export const EXTRA_ALLTAG = ['feiertage', 'umrechnen'] as const;
 export const EXTRA_POST = ['post_anhang_lesen'] as const;

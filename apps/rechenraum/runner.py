@@ -1544,6 +1544,8 @@ def werkzeug(raum_dir, auftrag):
     }
     if os.environ.get("PYTHONPATH"):  # nur Tests außerhalb des Images (Pakete in einem eigenen Ordner)
         umgebung["PYTHONPATH"] = os.environ["PYTHONPATH"]
+    if os.environ.get("HANDSCHRIFT_MODELL"):  # E212: im Image /opt/handschrift; Tests geben ein kleines Modell vor
+        umgebung["HANDSCHRIFT_MODELL"] = os.environ["HANDSCHRIFT_MODELL"]
     if not WERKZEUG_GLEICHZEITIG.acquire(timeout=60):
         return {"ok": False, "fehler": "Der Rechenraum ist gerade mit einem anderen Werkzeug beschäftigt – gleich noch einmal versuchen.", "dateien": []}
     try:

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Dorfwerk (E199): feste Werkzeuge im Rechenraum, die das Dorf für Agenten aufruft – PDF bearbeiten, Diagramme (Graphviz),
-QR-Codes, Anki-Pakete und Datenabfragen (DuckDB/pandas). Ohne Shell, ohne Internet, ohne Vault.
+QR-Codes, Anki-Pakete, Datenabfragen (DuckDB/pandas) und Handschrift (E212, handschrift.py). Ohne Shell, ohne Internet,
+ohne Vault.
 
 Aufruf NUR über runner.py (/werkzeug): `python3 dorfwerk.py <auftrag.json>` im Arbeitsordner des Raums, als Kindprozess
 mit Zeit- und Speichergrenze (wie /umwandeln). Eingaben sind Dateien im Arbeitsordner (das Dorf kopiert Vault-Dateien
@@ -686,7 +687,73 @@ def _sqlite(dateien, sql):
 
 # ---- Einstieg -----------------------------------------------------------------------------------------------------
 
-ARTEN = {"pdf": pdf, "diagramm": diagramm, "qr": qr, "anki": anki, "daten": daten}
+# ---- Handschrift (E212, handschrift.py) ----------------------------------------------------------------------------
+
+def handschrift(a):
+    try:
+        import handschrift as hs
+    except ImportError as e:
+        raise Fehler(f"Handschrift fehlt im Rechenraum ({e}).")
+    fmt = a.get("format") or "png"
+    if fmt not in ("png", "svg", "pdf"):
+        raise Fehler("format: png, svg oder pdf.")
+    try:
+        unordnung = float(a.get("unordnung", 0.5))
+        groesse = float(a.get("groesse", 1.0))
+    except (TypeError, ValueError):
+        raise Fehler("unordnung (0–1) und groesse (0,6–1,6) sind Zahlen.")
+    papier = a.get("papier") or "blanko"
+    tinte = a.get("tinte") or "blau"
+    seed = a.get("seed")
+    if seed is not None and not isinstance(seed, int):
+        raise Fehler("seed: ganze Zahl.")
+    try:
+        erg = hs.schreiben(str(a.get("text") or ""), unordnung=unordnung, papier=papier, tinte=tinte, groesse=groesse,
+                           durchstreichen=a.get("durchstreichen", True) is not False, seed=seed)
+    except hs.HandschriftFehler as e:
+        raise Fehler(str(e))
+    seiten = erg["seiten"]
+    if not seiten:
+        raise Fehler("Nichts zu schreiben.")
+    basis = ausgabe_name(re.sub(r"\.(png|svg|pdf)$", "", str(a.get("name") or ""), flags=re.I), ".svg", "handschrift")[:-4]
+    os.makedirs(im_ordner(".dorfwerk"), exist_ok=True)
+    svgs = []
+    for i, svg in enumerate(seiten, 1):
+        name = f"{basis}.svg" if len(seiten) == 1 else f"{basis}-{i}.svg"
+        ziel = im_ordner(name if fmt == "svg" else f".dorfwerk/{name}")
+        with open(ziel, "w", encoding="utf-8") as f:
+            f.write(svg)
+        svgs.append((name, ziel))
+    dateien = []
+    if fmt == "svg":
+        dateien = [n for n, _ in svgs]
+    else:
+        rsvg = shutil.which("rsvg-convert")
+        if not rsvg:
+            raise Fehler("rsvg-convert fehlt im Rechenraum – nur svg geht.")
+        if fmt == "pdf":
+            aus = f"{basis}.pdf"
+            r = subprocess.run([rsvg, "-f", "pdf", "-o", im_ordner(aus)] + [z for _, z in svgs], capture_output=True, timeout=60)
+            if r.returncode != 0 or not os.path.isfile(im_ordner(aus)):
+                raise Fehler(f"PDF ging nicht: {r.stderr.decode('utf-8', 'replace')[-300:]}")
+            dateien = [aus]
+        else:
+            for name, z in svgs:
+                aus = name[:-4] + ".png"
+                r = subprocess.run([rsvg, "-f", "png", "--dpi-x", "150", "--dpi-y", "150", "-o", im_ordner(aus), z], capture_output=True, timeout=60)
+                if r.returncode != 0 or not os.path.isfile(im_ordner(aus)):
+                    raise Fehler(f"PNG ging nicht: {r.stderr.decode('utf-8', 'replace')[-300:]}")
+                dateien.append(aus)
+    teile = [f"Handschrift geschrieben: {erg['zeilen']} Zeilen auf {len(seiten)} Seite(n), {fmt.upper()}."]
+    if erg["verschrieben"]:
+        teile.append(f"{erg['verschrieben']}× verschrieben und durchgestrichen (gewollt – abschalten mit durchstreichen: false).")
+    if erg["weggelassen"]:
+        teile.append("Diese Zeichen kann die Handschrift nicht und hat sie weggelassen: " + " ".join(erg["weggelassen"]))
+    teile.append("Das Modell verschreibt sich manchmal (v. a. bei Ziffern und Großbuchstaben) – bei wichtigen Texten Bild ansehen, sonst neu erzeugen.")
+    return {"ok": True, "text": " ".join(teile), "dateien": dateien}
+
+
+ARTEN = {"pdf": pdf, "diagramm": diagramm, "qr": qr, "anki": anki, "daten": daten, "handschrift": handschrift}
 
 
 def ausfuehren(auftrag):

@@ -21,6 +21,7 @@ Alle Gebäude, Figuren, Autos, Bäume, Symbole und Effekte des 3D-Dorfs sind **e
 | onnxruntime 1.19.2 (Microsoft) | Rechenraum: führt die beiden Bildmodelle auf der CPU aus (`apps/rechenraum/Dockerfile`, E198) | MIT |
 | U²-Net „u2netp“ (Qin et al., 2020; ONNX-Datei aus den Releases von danielgatis/rembg) | Rechenraum: „Hintergrund entfernen“ – Modell, 4,6 MB, mit Prüfsumme ins Image geladen | Apache-2.0 |
 | Real-ESRGAN „general-x4v3“ (Xintao Wang et al.; ONNX-Fassung von Qualcomm AI Hub, v0.67.0) | Rechenraum: „Hochskalieren“ – Modell, 4,8 MB, mit Prüfsumme ins Image geladen | BSD-3-Clause |
+| Handschrift-Modell (Graves 2013, „Generating Sequences With Recurrent Neural Networks“; Gewichte aus X-rayLaser/pytorch-handwriting-synthesis-toolkit, Commit 899e943, trainiert auf IAM-OnDB) | Rechenraum: `handschrift_schreiben` – Modell, 15 MB, mit Prüfsumme ins Image geladen, eigene NumPy-Umsetzung (`apps/rechenraum/handschrift.py`) | MIT (© 2021 Evgenii Dolotov); IAM-OnDB-Daten nur für nicht-kommerzielle Forschung – hier rein privater Gebrauch |
 | Pillow (im Rechenraum-Image aus Debian) | Rechenraum: Bilder lesen, zuschneiden, drehen, speichern | HPND (MIT-ähnlich) |
 
 Der Bildeditor (Atelier, E198) selbst nutzt keine zusätzliche Bibliothek – nur das Canvas-2D des Browsers. „Bild generieren“ ruft, wenn eingerichtet, Cloudflare Workers AI auf (FLUX.2 [klein] von Black Forest Labs; es gelten die Bedingungen von Cloudflare und bfl.ai/legal/terms-of-service – kein Bestandteil dieses Repos).

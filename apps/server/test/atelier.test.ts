@@ -79,8 +79,9 @@ describe('Atelier: Vorlage', () => {
     expect(g.find((x) => x.id === 'Atelier')).toMatchObject({ status: 'offen', symbol: '🎨' });
     expect(g.find((x) => x.id === 'Atelier')!.fehler).toBeUndefined();
     const a = (await aktionenListe(d.vault)).filter((x) => x.gebaeude === 'Atelier');
-    expect(a.map((x) => x.id)).toEqual(['Atelier/bild-bearbeiten']);
-    expect(a[0]!.fehler).toBeUndefined();
+    // E212: dazu „In Handschrift schreiben“
+    expect(a.map((x) => x.id).sort()).toEqual(['Atelier/bild-bearbeiten', 'Atelier/handschrift']);
+    for (const x of a) expect(x.fehler, x.id).toBeUndefined();
     // im Dorfplan steht es von selbst
     const plan = (await d.app.inject({ url: '/api/dorf', headers: h })).json() as { layout: { gebaeude: Record<string, unknown> } };
     expect(plan.layout.gebaeude.Atelier).toBeTruthy();

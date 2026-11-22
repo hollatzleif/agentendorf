@@ -96,6 +96,8 @@ const PFLICHT_DATEIEN = [
   // E198 Atelier
   'Atelier/gebaeude.md',
   'Atelier/aktionen/bild-bearbeiten.md',
+  // E212 Handschrift
+  'Atelier/aktionen/handschrift.md',
 ];
 
 /**

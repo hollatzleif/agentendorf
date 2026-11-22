@@ -10,6 +10,7 @@
 # odfpy, Pillow, matplotlib – Word, Excel, PowerPoint, OpenDocument, Bilder, Diagramme.
 # E199 – feste Werkzeuge (dorfwerk.py über /werkzeug): pypdf (PDF bearbeiten), Ghostscript (PDF verkleinern), Graphviz
 # (Diagramme), segno (QR-Codes), genanki (Anki-Pakete), DuckDB + pandas (Datenabfragen). Mermaid bräuchte Chromium – nicht drin.
+# E212 – Handschrift (handschrift.py, nur NumPy + rsvg-convert) mit den Gewichten aus /opt/handschrift.
 
 # ---- whisper.cpp (Transkription) – feste Version, Modell mit Prüfsumme ------------------------------------------------
 # Gebaut für x86-64 mit AVX2/FMA (jede Server-CPU seit 2013); ohne AVX2 wäre es ~10× langsamer. Fehlt AVX2 auf dem Server,
@@ -62,6 +63,18 @@ RUN if curl -fsSL -o /tmp/esr.zip https://qaihub-public-assets.s3.us-west-2.amaz
       && echo "512d0ec9940c2e9d85d27f2952f12a0b77b7841dc22df4ce9f3ea458bc98f37f  /bild/real_esrgan_general_x4v3.data" | sha256sum -c -; \
     else echo "WARNUNG: Real-ESRGAN nicht geladen – Hochskalieren fehlt in diesem Image"; fi
 
+# E212 Handschrift (handschrift.py): Gewichte des Graves-Modells aus X-rayLaser/pytorch-handwriting-synthesis-toolkit
+# (MIT, © 2021 Evgenii Dolotov; trainiert auf IAM-OnDB) – fester Commit, Prüfsummen. Kein PyTorch: handschrift.py liest
+# model.pt selbst (nur NumPy). Fehlt die Quelle, baut das Image trotzdem (Werkzeug meldet „Modell fehlt“).
+RUN mkdir /handschrift && Q=https://raw.githubusercontent.com/X-rayLaser/pytorch-handwriting-synthesis-toolkit/899e9432dfe0998ba2ef31582d11c2d5f24a5185 \
+    && if curl -fsSL -o /handschrift/model.pt "$Q/checkpoints/Epoch_56/model.pt" \
+         && curl -fsSL -o /handschrift/meta.json "$Q/checkpoints/Epoch_56/meta.json" \
+         && curl -fsSL -o /handschrift/LICENSE "$Q/LICENSE"; then \
+      echo "e5eddd9f771ef1f0414909e61f173e88f293a35cb4c99cf359ac296552349e43  /handschrift/model.pt" | sha256sum -c - \
+      && echo "00c383051895af5a091743652597dc4a9c456c70d07ec7ca51a96fcad6e6f70c  /handschrift/meta.json" | sha256sum -c - \
+      && echo "f41b79c57cec88a12132c678006fec1844470a9232471d21371ad21d5a91087e  /handschrift/LICENSE" | sha256sum -c -; \
+    else echo "WARNUNG: Handschrift-Modell nicht geladen – handschrift_schreiben fehlt in diesem Image"; rm -f /handschrift/*; fi
+
 # ---- Rechenraum ---------------------------------------------------------------------------------------------------
 FROM debian:bookworm-slim
 ENV DEBIAN_FRONTEND=noninteractive
@@ -81,9 +94,11 @@ COPY --from=whisper /pptx/pptx /usr/local/lib/python3.11/dist-packages/pptx
 COPY --from=whisper /dorfwerk/ /usr/local/lib/python3.11/dist-packages/
 COPY --from=whisper /ort/onnxruntime /usr/local/lib/python3.11/dist-packages/onnxruntime
 COPY --from=whisper /bild /opt/bild
+COPY --from=whisper /handschrift /opt/handschrift
 RUN useradd -u 1000 -m rechner && mkdir -p /arbeit && chown rechner:rechner /arbeit
 COPY apps/rechenraum/runner.py /app/runner.py
 COPY apps/rechenraum/dorfwerk.py /app/dorfwerk.py
+COPY apps/rechenraum/handschrift.py /app/handschrift.py
 ENV ARBEIT_DIR=/arbeit PORT=4100 PYTHONUNBUFFERED=1 WHISPER_MODELL=/opt/whisper/ggml-base-q5_1.bin
 USER rechner
 EXPOSE 4100

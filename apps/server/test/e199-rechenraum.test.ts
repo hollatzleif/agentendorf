@@ -18,6 +18,11 @@ const PYPDF = hat('pypdf');
 const DATEN = hat('duckdb') || hat('pandas');
 const SEGNO = hat('segno');
 const GENANKI = hat('genanki');
+const NUMPY = hat('numpy');
+/** E212: winziges Zufallsmodell im torch.save-Format (das echte Modell liegt nur im Image) */
+const HANDSCHRIFT_MODELL = tempOrdner('handschrift-modell-');
+if (NUMPY)
+  spawnSync('python3', ['-c', 'import sys; sys.path.insert(0, sys.argv[1]); import test_handschrift as t; t.kleines_modell(sys.argv[2])', path.resolve(import.meta.dirname, '../../rechenraum/test'), HANDSCHRIFT_MODELL], { stdio: 'inherit' });
 const ABLAGE = 'Rathaus/dateien/2026-11-16_1300_test';
 
 /** PDF mit n Seiten („Seite i“), reines ASCII */
@@ -55,7 +60,7 @@ beforeAll(async () => {
     });
   });
   runner = spawn('python3', [path.resolve(import.meta.dirname, '../../rechenraum/runner.py')], {
-    env: { ...process.env, ARBEIT_DIR: tempOrdner('rechenraum-e199-'), PORT: String(port), RECHENRAUM_GEHEIMNIS: GEHEIM, ZEITLIMIT_S: '60' },
+    env: { ...process.env, ARBEIT_DIR: tempOrdner('rechenraum-e199-'), PORT: String(port), RECHENRAUM_GEHEIMNIS: GEHEIM, ZEITLIMIT_S: '60', HANDSCHRIFT_MODELL },
     stdio: 'inherit',
   });
   url = `http://127.0.0.1:${port}`;
@@ -172,6 +177,21 @@ describe('E199 – Rechenraum-Werkzeuge (echter Runner)', () => {
     expect(leer.statusCode).toBe(404);
   });
 
+  it.skipIf(!NUMPY)('handschrift_schreiben (E212): SVG im Ablage-Ordner, Text nicht im Protokoll, Grenzen geprüft', async () => {
+    const { d, k } = await aufbau();
+    const r = await k.aufrufen('handschrift_schreiben', { text: 'Liebe Grüße, Leif!', papier: 'liniert', unordnung: 0.8, format: 'svg', seed: 1, name: 'gruss' });
+    expect(r.ok, r.text).toBe(true);
+    expect(r.text).toContain('Handschrift geschrieben');
+    expect(r.text).toContain(`- ${ABLAGE}/gruss.svg`);
+    expect((await d.vault.lesen(`${ABLAGE}/gruss.svg`)).inhalt).toMatch(/^<svg /);
+    const log = d.db.prepare("SELECT eingabe_json FROM werkzeug_log WHERE werkzeug = 'handschrift_schreiben'").all() as { eingabe_json: string }[];
+    expect(log.length).toBeGreaterThan(0);
+    expect(log.map((l) => l.eingabe_json).join('')).not.toContain('Liebe Grüße');
+    // was das Werkzeug nicht kann, kommt ehrlich zurück
+    expect((await k.aufrufen('handschrift_schreiben', { text: 'x', unordnung: 3 })).ok).toBe(false);
+    expect((await k.aufrufen('handschrift_schreiben', { text: 'x'.repeat(1501) })).ok).toBe(false);
+  });
+
   it('App-Knopf ohne Rechenraum: 503 mit Grund; ohne Anmeldung: 401', async () => {
     const d = await testDorf();
     expect((await d.app.inject({ method: 'GET', url: '/api/karten/anki?fach=Statistik' })).statusCode).toBe(401);
@@ -184,6 +204,6 @@ describe('E199 – Rechenraum-Werkzeuge (echter Runner)', () => {
 });
 
 // Für die Übersicht in der Ausgabe: was lokal übersprungen wurde
-if (!PYPDF || !DATEN || !SEGNO || !GENANKI)
-  console.warn(`E199-Rechenraum: übersprungen ohne ${[!PYPDF && 'pypdf', !DATEN && 'pandas/duckdb', !SEGNO && 'segno', !GENANKI && 'genanki'].filter(Boolean).join(', ')}`);
+if (!PYPDF || !DATEN || !SEGNO || !GENANKI || !NUMPY)
+  console.warn(`E199-Rechenraum: übersprungen ohne ${[!PYPDF && 'pypdf', !DATEN && 'pandas/duckdb', !SEGNO && 'segno', !GENANKI && 'genanki', !NUMPY && 'numpy'].filter(Boolean).join(', ')}`);
 
