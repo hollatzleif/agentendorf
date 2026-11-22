@@ -378,8 +378,6 @@ class Formeln(unittest.TestCase):
 
 
 @unittest.skipUnless(np is not None, "numpy fehlt")
-
-
 class Schriftprobe(unittest.TestCase):
     """E216: Leifs echte Striche aus der Schriftprobe – prüfen, neu abtasten, statt der erfundenen Hand benutzen."""
 
@@ -434,6 +432,7 @@ class Schriftprobe(unittest.TestCase):
         self.assertNotEqual(mit["seiten"][0], ohne["seiten"][0])
 
 
+@unittest.skipUnless(np is not None, "numpy fehlt")
 class Dorfwerk(unittest.TestCase):
     """Der Weg, den das Dorf nimmt: dorfwerk.py-Auftrag „handschrift“ → Dateien im Arbeitsordner."""
 
