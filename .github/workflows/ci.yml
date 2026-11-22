@@ -198,8 +198,8 @@ jobs:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
         run: |
-          # Kennung = Hash über Dockerfile, Runner, Dorfwerk (E199) und Handschrift (E212); gleiches Rezept → gleiches Image → nicht erneut schicken
-          RV=$(cat apps/rechenraum/Dockerfile apps/rechenraum/runner.py apps/rechenraum/dorfwerk.py apps/rechenraum/handschrift.py | sha256sum | cut -c1-16)
+          # Kennung = Hash über Dockerfile, Runner, Dorfwerk (E199), Handschrift (E212) und Handformel (E213); gleiches Rezept → gleiches Image → nicht erneut schicken
+          RV=$(cat apps/rechenraum/Dockerfile apps/rechenraum/runner.py apps/rechenraum/dorfwerk.py apps/rechenraum/handschrift.py apps/rechenraum/handformel.py apps/rechenraum/hershey/glyphen.json | sha256sum | cut -c1-16)
           echo "kennung=$RV" >> "$GITHUB_OUTPUT"
           HAT=nein
           if [ -n "$DEPLOY_HOST" ] && [ "${{ github.ref }}" = refs/heads/main ] && [ "${{ github.event_name }}" != pull_request ]; then

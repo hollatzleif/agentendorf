@@ -155,9 +155,11 @@ apps/rechenraum eigener Container: pdflatex (texlive), Python (numpy/sympy/scipy
                 /umwandeln (E190): fremde Dateien → Text/Bilder in eigenem Kindprozess (420 s, 1024 MB Adressraum – kleiner geht nicht, Messwerte in runner.py; Zip-Bomben-Grenzen); dazu ffmpeg,
                 whisper.cpp (base-q5_1, im Image), tesseract deu+eng, rsvg, heif-convert, catdoc, xlrd, olefile; python-docx/openpyxl/python-pptx/odfpy.
                 /werkzeug (E199): dorfwerk.py mit JSON-Auftrag statt Shell (PDF mit pypdf/Ghostscript, Graphviz, segno, genanki, DuckDB/pandas),
-                einzeln, 120 s, Adressraum 1536 MB (DuckDB reserviert ~1,3 GB, belegt ~80 MB); pip-Pakete mit Prüfsumme; Image-Kennung inkl. dorfwerk.py und handschrift.py.
+                einzeln, 120 s, Adressraum 1536 MB (DuckDB reserviert ~1,3 GB, belegt ~80 MB); pip-Pakete mit Prüfsumme; Image-Kennung inkl. dorfwerk.py, handschrift.py, handformel.py, hershey/glyphen.json.
                 handschrift.py (E212): Graves-Handschriftmodell nur mit NumPy (eigener Leser für model.pt aus /opt/handschrift, keine
                 fremden Pickle-Funktionen), Zeilen bewerten/neu erzeugen, Wort für Wort verzerren, Umlaut-Punkte, Durchstreichen → SVG/PNG/PDF.
+                handformel.py (E213): Formelsatz von Hand ($…$/LaTeX-Teilmenge oder 3x + 5 = 20 | -5; Brüche, Wurzeln, ∑∫lim, Tabellen
+                aus Markdown, Rechenwege am „=“ ausgerichtet) mit Hershey-Einstrichzeichen (hershey/glyphen.json, Danksagung Pflicht).
 apps/browser    Moodle-Browser (E57): Chromium über playwright-core + Runner (HTTP, Bearer-Geheimnis). leine.ts = DIE Regeln
                 (nur Domains aus BROWSER_HOSTS, GET ja außer sesskey/Abmelden, POST nur Anmeldeformular als Seiten-
                 navigation oder lesende Moodle-Ajax-Funktionen), browser.ts = Sitzung je Lauf, nummerierte Links,
@@ -282,3 +284,4 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E210 (21.11.): Antworten des Bürgermeisters – erledigt → „Erledigt:“/„Für dich:“ + höchstens ein Absatz; nur gefragt → kurzer Fließtext (`ANTWORT_AN_LEIF`, kontext.ts); Protokoll-Zusammenfassung in der App eingeklappt
 - [x] E211 (22.11.): Telegram-Meldung „Fertig mit Entwurf“ entfernt (Leif braucht sie nicht; Schalter `entwuerfe` ohne Wirkung)
 - [x] E212 (22.11.): Handschrift – `handschrift_schreiben` + Atelier-Aktion „In Handschrift schreiben“ (Graves-Modell, MIT, nur NumPy im Rechenraum; ordentlich bis gekritzelt, Umlaute, Durchstreichen, liniert/kariert) – Rechenraum-Image kommt mit dem Deploy
+- [x] E213 (22.11.): Handschrift kann Mathe – Formeln ($…$ oder schlicht), Rechenwege am „=“ ausgerichtet, Brüche/Wurzeln/∑∫, Markdown-Tabellen mit Handgitter (handformel.py + Hershey); „=“ wird nicht mehr zu „-“

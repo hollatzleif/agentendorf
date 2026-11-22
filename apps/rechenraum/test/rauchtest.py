@@ -160,6 +160,11 @@ if befehl("test -f /opt/handschrift/model.pt")["code"] == 0:
                       "papier": "liniert", "format": fmt, "name": "gruss", "seed": 3})
         if not e.get("ok") or e.get("dateien") != dateien or e.get("sekunden", 99) > 60:
             fehler.append(f"Handschrift {fmt}: {e}")
+    # E213: Rechenweg, Formel und Tabelle
+    e = werkzeug({"art": "handschrift", "text": "3x + 5 = 20 | -5\n3x = 15\nx = 5\n$\\frac{1}{2} + \\sqrt{x^2}$\n| a | b |\n|---|---|\n| 1 | 2,5 |",
+                  "papier": "kariert", "format": "png", "name": "mathe", "seed": 1})
+    if not e.get("ok") or e.get("dateien") != ["mathe.png"] or "Formel" not in e.get("text", ""):
+        fehler.append(f"Handschrift Mathe: {e}")
 else:
     print("WARNUNG: Handschrift-Modell fehlt in diesem Image (Quelle beim Bau nicht erreichbar).")
 

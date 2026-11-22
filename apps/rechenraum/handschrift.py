@@ -16,6 +16,10 @@ Ungleichmäßig und „etwas gekritzelt“ wird es auf zwei Ebenen:
      durchgestrichen, bevor es richtig dasteht.
 Das Modell kennt keine Umlaute: ä/ö/ü werden als a/o/u geschrieben und die Punkte danach über genau diesen Buchstaben
 gesetzt (das Aufmerksamkeitsfenster verrät, welcher Strich zu welchem Zeichen gehört); ß wird „ss“.
+
+E213 – Mathe und Tabellen: Formeln ($…$ oder erkennbar an Ziffern/Rechenzeichen), Rechenwege und Markdown-Tabellen setzt
+handformel.py (Hershey-Einstrichzeichen mit Handzittern) – das Modell schreibt nur den Fließtext dazwischen. Rechenwege
+werden am „=“ (oder „&“) untereinander ausgerichtet, Zeilen mit Brüchen bekommen so viel Platz, wie sie brauchen.
 """
 import io
 import math
@@ -26,6 +30,11 @@ import zipfile
 from collections import OrderedDict
 
 import numpy as np
+
+import sys as _sys
+if os.path.dirname(os.path.abspath(__file__)) not in _sys.path:     # handformel.py liegt daneben (Image: /app)
+    _sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import handformel as hf  # noqa: E402
 
 MODELL_ORDNER = os.environ.get("HANDSCHRIFT_MODELL", "/opt/handschrift")
 MAX_TEXT = 1500             # Zeichen je Auftrag (≈ 2 Seiten; ~1 s je 50 Zeichen auf einem Kern)
@@ -193,7 +202,7 @@ class Modell:
 _UMLAUTE = {"ä": "a", "ö": "o", "ü": "u", "Ä": "A", "Ö": "O", "Ü": "U"}
 _ERSATZ = {"ß": "ss", "„": '"', "“": '"', "”": '"', "«": '"', "»": '"', "‚": "'", "‘": "'", "’": "'", "´": "'", "`": "'",
            "–": "-", "—": "-", "‒": "-", "…": "...", "&": "+", "\t": " ", " ": " ", "é": "e", "è": "e", "á": "a",
-           "à": "a", "ó": "o", "ò": "o", "ç": "c", "ñ": "n", "€": "EUR", "§": "S", "*": "+", "=": "-", "_": "-", "]": ")",
+           "à": "a", "ó": "o", "ò": "o", "ç": "c", "ñ": "n", "€": "EUR", "§": "S", "_": "-", "]": ")",
            "{": "(", "}": ")", "<": "(", ">": ")", "@": "a", "$": "S", "|": "l", "~": "-", "^": "'", "\\": "/"}
 
 
@@ -504,9 +513,165 @@ def _papier(art):
     return "".join(teile)
 
 
+class Zeile:
+    """Eine gesetzte Zeile (oder Tabelle): Striche relativ zur Grundlinie y = 0 ab x = 0."""
+
+    def __init__(self, linien, breite, oben=None, unten=None, anker=None, art="text"):
+        self.linien = linien
+        self.breite = float(breite)
+        if linien and (oben is None or unten is None):
+            alle = np.concatenate(linien)
+            oben = max(0.0, -float(alle[:, 1].min())) if oben is None else oben
+            unten = max(0.0, float(alle[:, 1].max())) if unten is None else unten
+        self.oben, self.unten = oben or 0.0, unten or 0.0
+        self.anker = anker
+        self.art = art
+
+
+def _hershey_text(text, hand):
+    """Kurze Wörter (≤ 2 Buchstaben) schreibt das Modell schlecht – die kommen aus dem Formelsatz (Hershey)."""
+    t = text.replace("–", "-").replace("−", "-").replace("„", '"').replace("“", '"').replace("”", '"')
+    k = hf.Satz(hand).wort(t, 1.0)
+    k.striche = [hand.zittern(p) for p in k.striche]
+    return k
+
+
+def gemischt(sch, hand, teile, hoehe_ziel, durchstreichen, modell_zeichen, druckschrift=False):
+    """Teile einer Zeile ([("text", str) | ("kasten", Kasten)]) nebeneinander → Zeile. Text schreibt das Modell, Kästen
+    sind fertige Formeln. Liefert dazu die Zahl der Verschreiber und die weggelassenen Zeichen."""
+    linien, x, anker, fehl, weg = [], 0.0, None, 0, set()
+    luft = hoehe_ziel * 0.45
+    nur_formel = len(teile) == 1 and teile[0][0] == "kasten"
+    for i, teil in enumerate(teile):
+        if i:
+            x += luft
+        if teil[0] == "kasten":
+            k = teil[1]
+            if anker is None and k.anker is not None and nur_formel:
+                anker = x + k.anker
+            linien += [p + np.array([x, 0.0]) for p in k.striche]
+            x += k.breite
+            continue
+        text = teil[1]
+        # Kurze Wörter zwischen Formeln und Tabellenzellen: Druckschrift – das Modell braucht ganze Zeilen als Kontext
+        # (gemessen: „und“ wurde zu einem Punkt, „Wert“ fehlte, „also stimmt“ wurde Gekritzel; ab ~12 Buchstaben geht es)
+        if druckschrift or sum(c.isalpha() for c in text) < 12:
+            k = _hershey_text(text, hand)
+            linien += [p + np.array([x, 0.0]) for p in k.striche]
+            x += k.breite
+            continue
+        mt, um, w = vorbereiten(text, modell_zeichen)
+        weg |= w
+        mt = " ".join(mt.split())
+        if not mt:
+            continue
+        ls, breite, f = zeile_gestalten(sch, mt, um, durchstreichen, hoehe_ziel)
+        fehl += len(f)
+        linien += [p + np.array([x, 0.0]) for p in ls]
+        x += breite
+    return Zeile(linien, x, anker=anker, art="formel" if nur_formel else "gemischt"), fehl, weg
+
+
+def _einheiten(segs, hand):
+    """Segmente einer Eingabezeile → umbrechbare Einheiten: Textwörter einzeln, Formeln als Ganzes (schon gesetzt)."""
+    aus = []
+    for seg in segs:
+        if seg[0] == "text":
+            aus += [("text", w) for w in seg[1].split()]
+        else:
+            aus.append(("kasten", hf.formel(seg[1], hand, latex=seg[2])))
+    return aus
+
+
+def _umbrechen_gemischt(einheiten, nutzbreite, cw):
+    """Greedy nach geschätzter Breite: Text ≈ Zeichen × Zeichenbreite, Formeln genau. Benachbarte Textwörter einer Zeile
+    werden wieder zu einem Textstück (das Modell schreibt längere Stücke besser)."""
+    zeilen, akt, breite = [], [], 0.0
+    for e in einheiten:
+        w = len(e[1]) * cw if e[0] == "text" else e[1].breite
+        if akt and breite + cw * 0.7 + w > nutzbreite:
+            zeilen.append(akt)
+            akt, breite = [], 0.0
+        akt.append(e)
+        breite += (cw * 0.7 if len(akt) > 1 else 0) + w
+    if akt:
+        zeilen.append(akt)
+    aus = []
+    for z in zeilen:
+        teile = []
+        for e in z:
+            if e[0] == "text" and teile and teile[-1][0] == "text":
+                teile[-1] = ("text", teile[-1][1] + " " + e[1])
+            else:
+                teile.append(e)
+        aus.append(teile)
+    return aus
+
+
+def tabelle_gestalten(sch, hand, reihen, kopf, hoehe_ziel, zeilenabstand, durchstreichen, modell_zeichen):
+    """Markdown-Tabelle → Zeile (art „tabelle“, y = 0 ist die Oberkante): Zellen wie gemischte Zeilen, Gitter von Hand."""
+    rng = sch.rng
+    zellen, fehl, weg = [], 0, set()
+    for reihe in reihen:
+        r = []
+        for inhalt in reihe:
+            if not inhalt.strip():
+                r.append(Zeile([], 0.0))
+                continue
+            teile = [("kasten", hf.formel(s[1], hand, latex=s[2])) if s[0] == "mathe" else s for s in hf.segmente(inhalt)]
+            z, f, w = gemischt(sch, hand, teile, hoehe_ziel, durchstreichen, modell_zeichen, druckschrift=True)
+            fehl += f
+            weg |= w
+            r.append(z)
+        zellen.append(r)
+    pad_x, pad_y = hoehe_ziel * 0.45, hoehe_ziel * 0.25
+    n_sp = max(len(r) for r in zellen)
+    sp_breite = [max(r[j].breite for r in zellen) + 2 * pad_x for j in range(n_sp)]
+    z_oben = [max([z.oben for z in r] + [hoehe_ziel * 0.75]) for r in zellen]
+    z_unten = [max([z.unten for z in r] + [hoehe_ziel * 0.3]) for r in zellen]
+    z_hoehe = [max(zeilenabstand * 0.9, o + u + 2 * pad_y) for o, u in zip(z_oben, z_unten)]
+    xs = np.concatenate([[0.0], np.cumsum(sp_breite)])
+    ys = np.concatenate([[0.0], np.cumsum(z_hoehe)])
+    linien = []
+    for i, r in enumerate(zellen):
+        grund = ys[i] + (z_hoehe[i] - z_oben[i] - z_unten[i]) / 2 + z_oben[i]
+        for j, z in enumerate(r):
+            zahl = z.art == "formel"
+            x = xs[j] + (sp_breite[j] - pad_x - z.breite if zahl else pad_x)   # Zahlen rechtsbündig, Text links
+            dy = rng.normal(0, hoehe_ziel * 0.04)
+            linien += [p + np.array([x, grund + dy]) for p in z.linien]
+    for y in ys:
+        linien.append(hand.linie((xs[0], y), (xs[-1], y)))
+    if kopf and len(ys) > 2:                                  # Kopfzeile: doppelt unterstrichen
+        linien.append(hand.linie((xs[0], ys[1] + 3.0), (xs[-1], ys[1] + 3.5)))
+    for x in xs:
+        linien.append(hand.linie((x, ys[0]), (x, ys[-1])))
+    return Zeile(linien, float(xs[-1]), 0.0, float(ys[-1]), art="tabelle"), fehl, weg
+
+
+def ausrichten(gesetzt):
+    """Rechenwege: aufeinanderfolgende reine Formelzeilen mit Anker (erstes „=“ bzw. „&“) so verschieben, dass die Anker
+    untereinander stehen. Leerzeilen, Text und Tabellen beenden eine Gruppe."""
+    gruppe = []
+    for z in list(gesetzt) + [None]:
+        if z is not None and z.art == "formel" and z.anker is not None:
+            gruppe.append(z)
+            continue
+        if len(gruppe) >= 2:
+            ziel = max(g.anker for g in gruppe)
+            for g in gruppe:
+                d = ziel - g.anker
+                g.linien = [p + np.array([d, 0.0]) for p in g.linien]
+                g.breite += d
+                g.anker = ziel
+                g.ausgerichtet = True
+        gruppe = []
+
+
 def schreiben(text, unordnung=0.5, papier="blanko", tinte="blau", groesse=1.0, durchstreichen=True, seed=None,
               modell=None, frist=None):
-    """→ {"seiten": [svg, …], "weggelassen": [...], "zeilen": n, "verschrieben": n, "wiederholt": n}"""
+    """→ {"seiten": [svg, …], "weggelassen": [...], "unbekannt": [...], "zeilen": n, "verschrieben": n, "wiederholt": n,
+    "formeln": n, "tabellen": n}"""
     if not isinstance(text, str) or not text.strip():
         raise HandschriftFehler("Text fehlt.")
     if len(text) > MAX_TEXT:
@@ -520,47 +685,127 @@ def schreiben(text, unordnung=0.5, papier="blanko", tinte="blau", groesse=1.0, d
     rng = np.random.default_rng(seed)
     sch = Schreiber(m, unordnung, rng, frist if frist is not None else time.time() + ZEIT_BUDGET)
     u = sch.u
-    absaetze, weg = [], set()
-    for absatz in text.replace("\r\n", "\n").split("\n"):
-        t, um, w = vorbereiten(absatz, m.zeichen)
-        absaetze.append((" ".join(t.split(" ")) if t.strip() else "", um))
-        weg |= w
     # Schrifthöhe (Grundlinie bis Oberkante der Kleinbuchstaben ≈ 88. – 12. Perzentil) und Zeilenabstand
     hoehe_ziel = 9 * MM * 0.55 * groesse
+    cw = hoehe_ziel * 0.62
     zeilenabstand = {"liniert": 9 * MM, "kariert": 10 * MM * groesse}.get(papier, 11.5 * MM * groesse)
     nutzbreite = SEITE_B - (32 * MM if papier == "liniert" else 22 * MM) - 18 * MM
-    breite_zeichen = max(12, int(nutzbreite / (hoehe_ziel * 0.62) * 0.9))
-    zeilen = umbrechen(absaetze, breite_zeichen)
-    links0 = 28 * MM if papier == "liniert" else 20 * MM
-    oben0 = 30 * MM if papier in ("liniert",) else (20 * MM if papier == "kariert" else 24 * MM)
-    seiten, akt, y = [], [], oben0
-    verschrieben = 0
-    zeilen_gesamt = 0
-    if papier == "keins":
-        oben0 = y = hoehe_ziel * 2
-    for text_zeile, um in zeilen:
+    breite_zeichen = max(12, int(nutzbreite / cw * 0.9))
+    # Formelsatz: Hershey-x-Höhe (14 Einheiten) ≈ x-Höhe der Modellschrift
+    hand = hf.Hand(rng, u, hoehe_ziel / 27.0)
+    weg = set()
+
+    # 1. Eingabe → Blöcke: reiner Text (wie bisher umbrochen), Zeilen mit Formeln, Tabellen, Leerzeilen
+    eingabe = text.replace("\r\n", "\n").split("\n")
+    gesetzt, verschrieben, formeln, tabellen = [], 0, 0, 0
+    i = 0
+    while i < len(eingabe):
         if time.time() > sch.frist:
             raise HandschriftFehler("Zu viel Text für einmal – die Zeit reichte nicht. Teile ihn auf (etwa eine Seite je Auftrag).")
-        if y > SEITE_H - 18 * MM and papier != "keins":
+        zeile = eingabe[i]
+        if hf.ist_tabelle(zeile):
+            j = i
+            while j < len(eingabe) and hf.ist_tabelle(eingabe[j]):
+                j += 1
+            reihen, kopf = hf.tabelle_lesen(eingabe[i:j])
+            if reihen:
+                z, f, w = tabelle_gestalten(sch, hand, reihen, kopf, hoehe_ziel, zeilenabstand, durchstreichen, m.zeichen)
+                verschrieben += f
+                weg |= w
+                tabellen += 1
+                if z.breite > nutzbreite:
+                    fk = nutzbreite / z.breite
+                    z = Zeile([p * fk for p in z.linien], nutzbreite, 0.0, z.unten * fk, art="tabelle")
+                gesetzt.append(z)
+            i = j
+            continue
+        i += 1
+        if not zeile.strip():
+            gesetzt.append(Zeile([], 0.0, art="leer"))
+            continue
+        segs = hf.segmente(zeile)
+        if all(s[0] == "text" for s in segs):
+            t, um, w = vorbereiten(zeile, m.zeichen)
+            weg |= w
+            for tz, tum in umbrechen([(" ".join(t.split(" ")) if t.strip() else "", um)], breite_zeichen):
+                if not tz:
+                    continue
+                ls, breite, f = zeile_gestalten(sch, tz, tum, durchstreichen, hoehe_ziel)
+                verschrieben += len(f)
+                gesetzt.append(Zeile(ls, breite))
+            continue
+        formeln += sum(1 for s in segs if s[0] == "mathe")
+        for teile in _umbrechen_gemischt(_einheiten(segs, hand), nutzbreite, cw):
+            z, f, w = gemischt(sch, hand, teile, hoehe_ziel, durchstreichen, m.zeichen)
+            verschrieben += f
+            weg |= w
+            gesetzt.append(z)
+
+    # 2. Rechenwege: aufeinanderfolgende reine Formelzeilen mit „=“ am Anker ausrichten
+    ausrichten(gesetzt)
+
+    # 3. Seiten füllen: Zeilen mit Brüchen/Tabellen bekommen so viele Zeilen Platz, wie sie brauchen
+    links0 = 28 * MM if papier == "liniert" else 20 * MM
+    oben0 = 30 * MM if papier == "liniert" else (20 * MM if papier == "kariert" else 24 * MM)
+    if papier == "keins":
+        oben0 = hoehe_ziel * 2
+    raster = papier in ("liniert", "kariert")
+    seiten, akt, y = [], [], oben0
+    gruppen_x = None
+    zeilen_gesamt = 0
+
+    def platz(mass):
+        if mass <= 0:
+            return 0.0
+        return math.ceil(mass / zeilenabstand) * zeilenabstand if raster else mass
+
+    for z in gesetzt:
+        if z.art == "leer":
+            y += zeilenabstand
+            gruppen_x = None
+            continue
+        if z.art == "tabelle":
+            oben_platz, unten_platz = 0.0, 0.0
+            spitze = y - zeilenabstand * 0.75
+            boden = spitze + z.unten
+        else:
+            oben_platz = platz(z.oben - zeilenabstand * 0.75) if z.art != "text" else 0.0
+            unten_platz = platz(z.unten - zeilenabstand * 0.3) if z.art != "text" else 0.0
+            boden = y + oben_platz + z.unten
+        if boden > SEITE_H - 15 * MM and papier != "keins" and (akt or y > oben0):
             seiten.append(akt)
             if len(seiten) >= MAX_SEITEN:
                 raise HandschriftFehler(f"Mehr als {MAX_SEITEN} Seiten – teile den Text auf.")
             akt, y = [], oben0
-        if text_zeile:
-            linien, breite, fehl = zeile_gestalten(sch, text_zeile, um, durchstreichen, hoehe_ziel)
-            verschrieben += len(fehl)
-            zeilen_gesamt += 1
-            if breite > nutzbreite:                     # zu breit geraten → etwas stauchen
-                f = nutzbreite / breite
-                linien = [np.stack([p[:, 0] * f, p[:, 1]], axis=1) for p in linien]
+            gruppen_x = None
+            if z.art == "tabelle":
+                spitze = y - zeilenabstand * 0.75
+        zeilen_gesamt += 1
+        if getattr(z, "ausgerichtet", False):
+            if gruppen_x is None:
+                gruppen_x = links0 + rng.normal(0, 1.5 * MM * u) + abs(rng.normal(0, 1.0 * MM))
+            x0 = gruppen_x + rng.normal(0, 0.4 * MM * u)
+        else:
+            gruppen_x = None
             x0 = links0 + rng.normal(0, 2.5 * MM * u) + abs(rng.normal(0, 1.0 * MM))
-            y0 = y + rng.normal(0, 0.06 * zeilenabstand * (u + 0.3))
-            winkel = rng.normal(0, 0.012 * u + 0.002)
-            linien = [_drehen(p + np.array([x0, y0]), winkel, np.array([x0, y0])) for p in linien]
+        if z.art == "tabelle":
+            linien = [p + np.array([x0, spitze]) for p in z.linien]
+            y = (spitze + z.unten + zeilenabstand * 0.75)
+            y = oben0 + math.ceil((y - oben0) / zeilenabstand) * zeilenabstand + zeilenabstand * 0.25 if raster else y + zeilenabstand * 0.4
             akt.extend(linien)
-        y += zeilenabstand * (1 + (rng.normal(0, 0.04 * u) if papier == "blanko" else 0))
+            continue
+        if z.breite > nutzbreite:                     # zu breit geraten → etwas stauchen
+            f = nutzbreite / z.breite
+            z.linien = [np.stack([p[:, 0] * f, p[:, 1]], axis=1) for p in z.linien]
+        grund = y + oben_platz
+        y0 = grund + rng.normal(0, 0.06 * zeilenabstand * (u + 0.3)) * (0.3 if z.art == "formel" else 1)
+        winkel = rng.normal(0, 0.012 * u + 0.002) * (0.4 if z.art == "formel" else 1)
+        akt.extend(_drehen(p + np.array([x0, y0]), winkel, np.array([x0, y0])) for p in z.linien)
+        y = grund + unten_platz + zeilenabstand * (1 + (rng.normal(0, 0.04 * u) if papier == "blanko" else 0))
     if akt:
         seiten.append(akt)
+    if not seiten:
+        raise HandschriftFehler("Nichts zu schreiben.")
     farbe, deckkraft = TINTEN[tinte]
     svgs = []
     for linien in seiten:
@@ -586,5 +831,5 @@ def schreiben(text, unordnung=0.5, papier="blanko", tinte="blau", groesse=1.0, d
             teile.append(f'<path d="{_pfad(p + versatz)}" stroke-width="{max(0.8, dicke):.2f}"/>')
         teile.append("</g></svg>")
         svgs.append("".join(teile))
-    return {"seiten": svgs, "weggelassen": sorted(weg), "zeilen": zeilen_gesamt, "verschrieben": verschrieben,
-            "wiederholt": sch.wiederholt}
+    return {"seiten": svgs, "weggelassen": sorted(weg), "unbekannt": sorted(hand.unbekannt), "zeilen": zeilen_gesamt,
+            "verschrieben": verschrieben, "wiederholt": sch.wiederholt, "formeln": formeln, "tabellen": tabellen}

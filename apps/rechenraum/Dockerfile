@@ -10,7 +10,8 @@
 # odfpy, Pillow, matplotlib – Word, Excel, PowerPoint, OpenDocument, Bilder, Diagramme.
 # E199 – feste Werkzeuge (dorfwerk.py über /werkzeug): pypdf (PDF bearbeiten), Ghostscript (PDF verkleinern), Graphviz
 # (Diagramme), segno (QR-Codes), genanki (Anki-Pakete), DuckDB + pandas (Datenabfragen). Mermaid bräuchte Chromium – nicht drin.
-# E212 – Handschrift (handschrift.py, nur NumPy + rsvg-convert) mit den Gewichten aus /opt/handschrift.
+# E212 – Handschrift (handschrift.py, nur NumPy + rsvg-convert) mit den Gewichten aus /opt/handschrift; E213 Formeln und
+# Tabellen von Hand (handformel.py + hershey/glyphen.json, Hershey-Einstrichzeichen).
 
 # ---- whisper.cpp (Transkription) – feste Version, Modell mit Prüfsumme ------------------------------------------------
 # Gebaut für x86-64 mit AVX2/FMA (jede Server-CPU seit 2013); ohne AVX2 wäre es ~10× langsamer. Fehlt AVX2 auf dem Server,
@@ -99,6 +100,8 @@ RUN useradd -u 1000 -m rechner && mkdir -p /arbeit && chown rechner:rechner /arb
 COPY apps/rechenraum/runner.py /app/runner.py
 COPY apps/rechenraum/dorfwerk.py /app/dorfwerk.py
 COPY apps/rechenraum/handschrift.py /app/handschrift.py
+COPY apps/rechenraum/handformel.py /app/handformel.py
+COPY apps/rechenraum/hershey/glyphen.json /app/hershey/glyphen.json
 ENV ARBEIT_DIR=/arbeit PORT=4100 PYTHONUNBUFFERED=1 WHISPER_MODELL=/opt/whisper/ggml-base-q5_1.bin
 USER rechner
 EXPOSE 4100

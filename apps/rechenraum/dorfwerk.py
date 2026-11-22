@@ -747,8 +747,12 @@ def handschrift(a):
     teile = [f"Handschrift geschrieben: {erg['zeilen']} Zeilen auf {len(seiten)} Seite(n), {fmt.upper()}."]
     if erg["verschrieben"]:
         teile.append(f"{erg['verschrieben']}× verschrieben und durchgestrichen (gewollt – abschalten mit durchstreichen: false).")
+    if erg.get("formeln") or erg.get("tabellen"):
+        teile.append(f"{erg.get('formeln', 0)} Formel(n) und {erg.get('tabellen', 0)} Tabelle(n) von Hand gesetzt (Druckschrift, Rechenwege am „=“ ausgerichtet).")
     if erg["weggelassen"]:
         teile.append("Diese Zeichen kann die Handschrift nicht und hat sie weggelassen: " + " ".join(erg["weggelassen"]))
+    if erg.get("unbekannt"):
+        teile.append("Diese Formel-Befehle kennt der Formelsatz nicht (weggelassen): " + " ".join(erg["unbekannt"]))
     teile.append("Das Modell verschreibt sich manchmal (v. a. bei Ziffern und Großbuchstaben) – bei wichtigen Texten Bild ansehen, sonst neu erzeugen.")
     return {"ok": True, "text": " ".join(teile), "dateien": dateien}
 

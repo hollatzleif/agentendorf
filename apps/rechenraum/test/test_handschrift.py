@@ -196,6 +196,28 @@ class Handschrift(unittest.TestCase):
         self.assertEqual(svg, e2["seiten"][0])
         self.assertNotEqual(svg, e3["seiten"][0])
 
+    def test_mathe_und_tabelle(self):
+        text = "Aufgabe 3: Löse die Gleichung\n3x + 5 = 20 | -5\n3x = 15 | :3\nx = 5\nAlso $\\frac{1}{2} \\le x$ fertig.\n\n| Nr. | Wert |\n|---|---|\n| 1 | 12,5 |"
+        e = self.hs.schreiben(text, unordnung=0.5, papier="kariert", seed=3, modell=self.m)
+        self.assertEqual(e["tabellen"], 1)
+        self.assertGreaterEqual(e["formeln"], 4)
+        self.assertEqual(e["unbekannt"], [])
+        self.assertEqual(e["weggelassen"], [])            # „=“ wird nicht mehr zu „-“ und nicht weggelassen
+        self.assertEqual(len(e["seiten"]), 1)
+
+    def test_rechenweg_wird_am_gleichheitszeichen_ausgerichtet(self):
+        hf = handformel_laden()
+        h = hf.Hand(np.random.default_rng(1), 0.5, 1.0)
+        zeilen = [self.hs.Zeile(k.striche, k.breite, anker=k.anker, art="formel")
+                  for k in (hf.formel(t, h, latex=False) for t in ("3x + 5 = 20", "3x = 15", "x = 5"))]
+        vorher = [z.anker for z in zeilen]
+        self.assertGreater(max(vorher) - min(vorher), 1)
+        text = self.hs.Zeile([np.zeros((2, 2))], 10.0)
+        self.hs.ausrichten(zeilen + [text])
+        self.assertEqual(len({round(z.anker, 6) for z in zeilen}), 1)
+        self.assertTrue(all(getattr(z, "ausgerichtet", False) for z in zeilen))
+        self.assertFalse(getattr(text, "ausgerichtet", False))
+
     def test_keins_ist_durchsichtig_und_eng(self):
         e = self.hs.schreiben("kurz", papier="keins", seed=1, modell=self.m)
         svg = e["seiten"][0]
@@ -219,6 +241,90 @@ class Handschrift(unittest.TestCase):
     def test_viele_zeilen_ergeben_mehrere_seiten(self):
         e = self.hs.schreiben("\n".join(["Zeile"] * 40), papier="kariert", seed=1, modell=self.m)
         self.assertGreaterEqual(len(e["seiten"]), 2)
+
+
+def handformel_laden():
+    sys.path.insert(0, os.path.join(HIER, ".."))
+    try:
+        import handformel
+        return handformel
+    finally:
+        sys.path.remove(os.path.join(HIER, ".."))
+
+
+@unittest.skipUnless(np is not None, "numpy fehlt")
+class Formeln(unittest.TestCase):
+    """E213: Formelsatz (handformel.py) – Eingabe, Erkennung, Kästen, Tabellen, Ausrichten."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.hf = handformel_laden()
+
+    def hand(self, seed=1, u=0.4):
+        return self.hf.Hand(np.random.default_rng(seed), u, 1.0)
+
+    def test_danksagung_der_hershey_daten_liegt_bei(self):
+        with open(os.path.join(HIER, "..", "hershey", "glyphen.json"), encoding="utf-8") as f:
+            daten = json.load(f)
+        self.assertIn("Dr. A. V. Hershey", daten["dank"])
+        self.assertIn("James Hurt", daten["dank"])
+        for name in ("=", "0", "9", "x", "A", "sum", "intgross", "le", "ne", "alpha", "Delta", "infty", "approx"):
+            self.assertIn(name, daten["glyphen"])
+
+    def test_einfache_schreibweise(self):
+        v = self.hf.vereinfacht_zu_latex
+        self.assertEqual(v("3x + 5 = 20 | -5"), "3x + 5 = 20 \\quad\\umform -5")
+        self.assertIn("\\le", v("a <= b"))
+        self.assertIn("\\ne", v("x != 0"))
+        self.assertIn("\\Rightarrow", v("a => b"))
+        self.assertIn("\\sqrt{2}", v("sqrt(2)"))
+        self.assertIn("^{n+1}", v("x^(n+1)"))
+        self.assertIn("\\cdot", v("3 * 5"))
+        self.assertIn("^2", v("a²"))
+        self.assertIn(",\\, 12", v("0, 12"))            # Aufzählung bleibt getrennt …
+        self.assertIn("12,5", v("12,5"))                   # … Dezimalkomma nicht
+        self.assertEqual(v("|x - 2| = 3"), "|x - 2| = 3")  # Betrag ist kein Umformungsstrich
+
+    def test_unbekannte_befehle_werden_gemeldet(self):
+        h = self.hand()
+        self.hf.formel(r"\frac{1}{2} + \zeta + \foobar{x}", h)
+        self.assertEqual(h.unbekannt, {"\\foobar"})
+
+    def test_segmente(self):
+        seg = self.hf.segmente("Probe: 3 * 5 + 5 = 20, also stimmt x = 5.")
+        self.assertEqual([s[0] for s in seg], ["text", "mathe", "text", "mathe"])
+        self.assertEqual(seg[3][1], "x = 5.")
+        seg = self.hf.segmente("Löse $x^2 = 4$ und gib f(x) an")
+        self.assertEqual(seg[1], ("mathe", "x^2 = 4", True))
+        self.assertEqual(seg[3], ("mathe", "f(x)", False))
+        self.assertEqual(self.hf.segmente("Ganz normaler Satz ohne Mathe."), [("text", "Ganz normaler Satz ohne Mathe.")])
+
+    def test_kaesten(self):
+        h = self.hand()
+        flach = self.hf.formel("x = 5", h, latex=False)
+        bruch = self.hf.formel(r"\frac{a+b}{c}", h)
+        hoch = self.hf.formel("x^2", h, latex=False)
+        self.assertGreater(bruch.oben, flach.oben)        # Zähler über der Achse
+        self.assertGreater(bruch.unten, flach.unten)      # Nenner unter der Grundlinie
+        self.assertGreater(hoch.oben, flach.oben)
+        self.assertIsNotNone(flach.anker)
+        self.assertGreater(flach.anker, 0)
+        # Anker: „&“ geht vor „=“
+        und = self.hf.formel("a + b &= c", h)
+        gleich = self.hf.formel("a + b = c", h)
+        self.assertLess(und.anker, gleich.anker)
+        for k in (flach, bruch, hoch, self.hf.formel(r"\sum_{i=1}^n i = \int_0^1 \sqrt[3]{x}\,dx \Rightarrow \lim_{x \to 0}", h)):
+            self.assertTrue(k.striche)
+            self.assertTrue(all(np.isfinite(p).all() for p in k.striche))
+
+    def test_tabelle_lesen(self):
+        self.assertTrue(self.hf.ist_tabelle("| a | b |"))
+        self.assertFalse(self.hf.ist_tabelle("3x = 15 | :3"))
+        reihen, kopf = self.hf.tabelle_lesen(["| Nr. | Wert |", "|---|:--:|", "| 1 | 12,5 |", "| 2 |"])
+        self.assertTrue(kopf)
+        self.assertEqual(reihen, [["Nr.", "Wert"], ["1", "12,5"], ["2", ""]])
+
+
 
 
 @unittest.skipUnless(np is not None, "numpy fehlt")

@@ -85,7 +85,8 @@ export const EXTRA_DEFINITIONEN: Record<ExtraWerkzeug, Omit<WerkzeugDefinition, 
   handschrift_schreiben: {
     name: 'handschrift_schreiben',
     description:
-      'Schreibt Text als echt wirkende Handschrift (KI-Modell im Rechenraum, ohne Internet): ungleichmäßig, jedes Wort etwas anders, auf Wunsch gekritzelt mit verschriebenen und durchgestrichenen Wörtern. Umlaute ja (ß wird „ss“), Ziffern und Satzzeichen ja; Emojis/Sonderzeichen fallen weg. Höchstens 1500 Zeichen je Aufruf (≈ 2 Seiten). Ergebnis als PNG, SVG oder PDF im Ablage-Ordner. Das Modell verschreibt sich manchmal von selbst (v. a. Ziffern, Großbuchstaben) – bei Wichtigem Bild prüfen oder mit anderem seed neu erzeugen.',
+      'Schreibt Text als echt wirkende, ungleichmäßige Handschrift (KI im Rechenraum): jedes Wort etwas anders, auf Wunsch gekritzelt mit Durchgestrichenem; Umlaute ja. Formeln als $…$ (LaTeX: \\frac, \\sqrt, ^, _, \\sum, \\int, \\le …) oder schlicht „3x + 5 = 20 | -5“ – Rechenwege (eine Umformung je Zeile) stehen am „=“ untereinander. Tabellen als Markdown (| a | b |, |---|) mit handgezogenem Gitter. Höchstens 1500 Zeichen je Aufruf. Ergebnis PNG/SVG/PDF im Ablage-Ordner. Fließtext verschreibt sich manchmal – Bild prüfen oder anderen seed nehmen.',
+
     input_schema: {
       type: 'object',
       properties: {
