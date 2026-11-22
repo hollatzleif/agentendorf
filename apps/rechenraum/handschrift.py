@@ -875,6 +875,7 @@ def schreiben(text, unordnung=0.5, papier="blanko", tinte="blau", groesse=1.0, d
     seiten, akt, y = [], [], oben0
     gruppen_x = None
     zeilen_gesamt = 0
+    vorher_boden = None          # echte Unterkante der vorigen Zeile (Tinte)
 
     def platz(mass):
         if mass <= 0:
@@ -893,6 +894,12 @@ def schreiben(text, unordnung=0.5, papier="blanko", tinte="blau", groesse=1.0, d
         else:
             oben_platz = platz(z.platz_oben - zeilenabstand * 0.75) if z.art != "text" else 0.0
             unten_platz = platz(z.platz_unten - zeilenabstand * 0.3) if z.art != "text" else 0.0
+            # E217: nicht in die vorige Zeile hineinragen (Grenzen von ∑ unter dem Index eines lim darüber)
+            if vorher_boden is not None:
+                spitze_z = y + oben_platz - max(z.oben, z.platz_oben or 0.0)
+                noetig = vorher_boden + zeilenabstand * 0.1 - spitze_z
+                if noetig > 0:
+                    oben_platz += platz(noetig) if raster else noetig
             boden = y + oben_platz + z.unten
         if boden > SEITE_H - 15 * MM and papier != "keins" and (akt or y > oben0):
             seiten.append(akt)
@@ -900,6 +907,7 @@ def schreiben(text, unordnung=0.5, papier="blanko", tinte="blau", groesse=1.0, d
                 raise HandschriftFehler(f"Mehr als {MAX_SEITEN} Seiten – teile den Text auf.")
             akt, y = [], oben0
             gruppen_x = None
+            vorher_boden = None
             if z.art == "tabelle":
                 spitze = y - zeilenabstand * 0.75
         zeilen_gesamt += 1
@@ -915,6 +923,7 @@ def schreiben(text, unordnung=0.5, papier="blanko", tinte="blau", groesse=1.0, d
             y = (spitze + z.unten + zeilenabstand * 0.75)
             y = oben0 + math.ceil((y - oben0) / zeilenabstand) * zeilenabstand if raster else y + zeilenabstand * 0.2
             akt.extend(linien)
+            vorher_boden = spitze + z.unten
             continue
         if z.breite > nutzbreite:                     # zu breit geraten → etwas stauchen
             f = nutzbreite / z.breite
@@ -923,6 +932,7 @@ def schreiben(text, unordnung=0.5, papier="blanko", tinte="blau", groesse=1.0, d
         y0 = grund + rng.normal(0, 0.06 * zeilenabstand * (u + 0.3)) * (0.3 if z.art == "formel" else 1)
         winkel = rng.normal(0, 0.012 * u + 0.002) * (0.4 if z.art == "formel" else 1)
         akt.extend(_drehen(p + np.array([x0, y0]), winkel, np.array([x0, y0])) for p in z.linien)
+        vorher_boden = y0 + z.unten
         y = grund + unten_platz + zeilenabstand * (1 + (rng.normal(0, 0.04 * u) if papier == "blanko" else 0))
     if akt:
         seiten.append(akt)

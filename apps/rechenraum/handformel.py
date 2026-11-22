@@ -94,6 +94,9 @@ NAME_ZU_ZEICHEN = {"pm": "±", "mp": "∓", "times": "×", "cdot": "·", "le": "
                    "Phi": "Φ", "Psi": "Ψ", "Omega": "Ω"}
 
 
+ZEICHEN_ZU_NAME = {z: n for n, z in NAME_ZU_ZEICHEN.items() if not n.endswith("gross") and n != "intgross"}
+
+
 class FormelFehler(Exception):
     pass
 
@@ -418,6 +421,8 @@ class Hand:
         zeichen = name if len(name) == 1 else NAME_ZU_ZEICHEN.get(name)
         if zeichen and self.probe.get(zeichen):
             return self.probe_glyphe(zeichen, g, art)
+        if len(name) == 1 and name not in glyphen() and name in ZEICHEN_ZU_NAME:
+            name = ZEICHEN_ZU_NAME[name]          # „λ“ im Text (Tabellenzelle) → Glyphe „lambda“
         gl = glyphen().get(name)
         eigen = hb.skelett(name, self.rng, self.vorliebe)     # E217: eigene Skelette (Schreibreihenfolge, Varianten)
         if eigen is not None:
@@ -766,9 +771,10 @@ class Satz:
             striche = list(z.striche)
             breite = z.breite
             if hoch is not None:
-                k = self.setzen(hoch, gk).verschoben(z.breite * 0.85, -z.oben + k_oben_platz(self, hoch, gk))
+                # rechts NEBEN den Haken oben (E217: bei 0,85 der Breite klebte die Grenze am Haken)
+                k = self.setzen(hoch, gk).verschoben(z.breite * 1.0 + 0.04 * em, -z.oben + k_oben_platz(self, hoch, gk))
                 striche += k.striche
-                breite = max(breite, z.breite * 0.8 + k.breite)
+                breite = max(breite, z.breite * 1.0 + 0.04 * em + k.breite)
             if tief is not None:
                 k = self.setzen(tief, gk).verschoben(z.breite * 0.55, z.unten)
                 striche += k.striche

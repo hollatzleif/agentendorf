@@ -527,6 +527,31 @@ class Bewegung(unittest.TestCase):
         komma = np.concatenate(h.glyphe(",").striche)
         self.assertGreater(float(komma[:, 1].max()), 0.15 * h.em)       # Kommaschwanz unter die Grundlinie
 
+    def test_griechisch_im_text_und_zeilen_ueberlappen_nicht(self):
+        hs = laden()
+        alt = hs.MODELL_ORDNER
+        hs.MODELL_ORDNER = "/gibt/es/nicht"
+        try:
+            e = hs.schreiben("| λ | α |\n|---|---|\n| 2 | π |", seed=1)
+            self.assertEqual(e["unbekannt"], [])                          # λ in einer Tabellenzelle ist bekannt
+            # lim mit Index, darunter eine Summe mit oberer Grenze: die Grenze ragt nicht in den Index der Zeile darüber
+            orig = hs._drehen
+            zeilen = []
+            hs._drehen = lambda p, w, m: (zeilen.append((round(float(m[1]), 1), orig(p, w, m))) or zeilen[-1][1])
+            for seed in range(6):
+                zeilen.clear()
+                hs.schreiben("$\\lim_{n \\to \\infty} \\frac{1}{n} = 0$\n$\\sum_{k=1}^{n} k = 1$", seed=seed, papier="kariert")
+                gruppen = {}
+                for y0, p in zeilen:
+                    if y0 > 1:                         # nur ganze Zeilen auf der Seite (Wörter drehen um y = 0)
+                        gruppen.setdefault(y0, []).append(p)
+                self.assertEqual(len(gruppen), 2)
+                oben, unten = [np.concatenate(gruppen[k]) for k in sorted(gruppen)]
+                self.assertLess(float(oben[:, 1].max()), float(unten[:, 1].min()), seed)   # Index von lim über der Grenze von ∑
+        finally:
+            hs._drehen = orig
+            hs.MODELL_ORDNER = alt
+
     def test_gleicher_seed_gleiche_seite(self):
         hs = laden()
         alt = hs.MODELL_ORDNER

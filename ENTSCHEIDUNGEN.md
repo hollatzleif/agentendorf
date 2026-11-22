@@ -2113,6 +2113,11 @@ Schrift entsteht aus schnellen Bewegungen: Nach dem Sigma-Lognormal-Modell (Plam
 - **Tupfer:** Kurze Tupfer (Punkte) werden kräftig gezeichnet, statt durch das Ausdünnen zu verschwinden.
 - **Ein Test prüfte gar nichts:** `test_linien_sind_gerade_wie_in_goodnotes` setzte wegen `r"\\frac"` keinen Bruch und lief nur zufällig durch. Er ist korrigiert.
 
+**Mit den Schriftproben für Leif (Mathe und Tabellen) gefunden:**
+- Die obere Grenze eines Formelzeichens (∑) ragte in den Index der Zeile darüber (lim n→∞). Das Layout merkt sich jetzt die echte Unterkante der vorigen Zeile und rückt um ganze Kästchen weiter.
+- Die obere Integralgrenze klebte am Haken.
+- Griechische Buchstaben im Text, etwa in einer Tabellenzelle, galten als unbekannt.
+
 **Kosten:** Eine volle A4-Seite braucht etwa 1,2 s statt 0,3 s; das SVG ist etwa 1 MB groß. PNG und PDF entstehen daraus wie bisher.
 
 **Ehrlich:**
