@@ -24,9 +24,9 @@ eingaben:
     standard: blau
   - name: schrift
     typ: auswahl
-    beschriftung: Schrift
-    optionen: [einheitlich, ki]
-    standard: einheitlich
+    beschriftung: Schrift (automatisch = deine eigene, sobald du die Schriftprobe geschrieben hast)
+    optionen: [automatisch, eigene, einheitlich, ki]
+    standard: automatisch
   - name: format
     typ: auswahl
     beschriftung: Datei
@@ -39,7 +39,7 @@ Schreib diesen Text mit `handschrift_schreiben` als Handschrift:
 
 {text}
 
-Einstellungen: Papier „{papier}“, Tinte „{tinte}“, Format „{format}“, stil „{schrift}“. Stil „{stil}“ heißt unordnung: ordentlich = 0.15, normal = 0.45, hastig = 0.7, gekritzelt = 0.95 (bei ordentlich durchstreichen: false).
+Einstellungen: Papier „{papier}“, Tinte „{tinte}“, Format „{format}“, stil „{schrift}“ (bei „automatisch“ lässt du stil weg). Stil „{stil}“ heißt unordnung: ordentlich = 0.15, normal = 0.45, hastig = 0.7, gekritzelt = 0.95 (bei ordentlich durchstreichen: false).
 
 So gehst du vor:
 1. Ein Aufruf von `handschrift_schreiben` mit dem Text genau so, wie er oben steht – nichts umformulieren, nichts ergänzen, nichts ausrechnen. Formeln, Rechenwege (eine Umformung je Zeile) und Markdown-Tabellen gibst du unverändert weiter; das Werkzeug setzt sie selbst. Ist er länger als 1500 Zeichen, teile ihn an Absätzen in mehrere Aufrufe (name: teil-1, teil-2 …).

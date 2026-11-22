@@ -521,3 +521,52 @@ describe.skipIf(!HAT_PILLOW)('Atelier: Ende zu Ende mit dem echten Rechenraum-Ru
     }
   });
 });
+
+describe('Schriftprobe (E216)', () => {
+  const strich = (dy = 0) => [[0, 0 + dy, 0, 0.5], [0.31234567, -0.7, 60.4, 0.61234], [0.6, 0, 120, 0.5]];
+
+  it('nur angemeldet und von der eigenen Herkunft; speichern, lesen, gerundet im Vault', async () => {
+    const d = await testDorf();
+    expect((await d.app.inject({ url: '/api/atelier/schriftprobe' })).statusCode).toBe(401);
+    const h = await kopf(d);
+    expect((await d.app.inject({ url: '/api/atelier/schriftprobe', headers: h })).json()).toEqual({ vorhanden: false, probe: null });
+    const probe = { version: 1, zeichen: { a: [[strich()], [strich(0.01)]], 'ä': [[strich(), [[0.2, -0.9]]]], '∫': [[strich()]] } };
+    const ohneHerkunft = await d.app.inject({ method: 'PUT', url: '/api/atelier/schriftprobe', headers: { cookie: h.cookie }, payload: probe });
+    expect(ohneHerkunft.statusCode).toBe(403);
+    expect(await d.vault.existiert('Atelier/schriftprobe.json')).toBe(false);
+    const r = await d.app.inject({ method: 'PUT', url: '/api/atelier/schriftprobe', headers: h, payload: probe });
+    expect(r.statusCode, r.body).toBe(200);
+    expect(r.json()).toMatchObject({ ok: true, zeichen: 3 });
+    const gespeichert = JSON.parse((await d.vault.lesen('Atelier/schriftprobe.json')).inhalt);
+    expect(gespeichert.zeichen.a[0][0][1]).toEqual([0.312, -0.7, 60, 0.61]);
+    const g = (await d.app.inject({ url: '/api/atelier/schriftprobe', headers: h })).json();
+    expect(g.vorhanden).toBe(true);
+    expect(Object.keys(g.probe.zeichen).sort()).toEqual(['a', 'ä', '∫'].sort());
+  });
+
+  it('prüft das Format streng (Zeichen, Grenzen, Zahlen) und lässt die alte Probe stehen', async () => {
+    const d = await testDorf();
+    const h = await kopf(d);
+    const gut = { version: 1, zeichen: { a: [[strich()]] } };
+    expect((await d.app.inject({ method: 'PUT', url: '/api/atelier/schriftprobe', headers: h, payload: gut })).statusCode).toBe(200);
+    const kaputt: unknown[] = [
+      { version: 2, zeichen: { a: [[strich()]] } },
+      { version: 1, zeichen: { ab: [[strich()]] } },
+      { version: 1, zeichen: { a: [[[[9, 0]]]] } },
+      { version: 1, zeichen: { a: [[[[0, 0, -5]]]] } },
+      { version: 1, zeichen: { a: [[[[0, 0, 0, 2]]]] } },
+      { version: 1, zeichen: { a: [[[[0, 0, 0, 0.5, 1]]]] } },
+      { version: 1, zeichen: { a: [[[['x', 0]]]] } },
+      { version: 1, zeichen: { a: [] } },
+      { version: 1, zeichen: { a: Array(9).fill([strich()]) } },
+      { version: 1, zeichen: Object.fromEntries(Array.from({ length: 201 }, (_, i) => [String.fromCodePoint(0x4e00 + i), [[strich()]]])) },
+      { version: 1, zeichen: { a: [[strich()]] }, mehr: 1 },
+    ];
+    for (const k of kaputt) {
+      const r = await d.app.inject({ method: 'PUT', url: '/api/atelier/schriftprobe', headers: h, payload: k as object });
+      expect(r.statusCode, JSON.stringify(k).slice(0, 80)).toBe(400);
+      expect(r.json().fehler).toMatch(/Schriftprobe ungültig/);
+    }
+    expect(JSON.parse((await d.vault.lesen('Atelier/schriftprobe.json')).inhalt)).toEqual({ version: 1, zeichen: { a: [[[[0, 0, 0, 0.5], [0.312, -0.7, 60, 0.61], [0.6, 0, 120, 0.5]]]] } });
+  });
+});

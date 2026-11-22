@@ -55,6 +55,7 @@ import { CODING_OFFEN, codingRouten } from './coding.js';
 import { codingEditorRouten } from './coding-editor.js';
 import { codingErweiterungenRouten } from './coding-erweiterungen.js';
 import { atelierRouten } from './atelier.js';
+import { schriftprobeRouten } from './schriftprobe.js';
 import type { AgentenDienst } from './agenten/dienst.js';
 import { agentenRouten } from './agenten/routen.js';
 import type { Schreibtisch } from './schreibtisch.js';
@@ -708,6 +709,7 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
   codingEditorRouten(app, { konfig, sitzungen });
   codingErweiterungenRouten(app, { konfig });
   atelierRouten(app, { konfig, vault, rechenraum: () => a.agenten.rechenraum }); // E198
+  schriftprobeRouten(app, { vault }); // E216
 
   // ---- E65: To-do-Brett (Marktplatz) ----
   // Etappe 7: alle Listen unter /api/listen/<name>; /api/todos bleibt für die To-do-Liste

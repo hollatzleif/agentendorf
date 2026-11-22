@@ -710,7 +710,8 @@ def handschrift(a):
     try:
         stil = a.get("stil") or "einheitlich"
         erg = hs.schreiben(str(a.get("text") or ""), unordnung=unordnung, papier=papier, tinte=tinte, groesse=groesse,
-                           durchstreichen=a.get("durchstreichen", True) is not False, seed=seed, stil=stil)
+                           durchstreichen=a.get("durchstreichen", True) is not False, seed=seed, stil=stil,
+                           probe=a.get("probe"))
     except hs.HandschriftFehler as e:
         raise Fehler(str(e))
     seiten = erg["seiten"]

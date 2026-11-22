@@ -169,4 +169,20 @@ describe('Vorlagen aktualisieren – nur wenn Leif nichts geändert hat', () => 
     expect((await d2.vault.konflikte()).length).toBe(0);
     await d2.app.close();
   });
+
+  it('E216: die Handschrift-Aktion von E212 und E215 wird ersetzt (bekommt Formeln und die Schriftprobe)', async () => {
+    const path = await import('node:path');
+    const { dorfStarten } = await import('../src/dorf.js');
+    const neu = (p: string) => fs.readFileSync(path.join(import.meta.dirname, '../../../vault-vorlage', p), 'utf8');
+    for (const fassung of ['handschrift-e212.md', 'handschrift-e215.md']) {
+      const d = await testDorf();
+      await d.vault.schreiben('Atelier/aktionen/handschrift.md', fs.readFileSync(path.join(import.meta.dirname, 'vorlagen-alt', fassung), 'utf8'));
+      await d.app.close();
+      const d2 = await dorfStarten(d.konfig, { beobachten: false });
+      const jetzt = (await d2.vault.lesen('Atelier/aktionen/handschrift.md')).inhalt;
+      expect(jetzt, fassung).toBe(neu('Atelier/aktionen/handschrift.md'));
+      expect(jetzt).toContain('optionen: [automatisch, eigene, einheitlich, ki]');
+      await d2.app.close();
+    }
+  });
 });

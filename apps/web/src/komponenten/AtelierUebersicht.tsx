@@ -19,7 +19,9 @@ export function AtelierUebersicht() {
         .sort((a, b) => a.localeCompare(b, 'de')),
     [baum.data],
   );
+  const probe = useQuery({ queryKey: ['schriftprobe-stand'], queryFn: () => api<{ vorhanden: boolean; anzahl: Record<string, number> }>('/api/atelier/schriftprobe?kurz=1'), staleTime: 60_000 });
   const s = stand.data;
+  const probeZeichen = Object.keys(probe.data?.anzahl ?? {}).length;
   return (
     <>
       <p>
@@ -29,6 +31,15 @@ export function AtelierUebersicht() {
       </p>
       <p className="leise">
         Ebenen, Pinsel, Auswahl, Text, Formen, Anpassungen und Filter – direkt hier in der App, auch am Handy. Bilder aus dem ganzen Vault öffnest du im Editor über „Datei → Öffnen“ oder in der Bibliothek über „Im Atelier bearbeiten“.
+      </p>
+      <h2>Deine Handschrift</h2>
+      <p>
+        <a className="knopf" href="/schriftprobe" onClick={linkKlick} data-testid="schriftprobe-oeffnen">
+          ✍️ Schriftprobe {probeZeichen ? 'weiterschreiben' : 'schreiben'}
+        </a>{' '}
+        <span className="leise" data-testid="schriftprobe-stand">
+          {probeZeichen ? `${probeZeichen} Zeichen in deiner Hand – „In Handschrift schreiben“ nimmt sie von selbst.` : 'Noch keine Probe – bis dahin schreibt das Dorf mit einer erfundenen Hand.'}
+        </span>
       </p>
       {s && (
         <ul className="leise" data-testid="atelier-stand">

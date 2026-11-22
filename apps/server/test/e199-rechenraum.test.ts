@@ -192,6 +192,22 @@ describe('E199 – Rechenraum-Werkzeuge (echter Runner)', () => {
     expect((await k.aufrufen('handschrift_schreiben', { text: 'x'.repeat(1501) })).ok).toBe(false);
   });
 
+  it.skipIf(!NUMPY)('handschrift_schreiben (E216): mit Schriftprobe von selbst in Leifs Hand, „eigene“ ohne Probe ehrlich abgelehnt', async () => {
+    const { d, k } = await aufbau('c7');
+    const ohne = await k.aufrufen('handschrift_schreiben', { text: 'Hallo', stil: 'eigene' });
+    expect(ohne.ok).toBe(false);
+    expect(ohne.text).toContain('Schriftprobe');
+    const strich = [[0, 0, 0, 0.5], [0.3, -0.7, 60, 0.6], [0.6, 0, 120, 0.5]];
+    await d.vault.schreiben('Atelier/schriftprobe.json', JSON.stringify({ version: 1, zeichen: { H: [[strich]], a: [[strich], [strich]] } }));
+    const r = await k.aufrufen('handschrift_schreiben', { text: 'Hallo', format: 'svg', seed: 1, name: 'eigen' });
+    expect(r.ok, r.text).toBe(true);
+    // „einheitlich“ nimmt sie bewusst nicht
+    expect((await k.aufrufen('handschrift_schreiben', { text: 'Hallo', format: 'svg', seed: 1, name: 'erfunden', stil: 'einheitlich' })).ok).toBe(true);
+    expect((await d.vault.lesen(`${ABLAGE}/eigen.svg`)).inhalt).not.toBe((await d.vault.lesen(`${ABLAGE}/erfunden.svg`)).inhalt);
+    const log = (d.db.prepare("SELECT eingabe_json FROM werkzeug_log WHERE werkzeug = 'handschrift_schreiben' AND erlaubt = 1").all() as { eingabe_json: string }[]).map((l) => JSON.parse(l.eingabe_json) as { eigene_hand?: boolean });
+    expect(log.map((l) => l.eigene_hand).filter((x) => x !== undefined)).toEqual([true, false]);
+  });
+
   it('App-Knopf ohne Rechenraum: 503 mit Grund; ohne Anmeldung: 401', async () => {
     const d = await testDorf();
     expect((await d.app.inject({ method: 'GET', url: '/api/karten/anki?fach=Statistik' })).statusCode).toBe(401);

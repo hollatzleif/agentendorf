@@ -489,6 +489,32 @@ SEITE_B, SEITE_H = 1240, 1754          # A4 bei 150 dpi
 MM = 150 / 25.4
 
 
+def umriss(p, basis):
+    """Strich als gefüllter Umriss mit wechselnder Breite – wie ein echter Stift: schnelle, gerade Züge (lange Abstände
+    zwischen den Punkten) dünner, Kurven und langsame Stellen dicker, Anfang und Ende laufen spitz aus. Bei Strichen aus
+    der Schriftprobe sind die Punkte nach Zeit abgetastet, dort ist der Abstand wirklich das Tempo."""
+    d = np.diff(p, axis=0)
+    laenge = np.hypot(d[:, 0], d[:, 1])
+    if len(laenge) < 3 or float(laenge.sum()) < basis * 2:
+        return None
+    mitte = float(np.median(laenge[laenge > 1e-6])) if np.any(laenge > 1e-6) else 1.0
+    seg = np.clip(1.05 - 0.2 * np.log2(np.maximum(laenge, 1e-3) / max(mitte, 1e-6)), 0.7, 1.12)
+    w = np.concatenate([[seg[0]], (seg[:-1] + seg[1:]) / 2, [seg[-1]]])
+    w = np.convolve(np.pad(w, 1, mode="edge"), np.ones(3) / 3, mode="valid")
+    w[0] *= 0.55
+    w[-1] *= 0.6
+    if len(w) > 3:
+        w[1] *= 0.85
+        w[-2] *= 0.88
+    w = w * basis / 2
+    rich = np.gradient(p, axis=0)
+    norm = np.hypot(rich[:, 0], rich[:, 1])
+    norm[norm < 1e-9] = 1.0
+    n = np.stack([-rich[:, 1] / norm, rich[:, 0] / norm], axis=1)
+    links, rechts = p + n * w[:, None], p - n * w[:, None]
+    return np.concatenate([links, rechts[::-1]])
+
+
 def _pfad(p):
     return "M" + " L".join(f"{x:.1f},{y:.1f}" for x, y in p)
 
@@ -512,6 +538,52 @@ def _papier(art):
             teile.append(f'<line x1="0" y1="{y:.1f}" x2="{SEITE_B}" y2="{y:.1f}" stroke="#b9c9e0" stroke-width="0.9"/>')
             y += q
     return "".join(teile)
+
+
+MAX_PROBE_ZEICHEN = 200
+MAX_PROBE_VARIANTEN = 8
+MAX_PROBE_STRICHE = 40
+MAX_PROBE_PUNKTE = 4000
+
+
+def probe_laden(roh):
+    """Schriftprobe (Leifs echte Striche, E216) prüfen und vorbereiten: {Zeichen: [Variante, …]}, Variante = [Strich, …],
+    Strich = [[x, y, t?, druck?], …] in Versalhöhen-Einheiten (Grundlinie y = 0, Versalhöhe y = -1). Striche mit Zeit
+    werden alle 12 ms neu abgetastet – dann ist der Punktabstand das Schreibtempo (für die Strichdicke)."""
+    if roh is None:
+        return {}
+    if not isinstance(roh, dict) or len(roh) > MAX_PROBE_ZEICHEN:
+        raise HandschriftFehler("Schriftprobe hat ein falsches Format.")
+    aus = {}
+    for zeichen, varianten in roh.items():
+        if not isinstance(zeichen, str) or len(zeichen) != 1 or not isinstance(varianten, list):
+            raise HandschriftFehler("Schriftprobe hat ein falsches Format.")
+        gut = []
+        for v in varianten[:MAX_PROBE_VARIANTEN]:
+            if not isinstance(v, list) or not v or len(v) > MAX_PROBE_STRICHE:
+                continue
+            striche = []
+            for st in v:
+                try:
+                    a = np.array(st, dtype=float)
+                except (TypeError, ValueError):
+                    raise HandschriftFehler("Schriftprobe enthält ungültige Punkte.")
+                if a.ndim != 2 or a.shape[1] < 2 or len(a) > MAX_PROBE_PUNKTE or not np.isfinite(a).all() or np.abs(a[:, :2]).max(initial=0) > 5:
+                    raise HandschriftFehler("Schriftprobe enthält ungültige Punkte.")
+                if len(a) == 1:
+                    a = np.vstack([a, a + np.array([0.01, 0.0] + [0.0] * (a.shape[1] - 2))])
+                if a.shape[1] >= 3 and np.all(np.diff(a[:, 2]) >= 0) and a[-1, 2] - a[0, 2] > 24:
+                    t = np.arange(a[0, 2], a[-1, 2], 12.0)
+                    t = np.append(t, a[-1, 2]) if t[-1] < a[-1, 2] else t
+                    xy = np.stack([np.interp(t, a[:, 2], a[:, 0]), np.interp(t, a[:, 2], a[:, 1])], axis=1)
+                else:
+                    xy = a[:, :2]
+                striche.append(xy)
+            if striche:
+                gut.append(striche)
+        if gut:
+            aus[zeichen] = gut
+    return aus
 
 
 class Zeile:
@@ -551,7 +623,7 @@ def _hershey_text(text, hand, durchstreichen=False):
             striche.append(np.array([[x - 0.05 * em, y + rng.normal(0, 0.06 * em)], [x + falsch.breite + 0.05 * em, y + rng.normal(0, 0.06 * em)]]))
             x += falsch.breite + 0.35 * em
             fehl += 1
-        k = satz.wort(wort, 1.0 + rng.normal(0, 0.025 + 0.03 * u))
+        k = satz.wort(wort, 1.0 + rng.normal(0, 0.012 + 0.018 * u))
         dy = rng.normal(0, 0.03 + 0.04 * u) * em
         winkel = rng.normal(0, 0.008 + 0.012 * u)
         mitte = np.array([x + k.breite / 2, 0.0])
@@ -669,8 +741,9 @@ def tabelle_gestalten(sch, hand, reihen, kopf, hoehe_ziel, zeilenabstand, durchs
     for i, r in enumerate(zellen):
         grund = ys[i] + (z_hoehe[i] - z_oben[i] - z_unten[i]) / 2 + z_oben[i]
         for j, z in enumerate(r):
-            formel = z.art == "formel"
-            x = xs[j] + ((sp_breite[j] - z.breite) / 2 if formel else pad_x)   # Formeln/Zahlen mittig (Wahrheitstafeln), Text links
+            # Formeln und kurze Einträge (T/F, 0/1, Zahlen) mittig wie in Wahrheitstafeln, längerer Text links
+            mittig = z.art == "formel" or z.breite <= hoehe_ziel * 2.2
+            x = xs[j] + ((sp_breite[j] - z.breite) / 2 if mittig else pad_x)
             dy = rng.normal(0, hoehe_ziel * 0.04)
             linien += [p + np.array([x, grund + dy]) for p in z.linien]
     for y in ys:
@@ -702,7 +775,7 @@ def ausrichten(gesetzt):
 
 
 def schreiben(text, unordnung=0.5, papier="blanko", tinte="blau", groesse=1.0, durchstreichen=True, seed=None,
-              modell=None, frist=None, stil="einheitlich"):
+              modell=None, frist=None, stil="einheitlich", probe=None):
     """→ {"seiten": [svg, …], "weggelassen": [...], "unbekannt": [...], "zeilen": n, "verschrieben": n, "wiederholt": n,
     "formeln": n, "tabellen": n}"""
     if not isinstance(text, str) or not text.strip():
@@ -729,8 +802,15 @@ def schreiben(text, unordnung=0.5, papier="blanko", tinte="blau", groesse=1.0, d
     nutzbreite = SEITE_B - (32 * MM if papier == "liniert" else 22 * MM) - 18 * MM
     breite_zeichen = max(12, int(nutzbreite / cw * 0.9))
     # Formelsatz: Hershey-x-Höhe (14 Einheiten) ≈ x-Höhe der Modellschrift
-    hand = hf.Hand(rng, u, hoehe_ziel / 27.0)
+    hand = hf.Hand(rng, u, hoehe_ziel / 27.0, probe=probe_laden(probe))
     weg = set()
+
+    # Zeichenbreite der Hand gemessen statt geschätzt (E216): die Druckschrift mit Unterschneiden ist schmaler als das
+    # KI-Modell, Leifs Schriftprobe kann breiter oder schmaler sein – geschätzt brach der Text schon nach 60 % der Zeile um
+    cw_hand = cw
+    if einheitlich:
+        muster = "the quick brown fox jumps over a lazy dog, Und 1234"
+        cw_hand = max(cw * 0.4, _hershey_text(muster, hand).breite / len(muster) * 1.04)
 
     # 1. Eingabe → Blöcke: reiner Text (wie bisher umbrochen), Zeilen mit Formeln, Tabellen, Leerzeilen
     eingabe = text.replace("\r\n", "\n").split("\n")
@@ -772,7 +852,7 @@ def schreiben(text, unordnung=0.5, papier="blanko", tinte="blau", groesse=1.0, d
                 gesetzt.append(Zeile(ls, breite))
             continue
         formeln += sum(1 for s in segs if s[0] == "mathe")
-        for teile in _umbrechen_gemischt(_einheiten(segs, hand), nutzbreite, cw):
+        for teile in _umbrechen_gemischt(_einheiten(segs, hand), nutzbreite, cw_hand if einheitlich else cw):
             z, f, w = gemischt(sch, hand, teile, hoehe_ziel, durchstreichen, m.zeichen if m else "", druckschrift=einheitlich)
             if einheitlich and z.art == "gemischt" and all(t[0] == "text" for t in teile):
                 z.art = "text"
@@ -866,8 +946,12 @@ def schreiben(text, unordnung=0.5, papier="blanko", tinte="blau", groesse=1.0, d
         for p in linien:
             if len(p) == 1:
                 p = np.vstack([p, p + 0.6])
-            dicke = basis * (1 + rng.normal(0, 0.025))          # digitaler Stift: gleichmäßige Strichstärke
-            teile.append(f'<path d="{_pfad(p + versatz)}" stroke-width="{max(0.8, dicke):.2f}"/>')
+            dicke = basis * (1 + rng.normal(0, 0.025))
+            form = umriss(p + versatz, dicke * 0.95) if len(p) > 3 else None
+            if form is None:                                    # gerade Linien und Punkte: gleichmäßig
+                teile.append(f'<path d="{_pfad(p + versatz)}" stroke-width="{max(0.8, dicke):.2f}"/>')
+            else:                                               # Umriss + hauchdünne Kontur gegen Treppen am Rand
+                teile.append(f'<path d="{_pfad(form)} Z" fill="{farbe}" stroke-width="{dicke * 0.25:.2f}"/>')
         teile.append("</g></svg>")
         svgs.append("".join(teile))
     return {"seiten": svgs, "weggelassen": sorted(weg), "unbekannt": sorted(hand.unbekannt), "zeilen": zeilen_gesamt,

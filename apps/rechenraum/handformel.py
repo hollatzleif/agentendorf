@@ -44,6 +44,11 @@ SYMBOLE = {"cdot": "cdot", "times": "times", "div": "div", "pm": "pm", "mp": "mp
 SYMBOLE.update({g: g for g in GRIECHISCH})
 GEZEICHNET = {"Box", "square", "land", "wedge", "lor", "vee", "vdash", "models", "top", "approx", "Rightarrow", "Leftrightarrow", "implies", "iff", "leftrightarrow", "forall", "emptyset", "varnothing", "mapsto",
               "cdots", "ldots", "dots", "neg", "lnot"}
+# E216: welches Zeichen der Schriftprobe ein gezeichnetes Symbol ersetzt
+GEZEICHNET_ZEICHEN = {"Box": "□", "square": "□", "land": "∧", "wedge": "∧", "lor": "∨", "vee": "∨", "vdash": "⊢",
+                      "models": "⊨", "top": "⊤", "approx": "≈", "Rightarrow": "⇒", "implies": "⇒", "Leftrightarrow": "⇔",
+                      "iff": "⇔", "leftrightarrow": "↔", "forall": "∀", "emptyset": "∅", "varnothing": "∅", "mapsto": "↦",
+                      "neg": "¬", "lnot": "¬"}
 FUNKTIONEN = {"sin", "cos", "tan", "cot", "arcsin", "arccos", "arctan", "sinh", "cosh", "tanh", "ln", "log", "lg", "exp",
               "max", "min", "sup", "inf", "det", "dim", "ker", "arg", "deg", "gcd", "mod", "ggT", "kgV"}
 GROSSE = {"sum": "sum", "prod": "prod", "int": "int", "iint": "int", "oint": "int", "lim": None, "bigcup": "cup",
@@ -68,6 +73,17 @@ _GR_NAMEN = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta
              "Pi", "Sigma", "Phi", "Psi", "Omega"]
 UNICODE.update({c: f"\\{n} " for c, n in zip(_GR_UNI, _GR_NAMEN)})
 UNICODE["ς"] = r"\sigma "
+
+
+NAME_ZU_ZEICHEN = {"pm": "±", "mp": "∓", "times": "×", "cdot": "·", "le": "≤", "ge": "≥", "ne": "≠", "equiv": "≡",
+                   "sum": "∑", "prod": "∏", "int": "∫", "intgross": "∫", "infty": "∞", "partial": "∂", "nabla": "∇",
+                   "in": "∈", "to": "→", "leftarrow": "←", "approx": "≈", "div": "÷", "subset": "⊂", "cup": "∪",
+                   "cap": "∩", "exists": "∃", "perp": "⊥", "circ": "°", "angle": "∠", "(gross": "(", ")gross": ")",
+                   "alpha": "α", "beta": "β", "gamma": "γ", "delta": "δ", "epsilon": "ε", "zeta": "ζ", "eta": "η",
+                   "theta": "θ", "iota": "ι", "kappa": "κ", "lambda": "λ", "mu": "μ", "nu": "ν", "xi": "ξ", "pi": "π",
+                   "rho": "ρ", "sigma": "σ", "tau": "τ", "upsilon": "υ", "phi": "φ", "chi": "χ", "psi": "ψ", "omega": "ω",
+                   "Gamma": "Γ", "Delta": "Δ", "Theta": "Θ", "Lambda": "Λ", "Xi": "Ξ", "Pi": "Π", "Sigma": "Σ",
+                   "Phi": "Φ", "Psi": "Ψ", "Omega": "Ω"}
 
 
 class FormelFehler(Exception):
@@ -283,6 +299,52 @@ class Kasten:
                       None if self.anker is None else self.anker + dx, self.art)
 
 
+def _profil(striche, unten, oben, schritt):
+    """Linker und rechter Tintenrand je Höhenband (für optische Abstände). NaN = Band leer."""
+    n = int((oben - unten) / schritt) + 1
+    links, rechts = np.full(n, np.nan), np.full(n, np.nan)
+    for p in striche:
+        if len(p) >= 2:                               # Strecken verdichten, sonst fallen Bänder durch
+            t = np.linspace(0, 1, 6)[1:, None]
+            p = np.concatenate([p[:1]] + [a + (b - a) * t for a, b in zip(p[:-1], p[1:])])
+        band = np.clip(((p[:, 1] - unten) / schritt).astype(int), 0, n - 1)
+        for b, x in zip(band, p[:, 0]):
+            links[b] = x if np.isnan(links[b]) else min(links[b], x)
+            rechts[b] = x if np.isnan(rechts[b]) else max(rechts[b], x)
+    return links, rechts
+
+
+def kernen(kaesten, em, abstand=1.0, rng=None, u=0.0):
+    """Buchstaben eines Worts nach dem TINTENabstand setzen (wie Unterschneiden in der Typografie): der kleinste
+    waagrechte Abstand zwischen den Strichen zweier Nachbarn wird ≈ 0,22 em – nicht der Abstand ihrer Rechtecke.
+    So stehen r, t, f, c … nicht mehr mit Lücke im Wort („norm al“). Leere Kästen (Leerzeichen) zählen als Abstand."""
+    unten, oben, schritt = -1.4 * em, 0.6 * em, 0.1 * em
+    striche, x, rand = [], 0.0, None
+    k_oben, k_unten, luft = 0.0, 0.0, 0.0
+    for k in kaesten:
+        if not k.striche:
+            luft += k.breite
+            continue
+        links, rechts = _profil(k.striche, unten, oben, schritt)
+        ziel = 0.22 * em * abstand * (1 + (rng.normal(0, 0.12 + 0.1 * u) if rng is not None else 0))
+        if rand is None:
+            dx = 0.0
+        else:
+            beide = ~np.isnan(links) & ~np.isnan(rand)
+            if beide.any():
+                dx = float(np.max(rand[beide] - links[beide])) + ziel
+            else:                                     # keine gemeinsame Höhe (z. B. „T.“): nach Rechteck
+                dx = float(np.nanmax(rand)) - float(np.nanmin(links)) + ziel * 0.6
+            dx += luft
+        luft = 0.0
+        striche += [p + np.array([dx, 0.0]) for p in k.striche]
+        neu_rechts = rechts + dx
+        rand = neu_rechts if rand is None else np.where(np.isnan(neu_rechts), rand, np.fmax(rand, neu_rechts))
+        k_oben, k_unten = max(k_oben, k.oben), max(k_unten, k.unten)
+        x = max(x, float(np.nanmax(neu_rechts)) if not np.all(np.isnan(neu_rechts)) else x)
+    return Kasten(striche, x + 0.08 * em + luft, k_oben, k_unten)
+
+
 def nebeneinander(kaesten):
     striche, x, oben, unten, anker = [], 0.0, 0.0, 0.0, None
     for k in kaesten:
@@ -297,10 +359,17 @@ def nebeneinander(kaesten):
 class Hand:
     """Zeichnet wie eine Hand: einheit = Pixel je Hershey-Einheit bei Größe 1, u = Unordnung 0..1."""
 
-    def __init__(self, rng, u, einheit):
+    def __init__(self, rng, u, einheit, probe=None):
         self.rng = rng
         self.u = u
         self.e = einheit
+        # E216: Schriftprobe (Leifs echte Striche) – {Zeichen: [Probe, …]}, Probe = [Strich, …], Strich = N×2 in
+        # Versalhöhen-Einheiten (Grundlinie y = 0, Versalhöhe y = -1, y nach unten), schon nach Zeit gleichmäßig abgetastet
+        self.probe = probe or {}
+        self.zuletzt = {}
+        # Schreib-Gewohnheiten (nur für die erfundene Hand): bleiben über das Dokument gleich
+        self.sieben_strich = rng.random() < 0.45
+        self.schwung = rng.uniform(0.0, 0.6)
         # Schreiber-Profil (E215): EINE Handschrift je Dokument – Neigung, Breite, Rundung und Abstände bleiben über die
         # ganze Seite gleich; was schwankt, schwankt um diese Werte herum wie bei einem echten Menschen
         self.neigung = 0.14 + rng.normal(0, 0.05)        # leicht kursiv, wie die meisten Hände
@@ -310,6 +379,9 @@ class Hand:
         self.unbekannt = set()
 
     def glyphe(self, name, g=1.0, art="ord"):
+        zeichen = name if len(name) == 1 else NAME_ZU_ZEICHEN.get(name)
+        if zeichen and self.probe.get(zeichen):
+            return self.probe_glyphe(zeichen, g, art)
         gl = glyphen().get(name)
         if gl is None:
             self.unbekannt.add(name)
@@ -343,9 +415,49 @@ class Hand:
             p[:, 1] = x * sn + y * c + dy
             striche.append(p)
         striche = self.verformen(striche, g)
+        striche = self.gewohnheit(name, striche, g)
         breite = (r - l) * s * self.breite * (1 + rng.normal(0, 0.05 * u + 0.03))
         alle = np.concatenate(striche) if striche else np.zeros((1, 2))
         return Kasten(striche, breite, max(0.0, -alle[:, 1].min()), max(0.0, alle[:, 1].max()), art=art)
+
+    def probe_glyphe(self, zeichen, g, art):
+        """Ein Zeichen aus der Schriftprobe: eine der Varianten (nie zweimal hintereinander dieselbe), kaum verändert –
+        die Natürlichkeit steckt schon im echten Strich."""
+        rng = self.rng
+        varianten = self.probe[zeichen]
+        i = int(rng.integers(len(varianten)))
+        if len(varianten) > 1 and i == self.zuletzt.get(zeichen):
+            i = (i + 1) % len(varianten)
+        self.zuletzt[zeichen] = i
+        em = self.em * g * (1 + rng.normal(0, 0.02 + 0.02 * self.u))
+        dreh = rng.normal(0, 0.008 + 0.01 * self.u)
+        c, sn = math.cos(dreh), math.sin(dreh)
+        alle = np.concatenate(varianten[i])
+        x0 = float(alle[:, 0].min())
+        striche = []
+        for st in varianten[i]:
+            p = np.array(st, dtype=float)
+            x, y = (p[:, 0] - x0) * em, p[:, 1] * em
+            striche.append(np.stack([x * c - y * sn + 0.1 * em, x * sn + y * c], axis=1))
+        breite = float(np.ptp(alle[:, 0])) * em + 0.2 * em
+        q = np.concatenate(striche)
+        return Kasten(striche, breite, max(0.0, -float(q[:, 1].min())), max(0.0, float(q[:, 1].max())), art=art)
+
+    def gewohnheit(self, name, striche, g):
+        """Kleine, feste Eigenheiten des erfundenen Schreibers: Querstrich in der 7, Endschwung an a/d/u."""
+        em = self.em * g
+        if name == "7" and self.sieben_strich:
+            q = np.concatenate(striche)
+            y = (q[:, 1].min() + q[:, 1].max()) / 2
+            x_mitte = float(q[:, 0][np.argmin(np.abs(q[:, 1] - y))])
+            striche = striche + [np.array([[x_mitte - 0.18 * em, y], [x_mitte + 0.18 * em, y - 0.02 * em]])]
+        elif name in ("a", "d", "u") and self.rng.random() < self.schwung:
+            q = np.concatenate(striche)
+            unten = q[q[:, 1] > -0.12 * em]
+            if len(unten):
+                p0 = unten[np.argmax(unten[:, 0])]
+                striche = striche + [np.array([p0, p0 + np.array([0.1 * em, -0.07 * em])])]
+        return striche
 
     def verformen(self, striche, g):
         """Jedes Zeichen einmalig: ein weiches Verformungsfeld (zwei Sinuswellen je Richtung) biegt die Form ein wenig,
@@ -515,7 +627,7 @@ class Satz:
         for c in text.replace("ß", "ss"):
             if c == " ":
                 ks.append(Kasten(breite=0.35 * em))
-            elif c in "äöüÄÖÜ":                   # Grundbuchstabe + zwei Punkte darüber
+            elif c in "äöüÄÖÜ" and not self.h.probe.get(c):   # Grundbuchstabe + zwei Punkte darüber
                 k = self.h.glyphe({"ä": "a", "ö": "o", "ü": "u", "Ä": "A", "Ö": "O", "Ü": "U"}[c], g)
                 y = -k.oben - 0.16 * em
                 for fx in (0.33, 0.66):
@@ -524,10 +636,8 @@ class Satz:
                 k.oben += 0.2 * em
                 ks.append(k)
             else:
-                k = self.h.glyphe(c, g)
-                k.breite *= self.h.abstand * (1 + rng.normal(0, 0.03 + 0.04 * u)) if c.isalpha() else 1.0
-                ks.append(k)
-        k = nebeneinander(ks)
+                ks.append(self.h.glyphe(c, g))
+        k = kernen(ks, em, self.h.abstand, rng, u)
         k.anker = None
         return k
 
@@ -603,7 +713,11 @@ class Satz:
             return nebeneinander([k, Kasten(breite=0.12 * em)])
         glyph = GROSSE.get(name) or "sum"
         if glyph == "int":
-            z = self.h.glyphe("intgross", g * 0.62)      # 78 Einheiten hoch → ≈ 2,3 em; sitzt auf der Mathe-Achse
+            z = self.h.glyphe("intgross", g * 0.62)      # 78 Einheiten hoch → ≈ 2,3 em
+            if self.h.probe.get("∫"):                    # Probe-∫ ist so groß wie geschrieben: auf ≈ 2,2 em bringen
+                z = self.h.glyphe("intgross", g)
+                z = self.h.glyphe("intgross", g * 2.2 * em / max(1e-6, z.oben + z.unten))
+            z = auf_achse(z, em)
             z.oben, z.unten = max(0.0, -min(s[:, 1].min() for s in z.striche)), max(0.0, max(s[:, 1].max() for s in z.striche))
             striche = list(z.striche)
             breite = z.breite
@@ -616,7 +730,7 @@ class Satz:
                 striche += k.striche
                 breite = max(breite, z.breite * 0.45 + k.breite)
             return Kasten(striche, breite + 0.15 * em, z.oben + 0.3 * em, z.unten + 0.25 * em)
-        z = self.h.glyphe(glyph, g * 1.15)
+        z = auf_achse(self.h.glyphe(glyph, g * 1.15), em)
         z.oben = max(0.0, -min(s[:, 1].min() for s in z.striche))
         z.unten = max(0.0, max(s[:, 1].max() for s in z.striche))
         striche = list(z.striche)
@@ -651,10 +765,11 @@ class Satz:
                 return Kasten([p], 0.4 * em, max(k.oben, 0.75 * em), max(k.unten, 0.2 * em))
             name = {"(": "(", ")": ")", "[": "[", "]": "]", "{": "{", "}": "}", "lbrace": "{", "rbrace": "}"}.get(z, "(")
             gl = self.h.glyphe(name, g)
-            gh = 32 * self.h.e * g                      # Hershey-Klammer: 32 Einheiten hoch, Mitte auf der Achse (y = -9)
+            q = np.concatenate(gl.striche)
+            gh = max(1e-6, float(np.ptp(q[:, 1])))       # eigene Höhe und Mitte – gilt für Hershey wie für die Schriftprobe
             f = max(1.0, hoehe * 1.08 / gh)
             mitte = (-max(k.oben, 0.75 * em) + max(k.unten, 0.2 * em)) / 2
-            c0 = -9 * self.h.e * g
+            c0 = float(q[:, 1].min() + q[:, 1].max()) / 2
             striche = []
             for s in gl.striche:
                 q = s.copy()
@@ -683,6 +798,9 @@ class Satz:
     def gezeichnet(self, name, g):
         em = self.h.em * g
         h = self.h
+        zeichen = GEZEICHNET_ZEICHEN.get(name)
+        if zeichen and h.probe.get(zeichen):            # E216: aus Leifs Schriftprobe, wenn er es geschrieben hat
+            return h.probe_glyphe(zeichen, g, "bin" if name in ("land", "wedge", "lor", "vee") else "rel")
         a = -0.43 * em
         if name in ("Rightarrow", "implies", "Leftrightarrow", "iff", "leftrightarrow"):
             doppelt = name != "leftrightarrow"
@@ -737,6 +855,18 @@ class Satz:
         if name in ("neg", "lnot"):
             return Kasten([np.array([[0.05 * em, a], [0.6 * em, a], [0.6 * em, a + 0.25 * em]])], 0.75 * em, 0.5 * em, 0.0)
         return Kasten(breite=0.3 * em)
+
+
+def auf_achse(k, em):
+    """Kasten senkrecht um die Mathe-Achse (−0,43 em) zentrieren – Hershey-Zeichen sitzen schon dort, Probe-Zeichen nicht."""
+    q = np.concatenate(k.striche)
+    dy = -0.43 * em - float(q[:, 1].min() + q[:, 1].max()) / 2
+    if abs(dy) < 0.02 * em:
+        return k
+    k = k.verschoben(0, dy)
+    q = np.concatenate(k.striche)
+    k.oben, k.unten = max(0.0, -float(q[:, 1].min())), max(0.0, float(q[:, 1].max()))
+    return k
 
 
 def k_oben_platz(satz, knoten, g):

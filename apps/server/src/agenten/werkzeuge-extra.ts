@@ -8,6 +8,7 @@ import { dateinameBereinigen, normalisieren } from '../vault/pfade.js';
 import { DorfFehler } from '../fehler.js';
 import { tagIn } from '../zeit.js';
 import { KARTEN_DATEI, kartenLesen } from '../karten.js';
+import { probeLesen } from '../schriftprobe.js';
 import { fremdinhaltHuelle, istHochgeladen } from './leine.js';
 import type { ExtraWerkzeug } from './leine-extra.js';
 import { ablageName, type RechenraumKlient } from './rechenraum.js';
@@ -99,7 +100,7 @@ export const EXTRA_DEFINITIONEN: Record<ExtraWerkzeug, Omit<WerkzeugDefinition, 
         durchstreichen: { type: 'boolean', description: 'ab und zu ein Wort verschreiben und durchstreichen (Standard ja; nur bei unordnung > 0 spürbar)' },
         format: { type: 'string', enum: ['png', 'svg', 'pdf'] },
         seed: { type: 'integer', description: 'gleicher seed = gleiche Handschrift; weglassen = jedes Mal ein anderer „Schreiber“' },
-        stil: { type: 'string', enum: ['einheitlich', 'ki'], description: 'einheitlich (Standard): EINE Handschrift für Text, Formeln, Tabellen; ki: Fließtext vom KI-Modell (freier, aber Stilwechsel und Verschreiber)' },
+        stil: { type: 'string', enum: ['eigene', 'einheitlich', 'ki'], description: 'eigene: Leifs Hand aus der Schriftprobe (Standard, wenn es eine gibt); einheitlich: EINE erfundene Hand für alles; ki: freier Fließtext vom KI-Modell (verschreibt sich)' },
         name: { type: 'string' },
       },
       required: ['text'],
@@ -373,11 +374,25 @@ export async function extraAufrufen(name: ExtraWerkzeug, eingabe: unknown, u: Ex
           durchstreichen: z.boolean().optional(),
           format: z.enum(['png', 'svg', 'pdf']).optional(),
           seed: z.number().int().min(0).max(2 ** 31).optional(),
-          stil: z.enum(['einheitlich', 'ki']).optional(),
+          stil: z.enum(['eigene', 'einheitlich', 'ki']).optional(),
           name: Name,
         })
         .parse(eingabe);
-      return dorfwerk(u, name, [], { art: 'handschrift', ...e }, { ...e, text: undefined, zeichen: e.text.length });
+      // E216: Leifs Schriftprobe – Standard, sobald es eine gibt; „eigene“ ohne Probe ist ein klarer Fehler
+      const probe = e.stil === 'ki' || e.stil === 'einheitlich' ? null : await probeLesen(u.vault);
+      if (e.stil === 'eigene' && !probe) {
+        const t = 'Es gibt noch keine Schriftprobe – Leif kann sie im Atelier unter „Schriftprobe“ schreiben. Bis dahin stil: einheitlich.';
+        u.log(name, { ...e, text: undefined }, t, false);
+        return { ok: false, text: t };
+      }
+      const stil = e.stil === 'ki' ? 'ki' : 'einheitlich';
+      return dorfwerk(
+        u,
+        name,
+        [],
+        { art: 'handschrift', ...e, stil, ...(probe ? { probe: probe.zeichen } : {}) },
+        { ...e, text: undefined, zeichen: e.text.length, eigene_hand: !!probe },
+      );
     }
     case 'daten_abfragen': {
       const e = z.object({ dateien: Dateien, sql: z.string().max(20_000).optional(), als_csv: z.boolean().optional(), name: Name }).parse(eingabe);

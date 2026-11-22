@@ -105,6 +105,12 @@ const PFLICHT_DATEIEN = [
  * entsprechen (sha256), Leif sie also nie verändert hat. Alles andere bleibt unangetastet.
  */
 const VORLAGE_FRUEHERE_FASSUNGEN: Record<string, string[]> = {
+  // E216: E213/E215 haben die Aktion geändert, ohne die alte Fassung hier einzutragen – jetzt alle drei
+  'Atelier/aktionen/handschrift.md': [
+    '21951fb1886f67a952c62c01e057a23f7a5e770d8bff29bfcb92377f0e3ca567', // E212
+    'e7c16642e462c77656c9818323c26d8fa6b5af23856640aa192a3c1a361c71e5', // E213/E214
+    'ffe2110a27884d8c077f95f43ee92808e583451e7e58c072db46fd15c377aeb0', // E215
+  ],
   'Uni/gebaeude.md': [
     'ec2518b6e8de76279701087fca5af642c2a164939cf3d69f8f2edb7643080077', // bis Etappe 2b
     'a0c46bec0fab52f7d0f900a1b10253c4bc6125d4e81ed8863599782af2e96ad2', // Etappe 3 (Moodle-App)

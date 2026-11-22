@@ -234,6 +234,20 @@ class Handschrift(unittest.TestCase):
         e = self.hs.schreiben("Hallo Welt", stil="ki", seed=1, modell=self.m)
         self.assertEqual(e["zeilen"], 1)
 
+    def test_umbruch_nutzt_die_ganze_zeile(self):
+        # E216: die Zeichenbreite wird an der Hand gemessen – geschätzt brach dieser Satz schon nach 60 % der Zeile um
+        alt = self.hs.MODELL_ORDNER
+        self.hs.MODELL_ORDNER = "/gibt/es/nicht"
+        try:
+            for seed in (1, 7, 11):
+                e = self.hs.schreiben("Both columns are identical, so the formulas are equivalent.", seed=seed, durchstreichen=False)
+                self.assertEqual(e["zeilen"], 1, seed)
+                e = self.hs.schreiben(" ".join(["equivalent"] * 40), seed=seed, durchstreichen=False)
+                self.assertLessEqual(e["zeilen"], 7, seed)
+                self.assertGreaterEqual(e["zeilen"], 4, seed)
+        finally:
+            self.hs.MODELL_ORDNER = alt
+
     def test_keins_ist_durchsichtig_und_eng(self):
         e = self.hs.schreiben("kurz", papier="keins", seed=1, modell=self.m)
         svg = e["seiten"][0]
@@ -364,6 +378,62 @@ class Formeln(unittest.TestCase):
 
 
 @unittest.skipUnless(np is not None, "numpy fehlt")
+
+
+class Schriftprobe(unittest.TestCase):
+    """E216: Leifs echte Striche aus der Schriftprobe – prüfen, neu abtasten, statt der erfundenen Hand benutzen."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.hs = laden()
+
+    def test_probe_laden_prueft_und_tastet_nach_zeit_ab(self):
+        p = self.hs.probe_laden({"a": [[[[0, 0, 0, 0.5], [0.5, -0.5, 120, 0.5]]], [[[0, 0], [0.2, -0.4]]]]})
+        self.assertEqual(len(p["a"]), 2)
+        self.assertEqual(len(p["a"][0][0]), 11)          # 0 … 120 ms alle 12 ms
+        self.assertEqual(len(p["a"][1][0]), 2)           # ohne Zeit unverändert
+        self.assertEqual(self.hs.probe_laden(None), {})
+        for kaputt in ({"ab": [[[[0, 0]]]]}, {"a": [[[[9, 0]]]]}, {"a": [[[["x", 0]]]]}, {"a": [[[[float("nan"), 0]]]]},
+                       {"a": "nein"}, [1], {str(i): [[[[0, 0]]]] for i in range(201)}):
+            with self.assertRaises(self.hs.HandschriftFehler, msg=repr(kaputt)[:60]):
+                self.hs.probe_laden(kaputt)
+        # zu viele Varianten: nur die ersten 8
+        self.assertEqual(len(self.hs.probe_laden({"b": [[[[0, 0], [0.1, -1]]]] * 12})["b"]), 8)
+
+    def test_zeichen_kommen_aus_der_probe_und_wechseln_die_variante(self):
+        probe = self.hs.probe_laden({"a": [[[[0, 0], [0.5, -0.5]]], [[[0, -0.5], [0.5, 0]]]]})
+        h = self.hs.hf.Hand(np.random.default_rng(1), 0.4, 1.0, probe=probe)
+        k1, k2 = h.glyphe("a"), h.glyphe("a")
+        self.assertEqual(len(k1.striche), 1)
+        self.assertEqual(len(k2.striche), 1)
+        # nie zweimal hintereinander dieselbe Variante: einmal steigt der Strich, einmal fällt er
+        self.assertNotEqual(np.sign(k1.striche[0][-1, 1] - k1.striche[0][0, 1]), np.sign(k2.striche[0][-1, 1] - k2.striche[0][0, 1]))
+        # Höhe ≈ halbe Versalhöhe (em = 21 Einheiten)
+        self.assertAlmostEqual(k1.oben, 0.5 * 21, delta=2.0)
+        # Zeichen ohne Probe: weiter die erfundene Hand
+        self.assertGreater(len(h.glyphe("b").striche), 0)
+
+    def test_logikzeichen_kommen_aus_der_probe(self):
+        # ∧ wird sonst gezeichnet (zwei gerade Linien) – mit Probe ist es Leifs Strich (hier: ein Strich)
+        ohne = self.hs.hf.formel(r"p \land q", self.hs.hf.Hand(np.random.default_rng(1), 0.3, 1.0))
+        probe = self.hs.probe_laden({"∧": [[[[0, 0], [0.25, -0.6], [0.5, 0]]]]})
+        mit = self.hs.hf.formel(r"p \land q", self.hs.hf.Hand(np.random.default_rng(1), 0.3, 1.0, probe=probe))
+        self.assertEqual(len(ohne.striche) - 1, len(mit.striche))   # gezeichnet: 2 Linien, Probe: 1 Strich
+
+    def test_seite_mit_probe(self):
+        alt = self.hs.MODELL_ORDNER
+        self.hs.MODELL_ORDNER = "/gibt/es/nicht"
+        try:
+            probe = {c: [[[[0, 0], [0.3, -0.6], [0.6, 0]]]] for c in "Hlo"}
+            mit = self.hs.schreiben("Hallo", seed=3, probe=probe, papier="keins")
+            ohne = self.hs.schreiben("Hallo", seed=3, papier="keins")
+            with self.assertRaises(self.hs.HandschriftFehler):
+                self.hs.schreiben("Hallo", probe={"H": "kaputt"})
+        finally:
+            self.hs.MODELL_ORDNER = alt
+        self.assertNotEqual(mit["seiten"][0], ohne["seiten"][0])
+
+
 class Dorfwerk(unittest.TestCase):
     """Der Weg, den das Dorf nimmt: dorfwerk.py-Auftrag „handschrift“ → Dateien im Arbeitsordner."""
 
@@ -407,6 +477,13 @@ class Dorfwerk(unittest.TestCase):
             e = self.dw.ausfuehren({"art": "handschrift", **auftrag})
             self.assertFalse(e["ok"], auftrag)
             self.assertTrue(e["fehler"])
+
+    def test_probe_wird_weitergereicht(self):
+        e = self.dw.ausfuehren({"art": "handschrift", "text": "Hallo", "format": "svg", "seed": 1, "probe": {"H": [[[[0, 0], [0, -1]]]]}})
+        self.assertTrue(e["ok"], e)
+        e = self.dw.ausfuehren({"art": "handschrift", "text": "Hallo", "format": "svg", "probe": {"H": [[[[99, 0]]]]}})
+        self.assertFalse(e["ok"])
+        self.assertIn("Schriftprobe", e["fehler"])
 
     @unittest.skipUnless(__import__("shutil").which("rsvg-convert"), "rsvg-convert fehlt")
     def test_png_und_pdf(self):

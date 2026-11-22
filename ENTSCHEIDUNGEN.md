@@ -2035,3 +2035,42 @@ Leif: „Am Ende muss alles einheitlich eine Schriftart sein – nicht 100 % gle
 - **Vorteile:** Einheitlich, immer korrekt geschrieben (keine Modell-Verschreiber wie „gilt“ → „gill“), jede Sprache mit lateinischen Buchstaben (Englisch, Deutsch mit Umlauten), schnell (≈ 0,3 s je Seite statt mehrerer Sekunden), braucht das KI-Modell nicht.
 - **`stil: ki`** bleibt für reinen Fließtext, der freier aussehen darf (Graves-Modell wie in E212–E214).
 - Ehrlich: Es ist eine saubere Druck-Handschrift, keine verbundene Schreibschrift. Das Hershey-Skript (verbundene Schreibschrift) hat zu verschnörkelte Großbuchstaben.
+
+## E216 – Schriftprobe: das Dorf schreibt in Leifs echter Hand (22.11.)
+
+Leif: „Schau dir deine eigene Bearbeitung an, finde heraus, was du besser machen musst, und schau, was es schon gibt.“ Die Bilder von E215 waren als Computer zu erkennen. Gründe: dieselbe Grundform (Hershey) für jedes Zeichen, gleich dicker Strich, zu gleichmäßige Abstände. Gute Dienste und Projekte für Handschrift lösen das mit einer **Probe der echten Hand**: echte Striche je Zeichen in mehreren Varianten, die abgewechselt werden. Ein Modell, das eine fremde Hand aus wenigen Beispielen nachahmt, bräuchte Training oder eine GPU. Das passt nicht in den Rechenraum ohne Internet. Leif hat „Schriftprobe + Verbesserungen“ gewählt.
+
+- **Erfundene Hand verbessert (E216a):**
+  - Abstände: automatisches Unterschneiden über ein Tintenprofil je Höhenband, Ziel ≈ 0,22 em zwischen den Zeichen.
+  - Feste Schreib-Gewohnheiten je Dokument: 7 mit Querstrich oder ohne, Schwung an Strichenden.
+  - Strichdicke folgt dem Tempo: schnelle Stellen werden dünner.
+  - Strichenden ohne Haken.
+- **Schriftprobe (E216b/c):**
+  - Neue Seite `/schriftprobe` (Einstieg: Atelier → „Schriftprobe schreiben“).
+  - Kästchen mit Grundlinie, x-Höhe und Versalhöhe, dazu eine blasse Vorlage.
+  - Aufnahme mit Pointer-Events (Stift mit Druck, Finger, Maus; zusammengefasste Ereignisse), x/y/Zeit/Druck, normiert auf Versalhöhen-Einheiten.
+  - Übernehmen per Knopf oder ⏎. Das Zeichen bleibt, bis sein Ziel erreicht ist, dann springt die Seite zum nächsten offenen.
+  - Varianten löschen, Fortschritt sehen, Probelesen mit eigenem Text.
+  - Zeichensatz: a–z (3×), A–Z (2×), 0–9 (3×), Umlaute/ß, Satzzeichen, Mathe, Logik und Griechisch (je 1–2×); jeweils bis 8 Varianten.
+- **Speicher:**
+  - `Atelier/schriftprobe.json` über den VaultDienst. Sie landet also im Backup und in Obsidian.
+  - `GET/PUT /api/atelier/schriftprobe` mit Anmeldung und Origin.
+  - Zod prüft streng: je Schlüssel ein Zeichen, höchstens 200 Zeichen, 8 Varianten, 40 Striche, 4000 Punkte je Strich, 300 000 Punkte insgesamt; |x|, |y| ≤ 5, endliche Zahlen; Zeit 0–600 s, Druck 0–1.
+  - Gerundet gespeichert. Eine leere Probe gilt als keine.
+- **`handschrift_schreiben`:**
+  - Gibt es eine Probe, schreibt der Standard in Leifs Hand.
+  - `stil: eigene` erzwingt die Probe. Ohne Probe gibt es eine ehrliche Fehlermeldung.
+  - `stil: einheitlich` nimmt bewusst die erfundene Hand, `stil: ki` das Graves-Modell.
+- **Im Rechenraum:**
+  - Die Probe wird noch einmal geprüft (`probe_laden`).
+  - Striche mit Zeit werden alle 12 ms neu abgetastet. Dann ist der Punktabstand das echte Tempo und steuert die Strichdicke.
+  - Varianten wechseln sich ab, nie zweimal dieselbe hintereinander. Dazu kommen kleine Schwankungen bei Größe und Drehung.
+  - Auch gezeichnete Logikzeichen (∧ ∨ ¬ ⊢ ⊨ ⇒ …) kommen aus der Probe, wenn Leif sie geschrieben hat.
+  - Fehlende Zeichen ergänzt die erfundene Hand.
+- **Beim Nachsehen gefunden und behoben:**
+  - Der Umbruch schätzte die Zeichenbreite wie beim KI-Modell. Die Druckschrift ist schmaler, darum brach der Text schon nach etwa 60 % der Zeile um. Jetzt wird die Breite an der Hand selbst gemessen; das gilt auch für Leifs Probe.
+  - Kurze Tabelleneinträge (T/F, 0/1) stehen mittig wie in einer Wahrheitstafel.
+  - Die Aktion „In Handschrift schreiben“ wurde in E213/E215 geändert, ohne die alte Fassung in `VORLAGE_FRUEHERE_FASSUNGEN` einzutragen. Leifs Vault hatte also noch die E212-Fassung. Jetzt sind alle drei eingetragen; die Aktion bekommt die Schrift-Wahl „automatisch/eigene/einheitlich/ki“.
+- **Ehrlich:**
+  - Es bleibt Druckschrift aus einzelnen Zeichen. Verbindungen zwischen Buchstaben (Schreibschrift) gibt es nicht.
+  - Wie echt das Ergebnis wirkt, hängt von Leifs Probe ab. Mehr Varianten machen es lebendiger.

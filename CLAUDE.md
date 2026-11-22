@@ -61,6 +61,8 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
   src/atelier.ts  E198 Atelier: /api/atelier/* – öffnen (HEIC/TIFF/SVG nur über den Rechenraum), speichern (nur PNG/JPG/WebP/.atelier,
                   Anfangsbytes geprüft, VaultDienst mit basisVersion → Konfliktkopie), ki (Hintergrund/Hochskalieren im Rechenraum),
                   generieren/fuellen (Cloudflare Workers AI, nur mit CLOUDFLARE_* – der einzige Weg nach draußen, nur auf Leifs Klick)
+  src/schriftprobe.ts E216: Leifs Schriftprobe (Atelier/schriftprobe.json, GET/PUT /api/atelier/schriftprobe, Zod-Grenzen) – handschrift_schreiben
+                  schreibt damit in seiner Hand (Standard, wenn vorhanden; stil eigene/einheitlich/ki); Seite /schriftprobe (seiten/Schriftprobe.tsx)
   src/coding.ts   E191 Codehaus: Zugang zu VS Code auf code.<domain> (Einmal-Karte → Cookie dorf_coding, nur Hash, an die Sitzung
                   gebunden), /api/coding (Projekte vom Runner), /api/coding/oeffnen|eintritt; forward_auth-Prüfung in intern.ts
   src/coding-editor.ts E197 Editor im Codehaus: /api/coding/editor/* (Baum, Datei mit basisVersion/409, neu, umbenennen, löschen, hochladen,
@@ -287,3 +289,4 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E213 (22.11.): Handschrift kann Mathe – Formeln ($…$ oder schlicht), Rechenwege am „=“ ausgerichtet, Brüche/Wurzeln/∑∫, Markdown-Tabellen mit Handgitter (handformel.py + Hershey); „=“ wird nicht mehr zu „-“
 - [x] E214 (22.11.): Handschrift realistischer – gerade Linien wie GoodNotes (Tabellen, Bruchstriche), ruhigere Formeln, gleichmäßiger Stift, Logik-Zeichen (∧ ∨ ¬ ↔ ⊢ ⊨ ⊤ ⊥ □), Wahrheitstafeln mittig
 - [x] E215 (22.11.): Handschrift `stil: einheitlich` (Standard) – EINE Hand für Text, Formeln und Tabellen (Schreiber-Profil je Dokument, jedes Zeichen einmalig verformt, Wortgrundlinien, Unterschneiden); `stil: ki` = KI-Modell für freien Fließtext
+- [x] E216 (22.11.): Schriftprobe – Leif schreibt die Zeichen in der App (`/schriftprobe`, Stift/Finger), danach schreibt `handschrift_schreiben` in seiner echten Hand (Varianten im Wechsel, Tempo → Strichdicke); erfundene Hand mit Auto-Kerning und Gewohnheiten – Abnahme mit Leifs echter Probe steht aus

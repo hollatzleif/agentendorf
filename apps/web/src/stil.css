@@ -1764,3 +1764,28 @@ a.datei-karte:hover { border-color: #1f5a1d; }
   /* Handy: das Panel liegt über VS Code (das läuft darunter weiter) */
   .vs-panel { position: absolute; inset: 0; width: auto; border-left: 0; z-index: 2; }
 }
+
+/* ---- E216: Schriftprobe ---------------------------------------------------------------------------------------- */
+.schriftprobe { max-width: 56rem; margin: 0 auto; }
+.sp-fortschritt { display: flex; align-items: center; gap: 0.6rem; }
+.sp-fortschritt progress { flex: 1; height: 0.9rem; accent-color: var(--gruen); }
+.sp-kopf { display: flex; align-items: baseline; gap: 0.8rem; margin-bottom: 0.4rem; }
+.sp-zeichen { font-size: 2.4rem; font-weight: 700; min-width: 2.5rem; text-align: center; }
+.sp-leinwand {
+  display: block; width: min(100%, 26rem); aspect-ratio: 1; margin: 0 auto 0.6rem; background: #fff;
+  border: 3px solid var(--navy); border-radius: 12px; touch-action: none; cursor: crosshair; user-select: none; -webkit-user-select: none;
+}
+.knopfreihe { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; }
+.sp-varianten { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; margin-top: 0.6rem; }
+.sp-variante { position: relative; border: 2px solid var(--rand); border-radius: 8px; background: #fff; }
+.sp-variante canvas { display: block; }
+.sp-variante button { position: absolute; top: -0.6rem; right: -0.6rem; padding: 0 0.4rem; min-height: 0; line-height: 1.3; border-radius: 999px; font-size: 0.85rem; }
+.sp-gruppe h3 { margin: 0.8rem 0 0.3rem; font-size: 1rem; }
+.sp-raster { display: grid; grid-template-columns: repeat(auto-fill, minmax(2.6rem, 1fr)); gap: 0.3rem; }
+.sp-feld { position: relative; padding: 0.35rem 0; min-height: 2.4rem; font-size: 1.15rem; background: #fff; }
+.sp-feld small { position: absolute; right: 0.2rem; bottom: 0.05rem; font-size: 0.65rem; color: var(--leise); }
+.sp-feld.teil { background: #fff6dd; }
+.sp-feld.fertig { background: var(--gruen-hell); border-color: var(--gruen); }
+.sp-feld.aktiv { outline: 3px solid var(--dach); outline-offset: 1px; }
+.sp-vorschau { display: block; width: 100%; background: #fff; border: 2px solid var(--rand); border-radius: 8px; margin-top: 0.5rem; }
+.schriftprobe input { width: 100%; box-sizing: border-box; }
