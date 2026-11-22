@@ -495,17 +495,18 @@ def umriss(p, basis):
     der Schriftprobe sind die Punkte nach Zeit abgetastet, dort ist der Abstand wirklich das Tempo."""
     d = np.diff(p, axis=0)
     laenge = np.hypot(d[:, 0], d[:, 1])
-    if len(laenge) < 3 or float(laenge.sum()) < basis * 2:
+    if len(laenge) < 3 or float(laenge.sum()) < basis * 4:     # kurze Striche/Tupfer: gleichmäßig, sonst verschwinden sie
         return None
     mitte = float(np.median(laenge[laenge > 1e-6])) if np.any(laenge > 1e-6) else 1.0
-    seg = np.clip(1.05 - 0.2 * np.log2(np.maximum(laenge, 1e-3) / max(mitte, 1e-6)), 0.7, 1.12)
+    # E217: wie ein Stift auf dem Tablet – schnelle Stellen etwas dünner, langsame etwas voller (mild, wie GoodNotes)
+    seg = np.clip(1.02 - 0.12 * np.log2(np.maximum(laenge, 1e-3) / max(mitte, 1e-6)), 0.82, 1.1)
     w = np.concatenate([[seg[0]], (seg[:-1] + seg[1:]) / 2, [seg[-1]]])
-    w = np.convolve(np.pad(w, 1, mode="edge"), np.ones(3) / 3, mode="valid")
-    w[0] *= 0.55
-    w[-1] *= 0.6
-    if len(w) > 3:
-        w[1] *= 0.85
-        w[-2] *= 0.88
+    w = np.convolve(np.pad(w, 2, mode="edge"), np.ones(5) / 5, mode="valid")
+    # An- und Absetzen nach Weglänge: der Druck baut sich auf den ersten ~1,5 Strichbreiten auf und lässt am Ende nach
+    weg = np.concatenate([[0.0], np.cumsum(laenge)])
+    gesamt = float(weg[-1])
+    rampe = max(min(basis * 1.5, gesamt / 4), 1e-6)
+    w = w * np.clip(0.5 + 0.5 * weg / rampe, 0.5, 1.0) * np.clip(0.55 + 0.45 * (gesamt - weg) / rampe, 0.55, 1.0)
     w = w * basis / 2
     rich = np.gradient(p, axis=0)
     norm = np.hypot(rich[:, 0], rich[:, 1])
@@ -613,6 +614,7 @@ def _hershey_text(text, hand, durchstreichen=False):
     satz = hf.Satz(hand)
     t = text.replace("–", "-").replace("−", "-").replace("„", '"').replace("“", '"').replace("”", '"')
     striche, x, fehl = [], 0.0, 0
+    drift = 0.0          # E217: die Grundlinie wandert (Zufallsweg), statt dass jedes Wort für sich springt
     for i, wort in enumerate(t.split()):
         if i:
             x += 0.42 * em * hand.abstand * (1 + rng.normal(0, 0.15 + 0.1 * u))
@@ -624,7 +626,8 @@ def _hershey_text(text, hand, durchstreichen=False):
             x += falsch.breite + 0.35 * em
             fehl += 1
         k = satz.wort(wort, 1.0 + rng.normal(0, 0.012 + 0.018 * u))
-        dy = rng.normal(0, 0.03 + 0.04 * u) * em
+        drift = 0.6 * drift + rng.normal(0, 0.025 + 0.035 * u) * em
+        dy = drift + rng.normal(0, 0.01 + 0.012 * u) * em
         winkel = rng.normal(0, 0.008 + 0.012 * u)
         mitte = np.array([x + k.breite / 2, 0.0])
         for q in k.striche:
@@ -949,7 +952,9 @@ def schreiben(text, unordnung=0.5, papier="blanko", tinte="blau", groesse=1.0, d
             dicke = basis * (1 + rng.normal(0, 0.025))
             form = umriss(p + versatz, dicke * 0.95) if len(p) > 3 else None
             if form is None:                                    # gerade Linien und Punkte: gleichmäßig
-                teile.append(f'<path d="{_pfad(p + versatz)}" stroke-width="{max(0.8, dicke):.2f}"/>')
+                laenge = float(np.hypot(*np.diff(p, axis=0).T).sum())
+                breite = dicke * (1.5 if laenge < dicke * 2 else 1.0)   # Tupfer (., i-Punkt) kräftig wie ein Stiftpunkt
+                teile.append(f'<path d="{_pfad(p + versatz)}" stroke-width="{max(0.8, breite):.2f}"/>')
             else:                                               # Umriss + hauchdünne Kontur gegen Treppen am Rand
                 teile.append(f'<path d="{_pfad(form)} Z" fill="{farbe}" stroke-width="{dicke * 0.25:.2f}"/>')
         teile.append("</g></svg>")

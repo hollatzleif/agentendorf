@@ -12,6 +12,7 @@
 # (Diagramme), segno (QR-Codes), genanki (Anki-Pakete), DuckDB + pandas (Datenabfragen). Mermaid bräuchte Chromium – nicht drin.
 # E212 – Handschrift (handschrift.py, nur NumPy + rsvg-convert) mit den Gewichten aus /opt/handschrift; E213 Formeln und
 # Tabellen von Hand (handformel.py + hershey/glyphen.json, Hershey-Einstrichzeichen).
+# E217: handbewegung.py schreibt jeden Strich mit einem Bewegungsmodell (Sigma-Lognormal) neu – nur NumPy.
 
 # ---- whisper.cpp (Transkription) – feste Version, Modell mit Prüfsumme ------------------------------------------------
 # Gebaut für x86-64 mit AVX2/FMA (jede Server-CPU seit 2013); ohne AVX2 wäre es ~10× langsamer. Fehlt AVX2 auf dem Server,
@@ -101,6 +102,7 @@ COPY apps/rechenraum/runner.py /app/runner.py
 COPY apps/rechenraum/dorfwerk.py /app/dorfwerk.py
 COPY apps/rechenraum/handschrift.py /app/handschrift.py
 COPY apps/rechenraum/handformel.py /app/handformel.py
+COPY apps/rechenraum/handbewegung.py /app/handbewegung.py
 COPY apps/rechenraum/hershey/glyphen.json /app/hershey/glyphen.json
 ENV ARBEIT_DIR=/arbeit PORT=4100 PYTHONUNBUFFERED=1 WHISPER_MODELL=/opt/whisper/ggml-base-q5_1.bin
 USER rechner

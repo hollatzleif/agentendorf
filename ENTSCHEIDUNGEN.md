@@ -2074,3 +2074,49 @@ Leif: „Schau dir deine eigene Bearbeitung an, finde heraus, was du besser mach
 - **Ehrlich:**
   - Es bleibt Druckschrift aus einzelnen Zeichen. Verbindungen zwischen Buchstaben (Schreibschrift) gibt es nicht.
   - Wie echt das Ergebnis wirkt, hängt von Leifs Probe ab. Mehr Varianten machen es lebendiger.
+
+## E217 – Eine neue erfundene Hand: geschrieben statt verbogen (22.11.)
+
+Leif zu E216 (Bild „Exercise 3: Resolution“): „Schau mal, wie kacke das aussieht. Die Zeichen ähneln sich zu viel, und es sieht nicht aus wie von Hand auf GoodNotes geschrieben. Recherchiere genau, was Handschrift menschlich aussehen lässt.“ Leif hat danach „Nur neue erfundene Hand“ gewählt und schreibt „teilweise verbunden“.
+
+**Recherche** (Synthese-Forschung, Schriftgutachter):
+- Jedes Vorkommen eines Buchstabens sieht anders aus („natürliche Variation“), bleibt aber erkennbar dieselbe Hand.
+- Die Grundlinie wandert.
+- Die Strichbreite lebt.
+- Buchstaben werden teilweise verbunden.
+
+Schrift entsteht aus schnellen Bewegungen: Nach dem Sigma-Lognormal-Modell (Plamondon) ist ein Zug eine Folge überlappender Stiftbewegungen mit lognormalem Tempo. Variation entsteht realistisch, wenn man die Bewegungsparameter verändert, nicht das Bild. Bis E216 haben wir genau das Falsche getan: eine Druckschrift-Vorlage (Hershey) verbogen. Dazu kamen Zierklammern aus dem Schriftsatz und ein Komma, das aussah wie ein Punkt.
+
+**Neu (`apps/rechenraum/handbewegung.py`, nur NumPy):**
+- **Bewegungsmodell:**
+  - Schlüsselpunkte (Ramer-Douglas-Peucker), Ziele mit zusammenhängendem Fehler, je Strecke eine Lognormal-Bewegung.
+  - An Kurven überlappen die Bewegungen stark (rund), an Ecken wenig, an Umkehrpunkten (n, m, k) gar nicht. Dort bleibt der Stift kurz stehen, und es entsteht eine Spitze.
+  - Die Punkte liegen in gleichen Zeitabständen (10 ms), der Punktabstand ist also das Tempo. Das Zeichnen macht daraus eine milde Strichbreite wie in GoodNotes; An- und Absetzen werden nach Weglänge dünner.
+  - Je Dokument eine `Schreibart` (Tempo, Weichheit, Rundung, Genauigkeit).
+  - Auch gerade Buchstabenteile (l, i, Großbuchstaben) laufen durchs Modell. Lineal-gerade bleiben nur Linien aus `Hand.linie()` (Tabellen, Bruchstriche).
+- **Eigene Skelette:**
+  - Alle Kleinbuchstaben in echter Schreibreihenfolge: a, d, g, q als Bogen und Stamm in einem Zug; n, m, h, r als Stamm, zurück, Bogen.
+  - Formvarianten mit Lieblingsform je Schreiber (80 %): a, d, i, l, t mit oder ohne Schwung, y gerade oder rund, g, k, f, b, p.
+  - Klammern `{ } ( ) [ ]` schlicht in einem Zug, Komma mit Schwanz, Punkt und Doppelpunkt auf der Grundlinie (Hershey lässt sie schweben), ≥ ≤ mit einem Strich.
+- **Teilweise verbunden** (Neigung je Schreiber 30–70 %):
+  - Verbunden wird unten aus dem Buchstaben heraus, schräg hinauf in e, i, j, m, n, p, r, u.
+  - Nie verbunden wird in runde Buchstaben (die Verbindung kreuzte den Bogen) oder aus c, o, r, v, w.
+  - Keine Minimen-Ketten: „un“, „an“, „ar“ lesen sich verbunden wie „w“, „on“, „ae“. In m, n, p, r wird nur nach e, l, t, k, z verbunden.
+- **Rhythmus:** Die Grundlinie läuft als Zufallsweg durch die Zeile, statt jedes Wort unabhängig springen zu lassen.
+
+**Beim Prüfen mit drei Schreibern gefunden und behoben (betrifft auch Leifs Probe):**
+- **Abstand-Profil:**
+  - Gerade Striche wurden unabhängig von ihrer Länge in fünf Stücke geteilt, lange Linien ließen Höhenbänder aus. Folge: M rutschte in L.
+  - Das Profil merkt sich alle früheren Buchstaben. Ein Komma richtete sich nach dem e zwei Stellen vor dem d („derive,d“). Jetzt darf ein Zeichen den direkten Vorgänger höchstens 0,3 em unterschneiden, Satzzeichen gar nicht.
+  - Anführungszeichen werden nach dem Rechteck gesetzt.
+  - Nach r ist die Luft kleiner, aber nicht so klein, dass „rn“ als „m“ gelesen wird.
+- **Tupfer:** Kurze Tupfer (Punkte) werden kräftig gezeichnet, statt durch das Ausdünnen zu verschwinden.
+- **Ein Test prüfte gar nichts:** `test_linien_sind_gerade_wie_in_goodnotes` setzte wegen `r"\\frac"` keinen Bruch und lief nur zufällig durch. Er ist korrigiert.
+
+**Kosten:** Eine volle A4-Seite braucht etwa 1,2 s statt 0,3 s; das SVG ist etwa 1 MB groß. PNG und PDF entstehen daraus wie bisher.
+
+**Ehrlich:**
+- Es bleibt eine Druckschrift mit Verbindungen, keine volle Schreibschrift.
+- Lesbarkeit geht vor Natürlichkeit: Riskante Verbindungen sind bewusst verboten.
+- Leifs Schriftprobe (E216) hat weiter Vorrang, wenn er sie schreibt. Ihre Striche fasst das Modell nicht an.
+- Quellen: Plamondon et al. (Kinematic Theory, Sigma-Lognormal), Haines et al. „My Text in Your Handwriting“ (UCL 2016), Arbeiten zur Handschriftenprüfung (natürliche Variation, Verbindungen). Übernommen wurde kein Code, nur das Modell.

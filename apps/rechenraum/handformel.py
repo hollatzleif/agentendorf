@@ -5,8 +5,9 @@ Handformel (E213): Formeln, Rechenwege und Tabellen „von Hand“ – für hand
 Das Handschrift-Modell (Graves) kennt kein „=“, keine Hochzahlen, Brüche oder Wurzeln und verkrüppelt kurze Zeichenfolgen
 („x = 5“ → „T - J“). Formeln setzt darum dieses Modul selbst: ein kleiner Formelsatz (Kästchen mit Breite, Höhe über und
 Tiefe unter der Grundlinie) wie TeX ihn kennt, gezeichnet mit Einstrich-Zeichen aus den Hershey-Schriften
-(hershey/glyphen.json, Danksagung dort). Jedes Zeichen bekommt eigene Größe, Neigung und Lage, jeder Strich ein leichtes
-Zittern, Linien (Bruchstrich, Wurzel, Tabellengitter) sind nie lineal-gerade und stehen an den Enden etwas über.
+(hershey/glyphen.json, Danksagung dort). Jedes Zeichen bekommt eigene Größe, Neigung und Lage; seit E217 wird jeder
+Strich mit dem Bewegungsmodell aus handbewegung.py neu geschrieben (Kleinbuchstaben, Klammern, Satzzeichen aus eigenen
+Skeletten). Linien (Bruchstrich, Tabellengitter) sind gerade wie in GoodNotes und stehen an den Enden etwas über.
 
 Eingabe: LaTeX-Teilmenge ($…$) – \\frac \\sqrt[n] ^ _ \\left( \\right) \\sum \\prod \\int \\lim \\text, Funktionen (\\sin …),
 griechische Buchstaben, Relationen und Pfeile – und einfache Schreibweise ohne $: x^2, x^(n+1), sqrt(…), *, <=, >=, !=, ->,
@@ -17,7 +18,14 @@ import math
 import os
 import re
 
+import sys
+
 import numpy as np
+
+_HIER = os.path.dirname(os.path.abspath(__file__))
+if _HIER not in sys.path:
+    sys.path.insert(0, _HIER)
+import handbewegung as hb  # noqa: E402  (E217: Striche werden geschrieben, nicht verbogen)
 
 _GLYPHEN = None
 
@@ -304,9 +312,12 @@ def _profil(striche, unten, oben, schritt):
     n = int((oben - unten) / schritt) + 1
     links, rechts = np.full(n, np.nan), np.full(n, np.nan)
     for p in striche:
-        if len(p) >= 2:                               # Strecken verdichten, sonst fallen Bänder durch
-            t = np.linspace(0, 1, 6)[1:, None]
-            p = np.concatenate([p[:1]] + [a + (b - a) * t for a, b in zip(p[:-1], p[1:])])
+        if len(p) >= 2:                               # Strecken verdichten (nach Länge), sonst fallen Bänder durch
+            teile = [p[:1]]
+            for a, b in zip(p[:-1], p[1:]):
+                stuecke = max(2, int(math.ceil(float(np.hypot(*(b - a))) / (schritt * 0.5))))
+                teile.append(a + (b - a) * np.linspace(0, 1, stuecke + 1)[1:, None])
+            p = np.concatenate(teile)
         band = np.clip(((p[:, 1] - unten) / schritt).astype(int), 0, n - 1)
         for b, x in zip(band, p[:, 0]):
             links[b] = x if np.isnan(links[b]) else min(links[b], x)
@@ -321,28 +332,49 @@ def kernen(kaesten, em, abstand=1.0, rng=None, u=0.0):
     unten, oben, schritt = -1.4 * em, 0.6 * em, 0.1 * em
     striche, x, rand = [], 0.0, None
     k_oben, k_unten, luft = 0.0, 0.0, 0.0
+    bereiche = []          # je Kasten mit Strichen: welche Striche des Ergebnisses zu ihm gehören (zum Verbinden)
+    vorher_hoch = False
+    letzter_rechts = None  # rechter Rand des direkten Vorgängers (das Profil merkt sich auch ältere Buchstaben)
+    vorher_zeichen = None
     for k in kaesten:
         if not k.striche:
             luft += k.breite
             continue
+        # Anführungszeichen/Apostroph: nach dem Rechteck setzen – sie teilen mit dem Nachbarn kaum eine Höhe und
+        # rutschten sonst über das s bzw. q
+        hoch = getattr(k, "zeichen", None) in ('"', "'", "`")
         links, rechts = _profil(k.striche, unten, oben, schritt)
         ziel = 0.22 * em * abstand * (1 + (rng.normal(0, 0.12 + 0.1 * u) if rng is not None else 0))
+        if vorher_zeichen == "r":
+            ziel *= 0.9        # der Bogen ragt oben hinüber – unten wäre sonst ein Loch („der ived“); enger: „rn“ → „m“
+        elif vorher_zeichen in ("T", "F", "P", "7", "Y", "V", "W"):
+            ziel *= 0.35
         if rand is None:
             dx = 0.0
         else:
             beide = ~np.isnan(links) & ~np.isnan(rand)
-            if beide.any():
+            if beide.any() and not hoch and not vorher_hoch:
                 dx = float(np.max(rand[beide] - links[beide])) + ziel
             else:                                     # keine gemeinsame Höhe (z. B. „T.“): nach Rechteck
                 dx = float(np.nanmax(rand)) - float(np.nanmin(links)) + ziel * 0.6
+            # nie weiter als 0,3 em unter den direkten Vorgänger: sonst richtet sich ein Komma nach einem Buchstaben
+            # zwei Stellen davor („derive,d“), wenn der Vorgänger die Grundlinie nicht berührt
+            satzzeichen = getattr(k, "zeichen", None) in (".", ",", ";", ":", "!", "?")
+            dx = max(dx, letzter_rechts - float(np.nanmin(links)) - (0.02 if satzzeichen else 0.3) * em)
             dx += luft
         luft = 0.0
+        vorher_hoch = hoch
+        vorher_zeichen = getattr(k, "zeichen", None)
+        bereiche.append((len(striche), len(striche) + len(k.striche)))
         striche += [p + np.array([dx, 0.0]) for p in k.striche]
         neu_rechts = rechts + dx
+        letzter_rechts = float(np.nanmax(neu_rechts)) if not np.all(np.isnan(neu_rechts)) else letzter_rechts
         rand = neu_rechts if rand is None else np.where(np.isnan(neu_rechts), rand, np.fmax(rand, neu_rechts))
         k_oben, k_unten = max(k_oben, k.oben), max(k_unten, k.unten)
         x = max(x, float(np.nanmax(neu_rechts)) if not np.all(np.isnan(neu_rechts)) else x)
-    return Kasten(striche, x + 0.08 * em + luft, k_oben, k_unten)
+    erg = Kasten(striche, x + 0.08 * em + luft, k_oben, k_unten)
+    erg.bereiche = bereiche
+    return erg
 
 
 def nebeneinander(kaesten):
@@ -377,12 +409,19 @@ class Hand:
         self.abstand = 1.0 + rng.normal(0, 0.08)          # eng … luftig
         self.em = 21 * einheit                            # Versalhöhe
         self.unbekannt = set()
+        # E217: wie dieser Schreiber die Hand bewegt, welche Formvarianten er mag und wie oft er Buchstaben verbindet
+        self.art = hb.Schreibart(rng, u)
+        self.vorliebe = {}
+        self.verbinden = float(np.clip(rng.normal(0.5, 0.08), 0.3, 0.7))
 
     def glyphe(self, name, g=1.0, art="ord"):
         zeichen = name if len(name) == 1 else NAME_ZU_ZEICHEN.get(name)
         if zeichen and self.probe.get(zeichen):
             return self.probe_glyphe(zeichen, g, art)
         gl = glyphen().get(name)
+        eigen = hb.skelett(name, self.rng, self.vorliebe)     # E217: eigene Skelette (Schreibreihenfolge, Varianten)
+        if eigen is not None:
+            gl = {"s": eigen, "l": gl["l"] if gl else -6, "r": gl["r"] if gl else 6}
         if gl is None:
             self.unbekannt.add(name)
             return Kasten(breite=0.3 * self.em * g)
@@ -401,12 +440,16 @@ class Hand:
             rechts = 0.5 if name in ("r", "f", "t", "c", "y", "v", "w", "k", "x", "T", "F", "P", "V", "W", "Y") else luft * 0.8
             if name in ("t", "f", "j"):                     # Querbalken/Bogen nach links: dort auch wenig Luft
                 luft = 0.8
+            if name in (",", ";"):                          # Kommaschwanz reicht nach links unter den Buchstaben
+                luft = 0.4
             l, r = min(xs) - luft, max(xs) + rechts
         else:
             l, r = gl["l"], gl["r"]
         striche = []
         for st in gl["s"]:
             p = np.array(st, dtype=float)
+            if len(p) == 2:       # E217: auch gerade Buchstabenstriche schreibt die Hand (nur Linien von linie() bleiben exakt)
+                p = np.array([p[0], (p[0] + p[1]) / 2, p[1]])
             p[:, 0] = (p[:, 0] - l) * s
             p[:, 1] = (p[:, 1] - 9) * s
             c, sn = math.cos(dreh), math.sin(dreh)
@@ -418,7 +461,9 @@ class Hand:
         striche = self.gewohnheit(name, striche, g)
         breite = (r - l) * s * self.breite * (1 + rng.normal(0, 0.05 * u + 0.03))
         alle = np.concatenate(striche) if striche else np.zeros((1, 2))
-        return Kasten(striche, breite, max(0.0, -alle[:, 1].min()), max(0.0, alle[:, 1].max()), art=art)
+        k = Kasten(striche, breite, max(0.0, -alle[:, 1].min()), max(0.0, alle[:, 1].max()), art=art)
+        k.zeichen = name
+        return k
 
     def probe_glyphe(self, zeichen, g, art):
         """Ein Zeichen aus der Schriftprobe: eine der Varianten (nie zweimal hintereinander dieselbe), kaum verändert –
@@ -438,7 +483,7 @@ class Hand:
         for st in varianten[i]:
             p = np.array(st, dtype=float)
             x, y = (p[:, 0] - x0) * em, p[:, 1] * em
-            striche.append(np.stack([x * c - y * sn + 0.1 * em, x * sn + y * c], axis=1))
+            striche.append(np.stack([x * c - y * sn + 0.1 * em, x * sn + y * c], axis=1).view(hb.Echt))
         breite = float(np.ptp(alle[:, 0])) * em + 0.2 * em
         q = np.concatenate(striche)
         return Kasten(striche, breite, max(0.0, -float(q[:, 1].min())), max(0.0, float(q[:, 1].max())), art=art)
@@ -451,7 +496,7 @@ class Hand:
             y = (q[:, 1].min() + q[:, 1].max()) / 2
             x_mitte = float(q[:, 0][np.argmin(np.abs(q[:, 1] - y))])
             striche = striche + [np.array([[x_mitte - 0.18 * em, y], [x_mitte + 0.18 * em, y - 0.02 * em]])]
-        elif name in ("a", "d", "u") and self.rng.random() < self.schwung:
+        elif name in ("a", "d", "u") and name not in hb.SKELETTE and self.rng.random() < self.schwung:
             q = np.concatenate(striche)
             unten = q[q[:, 1] > -0.12 * em]
             if len(unten):
@@ -464,7 +509,7 @@ class Hand:
         Striche beginnen/enden nicht exakt (Kreise schließen nicht perfekt). So sieht kein „o“ aus wie das andere."""
         rng = self.rng
         em = self.em * g
-        a = (0.03 + 0.03 * self.u) * em
+        a = (0.015 + 0.02 * self.u) * em             # E217: leiser – die Variation kommt jetzt aus der Bewegung
         fx, fy = rng.uniform(2.0, 4.5, 2) / em
         px, py = rng.uniform(0, 2 * np.pi, 2)
         ax, ay = rng.normal(0, a * 0.6), rng.normal(0, a)     # waagrecht weniger: schmale Zeichen (1, l) kippen sonst
@@ -501,18 +546,11 @@ class Hand:
         return np.array([p0, p1 + normal * kipp])
 
     def zittern(self, p):
-        """Polylinie glätten (Chaikin) und mit leisem, weichem Zittern versehen – Hershey ist sonst zu technisch."""
-        if len(p) >= 3:
-            q = [p[0]]
-            for a, b in zip(p[:-1], p[1:]):
-                q += [0.75 * a + 0.25 * b, 0.25 * a + 0.75 * b]
-            q.append(p[-1])
-            p = np.array(q)
-        if len(p) >= 3:                                   # gerade Linien (2 Punkte) bleiben gerade
-            rausch = self.rng.normal(0, 0.1 + 0.15 * self.u, p.shape)
-            rausch = (rausch + np.roll(rausch, 1, axis=0) + np.roll(rausch, -1, axis=0)) / 3
-            p = p + rausch
-        return p
+        """E217: Den Strich mit dem Bewegungsmodell neu schreiben (handbewegung.bewegen). Echte Striche aus der
+        Schriftprobe und gerade Linien (zwei Punkte) bleiben, wie sie sind."""
+        if isinstance(p, hb.Echt) or len(p) <= 2:
+            return p
+        return hb.bewegen(p, self.em, self.rng, self.art)
 
 
 # ---- Satz ------------------------------------------------------------------------------------------------------------
@@ -638,6 +676,12 @@ class Satz:
             else:
                 ks.append(self.h.glyphe(c, g))
         k = kernen(ks, em, self.h.abstand, rng, u)
+        # E217: teilweise verbunden – Kleinbuchstaben schreibt die Hand oft ohne abzusetzen
+        zeichen = [c for c in text.replace("ß", "ss") if c != " "]
+        if len(k.bereiche) == len(zeichen) and len(zeichen) > 1:
+            basis = {"ä": "a", "ö": "o", "ü": "u"}
+            glyphen_wort = [(basis.get(c, c), k.striche[a:b]) for c, (a, b) in zip(zeichen, k.bereiche)]
+            k.striche = hb.verbinden(glyphen_wort, em, rng, self.h.verbinden)
         k.anker = None
         return k
 

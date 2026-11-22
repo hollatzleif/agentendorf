@@ -157,11 +157,16 @@ apps/rechenraum eigener Container: pdflatex (texlive), Python (numpy/sympy/scipy
                 /umwandeln (E190): fremde Dateien → Text/Bilder in eigenem Kindprozess (420 s, 1024 MB Adressraum – kleiner geht nicht, Messwerte in runner.py; Zip-Bomben-Grenzen); dazu ffmpeg,
                 whisper.cpp (base-q5_1, im Image), tesseract deu+eng, rsvg, heif-convert, catdoc, xlrd, olefile; python-docx/openpyxl/python-pptx/odfpy.
                 /werkzeug (E199): dorfwerk.py mit JSON-Auftrag statt Shell (PDF mit pypdf/Ghostscript, Graphviz, segno, genanki, DuckDB/pandas),
-                einzeln, 120 s, Adressraum 1536 MB (DuckDB reserviert ~1,3 GB, belegt ~80 MB); pip-Pakete mit Prüfsumme; Image-Kennung inkl. dorfwerk.py, handschrift.py, handformel.py, hershey/glyphen.json.
+                einzeln, 120 s, Adressraum 1536 MB (DuckDB reserviert ~1,3 GB, belegt ~80 MB); pip-Pakete mit Prüfsumme; Image-Kennung inkl. dorfwerk.py, handschrift.py, handformel.py, handbewegung.py, hershey/glyphen.json.
                 handschrift.py (E212): Graves-Handschriftmodell nur mit NumPy (eigener Leser für model.pt aus /opt/handschrift, keine
                 fremden Pickle-Funktionen), Zeilen bewerten/neu erzeugen, Wort für Wort verzerren, Umlaut-Punkte, Durchstreichen → SVG/PNG/PDF.
                 handformel.py (E213): Formelsatz von Hand ($…$/LaTeX-Teilmenge oder 3x + 5 = 20 | -5; Brüche, Wurzeln, ∑∫lim, Tabellen
                 aus Markdown, Rechenwege am „=“ ausgerichtet) mit Hershey-Einstrichzeichen (hershey/glyphen.json, Danksagung Pflicht).
+                handbewegung.py (E217): jeder Strich wird mit einem Bewegungsmodell neu GESCHRIEBEN (Sigma-Lognormal: überlappende
+                Stiftbewegungen, Spitzen nur an Umkehrpunkten, Punkte in gleichen Zeitabständen → Strichbreite), eigene Skelette für
+                Kleinbuchstaben in Schreibreihenfolge mit Formvarianten, Klammern/Komma/Punkt/≥ wie von Hand, teilweise verbunden
+                (unten heraus, schräg hinauf in e i j m n p r u – nie in runde Buchstaben, keine Minimen-Ketten). Echte Striche aus der
+                Schriftprobe (Klasse Echt) und Linien aus Hand.linie() (Tabellen, Bruchstriche) bleiben unberührt.
 apps/browser    Moodle-Browser (E57): Chromium über playwright-core + Runner (HTTP, Bearer-Geheimnis). leine.ts = DIE Regeln
                 (nur Domains aus BROWSER_HOSTS, GET ja außer sesskey/Abmelden, POST nur Anmeldeformular als Seiten-
                 navigation oder lesende Moodle-Ajax-Funktionen), browser.ts = Sitzung je Lauf, nummerierte Links,
@@ -289,4 +294,5 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E213 (22.11.): Handschrift kann Mathe – Formeln ($…$ oder schlicht), Rechenwege am „=“ ausgerichtet, Brüche/Wurzeln/∑∫, Markdown-Tabellen mit Handgitter (handformel.py + Hershey); „=“ wird nicht mehr zu „-“
 - [x] E214 (22.11.): Handschrift realistischer – gerade Linien wie GoodNotes (Tabellen, Bruchstriche), ruhigere Formeln, gleichmäßiger Stift, Logik-Zeichen (∧ ∨ ¬ ↔ ⊢ ⊨ ⊤ ⊥ □), Wahrheitstafeln mittig
 - [x] E215 (22.11.): Handschrift `stil: einheitlich` (Standard) – EINE Hand für Text, Formeln und Tabellen (Schreiber-Profil je Dokument, jedes Zeichen einmalig verformt, Wortgrundlinien, Unterschneiden); `stil: ki` = KI-Modell für freien Fließtext
+- [x] E217 (22.11.): Neue erfundene Hand – Bewegungsmodell (Sigma-Lognormal) statt verbogener Vorlage, eigene Kleinbuchstaben mit Formvarianten, teilweise verbunden, schlichte Klammern, Grundlinie wandert; Abstand-Profil repariert (lange Linien, Komma/Anführungszeichen) – Rechenraum-Image kommt mit dem Deploy
 - [x] E216 (22.11.): Schriftprobe – Leif schreibt die Zeichen in der App (`/schriftprobe`, Stift/Finger), danach schreibt `handschrift_schreiben` in seiner echten Hand (Varianten im Wechsel, Tempo → Strichdicke); erfundene Hand mit Auto-Kerning und Gewohnheiten – Abnahme mit Leifs echter Probe steht aus

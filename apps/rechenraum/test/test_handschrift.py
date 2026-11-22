@@ -354,8 +354,12 @@ class Formeln(unittest.TestCase):
             self.assertEqual(len(p), 2)                    # Anfang und Ende – nichts dazwischen, also gerade
             self.assertLess(abs(p[1, 1] - p[0, 1]), 2.0)    # höchstens ein Hauch schief
             self.assertTrue(np.array_equal(h.zittern(p), p))
-        bruch = self.hf.formel(r"\\frac{1}{2}", h)
-        self.assertTrue(any(len(s) == 2 and abs(s[0, 1] - s[1, 1]) < 1.0 for s in bruch.striche))   # Bruchstrich
+        bruch = self.hf.formel(r"\frac{1}{2}", h)
+        balken = [s for s in bruch.striche if len(s) == 2 and abs(s[0, 1] - s[1, 1]) < 1.0]
+        self.assertEqual(len(balken), 1)                                       # der Bruchstrich: gerade
+        self.assertGreater(float(abs(balken[0][1, 0] - balken[0][0, 0])), 0.6 * h.em)
+        # Buchstaben dagegen schreibt die Hand – auch ihre geraden Teile (E217): kein Strich der Ziffern ist lineal-gerade
+        self.assertTrue(all(len(s) > 2 for s in bruch.striche if s is not balken[0]))
 
     def test_logik(self):
         h = self.hand()
@@ -430,6 +434,111 @@ class Schriftprobe(unittest.TestCase):
         finally:
             self.hs.MODELL_ORDNER = alt
         self.assertNotEqual(mit["seiten"][0], ohne["seiten"][0])
+
+
+@unittest.skipUnless(np is not None, "numpy fehlt")
+class Bewegung(unittest.TestCase):
+    """E217: Striche werden mit einem Bewegungsmodell (Sigma-Lognormal) geschrieben, nicht verbogen."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.hf = handformel_laden()
+        cls.hb = sys.modules["handbewegung"]
+
+    def hand(self, seed=1, u=0.45):
+        return self.hf.Hand(np.random.default_rng(seed), u, 1.0)
+
+    def test_bewegen_trifft_anfang_und_ende_und_variiert(self):
+        hb = self.hb
+        em = 21.0
+        bogen = np.array(hb._bogen(0, 0, 6, 7, -95, -470, 11))
+        art = hb.Schreibart(np.random.default_rng(1), 0.45)
+        a = hb.bewegen(bogen, em, np.random.default_rng(1), art)
+        b = hb.bewegen(bogen, em, np.random.default_rng(2), art)
+        self.assertLess(float(np.hypot(*(a[0] - bogen[0]))), 0.15 * em)
+        self.assertLess(float(np.hypot(*(a[-1] - bogen[-1]))), 0.2 * em)
+        self.assertGreater(len(a), len(bogen))                       # nach Zeit abgetastet: viele Punkte
+        self.assertFalse(len(a) == len(b) and np.allclose(a, b))      # kein „o“ wie das andere
+        # gleich große Zeitschritte: am Anfang langsam (kleine Abstände), in der Mitte schneller
+        schritt = np.hypot(*np.diff(a, axis=0).T)
+        self.assertLess(float(np.mean(schritt[:3])), float(np.median(schritt)) * 1.5)
+        # gerade Linien bleiben gerade, Punkte werden Tupfer
+        linie = np.array([[0.0, 0.0], [30.0, 0.0]])
+        self.assertTrue(np.array_equal(hb.bewegen(linie, em, np.random.default_rng(1), art), linie))
+        punkt = np.array([[0, 4], [-1, 5], [0, 6], [1, 5], [0, 4]], dtype=float)
+        self.assertEqual(len(hb.bewegen(punkt, em, np.random.default_rng(1), art)), 2)
+
+    def test_echte_striche_bleiben_unberuehrt(self):
+        h = self.hand()
+        echt = np.array([[0.0, 0.0], [3.0, -5.0], [6.0, 0.0]]).view(self.hb.Echt)
+        self.assertIs(h.zittern(echt), echt)
+
+    def test_eigene_klammern_und_formvarianten(self):
+        h = self.hand(3)
+        self.assertEqual(len(h.glyphe("{").striche), 1)              # keine Zierklammer aus drei Teilen
+        self.assertEqual(len(h.glyphe("}").striche), 1)
+        # Lieblingsform: meistens dieselbe Variante, ab und zu die andere
+        anzahl = {}
+        for _ in range(200):
+            v = self.hb.skelett("t", h.rng, h.vorliebe)
+            anzahl[len(v[0])] = anzahl.get(len(v[0]), 0) + 1
+        self.assertEqual(len(anzahl), 2)
+        self.assertGreater(max(anzahl.values()), 130)
+
+    def test_teilweise_verbunden(self):
+        satz = lambda h: self.hf.Satz(h)
+        h = self.hand(4)
+        h.verbinden = 1.0
+        einzeln = sum(len(h.glyphe(c).striche) for c in "lein")
+        h = self.hand(4)
+        h.verbinden = 1.0
+        verbunden = len(satz(h).wort("lein", 1.0).striche)
+        self.assertLess(verbunden, einzeln)
+        h = self.hand(4)
+        h.verbinden = 0.0
+        self.assertEqual(len(satz(h).wort("lein", 1.0).striche), einzeln)
+        # nie in runde Buchstaben und nie Minimen-Ketten („un“ läse sich wie „w“)
+        for seed in range(20):
+            for wort in ("ao", "ld", "un", "im"):
+                h = self.hand(seed)
+                h.verbinden = 1.0
+                n = sum(len(h.glyphe(c).striche) for c in wort)
+                h = self.hand(seed)
+                h.verbinden = 1.0
+                self.assertEqual(len(satz(h).wort(wort, 1.0).striche), n, (seed, wort))
+
+    def test_satzzeichen_stehen_hinter_dem_buchstaben(self):
+        # „derive,d“: das Komma richtete sich nach dem e zwei Stellen davor, wenn das d die Grundlinie nicht berührte
+        for seed in range(150):
+            h = self.hand(seed)
+            ks = [h.glyphe(c) for c in 'ved,"']
+            k = self.hf.kernen(ks, h.em, 1.0)
+            teil = [np.concatenate(k.striche[a:b]) for a, b in k.bereiche]
+            d, komma, zitat = teil[2], teil[3], teil[4]
+            self.assertGreater(float(komma[:, 0].min()), float(d[:, 0].min()) + 0.4 * float(np.ptp(d[:, 0])), seed)
+            self.assertGreater(float(zitat[:, 0].min()), float(komma[:, 0].max()) - 0.05 * h.em, seed)
+
+    def test_satzzeichen_wie_von_hand(self):
+        h = self.hand(5)
+        punkt = h.glyphe(".")
+        q = np.concatenate(punkt.striche)
+        self.assertLess(abs(float(q[:, 1].mean())), 0.08 * h.em)        # der Punkt sitzt AUF der Grundlinie
+        self.assertEqual(len(h.glyphe("ge").striche), 2)                  # ≥ mit einem Strich, nicht ≧
+        komma = np.concatenate(h.glyphe(",").striche)
+        self.assertGreater(float(komma[:, 1].max()), 0.15 * h.em)       # Kommaschwanz unter die Grundlinie
+
+    def test_gleicher_seed_gleiche_seite(self):
+        hs = laden()
+        alt = hs.MODELL_ORDNER
+        hs.MODELL_ORDNER = "/gibt/es/nicht"
+        try:
+            a = hs.schreiben("Hello {p, q}, x = 5.", seed=8, papier="keins")["seiten"][0]
+            b = hs.schreiben("Hello {p, q}, x = 5.", seed=8, papier="keins")["seiten"][0]
+            c = hs.schreiben("Hello {p, q}, x = 5.", seed=9, papier="keins")["seiten"][0]
+        finally:
+            hs.MODELL_ORDNER = alt
+        self.assertEqual(a, b)
+        self.assertNotEqual(a, c)
 
 
 @unittest.skipUnless(np is not None, "numpy fehlt")
