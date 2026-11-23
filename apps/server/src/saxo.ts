@@ -5,6 +5,7 @@ import type { DB } from './db.js';
 import type { Uhr } from './uhr.js';
 import type { LiveHub } from './live.js';
 import { DorfFehler } from './fehler.js';
+import { tagIn, tagPlus } from './zeit.js';
 
 /**
  * Saxo (E73): Depotwert, Positionen und Performance aus Leifs Saxo-Konto – NUR LESEN.
@@ -41,6 +42,44 @@ function saxoText(roh: string) {
 }
 /** Depotstand so oft holen */
 export const STAND_ALLE_MS = 30 * 60_000;
+/** E222: so viele Tage Tagesstände (letzter Stand je Wiener Kalendertag) */
+export const TAGE_BEHALTEN = 120;
+/** E222: Bericht des Helfers „Depot-Tagesbericht“ (Boerse/aktionen/tagesbericht.md) – die Morgenzeitung nimmt daraus „Für die Zeitung“ */
+export const TAGESBERICHT_PFAD = 'Boerse/00_Tagesbericht.md';
+
+/** E222: letzter Depotstand eines Tages */
+export interface SaxoTagesstand {
+  tag: string;
+  zeit: number;
+  waehrung: string;
+  gesamt: number | null;
+  positionen: SaxoPosition[];
+}
+/** E222: was sich zwischen zwei Tagesständen bewegt hat */
+export interface SaxoBewegung {
+  tag: string;
+  /** Vergleichstag (letzter Stand davor) – null: kein früherer Stand, Änderung aus Saxos Tagesänderung geschätzt */
+  vorher: string | null;
+  waehrung: string;
+  gesamtVorher: number | null;
+  gesamt: number | null;
+  /** Änderung des Kontowerts (inkl. Ein-/Auszahlungen) */
+  gesamtDelta: number | null;
+  positionen: {
+    name: string;
+    symbol?: string;
+    wert: number | null;
+    /** Änderung des Werts in Kontowährung */
+    delta: number | null;
+    /** Kursänderung in % (aus Kursen; sonst Saxos Tagesänderung) */
+    prozent: number | null;
+    /** Stück vorher → nachher, wenn gekauft/verkauft */
+    stueckVorher?: number;
+    stueck?: number;
+    neu?: boolean;
+    weg?: boolean;
+  }[];
+}
 
 export interface SaxoKonfig {
   appKey: string;
@@ -292,13 +331,16 @@ export class Saxo {
         tagProzent: p.NetPositionView?.InstrumentPriceDayPercentChange,
       }));
       positionen.sort((a, b) => (b.wert ?? 0) - (a.wert ?? 0));
+      const waehrung = saldo.Currency ?? kunde.DefaultCurrency ?? 'EUR';
       this.merken('saxo_stand', {
         zeit: jetzt,
-        waehrung: saldo.Currency ?? kunde.DefaultCurrency ?? 'EUR',
+        waehrung,
         gesamt: saldo.TotalValue,
         bar: saldo.CashBalance,
         positionen,
       });
+      // E222: letzter Stand je Tag (Wien) – daraus liest das Dorf, was sich bewegt hat (gekauft, verkauft, Kurse)
+      this.tagesstandMerken({ tag: tagIn(jetzt), zeit: jetzt, waehrung, gesamt: saldo.TotalValue ?? null, positionen });
       // Performance: einmal am Tag (oder sofort nach dem Verbinden)
       const perf = this.stand<{ tag: string }>('saxo_verlauf');
       const heute = new Date(jetzt).toISOString().slice(0, 10);
@@ -357,6 +399,96 @@ export class Saxo {
     };
   }
 
+  // ---- E222: Tagesstände und Bewegungen ----------------------------------------------------------------
+
+  private tagesstandMerken(s: SaxoTagesstand) {
+    const tage = (this.stand<SaxoTagesstand[]>('saxo_tage') ?? []).filter((x) => x.tag !== s.tag);
+    tage.push(s);
+    tage.sort((a, b) => a.tag.localeCompare(b.tag));
+    this.merken('saxo_tage', tage.slice(-TAGE_BEHALTEN));
+  }
+
+  /** Gespeicherte Tagesstände (ältester zuerst) */
+  tagesstaende(): SaxoTagesstand[] {
+    return this.stand<SaxoTagesstand[]>('saxo_tage') ?? [];
+  }
+
+  /**
+   * Was sich an `tag` bewegt hat: letzter Stand dieses Tages gegen den letzten Stand davor. Gibt es keinen früheren
+   * Stand (erste Tage nach dem Verbinden), wird die Änderung je Position aus Saxos Tagesänderung (InstrumentPriceDay-
+   * PercentChange) geschätzt und der Kontowert aus der Performance-Reihe genommen. null = für den Tag kein Stand.
+   */
+  bewegung(tag: string): SaxoBewegung | null {
+    const tage = this.tagesstaende();
+    const jetzt = tage.find((x) => x.tag === tag);
+    if (!jetzt) return null;
+    const vor = [...tage].reverse().find((x) => x.tag < tag) ?? null;
+    const schluessel = (p: SaxoPosition) => p.symbol ?? p.name;
+    const alt = new Map((vor?.positionen ?? []).map((p) => [schluessel(p), p]));
+    const runden = (n: number) => Math.round(n * 100) / 100;
+    const positionen: SaxoBewegung['positionen'] = jetzt.positionen.map((p) => {
+      const a = alt.get(schluessel(p));
+      alt.delete(schluessel(p));
+      const wert = p.wert ?? null;
+      let delta: number | null = null;
+      let prozent: number | null = null;
+      if (a) {
+        if (a.kurs && p.kurs) prozent = (p.kurs / a.kurs - 1) * 100;
+        if (wert != null && a.wert != null) delta = wert - a.wert;
+      } else if (!vor && p.tagProzent != null && wert != null) {
+        prozent = p.tagProzent;
+        delta = wert - wert / (1 + p.tagProzent / 100);
+      }
+      const gekauft = a && a.stueck != null && p.stueck != null && a.stueck !== p.stueck;
+      return {
+        name: p.name,
+        ...(p.symbol ? { symbol: p.symbol } : {}),
+        wert,
+        delta: delta == null ? null : runden(delta),
+        prozent: prozent == null ? null : Math.round(prozent * 100) / 100,
+        ...(gekauft ? { stueckVorher: a.stueck, stueck: p.stueck } : {}),
+        ...(vor && !a ? { neu: true, ...(p.stueck != null ? { stueck: p.stueck } : {}) } : {}),
+      };
+    });
+    for (const a of alt.values())
+      positionen.push({ name: a.name, ...(a.symbol ? { symbol: a.symbol } : {}), wert: 0, delta: a.wert != null ? runden(-a.wert) : null, prozent: null, ...(a.stueck != null ? { stueckVorher: a.stueck, stueck: 0 } : {}), weg: true });
+    positionen.sort((x, y) => Math.abs(y.delta ?? 0) - Math.abs(x.delta ?? 0));
+    let gesamtVorher = vor?.gesamt ?? null;
+    if (gesamtVorher == null) {
+      // ohne früheren Stand: Kontowert des Vortags aus der Performance-Reihe (Saxo rechnet sie nachts)
+      const reihe = this.stand<{ verlauf: { datum: string; wert: number }[] }>('saxo_verlauf')?.verlauf ?? [];
+      gesamtVorher = [...reihe].reverse().find((x) => x.datum < tag)?.wert ?? null;
+    }
+    return {
+      tag,
+      vorher: vor?.tag ?? null,
+      waehrung: jetzt.waehrung,
+      gesamtVorher,
+      gesamt: jetzt.gesamt,
+      gesamtDelta: jetzt.gesamt != null && gesamtVorher != null ? runden(jetzt.gesamt - gesamtVorher) : null,
+      positionen,
+    };
+  }
+
+  /** Bewegungen für jeden Tag mit Stand in [von, bis] (höchstens 31 Tage) */
+  bewegungen(von: string, bis: string): SaxoBewegung[] {
+    const tage = this.tagesstaende().filter((x) => x.tag >= von && x.tag <= bis).slice(-31);
+    return tage.map((x) => this.bewegung(x.tag)!).filter(Boolean);
+  }
+
+  /** E222: Morgenzeitung, ganz unten – was gestern auf dem Saxo-Konto passiert ist (Zahlen vom Code) */
+  gesternZeilen(jetzt = this.o.uhr.jetzt()): string[] {
+    if (!this.sitzung && !this.tagesstaende().length) return [];
+    const gestern = tagPlus(tagIn(jetzt), -1);
+    const b = this.bewegung(gestern);
+    if (!b) return [];
+    // Wochenende: nur erwähnen, wenn sich wirklich etwas getan hat (gehandelt, Krypto, Ein-/Auszahlung)
+    const wochentag = new Date(`${gestern}T12:00:00Z`).getUTCDay();
+    const ruhig = !b.positionen.some((p) => p.neu || p.weg || p.stueckVorher != null || Math.abs(p.delta ?? 0) >= 1) && Math.abs(b.gesamtDelta ?? 0) < 1;
+    if ((wochentag === 0 || wochentag === 6) && ruhig) return [];
+    return bewegungZeilen(b, 3);
+  }
+
   /** Morgenzeitung: Saxo-Depotwert und Rendite seit Jahresbeginn */
   zeitungsZeilen(): string[] {
     const u = this.uebersicht();
@@ -365,4 +497,27 @@ export class Saxo {
     const pr = (n: number) => `${n >= 0 ? '+' : ''}${(n * 100).toFixed(1).replace('.', ',')} %`;
     return [`Saxo-Depot: ${geld(u.stand.gesamt)}${u.renditeJahr != null ? ` (${pr(u.renditeJahr)} seit Jahresbeginn)` : ''}`];
   }
+}
+
+/** E222: Geld/Prozent kurz und mit Vorzeichen, wie in der Zeitung */
+export function geldText(n: number, waehrung: string, vorzeichen = false) {
+  const t = Math.abs(n).toLocaleString('de-DE', { style: 'currency', currency: waehrung }).replace(/[\u00a0\u202f]/g, ' ');
+  return vorzeichen ? `${n >= 0 ? '+' : '−'}${t}` : `${n < 0 ? '−' : ''}${t}`;
+}
+const prozentText = (n: number) => `${n >= 0 ? '+' : '−'}${Math.abs(n).toFixed(1).replace('.', ',')} %`;
+
+/** E222: Bewegung eines Tages in Zeilen – Kontowert, die größten Ausschläge, Käufe/Verkäufe */
+export function bewegungZeilen(b: SaxoBewegung, max = 5): string[] {
+  const z: string[] = [];
+  if (b.gesamt != null)
+    z.push(
+      `Kontowert ${geldText(b.gesamt, b.waehrung)}${b.gesamtDelta != null && b.gesamtVorher ? ` (${geldText(b.gesamtDelta, b.waehrung, true)}, ${prozentText((b.gesamtDelta / b.gesamtVorher) * 100)})` : ''}${b.vorher ? '' : ' – erster gespeicherter Tag, Positionen aus Saxos Tagesänderung'}`,
+    );
+  const handel = b.positionen.filter((p) => p.neu || p.weg || p.stueckVorher != null);
+  for (const p of handel)
+    z.push(p.neu ? `Neu im Depot: ${p.name}${p.stueck != null ? ` (${p.stueck} Stück)` : ''}` : p.weg ? `Nicht mehr im Depot: ${p.name}` : `${p.name}: ${p.stueckVorher} → ${p.stueck} Stück`);
+  const bewegt = b.positionen.filter((p) => !p.neu && !p.weg && p.delta != null && Math.abs(p.delta) >= 0.01).slice(0, max);
+  for (const p of bewegt) z.push(`${p.name}: ${geldText(p.delta!, b.waehrung, true)}${p.prozent != null ? ` (${prozentText(p.prozent)})` : ''}`);
+  if (!bewegt.length && !handel.length) z.push('Keine nennenswerte Bewegung bei den Positionen.');
+  return z;
 }

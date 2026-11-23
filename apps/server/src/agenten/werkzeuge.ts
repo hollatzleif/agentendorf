@@ -25,6 +25,7 @@ import type { EntwurfEingabe, GmailKlient } from '../post/gmail.js';
 import { AGENTEN_ARTEN, type Freigaben } from './freigaben.js';
 import { LISTEN, LISTEN_NAMEN, todoZeile, type ListenName, type TodoDienst } from '../todos.js';
 import { NOTEN_PFAD, noteAusText, type Noten } from '../uni/noten.js';
+import { bewegungZeilen, geldText, type Saxo } from '../saxo.js';
 import { meinTodoZeile, type MeineTodos } from './meine-todos.js';
 import { aenderungText, ersetzen, GEDAECHTNIS_PFAD, MAX_GEDAECHTNIS, MAX_PERSOENLICHKEIT, PERSOENLICHKEIT_PFAD, textPruefen } from './gedaechtnis.js';
 import { istExtra } from './leine-extra.js';
@@ -379,6 +380,26 @@ export const WERKZEUG_DEFINITIONEN: Record<DorfWerkzeug, WerkzeugDefinition> = {
     name: 'noten_entfernen',
     description: 'Ein Fach aus Leifs Notenliste streichen (genauer Fachname aus noten_lesen). Leif kann es zurücknehmen.',
     input_schema: { type: 'object', properties: { fach: { type: 'string' } }, required: ['fach'], additionalProperties: false },
+  },
+  depot_lesen: {
+    name: 'depot_lesen',
+    description:
+      'Leifs Saxo-Depot jetzt (nur lesen): Kontowert, Bargeld, Rendite seit Jahresbeginn und 12 Monate, jede Position mit Stück, Einstand, Kurs, Wert, Gewinn/Verlust und Tagesänderung. Leifs eigene Liste (Watchlist, Notizen) steht zusätzlich in Boerse/depot.md.',
+    input_schema: { type: 'object', properties: {}, required: [], additionalProperties: false },
+  },
+  depot_bewegungen: {
+    name: 'depot_bewegungen',
+    description:
+      'Was sich in Leifs Saxo-Depot bewegt hat – je Tag: Kontowert und Änderung, Käufe/Verkäufe (Stück vorher → nachher, neue/verschwundene Positionen) und die Positionen mit den größten Ausschlägen (Wert in Kontowährung, Kurs in %). Standard: gestern. Grundlage: der letzte Stand jedes Tages, den das Dorf gespeichert hat (alle 30 min abgerufen). Zum Erklären danach im Web nach Schlagzeilen suchen.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        von: { type: 'string', description: 'JJJJ-MM-TT (Standard: gestern)' },
+        bis: { type: 'string', description: 'JJJJ-MM-TT (Standard: wie von; höchstens 31 Tage)' },
+      },
+      required: [],
+      additionalProperties: false,
+    },
   },
   kalender_lesen: {
     name: 'kalender_lesen',
@@ -758,6 +779,8 @@ export interface LaufKontext {
   listen?: Record<ListenName, TodoDienst>;
   /** E221: Leifs Notenliste (noten_*) */
   noten?: Noten;
+  /** E222: Saxo-Depot (nur lesen) */
+  saxo?: Saxo;
   /** Leine für die Listen: Lauf mit Fremdinhalten markiert seine Einträge; Lauf mit Internet sieht markierte nicht */
   fremdinhalte?: boolean;
   web?: boolean;
@@ -943,6 +966,9 @@ export class WerkzeugKiste {
           this.log(name, { begruendung: e.begruendung }, text, true, PERSOENLICHKEIT_PFAD, 'freigabe');
           return { ok: true, text };
         }
+        case 'depot_lesen':
+        case 'depot_bewegungen':
+          return this.depot(name as 'depot_lesen' | 'depot_bewegungen', eingabe);
         case 'noten_lesen':
         case 'noten_eintragen':
         case 'noten_entfernen':
@@ -1532,6 +1558,51 @@ export class WerkzeugKiste {
     const ziel = await t.loeschen(pfad);
     this.log(name, { pfad, liste: ln }, `in den Papierkorb: ${ziel}`, true, pfad, 'geschrieben');
     return { ok: true, text: `Eintrag entfernt (Papierkorb, wiederherstellbar): ${pfad}` };
+  }
+
+  /** E222: Saxo-Depot lesen – nur aus dem gespeicherten Stand, kein eigener Abruf bei Saxo */
+  private depot(name: 'depot_lesen' | 'depot_bewegungen', eingabe: unknown): WerkzeugAufrufErgebnis {
+    const s = this.k.saxo;
+    if (!s?.eingerichtet) {
+      this.log(name, eingabe ?? {}, 'Saxo nicht eingerichtet', true);
+      return { ok: true, text: 'Saxo ist im Dorf nicht eingerichtet. Leifs eigene Depotliste steht in Boerse/depot.md (vault_lesen).' };
+    }
+    const u = s.uebersicht();
+    if (name === 'depot_lesen') {
+      if (!u.stand) {
+        this.log(name, {}, 'kein Stand', true);
+        return { ok: true, text: u.verbunden ? 'Saxo ist verbunden, aber es gibt noch keinen abgerufenen Stand.' : 'Saxo ist nicht verbunden (Leif: Börse → „Mit Saxo verbinden“).' };
+      }
+      const st = u.stand;
+      const g = (n: number | null | undefined) => (n == null ? '–' : geldText(n, st.waehrung));
+      const pr = (n: number | null | undefined, faktor = 1) => (n == null ? '–' : `${(n * faktor).toFixed(2).replace('.', ',')} %`);
+      const zeilen = [
+        `Saxo-Depot, Stand ${new Date(st.zeit).toLocaleString('de-AT', { timeZone: 'Europe/Vienna', dateStyle: 'short', timeStyle: 'short' })}${u.verbunden ? '' : ' (Verbindung derzeit getrennt – letzter bekannter Stand)'}`,
+        `Kontowert ${g(st.gesamt)} · Bargeld ${g(st.bar)} · Rendite seit Jahresbeginn ${pr(u.renditeJahr, 100)} · 12 Monate ${pr(u.rendite12Monate, 100)}`,
+        '',
+        ...st.positionen.map(
+          (p) =>
+            `- ${p.name}${p.symbol ? ` [${p.symbol}]` : ''}${p.art ? ` (${p.art})` : ''}: ${p.stueck ?? '?'} Stück · Einstand ${p.einstand ?? '–'} · Kurs ${p.kurs ?? '–'}${p.waehrung ? ` ${p.waehrung}` : ''}${p.verzoegerungMin ? ` (${p.verzoegerungMin} min verzögert)` : ''} · Wert ${g(p.wert)} · G/V ${g(p.gewinn)} · heute ${pr(p.tagProzent)}`,
+        ),
+      ];
+      this.log(name, {}, `${st.positionen.length} Positionen`, true, undefined, 'gelesen');
+      return { ok: true, text: zeilen.join('\n') };
+    }
+    const tag = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Datum als JJJJ-MM-TT');
+    const e = z.object({ von: tag.optional(), bis: tag.optional() }).strict().parse(eingabe ?? {});
+    const von = e.von ?? tagPlus(tagIn(this.uhr.jetzt()), -1);
+    const bis = e.bis ?? von;
+    if (bis < von) throw new DorfFehler(400, '„bis“ liegt vor „von“.');
+    const liste = s.bewegungen(von, bis);
+    const erster = s.tagesstaende()[0]?.tag;
+    if (!liste.length) {
+      const t = `Für ${von === bis ? von : `${von} bis ${bis}`} gibt es keinen gespeicherten Depotstand${erster ? ` (das Dorf merkt sich die Tagesstände seit ${erster}; am Wochenende ändert sich meist nichts)` : ' – das Dorf hat noch keinen Tagesstand gespeichert'}.`;
+      this.log(name, { von, bis }, 'keine Stände', true);
+      return { ok: true, text: t };
+    }
+    const text = liste.map((b) => [`## ${b.tag}${b.vorher && b.vorher !== tagPlus(b.tag, -1) ? ` (verglichen mit ${b.vorher})` : ''}`, ...bewegungZeilen(b, 10).map((x) => `- ${x}`)].join('\n')).join('\n\n');
+    this.log(name, { von, bis }, `${liste.length} Tage`, true, undefined, 'gelesen');
+    return { ok: true, text: `Bewegungen im Saxo-Depot (Werte in ${liste[0]!.waehrung}; Kontowert inkl. Ein-/Auszahlungen):\n\n${text}` };
   }
 
   /** E221: Leifs Notenliste – nur über den Notendienst (feste Datei, geprüftes Format), jede Änderung mit Rückweg */

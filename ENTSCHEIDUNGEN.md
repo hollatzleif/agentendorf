@@ -2229,3 +2229,29 @@ Leif bat den Bürgermeister, die Noten aus einem KUSSS-Screenshot in seine Noten
 Jede Änderung legt die alte Fassung ins Archiv des Gebäudes und kommt leise in „Rückgängig“ (Art `datei_geaendert`; wurde die Datei seither geändert, wird nichts überschrieben).
 
 Keine Freigabe nötig: Die Liste gehört Leif, die Änderung ist zurückholbar (E185). Der Systemprompt sagt: Noten nur so, nie per `vault_schreiben`.
+
+## E222 – Depot-Bewegungen für Agenten + „📈 Saxo gestern“ in der Morgenzeitung (23.11.)
+
+Leif hat Saxo verbunden und wollte zwei Dinge: Werkzeuge, mit denen Agenten ihm Bewegungen seiner Positionen erklären können, und ganz unten in der Morgenzeitung einen kurzen Bericht, was gestern auf dem Konto passiert ist und womit sich das erklären lässt (Schlagzeilen).
+
+**Tagesstände statt neuer Saxo-Schnittstellen:**
+- Bisher gab es nur den jeweils letzten Stand (alle 30 min überschrieben). Jetzt merkt sich das Dorf zusätzlich den letzten Stand **jedes Wiener Kalendertags** (`saxo_tage` in `dorf_stand`, 120 Tage): Kontowert sowie je Position Stück, Kurs und Wert.
+- Eine Bewegung ist der Vergleich mit dem letzten Stand davor. Daraus ergeben sich die Wertänderung je Position, die Kursänderung in % und Käufe/Verkäufe (Stück vorher → nachher, neue oder verschwundene Positionen).
+- Die Leine bleibt bei den 4 GET-Pfaden aus E73. Transaktions- oder Order-Endpunkte bindet das Dorf bewusst nicht an („nichts erfinden“, nur lesen).
+- Erste Tage ohne früheren Stand: Die Änderung je Position kommt aus Saxos `InstrumentPriceDayPercentChange`, der Kontowert des Vortags aus der Performance-Reihe. Das wird so gekennzeichnet.
+
+**Werkzeuge für jeden Agenten:**
+- `depot_lesen`: Stand, Positionen, Rendite.
+- `depot_bewegungen {von, bis}`: Standard gestern, höchstens 31 Tage.
+- Beide lesen nur den gespeicherten Stand, kein eigener Abruf bei Saxo.
+- Der Systemprompt sagt dazu: Erklärungen per Websuche, jede mit Quelle und Datum; Vermutung als Vermutung kennzeichnen; nie Kauf- oder Verkaufsempfehlungen.
+- Web plus Depotdaten im selben Lauf hat Leif mit E185 bewusst erlaubt.
+
+**Morgenzeitung, letzter Abschnitt „📈 Saxo gestern“:**
+- Die Zahlen kommen vom Code: Kontowert ± seit dem Vortag, Käufe/Verkäufe, die drei größten Ausschläge.
+- Das „Warum“ liefert ein Helfer, weil Schlagzeilen eine Websuche brauchen. Das soll nicht über die API und das Haiku-Budget (E218) laufen, sondern über Leifs Abo. Darum gibt es die neue Aktion **Boerse/Depot-Tagesbericht**:
+  - claude-code, Stufe mittel, mit Web.
+  - Läuft Di–Sa um 05:00 und schreibt nach `Boerse/00_Tagesbericht.md` (mit Archiv).
+  - Frontmatter `tag:` (gestern), dazu `## Für die Zeitung` und `## Im Detail`.
+- Die Zeitung (06:30) übernimmt „Für die Zeitung“ (höchstens 5 Zeilen) nur, wenn `tag` gestern ist. So steht kein veraltetes „Warum“ unter frischen Zahlen.
+- Ruhige Wochenendtage (nichts gehandelt, keine Bewegung ≥ 1 €) fehlen in der Zeitung.

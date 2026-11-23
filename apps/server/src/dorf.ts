@@ -86,6 +86,7 @@ const PFLICHT_DATEIEN = [
   'Corpshaus/aktionen/uebergabe.md',
   'Boerse/depot.md',
   'Boerse/aktionen/wochenbericht.md',
+  'Boerse/aktionen/tagesbericht.md', // E222
   'Kirchturm/gebaeude.md',
   'Uni/aktionen/karten-erstellen.md',
   // E191 Codehaus
@@ -403,6 +404,7 @@ export async function dorfStarten(
     holen: opt.saxoHolen,
     log: (t) => console.warn(t),
   });
+  agenten.saxo = saxo; // E222: depot_* für die Agenten
   const depotZeilen = { zeitungsZeilen: async () => [...saxo.zeitungsZeilen(), ...(await boerse.zeitungsZeilen())] };
   // Nacht 18./19.11.: Karteikarten je Fach
   const karten = new Karteikasten({ db, uhr, vault, hub });
@@ -479,7 +481,7 @@ export async function dorfStarten(
   const lernzielZeilen = async () =>
     (await lernStand(uhr.jetzt() - 7 * 86_400_000)).map((l) => `${l.istMin >= l.zielMin ? '✓' : '✗'} ${l.fach}: ${minutenText(l.istMin)} von ${minutenText(l.zielMin)}`);
   const wochenrueckblick = new Wochenrueckblick({ db, uhr, vault, hub, ki, todos, uni, kalender, lernziele: lernzielZeilen, fokus: kirchturm, bank, gewohnheiten, wochenziele, bluete: () => blueteBerechnen(), log: (t) => console.warn(t) });
-  const morgenzeitung = new Morgenzeitung({ db, uhr, vault, hub, ki, freigaben: agenten.freigaben, schreibtisch, uni, postbote, kalender, wetter, bank, boerse: depotZeilen, fokus: kirchturm, gewohnheiten, wochenziele, bluete: () => blueteBerechnen(), lernen: async () => (await lernStand(seitMontag())).map((l) => `${l.istMin >= l.zielMin ? '✓ ' : ''}${l.fach}: ${minutenText(l.istMin)} von ${minutenText(l.zielMin)}`), projekte: async () => projekteAus(mitFokus(db, await todos.liste({ alleErledigten: true })), uhr.jetzt()), todosHeute: async () => { const h = tagIn(uhr.jetzt()); return (await todos.liste()).filter((t) => !t.erledigt && t.faellig && t.faellig <= h); }, wichtig: async () => (await todos.liste()).filter((t) => !t.erledigt && t.wichtig).slice(0, 5).map((t) => `**${t.titel}**${t.faellig ? ` (fällig ${t.faellig})` : ''}`), log: (t) => console.warn(t) });
+  const morgenzeitung = new Morgenzeitung({ db, uhr, vault, hub, ki, freigaben: agenten.freigaben, schreibtisch, uni, postbote, kalender, wetter, bank, boerse: depotZeilen, depotGestern: () => saxo.gesternZeilen(), fokus: kirchturm, gewohnheiten, wochenziele, bluete: () => blueteBerechnen(), lernen: async () => (await lernStand(seitMontag())).map((l) => `${l.istMin >= l.zielMin ? '✓ ' : ''}${l.fach}: ${minutenText(l.istMin)} von ${minutenText(l.zielMin)}`), projekte: async () => projekteAus(mitFokus(db, await todos.liste({ alleErledigten: true })), uhr.jetzt()), todosHeute: async () => { const h = tagIn(uhr.jetzt()); return (await todos.liste()).filter((t) => !t.erledigt && t.faellig && t.faellig <= h); }, wichtig: async () => (await todos.liste()).filter((t) => !t.erledigt && t.wichtig).slice(0, 5).map((t) => `**${t.titel}**${t.faellig ? ` (fällig ${t.faellig})` : ''}`), log: (t) => console.warn(t) });
   let telegram: TelegramBot | undefined;
   if ((konfig.telegramToken || opt.telegram) && konfig.telegramChatId) {
     telegram = new TelegramBot({

@@ -19,7 +19,8 @@ import { fremdinhaltHuelle } from './agenten/leine.js';
 import type { DorfBluete } from '@dorf/shared';
 import { blueteZeile } from './bluete.js';
 import { rundgangEinstellungen, rundgangMeldungenSeit } from './rundgang.js';
-import { uhrzeitIn } from './zeit.js';
+import { tagPlus, uhrzeitIn } from './zeit.js';
+import { TAGESBERICHT_PFAD } from './saxo.js';
 
 export const ORDNER = 'Rathaus/morgenzeitung';
 /** Erscheint um 06:30 Linzer Zeit */
@@ -60,6 +61,8 @@ export class Morgenzeitung {
       /** Etappe 7: Budget-Stand (nur Kategorien ab 80 %) und offene Rechnungen */
       bank?: { zeitungsZeilen(): Promise<string[]> };
       boerse?: { zeitungsZeilen(): Promise<string[]> };
+      /** E222: was gestern auf dem Saxo-Konto passiert ist (Zahlen vom Code) – ganz unten, mit der Erklärung des Tagesberichts */
+      depotGestern?: () => string[];
       /** Nacht 18./19.11.: die ⭐ wichtigen To-dos */
       wichtig?: () => Promise<string[]>;
       /** Nacht 18./19.11.: Fokuszeit gestern und in der Woche */
@@ -265,8 +268,30 @@ export class Morgenzeitung {
     if (gw?.length) abschnitte.push({ titel: 'Gewohnheiten heute', zeilen: gw });
     const lernen = await this.o.lernen?.().catch(() => []);
     if (lernen?.length) abschnitte.push({ titel: 'Lernen diese Woche', zeilen: lernen });
+    // E222: ganz unten – Saxo gestern: Zahlen vom Code, „Warum?“ aus dem Bericht des Börsen-Helfers (wenn er für gestern ist)
+    const saxo = this.o.depotGestern?.() ?? [];
+    if (saxo.length) {
+      const warum = await this.tagesberichtLesen(tagPlus(datum, -1));
+      abschnitte.push({ titel: '📈 Saxo gestern', zeilen: [...saxo, ...warum.map((w, i) => (i ? w : `Warum: ${w}`))] });
+    }
 
     return { datum, einleitung: null, abschnitte };
+  }
+
+  /** E222: Abschnitt „Für die Zeitung“ aus Boerse/00_Tagesbericht.md – nur wenn der Bericht für `tag` ist */
+  private async tagesberichtLesen(tag: string): Promise<string[]> {
+    const d = await this.o.vault.lesen(TAGESBERICHT_PFAD).catch(() => null);
+    if (!d) return [];
+    const m = matter(d.inhalt);
+    const fuer = m.data.tag instanceof Date ? m.data.tag.toISOString().slice(0, 10) : String(m.data.tag ?? '');
+    if (fuer !== tag) return [];
+    const abschnitt = /^##\s*Für die Zeitung\s*$([\s\S]*?)(?=^##\s|(?![\s\S]))/m.exec(m.content)?.[1] ?? '';
+    return abschnitt
+      .split('\n')
+      .map((z) => z.replace(/^\s*[-*]\s+/, '').trim())
+      .filter(Boolean)
+      .slice(0, 5)
+      .map((z) => einzeilig(z, 400));
   }
 
   private async durchfuehren() {

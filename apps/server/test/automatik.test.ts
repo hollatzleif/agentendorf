@@ -57,6 +57,7 @@ describe('Aktionen mit Zeitplan und Ablage', () => {
   it('Zeitplaner: neue Zeitpläne zählen ab jetzt, jeder Termin genau einmal, über den Motor der Aktion (nicht api), nachholen bis 3 h', async () => {
     const d = await testDorf();
     fs.rmSync(path.join(d.vault.wurzel, 'Bibliothek/aktionen/checkliste.md')); // die Vorlage läuft auch um 06:00 – hier nur „morgens“
+    fs.rmSync(path.join(d.vault.wurzel, 'Boerse/aktionen/tagesbericht.md')); // E222: Vorlage Di–Sa 05:00 – würde hier nachgeholt
     fs.writeFileSync(path.join(d.vault.wurzel, 'Bibliothek/aktionen/morgens.md'), aktion('name: Morgens\nmotor: claude-code\nzeitplan: täglich 06:00\neingaben:\n  - name: thema\n    standard: Folien'));
     expect(await d.automatik.pruefen()).toEqual([]); // erst bekannt machen
     d.uhr.vor(17 * STUNDE + MIN); // Di 17.11. 06:01 Linz
@@ -305,7 +306,7 @@ describe('Zeitplan je Auswahl (E64)', () => {
     expect(kurs.fehler).toBeUndefined();
     expect(kurs).toMatchObject({ zeitplan: 'mo 05:00', zeitplanJe: 'fach' });
     // ein eigener Skill zum Testen (ohne Moodle, damit die Attrappe schnell fertig ist); die Vorlagen stören nicht
-    for (const v of ['Uni/aktionen/kursuebersicht.md', 'Bibliothek/aktionen/checkliste.md']) fs.rmSync(path.join(d.vault.wurzel, v));
+    for (const v of ['Uni/aktionen/kursuebersicht.md', 'Bibliothek/aktionen/checkliste.md', 'Boerse/aktionen/tagesbericht.md']) fs.rmSync(path.join(d.vault.wurzel, v));
     const ordner = path.join(d.vault.wurzel, 'Uni/aktionen');
     fs.writeFileSync(
       path.join(ordner, 'je.md'),

@@ -1,5 +1,6 @@
 import type { ListenName, TodoDienst } from '../todos.js';
 import type { Noten } from '../uni/noten.js';
+import type { Saxo } from '../saxo.js';
 import crypto from 'node:crypto';
 import type { Ausloeser, ChatDetail, DateiKarte, ChatInfo, LaufInfo, LaufStatus, Motor as MotorName, Stufe } from '@dorf/shared';
 import type { DB } from '../db.js';
@@ -202,6 +203,8 @@ export class AgentenDienst {
   listen?: Record<ListenName, TodoDienst>;
   /** E221: Leifs Notenliste (noten_*), wird in dorf.ts gesetzt */
   noten?: Noten;
+  /** E222: Saxo-Depot (depot_*), wird in dorf.ts gesetzt */
+  saxo?: Saxo;
   /** E192: die eigene To-do-Liste des Bürgermeisters (nur seine Läufe bekommen sie) */
   meineTodos?: MeineTodos;
   /** E183: Kirchturm und Tagesnotizen für die Alltags-Werkzeuge (in dorf.ts gesetzt) */
@@ -675,6 +678,7 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
           dateien: this.dateien,
           listen: this.listen,
           noten: this.noten,
+          saxo: this.saxo,
           kirchturm: this.kirchturm,
           notizen: this.notizen,
           fremdinhalte: !!c.fremdinhalte,

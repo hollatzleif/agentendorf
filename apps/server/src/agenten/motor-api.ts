@@ -44,6 +44,12 @@ export function strictTauglich(schema: unknown): boolean {
  */
 export const STRICT_GRENZEN = { werkzeuge: 20, optional: 24, vereinigungen: 16 } as const;
 
+/**
+ * E222: Diese Werkzeuge bekommen zuerst einen strict-Platz (Schreiben im Vault vor allem) – sonst verdrängen neue,
+ * sparsame Werkzeuge (z. B. noten_lesen, depot_lesen ohne Felder) sie aus den 20 Plätzen.
+ */
+export const STRICT_VORRANG: readonly string[] = ['vault_schreiben', 'vault_lesen', 'vault_liste', 'vault_suchen', 'todo_liste'];
+
 /** Zählt optionale Felder (properties ohne required) und Typ-Vereinigungen rekursiv. */
 export function schemaZaehlen(schema: unknown): { optional: number; vereinigungen: number } {
   const z = { optional: 0, vereinigungen: 0 };
@@ -75,10 +81,11 @@ export function schemaZaehlen(schema: unknown): { optional: number; vereinigunge
  * strict (die WerkzeugKiste prüft die Eingaben ohnehin selbst mit Zod). Reihenfolge der Werkzeuge bleibt unverändert.
  */
 export function strictAuswahl(defs: { name: string; input_schema: unknown }[]): Set<string> {
+  const vorrang = (n: string) => (STRICT_VORRANG.includes(n) ? 0 : 1);
   const kandidaten = defs
     .filter((d) => strictTauglich(d.input_schema))
     .map((d) => ({ name: d.name, ...schemaZaehlen(d.input_schema) }))
-    .sort((a, b) => a.optional + a.vereinigungen - (b.optional + b.vereinigungen) || a.name.localeCompare(b.name));
+    .sort((a, b) => vorrang(a.name) - vorrang(b.name) || a.optional + a.vereinigungen - (b.optional + b.vereinigungen) || a.name.localeCompare(b.name));
   const gewaehlt = new Set<string>();
   let optional = 0;
   let vereinigungen = 0;

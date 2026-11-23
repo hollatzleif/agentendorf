@@ -20,7 +20,7 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
     leine.ts        DIE Stelle für Regeln: Werkzeugprofil, Schreibregeln, Fremdinhalt-Hülle, Obergrenzen (Helfer, Pläne); seit E185 keine
                     verbotenen Kombinationen mehr (Web darf mit Post/Moodle/Kalender/Fremdinhalten laufen – Leifs Entscheidung)
     werkzeuge.ts    alle Dorf-Werkzeuge mit Leine und werkzeug_log: Vault (lesen/schreiben/aendern/verschieben), Post (lesen, Entwürfe mit
-                    Anhang/ändern, nie senden), Termine direkt (termin_*, E185), Adressbuch (kontakt_*), rueckfrage, todo_*, noten_* (E221), Kirchturm,
+                    Anhang/ändern, nie senden), Termine direkt (termin_*, E185), Adressbuch (kontakt_*), rueckfrage, todo_*, noten_* (E221), depot_* (E222), Kirchturm,
                     Notizen; stempelt fremdinhalt: true, sobald der Lauf Fremdes gelesen hat
     freigaben.ts    Anträge, atomar genau einmal entscheiden, Ausführer, Spiegel in Rathaus/freigaben/ – nur noch echte Außenwirkung + Regeln (E185)
     rueckgaengig.ts „Rückgängig“ statt Freigabe (E185): direkte Taten mit Rückweg (Termin, Skill, Datei) merken, genau einmal zurücknehmen
@@ -84,7 +84,7 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
   src/kalender-google.ts E75: Marktplatz-Kalender über die Google Calendar API (Leif schreibt per App/Telegram/Cardputer, nie Einladungen;
                        Agenten tragen in Leifs eigenen Kalender direkt ein – termin_*, E185, mit „Rückgängig“; mit Gästen per Freigabe); lernplan (E96)
   src/kirchturm.ts     E74: Wecker/Timer/Pomodoro/Stoppuhr auf dem Server (Takt 1 s), Klingeln = Live-Ereignis; Glocke nur im Programm
-  src/saxo.ts          E73: Saxo OpenAPI nur lesen (Code-Flow, Refresh-Token-Rotation in dorf_stand, nur 4 GET-Pfade)
+  src/saxo.ts          E73: Saxo OpenAPI nur lesen (Code-Flow, Refresh-Token-Rotation in dorf_stand, nur 4 GET-Pfade); E222 Tagesstände + bewegung(tag), depot_* für Agenten
   src/uni/todo-bruecke.ts E71: Uni-Fristen → To-dos, Abhaken in beide Richtungen (uni_todos); Teilschritte aus Vorlage (E130)
   src/uni/lernziele.ts   E137: Lernziel je Fach pro Woche (Uni/lernziele.md) gegen Fokuszeit ab Montag
   src/karten.ts        E87: Karteikarten (Uni/faecher/<Fach>/karten.md, „Frage :: Antwort“ / „### Frage“), SM-2-Stand in karten_stand
@@ -294,6 +294,7 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E213 (22.11.): Handschrift kann Mathe – Formeln ($…$ oder schlicht), Rechenwege am „=“ ausgerichtet, Brüche/Wurzeln/∑∫, Markdown-Tabellen mit Handgitter (handformel.py + Hershey); „=“ wird nicht mehr zu „-“
 - [x] E214 (22.11.): Handschrift realistischer – gerade Linien wie GoodNotes (Tabellen, Bruchstriche), ruhigere Formeln, gleichmäßiger Stift, Logik-Zeichen (∧ ∨ ¬ ↔ ⊢ ⊨ ⊤ ⊥ □), Wahrheitstafeln mittig
 - [x] E215 (22.11.): Handschrift `stil: einheitlich` (Standard) – EINE Hand für Text, Formeln und Tabellen (Schreiber-Profil je Dokument, jedes Zeichen einmalig verformt, Wortgrundlinien, Unterschneiden); `stil: ki` = KI-Modell für freien Fließtext
+- [x] E222 (23.11.): Saxo-Tagesstände (letzter Stand je Tag, 120 Tage) → Bewegungen (Wert, Kurs %, Käufe/Verkäufe); depot_lesen/depot_bewegungen für alle Agenten; Aktion Boerse/Depot-Tagesbericht (Di–Sa 05:00, Abo, Web) → „📈 Saxo gestern“ ganz unten in der Morgenzeitung – Abnahme mit echtem Depot steht aus
 - [x] E221 (23.11.): Agenten pflegen Leifs Notenliste – noten_lesen/noten_eintragen/noten_entfernen für alle (Uni/noten.md über den Notendienst, „sehr gut“ … „nicht genügend“ → 1–5, mit Rückgängig)
 - [x] E220 (23.11.): To-do-Brett zugeklappt (Tags/Knöpfe erst aufgeklappt, Titel klappt auf, „✏️ Bearbeiten“), Standard nach Frist mit Abschnitten (Überfällig … Ohne Datum), Sortierung wählbar, Farbstreifen nach Dringlichkeit; Saxo-Prüfkasten mit „Kopieren“
 - [x] E219 (23.11.): Saxo-Anmeldung nachvollziehbar – Saxos Grund in der App, bis zu 5 offene Anmeldungen, Rückleitung als Seite (Cookie kommt mit) direkt zur Börse, Redirect URL zum Vergleichen; Leifs DuckDNS-Adresse aus EINRICHTUNG.md entfernt – Abnahme mit Leifs echtem Login steht aus
