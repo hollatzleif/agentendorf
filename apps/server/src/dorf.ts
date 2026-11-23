@@ -450,6 +450,7 @@ export async function dorfStarten(
   // E112: Blüte für Morgenzeitung und Wochenrückblick (wie im Dorfstatus)
   const blueteBerechnen = async () => bluete(await statistik({ db, uhr, todos, gewohnheiten }, 7), await wochenziele.lesen().catch(() => undefined));
   const noten = new Noten({ vault, hub, faecher: () => uni.faecher() });
+  agenten.noten = noten; // E221: noten_* für die Agenten
   // E94: Erinnerungen an To-dos – läuten im Kirchturm, Telegram schickt Knöpfe
   const erinnerungen = new TodoErinnerungen({ todos, weitereListen: Object.values(listen), uhr, kirchturm, gewohnheiten, log: (t) => console.warn(t) });
   kirchturm.beiErinnerungSchlummern.push((pfad) => {

@@ -20,7 +20,7 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
     leine.ts        DIE Stelle für Regeln: Werkzeugprofil, Schreibregeln, Fremdinhalt-Hülle, Obergrenzen (Helfer, Pläne); seit E185 keine
                     verbotenen Kombinationen mehr (Web darf mit Post/Moodle/Kalender/Fremdinhalten laufen – Leifs Entscheidung)
     werkzeuge.ts    alle Dorf-Werkzeuge mit Leine und werkzeug_log: Vault (lesen/schreiben/aendern/verschieben), Post (lesen, Entwürfe mit
-                    Anhang/ändern, nie senden), Termine direkt (termin_*, E185), Adressbuch (kontakt_*), rueckfrage, todo_*, Kirchturm,
+                    Anhang/ändern, nie senden), Termine direkt (termin_*, E185), Adressbuch (kontakt_*), rueckfrage, todo_*, noten_* (E221), Kirchturm,
                     Notizen; stempelt fremdinhalt: true, sobald der Lauf Fremdes gelesen hat
     freigaben.ts    Anträge, atomar genau einmal entscheiden, Ausführer, Spiegel in Rathaus/freigaben/ – nur noch echte Außenwirkung + Regeln (E185)
     rueckgaengig.ts „Rückgängig“ statt Freigabe (E185): direkte Taten mit Rückweg (Termin, Skill, Datei) merken, genau einmal zurücknehmen
@@ -294,6 +294,7 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E213 (22.11.): Handschrift kann Mathe – Formeln ($…$ oder schlicht), Rechenwege am „=“ ausgerichtet, Brüche/Wurzeln/∑∫, Markdown-Tabellen mit Handgitter (handformel.py + Hershey); „=“ wird nicht mehr zu „-“
 - [x] E214 (22.11.): Handschrift realistischer – gerade Linien wie GoodNotes (Tabellen, Bruchstriche), ruhigere Formeln, gleichmäßiger Stift, Logik-Zeichen (∧ ∨ ¬ ↔ ⊢ ⊨ ⊤ ⊥ □), Wahrheitstafeln mittig
 - [x] E215 (22.11.): Handschrift `stil: einheitlich` (Standard) – EINE Hand für Text, Formeln und Tabellen (Schreiber-Profil je Dokument, jedes Zeichen einmalig verformt, Wortgrundlinien, Unterschneiden); `stil: ki` = KI-Modell für freien Fließtext
+- [x] E221 (23.11.): Agenten pflegen Leifs Notenliste – noten_lesen/noten_eintragen/noten_entfernen für alle (Uni/noten.md über den Notendienst, „sehr gut“ … „nicht genügend“ → 1–5, mit Rückgängig)
 - [x] E220 (23.11.): To-do-Brett zugeklappt (Tags/Knöpfe erst aufgeklappt, Titel klappt auf, „✏️ Bearbeiten“), Standard nach Frist mit Abschnitten (Überfällig … Ohne Datum), Sortierung wählbar, Farbstreifen nach Dringlichkeit; Saxo-Prüfkasten mit „Kopieren“
 - [x] E219 (23.11.): Saxo-Anmeldung nachvollziehbar – Saxos Grund in der App, bis zu 5 offene Anmeldungen, Rückleitung als Seite (Cookie kommt mit) direkt zur Börse, Redirect URL zum Vergleichen; Leifs DuckDNS-Adresse aus EINRICHTUNG.md entfernt – Abnahme mit Leifs echtem Login steht aus
 - [x] E218 (23.11.): Bürgermeister höchstens 0,50 $ am Tag – Aufwachen über Leifs Abo, automatische Aufrufe mit Haiku 5.5 (ohne fallbacks), harte Tagesgrenze für alles, was noch über die API geht (Post wartet bis morgen, kein Fehlversuch); Leifs Klicks („Schritte vorschlagen“) außerhalb des Budgets – Abnahme mit echten Läufen steht aus

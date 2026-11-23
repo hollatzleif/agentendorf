@@ -13,7 +13,7 @@ import { fremdinhaltHuelle, istHochgeladen, HELFER_FAEHIGKEITEN, pflegePruefen, 
 import type { Rueckgaengig, RueckgaengigArt } from './rueckgaengig.js';
 import { kontaktZeile, KONTAKTE_PFAD, type Kontakte } from '../kontakte.js';
 import { dateiStempel } from './hilfen.js';
-import type { KirchturmZustand } from '@dorf/shared';
+import type { KirchturmZustand, NotenStand } from '@dorf/shared';
 import type { Kirchturm } from '../kirchturm.js';
 import type { Notizen } from '../notizen.js';
 import { ortszeitText, terminAusAngaben, terminVorschau, type GoogleKalender } from '../kalender-google.js';
@@ -24,6 +24,7 @@ import { anhangKopf, LITERATUR_BIB, type DateiVerstehen, vaultDateiFremd } from 
 import type { EntwurfEingabe, GmailKlient } from '../post/gmail.js';
 import { AGENTEN_ARTEN, type Freigaben } from './freigaben.js';
 import { LISTEN, LISTEN_NAMEN, todoZeile, type ListenName, type TodoDienst } from '../todos.js';
+import { NOTEN_PFAD, noteAusText, type Noten } from '../uni/noten.js';
 import { meinTodoZeile, type MeineTodos } from './meine-todos.js';
 import { aenderungText, ersetzen, GEDAECHTNIS_PFAD, MAX_GEDAECHTNIS, MAX_PERSOENLICHKEIT, PERSOENLICHKEIT_PFAD, textPruefen } from './gedaechtnis.js';
 import { istExtra } from './leine-extra.js';
@@ -339,6 +340,45 @@ export const WERKZEUG_DEFINITIONEN: Record<DorfWerkzeug, WerkzeugDefinition> = {
     name: 'todo_loeschen',
     description: 'Ein To-do entfernen (landet im Papierkorb, Leif kann es wiederherstellen). Für Erledigtes lieber abhaken; löschen nur bei Doppeltem oder Überholtem.',
     input_schema: { type: 'object', properties: { liste: { type: 'string', enum: ['todo', 'einkauf', 'wunsch', 'corps'], description: 'Welche Liste: todo (Leifs To-dos, Standard), einkauf (Einkaufsliste), wunsch (Wunschliste), corps (Corps-Aufgaben/Ämter)' }, pfad: { type: 'string' } }, required: ['pfad'], additionalProperties: false },
+  },
+  noten_lesen: {
+    name: 'noten_lesen',
+    description:
+      'Leifs Notenliste lesen (Uni → Noten, Datei Uni/noten.md): jedes Fach mit ECTS, Note und Semester, dazu ECTS-gewichteter Schnitt, ECTS bestanden/offen, Ziel-ECTS und Fächer aus Uni/faecher/, die noch fehlen.',
+    input_schema: { type: 'object', properties: {}, required: [], additionalProperties: false },
+  },
+  noten_eintragen: {
+    name: 'noten_eintragen',
+    description:
+      'Fächer in Leifs Notenliste eintragen oder ändern (gleicher Fachname = ändern, sonst neu) – mehrere auf einmal, z. B. ein ganzes Zeugnis. Die Ansicht Uni → Noten zeigt es sofort. Note als Zahl 1–5 oder als Bezeichnung: „sehr gut“ = 1, „gut“ = 2, „befriedigend“ = 3, „genügend“ = 4, „nicht genügend“ = 5, „mit Erfolg teilgenommen“/„bestanden“ = bestanden ohne Note (zählt ECTS, nicht den Schnitt), leer/null = noch offen. Alte Fassung kommt ins Archiv, Leif kann zurücknehmen. Nie per vault_schreiben – nur so.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        faecher: {
+          type: 'array',
+          description: 'Höchstens 100 Einträge je Aufruf',
+          items: {
+            type: 'object',
+            properties: {
+              fach: { type: 'string', description: 'Name der Lehrveranstaltung, z. B. „Hands-on AI I UE“ (max. 100 Zeichen)' },
+              ects: { type: 'number', description: 'ECTS (0–60)' },
+              note: { type: ['integer', 'string', 'null'], description: '1–5, „sehr gut“ … „nicht genügend“, „mit Erfolg teilgenommen“ oder null (offen)' },
+              semester: { type: 'string', description: 'z. B. „WS 2025“ oder „SS 2026“ (optional, max. 20 Zeichen); bei Anerkennungen z. B. „anerkannt“' },
+            },
+            required: ['fach', 'ects'],
+            additionalProperties: false,
+          },
+        },
+        ziel_ects: { type: ['number', 'null'], description: 'Optional: Ziel-ECTS des Studiums setzen (null = entfernen)' },
+      },
+      required: ['faecher'],
+      additionalProperties: false,
+    },
+  },
+  noten_entfernen: {
+    name: 'noten_entfernen',
+    description: 'Ein Fach aus Leifs Notenliste streichen (genauer Fachname aus noten_lesen). Leif kann es zurücknehmen.',
+    input_schema: { type: 'object', properties: { fach: { type: 'string' } }, required: ['fach'], additionalProperties: false },
   },
   kalender_lesen: {
     name: 'kalender_lesen',
@@ -716,6 +756,8 @@ export interface LaufKontext {
   kalender?: (von: number, bis: number) => Promise<KalenderEintrag[]>;
   /** To-do-Brett (E65) und weitere Listen (Etappe 7) */
   listen?: Record<ListenName, TodoDienst>;
+  /** E221: Leifs Notenliste (noten_*) */
+  noten?: Noten;
   /** Leine für die Listen: Lauf mit Fremdinhalten markiert seine Einträge; Lauf mit Internet sieht markierte nicht */
   fremdinhalte?: boolean;
   web?: boolean;
@@ -901,6 +943,10 @@ export class WerkzeugKiste {
           this.log(name, { begruendung: e.begruendung }, text, true, PERSOENLICHKEIT_PFAD, 'freigabe');
           return { ok: true, text };
         }
+        case 'noten_lesen':
+        case 'noten_eintragen':
+        case 'noten_entfernen':
+          return await this.noten(name as 'noten_lesen' | 'noten_eintragen' | 'noten_entfernen', eingabe);
         case 'todo_liste':
         case 'todo_anlegen':
         case 'todo_bearbeiten':
@@ -1486,6 +1532,58 @@ export class WerkzeugKiste {
     const ziel = await t.loeschen(pfad);
     this.log(name, { pfad, liste: ln }, `in den Papierkorb: ${ziel}`, true, pfad, 'geschrieben');
     return { ok: true, text: `Eintrag entfernt (Papierkorb, wiederherstellbar): ${pfad}` };
+  }
+
+  /** E221: Leifs Notenliste – nur über den Notendienst (feste Datei, geprüftes Format), jede Änderung mit Rückweg */
+  private async noten(name: 'noten_lesen' | 'noten_eintragen' | 'noten_entfernen', eingabe: unknown): Promise<WerkzeugAufrufErgebnis> {
+    const n = this.k.noten;
+    if (!n) throw new DorfFehler(503, 'Die Notenliste ist nicht eingerichtet.');
+    const zeilen = (s: NotenStand) =>
+      [
+        ...s.faecher.map((f) => `- ${f.fach} · ${f.ects} ECTS · ${f.note == null ? 'offen' : f.note === 'bestanden' ? 'bestanden (ohne Note)' : `Note ${f.note}`}${f.semester ? ` · ${f.semester}` : ''}`),
+        '',
+        `Schnitt (nach ECTS gewichtet): ${s.schnitt ?? '–'} · ECTS bestanden: ${s.ectsBestanden} · offen: ${s.ectsOffen}${s.zielEcts != null ? ` · Ziel: ${s.zielEcts}` : ''}`,
+        ...(s.vorschlaege.length ? [`Noch nicht in der Liste (aus Uni/faecher/): ${s.vorschlaege.join(', ')}`] : []),
+      ].join('\n');
+    if (name === 'noten_lesen') {
+      const s = await n.stand();
+      this.log(name, {}, `${s.faecher.length} Fächer`, true, NOTEN_PFAD, 'gelesen');
+      return { ok: true, text: s.faecher.length ? `Leifs Notenliste (${NOTEN_PFAD}):\n${zeilen(s)}` : `Die Notenliste ist noch leer.${s.vorschlaege.length ? ` Fächer aus Uni/faecher/: ${s.vorschlaege.join(', ')}` : ''}` };
+    }
+    // vorher: alte Fassung sichern (gibt es noch keine Datei, ist die alte Fassung leer = leere Liste)
+    const alt = await this.vault.lesen(NOTEN_PFAD).catch(() => null);
+    let s: NotenStand;
+    let titel: string;
+    if (name === 'noten_eintragen') {
+      const e = z
+        .object({
+          faecher: z.array(z.object({ fach: z.string(), ects: z.number(), note: z.unknown().optional(), semester: z.string().optional() }).strict()).min(1).max(100),
+          ziel_ects: z.number().min(0).max(600).nullable().optional(),
+        })
+        .strict()
+        .parse(eingabe);
+      const unklar = e.faecher.filter((f) => noteAusText(f.note) === undefined);
+      if (unklar.length) {
+        const t = `Nichts eingetragen – diese Noten verstehe ich nicht: ${unklar.map((f) => `${f.fach}: „${String(f.note)}“`).join('; ')}. Erlaubt: 1–5, „sehr gut“ … „nicht genügend“, „mit Erfolg teilgenommen“, null (offen).`;
+        this.log(name, { anzahl: e.faecher.length }, t, false, NOTEN_PFAD);
+        return { ok: false, text: t };
+      }
+      s = await n.setzenViele(
+        e.faecher.map((f) => ({ fach: f.fach, ects: f.ects, note: noteAusText(f.note), ...(f.semester?.trim() ? { semester: f.semester } : {}) })),
+        e.ziel_ects,
+      );
+      titel = e.faecher.length === 1 ? `Note eingetragen: ${e.faecher[0]!.fach}` : `${e.faecher.length} Fächer in der Notenliste eingetragen`;
+    } else {
+      const { fach } = z.object({ fach: z.string().min(1) }).strict().parse(eingabe);
+      s = await n.entfernen(fach);
+      titel = `Aus der Notenliste gestrichen: ${fach}`;
+    }
+    const archiv = `${this.k.gebaeude}/archiv/aenderungen/${dateiStempel(this.uhr.jetzt())}_${crypto.randomUUID().slice(0, 6)}_noten.md`;
+    await this.vault.schreiben(archiv, alt?.inhalt ?? '', { nurNeu: true });
+    const jetzt = await this.vault.lesen(NOTEN_PFAD);
+    await this.merken('datei_geaendert', titel, { pfad: NOTEN_PFAD, archiv, version: jetzt.version }, true);
+    this.log(name, eingabe, titel, true, NOTEN_PFAD, 'geschrieben');
+    return { ok: true, text: `${titel}. Leif sieht es unter Uni → Noten und kann es zurücknehmen (alte Fassung: ${archiv}).\n\nStand jetzt:\n${zeilen(s)}` };
   }
 
   private async lesen(roh: string): Promise<WerkzeugAufrufErgebnis> {

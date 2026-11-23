@@ -43,6 +43,9 @@ export type DorfWerkzeug =
   | 'gedaechtnis_schreiben'
   | 'persoenlichkeit_vorschlagen'
   | 'todo_liste'
+  | 'noten_lesen'
+  | 'noten_eintragen'
+  | 'noten_entfernen'
   | 'todo_anlegen'
   | 'todo_bearbeiten'
   | 'todo_loeschen'
@@ -122,6 +125,12 @@ export const MOODLE_WERKZEUGE: DorfWerkzeug[] = ['moodle_oeffnen', 'moodle_klick
  */
 export const TODO_WERKZEUGE: DorfWerkzeug[] = ['todo_liste', 'todo_anlegen', 'todo_bearbeiten', 'todo_loeschen'];
 /**
+ * E221: Leifs Notenliste (Uni/noten.md, die Ansicht Uni → Noten) – jeder Agent, nur über den Notendienst (feste Datei,
+ * geprüftes Format). Vorher fehlte ein Weg: vault_schreiben verlangt neue Dateinamen mit Datum und nur im eigenen Gebäude.
+ * Jede Änderung: alte Fassung ins Archiv, Leif kann sie zurücknehmen (wie vault_aendern).
+ */
+export const NOTEN_WERKZEUGE: DorfWerkzeug[] = ['noten_lesen', 'noten_eintragen', 'noten_entfernen'];
+/**
  * Alltag für jeden Agenten (E183, E185): Kirchturm (Timer, Wecker, Pomodoro), Notizen, Termine in Leifs EIGENEM
  * Kalender (direkt, ohne Einladungen, mit „Rückgängig“; Termine mit Gästen nur per Freigabe), freie Zeiten,
  * Adressbuch, Dateien im eigenen Gebäude ändern/verschieben (alte Fassung ins Archiv) und höchstens eine Rückfrage.
@@ -187,7 +196,7 @@ export function motorPruefen(gebaeude: string, motor: string): string | null {
 export function werkzeugprofil(a: { werkzeuge: AktionsWerkzeug[]; fremdinhalte: boolean }): Werkzeugprofil {
   const fehler = aktionPruefen(a);
   if (fehler) throw new DorfFehler(400, fehler);
-  const dorf: DorfWerkzeug[] = [...LESE_WERKZEUGE, 'freigabe_beantragen', ...TODO_WERKZEUGE, ...ALLTAG_WERKZEUGE];
+  const dorf: DorfWerkzeug[] = [...LESE_WERKZEUGE, 'freigabe_beantragen', ...TODO_WERKZEUGE, ...NOTEN_WERKZEUGE, ...ALLTAG_WERKZEUGE];
   if (a.werkzeuge.includes('vault_schreiben')) dorf.push('vault_schreiben', ...VAULT_PFLEGE_WERKZEUGE);
   if (a.werkzeuge.includes('rechenraum')) dorf.push(...RECHENRAUM_WERKZEUGE);
   if (a.werkzeuge.includes('post')) dorf.push(...POST_WERKZEUGE);

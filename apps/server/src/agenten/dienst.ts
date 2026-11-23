@@ -1,4 +1,5 @@
 import type { ListenName, TodoDienst } from '../todos.js';
+import type { Noten } from '../uni/noten.js';
 import crypto from 'node:crypto';
 import type { Ausloeser, ChatDetail, DateiKarte, ChatInfo, LaufInfo, LaufStatus, Motor as MotorName, Stufe } from '@dorf/shared';
 import type { DB } from '../db.js';
@@ -199,6 +200,8 @@ export class AgentenDienst {
   kalender?: (von: number, bis: number) => Promise<KalenderEintrag[]>;
   /** To-do-Brett (E65) und weitere Listen (Etappe 7) */
   listen?: Record<ListenName, TodoDienst>;
+  /** E221: Leifs Notenliste (noten_*), wird in dorf.ts gesetzt */
+  noten?: Noten;
   /** E192: die eigene To-do-Liste des Bürgermeisters (nur seine Läufe bekommen sie) */
   meineTodos?: MeineTodos;
   /** E183: Kirchturm und Tagesnotizen für die Alltags-Werkzeuge (in dorf.ts gesetzt) */
@@ -671,6 +674,7 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
           meineTodos: wissen ? this.meineTodos : undefined,
           dateien: this.dateien,
           listen: this.listen,
+          noten: this.noten,
           kirchturm: this.kirchturm,
           notizen: this.notizen,
           fremdinhalte: !!c.fremdinhalte,

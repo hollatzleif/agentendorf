@@ -2208,3 +2208,24 @@ Leif: Die Tags sollen nur sichtbar sein, wenn man ein To-do aufklappt. Die Liste
 - Der Prüfkasten unter Börse → Saxo ist jetzt immer aufgeklappt, solange keine Verbindung besteht.
 - Er hat einen „Kopieren“-Knopf für die Redirect URL.
 - Er nennt genau diese Saxo-Meldung.
+
+## E221 – Agenten pflegen die Notenliste (23.11.)
+
+Leif bat den Bürgermeister, die Noten aus einem KUSSS-Screenshot in seine Notenübersicht zu übernehmen und „sehr gut“ usw. als Zahlen dazuzuschreiben. Das scheiterte dreimal, und Leif fragte, warum dem Bürgermeister schon wieder Rechte fehlen.
+
+**Ursache:**
+- Die Ansicht Uni → Noten (E98) liest genau `Uni/noten.md` mit Frontmatter `faecher: [{fach, ects, note, semester}]`. Es gab aber kein Agenten-Werkzeug dafür.
+- `vault_schreiben` legt nur neue Dateien im eigenen Gebäude an, mit Namen nach Schema (Datum). Der Helfer schrieb deshalb `Uni/2026-11-23_1900_noten.md` in einem eigenen Tabellenformat, das die Ansicht nicht kennt.
+- Der Bürgermeister kannte das Format nicht und schickte Leif los, „ein Fach in der App anzulegen“. Leif musste also selbst Hand anlegen, genau das Gegenteil von E185.
+
+**Lösung:** Drei Werkzeuge für **jeden** Agenten (wie `todo_*`), nur über den Notendienst (feste Datei, Zod-geprüft):
+- `noten_lesen`: liefert Fächer, Schnitt, ECTS und fehlende Fächer.
+- `noten_eintragen`: bis 100 Fächer je Aufruf, in einem Schreibvorgang.
+  - Gleicher Name ändert ein Fach (Groß-/Kleinschreibung egal), ein neuer Name legt es an.
+  - Die Note darf eine Zahl 1–5 sein oder eine KUSSS-Bezeichnung: sehr gut 1, gut 2, befriedigend 3, genügend 4, nicht genügend 5. „mit Erfolg teilgenommen“ zählt als bestanden ohne Note, null als offen.
+  - Unbekannte Bezeichnungen werden abgelehnt, ohne dass etwas geschrieben wird. Es wird nicht geraten.
+- `noten_entfernen`: streicht ein Fach aus der Liste.
+
+Jede Änderung legt die alte Fassung ins Archiv des Gebäudes und kommt leise in „Rückgängig“ (Art `datei_geaendert`; wurde die Datei seither geändert, wird nichts überschrieben).
+
+Keine Freigabe nötig: Die Liste gehört Leif, die Änderung ist zurückholbar (E185). Der Systemprompt sagt: Noten nur so, nie per `vault_schreiben`.

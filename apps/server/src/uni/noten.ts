@@ -29,6 +29,28 @@ const Datei = z.object({
   faecher: z.array(Eintrag).max(200).default([]),
 });
 
+/**
+ * E221: Notenbezeichnung → Zahl (österreichisch, wie in KUSSS): „sehr gut“ 1, „gut“ 2, „befriedigend“ 3, „genügend“ 4,
+ * „nicht genügend“ 5; „mit Erfolg teilgenommen“/„bestanden“ = bestanden (ohne Note). Zahlen und „1 (sehr gut)“ gehen auch.
+ * Unbekanntes → undefined (der Aufrufer meldet es, statt zu raten).
+ */
+export function noteAusText(roh: unknown): number | 'bestanden' | null | undefined {
+  if (roh == null || roh === '') return null;
+  if (typeof roh === 'number') return Number.isInteger(roh) && roh >= 1 && roh <= 5 ? roh : undefined;
+  if (typeof roh !== 'string') return undefined;
+  const t = roh.trim().toLowerCase().replace(/\s+/g, ' ');
+  const zahl = /^([1-5])(?:[.,]0)?\b/.exec(t);
+  if (zahl) return Number(zahl[1]);
+  if (/^(nicht genügend|nicht genuegend|ungenügend|nicht bestanden|ohne erfolg)/.test(t)) return 5;
+  if (/^sehr gut/.test(t)) return 1;
+  if (/^gut/.test(t)) return 2;
+  if (/^befriedigend/.test(t)) return 3;
+  if (/^(genügend|genuegend)/.test(t)) return 4;
+  if (/^(mit erfolg|bestanden|teilgenommen|erfolgreich)/.test(t)) return 'bestanden';
+  if (/^(offen|noch offen|ausstehend|-)$/.test(t)) return null;
+  return undefined;
+}
+
 export function notenStand(d: {
   ziel_ects?: number;
   faecher: EintragT[];
@@ -158,6 +180,27 @@ export class Noten {
       else delete basis.semester;
       if (i >= 0) d.faecher[i] = basis as EintragT;
       else d.faecher.push(basis as EintragT);
+    });
+  }
+
+  /** E221: mehrere Fächer in EINEM Schreibvorgang (Agenten tragen ganze Zeugnisse ein) – sonst wie setzen() */
+  setzenViele(roh: unknown[], zielEcts?: number | null) {
+    const liste = roh.map((r) => Eintrag.parse(r));
+    return this.schreiben((d) => {
+      for (const e of liste) {
+        const i = d.faecher.findIndex((x) => x.fach.toLowerCase() === e.fach.toLowerCase());
+        const basis: Record<string, unknown> = i >= 0 ? { ...d.faecher[i] } : {};
+        Object.assign(basis, { fach: e.fach, ects: e.ects });
+        if (e.note != null) basis.note = e.note;
+        else delete basis.note;
+        if (e.semester) basis.semester = e.semester;
+        else delete basis.semester;
+        if (i >= 0) d.faecher[i] = basis as EintragT;
+        else d.faecher.push(basis as EintragT);
+      }
+      if (d.faecher.length > 200) throw new DorfFehler(400, 'Höchstens 200 Fächer in der Notenliste.');
+      if (zielEcts === null) delete d.ziel_ects;
+      else if (zielEcts !== undefined) d.ziel_ects = zielEcts;
     });
   }
 

@@ -35,6 +35,7 @@ export async function systemPromptBauen(
       ? `- vault_schreiben: neue Dateien in ${a.gebaeude}/… (nicht in gebaeude.md, aktionen/, protokolle/, chats/) und in Rathaus/schreibtisch/${hat('vault_aendern') ? '; vault_aendern/vault_verschieben: bestehende Dateien im Gebäude ändern oder sortieren (alte Fassung ins Archiv)' : ''}`
       : '- Schreiben ist in dieser Aktion nicht erlaubt.',
     '- todo_liste, todo_anlegen, todo_bearbeiten (auch abhaken), todo_loeschen: Leifs To-do-Liste auf dem Marktplatz pflegen (Löschen = Papierkorb). Muss Leif selbst etwas tun (senden, zahlen, abgeben): To-do anlegen.',
+    '- noten_lesen, noten_eintragen, noten_entfernen: Leifs Notenliste (Uni → Noten, Datei Uni/noten.md) – Fächer mit ECTS, Note (1–5, auch „sehr gut“ … „nicht genügend“, „mit Erfolg teilgenommen“ = bestanden) und Semester; NUR so, nie per vault_schreiben. Leif kann jede Änderung zurücknehmen.',
     '- freigabe_beantragen: nur noch für Löschen/Überschreiben fremder oder geschützter Dateien',
     a.profil.web ? '- Websuche und Webseiten abrufen sind erlaubt (Inhalte von dort sind Fremdinhalt).' : '- Kein Internetzugriff in dieser Aktion.',
     ...(hat('rechenraum_befehl')
