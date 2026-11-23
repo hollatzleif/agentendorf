@@ -503,18 +503,56 @@ input::file-selector-button {
 .todo-neu { display: flex; gap: 0.4rem; margin-bottom: 0.8rem; }
 .todo-neu input[type='date'] { width: auto; }
 .todo-neu button { font-size: 1.2rem; padding: 0.2rem 0.9rem; }
-.todo-liste { list-style: none; margin: 0 0 0.8rem; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; }
-.todo { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.55rem 0.7rem; background: #fff; border: 2px solid var(--navy); border-radius: 14px; box-shadow: 0 3px 0 var(--navy); }
-.todo.ueberfaellig { border-color: var(--rot); box-shadow: 0 3px 0 var(--rot); }
+.todo-liste { list-style: none; margin: 0 0 0.6rem; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+/* E220: Karte mit Farbstreifen nach Dringlichkeit; zugeklappt nur Häkchen, Titel, Frist */
+.todo { --farbe: #dfe5ee; position: relative; display: block; padding: 0.2rem 0.55rem 0.2rem 0.95rem; background: #fff; border: 2px solid var(--navy); border-radius: 14px; box-shadow: 0 3px 0 var(--navy); overflow: hidden; transition: box-shadow 0.15s, transform 0.15s; }
+.todo::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--farbe); }
+.frist-ueber { --farbe: var(--rot); }
+.frist-heute { --farbe: var(--dach); }
+.frist-morgen { --farbe: #f2b51e; }
+.frist-woche { --farbe: #4a8fd6; }
+.frist-spaeter { --farbe: #9aa8bc; }
+.frist-ohne { --farbe: #dfe5ee; }
+.todo:hover { transform: translateY(-1px); box-shadow: 0 4px 0 var(--navy); }
+.todo.auf { box-shadow: 0 4px 0 var(--navy), 0 10px 22px rgb(20 40 70 / 0.14); }
 .todo.fertig { opacity: 0.6; box-shadow: none; border-color: var(--rand); }
-.todo.fertig .todo-titel { text-decoration: line-through; }
-.todo.bearbeiten { display: block; }
-.todo-haken input { width: 1.4rem; height: 1.4rem; margin-top: 0.1rem; cursor: pointer; }
-.todo-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
-.todo-titel { all: unset; cursor: text; font-weight: 700; color: var(--text); overflow-wrap: anywhere; }
-.todo-titel:focus-visible { outline: 3px solid #f2b51e; border-radius: 4px; }
+.todo.fertig:hover { transform: none; }
+.todo.fertig .todo-titel-text { text-decoration: line-through; }
+.todo.bearbeiten { display: block; padding: 0.55rem 0.7rem 0.55rem 0.95rem; }
+.todo-kopf { display: flex; align-items: center; gap: 0.45rem; min-height: 2.6rem; }
+.todo-kopf .stern { flex: none; }
+.todo-haken { display: flex; }
+.todo-haken input { width: 1.35rem; height: 1.35rem; margin: 0; cursor: pointer; accent-color: var(--gruen); }
+.todo-titel { all: unset; flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.55rem; cursor: pointer; padding: 0.35rem 0; }
+.todo .todo-titel:hover, .todo .todo-titel:active { background: none; box-shadow: none; transform: none; }
+.todo-titel:focus-visible { outline: 3px solid #f2b51e; outline-offset: 2px; border-radius: 6px; }
+.todo-titel-text { flex: 1; min-width: 0; font-weight: 700; color: var(--text); line-height: 1.3; overflow-wrap: anywhere; }
+.todo-frist { flex: none; font-size: 0.76rem; font-weight: 800; padding: 0.12rem 0.55rem; border-radius: 99px; white-space: nowrap; font-variant-numeric: tabular-nums; background: #eef2f7; color: var(--leise); }
+.frist-ueber .todo-frist { background: #fdecea; color: #a3241b; }
+.frist-heute .todo-frist { background: #ffeedd; color: #9a4700; }
+.frist-morgen .todo-frist { background: #fff5d6; color: #745400; }
+.frist-woche .todo-frist { background: #e5effa; color: #1f5591; }
+.todo-pfeil { flex: none; width: 1rem; text-align: center; font-size: 1.35rem; font-weight: 700; line-height: 1; color: var(--leise); transition: transform 0.2s; }
+.todo.auf .todo-pfeil { transform: rotate(90deg); color: var(--text); }
+.todo-fortschritt { height: 4px; margin: -0.15rem 0 0.35rem; border-radius: 4px; background: #e6ebf2; overflow: hidden; }
+.todo-fortschritt span { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #6fcb52, #3fa63a); }
+.todo-details { display: grid; gap: 0.55rem; margin: 0.1rem 0 0.4rem; padding-top: 0.55rem; border-top: 2px dashed var(--rand); animation: todo-auf 0.18s ease-out; }
+@keyframes todo-auf { from { opacity: 0; transform: translateY(-4px); } }
 .todo-meta { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; font-size: 0.8rem; }
 .todo-meta:empty { display: none; }
+.todo-knoepfe { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.todo-knoepfe button.klein { margin-left: 0; padding: 0.15rem 0.6rem; }
+.todo-knoepfe button.klein[aria-expanded='true'] { background: linear-gradient(#eef3fb, #d9e2f0); }
+.todo-knoepfe a { font-size: 0.85rem; margin-left: 0.2rem; }
+/* E220: Abschnitte – Überfällig, Heute, Morgen, Nächste 7 Tage, Später, Ohne Datum (oder je Gruppe) */
+.todo-abschnitt-kopf { display: flex; align-items: center; gap: 0.45rem; margin: 0.9rem 0 0.4rem; font-size: 0.76rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; color: var(--leise); }
+.todo-abschnitt:first-of-type .todo-abschnitt-kopf { margin-top: 0.3rem; }
+.todo-abschnitt-kopf::before { content: ''; width: 0.65rem; height: 0.65rem; border-radius: 50%; background: var(--farbe, var(--navy)); box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px var(--farbe, var(--navy)); }
+.todo-abschnitt-kopf::after { content: ''; flex: 1; height: 2px; background: linear-gradient(90deg, var(--rand), transparent); }
+.todo-abschnitt.frist-ueber .todo-abschnitt-kopf { color: #a3241b; }
+.todo-abschnitt.frist-heute .todo-abschnitt-kopf { color: #9a4700; }
+.todo-abschnitt-zahl { font-size: 0.72rem; letter-spacing: 0; padding: 0 0.45rem; border-radius: 99px; background: #fff; border: 2px solid var(--rand); color: var(--text); }
+.todo-sortierung { width: auto; flex: none; }
 
 /* Schnelleingabe (Desktop-Programm, Etappe 6) */
 .schnell { max-width: none; margin: 0; padding: 0.6rem; min-height: 100vh; display: flex; }
@@ -1169,7 +1207,12 @@ input.kurz { width: 5em; }
 .todo-vorschlag .zeile button.klein { margin-left: 0; min-height: 2rem; padding: 0.1rem 0.7rem; }
 @media (max-width: 760px) {
   .todo-meta { gap: 0.4rem; }
-  .todo-meta button.klein { margin-left: 0; min-height: 2rem; min-width: 2.4rem; }
+  .todo-knoepfe button.klein { min-height: 2.4rem; }
+  /* E220: am Handy steht die Frist unter dem Titel – der Titel bekommt die ganze Breite */
+  .todo-titel { display: grid; grid-template-columns: 1fr auto; column-gap: 0.4rem; row-gap: 0.2rem; }
+  .todo-titel-text { grid-column: 1; }
+  .todo-frist { grid-column: 1; grid-row: 2; justify-self: start; }
+  .todo-pfeil { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
   .todo-schritte { padding: 0.45rem 0.5rem; }
   .todo-schritte li label { min-height: 2.4rem; }
   .todo-schritte .leise-knopf { min-width: 2.4rem; min-height: 2.4rem; }
@@ -1564,6 +1607,11 @@ kbd { display: inline-block; min-width: 1.4em; padding: 0.05rem 0.35rem; border:
 /* E192: eigene To-dos des Bürgermeisters + Rundgang-Katalog (Rathaus → Schreibtisch) */
 .bm-todos { margin-top: 1.4rem; }
 .bm-todos a.todo-titel { cursor: pointer; }
+/* E220: die Liste des Bürgermeisters behält die einfache Zeile (ohne Aufklappen) */
+.bm-todos .todo { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.55rem 0.7rem 0.55rem 0.95rem; }
+.bm-todos .todo-haken input { margin-top: 0.1rem; }
+.bm-todos .todo-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.bm-todos .todo-titel { display: block; padding: 0; font-weight: 700; overflow-wrap: anywhere; }
 .bm-rundgang { margin-top: 0.6rem; }
 .bm-rundgang summary { cursor: pointer; font-weight: 700; }
 

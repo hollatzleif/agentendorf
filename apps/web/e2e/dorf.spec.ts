@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 /** Origin des Testservers (E2E_PORT wie in playwright.config.ts – so laufen auch zwei Testreihen nebeneinander) */
 const ORIGIN = `http://127.0.0.1:${process.env.E2E_PORT ?? 3999}`;
@@ -13,6 +13,20 @@ async function anmelden(page: Page) {
   await page.getByLabel('Passwort').fill(PW);
   await page.getByRole('button', { name: 'Ins Dorf' }).click();
   await expect(page.getByTestId('dorf-leinwand').or(page.getByRole('heading', { name: 'Dorfplatz' }))).toBeVisible();
+}
+
+
+/** E220: To-do-Zeile aufklappen (Abzeichen und Knöpfe stehen erst in den Details) */
+async function aufklappen(zeile: Locator) {
+  const k = zeile.locator('.todo-titel');
+  await expect(k).toBeVisible();
+  if ((await k.getAttribute('aria-expanded')) !== 'true') await k.click();
+  await expect(k).toHaveAttribute('aria-expanded', 'true');
+}
+/** E220: To-do bearbeiten = aufklappen + „Bearbeiten“ */
+async function bearbeiten(zeile: Locator) {
+  await aufklappen(zeile);
+  await zeile.getByRole('button', { name: '✏️ Bearbeiten' }).click();
 }
 
 test('falsches Passwort wird abgelehnt, richtiges führt ins Dorf', async ({ page }) => {
@@ -367,12 +381,12 @@ test('Marktplatz: To-do-Brett – anlegen, live auf zweitem Gerät, abhaken, bea
   await fertig.getByRole('checkbox').uncheck();
   const offen = page.locator('.todo-liste:not(.erledigt) .todo', { hasText: titel });
   await expect(offen).toBeVisible();
-  await offen.getByRole('button', { name: titel, exact: true }).click();
+  await bearbeiten(offen);
   await page.locator('.todo.bearbeiten').getByLabel('Titel').fill(`${titel} (neu)`);
   await page.locator('.todo.bearbeiten').getByRole('button', { name: 'Speichern' }).click();
   const neu = page.locator('.todo', { hasText: `${titel} (neu)` });
   await expect(neu).toBeVisible();
-  await neu.getByRole('button', { name: `${titel} (neu)`, exact: true }).click();
+  await bearbeiten(neu);
   await page.locator('.todo.bearbeiten').getByRole('button', { name: 'Löschen' }).click();
   await expect(page.locator('.todo', { hasText: titel })).toHaveCount(0);
   await expect(p2.locator('.todo', { hasText: titel })).toHaveCount(0);
@@ -424,6 +438,7 @@ test('Etappe 7: neues Gebäude bauen, Einkaufsliste nach Abteilung, Wunschliste 
   const wunsch = `Kopfhörer ${info.project.name}`;
   await page.getByRole('textbox', { name: 'Neues To-do' }).fill(wunsch);
   await page.getByRole('form', { name: 'Neues To-do' }).getByRole('button', { name: '+' }).click();
+  await aufklappen(page.locator('.todo', { hasText: wunsch }));
   await page.locator('.todo', { hasText: wunsch }).getByRole('button', { name: '🔎 Preise' }).click();
   await expect(page).toHaveURL(/\/chats\//);
   await expect(page.getByText(`Preisvergleich: ${wunsch}`).first()).toBeVisible();
@@ -452,7 +467,7 @@ test('Corpshaus: Termine, Ämter & Aufgaben (Gruppe = Amt), Corps-Mails', async 
   await page.getByRole('button', { name: 'Ämter & Aufgaben', exact: true }).click();
   await page.getByRole('textbox', { name: 'Neues To-do' }).fill('Kassenbuch abschließen');
   await page.getByRole('form', { name: 'Neues To-do' }).getByRole('button', { name: '+' }).click();
-  await page.locator('.todo').getByRole('button', { name: 'Kassenbuch abschließen' }).click();
+  await bearbeiten(page.locator('.todo', { hasText: 'Kassenbuch abschließen' }));
   await page.locator('.todo.bearbeiten').getByLabel('Gruppe').fill('Kassier');
   await page.locator('.todo.bearbeiten').getByRole('button', { name: 'Speichern' }).click();
   await expect(page.locator('.todo', { hasText: 'Kassenbuch abschließen' })).toContainText('Kassier');
@@ -690,6 +705,7 @@ test('Fokus: Pomodoro direkt an einem To-do starten; Kirchturm zeigt Thema und F
   const f = page.getByRole('form', { name: 'Neues To-do' });
   await f.getByLabel('Neues To-do').fill('Blatt 7 rechnen');
   await f.getByRole('button', { name: '+' }).click();
+  await aufklappen(page.locator('li.todo', { hasText: 'Blatt 7 rechnen' }));
   await page.getByRole('button', { name: 'Fokus: Blatt 7 rechnen' }).click();
   await page.goto('/gebaeude/Kirchturm');
   const p = page.getByRole('region', { name: 'Pomodoro' });
@@ -717,6 +733,7 @@ test('Lernzeit einplanen: 📅 am To-do zeigt freie Blöcke bis zur Frist, Eintr
   await f.getByLabel('Neues To-do').fill('Abgabe: Blatt 8');
   await f.getByLabel('Fällig am').fill(morgen);
   await f.getByRole('button', { name: '+' }).click();
+  await aufklappen(page.locator('li.todo', { hasText: 'Abgabe: Blatt 8' }));
   await page.getByRole('button', { name: 'Lernzeit: Abgabe: Blatt 8' }).click();
   const g = page.getByRole('group', { name: 'Lernzeit für Blatt 8' });
   await expect(g.getByRole('listitem')).toHaveCount(2);
@@ -1047,7 +1064,7 @@ test('Wiederkehrendes To-do: 🔁 wöchentlich, abhaken legt das nächste an', a
   await f.getByRole('textbox', { name: 'Neues To-do' }).fill('Wäsche-Test');
   await f.getByLabel('Fällig am').fill('2026-01-05');
   await f.getByRole('button', { name: '+' }).click();
-  await page.getByRole('button', { name: 'Wäsche-Test', exact: true }).click();
+  await bearbeiten(page.locator('li.todo', { hasText: 'Wäsche-Test' }));
   await page.getByLabel('Wiederholen').selectOption('wöchentlich');
   await page.getByRole('button', { name: 'Speichern' }).click();
   const zeile = page.locator('li.todo', { hasText: 'Wäsche-Test' });
@@ -1056,6 +1073,7 @@ test('Wiederkehrendes To-do: 🔁 wöchentlich, abhaken legt das nächste an', a
   // das nächste ist offen, mit Datum in der Zukunft
   const offen = page.locator('li.todo:not(.fertig)', { hasText: 'Wäsche-Test' });
   await expect(offen).toHaveCount(1);
+  await aufklappen(offen);
   await expect(offen).toContainText('🔁 wöchentlich');
   await expect(page.locator('li.todo.fertig', { hasText: 'Wäsche-Test' })).toHaveCount(1);
 });
@@ -1095,7 +1113,7 @@ test('Erinnerung am To-do: setzen, 🔔-Abzeichen; zur Zeit läutet der Kirchtur
   const f = page.getByRole('form', { name: 'Neues To-do' });
   await f.getByRole('textbox', { name: 'Neues To-do' }).fill('Erinner-Test');
   await f.getByRole('button', { name: '+' }).click();
-  await page.getByRole('button', { name: 'Erinner-Test', exact: true }).click();
+  await bearbeiten(page.locator('li.todo', { hasText: 'Erinner-Test' }));
   await page.getByLabel('Erinnerung').fill(lokal(Date.now() + 2 * 86_400_000));
   await page.getByRole('button', { name: 'Speichern' }).click();
   await expect(page.locator('li.todo', { hasText: 'Erinner-Test' })).toContainText('🔔');
@@ -1216,6 +1234,7 @@ test('To-do: Teilschritte anlegen, abhaken, Fortschritt; „Vorschlagen“ ohne 
   await page.request.post('/api/todos', { headers: { origin: ORIGIN }, data: { titel, faellig: new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' }) } });
   await page.goto('/gebaeude/Marktplatz?reiter=todo');
   const z = page.locator('li.todo', { hasText: titel });
+  await aufklappen(z);
   await z.getByRole('button', { name: `Schritte für ${titel}` }).click();
   const g = z.getByRole('group', { name: `Schritte: ${titel}` });
   for (const s of ['Gliederung', 'Folien']) {
@@ -1349,7 +1368,7 @@ test('Zeitschätzung: Dauer am To-do, „Heute“ warnt, wenn der Tag nicht reic
   await page.request.post('/api/todos', { headers: o, data: { titel: 'Riesenprojekt 2', faellig: heute, dauer: 600 } });
   await page.request.post('/api/todos', { headers: o, data: { titel: 'Dauer-Test', faellig: heute } });
   await page.goto('/gebaeude/Marktplatz?reiter=todo');
-  await page.getByRole('button', { name: 'Dauer-Test', exact: true }).click();
+  await bearbeiten(page.locator('li.todo', { hasText: 'Dauer-Test' }));
   await page.getByRole('combobox', { name: 'Geschätzte Dauer' }).selectOption('90');
   await page.getByRole('button', { name: 'Speichern' }).click();
   await expect(page.locator('li.todo', { hasText: 'Dauer-Test' })).toContainText('⏱ 1 h 30');
@@ -1488,6 +1507,7 @@ test('To-do aus Text in der App: „… jeden Montag 30 min“ mit Vorschau (E12
   await expect(page.locator('.todo-text-hinweis')).toContainText('⏱ 30 min');
   await f.getByRole('button', { name: '+' }).click();
   const z = page.locator('li.todo', { hasText: titel });
+  await aufklappen(z);
   await expect(z).toContainText('🔁 wöchentlich');
   await expect(z).toContainText('⏱ 30 min');
   await expect(page.locator('.todo-text-hinweis')).toHaveCount(0);
@@ -1745,8 +1765,9 @@ test('Wartet auf …: aus Text erkannt, ruht unter „⏳ Wartet auf“, im Bret
   // im Brett: Abzeichen, bearbeiten → wartet nicht mehr
   await page.goto('/gebaeude/Marktplatz?reiter=todo');
   const zeile = page.locator('li.todo', { hasText: `Note Mathe ${n}` });
+  await aufklappen(zeile);
   await expect(zeile.locator('.abzeichen.wartet')).toHaveText('⏳ Prof. Müller');
-  await zeile.getByRole('button', { name: `Note Mathe ${n}`, exact: true }).click();
+  await zeile.getByRole('button', { name: '✏️ Bearbeiten' }).click();
   const form = page.locator('li.todo.bearbeiten');
   await expect(form.getByLabel('Wartet auf')).toHaveValue('Prof. Müller');
   await form.getByLabel('Wartet auf').fill('');
@@ -1785,7 +1806,7 @@ test('Energie am To-do: im Brett 🧠 wählen, Abzeichen im Brett und auf Heute 
   const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
   await page.request.post('/api/todos', { headers: { origin: ORIGIN }, data: { titel: `Beweis ${n}`, faellig: heute } });
   await page.goto('/gebaeude/Marktplatz?reiter=todo');
-  await page.locator('li.todo', { hasText: `Beweis ${n}` }).getByRole('button', { name: `Beweis ${n}`, exact: true }).click();
+  await bearbeiten(page.locator('li.todo', { hasText: `Beweis ${n}` }));
   const form = page.locator('li.todo.bearbeiten');
   await form.getByLabel('Energie').selectOption('hoch');
   await form.getByRole('button', { name: 'Speichern' }).click();
@@ -1922,6 +1943,7 @@ test('In Etappen planen: 🪜 zeigt die Vorschau, „Etappen anlegen“ macht ei
   const titel = `Referat ${Date.now() % 100000}`;
   await page.request.post('/api/todos', { headers: { origin: ORIGIN }, data: { titel, faellig: frist, dauer: 180 } });
   await page.goto('/gebaeude/Marktplatz?reiter=todo');
+  await aufklappen(page.locator('li.todo', { hasText: titel }));
   await page.getByRole('button', { name: `Etappen: ${titel}` }).click();
   const g = page.getByRole('group', { name: `Etappen für ${titel}` });
   await expect(g.locator('li')).toHaveCount(3);
@@ -2117,3 +2139,47 @@ test('E207 Bibliothek: Vorschau für jedes Format (Word …) und „Herunterlade
   expect(dl.suggestedFilename()).toBe('Bericht.docx');
 });
 
+
+test('To-do-Brett: nach Frist sortiert, Abschnitte, Abzeichen erst aufgeklappt, Sortierung wählbar (E220)', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'einmal reicht');
+  await anmelden(page);
+  const o = { origin: ORIGIN };
+  const h = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
+  const tag = (n: number) => new Date(Date.parse(`${h}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+  const p = `Sortier${Date.now() % 100000}`;
+  const neu = [
+    { titel: `${p} Später`, faellig: tag(20), wichtig: true },
+    { titel: `${p} Ohne` },
+    { titel: `${p} Heute`, faellig: h, dauer: 30, energie: 'hoch' },
+    { titel: `${p} Überfällig`, faellig: tag(-3) },
+    { titel: `${p} Morgen`, faellig: tag(1) },
+    { titel: `${p} Woche`, faellig: tag(4) },
+  ];
+  for (const d of neu) expect((await page.request.post('/api/todos', { headers: o, data: d })).ok()).toBe(true);
+  await page.goto('/gebaeude/Marktplatz?reiter=todo');
+  await page.getByRole('searchbox', { name: 'To-dos filtern' }).fill(p);
+  const titel = () => page.locator('li.todo .todo-titel-text', { hasText: p }).allTextContents();
+  // Standard: nach Frist – der ⭐ mit ferner Frist steht NICHT oben
+  await expect.poll(titel).toEqual(['Überfällig', 'Heute', 'Morgen', 'Woche', 'Später', 'Ohne'].map((x) => `${p} ${x}`));
+  await expect(page.getByRole('combobox', { name: 'Sortieren' })).toHaveValue('frist');
+  await expect(page.getByRole('region', { name: 'Überfällig' })).toContainText(`${p} Überfällig`);
+  await expect(page.getByRole('region', { name: 'Nächste 7 Tage' })).toContainText(`${p} Woche`);
+  await expect(page.locator('li.todo', { hasText: `${p} Überfällig` }).locator('.todo-frist')).toHaveText('seit 3 T.');
+  // zugeklappt: keine Abzeichen, keine Knöpfe – erst aufgeklappt
+  const z = page.locator('li.todo', { hasText: `${p} Heute` });
+  await expect(z.locator('.abzeichen')).toHaveCount(0);
+  await expect(z.getByRole('button', { name: `Fokus: ${p} Heute` })).toHaveCount(0);
+  await aufklappen(z);
+  await expect(z.locator('.abzeichen', { hasText: '⏱ 30 min' })).toBeVisible();
+  await expect(z.locator('.abzeichen', { hasText: '🧠' })).toBeVisible();
+  await expect(z.getByRole('button', { name: `Fokus: ${p} Heute` })).toBeVisible();
+  await z.locator('.todo-titel').click();
+  await expect(z.locator('.abzeichen')).toHaveCount(0);
+  // andere Sortierung – bleibt nach Neuladen
+  await page.getByRole('combobox', { name: 'Sortieren' }).selectOption('stern');
+  await expect.poll(async () => (await titel())[0]).toBe(`${p} Später`);
+  await page.reload();
+  await page.getByRole('searchbox', { name: 'To-dos filtern' }).fill(p);
+  await expect(page.getByRole('combobox', { name: 'Sortieren' })).toHaveValue('stern');
+  await expect.poll(async () => (await titel())[0]).toBe(`${p} Später`);
+});

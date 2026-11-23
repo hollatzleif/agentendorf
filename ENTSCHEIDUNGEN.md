@@ -2184,3 +2184,27 @@ Vom Code aus ist nicht zu sehen, woran es bei Leif scheitert: Das Dorf auf dem S
 **Offen:**
 - Was genau bei Leif schiefgeht, zeigt erst der nächste Versuch: entweder Saxos Grund in der App, oder eine Fehlerseite bei Saxo selbst, dann stimmt meist die Redirect-URL nicht.
 - In `EINRICHTUNG.md` stand Leifs echte DuckDNS-Adresse. Das Repo ist öffentlich. Ersetzt durch Platzhalter; in der Git-Geschichte steht sie weiter.
+
+## E220 – To-do-Brett: zugeklappt, nach Frist, neuer Look (23.11.)
+
+Leif: Die Tags sollen nur sichtbar sein, wenn man ein To-do aufklappt. Die Liste soll standardmäßig nach Deadline sortiert sein und cooler und übersichtlicher aussehen.
+
+- **Zugeklappt** steht nur Stern, Häkchen, Titel, Frist (kurz: „heute“, „morgen“, „Mi.“, „05.12.“, „seit 3 T.“; ⏳ bei „wartet“) und ein Pfeil. Haben die Teilschritte einen Fortschritt, zeigt ihn ein dünner Balken.
+- **Aufklappen:** Ein Klick auf den Titel klappt auf. Dann stehen da alle Abzeichen (Energie ausgeschrieben, Dauer, Fokus, Wiederholen, Gruppe, Gebäude, Quelle …) und alle Knöpfe, jetzt mit Text: Bearbeiten, Schritte, Fokus, Zeit finden, Etappen, Preise, Notiz öffnen.
+  - Vorher öffnete der Titel direkt das Bearbeiten-Formular, jetzt geht das über „✏️ Bearbeiten“.
+  - Aufgeklappt bleibt aufgeklappt, auch wenn die Zeile nach einer Änderung neu gebaut wird (wie bei den Schritten).
+  - Die Bürgermeister-Liste im Rathaus behält die einfache Zeile.
+- **Sortierung:** Standard ist „Nach Frist“: Frist aufsteigend, bei gleicher Frist ⭐ zuerst, ohne Datum am Ende. Der Server sortierte bisher ⭐ vor Frist.
+  - Wählbar ist auch „⭐ zuerst“ (die alte Reihenfolge), „Neueste zuerst“ und „Nach Gruppe“. Die Wahl merkt sich das Gerät.
+  - Wie der Filter gilt die Wahl nur, solange die Filterleiste sichtbar ist (ab 6 offenen To-dos), sonst gibt es keinen Weg zurück.
+  - Einkaufsliste und andere gruppierte Listen bleiben nach Abteilung sortiert.
+- **Abschnitte:** Bei „Nach Frist“ gibt es Überschriften mit Zahl: Überfällig, Heute, Morgen, Nächste 7 Tage, Später, Ohne Datum. Bei „Nach Gruppe“ gibt es eine Überschrift je Gruppe.
+- **Look:**
+  - Karte mit Farbstreifen links nach Dringlichkeit: rot überfällig, orange heute, gelb morgen, blau nächste 7 Tage, grau später.
+  - Die Frist als farbige Pille.
+  - Am Handy steht die Frist unter dem Titel, damit der Titel die ganze Breite hat.
+
+**Saxo (Nachtrag zu E219):** Leifs Versuch endete bei Saxo mit `invalid_request – Value of redirect_uri parameter is not registered`. Die Adresse, die das Dorf schickt, steht also nicht (genau so) in seiner Saxo-App. Das ist eine Einstellung bei Saxo, kein Fehler im Dorf. Darum:
+- Der Prüfkasten unter Börse → Saxo ist jetzt immer aufgeklappt, solange keine Verbindung besteht.
+- Er hat einen „Kopieren“-Knopf für die Redirect URL.
+- Er nennt genau diese Saxo-Meldung.

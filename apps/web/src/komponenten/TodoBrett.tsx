@@ -11,6 +11,59 @@ import { Stern } from '../seiten/Heute';
 const heute = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
 const datumText = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('de-AT', { weekday: 'short', day: '2-digit', month: '2-digit' });
 
+/** E220: Kalendertage zwischen zwei JJJJ-MM-TT (b − a) */
+const tageZwischen = (a: string, b: string) => Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 86_400_000);
+
+/** E220: wie dringend – färbt die Zeile und ordnet sie einem Abschnitt zu */
+export type FristStufe = 'ueber' | 'heute' | 'morgen' | 'woche' | 'spaeter' | 'ohne';
+export function fristStufe(f: string | undefined, h: string): FristStufe {
+  if (!f) return 'ohne';
+  const d = tageZwischen(h, f);
+  return d < 0 ? 'ueber' : d === 0 ? 'heute' : d === 1 ? 'morgen' : d <= 7 ? 'woche' : 'spaeter';
+}
+const ABSCHNITTE: [FristStufe, string][] = [
+  ['ueber', 'Überfällig'],
+  ['heute', 'Heute'],
+  ['morgen', 'Morgen'],
+  ['woche', 'Nächste 7 Tage'],
+  ['spaeter', 'Später'],
+  ['ohne', 'Ohne Datum'],
+];
+
+/** E220: Frist kurz für die zugeklappte Zeile – „heute“, „morgen“, „Mi.“, „28.11.“, „seit 3 T.“ */
+function fristKurz(f: string) {
+  const d = tageZwischen(heute(), f);
+  if (d < 0) return d === -1 ? 'gestern' : `seit ${-d} T.`;
+  if (d === 0) return 'heute';
+  if (d === 1) return 'morgen';
+  const t = new Date(`${f}T12:00:00Z`);
+  if (d <= 6) return t.toLocaleDateString('de-AT', { weekday: 'short', timeZone: 'UTC' });
+  return t.toLocaleDateString('de-AT', { day: '2-digit', month: '2-digit', timeZone: 'UTC' });
+}
+
+/** E220: Sortierung der offenen To-dos (Standard: nach Frist) */
+const SORTIERUNGEN = [
+  ['frist', 'Nach Frist'],
+  ['stern', '⭐ zuerst'],
+  ['neu', 'Neueste zuerst'],
+  ['gruppe', 'Nach Gruppe'],
+] as const;
+type Sortierung = (typeof SORTIERUNGEN)[number][0];
+const SORTIER_SCHLUESSEL = 'dorf-todo-sortierung';
+export function todosSortieren(liste: TodoInfo[], wie: Sortierung): TodoInfo[] {
+  const frist = (a: TodoInfo, b: TodoInfo) => (a.faellig ?? '9999').localeCompare(b.faellig ?? '9999');
+  const stern = (a: TodoInfo, b: TodoInfo) => Number(!!b.wichtig) - Number(!!a.wichtig);
+  const neu = (a: TodoInfo, b: TodoInfo) => (b.erstellt ?? '').localeCompare(a.erstellt ?? '');
+  const gruppe = (t: TodoInfo) => t.gruppe ?? t.gebaeude ?? '\uffff';
+  const v: Record<Sortierung, (a: TodoInfo, b: TodoInfo) => number> = {
+    frist: (a, b) => frist(a, b) || stern(a, b) || neu(a, b),
+    stern: (a, b) => stern(a, b) || frist(a, b) || neu(a, b),
+    neu: (a, b) => neu(a, b) || frist(a, b),
+    gruppe: (a, b) => gruppe(a).localeCompare(gruppe(b), 'de') || frist(a, b) || stern(a, b),
+  };
+  return [...liste].sort(v[wie]);
+}
+
 /**
  * To-do-Brett auf dem Marktplatz (E65): immer aktuell (Live-Ereignis), abhaken, anlegen, bearbeiten, löschen.
  * Jedes To-do ist eine Datei in Marktplatz/todos/ – auch Agenten und Telegram pflegen sie.
@@ -24,6 +77,10 @@ export function TodoBrett({ liste: name = 'todo', platzhalter = 'Neues To-do …
   const [fehler, setFehler] = useState('');
   const [suche, setSuche] = useState('');
   const [filter, setFilter] = useState('alle');
+  const [sortierungRoh, setSortierungRoh] = useState<Sortierung>(() => {
+    const x = localStorage.getItem(SORTIER_SCHLUESSEL);
+    return SORTIERUNGEN.find(([k]) => k === x)?.[0] ?? 'frist';
+  });
   const neu = () => qc.invalidateQueries({ queryKey: ['liste', name] });
   /** 'ok' | 'offline' (gemerkt, kommt später an) | 'fehler' – Felder leeren/Vorschläge verwerfen nur bei Erfolg (Review) */
   const ausfuehren: Ausfuehren = async (f) => {
@@ -90,9 +147,18 @@ export function TodoBrett({ liste: name = 'todo', platzhalter = 'Neues To-do …
     return true;
   };
   const gefiltert = leiste && (!!suche.trim() || filterJetzt !== 'alle');
-  const offen = alleOffen.filter(passt);
+  // E220: Standard nach Frist; andere Sortierung wie der Filter nur, solange die Leiste sichtbar ist
+  const sortierung: Sortierung = leiste && name === 'todo' ? sortierungRoh : 'frist';
+  const offen = todosSortieren(alleOffen.filter(passt), sortierung);
   // Einkaufsliste: nach Abteilung sortiert, damit man im Laden der Reihe nach abhakt
   if (gruppiert) offen.sort((a, b) => (a.gruppe ?? 'zzz').localeCompare(b.gruppe ?? 'zzz', 'de') || a.titel.localeCompare(b.titel, 'de'));
+  // E220: Abschnitte – nach Frist (Überfällig, Heute, …) oder nach Gruppe; ohne Fristen eine schlichte Liste
+  const abschnitte: { k: string; text: string; ts: TodoInfo[] }[] =
+    !gruppiert && sortierung === 'frist' && offen.some((t) => t.faellig)
+      ? ABSCHNITTE.map(([k, text]) => ({ k, text, ts: offen.filter((t) => fristStufe(t.faellig, h0) === k) })).filter((a) => a.ts.length)
+      : !gruppiert && sortierung === 'gruppe'
+        ? [...new Set(offen.map((t) => t.gruppe ?? t.gebaeude ?? ''))].map((g) => ({ k: `g:${g}`, text: g || 'Ohne Gruppe', ts: offen.filter((t) => (t.gruppe ?? t.gebaeude ?? '') === g) }))
+        : [{ k: 'alle', text: '', ts: offen }];
   const erledigt = (liste.data?.filter((t) => t.erledigt) ?? []).filter((t) => !suche.trim() || passt(t));
   return (
     <div className="todo-brett">
@@ -109,6 +175,24 @@ export function TodoBrett({ liste: name = 'todo', platzhalter = 'Neues To-do …
       {leiste && (
         <div className="todo-filter" role="group" aria-label="Filter">
           <input type="search" value={suche} onChange={(e) => setSuche(e.target.value)} placeholder="Filtern …" aria-label="To-dos filtern" />
+          {name === 'todo' && (
+            <select
+              className="todo-sortierung"
+              value={sortierungRoh}
+              aria-label="Sortieren"
+              onChange={(e) => {
+                const w = e.target.value as Sortierung;
+                setSortierungRoh(w);
+                localStorage.setItem(SORTIER_SCHLUESSEL, w);
+              }}
+            >
+              {SORTIERUNGEN.map(([k, text]) => (
+                <option key={k} value={k}>
+                  {text}
+                </option>
+              ))}
+            </select>
+          )}
           {chips.length > 1 &&
             chips.map(([k, text]) => (
               <button key={k} type="button" className={`klein${filterJetzt === k ? ' an' : ''}`} aria-pressed={filterJetzt === k} onClick={() => setFilter(filterJetzt === k && k !== 'alle' ? 'alle' : k)}>
@@ -123,11 +207,21 @@ export function TodoBrett({ liste: name = 'todo', platzhalter = 'Neues To-do …
         </div>
       )}
       {liste.data && !offen.length && <p className="leise">{gefiltert && alleOffen.length ? 'Nichts passt zum Filter.' : 'Nichts offen. 🎉'}</p>}
-      <ul className="todo-liste">
-        {offen.map((t) => (
-          <TodoZeile key={`${t.pfad}:${t.version}`} t={t} ausfuehren={ausfuehren} basis={basis} />
-        ))}
-      </ul>
+      {abschnitte.map((a) => (
+        <section key={a.k} className={`todo-abschnitt${a.k.startsWith('g:') ? '' : ` frist-${a.k}`}`} aria-label={a.text || undefined}>
+          {a.text && (
+            <h4 className="todo-abschnitt-kopf">
+              <span>{a.text}</span>
+              <span className="todo-abschnitt-zahl">{a.ts.length}</span>
+            </h4>
+          )}
+          <ul className="todo-liste">
+            {a.ts.map((t) => (
+              <TodoZeile key={`${t.pfad}:${t.version}`} t={t} ausfuehren={ausfuehren} basis={basis} />
+            ))}
+          </ul>
+        </section>
+      ))}
       {erledigt.length > 0 && (
         <details>
           <summary>Erledigt ({erledigt.length})</summary>
@@ -183,6 +277,7 @@ const WIEDERHOLEN_WAHL = [
 ] as const;
 
 const OFFENE_SCHRITTE = new Set<string>();
+const OFFENE_ZEILEN = new Set<string>();
 
 type Ausfuehren = (f: () => Promise<unknown>) => Promise<'ok' | 'offline' | 'fehler'>;
 
@@ -211,6 +306,16 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehr
       else OFFENE_SCHRITTE.delete(t.pfad);
       return n;
     });
+  // E220: Details (Abzeichen, Knöpfe) erst aufgeklappt – bleibt offen, auch wenn die Zeile mit neuer Version neu aufgebaut wird
+  const [auf, setAufRoh] = useState(() => OFFENE_ZEILEN.has(t.pfad));
+  const setAuf = (f: (x: boolean) => boolean) =>
+    setAufRoh((x) => {
+      const n = f(x);
+      if (n) OFFENE_ZEILEN.add(t.pfad);
+      else OFFENE_ZEILEN.delete(t.pfad);
+      return n;
+    });
+  const stufe = t.erledigt ? 'ohne' : fristStufe(t.faellig, heute());
   const sch = t.schritte ?? [];
   const aendern = (a: Record<string, unknown>) => ausfuehren(() => api(basis, { methode: 'PATCH', body: { pfad: t.pfad, basisVersion: t.version, ...a } }));
   const ueberfaellig = !t.erledigt && t.faellig && t.faellig < heute();
@@ -275,27 +380,45 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehr
       </li>
     );
   return (
-    <li className={`todo${t.erledigt ? ' fertig' : ''}${ueberfaellig ? ' ueberfaellig' : ''}`}>
-      {basis === '/api/todos' && !t.erledigt && <Stern t={t} />}
-      <label className="todo-haken">
-        <input
-          type="checkbox"
-          checked={haken}
-          onChange={(e) => {
-            setHaken(e.target.checked);
-            void aendern({ erledigt: e.target.checked });
-          }}
-          aria-label={`${t.titel} erledigt`}
-        />
-      </label>
-      <div className="todo-text">
-        <button type="button" className="todo-titel" onClick={() => setBearbeiten(true)} title="Bearbeiten">
-          {t.titel}
+    <li className={`todo frist-${stufe}${t.erledigt ? ' fertig' : ''}${ueberfaellig ? ' ueberfaellig' : ''}${auf ? ' auf' : ''}`}>
+      <div className="todo-kopf">
+        {basis === '/api/todos' && !t.erledigt && <Stern t={t} />}
+        <label className="todo-haken">
+          <input
+            type="checkbox"
+            checked={haken}
+            onChange={(e) => {
+              setHaken(e.target.checked);
+              void aendern({ erledigt: e.target.checked });
+            }}
+            aria-label={`${t.titel} erledigt`}
+          />
+        </label>
+        {/* E220: Titel klappt auf – Name des Knopfs bleibt genau der Titel (Frist und Pfeil aria-hidden) */}
+        <button type="button" className="todo-titel" aria-expanded={auf} title={auf ? 'Zuklappen' : 'Details zeigen'} onClick={() => setAuf((x) => !x)}>
+          <span className="todo-titel-text">{t.titel}</span>
+          {!t.erledigt && (t.faellig || t.wartet) && (
+            <span className="todo-frist" aria-hidden="true">
+              {t.wartet ? '⏳ ' : ''}
+              {t.faellig ? fristKurz(t.faellig) : ''}
+            </span>
+          )}
+          <span className="todo-pfeil" aria-hidden="true">
+            ›
+          </span>
         </button>
+      </div>
+      {!auf && sch.length > 0 && !t.erledigt && (
+        <div className="todo-fortschritt" title={`${sch.filter((x) => x.erledigt).length} von ${sch.length} Schritten`} aria-hidden="true">
+          <span style={{ width: `${(100 * sch.filter((x) => x.erledigt).length) / sch.length}%` }} />
+        </div>
+      )}
+      {auf && (
+      <div className="todo-details">
         <span className="todo-meta">
           {t.energie && !t.erledigt && (
             <span className="abzeichen" title={t.energie === 'hoch' ? 'braucht Konzentration – „Jetzt dran“ schlägt es in deiner besten Zeit vor' : 'geht nebenbei – gut für abends und kurze Lücken'}>
-              {t.energie === 'hoch' ? '🧠' : '🪶'}
+              {t.energie === 'hoch' ? '🧠 Konzentration' : '🪶 nebenbei'}
             </span>
           )}
           {t.wartet && !t.erledigt && (
@@ -325,6 +448,20 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehr
               🔁 {t.wiederholen}
             </span>
           )}
+          {(t.verschoben ?? 0) >= 3 && !t.erledigt && <span className="abzeichen">↻ {t.verschoben}× verschoben</span>}
+          {t.gruppe && <span className="abzeichen">{t.gruppe}</span>}
+          {t.gebaeude && <span className="abzeichen">{t.gebaeude}</span>}
+          {t.fremd && (
+            <span className="abzeichen" title="Aus Mails oder Moodle – Agenten mit Internet sehen diesen Eintrag nicht">
+              ✉️ aus Mail
+            </span>
+          )}
+          {vonAgent && <span className="abzeichen" title={t.quelle}>🤖 {t.quelle}</span>}
+        </span>
+        <span className="todo-knoepfe">
+          <button type="button" className="klein" onClick={() => setBearbeiten(true)}>
+            ✏️ Bearbeiten
+          </button>
           {(sch.length > 0 || (!t.erledigt && basis === '/api/todos')) && (
             <button
               type="button"
@@ -334,31 +471,7 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehr
               title={sch.length ? 'Teilschritte' : 'In Teilschritte zerlegen'}
               onClick={() => setSchritteOffen((x) => !x)}
             >
-              ☑ {sch.length ? `${sch.filter((x) => x.erledigt).length}/${sch.length}` : '+'}
-            </button>
-          )}
-          {t.gruppe && <span className="abzeichen">{t.gruppe}</span>}
-          {t.gebaeude && <span className="abzeichen">{t.gebaeude}</span>}
-          {t.fremd && (
-            <span className="abzeichen" title="Aus Mails oder Moodle – Agenten mit Internet sehen diesen Eintrag nicht">
-              ✉️ aus Mail
-            </span>
-          )}
-          {vonAgent && <span className="abzeichen" title={t.quelle}>🤖 {t.quelle}</span>}
-          {t.notiz && (
-            <a href={bibliothekUrl(t.pfad)} onClick={linkKlick} className="leise">
-              Notiz
-            </a>
-          )}
-          {basis === '/api/todos' && !t.erledigt && t.faellig && t.faellig >= heute() && (
-            <button type="button" className="klein" title="Freie Zeit im Kalender bis zur Frist finden" aria-label={`Lernzeit: ${t.titel}`} onClick={() => setPlanen((x) => !x)}>
-              📅
-            </button>
-          )}
-          {basis === '/api/todos' && !t.erledigt && !t.wiederholen && !/ – Etappe \d+\/\d+$/.test(t.titel) && ((t.dauer ?? 0) >= 120 || (!t.dauer && (t.gebaeude === 'Uni' || /^(Abgabe|Prüfung):/.test(t.titel)))) && etappenPlan(t, heute()).length > 0 && (
-            // E170: großes To-do mit Frist → Etappen auf die Tage davor
-            <button type="button" className="klein" title="In Etappen auf die Tage bis zur Frist verteilen" aria-label={`Etappen: ${t.titel}`} aria-expanded={etappen} onClick={() => setEtappen((x) => !x)}>
-              🪜
+              ☑ {sch.length ? `Schritte ${sch.filter((x) => x.erledigt).length}/${sch.length}` : 'Schritte'}
             </button>
           )}
           {basis === '/api/todos' && !t.erledigt && (
@@ -369,7 +482,18 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehr
               aria-label={`Fokus: ${t.titel}`}
               onClick={() => void ausfuehren(() => api('/api/kirchturm', { body: { befehl: 'pomodoro_fuer', titel: t.titel, ...(t.gruppe ? { gruppe: t.gruppe } : {}), pfad: t.pfad } }))}
             >
-              🍅
+              🍅 Fokus
+            </button>
+          )}
+          {basis === '/api/todos' && !t.erledigt && t.faellig && t.faellig >= heute() && (
+            <button type="button" className="klein" title="Freie Zeit im Kalender bis zur Frist finden" aria-label={`Lernzeit: ${t.titel}`} aria-expanded={planen} onClick={() => setPlanen((x) => !x)}>
+              📅 Zeit finden
+            </button>
+          )}
+          {basis === '/api/todos' && !t.erledigt && !t.wiederholen && !/ – Etappe \d+\/\d+$/.test(t.titel) && ((t.dauer ?? 0) >= 120 || (!t.dauer && (t.gebaeude === 'Uni' || /^(Abgabe|Prüfung):/.test(t.titel)))) && etappenPlan(t, heute()).length > 0 && (
+            // E170: großes To-do mit Frist → Etappen auf die Tage davor
+            <button type="button" className="klein" title="In Etappen auf die Tage bis zur Frist verteilen" aria-label={`Etappen: ${t.titel}`} aria-expanded={etappen} onClick={() => setEtappen((x) => !x)}>
+              🪜 Etappen
             </button>
           )}
           {basis.endsWith('/wunsch') && !t.erledigt && (
@@ -386,6 +510,11 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehr
             >
               🔎 Preise
             </button>
+          )}
+          {t.notiz && (
+            <a href={bibliothekUrl(t.pfad)} onClick={linkKlick} className="leise">
+              Notiz öffnen
+            </a>
           )}
         </span>
         {schritteOffen && <Schritte t={t} basis={basis} ausfuehren={ausfuehren} />}
@@ -425,6 +554,7 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehr
           <LernzeitPlaner titel={t.titel.replace(/^(Abgabe|Prüfung): /, '')} bis={new Date(`${t.faellig}T23:00:00+01:00`).toISOString()} fristTag={t.faellig} schliessen={() => setPlanen(false)} />
         )}
       </div>
+      )}
     </li>
   );
 }

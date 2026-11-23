@@ -83,11 +83,25 @@ export function SaxoDepot() {
       {d.fehler && <p className="fehler">{d.fehler}</p>}
       {!d.verbunden && <p className="leise">Nach dem Klick meldest du dich bei Saxo an und landest wieder hier. Das Dorf kann dein Depot dann nur lesen – nie handeln.</p>}
       {!d.verbunden && d.rueckleitung && (
-        <details className="leise" data-testid="saxo-pruefen" open={!!d.fehler}>
+        <details className="leise" data-testid="saxo-pruefen" open>
           <summary>Klappt die Anmeldung nicht? Das muss in deiner Saxo-App stehen</summary>
           <ul>
             <li>
-              Redirect URL – genau so, Zeichen für Zeichen: <code>{d.rueckleitung}</code>
+              Redirect URL – genau so, Zeichen für Zeichen: <code>{d.rueckleitung}</code>{' '}
+              <button
+                type="button"
+                className="klein"
+                onClick={() =>
+                  void navigator.clipboard
+                    ?.writeText(d.rueckleitung ?? '')
+                    .then(() => setMeldung('Redirect URL kopiert – in der Saxo-App unter Redirect URLs einfügen.'))
+                    .catch(() => setMeldung('Kopieren ging nicht – bitte die Adresse oben markieren.'))
+                }
+              >
+                Kopieren
+              </button>
+              <br />
+              Zeigt Saxo „Value of redirect_uri parameter is not registered“, fehlt genau diese Adresse in deiner App.
             </li>
             <li>Grant Type: Code (Authorization Code)</li>
             <li>
