@@ -3,9 +3,12 @@ titel: Bürgermeister rund um die Uhr
 # Er wacht zu zufälligen Zeiten auf: nach jedem Aufwachen frühestens nach abstand_von_stunden, spätestens nach abstand_bis_stunden wieder.
 abstand_von_stunden: 3
 abstand_bis_stunden: 7
-# Wie viel die KI-Läufe ohne deinen Klick (Aufwachen, Rundgänge, Post-Einordnung, Zeitung) pro Tag kosten dürfen (US-Dollar, API).
-# Ist die Grenze erreicht, prüft der Bürgermeister bis Mitternacht nur noch ohne KI.
-tagesbudget_usd: 5
+# Womit der Bürgermeister denkt, wenn er von selbst aufwacht: abo = dein Claude-Abo (kein API-Geld), api = API (zählt ins Budget).
+denken_ueber: abo
+# Wie viel alle KI-Aufrufe ohne deinen Klick über die API pro Tag höchstens kosten dürfen (US-Dollar) – Post-Einordnung,
+# Zeitung, Wochenrückblick, Bank (mit Haiku, meist Cent-Beträge) und mit denken_ueber: api auch der Bürgermeister selbst.
+# Ist die Grenze erreicht, wartet bis Mitternacht alles, was API kosten würde.
+tagesbudget_usd: 0.5
 # Rundgang: Gibt es nichts Neues, arbeitet er von selbst – höchstens alle rundgang_abstand_stunden 1–3 Aktivitäten aus dem Katalog in rundgang.md.
 # Seine fälligen eigenen To-dos (Rathaus/buergermeister-todos/) arbeitet er bei jedem Aufwachen ab, auch mit eigene_aufgaben: nein.
 eigene_aufgaben: ja
@@ -19,7 +22,7 @@ plan_automatisch_nach_minuten: 10
 
 # Bürgermeister rund um die Uhr
 
-Der Bürgermeister wacht **zu zufälligen Zeiten** auf – alle 3 bis 7 Stunden, Tag und Nacht, nicht zur vollen Stunde. Neue Aufgaben aus der App oder aus Telegram nimmt er sofort an; Notizen aus Obsidian sieht er beim nächsten Aufwachen. Zuerst prüft der Code ohne KI: neue Aufgaben auf dem Schreibtisch, Fristen, Freigaben, hängende Läufe, wichtige Mails. Nur wenn es etwas **Neues** gibt, denkt der Bürgermeister selbst nach (API, kleines Budget).
+Der Bürgermeister wacht **zu zufälligen Zeiten** auf – alle 3 bis 7 Stunden, Tag und Nacht, nicht zur vollen Stunde. Neue Aufgaben aus der App oder aus Telegram nimmt er sofort an; Notizen aus Obsidian sieht er beim nächsten Aufwachen. Zuerst prüft der Code ohne KI: neue Aufgaben auf dem Schreibtisch, Fristen, Freigaben, hängende Läufe, wichtige Mails. Nur wenn es etwas **Neues** gibt, denkt der Bürgermeister selbst nach – über dein Claude-Abo (`denken_ueber: abo`), also ohne API-Kosten.
 
 Bei jedem Aufwachen arbeitet er **zuerst seine eigene To-do-Liste** ab (`Rathaus/buergermeister-todos/`): Dort hält er nach, was aus deinen Aufträgen noch offen ist. Du siehst die Liste im Rathaus unter „Schreibtisch“.
 

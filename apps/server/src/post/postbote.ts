@@ -6,7 +6,7 @@ import type { Uhr } from '../uhr.js';
 import type { VaultDienst } from '../vault/dienst.js';
 import type { LiveHub } from '../live.js';
 import { fremdinhaltHuelle } from '../agenten/leine.js';
-import type { SystemAufrufe } from '../agenten/system.js';
+import { BudgetErreicht, type SystemAufrufe } from '../agenten/system.js';
 import type { GmailKlient, Mail } from './gmail.js';
 
 export const KATEGORIEN = ['Uni', 'Corps', 'Finanzen', 'Persönlich', 'Termine', 'Newsletter', 'Werbung', 'Sonstiges'] as const;
@@ -200,6 +200,11 @@ export class Postbote {
           try {
             erg = await this.einordnen(stapel);
           } catch (e) {
+            // E218: Tagesbudget erreicht – kein Fehlversuch; die Mails werden morgen eingeordnet
+            if (e instanceof BudgetErreicht) {
+              this.o.log?.(`Post: ${e.message}`);
+              break;
+            }
             for (const m of stapel) db.prepare('UPDATE post_mails SET versuche = versuche + 1 WHERE id = ?').run(m.id);
             this.o.log?.(`Post: Einordnung fehlgeschlagen: ${(e as Error).message}`);
             continue;

@@ -34,7 +34,7 @@ import { gmailKlient, type GmailKlient } from './post/gmail.js';
 import { GoogleZugang } from './post/google-oauth.js';
 import { Terminkalender } from './kalender.js';
 import { Morgenzeitung } from './morgenzeitung.js';
-import { Aufwachen } from './aufwachen.js';
+import { Aufwachen, aufwachEinstellungen, budgetErreicht } from './aufwachen.js';
 import { Rundgang } from './rundgang.js';
 import { MEINE_TODOS_ORDNER, MeineTodos } from './agenten/meine-todos.js';
 import { listenAnlegen } from './todos.js';
@@ -120,7 +120,9 @@ const VORLAGE_FRUEHERE_FASSUNGEN: Record<string, string[]> = {
   'Post/gebaeude.md': ['313622cda22bc8ff13c0a644fab2c49f1bdf84c57eb2702231a70f2ac1e9a076'], // bis Etappe 3
   '00_Stadtordnung/aktion-vorlage.md': ['b0d3e48a90aa554a0e7ceb234edc1b026e285424313cc2654431b5b9c683f671', '7c7e1c394868de4de10cf6c85ce03f9578b452291e36259be9b9cf54ad368940'], // E60, bis E184
   'Uni/aktionen/kursuebersicht.md': ['f525448be2f08c6d74635be2a96d4c89b0c1c98f5d0d21b42211da403833a8cf'], // E60
-  '00_Stadtordnung/aufwachen.md': ['231a442ce4d7e593e65f27a057d4c5392521cd0da0b139c8c045a2d38c6efbd2', '126158d2f1587d9fa31f98a0bbef6aa09e7c95121cc98ebf85baa1bdad4363c8', '1918aee666f956e4f85a47e31dc29504f1ad2a980c58bc45b762395cea0b9f84'], // bis E61, bis E180, E181–E191
+  '00_Stadtordnung/aufwachen.md': ['231a442ce4d7e593e65f27a057d4c5392521cd0da0b139c8c045a2d38c6efbd2', '126158d2f1587d9fa31f98a0bbef6aa09e7c95121cc98ebf85baa1bdad4363c8', '1918aee666f956e4f85a47e31dc29504f1ad2a980c58bc45b762395cea0b9f84', '1b96283e9086b2786f93a3ecc72e85cf6375125d7bf8514941e10b1abb3abd15'], // bis E61, bis E180, E181–E191, E192–E217
+  // E218: System-Modell (Haiku) für automatische Aufrufe
+  '00_Stadtordnung/modelle.md': ['b744670bd0b085242a32057518e3c83fcdf4bc194acfd29424e5234663cb477a'],
   // E61: Gedächtnis/Persönlichkeit des Bürgermeisters
   'Rathaus/aktionen/buergermeister.md': ['653aace36ae47d42bc847eda934c819312ceb446d1d624ba92f8ff528eb37084', '7deb8d2e528b9f2bee7d39619be317cc6043c7ab2269fdc532ebff7b83e2c952', '2d072be6666a3aaef6b19adb004dbf12f3d8221af8603cba00c91f9da4111b96'], // bis E60, E61–E184, E185–E191
   'Rathaus/memory.md': ['e0fc4c0f1b0580080454cc80af5ebb111f927d77e3a3b5d0b71f710ba6e74ee7'], // bis E191 (nur wenn weder Leif noch der Bürgermeister sie je geändert haben)
@@ -263,7 +265,11 @@ export async function dorfStarten(
     vault,
     hub,
     klient: opt.ki ?? (konfig.anthropicApiKey && !konfig.motorAttrappe ? () => sdkKlient(konfig.anthropicApiKey!) : undefined),
+    // E218: harte Tagesgrenze (aufwachen.md tagesbudget_usd) für alle automatischen API-Aufrufe
+    budgetErreicht: () => budgetErreicht(db, uhr, vault),
   });
+  // E218: Wacht der Bürgermeister von selbst auf, denkt er über Leifs Abo (aufwachen.md: denken_ueber: abo)
+  agenten.zeitplanUeberAbo = async () => (await aufwachEinstellungen(vault)).denken_ueber === 'abo';
   const postbote = new Postbote({
     db,
     uhr,

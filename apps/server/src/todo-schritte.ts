@@ -27,6 +27,7 @@ export async function schritteZerlegen(ki: SystemAufrufe, t: TodoInfo) {
     pruefen: (roh) => ({ schritte: bereinigen(z.object({ schritte: z.array(z.string()) }).parse(roh).schritte) }),
     kurzErgebnis: (x) => `${x.schritte.length} Schritte vorgeschlagen`,
     maxTokens: 1500,
+    vonLeif: true, // E218: Leifs Klick „In Schritte zerlegen“ – Stufe klein, zählt nicht gegen das Tagesbudget
   });
   return e.schritte;
 }

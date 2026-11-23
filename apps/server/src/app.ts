@@ -1010,6 +1010,7 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
       anlaesse: a.aufwachen.anlaesse().map((x) => x.zeile),
       verbrauchHeute: a.aufwachen.verbrauchHeute(),
       tagesbudget: e.tagesbudget_usd,
+      denkenUeber: e.denken_ueber, // E218
       eigeneAufgaben: e.eigene_aufgaben,
       abstandVon: Math.min(e.abstand_von_stunden, e.abstand_bis_stunden),
       abstandBis: Math.max(e.abstand_von_stunden, e.abstand_bis_stunden),

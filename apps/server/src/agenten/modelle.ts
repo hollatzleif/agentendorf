@@ -17,6 +17,8 @@ export const STANDARD_STUFEN: StufenKonfig = {
     mittel: { modell: 'claude-opus-5-5', aufwand: 'high' },
     gross: { modell: 'claude-fable-5-2', aufwand: 'high' },
   },
+  // E218 (Leif: Bürgermeister höchstens 0,50 $ am Tag): Einordnen, Zeitung & Co. mit Haiku – Cent-Beträge
+  system: { modell: 'claude-haiku-5-5', aufwand: 'medium' },
   preise: {
     'claude-sonnet-5-5': { eingabe: 2, ausgabe: 10 },
     'claude-opus-5-5': { eingabe: 4, ausgabe: 20 },
@@ -30,6 +32,8 @@ const ModellId = z.string().regex(/^claude-[a-z0-9-]+$/, 'Modell-ID muss mit cla
 const StufeSchema = z.object({ modell: ModellId, aufwand: z.enum(AUFWAND as [Aufwand, ...Aufwand[]]) });
 const ModelleKopf = z.object({
   stufen: z.object({ klein: StufeSchema, mittel: StufeSchema, gross: StufeSchema }),
+  // fehlt in älteren modelle.md → Haiku (E218)
+  system: StufeSchema.default({ modell: 'claude-haiku-5-5', aufwand: 'medium' }),
   preise: z.record(z.string(), z.object({ eingabe: z.number().nonnegative(), ausgabe: z.number().nonnegative() })).default({}),
 });
 const MotorenKopf = z.object({
@@ -48,7 +52,7 @@ export async function stufenLaden(vault: VaultDienst): Promise<StufenKonfig> {
   try {
     const d = await vault.lesen(MODELLE_PFAD);
     const k = ModelleKopf.parse(matter(d.inhalt).data);
-    return { stufen: k.stufen, preise: { ...STANDARD_STUFEN.preise, ...k.preise } };
+    return { stufen: k.stufen, system: k.system, preise: { ...STANDARD_STUFEN.preise, ...k.preise } };
   } catch (e) {
     return { ...STANDARD_STUFEN, fehler: `${MODELLE_PFAD}: ${fehlerText(e)} – es gilt die Standard-Zuordnung.` };
   }

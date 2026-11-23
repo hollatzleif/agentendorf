@@ -12,6 +12,10 @@ stufen:
   gross:
     modell: claude-fable-5-2
     aufwand: high
+# Automatische Aufrufe ohne Werkzeuge über die API (Post-Einordnung, Morgenzeitung, Wochenrückblick, Bank) – günstig
+system:
+  modell: claude-haiku-5-5
+  aufwand: medium
 # Preise in US-Dollar pro 1 Million Token (nur für die Kostenschätzung beim api-Motor)
 preise:
   claude-sonnet-5-5: { eingabe: 2, ausgabe: 10 }
@@ -27,5 +31,6 @@ preise:
 | klein | Claude Sonnet 5.5 | Einordnen, Zusammenfassen, Routine |
 | mittel | Claude Opus 5.5 | Entwürfe, Planung, Morgenzeitung |
 | groß | Claude Fable 5.2 | schwere Aufgaben, Abgaben, lange Analysen |
+| system | Claude Haiku 5.5 | Post einordnen, Zeitung, Rückblick, Bank – automatisch über die API, Cent-Beträge |
 
 Modell-IDs stammen aus der offiziellen Anthropic-Dokumentation (Stand 16.11.2026).

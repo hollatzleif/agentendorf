@@ -432,6 +432,8 @@ export interface Verbrauch {
 
 export interface StufenKonfig {
   stufen: Record<Stufe, { modell: string; aufwand: Aufwand }>;
+  /** E218: Modell für automatische Aufrufe ohne Werkzeuge (Post-Einordnung, Zeitung, Rückblick, Bank, Teilschritte) */
+  system: { modell: string; aufwand: Aufwand };
   preise: Record<string, { eingabe: number; ausgabe: number }>;
   fehler?: string;
 }

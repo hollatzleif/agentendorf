@@ -2125,3 +2125,36 @@ Schrift entsteht aus schnellen Bewegungen: Nach dem Sigma-Lognormal-Modell (Plam
 - Lesbarkeit geht vor Natürlichkeit: Riskante Verbindungen sind bewusst verboten.
 - Leifs Schriftprobe (E216) hat weiter Vorrang, wenn er sie schreibt. Ihre Striche fasst das Modell nicht an.
 - Quellen: Plamondon et al. (Kinematic Theory, Sigma-Lognormal), Haines et al. „My Text in Your Handwriting“ (UCL 2016), Arbeiten zur Handschriftenprüfung (natürliche Variation, Verbindungen). Übernommen wurde kein Code, nur das Modell.
+
+## E218 – Bürgermeister höchstens 0,50 $ am Tag: Abo + Haiku (23.11.)
+
+Leif: „Mach, dass der Bürgermeister max. 0,50 $ pro Tag braucht. Günstigeres Modell oder dass die Sachen, die er macht, immer über das Abo gemacht werden.“ Gewählt: „Abo + Haiku“.
+
+**Vorher:**
+- Was Leif selbst anstieß, lief schon über das Abo (claude-code), ebenso die Helfer (E56).
+- Geld kosteten drei Dinge:
+  - das selbstständige Aufwachen (Lagebericht, Rundgang) über die API mit Opus 5.5, Budget 5 $;
+  - die Systemaufrufe ohne Werkzeuge (Post-Einordnung alle 10 min, Zeitung, Wochenrückblick, Bank, Teilschritte) mit Sonnet 5.5;
+  - die Post-Einordnung lief sogar über das Budget hinaus.
+
+**Neu:**
+- **Aufwachen über das Abo:** `aufwachen.md` → `denken_ueber: abo` (Standard; `api` = alter Weg).
+  - Läufe mit Auslöser `zeitplan` im Chat des Bürgermeisters nehmen dann den Motor seiner Aktion (claude-code).
+  - Das API-Budget bremst ihn nicht mehr, und der Rundgang-Katalog wählt wie mit vollem Budget. Die Häufigkeit bremst weiter.
+  - Der Notschalter `alle_auf` übersteuert wie bisher.
+- **Systemaufrufe mit Haiku 5.5** (`modelle.md` → `system`, Standard auch ohne den Schlüssel).
+  - Preis laut Anthropic-Doku: 0,10/0,50 $ je Mio. Token bei Prompts bis 100K.
+  - Ohne `fallbacks`: Für Haiku 5.5 gibt es keinen serverseitigen Fallback. Laut Doku soll man das Feld bei Haiku nicht senden.
+  - Strukturierte Ausgaben (`output_config.format`) gibt es bei Haiku 5.5 weiterhin.
+- **Harte Tagesgrenze** `tagesbudget_usd: 0.5` für alles, was ohne Leifs Klick noch über die API geht:
+  - Ist sie erreicht, wirft `SystemAufrufe` `BudgetErreicht`, ohne Aufruf und ohne Buchung.
+  - Die Post zählt das nicht als Fehlversuch und ordnet am nächsten Tag ein.
+  - Zeitung und Rückblick erscheinen dann ohne KI-Teil.
+- **Leifs Klicks bleiben außerhalb des Budgets.** „In Schritte zerlegen“ läuft mit seiner Stufe (klein) und wird als `klick` verbucht.
+- Die App zeigt im Schreibtisch „(er selbst denkt über dein Abo)“.
+- Vorlagen: `aufwachen.md` (E192-Fassung) und `modelle.md` werden aktualisiert, wenn Leif sie nicht geändert hat.
+
+**Ehrlich:**
+- Das Aufwachen verbraucht jetzt Abo-Kontingent, auch nachts (alle 3–7 h, nur wenn es etwas Neues oder einen Rundgang gibt).
+- Ist die Werkstatt nicht erreichbar, scheitert ein Aufwachen-Lauf, statt auf die API auszuweichen.
+- Hat Leif `aufwachen.md` selbst geändert, bleibt sein `tagesbudget_usd` stehen. `denken_ueber` ist dann trotzdem `abo` (Standard, wenn der Schlüssel fehlt).

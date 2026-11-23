@@ -57,9 +57,12 @@ async function aufbau(opt: { fristen?: string; api?: Motor; aufwachen?: [string,
     google: { fristen: { laden: async () => opt.fristen ?? kal() } },
     ...(opt.api ? { motoren: { api: opt.api, 'claude-code': attrappe('claude-code') } } : {}),
   });
-  if (opt.aufwachen) {
+  {
+    // Diese Tests prüfen den API-Weg (E56/E192): denken_ueber: api, Budget 5 $. Den Standard seit E218 prüft e218-budget.test.ts.
     const alt = await d.vault.lesen(AUFWACHEN_PFAD);
-    await d.vault.schreiben(AUFWACHEN_PFAD, alt.inhalt.replace(opt.aufwachen[0], opt.aufwachen[1]), { basisVersion: alt.version });
+    let inhalt = alt.inhalt.replace(/^denken_ueber: abo$/m, 'denken_ueber: api').replace(/^tagesbudget_usd: 0\.5$/m, 'tagesbudget_usd: 5');
+    if (opt.aufwachen) inhalt = inhalt.replace(opt.aufwachen[0], opt.aufwachen[1]);
+    await d.vault.schreiben(AUFWACHEN_PFAD, inhalt, { basisVersion: alt.version });
   }
   await d.uni.abgleichen();
   const mt = d.aufwachen.meineTodos;

@@ -6,7 +6,8 @@ import { testDorf } from './hilfen.js';
 const kal = (...ev: string[]) => `BEGIN:VCALENDAR\r\n${ev.join('')}END:VCALENDAR\r\n`;
 const ev = (uid: string, titel: string, ende: string) => `BEGIN:VEVENT\r\nUID:${uid}\r\nSUMMARY:${titel}\r\nDTSTART:${ende}\r\nDTEND:${ende}\r\nEND:VEVENT\r\n`;
 
-async function aufbau(fristen: string, einstellungen = 'eigene_aufgaben: nein') {
+// Diese Tests prüfen den API-Weg (E56): denken_ueber: api, Budget 5 $. Den Standard seit E218 (Abo, 0,50 $) prüft e218-budget.test.ts.
+async function aufbau(fristen: string, einstellungen = 'eigene_aufgaben: nein', ueber: 'api' | 'abo' = 'api') {
   const texte: string[] = [];
   const api: TelegramSchnittstelle = {
     async aufruf<T>(m: string, p: Record<string, unknown> = {}) {
@@ -20,7 +21,11 @@ async function aufbau(fristen: string, einstellungen = 'eigene_aufgaben: nein') 
   let text = fristen;
   const d = await testDorf({ telegram: api, env: { TELEGRAM_CHAT_ID: '1' }, google: { fristen: { laden: async () => text } } });
   const alt = await d.vault.lesen(AUFWACHEN_PFAD);
-  await d.vault.schreiben(AUFWACHEN_PFAD, alt.inhalt.replace(/^eigene_aufgaben: ja$/m, einstellungen), { basisVersion: alt.version });
+  const inhalt = alt.inhalt
+    .replace(/^eigene_aufgaben: ja$/m, einstellungen)
+    .replace(/^denken_ueber: abo$/m, `denken_ueber: ${ueber}`)
+    .replace(/^tagesbudget_usd: 0\.5$/m, 'tagesbudget_usd: 5');
+  await d.vault.schreiben(AUFWACHEN_PFAD, inhalt, { basisVersion: alt.version });
   await d.uni.abgleichen();
   return { d, texte, setzen: (t: string) => (text = t) };
 }

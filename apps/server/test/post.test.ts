@@ -121,6 +121,27 @@ describe('Postbote: abholen, einordnen ohne Werkzeuge, knapp im Vault festhalten
     return { g, ki, d };
   }
 
+  it('E218: Tagesbudget erreicht → keine Einordnung, kein Fehlversuch; am nächsten Tag wird nachgeholt', async () => {
+    const { g, ki, d } = await aufbau();
+    const jetzt = d.uhr.jetzt();
+    d.db
+      .prepare("INSERT INTO chats (id, gebaeude, titel, motor, stufe, modell, erstellt, geaendert, rolle) VALUES ('sys', 'Post', 'x', 'api', 'klein', 'm', ?, ?, 'system')")
+      .run(jetzt, jetzt);
+    d.db
+      .prepare(
+        `INSERT INTO laeufe (id, chat_id, nummer, motor, modell, stufe, aufwand, status, ausloeser, auftrag, erstellt, kosten_usd)
+         VALUES ('teuer', 'sys', 1, 'api', 'm', 'klein', 'low', 'fertig', 'zeitplan', 'x', ?, 0.6)`,
+      )
+      .run(jetzt - 60_000);
+    g.mailNeu({ labels: ['INBOX'], von: 'Prof <prof@jku.at>', betreff: 'Prüfung am Freitag', text: 'x', datum: jetzt - 3600_000 });
+    expect(await d.postbote.abholen()).toEqual({ neu: 1, eingeordnet: 0 });
+    expect(ki.anfragen).toHaveLength(0);
+    expect((d.db.prepare('SELECT versuche FROM post_mails').get() as { versuche: number }).versuche).toBe(0);
+    d.uhr.vor(24 * 3600_000);
+    expect(await d.postbote.abholen()).toEqual({ neu: 0, eingeordnet: 1 });
+    expect(ki.anfragen).toHaveLength(1);
+  });
+
   it('erster Abruf: Posteingang der letzten Tage, Einordnung, Tagesdatei ohne Mailtexte, Verbrauch verbucht', async () => {
     const { g, ki, d } = await aufbau();
     const t = d.uhr.jetzt() - 3600_000;
@@ -135,7 +156,10 @@ describe('Postbote: abholen, einordnen ohne Werkzeuge, knapp im Vault festhalten
     expect(ki.anfragen).toHaveLength(1);
     const p = ki.anfragen[0]!;
     expect(p.tools).toBeUndefined();
-    expect(p).toMatchObject({ model: 'claude-sonnet-5-5', fallbacks: 'default', output_config: { format: { type: 'json_schema' } } });
+    // E218: automatisch → System-Modell Haiku 5.5, ohne fallbacks (gibt es für Haiku nicht)
+    expect(p).toMatchObject({ model: 'claude-haiku-5-5', output_config: { format: { type: 'json_schema' } } });
+    expect(p.fallbacks).toBeUndefined();
+    expect(p.betas).toBeUndefined();
     expect(String(p.system)).toMatch(/FREMDINHALTE/);
 
     const u = d.postbote.uebersicht();

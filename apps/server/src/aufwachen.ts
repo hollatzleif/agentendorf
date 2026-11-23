@@ -22,7 +22,11 @@ export const ABSTAND_STANDARD = { von: 3, bis: 7 } as const;
 export const AUFWACHEN_PFAD = '00_Stadtordnung/aufwachen.md';
 const JaNein = z.preprocess((w) => (w === 'ja' ? true : w === 'nein' ? false : w), z.boolean());
 const EinstellungenSchema = z.object({
-  tagesbudget_usd: z.number().min(0).max(100).default(5),
+  // E218 (Leif: höchstens 0,50 $ am Tag): Grenze für ALLE API-Aufrufe ohne Leifs Klick (Post, Zeitung, Rückblick, Bank …)
+  tagesbudget_usd: z.number().min(0).max(100).default(0.5),
+  // E218: Womit der Bürgermeister denkt, wenn er von selbst aufwacht – „abo“ (Leifs Claude-Abo, kostet kein API-Geld)
+  // oder „api“ (zählt gegen das Tagesbudget)
+  denken_ueber: z.enum(['abo', 'api']).default('abo'),
   eigene_aufgaben: JaNein.default(true),
   rundgang_abstand_stunden: z.number().min(1).max(48).default(3),
   // E181: zufälliger Abstand zwischen zwei Aufwachen (Stunden)
@@ -40,6 +44,24 @@ export async function aufwachEinstellungen(vault: VaultDienst): Promise<AufwachE
   } catch {
     return EinstellungenSchema.parse({});
   }
+}
+
+/** Linzer Mitternacht (Beginn des Budget-Tags) */
+function tagesbeginnLinz(ms: number) {
+  const [j, mo, t] = tagFormat.format(new Date(ms)).split('-').map(Number) as [number, number, number];
+  return ortszeitZuUtc(j, mo, t, 0, 0, 0, 'Europe/Vienna');
+}
+
+/** E56/E218: Heute (seit Linzer Mitternacht) ausgegeben für API-Läufe ohne Leifs Klick (Auslöser zeitplan, Motor api) */
+export function apiVerbrauchHeute(db: DB, jetzt: number): number {
+  const r = db.prepare("SELECT COALESCE(SUM(kosten_usd), 0) AS s FROM laeufe WHERE ausloeser = 'zeitplan' AND motor = 'api' AND erstellt >= ?").get(tagesbeginnLinz(jetzt)) as { s: number };
+  return Math.round(r.s * 10000) / 10000;
+}
+
+/** E218: Grenze, wenn das Tagesbudget erreicht ist – sonst null (für SystemAufrufe) */
+export async function budgetErreicht(db: DB, uhr: Uhr, vault: VaultDienst): Promise<number | null> {
+  const e = await aufwachEinstellungen(vault);
+  return apiVerbrauchHeute(db, uhr.jetzt()) >= e.tagesbudget_usd ? e.tagesbudget_usd : null;
 }
 
 /** Nachts (22–7 Uhr Linz)? */
@@ -103,17 +125,9 @@ export class Aufwachen {
     },
   ) {}
 
-  /** Linzer Mitternacht (Beginn des Budget-Tags) */
-  private tagesbeginn(ms: number) {
-    const [j, mo, t] = tagFormat.format(new Date(ms)).split('-').map(Number) as [number, number, number];
-    return ortszeitZuUtc(j, mo, t, 0, 0, 0, 'Europe/Vienna');
-  }
-
   /** Heute ausgegeben für KI-Läufe ohne Leifs Klick (Auslöser zeitplan, Motor api – inkl. Post-Einordnung, Zeitung) */
   verbrauchHeute(): number {
-    const ab = this.tagesbeginn(this.o.uhr.jetzt());
-    const r = this.o.db.prepare("SELECT COALESCE(SUM(kosten_usd), 0) AS s FROM laeufe WHERE ausloeser = 'zeitplan' AND motor = 'api' AND erstellt >= ?").get(ab) as { s: number };
-    return Math.round(r.s * 10000) / 10000;
+    return apiVerbrauchHeute(this.o.db, this.o.uhr.jetzt());
   }
 
   private stand(s: string) {
@@ -250,7 +264,9 @@ export class Aufwachen {
     const { uhr, schreibtisch, buergermeister } = this.o;
     const jetzt = uhr.jetzt();
     const e = await aufwachEinstellungen(this.o.vault);
-    const budgetErreicht = this.verbrauchHeute() >= e.tagesbudget_usd;
+    // E218: Denkt er über Leifs Abo, kostet sein Aufwachen kein API-Geld – das Budget bremst dann nur Post, Zeitung & Co.
+    const ueberAbo = e.denken_ueber === 'abo';
+    const budgetErreicht = !ueberAbo && this.verbrauchHeute() >= e.tagesbudget_usd;
     if (budgetErreicht) {
       // Budget aufgebraucht: nur merken, was los ist – ohne KI bis Mitternacht
       const anlaesse = this.anlaesse();
@@ -324,7 +340,8 @@ ${fremdinhaltHuelle('lagebericht', zeilen)}${this.rueckschauTeil(jetzt)}`;
     let rundgang: string | null = null;
     let wahl: GewaehlteAktivitaet[] = [];
     const letzter = Number(this.stand('rundgang_zeit') ?? 0);
-    const rest = e.tagesbudget_usd - this.verbrauchHeute();
+    // über das Abo: kein API-Geld – der Katalog wählt wie mit vollem Budget (die Häufigkeit bremst weiter)
+    const rest = ueberAbo ? Number.POSITIVE_INFINITY : e.tagesbudget_usd - this.verbrauchHeute();
     const reicht = rest >= Math.min(0.25, e.tagesbudget_usd);
     if (!lagebericht && reicht) {
       const katalog = e.eigene_aufgaben && !gestartet && jetzt - letzter >= e.rundgang_abstand_stunden * STUNDE - 60_000;

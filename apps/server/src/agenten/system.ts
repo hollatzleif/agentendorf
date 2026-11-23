@@ -10,6 +10,16 @@ import type { ModellKlient } from './motor-api.js';
 
 const BETAS = ['server-side-fallback-2026-07-01'];
 
+/** E218: Das Tagesbudget für API-Aufrufe ohne Leifs Klick ist aufgebraucht – kein Aufruf, morgen wieder. */
+export class BudgetErreicht extends Error {
+  constructor(grenze: number) {
+    super(`Tagesbudget von ${grenze} $ für automatische KI-Aufrufe erreicht – ab Mitternacht wieder.`);
+  }
+}
+
+/** Haiku 5.5 hat keinen serverseitigen Fallback: das Feld nicht senden (Anthropic-Doku zur Migration auf Haiku 5.5) */
+const OHNE_FALLBACK = /^claude-haiku-/;
+
 /**
  * Ein einzelner KI-Aufruf für Arbeiten, die der Code anstößt (Mail-Einordnung, Morgenzeitung):
  * Motor api, OHNE Werkzeuge, Antwort im festen JSON-Schema (output_config.format). Was zurückkommt, sind Daten –
@@ -19,7 +29,15 @@ const BETAS = ['server-side-fallback-2026-07-01'];
  */
 export class SystemAufrufe {
   constructor(
-    private o: { db: DB; uhr: Uhr; vault: VaultDienst; hub: LiveHub; klient?: () => ModellKlient },
+    private o: {
+      db: DB;
+      uhr: Uhr;
+      vault: VaultDienst;
+      hub: LiveHub;
+      klient?: () => ModellKlient;
+      /** E218: Tagesbudget (aufwachen.md) – liefert die Grenze, wenn sie erreicht ist, sonst null */
+      budgetErreicht?: () => Promise<number | null>;
+    },
   ) {}
 
   get verfuegbar() {
@@ -37,11 +55,18 @@ export class SystemAufrufe {
     pruefen: (roh: unknown) => T; // z. B. Zod-parse
     kurzErgebnis: (e: T) => string;
     maxTokens?: number;
+    /** Leif hat geklickt (z. B. „Schritte vorschlagen“) – zählt nicht gegen das Tagesbudget */
+    vonLeif?: boolean;
   }): Promise<T> {
     if (!this.o.klient) throw new Error('Kein API-Schlüssel: ANTHROPIC_API_KEY in /srv/dorf/.env eintragen (dorf api-schluessel).');
+    if (!a.vonLeif && this.o.budgetErreicht) {
+      const grenze = await this.o.budgetErreicht();
+      if (grenze !== null) throw new BudgetErreicht(grenze);
+    }
     const { db, uhr } = this.o;
     const stufen = await stufenLaden(this.o.vault);
-    const { modell, aufwand } = stufen.stufen[a.stufe];
+    // E218: automatische Aufrufe laufen mit dem System-Modell (Standard Haiku 5.5); Leifs Klicks mit der Stufe
+    const { modell, aufwand } = a.vonLeif ? stufen.stufen[a.stufe] : stufen.system;
     const start = uhr.jetzt();
     let ergebnis: T | undefined;
     let fehler: string | null = null;
@@ -55,8 +80,7 @@ export class SystemAufrufe {
           system: a.system,
           messages: [{ role: 'user', content: a.nachricht }],
           output_config: { effort: aufwand, format: { type: 'json_schema', schema: a.schema } },
-          betas: BETAS,
-          fallbacks: 'default',
+          ...(OHNE_FALLBACK.test(modell) ? {} : { betas: BETAS, fallbacks: 'default' }),
         } as unknown as Anthropic.Beta.Messages.MessageCreateParamsNonStreaming,
         AbortSignal.timeout(10 * 60_000),
         () => undefined,
@@ -90,9 +114,9 @@ export class SystemAufrufe {
     db.prepare(
       `INSERT INTO laeufe (id, chat_id, nummer, motor, modell, stufe, aufwand, status, ausloeser, auftrag, erstellt, start, ende,
                            ein_token, aus_token, cache_lesen, cache_schreiben, kosten_usd, fehler, zusammenfassung)
-       VALUES (?, ?, ?, 'api', ?, ?, ?, ?, 'zeitplan', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, 'api', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
-      laufId, chat.id, nummer, tatsaechlichesModell, a.stufe, aufwand, fehler ? 'fehler' : 'fertig', a.kurzAuftrag, start, start, ende,
+      laufId, chat.id, nummer, tatsaechlichesModell, a.stufe, aufwand, fehler ? 'fehler' : 'fertig', a.vonLeif ? 'klick' : 'zeitplan', a.kurzAuftrag, start, start, ende,
       t.ein, t.aus, t.cacheLesen, t.cacheSchreiben, kostenSchaetzen(stufen.preise, tatsaechlichesModell, t), fehler, kurz,
     );
     const nachricht = db.prepare('INSERT INTO nachrichten (chat_id, lauf_id, rolle, text, motor, erstellt) VALUES (?, ?, ?, ?, ?, ?)');

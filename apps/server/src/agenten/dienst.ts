@@ -572,8 +572,9 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
           this.nochmal = false;
           const k = await motorenLaden(this.vault);
           const wartend = this.db.prepare("SELECT * FROM laeufe WHERE status = 'wartend' ORDER BY erstellt").all() as LaufZeile[];
+          const abo = wartend.some((l) => l.ausloeser === 'zeitplan') ? await this.zeitplanUeberAbo().catch(() => false) : false;
           for (const l of wartend) {
-            const motor = this.effektiverMotor(l, k.alleAuf);
+            const motor = this.effektiverMotor(l, k.alleAuf, abo);
             const aktiv = (this.db.prepare("SELECT COUNT(*) AS n FROM laeufe WHERE status = 'laeuft' AND motor = ?").get(motor) as { n: number }).n;
             if (aktiv >= k.parallel[motor]) continue;
             const r = this.db.prepare("UPDATE laeufe SET status = 'laeuft', motor = ?, start = ? WHERE id = ? AND status = 'wartend'").run(motor, this.uhr.jetzt(), l.id);
@@ -586,13 +587,25 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
     })();
   }
 
-  /** Zeitgesteuerte Läufe laufen immer über die API (Abo nur für Leifs Klicks). Der Notschalter übersteuert alles. */
-  private effektiverMotor(l: LaufZeile, alleAuf: 'keiner' | MotorName): MotorName {
+  /**
+   * E218: Denkt der Bürgermeister beim Aufwachen über Leifs Abo (aufwachen.md: denken_ueber: abo)? Setzt dorf.ts.
+   * Ohne Einstellung (Tests, alte Fassung) bleibt es bei der API.
+   */
+  zeitplanUeberAbo: () => Promise<boolean> = async () => false;
+
+  /**
+   * Zeitgesteuerte Läufe (Aufwachen des Bürgermeisters) laufen über die API – außer mit denken_ueber: abo (E218): dann
+   * mit dem Motor seiner Aktion (claude-code, Leifs Abo). Der Notschalter übersteuert alles.
+   */
+  private effektiverMotor(l: LaufZeile, alleAuf: 'keiner' | MotorName, zeitplanAbo = false): MotorName {
     // E191: Coding-Läufe gibt es nur im Codehaus-Container (Shell, Projekte) – der Notschalter verlegt sie nicht.
     // Anhalten lassen sie sich mit parallel.coding: 0.
     if (l.motor === 'coding') return 'coding';
     if (alleAuf !== 'keiner') return alleAuf;
-    if (l.ausloeser === 'zeitplan') return 'api';
+    if (l.ausloeser === 'zeitplan') {
+      const rolle = (this.db.prepare('SELECT rolle FROM chats WHERE id = ?').get(l.chat_id) as { rolle: string } | undefined)?.rolle;
+      return zeitplanAbo && rolle === 'buergermeister' ? l.motor : 'api';
+    }
     return l.motor;
   }
 
