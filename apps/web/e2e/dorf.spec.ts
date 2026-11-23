@@ -16,6 +16,8 @@ async function anmelden(page: Page) {
 }
 
 test('falsches Passwort wird abgelehnt, richtiges führt ins Dorf', async ({ page }) => {
+  // lädt die 3D-Szene zweimal (Software-Grafik): lokal ~10 s, auf dem CI-Rechner knapp an 30 s – darum mehr Zeit
+  test.slow();
   await page.goto('/');
   await page.getByLabel('Passwort').fill('ganz-falsch');
   await page.getByRole('button', { name: 'Ins Dorf' }).click();
