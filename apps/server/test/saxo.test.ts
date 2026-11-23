@@ -81,8 +81,9 @@ describe('Saxo (E73): nur lesen', () => {
     expect(`${u.origin}${u.pathname}`).toBe(`${AUTH}/authorize`);
     expect(Object.fromEntries(u.searchParams)).toMatchObject({ response_type: 'code', client_id: 'APPKEY', redirect_uri: 'https://dorf.test/api/boerse/saxo/rueckruf' });
     expect(url).not.toContain('APPSECRET');
-    expect(r.statusCode).toBe(303);
-    expect(r.headers.location).toBe('/?g=Boerse&saxo=ok');
+    // E219: eine Seite, die selbst weiterführt (Cookie SameSite=Strict kommt so mit) – zur Börse, auch in der Listenansicht
+    expect(r.statusCode).toBe(200);
+    expect(r.body).toContain('url=/gebaeude/Boerse?saxo=ok');
     // Token-Tausch: Basic-Auth, Formular nach Doku
     const tausch = x.s.anfragen.find((a) => a.url === `${AUTH}/token`)!;
     expect(tausch.form).toEqual({ grant_type: 'authorization_code', code: 'CODE1', redirect_uri: 'https://dorf.test/api/boerse/saxo/rueckruf' });
@@ -119,18 +120,18 @@ describe('Saxo (E73): nur lesen', () => {
   it('state ist einmalig und läuft ab; falscher state → keine Verbindung', async () => {
     const x = await aufbau();
     const r = await x.d.app.inject({ url: '/api/boerse/saxo/rueckruf?code=CODE1&state=geraten' });
-    expect(r.headers.location).toBe('/?g=Boerse&saxo=fehler');
+    expect(r.body).toContain('saxo=fehler');
     expect(x.d.saxo.uebersicht()).toMatchObject({ verbunden: false, fehler: expect.stringMatching(/abgelaufen oder ungültig/) });
     // Ablauf nach 15 min
     const { url } = (await x.d.app.inject({ method: 'POST', url: '/api/boerse/saxo/anmelden', headers: x.h })).json() as { url: string };
     x.d.uhr.vor(16 * 60_000);
     const r2 = await x.d.app.inject({ url: `/api/boerse/saxo/rueckruf?code=CODE1&state=${new URL(url).searchParams.get('state')}` });
-    expect(r2.headers.location).toBe('/?g=Boerse&saxo=fehler');
+    expect(r2.body).toContain('saxo=fehler');
     // derselbe state kein zweites Mal
     const v = await verbinden(x);
-    expect(v.r.headers.location).toBe('/?g=Boerse&saxo=ok');
+    expect(v.r.body).toContain('saxo=ok');
     const r3 = await x.d.app.inject({ url: `/api/boerse/saxo/rueckruf?code=CODE1&state=${encodeURIComponent(v.state)}` });
-    expect(r3.headers.location).toBe('/?g=Boerse&saxo=fehler');
+    expect(r3.body).toContain('saxo=fehler');
   });
 
   it('Refresh-Token wird vor Ablauf erneuert und immer der neueste verwendet; abgelehnt → Sitzung weg, eine Meldung', async () => {
@@ -169,5 +170,29 @@ describe('Saxo (E73): nur lesen', () => {
     const h = await kopf(ohne);
     expect((await ohne.app.inject({ url: '/api/boerse/saxo', headers: h })).json()).toMatchObject({ eingerichtet: false, verbunden: false });
     expect((await ohne.app.inject({ method: 'POST', url: '/api/boerse/saxo/anmelden', headers: h })).statusCode).toBe(409);
+  });
+
+  it('E219: zweimal geklickt → beide Anmeldungen gelten; Saxos Grund ist in der App zu sehen; Redirect URL zum Vergleichen', async () => {
+    const x = await aufbau();
+    const neu = async () => new URL(((await x.d.app.inject({ method: 'POST', url: '/api/boerse/saxo/anmelden', headers: x.h })).json() as { url: string }).url).searchParams.get('state')!;
+    const erste = await neu();
+    await neu(); // zweiter Klick (z. B. am Handy)
+    const r = await x.d.app.inject({ url: `/api/boerse/saxo/rueckruf?code=CODE1&state=${encodeURIComponent(erste)}` });
+    expect(r.body).toContain('saxo=ok');
+    expect(x.d.saxo.uebersicht()).toMatchObject({ verbunden: true, rueckleitung: 'https://dorf.test/api/boerse/saxo/rueckruf', anmeldeServer: 'live.logonvalidation.net' });
+
+    // Saxo lehnt den Code ab → Saxos Begründung steht im Fehler (nicht nur „abgelehnt“)
+    x.d.saxo.abmelden();
+    const s2 = await neu();
+    await x.d.app.inject({ url: `/api/boerse/saxo/rueckruf?code=FALSCH&state=${encodeURIComponent(s2)}` });
+    expect(x.d.saxo.uebersicht().fehler).toMatch(/400: invalid_grant/);
+
+    // Saxo leitet mit ?error= zurück (z. B. Zugriff verweigert) → steht in der App
+    const r3 = await x.d.app.inject({ url: '/api/boerse/saxo/rueckruf?error=access_denied&error_description=Der%20Nutzer%20hat%20abgebrochen' });
+    expect(r3.body).toContain('saxo=fehler');
+    expect(x.d.saxo.uebersicht().fehler).toMatch(/access_denied.*abgebrochen/);
+    // Kaputtes oder Unsinniges in der Rückleitung bricht nichts
+    const r4 = await x.d.app.inject({ url: `/api/boerse/saxo/rueckruf?error=${'x'.repeat(500)}` });
+    expect(r4.statusCode).toBe(200);
   });
 });

@@ -25,6 +25,20 @@ export const ERLAUBT = [/^\/port\/v1\/clients\/me$/, /^\/port\/v1\/balances\/me$
 /** so lange vor Ablauf wird erneuert */
 const ERNEUERN_VOR_MS = 5 * 60_000;
 const ANMELDUNG_GUELTIG_MS = 15 * 60_000;
+/** E219: so viele offene Anmeldungen gleichzeitig (zweimal geklickt, Handy und PC) – jede einmalig */
+const MAX_OFFENE_ANMELDUNGEN = 5;
+
+/** Saxos Fehlertext (error/error_description) lesbar und harmlos machen: eine Zeile, kurz, nur druckbare Zeichen */
+function saxoText(roh: string) {
+  let t = roh;
+  try {
+    const j = JSON.parse(roh) as { error?: unknown; error_description?: unknown; ErrorCode?: unknown; Message?: unknown };
+    t = [j.error ?? j.ErrorCode, j.error_description ?? j.Message].filter((x) => typeof x === 'string' && x).join(' – ');
+  } catch {
+    /* kein JSON – Rohtext */
+  }
+  return t.replace(/[^\p{L}\p{N}\p{P}\p{Zs}]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+}
 /** Depotstand so oft holen */
 export const STAND_ALLE_MS = 30 * 60_000;
 
@@ -112,7 +126,10 @@ export class Saxo {
   anmeldenStart(): { url: string } {
     const k = this.konfig();
     const state = crypto.randomBytes(24).toString('base64url');
-    this.merken('saxo_anmeldung', { state, bis: this.o.uhr.jetzt() + ANMELDUNG_GUELTIG_MS });
+    const jetzt = this.o.uhr.jetzt();
+    // E219: mehrere offene Anmeldungen (sonst verfällt die erste, wenn man zweimal klickt)
+    const offen = (this.stand<{ state: string; bis: number }[]>('saxo_anmeldungen') ?? []).filter((a) => a.bis > jetzt);
+    this.merken('saxo_anmeldungen', [...offen, { state, bis: jetzt + ANMELDUNG_GUELTIG_MS }].slice(-MAX_OFFENE_ANMELDUNGEN));
     const u = new URL(`${k.authUrl}/authorize`);
     u.searchParams.set('response_type', 'code');
     u.searchParams.set('client_id', k.appKey);
@@ -138,14 +155,21 @@ export class Saxo {
 
   private async rueckrufInnen(code: string, state: string) {
     const k = this.konfig();
-    const a = this.stand<{ state: string; bis: number }>('saxo_anmeldung');
-    this.merken('saxo_anmeldung', undefined);
-    const gleich = !!a && a.state.length === state.length && crypto.timingSafeEqual(Buffer.from(a.state), Buffer.from(state));
-    if (!a || !gleich || a.bis < this.o.uhr.jetzt()) throw new DorfFehler(400, 'Diese Anmeldung ist abgelaufen oder ungültig – bitte in der App noch einmal „Mit Saxo verbinden“.');
+    const offen = this.stand<{ state: string; bis: number }[]>('saxo_anmeldungen') ?? [];
+    const gleich = (x: string) => x.length === state.length && crypto.timingSafeEqual(Buffer.from(x), Buffer.from(state));
+    const a = offen.find((x) => gleich(x.state));
+    this.merken('saxo_anmeldungen', offen.filter((x) => x !== a)); // einmalig
+    if (!a || a.bis < this.o.uhr.jetzt()) throw new DorfFehler(400, 'Diese Anmeldung ist abgelaufen oder ungültig – bitte in der App noch einmal „Mit Saxo verbinden“.');
     await this.tokenHolen({ grant_type: 'authorization_code', code, redirect_uri: k.rueckleitung });
     this.merken('saxo_fehler', undefined);
     this.o.hub.senden({ typ: 'boerse.geaendert' });
     await this.aktualisieren(true).catch((e) => this.o.log?.(`Saxo: ${(e as Error).message}`));
+  }
+
+  /** E219: Fehler der Rückleitung festhalten (z. B. ?error=access_denied von Saxo), damit die App den Grund zeigt */
+  fehlerMerken(text: string) {
+    this.merken('saxo_fehler', { zeit: this.o.uhr.jetzt(), text: saxoText(text) || text.slice(0, 200) });
+    this.o.hub.senden({ typ: 'boerse.geaendert' });
   }
 
   /** Verbindung im Dorf trennen (die App-Freigabe selbst entfernt Leif in SaxoTrader → Konto → Sonstiges → Anwendungszugriff) */
@@ -167,7 +191,9 @@ export class Saxo {
       body: new URLSearchParams(form).toString(),
     });
     if (!r.ok) {
-      const e = new DorfFehler(r.status >= 500 ? 502 : 401, `Saxo-Anmeldung abgelehnt (${r.status}).`);
+      // E219: Saxos Begründung mitgeben (z. B. „invalid_grant – redirect_uri mismatch“) – sonst ist nicht zu sehen, was fehlt
+      const grund = saxoText(await r.text().catch(() => ''));
+      const e = new DorfFehler(r.status >= 500 ? 502 : 401, `Saxo-Anmeldung abgelehnt (${r.status}${grund ? `: ${grund}` : ''}).`);
       (e as DorfFehler & { endgueltig?: boolean }).endgueltig = r.status < 500;
       throw e;
     }
@@ -310,6 +336,8 @@ export class Saxo {
     return {
       eingerichtet: this.eingerichtet,
       verbunden: !!s,
+      // E219: zum Vergleichen mit der Saxo-App (Redirect URL muss genau so dort stehen; live oder Simulation)
+      ...(this.o.konfig ? { rueckleitung: this.o.konfig.rueckleitung, anmeldeServer: new URL(this.o.konfig.authUrl).host } : {}),
       ...(s ? { verbundenSeit: new Date(s.seit).toISOString() } : {}),
       ...(stand
         ? {

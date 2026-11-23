@@ -82,6 +82,22 @@ export function SaxoDepot() {
       {meldung && <p className="hinweis">{meldung}</p>}
       {d.fehler && <p className="fehler">{d.fehler}</p>}
       {!d.verbunden && <p className="leise">Nach dem Klick meldest du dich bei Saxo an und landest wieder hier. Das Dorf kann dein Depot dann nur lesen – nie handeln.</p>}
+      {!d.verbunden && d.rueckleitung && (
+        <details className="leise" data-testid="saxo-pruefen" open={!!d.fehler}>
+          <summary>Klappt die Anmeldung nicht? Das muss in deiner Saxo-App stehen</summary>
+          <ul>
+            <li>
+              Redirect URL – genau so, Zeichen für Zeichen: <code>{d.rueckleitung}</code>
+            </li>
+            <li>Grant Type: Code (Authorization Code)</li>
+            <li>
+              Anmelde-Server des Dorfs: <code>{d.anmeldeServer}</code>
+              {d.anmeldeServer?.startsWith('live.') ? ' – also eine LIVE-App (Entwicklerportal → Live apps), keine Simulations-App' : ''}
+            </li>
+            <li>App Key und Secret dieser App auf dem Server mit <code>dorf saxo-einrichten</code> eingetragen</li>
+          </ul>
+        </details>
+      )}
       {st && (
         <>
           <div className="bank-kacheln">

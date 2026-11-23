@@ -690,16 +690,38 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
       return saxo.uebersicht();
     });
     app.get('/api/boerse/saxo/rueckruf', async (req, reply) => {
-      const q = z.object({ code: z.string().min(1).max(2000).optional(), state: z.string().min(1).max(200).optional(), error: z.string().max(200).optional() }).parse(req.query);
-      let ziel = '/?g=Boerse&saxo=ok';
+      const q = z
+        .object({
+          code: z.string().min(1).max(2000).optional(),
+          state: z.string().min(1).max(200).optional(),
+          error: z.string().max(200).optional(),
+          error_description: z.string().max(500).optional(),
+        })
+        .catch({})
+        .parse(req.query);
+      let ziel = '/gebaeude/Boerse?saxo=ok';
       try {
-        if (!q.code || !q.state) throw new Error(q.error ? `Saxo meldet: ${q.error}` : 'Saxo hat keinen Code zurückgegeben.');
+        if (!q.code || !q.state) {
+          // E219: Saxos Grund festhalten – die App zeigt ihn unter Börse → Saxo
+          const grund = q.error ? `Saxo meldet: ${q.error}${q.error_description ? ` – ${q.error_description}` : ''}` : 'Saxo hat keinen Code zurückgegeben.';
+          saxo.fehlerMerken(grund);
+          throw new Error(grund);
+        }
         await saxo.rueckruf(q.code, q.state);
       } catch (e) {
         req.log.warn(`Saxo-Anmeldung: ${(e as Error).message}`);
-        ziel = `/?g=Boerse&saxo=fehler`;
+        ziel = '/gebaeude/Boerse?saxo=fehler';
       }
-      return reply.redirect(ziel, 303);
+      // E219: keine Weiterleitung (303), sondern eine kleine Seite, die selbst weiterführt. Die Rückleitung kommt von
+      // Saxo (fremde Seite); bei einer Weiterleitungskette schickt der Browser das Dorf-Cookie (SameSite=Strict) nicht
+      // mit – man landete auf der Anmeldung statt bei der Börse. Ein Schritt von UNSERER Seite aus gilt als „same-site“.
+      return reply
+        .type('text/html; charset=utf-8')
+        .header('Cache-Control', 'no-store')
+        .send(
+          `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=${ziel}"><title>Saxo</title></head>` +
+            `<body><p>${ziel.endsWith('ok') ? 'Mit Saxo verbunden.' : 'Die Anmeldung bei Saxo hat nicht geklappt.'} <a href="${ziel}">Weiter zur Börse</a></p></body></html>`,
+        );
     });
   }
 

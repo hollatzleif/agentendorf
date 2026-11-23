@@ -876,6 +876,10 @@ export interface SaxoPosition {
 export interface SaxoUebersicht {
   eingerichtet: boolean;
   verbunden: boolean;
+  /** E219: Redirect URL, die das Dorf an Saxo schickt – muss genau so in der Saxo-App stehen */
+  rueckleitung?: string;
+  /** E219: Anmelde-Server (live.logonvalidation.net = echtes Konto, sim.… = Simulation) */
+  anmeldeServer?: string;
   verbundenSeit?: string;
   stand?: { zeit: string; waehrung: string; gesamt: number | null; bar: number | null; positionen: SaxoPosition[] };
   /** Kontowert je Tag (letzte 12 Monate) */

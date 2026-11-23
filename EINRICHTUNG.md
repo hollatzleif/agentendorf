@@ -5,17 +5,17 @@ Einmalig. Danach deployt jeder Push auf `main` automatisch.
 ## 0. Was du brauchst
 
 - Den Hostinger-VPS (frisch mit **Ubuntu 24.04 LTS** aufgesetzt, Root-Zugang)
-- Eine kostenlose DuckDNS-Adresse, z. B. `agentendorf-lh.duckdns.org` (siehe Schritt 1)
+- Eine kostenlose DuckDNS-Adresse, z. B. `<dein-name>.duckdns.org` (siehe Schritt 1)
 - Dieses Repository als **privates** GitHub-Repo (Konto bitte mit 2FA schützen)
 - Auf dem Mac: Terminal mit `ssh`
 
 ## 1. DuckDNS-Adresse
 
 1. Auf [duckdns.org](https://www.duckdns.org) mit GitHub oder Google anmelden.
-2. Unter *sub domain* einen freien Namen eintragen (z. B. `agentendorf-lh`) → *add domain*.
+2. Unter *sub domain* einen freien Namen eintragen (z. B. `dorf-xy`) → *add domain*.
 3. Bei *current ip* die **IP des VPS** eintragen → *update ip*.
 
-Fertig: `agentendorf-lh.duckdns.org` zeigt auf den Server. Die VPS-IP ist fest, ein Updater ist nicht nötig. Das HTTPS-Zertifikat holt Caddy automatisch von Let's Encrypt (duckdns.org steht auf der Public-Suffix-Liste, die Zertifikatsgrenzen gelten also nur für deine Adresse).
+Fertig: `<dein-name>.duckdns.org` zeigt auf den Server. Die VPS-IP ist fest, ein Updater ist nicht nötig. Das HTTPS-Zertifikat holt Caddy automatisch von Let's Encrypt (duckdns.org steht auf der Public-Suffix-Liste, die Zertifikatsgrenzen gelten also nur für deine Adresse).
 
 Das DuckDNS-Token brauchst du **nicht** – bitte nirgends eintragen.
 
@@ -315,7 +315,7 @@ Im Codehaus programmierst du selbst (VS Code im Browser, mit Terminal, Git und E
 
 - Der Coding-Container hat Internet, einen GitHub-Zugang und den **ganzen Vault les- und schreibbar** (deine Entscheidung, E191). Die Leine der anderen Agenten gilt dort nicht für das, was ein Agent in der Shell tut.
 - Er bekommt **nur** drei Dinge von dir: dein Claude-Abo-Token, ein GitHub-Token, deinen Git-Namen. Sie liegen in `/srv/dorf/coding.env`. API-Schlüssel, Gmail, Telegram, Moodle, Saxo usw. (`/srv/dorf/.env`) kommen nicht hinein.
-- VS Code läuft auf einer eigenen Adresse: `code.` vor deiner Dorf-Adresse, z. B. `code.agentendorf-lh.duckdns.org`. Bei DuckDNS zeigt jede solche Unteradresse von selbst auf deinen Server – du musst nichts anlegen. Hinein kommt nur, wer im Dorf angemeldet ist.
+- VS Code läuft auf einer eigenen Adresse: `code.` vor deiner Dorf-Adresse, z. B. `code.<dein-name>.duckdns.org`. Bei DuckDNS zeigt jede solche Unteradresse von selbst auf deinen Server – du musst nichts anlegen. Hinein kommt nur, wer im Dorf angemeldet ist.
 
 **Schritt 1 – GitHub-Token anlegen** (im Browser)
 

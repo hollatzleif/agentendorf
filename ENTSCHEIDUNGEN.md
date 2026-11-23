@@ -2158,3 +2158,29 @@ Leif: „Mach, dass der Bürgermeister max. 0,50 $ pro Tag braucht. Günstigeres
 - Das Aufwachen verbraucht jetzt Abo-Kontingent, auch nachts (alle 3–7 h, nur wenn es etwas Neues oder einen Rundgang gibt).
 - Ist die Werkstatt nicht erreichbar, scheitert ein Aufwachen-Lauf, statt auf die API auszuweichen.
 - Hat Leif `aufwachen.md` selbst geändert, bleibt sein `tagesbudget_usd` stehen. `denken_ueber` ist dann trotzdem `abo` (Standard, wenn der Schlüssel fehlt).
+
+## E219 – Saxo: Anmeldung nachvollziehbar und robuster (23.11.)
+
+Leif: „Ich kann mich noch immer nicht mit Saxo verbinden. Schau nochmal, ob das alles richtig läuft.“
+
+**Geprüft:** Der Ablauf entspricht Saxos Doku zum Authorization Code Grant:
+- `/authorize` und `/token` auf `live.logonvalidation.net`;
+- App-Schlüssel und Secret als HTTP-Basic;
+- `redirect_uri` muss exakt der in der Saxo-App eingetragenen Adresse entsprechen.
+
+Vom Code aus ist nicht zu sehen, woran es bei Leif scheitert: Das Dorf auf dem Server ist von hier nicht erreichbar, es gibt keine Protokolle. Gefunden wurden drei Schwächen, die eine fehlgeschlagene Anmeldung unsichtbar oder wahrscheinlicher machten:
+
+- **Kein Grund sichtbar.**
+  - Bei einer Ablehnung durch Saxo stand nur „abgelehnt (400)“. Saxos Begründung (`error`, `error_description`) wurde verworfen.
+  - Kam Saxo mit `?error=…` zurück, wurde gar nichts gespeichert. Die App sagte nur „hat nicht geklappt“.
+  - Jetzt steht Saxos Grund im Fehler unter Börse → Saxo: gekürzt, eine Zeile, nur druckbare Zeichen.
+- **Zweimal geklickt:** Es gab nur EINE offene Anmeldung. Ein zweiter Klick (z. B. Handy und PC) machte die erste ungültig. Jetzt gelten bis zu 5 offene Anmeldungen, jede 15 min und genau einmal.
+- **Rückweg ins Dorf:**
+  - Saxo leitet von einer fremden Seite zurück. Bei einer Weiterleitungskette (303) schickt der Browser das Dorf-Cookie (`SameSite=Strict`) nicht mit, man landete auf der Anmeldung.
+  - Jetzt antwortet `/api/boerse/saxo/rueckruf` mit einer kleinen Seite, die selbst weiterführt. Dieser Schritt gilt als „same-site“.
+  - Das Ziel ist die Börsenseite `/gebaeude/Boerse?saxo=…` statt `/?g=Boerse`. Diese öffnete die Börse nur in der 3D-Ansicht.
+- **Zum Vergleichen:** Solange keine Verbindung besteht, zeigt die App die genaue Redirect-URL, die das Dorf schickt, und den Anmelde-Server (live/Simulation).
+
+**Offen:**
+- Was genau bei Leif schiefgeht, zeigt erst der nächste Versuch: entweder Saxos Grund in der App, oder eine Fehlerseite bei Saxo selbst, dann stimmt meist die Redirect-URL nicht.
+- In `EINRICHTUNG.md` stand Leifs echte DuckDNS-Adresse. Das Repo ist öffentlich. Ersetzt durch Platzhalter; in der Git-Geschichte steht sie weiter.
