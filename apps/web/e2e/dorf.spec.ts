@@ -1059,23 +1059,25 @@ test('Wochenziele auf „Heute“: setzen, abhaken (Balken), entfernen', async (
 test('Wiederkehrendes To-do: 🔁 wöchentlich, abhaken legt das nächste an', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'einmal reicht');
   await anmelden(page);
+  const name = `Wäsche-Test ${Date.now() % 100000}`;
   await page.goto('/gebaeude/Marktplatz?reiter=todo');
   const f = page.getByRole('form', { name: 'Neues To-do' });
-  await f.getByRole('textbox', { name: 'Neues To-do' }).fill('Wäsche-Test');
+  await f.getByRole('textbox', { name: 'Neues To-do' }).fill(name);
   await f.getByLabel('Fällig am').fill('2026-01-05');
   await f.getByRole('button', { name: '+' }).click();
-  await bearbeiten(page.locator('li.todo', { hasText: 'Wäsche-Test' }));
+  await bearbeiten(page.locator('li.todo', { hasText: name }));
   await page.getByLabel('Wiederholen').selectOption('wöchentlich');
   await page.getByRole('button', { name: 'Speichern' }).click();
-  const zeile = page.locator('li.todo', { hasText: 'Wäsche-Test' });
+  const zeile = page.locator('li.todo', { hasText: name });
   await expect(zeile).toContainText('🔁 wöchentlich');
-  await zeile.getByLabel('Wäsche-Test erledigt').check();
+  await zeile.getByLabel(`${name} erledigt`).check();
   // das nächste ist offen, mit Datum in der Zukunft
-  const offen = page.locator('li.todo:not(.fertig)', { hasText: 'Wäsche-Test' });
+  // erst warten, bis der Server das Abhaken bestätigt hat (sonst klappt man noch die alte Zeile auf)
+  await expect(page.locator('li.todo.fertig', { hasText: name })).toHaveCount(1);
+  const offen = page.locator('li.todo:not(.fertig)', { hasText: name });
   await expect(offen).toHaveCount(1);
   await aufklappen(offen);
   await expect(offen).toContainText('🔁 wöchentlich');
-  await expect(page.locator('li.todo.fertig', { hasText: 'Wäsche-Test' })).toHaveCount(1);
 });
 
 test('Statistik im Rathaus: Kacheln, Balken mit Hover, Tabelle', async ({ page }, info) => {
