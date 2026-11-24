@@ -2,7 +2,7 @@
 // X-Feed, PnL und das Protokoll. Daten alle 2 s vom Dorf (das sie vom Kryptowerk holt). Alles Paper Trading.
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { KryptoKerze, KryptoModul, KryptoTerminal, KryptoTokenKerzen } from '@dorf/shared';
+import { KRYPTO_KERZEN_TAKTE, type KryptoKerze, type KryptoKerzenTakt, type KryptoModul, type KryptoTerminal, type KryptoTokenKerzen } from '@dorf/shared';
 import { api } from '../api';
 import { linkKlick } from '../router';
 import { farbeAus, prozent, sol, solVz, stundeWien, uhrzeit, usd, usdKurz } from './format';
@@ -33,8 +33,20 @@ function useJetzt(ms = 1000) {
   return t;
 }
 
+const TAKT_TEXT: Record<KryptoKerzenTakt, string> = { '5s': '5 s', '15s': '15 s', '1m': '1 min', '5m': '5 min', '15m': '15 min' };
+const TAKT_SPEICHER = 'dorf-kielwasser-takt';
+
 export function KielwasserSeite({ botId }: { botId: string }) {
-  const q = useQuery({ queryKey: ['krypto', 'terminal', botId], queryFn: () => api<KryptoTerminal>(`/api/krypto/bots/${botId}/terminal`), refetchInterval: 2000 });
+  // E233: Kerzen-Takt der Equity (merkt sich die letzte Wahl auf diesem Gerät)
+  const [takt, setTakt] = useState<KryptoKerzenTakt>(() => {
+    const t = localStorage.getItem(TAKT_SPEICHER);
+    return (KRYPTO_KERZEN_TAKTE as readonly string[]).includes(t ?? '') ? (t as KryptoKerzenTakt) : '15m';
+  });
+  const taktWaehlen = (t: KryptoKerzenTakt) => {
+    setTakt(t);
+    localStorage.setItem(TAKT_SPEICHER, t);
+  };
+  const q = useQuery({ queryKey: ['krypto', 'terminal', botId, takt], queryFn: () => api<KryptoTerminal>(`/api/krypto/bots/${botId}/terminal?takt=${takt}`), refetchInterval: 2000, placeholderData: (alt) => alt });
   const jetzt = useJetzt();
   useEffect(() => {
     const alt = document.title;
@@ -61,10 +73,10 @@ export function KielwasserSeite({ botId }: { botId: string }) {
         <p className="leise mono">verbinde …</p>
       </div>
     );
-  return <Terminal t={q.data} jetzt={jetzt} />;
+  return <Terminal t={q.data} jetzt={jetzt} takt={takt} taktWaehlen={taktWaehlen} />;
 }
 
-function Terminal({ t, jetzt }: { t: KryptoTerminal; jetzt: number }) {
+function Terminal({ t, jetzt, takt, taktWaehlen }: { t: KryptoTerminal; jetzt: number; takt: KryptoKerzenTakt; taktWaehlen: (t: KryptoKerzenTakt) => void }) {
   const b = t.bot;
   const k = b.kennzahlen;
   const e = b.einstellung;
@@ -142,11 +154,18 @@ function Terminal({ t, jetzt }: { t: KryptoTerminal; jetzt: number }) {
       <div className="kw-mitte">
         <section className="kw-tafel" aria-label="Bot-Equity">
           <div className="kw-chart-kopf">
-            <h3>Bot-Equity · 15 min</h3>
+            <h3>Bot-Equity · {TAKT_TEXT[t.kerzenTakt ?? '15m']}</h3>
+            <div className="kw-takte" role="group" aria-label="Kerzen-Takt">
+              {KRYPTO_KERZEN_TAKTE.map((x) => (
+                <button key={x} type="button" className={x === takt ? 'an' : ''} aria-pressed={x === takt} onClick={() => taktWaehlen(x)}>
+                  {TAKT_TEXT[x]}
+                </button>
+              ))}
+            </div>
             <span className={`kw-lage${t.lage === 'LONG' ? ' long' : ''}`}>{t.lage}</span>
           </div>
           <Ohlc k={t.kerzen.at(-1)} />
-          <EquityKerzen kerzen={t.kerzen} start={k.startSol} letzter={letzterGeschlossen ? { symbol: letzterGeschlossen.symbol, sol: letzterGeschlossen.gewinnSol!, prozent: letzterGeschlossen.gewinnProzent!, usd: t.solUsd } : null} />
+          <EquityKerzen kerzen={t.kerzen} sekunden={(t.kerzenTakt ?? '15m').endsWith('s')} start={k.startSol} letzter={letzterGeschlossen ? { symbol: letzterGeschlossen.symbol, sol: letzterGeschlossen.gewinnSol!, prozent: letzterGeschlossen.gewinnProzent!, usd: t.solUsd } : null} />
         </section>
         <Agent t={t} jetzt={jetzt} />
       </div>
@@ -344,7 +363,7 @@ function Ohlc({ k }: { k: KryptoKerze | undefined }) {
   );
 }
 
-function EquityKerzen({ kerzen, start, letzter }: { kerzen: KryptoKerze[]; start: number; letzter: { symbol: string; sol: number; prozent: number; usd: number | null } | null }) {
+function EquityKerzen({ kerzen, start, letzter, sekunden = false }: { kerzen: KryptoKerze[]; start: number; sekunden?: boolean; letzter: { symbol: string; sol: number; prozent: number; usd: number | null } | null }) {
   const B = 640;
   const H = 420;
   const R = 62; // Preisskala rechts
@@ -384,7 +403,7 @@ function EquityKerzen({ kerzen, start, letzter }: { kerzen: KryptoKerze[]; start
           const kw = Math.max(2, w * 0.62);
           return (
             <g key={k.zeit}>
-              <title>{`${uhrzeit(k.zeit)} O ${k.o.toFixed(3)} H ${k.h.toFixed(3)} L ${k.l.toFixed(3)} C ${k.c.toFixed(3)}`}</title>
+              <title>{`${uhrzeit(k.zeit, sekunden)} O ${k.o.toFixed(3)} H ${k.h.toFixed(3)} L ${k.l.toFixed(3)} C ${k.c.toFixed(3)}`}</title>
               <line x1={x(i)} x2={x(i)} y1={y(k.h)} y2={y(k.l)} stroke={farbe} strokeWidth={1.5} />
               <rect x={x(i) - kw / 2} y={Math.min(y(k.o), y(k.c))} width={kw} height={Math.max(1.5, Math.abs(y(k.o) - y(k.c)))} rx={1.5} fill={farbe} />
             </g>

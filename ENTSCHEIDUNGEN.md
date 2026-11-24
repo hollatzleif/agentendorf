@@ -2592,3 +2592,10 @@ Leif fragte, warum Bots in Videos „alle 20 Sekunden“ handeln und Kerzen im S
 **Backtest:** las vorher alle Kurse der Aufzeichnung in einem Aufruf und rechnete 200 Schritte am Stück – bei Stunden an Daten hing das Kryptowerk, das Dorf lief in die 15-s-Grenze („Kryptowerk nicht erreichbar: aborted due to timeout“). Jetzt stückweise (5000 Zeilen nach rowid) und spätestens alle ~25 ms Rechenzeit abgeben.
 
 **Tests:** `test/e232-echtzeit.test.ts` (Dekoder an echten Konten, Quote ≠ SOL, PDA an echten Paaren, Strom gegen nachgebauten WebSocket im echten Nachrichtenformat: Abo/Abmeldung/Grenze/Vorrang, Motor: Kurssturz → Stop-Loss ohne Takt, Ausführung zum Strom-Kurs trotz hinterherhinkendem DexScreener, Kerzen), e2e Terminal.
+
+## E233 – Equity-Kerzen im Terminal von 5 s bis 15 min (24.11.)
+
+Leif wollte die Bot-Equity nicht nur in 15-Minuten-Kerzen. Jetzt gibt es im Terminal eine Auswahl **5 s · 15 s · 1 min · 5 min · 15 min**, gemerkt je Gerät.
+- Die Datenbank kennt die Equity nur je Minute. Darum schreibt der Motor zusätzlich **feine Proben im Speicher** mit: bei jedem Takt (alle 2 s) und bei jedem Echtzeit-Trade eines gehaltenen Tokens (E232, höchstens alle 250 ms), die letzten 6 Stunden. Daraus entstehen 5-s- bis 5-min-Kerzen; nach einem Neustart (Proben weg) kommen 1-min/5-min aus der Minuten-Equity der Datenbank.
+- Anzahl je Takt: 5 s und 15 s je 120 Kerzen (10 bzw. 30 min), 1 min 120 (2 h), 5 min 72 (6 h), 15 min 96 (24 h). Kerzen schließen lückenlos aneinander (Eröffnung = letzter Schluss).
+- `GET /api/krypto/bots/:id/terminal?takt=5s|15s|1m|5m|15m` (Zod in Dorf und Kryptowerk, Standard 15m).

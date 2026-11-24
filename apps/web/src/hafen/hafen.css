@@ -166,3 +166,9 @@
 .kw-token-kerzen .zeile { display: flex; justify-content: space-between; gap: 0.5rem; font-family: var(--kw-mono); font-size: 0.74rem; }
 .kw-token-kerzen svg { width: 100%; height: auto; display: block; margin-top: 0.3rem; }
 .kw-token-kerzen .kw-gehalten { color: var(--kw-lila); font-weight: 600; }
+
+/* E233: Kerzen-Takt der Equity */
+.kw-takte { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--kw-rand); border-radius: 999px; background: var(--kw-tafel2); margin-left: auto; margin-right: 0.5rem; }
+.kw-takte button { appearance: none; border: 0; background: none; color: inherit; opacity: 0.7; font-family: var(--kw-mono); font-size: 0.72rem; padding: 0.2rem 0.55rem; border-radius: 999px; cursor: pointer; }
+.kw-takte button.an { background: var(--kw-lila); color: #fff; opacity: 1; }
+.kw-takte button:focus-visible { outline: 2px solid var(--kw-lila); outline-offset: 1px; }

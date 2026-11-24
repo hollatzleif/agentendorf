@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { ZodError } from 'zod';
+import { KRYPTO_KERZEN_TAKTE } from '@dorf/shared';
 import { KryptoFehler, type Kryptowerk } from './motor.js';
 import type { Backtests } from './backtest.js';
 
@@ -35,7 +36,7 @@ export function kryptoServer(werk: Kryptowerk, geheimnis: string, backtests?: Ba
     werk.loeschen(Id.parse(req.params).id);
     return { ok: true };
   });
-  app.get('/bots/:id/terminal', async (req) => werk.terminal(Id.parse(req.params).id));
+  app.get('/bots/:id/terminal', async (req) => werk.terminal(Id.parse(req.params).id, z.object({ takt: z.enum(KRYPTO_KERZEN_TAKTE).default('15m') }).parse(req.query).takt));
   app.get('/bots/:id/protokoll', async (req) => {
     const q = z.object({ vor: z.coerce.number().int().positive().optional(), anzahl: z.coerce.number().int().min(1).max(500).optional() }).parse(req.query);
     return werk.protokoll(Id.parse(req.params).id, q);

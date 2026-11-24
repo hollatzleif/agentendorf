@@ -49,7 +49,12 @@ test('Hafen: Flotte im Vergleich, Bot anlegen (Fehler vom Kryptowerk sichtbar), 
 });
 
 test('Terminal Kielwasser: Kopf, Token-Leiste, Equity-Kerzen, Agent mit Modulen, Volumen/X/PnL, Protokoll', async ({ page }, info) => {
-  await page.route('**/api/krypto/bots/*/terminal', (r) => r.fulfill({ json: terminal() }));
+  const takte: string[] = [];
+  await page.route('**/api/krypto/bots/*/terminal**', (r) => {
+    const takt = new URL(r.request().url()).searchParams.get('takt') ?? '';
+    takte.push(takt);
+    return r.fulfill({ json: { ...terminal(), kerzenTakt: takt || '15m' } });
+  });
   await anmelden(page);
   await page.goto(`/hafen/${BOT_ID}`);
   const kw = page.getByLabel('Terminal Schwarm');
@@ -72,6 +77,15 @@ test('Terminal Kielwasser: Kopf, Token-Leiste, Equity-Kerzen, Agent mit Modulen,
   const echt = page.getByRole('region', { name: 'Echtzeit-Kurse' });
   await expect(echt.getByTestId('echtzeit-status')).toContainText('● live · 7 Tokens · 42 Trades/min · 12,4 MB heute');
   await expect(echt).toContainText('MOONCAT · gehalten');
+  // E233: Kerzen-Takt der Equity – 5 s bis 15 min, Anfrage mit ?takt=…, Wahl bleibt gemerkt
+  const eq = page.getByRole('region', { name: 'Bot-Equity' });
+  await expect(eq.getByRole('group', { name: 'Kerzen-Takt' }).getByRole('button')).toHaveText(['5 s', '15 s', '1 min', '5 min', '15 min']);
+  await eq.getByRole('button', { name: '5 s', exact: true }).click();
+  await expect(eq.getByRole('heading')).toHaveText('Bot-Equity · 5 s');
+  await expect(eq.getByRole('button', { name: '5 s', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  expect(takte).toContain('5s');
+  await page.reload();
+  await expect(page.getByRole('region', { name: 'Bot-Equity' }).getByRole('heading')).toHaveText('Bot-Equity · 5 s');
   await expect(echt.getByRole('img', { name: /MOONCAT: 60 Kerzen/ })).toBeVisible();
   // keine Modulkarte ragt aus der Agenten-Tafel
   const raus = await agent.evaluate((el) => {

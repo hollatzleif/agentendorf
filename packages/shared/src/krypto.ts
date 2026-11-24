@@ -262,7 +262,14 @@ export interface KryptoTerminal {
   /** E232 */
   echtzeit?: KryptoEchtzeit | null;
   tokenKerzen?: KryptoTokenKerzen[];
+  /** E233: Takt der Equity-Kerzen in `kerzen` */
+  kerzenTakt?: KryptoKerzenTakt;
 }
+
+/** E233: Kerzen-Takt der Bot-Equity im Terminal */
+export const KRYPTO_KERZEN_TAKTE = ['5s', '15s', '1m', '5m', '15m'] as const;
+export type KryptoKerzenTakt = (typeof KRYPTO_KERZEN_TAKTE)[number];
+export const KRYPTO_KERZEN_MS: Record<KryptoKerzenTakt, number> = { '5s': 5_000, '15s': 15_000, '1m': 60_000, '5m': 300_000, '15m': 900_000 };
 
 /** E232: Echtzeit-Kurse (Bonding Curve über den Solana-WebSocket von Leifs RPC) */
 export interface KryptoEchtzeit {

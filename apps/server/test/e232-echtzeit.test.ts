@@ -265,6 +265,34 @@ describe('Motor mit Echtzeit-Kursen (E232)', () => {
     x.werk.beenden();
   });
 
+  it('E233: Equity-Kerzen im gewählten Takt (5 s … 15 min) aus feinen Proben; Kryptowerk prüft den Takt', async () => {
+    const x = aufbau();
+    const bot = x.werk.anlegen(einstellung());
+    x.neu();
+    for (let i = 0; i < 40; i++) {
+      x.dex(4e-8 * (1 + (i % 7) * 0.05));
+      await x.schritt(2000);
+    }
+    const fuenf = x.werk.terminal(bot.id, '5s');
+    expect(fuenf.kerzenTakt).toBe('5s');
+    expect(fuenf.kerzen.length).toBeGreaterThan(10);
+    for (const k of fuenf.kerzen) expect(k.zeit % 5000).toBe(0);
+    for (let i = 1; i < fuenf.kerzen.length; i++) expect(fuenf.kerzen[i]!.o).toBeCloseTo(fuenf.kerzen[i - 1]!.c, 12); // lückenlos
+    const minute = x.werk.terminal(bot.id, '1m');
+    expect(minute.kerzen.length).toBeLessThan(fuenf.kerzen.length);
+    for (const k of minute.kerzen) expect(k.zeit % 60_000).toBe(0);
+    const standard = x.werk.terminal(bot.id);
+    expect(standard.kerzenTakt).toBe('15m');
+    for (const k of standard.kerzen) expect(k.zeit % 900_000).toBe(0);
+    // über die HTTP-Schnittstelle des Kryptowerks: gültiger Takt ja, Unsinn 400
+    const { kryptoServer } = await import('../src/krypto/server.js');
+    const app = kryptoServer(x.werk, 'g'.repeat(40));
+    const auth = { authorization: `Bearer ${'g'.repeat(40)}` };
+    expect((await app.inject({ url: `/bots/${bot.id}/terminal?takt=15s`, headers: auth })).json().kerzenTakt).toBe('15s');
+    expect((await app.inject({ url: `/bots/${bot.id}/terminal?takt=1h`, headers: auth })).statusCode).toBe(400);
+    x.werk.beenden();
+  });
+
   it('ohne Strom (kein RPC): echtzeit null, alles wie vorher', () => {
     const db = kryptoDb(':memory:');
     const w = new Kryptowerk({ db, uhr: new TestUhr(), dex: {} as never, rug: {} as never });

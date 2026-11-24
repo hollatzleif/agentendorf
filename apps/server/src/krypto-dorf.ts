@@ -3,7 +3,7 @@
 import crypto from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import type { KryptoUebersicht } from '@dorf/shared';
+import { KRYPTO_KERZEN_TAKTE, type KryptoUebersicht } from '@dorf/shared';
 import type { SystemAufrufe } from './agenten/system.js';
 import { tagesbeginnLinz } from './aufwachen.js';
 import type { DB } from './db.js';
@@ -83,7 +83,10 @@ export function hafenRouten(app: FastifyInstance, h: Hafen, a?: { db: DB; uhr: U
   app.put('/api/krypto/bots/:id', { bodyLimit: 64 * 1024 }, async (req) => h.anfrage('PUT', `/bots/${Id.parse(req.params).id}`, z.object({ einstellung: z.unknown() }).parse(req.body)));
   app.post('/api/krypto/bots/:id/status', async (req) => h.anfrage('POST', `/bots/${Id.parse(req.params).id}/status`, z.object({ status: z.enum(['laeuft', 'pausiert']) }).parse(req.body)));
   app.delete('/api/krypto/bots/:id', async (req) => h.anfrage('DELETE', `/bots/${Id.parse(req.params).id}`));
-  app.get('/api/krypto/bots/:id/terminal', async (req) => h.anfrage('GET', `/bots/${Id.parse(req.params).id}/terminal`));
+  app.get('/api/krypto/bots/:id/terminal', async (req) => {
+    const { takt } = z.object({ takt: z.enum(KRYPTO_KERZEN_TAKTE).default('15m') }).parse(req.query);
+    return h.anfrage('GET', `/bots/${Id.parse(req.params).id}/terminal?takt=${takt}`);
+  });
   app.get('/api/krypto/bots/:id/protokoll', async (req) => {
     const q = z.object({ vor: z.coerce.number().int().positive().optional(), anzahl: z.coerce.number().int().min(1).max(500).optional() }).parse(req.query);
     const p = new URLSearchParams(Object.entries(q).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)]));

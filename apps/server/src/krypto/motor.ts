@@ -11,6 +11,8 @@ import {
   type KryptoKennzahlen,
   type KryptoKerze,
   type KryptoTokenKerzen,
+  type KryptoKerzenTakt,
+  KRYPTO_KERZEN_MS,
   type KryptoModul,
   type KryptoModulSchluessel,
   type KryptoPosition,
@@ -206,6 +208,19 @@ export class Kryptowerk {
   private stromKurs = new Map<string, { zeit: number; preis: number; vSol: number }>();
   private stromTicks = new Map<string, { zeit: number; preis: number; kauf: boolean }[]>();
   private zuletztGepflegt = 0;
+  /** E233: feine Equity-Proben je Bot (jeder Takt + Echtzeit-Trades gehaltener Tokens), letzte 6 h – für 5-s- bis 5-min-Kerzen */
+  private equityProben = new Map<string, { zeit: number; wert: number }[]>();
+
+  private probeMerken(botId: string, kasse: number) {
+    const jetzt = this.o.uhr.jetzt();
+    const l = this.equityProben.get(botId) ?? [];
+    l.push({ zeit: jetzt, wert: this.equityWert(botId, kasse) });
+    if (l.length > 1000 && jetzt - l[0]!.zeit > 6 * 3_600_000) {
+      const ab = l.findIndex((p) => jetzt - p.zeit <= 6 * 3_600_000);
+      l.splice(0, ab);
+    }
+    this.equityProben.set(botId, l);
+  }
 
   private liveLaeuft = new Set<Auftrag>();
   private aufgezeichnet = new Map<string, number>();
@@ -396,6 +411,8 @@ export class Kryptowerk {
       this.zuletztGepflegt = zeit;
       this.positionenPflegen();
       this.auftraegeAusfuehren();
+      // E233: Equity der haltenden Bots sofort fein mitschreiben (5-s-Kerzen zeigen echte Ausschläge)
+      for (const botId of new Set(this.offenePositionen().filter((p) => p.mint === mint).map((p) => p.bot_id))) this.probeMerken(botId, this.botZeile(botId).kasse_sol);
     }
   }
 
@@ -1002,7 +1019,10 @@ export class Kryptowerk {
   private equityMerken() {
     const minute = Math.floor(this.o.uhr.jetzt() / MINUTE) * MINUTE;
     const ein = this.o.db.prepare('INSERT OR REPLACE INTO equity (bot_id, zeit, wert) VALUES (?, ?, ?)');
-    for (const b of this.botZeilen()) ein.run(b.id, minute, this.equityWert(b.id, b.kasse_sol));
+    for (const b of this.botZeilen()) {
+      ein.run(b.id, minute, this.equityWert(b.id, b.kasse_sol));
+      this.probeMerken(b.id, b.kasse_sol);
+    }
   }
 
   private heute(botId: string, e: KryptoEinstellung) {
@@ -1141,20 +1161,35 @@ export class Kryptowerk {
     });
   }
 
-  terminal(id: string): KryptoTerminal {
-    const jetzt = this.o.uhr.jetzt();
-    const bot = this.bot(id);
-    const e = bot.einstellung;
-    // 15-Minuten-Kerzen der Equity, letzte 24 h
-    const reihe = this.o.db.prepare('SELECT zeit, wert FROM equity WHERE bot_id = ? AND zeit >= ? ORDER BY zeit').all(id, jetzt - 86_400_000) as { zeit: number; wert: number }[];
-    reihe.push({ zeit: jetzt, wert: bot.kennzahlen.kapitalSol });
+  /**
+   * E233: Equity-Kerzen im gewünschten Takt. 5 s bis 5 min aus den feinen Proben (Speicher, letzte 6 h); fehlen die (nach
+   * einem Neustart), aus der Minuten-Equity der Datenbank. 15 min wie bisher aus der Datenbank (24 h).
+   */
+  private equityKerzen(id: string, takt: KryptoKerzenTakt, jetzt: number, aktuell: number): KryptoKerze[] {
+    const ms = KRYPTO_KERZEN_MS[takt];
+    const anzahl = { '5s': 120, '15s': 120, '1m': 120, '5m': 72, '15m': 96 }[takt];
+    const ab = jetzt - ms * anzahl;
+    const proben = (this.equityProben.get(id) ?? []).filter((p) => p.zeit >= ab);
+    const reihe =
+      takt !== '15m' && proben.length >= 2
+        ? proben
+        : (this.o.db.prepare('SELECT zeit, wert FROM equity WHERE bot_id = ? AND zeit >= ? ORDER BY zeit').all(id, takt === '15m' ? jetzt - 86_400_000 : ab) as { zeit: number; wert: number }[]);
+    const alle = [...reihe, { zeit: jetzt, wert: aktuell }];
     const kerzen: KryptoKerze[] = [];
-    for (const r of reihe) {
-      const z = Math.floor(r.zeit / (15 * MINUTE)) * 15 * MINUTE;
+    for (const r of alle) {
+      const z = Math.floor(r.zeit / ms) * ms;
       const k = kerzen.at(-1);
       if (k && k.zeit === z) ((k.h = Math.max(k.h, r.wert)), (k.l = Math.min(k.l, r.wert)), (k.c = r.wert));
       else kerzen.push({ zeit: z, o: k?.c ?? r.wert, h: Math.max(k?.c ?? r.wert, r.wert), l: Math.min(k?.c ?? r.wert, r.wert), c: r.wert });
     }
+    return kerzen.slice(-anzahl);
+  }
+
+  terminal(id: string, takt: KryptoKerzenTakt = '15m'): KryptoTerminal {
+    const jetzt = this.o.uhr.jetzt();
+    const bot = this.bot(id);
+    const e = bot.einstellung;
+    const kerzen = this.equityKerzen(id, takt, jetzt, bot.kennzahlen.kapitalSol);
     const positionen: KryptoPosition[] = this.offenePositionen(id).map((p) => {
       const s = this.tokens.get(p.mint)?.letzter ?? null;
       const m = s ? marktAus(s) : null;
@@ -1202,7 +1237,8 @@ export class Kryptowerk {
       jetzt,
       datenOnline: !!this.o.portal?.online,
       solUsd: this.solUsd,
-      kerzen: kerzen.slice(-96),
+      kerzen,
+      kerzenTakt: takt,
       lage: positionen.length ? 'LONG' : 'FLAT',
       positionen,
       trades: this.trades(id, 30),
