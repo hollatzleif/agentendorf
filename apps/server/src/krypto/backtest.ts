@@ -56,6 +56,7 @@ export class Backtests {
 
   starten(roh: unknown, o: { von?: number; bis?: number } = {}): KryptoBacktest {
     const e = einstellungPruefen(roh);
+    if (e.art === 'rl') throw new KryptoFehler(400, 'RL-Bots testet der Zeitraffer im Training.');
     if (e.art !== 'regeln') throw new KryptoFehler(400, 'Backtests gehen nur mit Regel-Bots – die Antworten eines LLM lassen sich nicht wiederholen. Prompt-Bots testest du im Paper Trading.');
     if (this.laeuft) throw new KryptoFehler(409, 'Es läuft schon ein Backtest – bitte warten.');
     const b = this.bereich();

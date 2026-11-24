@@ -7,8 +7,9 @@ import { ZodError } from 'zod';
 import { KRYPTO_KERZEN_TAKTE } from '@dorf/shared';
 import { KryptoFehler, type Kryptowerk } from './motor.js';
 import type { Backtests } from './backtest.js';
+import type { MusterDienst } from './muster/dienst.js';
 
-export function kryptoServer(werk: Kryptowerk, geheimnis: string, backtests?: Backtests): FastifyInstance {
+export function kryptoServer(werk: Kryptowerk, geheimnis: string, backtests?: Backtests, muster?: MusterDienst): FastifyInstance {
   if (geheimnis.length < 32) throw new Error('KRYPTO_GEHEIMNIS fehlt oder ist zu kurz');
   const app = Fastify({ logger: false, bodyLimit: 64 * 1024 });
   const soll = Buffer.from(`Bearer ${geheimnis}`);
@@ -59,6 +60,15 @@ export function kryptoServer(werk: Kryptowerk, geheimnis: string, backtests?: Ba
   app.get('/backtests/:id', async (req) => {
     if (!backtests) throw new KryptoFehler(503, 'Backtest nicht verfügbar');
     return backtests.hole(Id.parse(req.params).id);
+  });
+  // E235: Muster-Modell – Status/Bericht und Training auf Wunsch (409, wenn es schon läuft)
+  app.get('/muster', async () => {
+    if (!muster) throw new KryptoFehler(503, 'Muster-Modell nicht verfügbar');
+    return muster.status();
+  });
+  app.post('/muster/training', async () => {
+    if (!muster) throw new KryptoFehler(503, 'Muster-Modell nicht verfügbar');
+    return muster.trainingStarten();
   });
   app.post('/notaus', async (req) => {
     werk.notausAusloesen(z.object({ grund: z.string().max(100).optional() }).parse(req.body ?? {}).grund ?? 'Not-Aus');

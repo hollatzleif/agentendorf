@@ -15,7 +15,10 @@ export interface KryptoEinstellung {
   name: string;
   /** ein Emoji als Avatar */
   avatar: string;
-  art: 'regeln' | 'prompt';
+  /** E235: rl = handelt nach Muster-Modell + RL-Agent (nur Paper) */
+  art: 'regeln' | 'prompt' | 'rl';
+  /** E235: nur bei art = rl – Grenzen, die der Hafenmeister alle 5 h nachstellt */
+  rl?: KryptoRlGrenzen;
   /** nur bei art = prompt: die Strategie in eigenen Worten */
   prompt: string;
   startkapitalSol: number;
@@ -46,6 +49,8 @@ export interface KryptoEinstellung {
   regeln: {
     /** Punkte (0–100) ab denen gekauft wird */
     minPunkte: number;
+    /** E235: so viele Punkte (0–30) darf der Rat des Muster-Modells beisteuern – 0 = nur anzeigen (Standard, bis es sich bewährt hat) */
+    musterGewicht?: number;
   };
   /** nur bei art = prompt: Kauf erst ab dieser Sicherheit des LLM (0–1) */
   minSicherheit: number;
@@ -107,6 +112,60 @@ export interface KryptoKennzahlen {
   heuteSol: number;
   /** E234: Ergebnis je Tag (Wien, letzte 7 Tage mit geschlossenen Positionen, neuester zuerst) */
   tage?: { tag: string; gewinnSol: number; trades: number }[];
+  /** E235: frisches Spielgeld für RL-Bots nach Pleite – zählt zum Startkapital, nie als Gewinn */
+  nachschussSol?: number;
+  nachschuesse?: number;
+}
+
+// ---- E235: Muster-Modell (überwacht) + RL-Agent ------------------------------------------------------
+
+export interface KryptoRlGrenzen {
+  /** Kauf nur, wenn das Muster-Modell mindestens diese Wahrscheinlichkeit für „erst +Ziel, dann −Stop“ sieht (0–1) */
+  minSicherheit: number;
+  /** so oft probiert der Agent im Paper eine zufällige Handlung (0–0,3) – zum Lernen */
+  erkunden: number;
+  /** Nachschuss nach Pleite (Paper-Spielgeld, zählt nie als Gewinn) */
+  nachschuss: boolean;
+}
+
+export const KRYPTO_RL_STANDARD: KryptoRlGrenzen = { minSicherheit: 0.6, erkunden: 0.05, nachschuss: true };
+
+/** Was das Modell gerade zu einem Token rät */
+export interface KryptoMusterRat {
+  mint: string;
+  symbol: string;
+  /** Wahrscheinlichkeit, dass der Kurs erst um +zielProzent steigt, bevor er um −stopProzent fällt (im Horizont) */
+  wahrscheinlichkeit: number;
+  rat: 'kaufen' | 'halten' | 'raus';
+  zeit: number;
+}
+
+export interface KryptoMusterStatus {
+  /** Label-Definition, auf die das Modell trainiert ist */
+  ziel: { zielProzent: number; stopProzent: number; horizontMin: number };
+  modell: null | {
+    version: number;
+    trainiert: string;
+    beispiele: number;
+    /** Anteil positiver Beispiele (= Trefferquote, wenn man blind kauft) */
+    positivAnteil: number;
+    /** zeitlich getrennter Test auf den neuesten, NIE gesehenen Daten */
+    test: { beispiele: number; auc: number; praezision: number | null; basis: number };
+    /** nur aktive Modelle geben Rat (Test besser als Raten) */
+    aktiv: boolean;
+    merkmale: { name: string; wichtigkeit: number }[];
+  };
+  rl: null | {
+    version: number;
+    trainiert: string;
+    episoden: number;
+    /** Zeitraffer über die Testdaten (Paper-Maschine mit Gebühren) */
+    zeitraffer: { trades: number; gewinnSol: number; trefferquote: number | null; pleiten: number };
+  };
+  training: { laeuft: boolean; fortschritt: number; letzter: string | null; naechster: string | null; fehler: string | null; dauerMs: number | null };
+  daten: { ticks: number; tokens: number; von: string | null; bis: string | null };
+  /** Kurzbericht in Markdown (für den Hafenmeister) */
+  bericht: string;
 }
 
 export interface KryptoWallet {
@@ -207,7 +266,7 @@ export interface KryptoEntscheidung {
   aktion: 'buy' | 'hold' | 'block' | 'sell';
   sicherheit: number | null;
   grund: string;
-  quelle: 'regeln' | 'llm' | 'code';
+  quelle: 'regeln' | 'llm' | 'code' | 'modell';
 }
 
 export type KryptoModulSchluessel =
@@ -274,6 +333,8 @@ export interface KryptoTerminal {
   kerzenTakt?: KryptoKerzenTakt;
   /** E233: Käufe/Verkäufe im Zeitraum der Kerzen (für die Marker im Chart, höchstens 500) */
   chartTrades?: KryptoTrade[];
+  /** E235: Rat des Muster-Modells zu gehaltenen und beobachteten Tokens (leer ohne aktives Modell) */
+  musterRat?: KryptoMusterRat[];
 }
 
 /** E233: Kerzen-Takt der Bot-Equity im Terminal */
@@ -345,7 +406,7 @@ export const KRYPTO_STANDARD: KryptoEinstellung = {
     maxTopHalterProzent: 20,
     minLiquiditaetSol: 5,
   },
-  regeln: { minPunkte: 60 },
+  regeln: { minPunkte: 60, musterGewicht: 0 },
   minSicherheit: 0.65,
   limits: { einsatzProTradeSol: 0.5, positionProzent: 5, maxTagesverlustSol: 2, maxOffen: 3, maxLlmProTag: 150 },
   ausstieg: {

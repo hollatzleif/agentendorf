@@ -1,4 +1,4 @@
-import { KRYPTO_MODULE, KRYPTO_STANDARD, type KryptoBot, type KryptoTerminal, type KryptoUebersicht } from '@dorf/shared';
+import { KRYPTO_MODULE, KRYPTO_STANDARD, type KryptoBot, type KryptoMusterStatus, type KryptoTerminal, type KryptoUebersicht } from '@dorf/shared';
 
 /** E227: nachgebaute Daten für den Hafen – fest, ohne Zufall */
 export const BOT_ID = '11111111-2222-4333-8444-555555555555';
@@ -27,9 +27,39 @@ export function uebersicht(): KryptoUebersicht {
   return { verbunden: true, liveMoeglich: true, auszahlung: 'DRpbCBMxVnDK7maPM5tGv6MvB3v1sRMC86PZ8okm21hy', notaus: false, datenOnline: true, beobachtet: 214, solUsd: 70.2, bots: [bot(BOT_ID, 'Schwarm', '🦈', 1.184), bot(BOT2_ID, 'Grübler', '🐙', 0.93, 'prompt')] };
 }
 
+/** E235: Stand des Muster-Modells */
+export function muster(laeuft = false): KryptoMusterStatus {
+  const jetzt = Date.now();
+  return {
+    ziel: { zielProzent: 20, stopProzent: 15, horizontMin: 5 },
+    modell: {
+      version: 4,
+      trainiert: new Date(jetzt - 2 * 3_600_000).toISOString(),
+      beispiele: 48_210,
+      positivAnteil: 0.18,
+      test: { beispiele: 12_050, auc: 0.612, praezision: 0.31, basis: 0.17 },
+      aktiv: true,
+      merkmale: [
+        { name: 'kaufVerhaeltnis60s', wichtigkeit: 0.21 },
+        { name: 'rendite30s', wichtigkeit: 0.14 },
+        { name: 'ticks60s', wichtigkeit: 0.1 },
+        { name: 'abstandHoch120s', wichtigkeit: 0.08 },
+        { name: 'solImPool', wichtigkeit: 0.07 },
+        { name: 'alterSek', wichtigkeit: 0.05 },
+      ],
+    },
+    rl: { version: 3, trainiert: new Date(jetzt - 2 * 3_600_000).toISOString(), episoden: 4000, zeitraffer: { trades: 57, gewinnSol: 0.84, trefferquote: 0.42, pleiten: 1 } },
+    training: { laeuft, fortschritt: laeuft ? 0.4 : 0, letzter: new Date(jetzt - 2 * 3_600_000).toISOString(), naechster: new Date(jetzt + 3 * 3_600_000).toISOString(), fehler: null, dauerMs: 61_000 },
+    daten: { ticks: 1_204_000, tokens: 3_100, von: new Date(jetzt - 72 * 3_600_000).toISOString(), bis: new Date(jetzt).toISOString() },
+    bericht: '## Muster-Modell v4\nTest-AUC 0,61 – besser als Raten.',
+  };
+}
+
 export function terminal(): KryptoTerminal {
   const jetzt = Date.now();
   const b = bot(BOT_ID, 'Schwarm', '🦈', 1.184);
+  b.kennzahlen.nachschussSol = 10; // E235
+  b.kennzahlen.nachschuesse = 1;
   const kerzen = Array.from({ length: 60 }, (_, i) => {
     const o = 10 + i * 0.03 + Math.sin(i / 3) * 0.25;
     const c = 10 + (i + 1) * 0.03 + Math.sin((i + 1) / 3) * 0.25;
@@ -80,6 +110,11 @@ export function terminal(): KryptoTerminal {
     xHinweis: 'X-Sentiment braucht einen Grok-Schlüssel (xAI) – noch nicht eingerichtet.',
     pnlStunden: Array.from({ length: 24 }, (_, i) => (i < 6 ? null : i % 4 === 0 ? -0.08 : i % 3 === 0 ? 0.21 : null)),
     besterTradeSol: 0.29,
+    // E235: Rat des Muster-Modells
+    musterRat: [
+      { mint: 'MOONCATmint1111111111111111111111111pump', symbol: 'MOONCAT', wahrscheinlichkeit: 0.72, rat: 'kaufen', zeit: jetzt - 4000 },
+      { mint: 'b', symbol: 'SADCAT', wahrscheinlichkeit: 0.18, rat: 'raus', zeit: jetzt - 6000 },
+    ],
     // E232: Echtzeit-Kurse
     echtzeit: { an: true, online: true, abos: 7, ticksMinute: 42, mbHeute: 12.4, grenzeMb: 800, grenzeErreicht: false, fehler: null },
     tokenKerzen: [

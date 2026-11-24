@@ -23,6 +23,7 @@ Die Anleitung für Leif steht in `Hafen/00_Anleitung.html`.
 
 ## Was Agenten dürfen (hafen_*)
 - Flotte und Bots lesen und auswerten (`hafen_uebersicht`, `hafen_bot_lesen`), Backtests für Regel-Bots (`hafen_backtest`).
+- Den Stand des Muster-Modells lesen und ein Training anstoßen (`hafen_muster`).
 - **Paper-Bots** anlegen, ändern, starten und pausieren – Leif bekommt dafür „Rückgängig“.
 - **Eigene** Paper-Bots (von einem Agenten angelegt, „🤖 Agent“) löschen – Leifs Bots nie.
 - Den Not-Aus ziehen, wenn etwas schiefläuft (Leif wird sofort benachrichtigt).
@@ -32,7 +33,15 @@ Die Anleitung für Leif steht in `Hafen/00_Anleitung.html`.
 ## Hafenmeister
 Jeden Morgen (Aktion „Hafenmeister“) züchtet er Bots: auswerten, Erkenntnisse ins Logbuch
 (`Hafen/hafenmeister-logbuch.md`), die schwächsten eigenen Bots löschen, leicht abgewandelte Nachfolger anlegen. Höchstens
-6 eigene Bots, davon 2 Prompt-Bots. Kurzfassung in der Morgenzeitung.
+6 eigene Bots, davon 2 Prompt-Bots und 1 RL-Bot. Kurzfassung in der Morgenzeitung.
+
+## Muster-Modell und Muster-Meister
+Das Kryptowerk trainiert alle 5 Stunden ein Muster-Modell auf den Echtzeit-Ticks: Steigt ein Token erst um das Ziel, bevor
+es um den Stop fällt? Getestet wird zeitlich getrennt auf den neuesten, nie gesehenen Daten; Rat gibt es nur, wenn das
+Modell dort klar besser als Raten ist (Test-AUC ≥ 0,55). Ein RL-Bot (Art „RL“, nur Paper) handelt danach; geht ihm das
+Spielgeld aus, gibt es einen **Nachschuss** – der zählt nie als Gewinn. Der Muster-Meister (Aktion, fünfmal am Tag)
+liest den Bericht, pflegt den RL-Bot und schreibt ins Logbuch (`Hafen/muster-logbuch.md`). Den Muster-Rat für andere
+Bots (`regeln.musterGewicht`) schaltet nur Leif hoch.
 
 ## Regeln für Agenten
 - Bewerten immer **nach Gebühren** (Gewinn, Drawdown), nicht nach Trefferquote. Kleine Stichproben (unter ~30 Trades)

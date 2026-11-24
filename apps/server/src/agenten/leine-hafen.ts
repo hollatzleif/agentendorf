@@ -3,8 +3,9 @@
  * `werkzeuge: [hafen]`, freie Helfer mit der Fähigkeit „hafen“ und der Bürgermeister. Was es bewusst NICHT gibt:
  * scharf schalten, entschärfen, auszahlen, Wallets/Schlüssel, Leifs Bots löschen, Not-Aus aufheben – das tut nur Leif.
  * hafen_bot_loeschen löscht nur Paper-Bots, die ein Agent selbst angelegt hat (Hafenmeister, E231).
+ * hafen_muster (E235) liest den Stand des Muster-Modells und stößt höchstens ein Training an – nichts Scharfes.
  */
-export const HAFEN_WERKZEUGE = ['hafen_uebersicht', 'hafen_bot_lesen', 'hafen_bot_anlegen', 'hafen_bot_aendern', 'hafen_bot_status', 'hafen_backtest', 'hafen_bot_loeschen', 'hafen_notaus'] as const;
+export const HAFEN_WERKZEUGE = ['hafen_uebersicht', 'hafen_bot_lesen', 'hafen_bot_anlegen', 'hafen_bot_aendern', 'hafen_bot_status', 'hafen_backtest', 'hafen_bot_loeschen', 'hafen_notaus', 'hafen_muster'] as const;
 export type HafenWerkzeug = (typeof HAFEN_WERKZEUGE)[number];
 
 export function istHafen(name: string): name is HafenWerkzeug {

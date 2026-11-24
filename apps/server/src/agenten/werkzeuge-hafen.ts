@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { KRYPTO_STANDARD, type KryptoBacktest, type KryptoBot, type KryptoEinstellung, type KryptoKennzahlen, type KryptoTerminal, type KryptoUebersicht } from '@dorf/shared';
+import { KRYPTO_RL_STANDARD, KRYPTO_STANDARD, type KryptoBacktest, type KryptoBot, type KryptoEinstellung, type KryptoKennzahlen, type KryptoMusterStatus, type KryptoTerminal, type KryptoUebersicht } from '@dorf/shared';
 import type { DB } from '../db.js';
 import { DorfFehler } from '../fehler.js';
 import type { Hafen } from '../krypto-dorf.js';
@@ -22,11 +22,13 @@ import type { WerkzeugAufrufErgebnis, WerkzeugDefinition } from './werkzeuge.js'
  * (die kosten je bis 0,50 $/Tag); dazu eine Obergrenze für die ganze Flotte */
 export const HAFEN_AGENT_MAX_BOTS = 6;
 export const HAFEN_AGENT_MAX_PROMPT = 2;
+/** E235: höchstens ein eigener RL-Bot (handelt nach Muster-Modell + RL-Agent, nur Paper) */
+export const HAFEN_AGENT_MAX_RL = 1;
 export const HAFEN_FLOTTE_MAX = 12;
 const AGENTENBOTS = 'hafen_agentenbots';
 
 const EINSTELLUNG_BESCHREIBUNG =
-  'Teil-Einstellung – nur was vom Standard (anlegen) bzw. vom jetzigen Stand (ändern) abweicht. Felder: name (≤ 40), avatar (ein Emoji), art ("regeln" | "prompt"), prompt (Strategie in Worten, ≤ 4000, nur art prompt), startkapitalSol (Paper-Spielgeld, Standard 10), minSicherheit (0–1, Prompt-Bots), regeln: {minPunkte 0–100}, filter: {maxRugScore, keineGefahr, minVolumenUsdM5, minKaeufeM5, minKaufVerhaeltnis, minAlterSek, maxAlterSek, minMarketCapUsd, maxMarketCapUsd, maxDevProzent, maxDevTokens24h (andere Tokens desselben Erstellers in 24 h), minEchtzeitKaufVerhaeltnis (Käufe÷Verkäufe der letzten 60 s aus dem Echtzeit-Strom, 0 = aus), maxTopHalterProzent, minLiquiditaetSol}, limits: {einsatzProTradeSol, positionProzent, maxTagesverlustSol, maxOffen, maxLlmProTag}, ausstieg: {takeProfit: [{beiProzent, verkaufProzent}] (ersetzt die ganze Liste), stopLossProzent, trailingProzent, maxHaltMinuten, notausEinzelverkaufProzent (sofort raus, wenn EIN Verkauf die Liquidität um so viel % senkt, 0 = aus)}, simulation: {verzoegerungMs ≥ 300, prioritaetSol, fehlschlagProzent, portalGebuehrProzent}, slippageProzent. Unterobjekte werden Feld für Feld zusammengeführt.';
+  'Teil-Einstellung – nur was vom Standard (anlegen) bzw. vom jetzigen Stand (ändern) abweicht. Felder: name (≤ 40), avatar (ein Emoji), art ("regeln" | "prompt" | "rl"), prompt (Strategie in Worten, ≤ 4000, nur art prompt), startkapitalSol (Paper-Spielgeld, Standard 10), minSicherheit (0–1, Prompt-Bots), regeln: {minPunkte 0–100, musterGewicht 0–30 (so viele Punkte darf der Rat des Muster-Modells beisteuern; 0 = nur anzeigen, Standard)}, rl: {minSicherheit 0–1 (Kauf erst ab dieser Wahrscheinlichkeit des Muster-Modells), erkunden 0–0,3 (Anteil zufälliger Handlungen zum Lernen), nachschuss true/false (frisches Paper-Spielgeld nach Pleite – zählt nie als Gewinn)} – nur art rl, RL-Bots handeln nur Paper, filter: {maxRugScore, keineGefahr, minVolumenUsdM5, minKaeufeM5, minKaufVerhaeltnis, minAlterSek, maxAlterSek, minMarketCapUsd, maxMarketCapUsd, maxDevProzent, maxDevTokens24h (andere Tokens desselben Erstellers in 24 h), minEchtzeitKaufVerhaeltnis (Käufe÷Verkäufe der letzten 60 s aus dem Echtzeit-Strom, 0 = aus), maxTopHalterProzent, minLiquiditaetSol}, limits: {einsatzProTradeSol, positionProzent, maxTagesverlustSol, maxOffen, maxLlmProTag}, ausstieg: {takeProfit: [{beiProzent, verkaufProzent}] (ersetzt die ganze Liste), stopLossProzent, trailingProzent, maxHaltMinuten, notausEinzelverkaufProzent (sofort raus, wenn EIN Verkauf die Liquidität um so viel % senkt, 0 = aus)}, simulation: {verzoegerungMs ≥ 300, prioritaetSol, fehlschlagProzent, portalGebuehrProzent}, slippageProzent. Unterobjekte werden Feld für Feld zusammengeführt.';
 
 export const HAFEN_DEFINITIONEN: Record<HafenWerkzeug, Omit<WerkzeugDefinition, 'name'> & { name: HafenWerkzeug }> = {
   hafen_uebersicht: {
@@ -51,7 +53,7 @@ export const HAFEN_DEFINITIONEN: Record<HafenWerkzeug, Omit<WerkzeugDefinition, 
   },
   hafen_bot_anlegen: {
     name: 'hafen_bot_anlegen',
-    description: `Neuen Bot anlegen – IMMER im Paper Trading (Spielgeld, echte Marktdaten, Gebühren/Slippage/Verzögerung simuliert). Er läuft sofort (starten: false = pausiert). Leif bekommt „Rückgängig“. Prompt-Bots kosten LLM-Geld (höchstens 0,50 $ je Bot und Tag). Agenten haben höchstens ${HAFEN_AGENT_MAX_BOTS} eigene Bots, davon höchstens ${HAFEN_AGENT_MAX_PROMPT} Prompt-Bots.`,
+    description: `Neuen Bot anlegen – IMMER im Paper Trading (Spielgeld, echte Marktdaten, Gebühren/Slippage/Verzögerung simuliert). Er läuft sofort (starten: false = pausiert). Leif bekommt „Rückgängig“. Prompt-Bots kosten LLM-Geld (höchstens 0,50 $ je Bot und Tag). Agenten haben höchstens ${HAFEN_AGENT_MAX_BOTS} eigene Bots, davon höchstens ${HAFEN_AGENT_MAX_PROMPT} Prompt-Bots und ${HAFEN_AGENT_MAX_RL} RL-Bot (art "rl": handelt nach Muster-Modell + RL-Agent).`,
     input_schema: {
       type: 'object',
       properties: {
@@ -107,6 +109,12 @@ export const HAFEN_DEFINITIONEN: Record<HafenWerkzeug, Omit<WerkzeugDefinition, 
     description: `Einen EIGENEN Paper-Bot löschen – nur Bots, die ein Agent angelegt hat (in hafen_uebersicht mit „🤖 Agent“ markiert), nie Leifs Bots, nie Live-Bots. Trades und Kurve sind danach weg: vorher das Wichtigste ins Logbuch schreiben. Nicht zurücknehmbar.`,
     input_schema: { type: 'object', properties: { bot: { type: 'string', description: 'Kennung oder Name' }, grund: { type: 'string', description: 'Ein Satz: warum (≤ 200)' } }, required: ['bot', 'grund'], additionalProperties: false },
   },
+  hafen_muster: {
+    name: 'hafen_muster',
+    description:
+      'Das Muster-Modell im Hafen (E235): sagt aus den Echtzeit-Ticks voraus, ob ein Token erst um das Ziel steigt, bevor es um den Stop fällt; dazu ein RL-Agent, der im Zeitraffer über die Aufzeichnungen übt. Ohne Eingabe: Stand als Text – Trainingsbericht, Test-AUC (0,5 = Raten), Präzision vs. Basisrate, wichtigste Merkmale, Zeitraffer, Datenlage, letztes/nächstes Training. Mit {"training": true}: startet sofort ein Training (dauert Minuten; läuft schon eines, passiert nichts). Nur lesen bzw. Training anstoßen.',
+    input_schema: { type: 'object', properties: { training: { type: 'boolean', description: 'true = jetzt ein Training starten' } }, required: [], additionalProperties: false },
+  },
   hafen_notaus: {
     name: 'hafen_notaus',
     description:
@@ -124,7 +132,7 @@ export interface HafenUmgebung {
 }
 
 const Teil = z.record(z.string(), z.unknown());
-const UNTER = ['filter', 'regeln', 'limits', 'ausstieg', 'simulation'] as const;
+const UNTER = ['filter', 'regeln', 'limits', 'ausstieg', 'simulation', 'rl'] as const;
 
 /** Teil-Einstellung über eine vollständige legen – Unterobjekte Feld für Feld, takeProfit als ganze Liste */
 export function einstellungZusammenfuehren(basis: KryptoEinstellung, teil: Record<string, unknown>): Record<string, unknown> {
@@ -141,7 +149,8 @@ const pz = (x: number) => `${x >= 0 ? '+' : '−'}${Math.abs(x).toFixed(1)} %`;
 
 function kennzahlenText(k: KryptoKennzahlen) {
   const tq = k.trefferquote == null ? '–' : `${Math.round(k.trefferquote * 100)} %`;
-  return `Kapital ${k.kapitalSol.toFixed(3)} SOL (Start ${k.startSol}) · Gewinn nach Gebühren ${sol(k.gewinnSol)} (${pz(k.gewinnProzent)}) · heute ${sol(k.heuteSol)} · ${k.trades} Trades (${k.gewonnen} gewonnen, ${k.verloren} verloren, Treffer ${tq}) · max. Drawdown ${k.maxDrawdownProzent.toFixed(1)} % · offen ${k.offen} · Umsatz ${k.umsatzSol.toFixed(2)} SOL · Gebühren ${k.gebuehrenSol.toFixed(4)} SOL (Pump ${k.gebuehrenArt.pumpSol.toFixed(4)}, PumpPortal ${k.gebuehrenArt.portalSol.toFixed(4)}, Netz ${k.gebuehrenArt.netzSol.toFixed(4)}) · geblockte Rugs ${k.geblockteRugs}${tageText(k)}`;
+  const nachschuss = k.nachschussSol ? ` · Nachschuss ${k.nachschussSol.toFixed(3)} SOL in ${k.nachschuesse ?? 1} Schüben – zählt nicht als Gewinn` : '';
+  return `Kapital ${k.kapitalSol.toFixed(3)} SOL (Start ${k.startSol}${nachschuss}) · Gewinn nach Gebühren ${sol(k.gewinnSol)} (${pz(k.gewinnProzent)}) · heute ${sol(k.heuteSol)} · ${k.trades} Trades (${k.gewonnen} gewonnen, ${k.verloren} verloren, Treffer ${tq}) · max. Drawdown ${k.maxDrawdownProzent.toFixed(1)} % · offen ${k.offen} · Umsatz ${k.umsatzSol.toFixed(2)} SOL · Gebühren ${k.gebuehrenSol.toFixed(4)} SOL (Pump ${k.gebuehrenArt.pumpSol.toFixed(4)}, PumpPortal ${k.gebuehrenArt.portalSol.toFixed(4)}, Netz ${k.gebuehrenArt.netzSol.toFixed(4)}) · geblockte Rugs ${k.geblockteRugs}${tageText(k)}`;
 }
 
 /** E234: Ergebnis je Tag – ein guter Tag ist Glück, mehrere Tage im Plus sind ein Muster */
@@ -168,7 +177,43 @@ function agentenBotsSetzen(db: DB, ids: string[]) {
 function botZeile(b: KryptoBot, eigene: string[] = []) {
   const e = b.einstellung;
   const modus = b.modus === 'live' ? `LIVE (Budget ${b.live?.budgetSol ?? '?'} SOL)` : 'paper';
-  return `- ${e.avatar} ${e.name} · ${b.id} · ${e.art === 'prompt' ? 'Prompt' : 'Regeln'} · ${modus} · ${b.status}${eigene.includes(b.id) ? ' · 🤖 Agent' : ' · Leifs Bot'} · seit ${b.abschnittSeit.slice(0, 16).replace('T', ' ')} UTC\n  ${kennzahlenText(b.kennzahlen)}`;
+  return `- ${e.avatar} ${e.name} · ${b.id} · ${artText(e.art)} · ${modus} · ${b.status}${eigene.includes(b.id) ? ' · 🤖 Agent' : ' · Leifs Bot'} · seit ${b.abschnittSeit.slice(0, 16).replace('T', ' ')} UTC\n  ${kennzahlenText(b.kennzahlen)}`;
+}
+
+function artText(art: KryptoEinstellung['art']) {
+  return art === 'prompt' ? 'Prompt' : art === 'rl' ? 'RL (Muster-Modell)' : 'Regeln';
+}
+
+const z3 = (x: number) => x.toFixed(3).replace('.', ',');
+const ort = (iso: string | null) => (iso ? `${iso.slice(0, 16).replace('T', ' ')} UTC` : '–');
+
+/** E235: Stand des Muster-Modells als lesbarer Text (für Hafenmeister/Muster-Meister) */
+export function musterText(m: KryptoMusterStatus) {
+  const t = m.training;
+  const zeilen = [
+    `Muster-Modell · Ziel: erst +${m.ziel.zielProzent} %, bevor −${m.ziel.stopProzent} %, innerhalb ${m.ziel.horizontMin} min`,
+    `Training: ${t.laeuft ? `läuft (${Math.round(t.fortschritt * 100)} %)` : 'ruht'} · letztes ${ort(t.letzter)} · nächstes ${ort(t.naechster)}${t.dauerMs != null ? ` · Dauer ${Math.round(t.dauerMs / 1000)} s` : ''}${t.fehler ? ` · Fehler: ${t.fehler}` : ''}`,
+    `Daten: ${m.daten.ticks} Ticks von ${m.daten.tokens} Tokens (${ort(m.daten.von)} bis ${ort(m.daten.bis)})`,
+  ];
+  const mo = m.modell;
+  if (!mo) zeilen.push('Modell: noch keins trainiert.');
+  else {
+    const praez = mo.test.praezision == null ? '– (kein Beispiel mit p ≥ 0,6)' : `${Math.round(mo.test.praezision * 100)} %`;
+    zeilen.push(
+      `Modell v${mo.version} (${ort(mo.trainiert)}): ${mo.aktiv ? 'AKTIV – gibt Rat' : 'NICHT aktiv – gibt keinen Rat (Test nicht klar besser als Raten)'}`,
+      `Test (neueste, nie gesehene Daten): ${mo.test.beispiele} Beispiele · AUC ${z3(mo.test.auc)} (0,5 = Raten) · Präzision bei p ≥ 0,6 ${praez} vs. Basisrate ${Math.round(mo.test.basis * 100)} %`,
+      `Gelernt aus ${mo.beispiele} Beispielen, ${Math.round(mo.positivAnteil * 100)} % positiv`,
+      `Wichtigste Merkmale: ${mo.merkmale.slice(0, 5).map((x) => `${x.name} ${Math.round(x.wichtigkeit * 100)} %`).join(', ') || '–'}`,
+    );
+  }
+  const rl = m.rl;
+  if (!rl) zeilen.push('RL-Agent: noch nicht trainiert.');
+  else {
+    const z = rl.zeitraffer;
+    zeilen.push(`RL-Agent v${rl.version} (${ort(rl.trainiert)}, ${rl.episoden} Episoden) · Zeitraffer auf den Testdaten: ${z.trades} Trades, ${sol(z.gewinnSol)} nach Gebühren, Treffer ${z.trefferquote == null ? '–' : `${Math.round(z.trefferquote * 100)} %`}, ${z.pleiten} Pleiten`);
+  }
+  if (m.bericht.trim()) zeilen.push('', 'Bericht:', m.bericht.trim().slice(0, 4000));
+  return zeilen.join('\n');
 }
 
 function finden(u: KryptoUebersicht, ref: string): KryptoBot {
@@ -234,6 +279,7 @@ export async function hafenAufrufen(name: HafenWerkzeug, eingabe: unknown, u: Ha
       const eigene = f.bots.filter((b) => agentenBots(u.db).includes(b.id));
       if ('modus' in e.einstellung) delete e.einstellung.modus; // es gibt nur Paper
       const einstellung = einstellungZusammenfuehren(KRYPTO_STANDARD, e.einstellung);
+      if (einstellung.art === 'rl') einstellung.rl = { ...KRYPTO_RL_STANDARD, ...((e.einstellung.rl as object | undefined) ?? {}) };
       const grenze =
         f.bots.length >= HAFEN_FLOTTE_MAX
           ? `Die Flotte hat schon ${f.bots.length} Bots (höchstens ${HAFEN_FLOTTE_MAX}).`
@@ -241,7 +287,9 @@ export async function hafenAufrufen(name: HafenWerkzeug, eingabe: unknown, u: Ha
             ? `Agenten haben schon ${eigene.length} eigene Bots (höchstens ${HAFEN_AGENT_MAX_BOTS}) – erst einen schwachen eigenen Bot löschen (hafen_bot_loeschen) oder umbauen.`
             : einstellung.art === 'prompt' && eigene.filter((b) => b.einstellung.art === 'prompt').length >= HAFEN_AGENT_MAX_PROMPT
               ? `Schon ${HAFEN_AGENT_MAX_PROMPT} eigene Prompt-Bots (kosten je bis 0,50 $/Tag) – teste die Idee als Regel-Bot oder lösche erst einen Prompt-Bot.`
-              : null;
+              : einstellung.art === 'rl' && eigene.filter((b) => b.einstellung.art === 'rl').length >= HAFEN_AGENT_MAX_RL
+                ? `Schon ${HAFEN_AGENT_MAX_RL} eigener RL-Bot – stell seine Grenzen mit hafen_bot_aendern nach, statt einen zweiten anzulegen.`
+                : null;
       if (grenze) {
         u.log(name, eingabe, grenze, false);
         return { ok: false, text: grenze };
@@ -293,8 +341,11 @@ export async function hafenAufrufen(name: HafenWerkzeug, eingabe: unknown, u: Ha
       }
       const basis = e.bot ? finden(await flotte(), e.bot).einstellung : KRYPTO_STANDARD;
       const einstellung = einstellungZusammenfuehren(basis, e.einstellung ?? {});
-      if (einstellung.art === 'prompt') {
-        const t = 'Backtests gibt es nur für Regel-Bots (ein LLM über Tausende alte Tokens wäre teuer und nicht wiederholbar). Setze einstellung.art = "regeln" und passende Filter/Punkte.';
+      if (einstellung.art === 'prompt' || einstellung.art === 'rl') {
+        const t =
+          einstellung.art === 'rl'
+            ? 'Backtests gibt es nur für Regel-Bots – den RL-Bot prüft das Training selbst im Zeitraffer (hafen_muster). Setze einstellung.art = "regeln" für einen Backtest.'
+            : 'Backtests gibt es nur für Regel-Bots (ein LLM über Tausende alte Tokens wäre teuer und nicht wiederholbar). Setze einstellung.art = "regeln" und passende Filter/Punkte.';
         u.log(name, eingabe, t, false);
         return { ok: false, text: t };
       }
@@ -317,6 +368,27 @@ export async function hafenAufrufen(name: HafenWerkzeug, eingabe: unknown, u: Ha
       const text = `${b.einstellung.name} gelöscht (${k.trades} Trades, Gewinn nach Gebühren ${sol(k.gewinnSol)}): ${e.grund}`;
       u.log(name, eingabe, text, true, undefined, 'geschrieben');
       return { ok: true, text };
+    }
+    case 'hafen_muster': {
+      const e = z.object({ training: z.boolean().optional() }).parse(eingabe ?? {});
+      if (e.training) {
+        try {
+          await h.anfrage('POST', '/muster/training', {});
+        } catch (x) {
+          if (x instanceof DorfFehler && x.status === 409) {
+            const t = 'Das Training läuft schon – in ein paar Minuten mit hafen_muster (ohne Eingabe) nachsehen.';
+            u.log(name, eingabe, t, true);
+            return { ok: true, text: t };
+          }
+          throw x;
+        }
+        const t = 'Training gestartet (dauert einige Minuten) – danach mit hafen_muster (ohne Eingabe) den Bericht lesen.';
+        u.log(name, eingabe, t, true);
+        return { ok: true, text: t };
+      }
+      const m = await h.anfrage<KryptoMusterStatus>('GET', '/muster');
+      u.log(name, eingabe, m.modell ? `v${m.modell.version} ${m.modell.aktiv ? 'aktiv' : 'inaktiv'}` : 'kein Modell', true, undefined, 'gelesen');
+      return { ok: true, text: musterText(m) };
     }
     case 'hafen_notaus': {
       const e = z.object({ grund: z.string().trim().min(3).max(200) }).parse(eingabe);

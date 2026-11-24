@@ -51,7 +51,7 @@ export async function systemPromptBauen(
       : []),
     ...(hat('hafen_uebersicht')
       ? [
-          '- hafen_*: Leifs Krypto-Bots im Hafen (Pump.fun, Solana). Lesen und auswerten (hafen_uebersicht, hafen_bot_lesen), Backtests für Regel-Bots (hafen_backtest), PAPER-Bots anlegen/ändern/starten/pausieren (Leif bekommt „Rückgängig“), Not-Aus bei Gefahr (hafen_notaus).',
+          '- hafen_*: Leifs Krypto-Bots im Hafen (Pump.fun, Solana). Lesen und auswerten (hafen_uebersicht, hafen_bot_lesen), Backtests für Regel-Bots (hafen_backtest), PAPER-Bots anlegen/ändern/starten/pausieren (Leif bekommt „Rückgängig“), Not-Aus bei Gefahr (hafen_notaus), Muster-Modell lesen/trainieren (hafen_muster; RL-Bots laufen nur im Paper, Nachschuss zählt nie als Gewinn).',
           '  Scharf schalten, auszahlen, Wallets, Bots löschen und Live-Bots ändern kannst du NICHT – das macht nur Leif in der App; empfiehl es ihm höchstens. Immer nach Gebühren bewerten, kleine Stichproben benennen, keine Gewinnversprechen.',
         ]
       : []),

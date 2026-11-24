@@ -180,3 +180,21 @@
 .kw-zoom button:disabled { opacity: 0.35; cursor: default; }
 .kw-fadenkreuz { position: absolute; top: 2.2rem; background: var(--kw-tafel2); border: 1px solid var(--kw-lila); border-radius: 8px; padding: 0.3rem 0.5rem; font-family: var(--kw-mono); font-size: 0.7rem; line-height: 1.45; pointer-events: none; box-shadow: 0 6px 20px rgb(0 0 0 / 0.45); max-width: 18rem; z-index: 2; }
 .kw-marker { cursor: pointer; }
+
+/* E235: Muster-Modell (Flotte) und Muster-Rat (Terminal) */
+.hafen-muster { display: grid; gap: 0.5rem; }
+.hafen-muster-status { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; font-size: 0.85rem; }
+.hafen-muster-pille { font-weight: 800; padding: 0.1rem 0.55rem; border-radius: 999px; border: 1px solid var(--leise); color: var(--leise); }
+.hafen-muster-pille.an { border-color: #10b981; color: #10b981; background: color-mix(in srgb, #10b981 10%, transparent); }
+.hafen-merkmale { list-style: none; margin: 0.2rem 0 0; padding: 0; display: grid; gap: 0.2rem; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.hafen-merkmale li { display: grid; grid-template-columns: minmax(0, 11rem) minmax(0, 1fr) 3rem; align-items: center; gap: 0.5rem; }
+.hafen-merkmale li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hafen-merkmale li i { display: block; height: 0.45rem; border-radius: 3px; background: #8b5cf6; }
+.hafen-merkmale li b { text-align: right; }
+.hafen-muster-fortschritt { position: relative; height: 1.4rem; border-radius: 999px; background: color-mix(in srgb, #8b5cf6 12%, transparent); overflow: hidden; }
+.hafen-muster-fortschritt b { display: block; height: 100%; background: color-mix(in srgb, #8b5cf6 45%, transparent); transition: width 0.4s; }
+.hafen-muster-fortschritt span { position: absolute; inset: 0; display: grid; place-items: center; font-size: 0.78rem; font-weight: 700; }
+.kw-rat { font-weight: 800; }
+.kw-rat.kaufen { color: var(--kw-gruen); }
+.kw-rat.raus { color: var(--kw-rot); }
+.kw-rat.halten { color: var(--kw-lila-hell); }

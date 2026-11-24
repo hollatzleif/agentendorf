@@ -1,6 +1,6 @@
 // E227: Einstellungen eines Bots – per Zod geprüft. Die Grenzen sind bewusst eng (Paper Trading, kein Hebel).
 import { z } from 'zod';
-import type { KryptoEinstellung } from '@dorf/shared';
+import { KRYPTO_RL_STANDARD, type KryptoEinstellung } from '@dorf/shared';
 
 const zahl = (min: number, max: number) => z.number().finite().min(min).max(max);
 
@@ -8,7 +8,9 @@ export const EinstellungSchema = z
   .object({
     name: z.string().trim().min(1).max(40),
     avatar: z.string().trim().min(1).max(8),
-    art: z.enum(['regeln', 'prompt']),
+    // E235: rl = Muster-Modell + RL-Agent, nur Paper Trading
+    art: z.enum(['regeln', 'prompt', 'rl']),
+    rl: z.object({ minSicherheit: zahl(0, 1), erkunden: zahl(0, 0.3), nachschuss: z.boolean() }).strict().optional(),
     prompt: z.string().max(4000),
     startkapitalSol: zahl(0.1, 10_000),
     filter: z
@@ -29,7 +31,7 @@ export const EinstellungSchema = z
         minEchtzeitKaufVerhaeltnis: zahl(0, 100).default(0),
       })
       .strict(),
-    regeln: z.object({ minPunkte: zahl(0, 100) }).strict(),
+    regeln: z.object({ minPunkte: zahl(0, 100), musterGewicht: zahl(0, 30).default(0) }).strict(),
     minSicherheit: zahl(0, 1),
     limits: z
       .object({
@@ -66,5 +68,8 @@ export const EinstellungSchema = z
   .refine((e) => e.art !== 'prompt' || e.prompt.trim().length >= 10, { message: 'Ein Prompt-Bot braucht eine Strategie in Textform (mindestens 10 Zeichen)' });
 
 export function einstellungPruefen(roh: unknown): KryptoEinstellung {
-  return EinstellungSchema.parse(roh) as KryptoEinstellung;
+  const e = EinstellungSchema.parse(roh) as KryptoEinstellung;
+  // E235: RL-Bots ohne eigene Grenzen bekommen die Standards (der Hafenmeister stellt sie später nach)
+  if (e.art === 'rl') e.rl ??= { ...KRYPTO_RL_STANDARD };
+  return e;
 }

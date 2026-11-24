@@ -3,6 +3,7 @@
 import Database from 'better-sqlite3';
 import {
   KRYPTO_MODULE,
+  KRYPTO_RL_STANDARD,
   KRYPTO_STANDARD,
   KRYPTO_PAPER_MINDESTENS_STUNDEN,
   type KryptoBot,
@@ -16,6 +17,7 @@ import {
   KRYPTO_KERZEN_MS,
   type KryptoModul,
   type KryptoModulSchluessel,
+  type KryptoMusterRat,
   type KryptoPosition,
   type KryptoTerminal,
   type KryptoTrade,
@@ -30,6 +32,10 @@ import type { LiveAusfuehrer } from './ausfuehrung.js';
 import { istAdresse, type WalletTresor } from './wallet.js';
 import type { DexScreener, NeuerTokenT, PumpPortal, RugBericht, RugCheck, Schnappschuss } from './quellen.js';
 import type { KurveStand, KurveStrom } from './strom.js';
+import type { MusterDienst } from './muster/dienst.js';
+import { merkmale, ratAus } from './muster/merkmale.js';
+import { rlHandlung } from './muster/rl.js';
+import type { RlLage, Tick } from './muster/typen.js';
 
 export type KDB = Database.Database;
 
@@ -73,6 +79,16 @@ const MIGRATIONEN = [
    CREATE INDEX equity_fein_bot ON equity_fein (bot_id, zeit);`,
   // E234: Dev-Historie (Tokens je Ersteller in 24 h)
   `CREATE INDEX tokens_creator ON tokens (creator, erstellt);`,
+  // E235: Aufzeichnung des Echtzeit-Stroms (jeder Tick, 7 Tage) für das Muster-Training
+  `CREATE TABLE strom_ticks (mint TEXT NOT NULL, zeit INTEGER NOT NULL, preis REAL NOT NULL, sol REAL NOT NULL, echt_sol REAL NOT NULL);
+   CREATE INDEX strom_ticks_mint ON strom_ticks (mint, zeit);
+   CREATE INDEX strom_ticks_zeit ON strom_ticks (zeit);`,
+  // E235: trainierte Muster-Modelle (GBDT + RL-Agent) mit Bericht; aktiv = gibt Rat
+  `CREATE TABLE muster_modelle (version INTEGER PRIMARY KEY, erstellt INTEGER NOT NULL, gbdt_json TEXT, rl_json TEXT, modell_json TEXT,
+     rl_info_json TEXT, bericht TEXT NOT NULL, aktiv INTEGER NOT NULL DEFAULT 0);`,
+  // E235: Nachschuss (frisches Paper-Spielgeld für RL-Bots nach Pleite – zählt zum Startkapital, nie als Gewinn)
+  `CREATE TABLE nachschuss (bot_id TEXT NOT NULL, zeit INTEGER NOT NULL, sol REAL NOT NULL);
+   CREATE INDEX nachschuss_bot ON nachschuss (bot_id, zeit);`,
 ];
 
 export function kryptoDb(datei: string): KDB {
@@ -173,6 +189,14 @@ const RUG_GUELTIG = 10 * MINUTE;
 const NEU_BEWERTEN = 3 * MINUTE;
 const MAX_BEOBACHTET = 600;
 const KURSE_BEHALTEN = 14 * 86_400_000;
+/** E235: Echtzeit-Ticks für das Training: 7 Tage, höchstens 3 Mio. Zeilen */
+const TICKS_BEHALTEN = 7 * 86_400_000;
+const TICKS_HOECHSTENS = 3_000_000;
+/** E235: Muster-Wahrscheinlichkeit je Token höchstens alle 2 s neu rechnen; RL-Entscheidung je Position höchstens jede Sekunde */
+const MUSTER_NEU_MS = 2000;
+const RL_POSITION_MS = 1000;
+/** E235: ein RL-Bot sieht sich einen Kandidaten höchstens alle 10 s an */
+const RL_KANDIDAT_MS = 10_000;
 
 export class Kryptowerk {
   readonly tokens = new Map<string, Beobachtung>();
@@ -207,12 +231,21 @@ export class Kryptowerk {
       paperMindestMs?: number;
       /** E232: Echtzeit-Kurse für Tokens auf der Bonding Curve */
       strom?: KurveStrom;
+      /** E235: Muster-Modell + RL-Agent (fehlt → kein Rat, RL-Bots warten) */
+      muster?: MusterDienst;
+      /** E235: höchstens so viele aufgezeichnete Ticks (Standard 3 Mio.) */
+      maxTicks?: number;
     },
   ) {}
 
   /** E232: letzter Kurs aus dem Strom je Token + Ticks für Kerzen und Kauf/Verkauf */
   private stromKurs = new Map<string, { zeit: number; preis: number; vSol: number; echtSol: number }>();
-  private stromTicks = new Map<string, { zeit: number; preis: number; kauf: boolean; sol: number }[]>();
+  private stromTicks = new Map<string, { zeit: number; preis: number; kauf: boolean; sol: number; echtSol: number }[]>();
+  /** E235: Ticks, die noch in strom_ticks geschrieben werden (gesammelt im Takt, eine Transaktion) */
+  private tickPuffer: [string, number, number, number, number][] = [];
+  /** E235: Muster-Wahrscheinlichkeit je Token (gedrosselt) und letzte RL-Entscheidung je Position */
+  private musterCache = new Map<string, { zeit: number; p: number | null }>();
+  private rlZuletzt = new Map<string, number>();
   private zuletztGepflegt = 0;
   /** E233: feine Equity-Probe (jeder Takt + Echtzeit-Trades gehaltener Tokens) – in der DB, damit ein Neustart nichts verliert */
   private probeMerken(botId: string, kasse: number) {
@@ -236,6 +269,11 @@ export class Kryptowerk {
 
   beenden() {
     if (this.zeitgeber) clearInterval(this.zeitgeber);
+    try {
+      this.ticksSchreiben();
+    } catch {
+      // DB schon zu – die letzten Ticks gehen verloren, mehr nicht
+    }
     this.o.portal?.stop();
     this.o.strom?.stop();
   }
@@ -273,6 +311,9 @@ export class Kryptowerk {
     e.filter.maxDevTokens24h ??= KRYPTO_STANDARD.filter.maxDevTokens24h;
     e.filter.minEchtzeitKaufVerhaeltnis ??= KRYPTO_STANDARD.filter.minEchtzeitKaufVerhaeltnis;
     e.ausstieg.notausEinzelverkaufProzent ??= KRYPTO_STANDARD.ausstieg.notausEinzelverkaufProzent;
+    // E235
+    e.regeln.musterGewicht ??= 0;
+    if (e.art === 'rl') e.rl ??= { ...KRYPTO_RL_STANDARD };
     return e;
   }
 
@@ -293,6 +334,7 @@ export class Kryptowerk {
     const b = this.botZeile(id);
     const e = einstellungPruefen(roh);
     const alt = this.einstellung(b);
+    if (b.modus === 'live' && (e.art === 'rl') !== (alt.art === 'rl')) throw new KryptoFehler(400, 'Ein scharfer Bot kann nicht zum RL-Bot werden (RL-Bots laufen nur im Paper Trading).');
     const handel = (this.o.db.prepare('SELECT COUNT(*) AS n FROM trades WHERE bot_id = ?').get(id) as { n: number }).n;
     if (handel && e.startkapitalSol !== alt.startkapitalSol) throw new KryptoFehler(400, 'Das Startkapital lässt sich nach dem ersten Trade nicht mehr ändern (sonst stimmen die Kennzahlen nicht).');
     const kasse = handel || b.modus === 'live' ? b.kasse_sol : e.startkapitalSol;
@@ -418,7 +460,7 @@ export class Kryptowerk {
     for (const [m, l] of this.stromTicks) {
       const rest = l.filter((t) => jetzt - t.zeit < 15 * MINUTE);
       if (rest.length) this.stromTicks.set(m, rest);
-      else (this.stromTicks.delete(m), this.stromKurs.delete(m));
+      else (this.stromTicks.delete(m), this.stromKurs.delete(m), this.musterCache.delete(m));
     }
   }
 
@@ -427,9 +469,13 @@ export class Kryptowerk {
     const vorher = this.stromKurs.get(mint);
     this.stromKurs.set(mint, { zeit, preis: stand.preisSol, vSol: stand.vSol, echtSol: stand.echtSol });
     const l = this.stromTicks.get(mint) ?? [];
-    l.push({ zeit, preis: stand.preisSol, kauf: vorher ? stand.vSol >= vorher.vSol : true, sol: vorher ? stand.vSol - vorher.vSol : 0 });
+    const sol = vorher ? stand.vSol - vorher.vSol : 0;
+    l.push({ zeit, preis: stand.preisSol, kauf: vorher ? stand.vSol >= vorher.vSol : true, sol, echtSol: stand.echtSol });
     if (l.length > 3000) l.splice(0, l.length - 3000);
     this.stromTicks.set(mint, l);
+    // E235: Aufzeichnung fürs Muster-Training (gesammelt geschrieben; großer Puffer sofort)
+    this.tickPuffer.push([mint, zeit, stand.preisSol, sol, stand.echtSol]);
+    if (this.tickPuffer.length >= 5000) this.ticksSchreiben();
     const b = this.tokens.get(mint);
     if (!b?.letzter || b.letzter.dex !== 'pumpfun' || stand.komplett) return;
     b.letzter = this.mitStromKurs(b.letzter);
@@ -439,6 +485,7 @@ export class Kryptowerk {
     if (gehalten && zeit - this.zuletztGepflegt >= 250) {
       this.zuletztGepflegt = zeit;
       this.positionenPflegen();
+      this.rlPflegen();
       this.auftraegeAusfuehren();
       // E233: Equity der haltenden Bots sofort fein mitschreiben (5-s-Kerzen zeigen echte Ausschläge)
       for (const botId of new Set(this.offenePositionen().filter((p) => p.mint === mint).map((p) => p.bot_id))) this.probeMerken(botId, this.botZeile(botId).kasse_sol);
@@ -506,8 +553,11 @@ export class Kryptowerk {
     try {
       await this.kurseHolen();
       this.stromAbgleichen();
+      this.ticksSchreiben();
       this.auftraegeAusfuehren();
       this.positionenPflegen();
+      this.rlPflegen();
+      this.nachschussPruefen();
       await this.rugHolen();
       await this.bewerten();
       this.equityMerken();
@@ -582,7 +632,10 @@ export class Kryptowerk {
     for (const b of this.tokens.values()) {
       if (!b.letzter || (b.rug && jetzt - b.rug.zeit < RUG_GUELTIG) || b.rugFehler >= 3) continue;
       const vorfilter = this.laufendeBots().some((bot) => {
-        const s = pruefen(this.einstellung(bot), b.info, b.letzter!, null, jetzt, this.echtzeit60(b.info.mint));
+        const e = this.einstellung(bot);
+        const s = pruefen(e, b.info, b.letzter!, null, jetzt, this.echtzeit60(b.info.mint));
+        // E235: RL-Bots handeln Strom-Tokens nach Modell – vorab zählt nur der Dev-Check (Rug/Bundle prüft RugCheck selbst)
+        if (e.art === 'rl') return !!this.o.muster?.aktiv && this.stromTicks.has(b.info.mint) && !s.some((x) => x.sperre && x.schluessel === 'dev');
         return !s.some((x) => x.sperre && (x.schluessel === 'volumen' || x.schluessel === 'sniper' || x.schluessel === 'dev'));
       });
       if (!vorfilter) continue;
@@ -622,6 +675,10 @@ export class Kryptowerk {
     const jetzt = this.o.uhr.jetzt();
     for (const bot of this.laufendeBots()) {
       const e = this.einstellung(bot);
+      if (e.art === 'rl') {
+        this.rlBewerten(bot, e, jetzt);
+        continue;
+      }
       for (const b of this.tokens.values()) {
         if (!b.letzter || jetzt - b.letzter.zeit > 30_000) continue;
         if (!b.rug) {
@@ -639,6 +696,7 @@ export class Kryptowerk {
         if (jetzt - zuletzt < NEU_BEWERTEN) continue;
         b.bewertet.set(bot.id, jetzt);
         const signale = pruefen(e, b.info, b.letzter, b.rug, jetzt, this.echtzeit60(b.info.mint));
+        this.musterEinrechnen(e, b.info.mint, signale);
         this.zuletztBewertet.set(bot.id, jetzt);
         for (const s of signale) this.modulMerken(bot.id, s.schluessel, `${b.info.symbol}: ${s.zeile}`, s.ton);
         const p = punkte(signale);
@@ -706,7 +764,7 @@ export class Kryptowerk {
   }
 
   /** Vorschlag „kaufen“ → das Risk-Gate entscheidet */
-  private kaufVersuchen(botId: string, e: KryptoEinstellung, b: Beobachtung, groesse: number, grund: string, quelle: 'regeln' | 'llm', sicherheit: number, signale: Signal[]) {
+  private kaufVersuchen(botId: string, e: KryptoEinstellung, b: Beobachtung, groesse: number, grund: string, quelle: 'regeln' | 'llm' | 'modell', sicherheit: number, signale: Signal[]) {
     const g = gate(e, this.lage(botId, e, b.info.mint), groesse);
     this.modulMerken(botId, 'groesse', `${groesse.toFixed(3)} SOL`, 'neutral');
     this.modulMerken(botId, 'gate', g.erlaubt ? `frei · ${g.grund}` : g.grund, g.erlaubt ? 'gut' : 'schlecht');
@@ -715,6 +773,198 @@ export class Kryptowerk {
     this.auftraege.push({ botId, art: 'kauf', mint: b.info.mint, symbol: b.info.symbol, name: b.info.name, menge: groesse, grund, entschieden: jetzt, ab: jetzt + this.verzoegerung(botId, e), versuche: 0 });
     b.aufzeichnen = true;
     this.entscheidungMerken(botId, b.info.mint, b.info.symbol, 'buy', sicherheit, grund, quelle, signale);
+  }
+
+  // ---- E235: Muster-Modell, RL-Agent, Nachschuss -----------------------------------------------------
+
+  /** Strom-Ticks der letzten 10 min im Format des Muster-Kerns (Merkmale brauchen nur die letzten ~2 min) */
+  private musterTicks(mint: string, jetzt: number): Tick[] {
+    const r: Tick[] = [];
+    for (const t of this.stromTicks.get(mint) ?? []) if (jetzt - t.zeit < 10 * MINUTE && t.zeit <= jetzt) r.push({ zeit: t.zeit, preis: t.preis, sol: t.sol, echtSol: t.echtSol });
+    return r;
+  }
+
+  /** Muster-Wahrscheinlichkeit aus den Echtzeit-Ticks – null ohne aktives Modell oder ohne genug Ticks; je Token höchstens alle 2 s neu */
+  musterP(mint: string): number | null {
+    const m = this.o.muster;
+    if (!m?.aktiv) return null;
+    const jetzt = this.o.uhr.jetzt();
+    const c = this.musterCache.get(mint);
+    if (c && jetzt - c.zeit < MUSTER_NEU_MS) return c.p;
+    const info = this.tokens.get(mint)?.info;
+    let p: number | null = null;
+    if (info) {
+      const x = merkmale(this.musterTicks(mint, jetzt), jetzt, { mint, erstellt: info.erstellt, ...(info.devTokens24h != null ? { devTokens24h: info.devTokens24h } : {}) });
+      p = x ? m.vorhersagen(x) : null;
+    }
+    this.musterCache.set(mint, { zeit: jetzt, p });
+    return p;
+  }
+
+  /** Kursänderung der letzten 30 s in % (aus dem Strom; 0 ohne Daten) */
+  private trend30(mint: string, jetzt: number): number {
+    const l = this.stromTicks.get(mint);
+    if (!l?.length) return 0;
+    let basis = l.at(-1)!.preis;
+    for (let i = l.length - 1; i >= 0; i--) {
+      basis = l[i]!.preis;
+      if (jetzt - l[i]!.zeit >= 30_000) break;
+    }
+    return basis > 0 ? (l.at(-1)!.preis / basis - 1) * 100 : 0;
+  }
+
+  /** regeln.musterGewicht > 0: der Rat des Modells steuert ±Gewicht Punkte bei (eigene Zeile im Volumen-Signal) */
+  private musterEinrechnen(e: KryptoEinstellung, mint: string, signale: Signal[]) {
+    const gewicht = e.regeln.musterGewicht ?? 0;
+    if (!(gewicht > 0)) return;
+    const p = this.musterP(mint);
+    const v = signale.find((s) => s.schluessel === 'volumen');
+    if (p == null || !v) return;
+    const zusatz = Math.max(-gewicht, Math.min(gewicht, Math.round((p - 0.5) * 2 * gewicht)));
+    v.punkte += zusatz;
+    v.zeile += ` · Muster ${Math.round(p * 100)} % ${zusatz >= 0 ? '+' : ''}${zusatz}`;
+  }
+
+  /**
+   * RL-Bot: kauft NICHT über Punkte, sondern wenn der RL-Agent bei einem Strom-Token „kaufen“ wählt (nur mit aktivem Modell und
+   * p ≥ minSicherheit). Harte Sicherung wie bei allen Bots: Rug, Dev, Bundle (ohne RugCheck-Bericht kein Kauf); das Risk-Gate gilt.
+   */
+  private rlBewerten(bot: BotZeile, e: KryptoEinstellung, jetzt: number) {
+    const muster = this.o.muster;
+    if (!muster?.aktiv) return this.modulMerken(bot.id, 'gate', 'wartet auf Modell', 'neutral');
+    const g = e.rl ?? KRYPTO_RL_STANDARD;
+    for (const mint of this.stromTicks.keys()) {
+      const b = this.tokens.get(mint);
+      if (!b?.letzter || b.letzter.dex !== 'pumpfun' || jetzt - b.letzter.zeit > 30_000) continue;
+      const lage = this.lage(bot.id, e, mint);
+      if (lage.haeltSchon) continue;
+      const schluessel = `rl:${bot.id}`;
+      if (jetzt - (b.bewertet.get(schluessel) ?? 0) < RL_KANDIDAT_MS) continue;
+      b.bewertet.set(schluessel, jetzt);
+      this.zuletztBewertet.set(bot.id, jetzt);
+      const p = this.musterP(mint);
+      if (p == null) continue;
+      const signale = pruefen(e, b.info, b.letzter, b.rug, jetzt, this.echtzeit60(mint));
+      const hart = signale.filter((s) => s.sperre && (s.schluessel === 'rug' || s.schluessel === 'dev' || s.schluessel === 'bundle'));
+      for (const s of signale) if (s.schluessel === 'rug' || s.schluessel === 'dev' || s.schluessel === 'bundle') this.modulMerken(bot.id, s.schluessel, `${b.info.symbol}: ${s.zeile}`, s.ton);
+      if (hart.length) {
+        // einmal je Token protokollieren (mit Bericht); „warte auf RugCheck“ nicht
+        const block = `rlblock:${bot.id}`;
+        if (b.rug && !b.bewertet.has(block)) {
+          b.bewertet.set(block, jetzt);
+          const grund = hart.map((s) => `${KRYPTO_MODULE.find((m) => m.schluessel === s.schluessel)!.name}: ${s.zeile}`).join(' · ');
+          this.entscheidungMerken(bot.id, mint, b.info.symbol, 'block', p, grund, 'code', signale, hart.some((s) => s.schluessel === 'rug' || s.schluessel === 'bundle'));
+        }
+        continue;
+      }
+      const groesse = positionsGroesse(e, this.botZeile(bot.id).kasse_sol - this.reserviert(bot.id));
+      const frei = gate(e, lage, groesse);
+      if (!frei.erlaubt) {
+        this.modulMerken(bot.id, 'gate', frei.grund, 'schlecht');
+        continue;
+      }
+      const lageRl: RlLage = { p, haelt: false, plusProzent: 0, haltSek: 0, trend30Prozent: this.trend30(mint, jetzt) };
+      const h = rlHandlung(muster.rl, lageRl, g, this.o.zufall ?? Math.random);
+      this.modulMerken(bot.id, 'volumen', `${b.info.symbol}: Muster ${Math.round(p * 100)} % → ${h}`, h === 'kaufen' ? 'gut' : 'neutral');
+      // zweite Sicherung: nie unter minSicherheit kaufen (auch nicht beim Erkunden)
+      if (h !== 'kaufen' || p < g.minSicherheit) continue;
+      this.kaufVersuchen(bot.id, e, b, groesse, `RL: kaufen · Muster ${Math.round(p * 100)} % ≥ ${Math.round(g.minSicherheit * 100)} %`, 'modell', p, signale);
+    }
+  }
+
+  /** Gehaltene Positionen der RL-Bots: bei Strom-Ticks (je Position höchstens jede Sekunde) entscheidet der Agent warten/halb/raus. Stop-Loss & Co. bleiben (positionenPflegen) */
+  private rlPflegen() {
+    const muster = this.o.muster;
+    if (!muster?.aktiv) return;
+    const jetzt = this.o.uhr.jetzt();
+    const offen = this.offenePositionen();
+    const ids = new Set(offen.map((p) => p.id));
+    for (const k of this.rlZuletzt.keys()) if (!ids.has(k)) this.rlZuletzt.delete(k);
+    const einst = new Map<string, KryptoEinstellung | null>();
+    for (const p of offen) {
+      if (!einst.has(p.bot_id)) {
+        const bz = this.botZeile(p.bot_id);
+        const e = this.einstellung(bz);
+        einst.set(p.bot_id, bz.modus === 'paper' && e.art === 'rl' ? e : null);
+      }
+      const e = einst.get(p.bot_id);
+      if (!e || !this.stromTicks.has(p.mint) || this.aktiv().some((a) => a.positionId === p.id)) continue;
+      if (jetzt - (this.rlZuletzt.get(p.id) ?? 0) < RL_POSITION_MS) continue;
+      const s = this.tokens.get(p.mint)?.letzter;
+      const pm = this.musterP(p.mint);
+      if (!s || pm == null) continue;
+      this.rlZuletzt.set(p.id, jetzt);
+      const plus = (s.preisSol / p.einstieg_spot - 1) * 100;
+      const h = rlHandlung(muster.rl, { p: pm, haelt: true, plusProzent: plus, haltSek: (jetzt - p.geoeffnet) / 1000, trend30Prozent: this.trend30(p.mint, jetzt) }, e.rl ?? KRYPTO_RL_STANDARD, this.o.zufall ?? Math.random);
+      if (h !== 'halb' && h !== 'raus') continue;
+      const grund = `RL: ${h === 'raus' ? 'raus' : 'halb verkaufen'} · Muster ${Math.round(pm * 100)} % · ${plus >= 0 ? '+' : ''}${plus.toFixed(1)} %`;
+      this.auftraege.push({ botId: p.bot_id, art: 'verkauf', mint: p.mint, symbol: p.symbol, name: p.name, menge: h === 'raus' ? p.rest_token : p.rest_token / 2, positionId: p.id, grund, entschieden: jetzt, ab: jetzt + this.verzoegerung(p.bot_id, e), versuche: 0 });
+      this.entscheidungMerken(p.bot_id, p.mint, p.symbol, 'sell', pm, grund, 'modell');
+      this.modulMerken(p.bot_id, plus >= 0 ? 'tp' : 'sl', `${p.symbol}: ${grund}`, plus >= 0 ? 'gut' : 'schlecht');
+    }
+  }
+
+  /** Nachschüsse eines Bots ab einem Zeitpunkt (Summe, Anzahl) */
+  private nachschuesse(botId: string, ab: number): { sol: number; n: number; liste: { zeit: number; sol: number }[] } {
+    const liste = this.o.db.prepare('SELECT zeit, sol FROM nachschuss WHERE bot_id = ? AND zeit >= ? ORDER BY zeit').all(botId, ab) as { zeit: number; sol: number }[];
+    return { sol: liste.reduce((x, z) => x + z.sol, 0), n: liste.length, liste };
+  }
+
+  /**
+   * RL-Bot im Paper pleite (nichts offen, Kasse < 2 Trades) → frisches Spielgeld in Höhe des Startkapitals. Es zählt zum
+   * Startkapital (startSol), nie als Gewinn – und nicht in den Tagesverlust (heute) oder den Drawdown (kennzahlen).
+   */
+  private nachschussPruefen() {
+    if (this.notaus) return;
+    const jetzt = this.o.uhr.jetzt();
+    for (const b of this.botZeilen()) {
+      if (b.modus !== 'paper' || b.status !== 'laeuft') continue;
+      const e = this.einstellung(b);
+      if (e.art !== 'rl' || !(e.rl ?? KRYPTO_RL_STANDARD).nachschuss) continue;
+      if (this.offenePositionen(b.id).length || this.auftraege.some((a) => a.botId === b.id && !a.erledigt)) continue;
+      const schwelle = 2 * Math.max(0.01, Math.min(e.limits.einsatzProTradeSol, (e.startkapitalSol * e.limits.positionProzent) / 100));
+      if (b.kasse_sol >= schwelle) continue;
+      this.o.db.transaction(() => {
+        this.o.db.prepare('UPDATE bots SET kasse_sol = kasse_sol + ?, geaendert = ? WHERE id = ?').run(e.startkapitalSol, jetzt, b.id);
+        this.o.db.prepare('INSERT INTO nachschuss (bot_id, zeit, sol) VALUES (?, ?, ?)').run(b.id, jetzt, e.startkapitalSol);
+      })();
+      this.entscheidungMerken(b.id, '', 'SOL', 'hold', null, `Nachschuss +${e.startkapitalSol} SOL Paper-Spielgeld (Kasse ${b.kasse_sol.toFixed(3)} SOL) – zählt zum Startkapital, nicht als Gewinn`, 'code');
+    }
+  }
+
+  /** E235: Echtzeit-Ticks aus dem Puffer in strom_ticks schreiben (eine Transaktion) */
+  ticksSchreiben() {
+    if (!this.tickPuffer.length) return;
+    const puffer = this.tickPuffer;
+    this.tickPuffer = [];
+    const st = this.o.db.prepare('INSERT INTO strom_ticks (mint, zeit, preis, sol, echt_sol) VALUES (?, ?, ?, ?, ?)');
+    this.o.db.transaction(() => {
+      for (const t of puffer) if (Number.isFinite(t[2]) && Number.isFinite(t[3]) && Number.isFinite(t[4])) st.run(...t);
+    })();
+  }
+
+  /** Rat des Modells zu gehaltenen und beobachteten Strom-Tokens (höchstens 8; leer ohne aktives Modell) */
+  private musterRatFuer(gehalten: { mint: string; symbol: string }[]): KryptoMusterRat[] {
+    if (!this.o.muster?.aktiv) return [];
+    const jetzt = this.o.uhr.jetzt();
+    const fest = new Set(gehalten.map((g) => g.mint));
+    const beobachtet = [...this.stromTicks.entries()]
+      .filter(([m]) => !fest.has(m))
+      .map(([m, l]) => ({ mint: m, n: l.filter((t) => jetzt - t.zeit < 2 * MINUTE).length }))
+      .filter((x) => x.n > 0)
+      .sort((a, b) => b.n - a.n)
+      .map((x) => ({ mint: x.mint, symbol: this.tokens.get(x.mint)?.info.symbol ?? x.mint.slice(0, 4) }));
+    const r: KryptoMusterRat[] = [];
+    const gesehen = new Set<string>();
+    for (const { mint, symbol } of [...gehalten, ...beobachtet]) {
+      if (r.length >= 8) break;
+      if (gesehen.has(mint) || !this.stromTicks.has(mint)) continue;
+      gesehen.add(mint);
+      const p = this.musterP(mint);
+      if (p == null) continue;
+      r.push({ mint, symbol, wahrscheinlichkeit: p, rat: ratAus(p, fest.has(mint)), zeit: this.musterCache.get(mint)?.zeit ?? jetzt });
+    }
+    return r;
   }
 
   // ---- Ausführung (Paper) ---------------------------------------------------------------------------
@@ -861,6 +1111,7 @@ export class Kryptowerk {
   /** Scharf schalten: nur nach Paper-Mindestzeit, ohne offene Positionen, mit Wallet-Guthaben ≥ Budget (Dorf prüft Passwort/TOTP) */
   async scharfSchalten(id: string, o: { budgetSol: number }) {
     const b = this.botZeile(id);
+    if (this.einstellung(b).art === 'rl') throw new KryptoFehler(400, 'RL-Bots laufen nur im Paper Trading.');
     if (b.modus === 'live') throw new KryptoFehler(409, 'Der Bot ist schon scharf.');
     if (this.notaus) throw new KryptoFehler(409, 'Not-Aus ist aktiv.');
     if (!this.o.tresor?.bereit) throw new KryptoFehler(503, 'Live ist nicht eingerichtet: der Hauptschlüssel der Wallets fehlt (kommt mit dorf deploy).');
@@ -1055,9 +1306,10 @@ export class Kryptowerk {
     return b.abschnitt_seit ?? b.erstellt;
   }
 
+  /** eingezahltes Kapital des Abschnitts: Startkapital (bzw. Live-Budget) + Nachschüsse (E235, nur RL-Bots im Paper) */
   private startSol(b: BotZeile) {
     const live = b.live_json ? (JSON.parse(b.live_json) as { budgetSol: number }) : null;
-    return live?.budgetSol ?? this.einstellung(b).startkapitalSol;
+    return live?.budgetSol ?? this.einstellung(b).startkapitalSol + this.nachschuesse(b.id, this.seit(b)).sol;
   }
 
   private equityMerken() {
@@ -1077,7 +1329,10 @@ export class Kryptowerk {
     const ab = reihe.find((r) => tagIn(r.zeit) === tag);
     const vorher = [...reihe].reverse().find((r) => tagIn(r.zeit) !== tag);
     const basis = vorher?.wert ?? ab?.wert ?? (b.live_json ? this.startSol(b) : e.startkapitalSol);
-    return this.equityWert(botId, this.botZeile(botId).kasse_sol) - basis;
+    // E235: Nachschüsse nach dem Basiswert sind kein Gewinn des Tages (Minutenwert kann einen Nachschuss derselben Minute schon enthalten)
+    const basisZeit = vorher?.zeit ?? ab?.zeit ?? this.seit(b);
+    const nach = vorher || ab ? this.nachschuesse(botId, basisZeit + MINUTE).sol : this.nachschuesse(botId, basisZeit).sol;
+    return this.equityWert(botId, this.botZeile(botId).kasse_sol) - basis - nach;
   }
 
   private aufraeumen() {
@@ -1088,6 +1343,15 @@ export class Kryptowerk {
     this.o.db.prepare('DELETE FROM equity_fein WHERE zeit < ?').run(jetzt - 6 * 3_600_000);
     this.o.db.prepare("DELETE FROM entscheidungen WHERE aktion IN ('block', 'hold') AND zeit < ?").run(jetzt - 7 * 86_400_000);
     this.o.db.prepare('DELETE FROM equity WHERE zeit < ? AND zeit % 3600000 != 0').run(jetzt - 7 * 86_400_000);
+    // E235: Echtzeit-Ticks 7 Tage, höchstens 3 Mio. Zeilen (die ältesten fallen zuerst)
+    this.ticksSchreiben();
+    this.o.db.prepare('DELETE FROM strom_ticks WHERE zeit < ?').run(jetzt - TICKS_BEHALTEN);
+    const max = this.o.maxTicks ?? TICKS_HOECHSTENS;
+    const n = (this.o.db.prepare('SELECT COUNT(*) AS n FROM strom_ticks').get() as { n: number }).n;
+    if (n > max) {
+      const grenze = this.o.db.prepare('SELECT rowid AS r FROM strom_ticks ORDER BY rowid LIMIT 1 OFFSET ?').get(n - max) as { r: number } | undefined;
+      if (grenze) this.o.db.prepare('DELETE FROM strom_ticks WHERE rowid < ?').run(grenze.r);
+    }
     const fenster = Math.max(this.fensterSek() * 1000, 30 * MINUTE);
     const gehalten = new Set(this.offenePositionen().map((p) => p.mint));
     for (const [m, b] of this.tokens) if (!gehalten.has(m) && jetzt - b.info.erstellt > fenster + 10 * MINUTE) this.tokens.delete(m);
@@ -1101,13 +1365,17 @@ export class Kryptowerk {
     const zu = this.o.db.prepare('SELECT gewinn_sol FROM positionen WHERE bot_id = ? AND offen = 0 AND geoeffnet >= ?').all(id, seit) as { gewinn_sol: number }[];
     const gewonnen = zu.filter((x) => x.gewinn_sol > 0).length;
     const kapital = this.equityWert(id, b.kasse_sol);
-    const reihe = (this.o.db.prepare('SELECT wert FROM equity WHERE bot_id = ? AND zeit >= ? ORDER BY zeit').all(id, Math.floor(seit / MINUTE) * MINUTE) as { wert: number }[]).map((x) => x.wert);
-    reihe.push(kapital);
+    // E235: Drawdown auf der Equity OHNE Nachschüsse (Equity − bis dahin nachgeschossenes Geld) – sonst sähe ein Nachschuss wie
+    // eine Erholung aus und versteckte die Pleite davor; nach einer Pleite steht er darum bei ~100 %
+    const nach = this.nachschuesse(id, seit);
+    const nachBis = (zeit: number) => nach.liste.reduce((x, z) => (z.zeit < zeit ? x + z.sol : x), 0);
+    const reihe = (this.o.db.prepare('SELECT zeit, wert FROM equity WHERE bot_id = ? AND zeit >= ? ORDER BY zeit').all(id, Math.floor(seit / MINUTE) * MINUTE) as { zeit: number; wert: number }[]).map((x) => (nach.n ? x.wert - nachBis(x.zeit + MINUTE) : x.wert));
+    reihe.push(kapital - nach.sol);
     let hoch = -Infinity;
     let dd = 0;
     for (const w of reihe) {
       hoch = Math.max(hoch, w);
-      if (hoch > 0) dd = Math.max(dd, (hoch - w) / hoch);
+      if (hoch > 0) dd = Math.min(1, Math.max(dd, (hoch - w) / hoch));
     }
     const g = this.o.db.prepare("SELECT COALESCE(SUM(gebuehr_sol), 0) AS pump, COALESCE(SUM(portal_sol), 0) AS portal, COALESCE(SUM(netz_sol), 0) AS netz, COALESCE(SUM(CASE WHEN art != 'fehlschlag' THEN sol ELSE 0 END), 0) AS umsatz FROM trades WHERE bot_id = ? AND zeit >= ?").get(id, seit) as { pump: number; portal: number; netz: number; umsatz: number };
     const rugs = (this.o.db.prepare("SELECT COUNT(*) AS n FROM entscheidungen WHERE bot_id = ? AND aktion = 'block' AND grund LIKE 'RUG ·%' AND zeit >= ?").get(id, seit) as { n: number }).n;
@@ -1130,6 +1398,7 @@ export class Kryptowerk {
       geblockteRugs: rugs,
       heuteSol: this.heute(id, e),
       tage: this.tage(id, seit),
+      ...(e.art === 'rl' || nach.n ? { nachschussSol: nach.sol, nachschuesse: nach.n } : {}),
     };
   }
 
@@ -1282,7 +1551,7 @@ export class Kryptowerk {
       return { ...x, an: true, zeile: z?.zeile ?? ersatz, zuletzt: z?.zeit ?? null, ton: z?.ton ?? 'neutral' };
     });
     const zuletzt = this.zuletztBewertet.get(id) ?? 0;
-    const status = this.notaus ? 'Not-Aus' : bot.status === 'pausiert' ? 'pausiert' : bot.status === 'gestoppt' ? 'gestoppt' : this.llmLaeuft.has(id) ? 'LLM denkt …' : jetzt - zuletzt < 10_000 ? 'scoring …' : this.o.portal?.online ? 'lauscht …' : 'wartet auf Daten';
+    const status = this.notaus ? 'Not-Aus' : bot.status === 'pausiert' ? 'pausiert' : bot.status === 'gestoppt' ? 'gestoppt' : e.art === 'rl' && !this.o.muster?.aktiv ? 'wartet auf Modell' : this.llmLaeuft.has(id) ? 'LLM denkt …' : jetzt - zuletzt < 10_000 ? 'scoring …' : this.o.portal?.online ? 'lauscht …' : 'wartet auf Daten';
     const beobachtet = [...this.tokens.values()].filter((b) => b.letzter && jetzt - b.letzter.zeit < 5 * MINUTE);
     const gehalten = new Set(positionen.map((p) => p.mint));
     const pillen = [
@@ -1330,6 +1599,7 @@ export class Kryptowerk {
       besterTradeSol: bester,
       echtzeit: this.o.strom?.status() ?? null,
       tokenKerzen: this.tokenKerzenFuer(positionen.map((p) => ({ mint: p.mint, symbol: p.symbol }))),
+      musterRat: this.musterRatFuer(positionen.map((p) => ({ mint: p.mint, symbol: p.symbol }))),
     };
   }
 }

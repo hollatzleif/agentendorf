@@ -2,7 +2,7 @@
 // Not-Aus. Jeder neue Bot läuft im Paper Trading.
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { KRYPTO_PAPER_MINDESTENS_STUNDEN, KRYPTO_STANDARD, type KryptoBacktest, type KryptoBot, type KryptoEinstellung, type KryptoUebersicht } from '@dorf/shared';
+import { KRYPTO_PAPER_MINDESTENS_STUNDEN, KRYPTO_RL_STANDARD, KRYPTO_STANDARD, type KryptoBacktest, type KryptoBot, type KryptoEinstellung, type KryptoMusterStatus, type KryptoUebersicht } from '@dorf/shared';
 import { ApiFehler, api } from '../api';
 import { bibliothekUrl, linkKlick } from '../router';
 import { prozent, sol, solVz, uhrzeit } from './format';
@@ -95,6 +95,8 @@ export function HafenFlotte() {
 
       {u.bots.length > 0 && <Vergleich bots={u.bots} farbe={farbe} />}
 
+      {u.verbunden && <MusterTafel />}
+
       <div className="hafen-bots">
         {u.bots.map((b) => (
           <BotKarte
@@ -128,7 +130,7 @@ function BotKarte({ b, farbe, notaus, bearbeiten, tun, liveMoeglich, auszahlung,
         <div style={{ flex: 1, minWidth: 0 }}>
           <strong>{e.name}</strong>
           <div className="leise" style={{ fontSize: '0.8rem' }}>
-            {b.status === 'laeuft' ? '🟢 läuft' : b.status === 'pausiert' ? '⏸ pausiert' : '🛑 gestoppt'} · {live ? <b className="hafen-live">LIVE · echtes Geld</b> : 'Paper'} · {e.art === 'prompt' ? 'Prompt' : 'Regeln'}
+            {b.status === 'laeuft' ? '🟢 läuft' : b.status === 'pausiert' ? '⏸ pausiert' : '🛑 gestoppt'} · {live ? <b className="hafen-live">LIVE · echtes Geld</b> : 'Paper'} · {e.art === 'prompt' ? 'Prompt' : e.art === 'rl' ? '🧠 RL' : 'Regeln'}
           </div>
         </div>
         <strong className={k.gewinnSol >= 0 ? 'plus' : 'minus'}>{prozent(k.gewinnProzent)}</strong>
@@ -183,7 +185,7 @@ function BotKarte({ b, farbe, notaus, bearbeiten, tun, liveMoeglich, auszahlung,
             Backtest
           </button>
         )}
-        {!live && liveMoeglich && b.wallet && (
+        {!live && liveMoeglich && b.wallet && e.art !== 'rl' && (
           <button type="button" className="klein" onClick={() => oeffnen('scharf')}>
             🎯 Scharf schalten
           </button>
@@ -332,12 +334,43 @@ function BotFormular({ start, id, fertig, abbrechen }: { start: KryptoEinstellun
         </label>
         <label>
           Strategie
-          <select value={e.art} onChange={(ev) => setzen('art', ev.target.value as 'regeln' | 'prompt')}>
+          <select
+            value={e.art}
+            onChange={(ev) => {
+              const art = ev.target.value as KryptoEinstellung['art'];
+              setE((x) => ({ ...x, art, ...(art === 'rl' && !x.rl ? { rl: { ...KRYPTO_RL_STANDARD } } : {}) }));
+            }}
+          >
             <option value="regeln">Regeln (Punkte aus den Modulen)</option>
             <option value="prompt">Prompt (LLM schlägt vor, Code entscheidet)</option>
+            <option value="rl">🧠 RL (Muster-Modell)</option>
           </select>
         </label>
-        {e.art === 'prompt' ? (
+        {e.art === 'rl' ? (
+          <>
+            <label title="Kauf nur, wenn das Muster-Modell mindestens diese Wahrscheinlichkeit sieht, dass der Kurs erst ums Ziel steigt, bevor er um den Stop fällt.">
+              RL: Kauf ab Modell-Sicherheit (0–1)
+              <input type="number" step={0.05} min={0} max={1} value={e.rl?.minSicherheit ?? KRYPTO_RL_STANDARD.minSicherheit} onChange={(ev) => setE((x) => ({ ...x, rl: { ...KRYPTO_RL_STANDARD, ...x.rl, minSicherheit: Number(ev.target.value) } }))} />
+            </label>
+            <label title="So oft probiert der Agent eine zufällige Handlung – zum Lernen (0–0,3).">
+              RL: Erkunden (0–0,3)
+              <input type="number" step={0.01} min={0} max={0.3} value={e.rl?.erkunden ?? KRYPTO_RL_STANDARD.erkunden} onChange={(ev) => setE((x) => ({ ...x, rl: { ...KRYPTO_RL_STANDARD, ...x.rl, erkunden: Number(ev.target.value) } }))} />
+            </label>
+            <label title="Frisches Paper-Spielgeld, wenn das Kapital aufgebraucht ist – zählt zum Startkapital, nie als Gewinn.">
+              RL: Nachschuss nach Pleite
+              <select value={(e.rl?.nachschuss ?? KRYPTO_RL_STANDARD.nachschuss) ? 'ja' : 'nein'} onChange={(ev) => setE((x) => ({ ...x, rl: { ...KRYPTO_RL_STANDARD, ...x.rl, nachschuss: ev.target.value === 'ja' } }))}>
+                <option value="ja">ja</option>
+                <option value="nein">nein</option>
+              </select>
+            </label>
+            <p className="leise breit" style={{ margin: 0, gridColumn: '1 / -1' }}>
+              🧠 RL-Bots handeln <b>nur im Paper Trading</b> nach Muster-Modell und RL-Agent – scharf schalten gibt es für sie nicht. Stop-Loss und die übrigen Ausstiegsregeln bleiben als harte Sicherung.
+            </p>
+          </>
+        ) : (
+          zahl('regeln', 'musterGewicht', 'Muster-Rat Gewicht (0 = nur anzeigen)', { schritt: 1, hilfe: 'So viele Punkte (0–30) darf der Rat des Muster-Modells beisteuern – erst erhöhen, wenn sich das Modell bewährt hat.' })
+        )}
+        {e.art === 'rl' ? null : e.art === 'prompt' ? (
           <>
             <label className="breit">
               Strategie in deinen Worten
@@ -426,6 +459,129 @@ function BotFormular({ start, id, fertig, abbrechen }: { start: KryptoEinstellun
           Abbrechen
         </button>
       </div>
+    </section>
+  );
+}
+
+/** E235: Muster-Modell – Stand, Test gegen Raten, Merkmale, RL-Zeitraffer; „Jetzt trainieren“ */
+function MusterTafel() {
+  const qc = useQueryClient();
+  const q = useQuery({
+    queryKey: ['krypto', 'muster'],
+    queryFn: () => api<KryptoMusterStatus>('/api/krypto/muster'),
+    refetchInterval: (x) => (x.state.data?.training.laeuft ? 3000 : 15_000),
+    retry: false,
+  });
+  const [hinweis, setHinweis] = useState<string | null>(null);
+  const trainieren = useMutation({
+    mutationFn: () => api('/api/krypto/muster/training', { methode: 'POST' }),
+    onSuccess: () => {
+      setHinweis('Training gestartet – das dauert ein paar Minuten.');
+      void qc.invalidateQueries({ queryKey: ['krypto', 'muster'] });
+    },
+    onError: (e) => {
+      setHinweis(e instanceof ApiFehler && e.status === 409 ? 'Das Training läuft schon.' : e instanceof ApiFehler ? e.message : String(e));
+      void qc.invalidateQueries({ queryKey: ['krypto', 'muster'] });
+    },
+  });
+  const m = q.data;
+  const zeit = (iso: string | null) => (iso ? new Date(iso).toLocaleString('de-AT', { timeZone: 'Europe/Vienna', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '–');
+  const zahl = (n: number, stellen = 2) => n.toLocaleString('de-DE', { minimumFractionDigits: stellen, maximumFractionDigits: stellen });
+  const pz = (n: number) => `${Math.round(n * 100)} %`;
+  return (
+    <section className="karte innen hafen-muster" aria-label="Muster-Modell" data-testid="muster-tafel">
+      <div className="hafen-kopf">
+        <h3 style={{ margin: 0 }}>🧠 Muster-Modell</h3>
+        <button type="button" className="klein" disabled={!m || m.training.laeuft || trainieren.isPending} onClick={() => trainieren.mutate()}>
+          {m?.training.laeuft ? 'Trainiert …' : 'Jetzt trainieren'}
+        </button>
+      </div>
+      {q.error && !m && <p className="leise">Muster-Modell nicht erreichbar: {q.error instanceof ApiFehler ? q.error.message : String(q.error)}</p>}
+      {!m && !q.error && <p className="leise">Lade …</p>}
+      {hinweis && (
+        <p className="hinweis" role="status">
+          {hinweis}{' '}
+          <button type="button" className="klein" onClick={() => setHinweis(null)}>
+            ok
+          </button>
+        </p>
+      )}
+      {m && (
+        <>
+          <p className="leise" style={{ margin: 0 }}>
+            Sagt voraus, ob ein Token erst um +{m.ziel.zielProzent} % steigt, bevor er um −{m.ziel.stopProzent} % fällt (innerhalb {m.ziel.horizontMin} min). Getestet auf den neuesten, nie gesehenen Daten.
+          </p>
+          {m.modell ? (
+            <>
+              <div className="hafen-muster-status">
+                <span className={`hafen-muster-pille${m.modell.aktiv ? ' an' : ''}`}>{m.modell.aktiv ? '● aktiv – gibt Rat' : '○ inaktiv – noch nicht besser als Raten'}</span>
+                <span className="leise">
+                  v{m.modell.version} · trainiert {zeit(m.modell.trainiert)}
+                </span>
+              </div>
+              <div className="hafen-zahlen">
+                <div title="Fläche unter der ROC-Kurve auf den Testdaten: 0,5 = Raten, 1 = perfekt. Aktiv erst ab 0,55 bei mindestens 200 Testbeispielen.">
+                  <span>Test-AUC (Raten = 0,5)</span>
+                  <b className={m.modell.test.auc >= 0.55 ? 'plus' : undefined}>{zahl(m.modell.test.auc, 3)}</b>
+                </div>
+                <div title="Anteil Treffer unter den Beispielen mit p ≥ 0,6 – verglichen mit der Basisrate (blind kaufen)">
+                  <span>Präzision vs. Basisrate</span>
+                  <b>
+                    {m.modell.test.praezision == null ? '–' : pz(m.modell.test.praezision)} vs. {pz(m.modell.test.basis)}
+                  </b>
+                </div>
+                <div>
+                  <span>Beispiele (Lernen · Test)</span>
+                  <b>
+                    {m.modell.beispiele.toLocaleString('de-DE')} · {m.modell.test.beispiele.toLocaleString('de-DE')}
+                  </b>
+                </div>
+              </div>
+              {m.modell.merkmale.length > 0 && (
+                <div>
+                  <span className="leise" style={{ fontSize: '0.8rem' }}>
+                    Wichtigste Merkmale
+                  </span>
+                  <ul className="hafen-merkmale" aria-label="Wichtigste Merkmale">
+                    {m.modell.merkmale.slice(0, 5).map((x) => (
+                      <li key={x.name}>
+                        <span>{x.name}</span>
+                        <i style={{ width: `${Math.max(2, Math.min(100, (x.wichtigkeit / Math.max(1e-9, ...m.modell!.merkmale.map((y) => y.wichtigkeit))) * 100))}%` }} />
+                        <b>{pz(x.wichtigkeit)}</b>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="leise" style={{ margin: 0 }}>
+              Noch kein Modell trainiert – es braucht erst genug aufgezeichnete Ticks aus dem Echtzeit-Strom.
+            </p>
+          )}
+          {m.rl && (
+            <p className="leise" style={{ margin: 0 }} data-testid="muster-zeitraffer">
+              RL-Zeitraffer (v{m.rl.version}, {m.rl.episoden.toLocaleString('de-DE')} Episoden): {m.rl.zeitraffer.trades} Trades ·{' '}
+              <b className={m.rl.zeitraffer.gewinnSol >= 0 ? 'plus' : 'minus'}>{solVz(m.rl.zeitraffer.gewinnSol)} SOL</b> nach Gebühren · Treffer {m.rl.zeitraffer.trefferquote == null ? '–' : pz(m.rl.zeitraffer.trefferquote)} · {m.rl.zeitraffer.pleiten} Pleiten
+            </p>
+          )}
+          <p className="leise" style={{ margin: 0, fontSize: '0.8rem' }}>
+            Daten: {m.daten.ticks.toLocaleString('de-DE')} Ticks · {m.daten.tokens.toLocaleString('de-DE')} Tokens · letztes Training {zeit(m.training.letzter)} · nächstes {zeit(m.training.naechster)}
+            {m.training.dauerMs != null ? ` · Dauer ${Math.round(m.training.dauerMs / 1000)} s` : ''}
+          </p>
+          {m.training.laeuft && (
+            <div className="hafen-muster-fortschritt" role="progressbar" aria-label="Training" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(m.training.fortschritt * 100)}>
+              <b style={{ width: `${Math.round(m.training.fortschritt * 100)}%` }} />
+              <span>Training läuft … {Math.round(m.training.fortschritt * 100)} %</span>
+            </div>
+          )}
+          {m.training.fehler && (
+            <p className="hinweis" style={{ margin: 0 }}>
+              Letztes Training fehlgeschlagen: {m.training.fehler}
+            </p>
+          )}
+        </>
+      )}
     </section>
   );
 }

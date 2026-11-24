@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { BOT_ID, terminal, uebersicht } from './hafen-daten';
+import { BOT_ID, muster, terminal, uebersicht } from './hafen-daten';
 
 /** E227: Hafen – Flotte (Vergleich, Not-Aus, Bot anlegen) und Terminal „Kielwasser“. Kryptowerk nachgebaut. */
 async function anmelden(page: Page) {
@@ -17,6 +17,7 @@ test('Hafen: Flotte im Vergleich, Bot anlegen (Fehler vom Kryptowerk sichtbar), 
     const url = new URL(r.request().url());
     anfragen.push({ methode: r.request().method(), pfad: url.pathname, body: r.request().postDataJSON() });
     if (url.pathname === '/api/krypto') return r.fulfill({ json: u });
+    if (url.pathname === '/api/krypto/muster') return r.fulfill({ json: muster() });
     if (url.pathname === '/api/krypto/notaus') return r.fulfill({ json: { ...u, notaus: true } });
     if (url.pathname === '/api/krypto/bots' && r.request().method() === 'POST') return r.fulfill({ status: 400, json: { fehler: 'einstellung.limits.maxOffen: Too big: expected number to be <=20' } });
     return r.fulfill({ json: { ok: true } });
@@ -119,7 +120,7 @@ test('Terminal Kielwasser: Kopf, Token-Leiste, Equity-Kerzen, Agent mit Modulen,
 
 test('E228: Backtest mit den Regeln eines Bots, scharf schalten nur mit SCHARF + Passwort, Terminal zeigt LIVE, Wallet, Umsatz und Gebühren', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'ausführlich am Desktop');
-  const { BOT_ID, uebersicht, terminal } = await import('./hafen-daten');
+  const { BOT_ID, uebersicht, terminal, muster } = await import('./hafen-daten');
   const u = uebersicht();
   const anfragen: { pfad: string; body: unknown }[] = [];
   let laeufe = 0;
@@ -128,6 +129,7 @@ test('E228: Backtest mit den Regeln eines Bots, scharf schalten nur mit SCHARF +
     const body = r.request().postDataJSON();
     anfragen.push({ pfad: url.pathname, body });
     if (url.pathname === '/api/krypto') return r.fulfill({ json: u });
+    if (url.pathname === '/api/krypto/muster') return r.fulfill({ json: muster() });
     if (url.pathname === '/api/krypto/backtests' && r.request().method() === 'GET') return r.fulfill({ json: { bereich: { von: new Date(Date.now() - 30 * 3_600_000).toISOString(), bis: new Date().toISOString() }, jobs: [] } });
     if (url.pathname === '/api/krypto/backtests') return r.fulfill({ json: { id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', status: 'laeuft', fortschritt: 0, von: '', bis: '', name: 'Schwarm', erstellt: '' } });
     if (url.pathname.startsWith('/api/krypto/backtests/')) {
@@ -181,4 +183,77 @@ test('E228: Backtest mit den Regeln eines Bots, scharf schalten nur mit SCHARF +
   const download = page.waitForEvent('download');
   await page.getByRole('region', { name: 'Trades' }).getByRole('button', { name: '⬇ CSV' }).click();
   expect((await download).suggestedFilename()).toBe('hafen-Schwarm-trades.csv');
+});
+
+test('E235: Muster-Modell in der Flotte (Jetzt trainieren, läuft schon), RL im Formular, Muster-Rat und Nachschuss im Terminal', async ({ page }, info) => {
+  const u = uebersicht();
+  const anfragen: { methode: string; pfad: string; body: unknown }[] = [];
+  let laeuft = false;
+  await page.route('**/api/krypto**', async (r) => {
+    const url = new URL(r.request().url());
+    anfragen.push({ methode: r.request().method(), pfad: url.pathname, body: r.request().postDataJSON() });
+    if (url.pathname === '/api/krypto') return r.fulfill({ json: u });
+    if (url.pathname === '/api/krypto/muster') return r.fulfill({ json: muster(laeuft) });
+    if (url.pathname === '/api/krypto/muster/training') {
+      laeuft = true; // ein anderes Training (alle 5 h) hat gerade begonnen
+      return r.fulfill({ status: 409, json: { fehler: 'Das Training läuft schon.' } });
+    }
+    if (url.pathname.endsWith('/terminal')) return r.fulfill({ json: terminal() });
+    if (url.pathname === '/api/krypto/bots' && r.request().method() === 'POST') return r.fulfill({ json: u.bots[0] });
+    return r.fulfill({ json: { ok: true } });
+  });
+  await anmelden(page);
+  await page.goto('/gebaeude/Hafen');
+  const tafel = page.getByTestId('muster-tafel');
+  await expect(tafel).toContainText('aktiv – gibt Rat');
+  await expect(tafel).toContainText('0,612');
+  await expect(tafel).toContainText('31 % vs. 17 %');
+  await expect(tafel).toContainText('1.204.000 Ticks');
+  await expect(tafel.getByRole('list', { name: 'Wichtigste Merkmale' }).getByRole('listitem')).toHaveCount(5);
+  await expect(tafel.getByTestId('muster-zeitraffer')).toContainText('57 Trades');
+  await tafel.getByRole('button', { name: 'Jetzt trainieren' }).click();
+  await expect(tafel.getByRole('status')).toContainText('läuft schon');
+  await expect(tafel.getByRole('progressbar', { name: 'Training' })).toContainText('40 %');
+  await expect(tafel.getByRole('button', { name: 'Trainiert …' })).toBeDisabled();
+  expect(anfragen.filter((a) => a.pfad === '/api/krypto/muster/training' && a.methode === 'POST')).toHaveLength(1);
+  // Formular: RL mit eigenen Feldern, Regeln mit Muster-Gewicht
+  await page.getByRole('button', { name: '+ Neuer Bot' }).click();
+  const form = page.getByRole('region', { name: 'Neuer Bot' });
+  await expect(form.getByLabel('Muster-Rat Gewicht (0 = nur anzeigen)')).toHaveValue('0');
+  await form.getByLabel('Strategie').selectOption('rl');
+  await expect(form.getByLabel('Muster-Rat Gewicht (0 = nur anzeigen)')).toHaveCount(0);
+  await expect(form).toContainText('nur im Paper Trading');
+  await form.getByLabel('RL: Kauf ab Modell-Sicherheit (0–1)').fill('0.65');
+  await expect(form.getByLabel('RL: Erkunden (0–0,3)')).toHaveValue('0.05');
+  await form.getByLabel('RL: Nachschuss nach Pleite').selectOption('nein');
+  await form.getByRole('button', { name: 'Bot anlegen (Paper)' }).click();
+  await expect(form).toBeHidden();
+  const neu = anfragen.find((a) => a.pfad === '/api/krypto/bots' && a.methode === 'POST')!.body as { einstellung: { art: string; rl: unknown } };
+  expect(neu.einstellung.art).toBe('rl');
+  expect(neu.einstellung.rl).toEqual({ minSicherheit: 0.65, erkunden: 0.05, nachschuss: false });
+  if (info.project.name === 'handy') {
+    const breit = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(breit).toBeLessThanOrEqual(1);
+  }
+  await page.screenshot({ path: info.outputPath('muster-flotte.png'), fullPage: true });
+  // Terminal: Muster-Rat und Nachschuss
+  await page.goto(`/hafen/${BOT_ID}`);
+  const rat = page.getByRole('region', { name: 'Muster-Rat' });
+  await expect(rat).toContainText('MOONCAT');
+  await expect(rat).toContainText('72 %');
+  await expect(rat.locator('.kw-rat.kaufen')).toHaveText('KAUFEN');
+  await expect(rat.locator('.kw-rat.raus')).toHaveText('RAUS');
+  await expect(rat).toContainText('nur Anzeige');
+  const pnl = page.getByRole('region', { name: 'PnL' });
+  await expect(pnl.getByTestId('nachschuss')).toContainText('10,00 SOL');
+  await expect(pnl.getByTestId('nachschuss')).toContainText('zählt nicht als Gewinn');
+  await page.screenshot({ path: info.outputPath('muster-terminal.png'), fullPage: true });
+});
+
+test('E235: Terminal ohne aktives Modell sagt es', async ({ page }) => {
+  await page.route('**/api/krypto/bots/*/terminal**', (r) => r.fulfill({ json: { ...terminal(), musterRat: [] } }));
+  await anmelden(page);
+  await page.goto(`/hafen/${BOT_ID}`);
+  await expect(page.getByRole('region', { name: 'Muster-Rat' })).toContainText('kein aktives Modell');
+  await expect(page.getByRole('region', { name: 'PnL' })).toBeVisible();
 });

@@ -11,6 +11,7 @@ import { WalletTresor, istAdresse } from './krypto/wallet.js';
 import { LiveAusfuehrer } from './krypto/ausfuehrung.js';
 import { Backtests } from './krypto/backtest.js';
 import { KurveStrom, wssAusRpc } from './krypto/strom.js';
+import { MusterDienst } from './krypto/muster/dienst.js';
 
 const geheimnis = process.env.KRYPTO_GEHEIMNIS ?? '';
 const daten = process.env.KRYPTO_DATEN ?? '/krypto';
@@ -45,6 +46,8 @@ let werk: Kryptowerk;
 const wss = rpcUrl && process.env.KRYPTO_ECHTZEIT !== 'aus' ? wssAusRpc(rpcUrl) : null;
 const grenzeMb = Number(process.env.KRYPTO_ECHTZEIT_MB_TAG ?? '') || undefined;
 const strom = wss ? new KurveStrom({ url: wss, tick: (m, s, z) => werk.kurveTick(m, s, z), log, ...(grenzeMb ? { grenzeMb } : {}) }) : undefined;
+// E235: Muster-Modell + RL-Agent – Training alle KRYPTO_MUSTER_STUNDEN (Standard 5) Stunden, erstes 10 min nach dem Start
+const muster = new MusterDienst({ db, uhr: systemUhr, stunden: Number(process.env.KRYPTO_MUSTER_STUNDEN ?? '') || 5, log });
 const portal = new PumpPortal({ neu: (t, zeit) => werk.neuerToken(t, zeit), log });
 werk = new Kryptowerk({
   db,
@@ -54,6 +57,7 @@ werk = new Kryptowerk({
   portal,
   log,
   tresor,
+  muster,
   ...(strom ? { strom } : {}),
   ...(rpcUrl && /^https:\/\//.test(rpcUrl) && tresor.bereit ? { live: LiveAusfuehrer.mitRpcUrl(tresor, rpcUrl) } : {}),
   ...(auszahlung ? { auszahlung } : {}),
@@ -69,13 +73,15 @@ werk = new Kryptowerk({
     return Antwort.parse(j);
   },
 });
-const app = kryptoServer(werk, geheimnis, new Backtests({ db }));
+const app = kryptoServer(werk, geheimnis, new Backtests({ db }), muster);
 if (!tresor.bereit) log('Hauptschlüssel fehlt – Bots bekommen kein Wallet, Live ist aus (dorf deploy legt ihn an).');
 if (!rpcUrl) log('Kein RPC – Live und Echtzeit-Kurse sind aus (dorf krypto-rpc).');
 werk.starten();
+muster.starten();
 await app.listen({ host: '0.0.0.0', port: Number(process.env.PORT ?? 4300) });
 log('bereit');
 const ende = () => {
+  muster.beenden();
   werk.beenden();
   void app.close().then(() => {
     db.close();

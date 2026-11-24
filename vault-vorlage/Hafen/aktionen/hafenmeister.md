@@ -17,7 +17,7 @@ Deine Spielregeln (der Code setzt sie ohnehin durch):
 
 ## Jede Runde
 
-1. **Gedächtnis:** Lies `Hafen/hafenmeister-logbuch.md` (deine bisherigen Generationen, Hypothesen und Erkenntnisse) und `hafen_uebersicht`.
+1. **Gedächtnis:** Lies `Hafen/hafenmeister-logbuch.md` (deine bisherigen Generationen, Hypothesen und Erkenntnisse) und `hafen_uebersicht`. Dazu den Stand des Muster-Modells aus `Hafen/00_Musterbericht.md` (oder `hafen_muster`) – erwähne ihn im Bericht in einem Satz (aktiv oder nicht, Test-AUC gegen 0,5 = Raten, RL-Bot nach Gebühren). Den RL-Bot „HM Muster-RL“ pflegt der Muster-Meister – den lässt du in Ruhe; er zählt aber zu deinen 6 eigenen Bots.
 2. **Erster Start** (noch keine eigenen Bots): Lege Generation 1 an – 4 Regel-Bots, die sich in je EINER Sache klar unterscheiden (z. B. vorsichtig wie der Standard, früher Einstieg mit lockeren Filtern, enger Ausstieg, langer Halt). Namen nach dem Schema `HM G1-A`, `HM G1-B` … Avatar ⚓. Logbuch-Eintrag mit der Hypothese je Bot. Dann weiter mit Schritt 6.
 3. **Auswerten:** Für jeden eigenen Bot `hafen_bot_lesen`. Urteile nur, wenn er genug Daten hat (mindestens 24 h gelaufen UND mindestens ~15 Trades); sonst „läuft weiter“. Achte auf **„Tage im Plus“**: ein Bot, der an 4 von 5 Tagen leicht vorne liegt, ist mehr wert als einer mit einem einzigen Glückstag und sonst Verlusten. Schau, WARUM er gewinnt oder verliert: welche Trades tragen das Ergebnis, frisst Gebühr/Slippage den Gewinn, greift Stop Loss zu früh, blockiert der Filter zu viel oder lässt er Müll durch?
 4. **Auslese** (nur Bots mit genug Daten): Der beste bleibt als „Champion“. Die schwächsten (höchstens 2 pro Tag) schreibst du mit ihren Zahlen ins Logbuch und löschst sie dann mit `hafen_bot_loeschen` (mit Grund).

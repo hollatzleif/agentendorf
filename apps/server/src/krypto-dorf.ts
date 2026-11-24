@@ -108,6 +108,9 @@ export function hafenRouten(app: FastifyInstance, h: Hafen, a?: { db: DB; uhr: U
   app.post('/api/krypto/backtests', { bodyLimit: 64 * 1024 }, async (req) => h.anfrage('POST', '/backtests', z.object({ einstellung: z.unknown(), vonStunden: z.number().optional() }).parse(req.body)));
   app.get('/api/krypto/backtests/:id', async (req) => h.anfrage('GET', `/backtests/${Id.parse(req.params).id}`));
   app.post('/api/krypto/notaus/aufheben', async () => h.anfrage('POST', '/notaus/aufheben', {}));
+  // E235: Muster-Modell – Status lesen, Training anstoßen (409, wenn schon eines läuft)
+  app.get('/api/krypto/muster', async () => h.anfrage('GET', '/muster'));
+  app.post('/api/krypto/muster/training', async () => h.anfrage('POST', '/muster/training', {}));
 }
 
 // ---- Bewertung für Prompt-Bots (vom Kryptowerk aufgerufen, interner Port) --------------------------------

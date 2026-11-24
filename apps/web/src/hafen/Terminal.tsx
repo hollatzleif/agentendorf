@@ -99,7 +99,7 @@ function Terminal({ t, jetzt, takt, taktWaehlen }: { t: KryptoTerminal; jetzt: n
               <span>{uhrzeit(jetzt, true)}</span>
               <span>seit {tage ? `${tage} T` : uhrzeit(seit)}</span>
               <span>Pump.fun · Solana</span>
-              <span>{e.art === 'prompt' ? 'Prompt + LLM' : 'Regeln'}</span>
+              <span>{e.art === 'prompt' ? 'Prompt + LLM' : e.art === 'rl' ? 'RL + Muster-Modell' : 'Regeln'}</span>
               <span className={`kw-online${t.datenOnline ? '' : ' aus'}`}>{t.datenOnline ? 'online' : 'offline'}</span>
             </div>
             {b.wallet && (
@@ -179,6 +179,8 @@ function Terminal({ t, jetzt, takt, taktWaehlen }: { t: KryptoTerminal; jetzt: n
       </div>
 
       <Echtzeit t={t} />
+
+      <MusterRat t={t} />
 
       <div className="kw-unten">
         <section className="kw-tafel" aria-label="Volumen">
@@ -260,6 +262,18 @@ function Terminal({ t, jetzt, takt, taktWaehlen }: { t: KryptoTerminal; jetzt: n
                 <strong>
                   {k.tage.filter((x) => x.gewinnSol > 0).length}/{k.tage.length}
                 </strong>
+              </div>
+            )}
+            {(k.nachschussSol ?? 0) > 0 && (
+              <div title="Frisches Paper-Spielgeld nach Pleite – zählt zum Startkapital, nie als Gewinn" data-testid="nachschuss">
+                <span>Nachschuss</span>
+                <strong>
+                  {sol(k.nachschussSol, 2)}
+                  {k.nachschuesse ? ` · ${k.nachschuesse}×` : ''}
+                </strong>
+                <em className="leise" style={{ display: 'block', fontSize: '0.62rem', fontStyle: 'normal' }}>
+                  zählt nicht als Gewinn
+                </em>
               </div>
             )}
             <div>
@@ -626,6 +640,43 @@ function Echtzeit({ t }: { t: KryptoTerminal }) {
       ) : (
         <p className="leise mono" style={{ fontSize: '0.74rem' }}>
           {t.echtzeit?.an ? 'Noch keine Trades seit dem Abo – die Kerzen erscheinen mit dem ersten Trade (nur Tokens auf der Bonding Curve).' : 'Sobald der Strom läuft, erscheinen hier 5-Sekunden-Kerzen: gehaltene Tokens zuerst, dann die lebhaftesten beobachteten.'}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/** E235: Rat des Muster-Modells – nur Anzeige (Punkte steuert er erst mit regeln.musterGewicht > 0 bei) */
+function MusterRat({ t }: { t: KryptoTerminal }) {
+  const rat = t.musterRat ?? [];
+  const gewicht = t.bot.einstellung.regeln.musterGewicht ?? 0;
+  return (
+    <section className="kw-tafel" aria-label="Muster-Rat">
+      <div className="kw-chart-kopf">
+        <h3>🧠 Muster-Rat</h3>
+        <span className="leise mono" style={{ fontSize: '0.72rem' }}>
+          {t.bot.einstellung.art === 'rl' ? 'handelt danach (RL, nur Paper)' : gewicht > 0 ? `zählt bis ${gewicht} Punkte` : 'nur Anzeige'}
+        </span>
+      </div>
+      {rat.length ? (
+        <ul className="kw-liste" style={{ marginTop: '0.5rem' }}>
+          {rat.map((x) => (
+            <li key={x.mint}>
+              <div className="zeile" title={x.mint}>
+                <span>{x.symbol}</span>
+                <span>
+                  {Math.round(x.wahrscheinlichkeit * 100)} % · <b className={`kw-rat ${x.rat}`}>{x.rat === 'kaufen' ? 'KAUFEN' : x.rat === 'raus' ? 'RAUS' : 'HALTEN'}</b>
+                </span>
+              </div>
+              <div className="kw-fortschritt">
+                <b style={{ width: `${Math.round(x.wahrscheinlichkeit * 100)}%` }} />
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="leise mono" style={{ fontSize: '0.74rem' }}>
+          kein aktives Modell – Rat gibt es erst, wenn das Muster-Modell im Test klar besser als Raten ist.
         </p>
       )}
     </section>
