@@ -155,6 +155,7 @@ const VORLAGE_FRUEHERE_FASSUNGEN: Record<string, string[]> = {
   'Marktplatz/gebaeude.md': ['b7332c301634c2889f157d87138f392c3f2a49500a7fb31cc30a9d2d41157358'], // bis E64
   'Hafen/gebaeude.md': ['33c3703227c34eb878405cb216f46775ee44b737eef1481b58b116966ed026aa'], // E227 (Paper only, Agenten ohne Werkzeuge)
   '00_Stadtordnung/rundgang.md': ['60d05e9a34a9e8acce98164fed4eceea9ce8378ec38696613546e08c94697fb8'], // E192–E199 (18 Aktivitäten)
+  'Hafen/aktionen/hafenmeister.md': ['0948db9c4de5dc3d90ff58a4fc69940e32ce5ccd0680037547ce1f105661fc7f'], // E231 (ein Backtest-Fenster, ohne Tage im Plus)
 };
 
 /** Baut das ganze Dorf zusammen (für Start und Integrationstests). */

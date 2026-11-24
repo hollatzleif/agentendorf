@@ -38,6 +38,10 @@ export interface KryptoEinstellung {
     maxTopHalterProzent: number;
     /** SOL in der Bonding Curve bzw. im Pool mindestens */
     minLiquiditaetSol: number;
+    /** E234: höchstens so viele ANDERE Tokens darf derselbe Ersteller in den 24 h davor gestartet haben (Serien-Rugger) */
+    maxDevTokens24h?: number;
+    /** E234: Käufe ÷ Verkäufe der letzten 60 s aus dem Echtzeit-Strom mindestens (0 = aus; ohne Strom-Daten keine Sperre) */
+    minEchtzeitKaufVerhaeltnis?: number;
   };
   regeln: {
     /** Punkte (0–100) ab denen gekauft wird */
@@ -63,6 +67,8 @@ export interface KryptoEinstellung {
     /** Rückgang vom Höchstkurs seit Einstieg in % (0 = aus) */
     trailingProzent: number;
     maxHaltMinuten: number;
+    /** E234: fällt die echte SOL-Liquidität der Kurve in EINEM Trade um so viel %, sofort verkaufen (0 = aus) */
+    notausEinzelverkaufProzent?: number;
   };
   simulation: {
     /** Zeit zwischen Entscheidung und Ausführung */
@@ -99,6 +105,8 @@ export interface KryptoKennzahlen {
   umsatzSol: number;
   geblockteRugs: number;
   heuteSol: number;
+  /** E234: Ergebnis je Tag (Wien, letzte 7 Tage mit geschlossenen Positionen, neuester zuerst) */
+  tage?: { tag: string; gewinnSol: number; trades: number }[];
 }
 
 export interface KryptoWallet {
@@ -332,6 +340,8 @@ export const KRYPTO_STANDARD: KryptoEinstellung = {
     minMarketCapUsd: 5000,
     maxMarketCapUsd: 150000,
     maxDevProzent: 10,
+    maxDevTokens24h: 3,
+    minEchtzeitKaufVerhaeltnis: 0,
     maxTopHalterProzent: 20,
     minLiquiditaetSol: 5,
   },
@@ -346,6 +356,7 @@ export const KRYPTO_STANDARD: KryptoEinstellung = {
     stopLossProzent: 25,
     trailingProzent: 20,
     maxHaltMinuten: 120,
+    notausEinzelverkaufProzent: 15,
   },
   simulation: { verzoegerungMs: 1500, prioritaetSol: 0.0005, fehlschlagProzent: 5, portalGebuehrProzent: 0.5 },
   slippageProzent: 15,

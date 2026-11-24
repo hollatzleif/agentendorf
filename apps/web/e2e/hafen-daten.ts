@@ -14,7 +14,7 @@ function bot(id: string, name: string, avatar: string, faktor: number, art: 'reg
     modus: 'paper',
     status: 'laeuft',
     erstellt: new Date(jetzt - 26 * 3_600_000).toISOString(),
-    kennzahlen: { kapitalSol: kapital, startSol: 10, faktor, gewinnSol: kapital - 10, gewinnProzent: (faktor - 1) * 100, trades: 21, gewonnen: 13, verloren: 8, trefferquote: 13 / 21, maxDrawdownProzent: 18.4, offen: 1, gebuehrenSol: 0.412, gebuehrenArt: { pumpSol: 0.25, portalSol: 0.1, netzSol: 0.062 }, umsatzSol: 20.4, geblockteRugs: 37, heuteSol: 0.61 },
+    kennzahlen: { kapitalSol: kapital, startSol: 10, faktor, gewinnSol: kapital - 10, gewinnProzent: (faktor - 1) * 100, trades: 21, gewonnen: 13, verloren: 8, trefferquote: 13 / 21, maxDrawdownProzent: 18.4, offen: 1, gebuehrenSol: 0.412, gebuehrenArt: { pumpSol: 0.25, portalSol: 0.1, netzSol: 0.062 }, umsatzSol: 20.4, geblockteRugs: 37, heuteSol: 0.61, tage: [{ tag: '2026-11-24', gewinnSol: 0.61, trades: 6 }, { tag: '2026-11-23', gewinnSol: -0.2, trades: 9 }, { tag: '2026-11-22', gewinnSol: 0.4, trades: 6 }] },
     kurve: [...kurve, [jetzt, kapital]],
     wallet: { adresse: id === BOT_ID ? '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU' : '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM', guthabenSol: 1.25 },
     live: null,

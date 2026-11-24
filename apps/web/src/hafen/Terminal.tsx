@@ -254,6 +254,14 @@ function Terminal({ t, jetzt, takt, taktWaehlen }: { t: KryptoTerminal; jetzt: n
               <span>Trefferquote</span>
               <strong>{k.trefferquote == null ? '–' : `${Math.round(k.trefferquote * 100)} %`}</strong>
             </div>
+            {k.tage && k.tage.length > 0 && (
+              <div title={k.tage.map((x) => `${x.tag}: ${solVz(x.gewinnSol)} (${x.trades} Trades)`).join('\n')} data-testid="tage-im-plus">
+                <span>Tage im Plus</span>
+                <strong>
+                  {k.tage.filter((x) => x.gewinnSol > 0).length}/{k.tage.length}
+                </strong>
+              </div>
+            )}
             <div>
               <span>Max. Drawdown</span>
               <strong className="minus">{k.maxDrawdownProzent ? `−${k.maxDrawdownProzent.toLocaleString('de-DE', { maximumFractionDigits: 1 })} %` : '0 %'}</strong>

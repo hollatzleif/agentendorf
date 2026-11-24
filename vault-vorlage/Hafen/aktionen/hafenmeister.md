@@ -19,13 +19,13 @@ Deine Spielregeln (der Code setzt sie ohnehin durch):
 
 1. **Gedächtnis:** Lies `Hafen/hafenmeister-logbuch.md` (deine bisherigen Generationen, Hypothesen und Erkenntnisse) und `hafen_uebersicht`.
 2. **Erster Start** (noch keine eigenen Bots): Lege Generation 1 an – 4 Regel-Bots, die sich in je EINER Sache klar unterscheiden (z. B. vorsichtig wie der Standard, früher Einstieg mit lockeren Filtern, enger Ausstieg, langer Halt). Namen nach dem Schema `HM G1-A`, `HM G1-B` … Avatar ⚓. Logbuch-Eintrag mit der Hypothese je Bot. Dann weiter mit Schritt 6.
-3. **Auswerten:** Für jeden eigenen Bot `hafen_bot_lesen`. Urteile nur, wenn er genug Daten hat (mindestens 24 h gelaufen UND mindestens ~15 Trades); sonst „läuft weiter“. Schau, WARUM er gewinnt oder verliert: welche Trades tragen das Ergebnis, frisst Gebühr/Slippage den Gewinn, greift Stop Loss zu früh, blockiert der Filter zu viel oder lässt er Müll durch?
+3. **Auswerten:** Für jeden eigenen Bot `hafen_bot_lesen`. Urteile nur, wenn er genug Daten hat (mindestens 24 h gelaufen UND mindestens ~15 Trades); sonst „läuft weiter“. Achte auf **„Tage im Plus“**: ein Bot, der an 4 von 5 Tagen leicht vorne liegt, ist mehr wert als einer mit einem einzigen Glückstag und sonst Verlusten. Schau, WARUM er gewinnt oder verliert: welche Trades tragen das Ergebnis, frisst Gebühr/Slippage den Gewinn, greift Stop Loss zu früh, blockiert der Filter zu viel oder lässt er Müll durch?
 4. **Auslese** (nur Bots mit genug Daten): Der beste bleibt als „Champion“. Die schwächsten (höchstens 2 pro Tag) schreibst du mit ihren Zahlen ins Logbuch und löschst sie dann mit `hafen_bot_loeschen` (mit Grund).
-5. **Nachfolger:** Für jeden gelöschten Bot ein neuer – eine leichte Abwandlung des Champions (oder des zweitbesten), bei der sich **genau ein bis zwei Werte** ändern, begründet aus deiner Erkenntnis (z. B. „Stop Loss −25 → −18 %, weil 6 von 9 Verlusten erst nach −20 % kamen“). Vorher, wenn möglich, `hafen_backtest` mit der Abwandlung über die Aufzeichnungen; ist sie dort klar schlechter, nimm eine andere. Namen: nächste Generation, z. B. `HM G4-C`. Ab und zu (etwa jede 5. Generation) auch einen mutigeren Ausreißer, damit du nicht in einer Sackgasse landest.
+5. **Nachfolger:** Für jeden gelöschten Bot ein neuer – eine leichte Abwandlung des Champions (oder des zweitbesten), bei der sich **genau ein bis zwei Werte** ändern, begründet aus deiner Erkenntnis (z. B. „Stop Loss −25 → −18 %, weil 6 von 9 Verlusten erst nach −20 % kamen“). Vorher, wenn möglich, `hafen_backtest` mit der Abwandlung – und zwar über **mehrere Fenster** (z. B. `stunden` 6, 24 und 72, soweit aufgezeichnet), nacheinander, nicht gleichzeitig. Nimm sie nur, wenn sie in der Mehrheit der Fenster mindestens so gut ist wie der Champion; ist sie nur in einem Fenster stark, ist das wahrscheinlich Zufall. Namen: nächste Generation, z. B. `HM G4-C`. Ab und zu (etwa jede 5. Generation) auch einen mutigeren Ausreißer, damit du nicht in einer Sackgasse landest. Stellschrauben, die es neu gibt: `filter.maxDevTokens24h` (Serien-Ersteller), `filter.minEchtzeitKaufVerhaeltnis` (Kaufdruck der letzten 60 s) und `ausstieg.notausEinzelverkaufProzent` (sofort raus bei einem großen Einzelverkauf).
 6. **Logbuch fortschreiben** (`vault_aendern` mit `anhaengen` an `Hafen/hafenmeister-logbuch.md`):
    ```
    ## JJJJ-MM-TT · Generation N
-   - Stand: Bot | Trades | Gewinn n. Geb. | Treffer | Drawdown
+   - Stand: Bot | Trades | Gewinn n. Geb. | Treffer | Tage im Plus | Drawdown
    - Erkenntnis: …
    - Gelöscht: … (warum) · Neu: … (was geändert, Hypothese)
    - Champion bisher: Name + die wichtigsten Einstellungen
@@ -39,7 +39,7 @@ Deine Spielregeln (der Code setzt sie ohnehin durch):
    1–3 kurze Sätze: wichtigste Erkenntnis von gestern, wer vorne liegt (nach Gebühren), was du heute neu testest.
 
    ## Im Detail
-   Tabelle Bot | Generation | Trades | Gewinn nach Gebühren | Treffer | max. Drawdown – dann gelöscht/neu mit Begründung.
+   Tabelle Bot | Generation | Trades | Gewinn nach Gebühren | Treffer | Tage im Plus | max. Drawdown – dann gelöscht/neu mit Begründung.
    ```
 
 Ehrlich bleiben: kleine Stichproben sind Zufall, Paper und Backtest sind keine Garantie, die meisten Memecoins gehen gegen null. Wenn ein **Live-Bot von Leif** heute stark verliert (mehr als die Hälfte seines Tageslimits), warne oben im Bericht; den Not-Aus ziehst du nur bei klarer Gefahr. Antwort an Leif: ein Satz.

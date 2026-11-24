@@ -26,7 +26,7 @@ export const HAFEN_FLOTTE_MAX = 12;
 const AGENTENBOTS = 'hafen_agentenbots';
 
 const EINSTELLUNG_BESCHREIBUNG =
-  'Teil-Einstellung – nur was vom Standard (anlegen) bzw. vom jetzigen Stand (ändern) abweicht. Felder: name (≤ 40), avatar (ein Emoji), art ("regeln" | "prompt"), prompt (Strategie in Worten, ≤ 4000, nur art prompt), startkapitalSol (Paper-Spielgeld, Standard 10), minSicherheit (0–1, Prompt-Bots), regeln: {minPunkte 0–100}, filter: {maxRugScore, keineGefahr, minVolumenUsdM5, minKaeufeM5, minKaufVerhaeltnis, minAlterSek, maxAlterSek, minMarketCapUsd, maxMarketCapUsd, maxDevProzent, maxTopHalterProzent, minLiquiditaetSol}, limits: {einsatzProTradeSol, positionProzent, maxTagesverlustSol, maxOffen, maxLlmProTag}, ausstieg: {takeProfit: [{beiProzent, verkaufProzent}] (ersetzt die ganze Liste), stopLossProzent, trailingProzent, maxHaltMinuten}, simulation: {verzoegerungMs ≥ 300, prioritaetSol, fehlschlagProzent, portalGebuehrProzent}, slippageProzent. Unterobjekte werden Feld für Feld zusammengeführt.';
+  'Teil-Einstellung – nur was vom Standard (anlegen) bzw. vom jetzigen Stand (ändern) abweicht. Felder: name (≤ 40), avatar (ein Emoji), art ("regeln" | "prompt"), prompt (Strategie in Worten, ≤ 4000, nur art prompt), startkapitalSol (Paper-Spielgeld, Standard 10), minSicherheit (0–1, Prompt-Bots), regeln: {minPunkte 0–100}, filter: {maxRugScore, keineGefahr, minVolumenUsdM5, minKaeufeM5, minKaufVerhaeltnis, minAlterSek, maxAlterSek, minMarketCapUsd, maxMarketCapUsd, maxDevProzent, maxDevTokens24h (andere Tokens desselben Erstellers in 24 h), minEchtzeitKaufVerhaeltnis (Käufe÷Verkäufe der letzten 60 s aus dem Echtzeit-Strom, 0 = aus), maxTopHalterProzent, minLiquiditaetSol}, limits: {einsatzProTradeSol, positionProzent, maxTagesverlustSol, maxOffen, maxLlmProTag}, ausstieg: {takeProfit: [{beiProzent, verkaufProzent}] (ersetzt die ganze Liste), stopLossProzent, trailingProzent, maxHaltMinuten, notausEinzelverkaufProzent (sofort raus, wenn EIN Verkauf die Liquidität um so viel % senkt, 0 = aus)}, simulation: {verzoegerungMs ≥ 300, prioritaetSol, fehlschlagProzent, portalGebuehrProzent}, slippageProzent. Unterobjekte werden Feld für Feld zusammengeführt.';
 
 export const HAFEN_DEFINITIONEN: Record<HafenWerkzeug, Omit<WerkzeugDefinition, 'name'> & { name: HafenWerkzeug }> = {
   hafen_uebersicht: {
@@ -141,7 +141,14 @@ const pz = (x: number) => `${x >= 0 ? '+' : '−'}${Math.abs(x).toFixed(1)} %`;
 
 function kennzahlenText(k: KryptoKennzahlen) {
   const tq = k.trefferquote == null ? '–' : `${Math.round(k.trefferquote * 100)} %`;
-  return `Kapital ${k.kapitalSol.toFixed(3)} SOL (Start ${k.startSol}) · Gewinn nach Gebühren ${sol(k.gewinnSol)} (${pz(k.gewinnProzent)}) · heute ${sol(k.heuteSol)} · ${k.trades} Trades (${k.gewonnen} gewonnen, ${k.verloren} verloren, Treffer ${tq}) · max. Drawdown ${k.maxDrawdownProzent.toFixed(1)} % · offen ${k.offen} · Umsatz ${k.umsatzSol.toFixed(2)} SOL · Gebühren ${k.gebuehrenSol.toFixed(4)} SOL (Pump ${k.gebuehrenArt.pumpSol.toFixed(4)}, PumpPortal ${k.gebuehrenArt.portalSol.toFixed(4)}, Netz ${k.gebuehrenArt.netzSol.toFixed(4)}) · geblockte Rugs ${k.geblockteRugs}`;
+  return `Kapital ${k.kapitalSol.toFixed(3)} SOL (Start ${k.startSol}) · Gewinn nach Gebühren ${sol(k.gewinnSol)} (${pz(k.gewinnProzent)}) · heute ${sol(k.heuteSol)} · ${k.trades} Trades (${k.gewonnen} gewonnen, ${k.verloren} verloren, Treffer ${tq}) · max. Drawdown ${k.maxDrawdownProzent.toFixed(1)} % · offen ${k.offen} · Umsatz ${k.umsatzSol.toFixed(2)} SOL · Gebühren ${k.gebuehrenSol.toFixed(4)} SOL (Pump ${k.gebuehrenArt.pumpSol.toFixed(4)}, PumpPortal ${k.gebuehrenArt.portalSol.toFixed(4)}, Netz ${k.gebuehrenArt.netzSol.toFixed(4)}) · geblockte Rugs ${k.geblockteRugs}${tageText(k)}`;
+}
+
+/** E234: Ergebnis je Tag – ein guter Tag ist Glück, mehrere Tage im Plus sind ein Muster */
+function tageText(k: KryptoKennzahlen) {
+  if (!k.tage?.length) return '';
+  const plus = k.tage.filter((x) => x.gewinnSol > 0).length;
+  return ` · Tage im Plus ${plus}/${k.tage.length} (${k.tage.map((x) => `${x.tag.slice(5)} ${sol(x.gewinnSol)}/${x.trades}T`).join(', ')})`;
 }
 
 /** Kennungen der Bots, die Agenten angelegt haben (nur die dürfen sie löschen) */

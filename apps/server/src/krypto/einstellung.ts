@@ -25,6 +25,8 @@ export const EinstellungSchema = z
         maxDevProzent: zahl(0, 100),
         maxTopHalterProzent: zahl(0, 100),
         minLiquiditaetSol: zahl(0, 1_000_000),
+        maxDevTokens24h: zahl(0, 10_000).default(3),
+        minEchtzeitKaufVerhaeltnis: zahl(0, 100).default(0),
       })
       .strict(),
     regeln: z.object({ minPunkte: zahl(0, 100) }).strict(),
@@ -44,6 +46,7 @@ export const EinstellungSchema = z
         stopLossProzent: zahl(1, 99),
         trailingProzent: zahl(0, 99),
         maxHaltMinuten: zahl(1, 30 * 24 * 60),
+        notausEinzelverkaufProzent: zahl(0, 100).default(15),
       })
       .strict(),
     simulation: z

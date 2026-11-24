@@ -3,6 +3,7 @@
 import Database from 'better-sqlite3';
 import {
   KRYPTO_MODULE,
+  KRYPTO_STANDARD,
   KRYPTO_PAPER_MINDESTENS_STUNDEN,
   type KryptoBot,
   type KryptoBotStatus,
@@ -22,7 +23,7 @@ import {
 } from '@dorf/shared';
 import type { Uhr } from '../uhr.js';
 import { tagIn } from '../zeit.js';
-import { type BotLage, type Signal, type TokenInfo, gate, marktAus, positionsGroesse, pruefen, punkte } from './bewertung.js';
+import { type BotLage, type Echtzeit60, type Signal, type TokenInfo, gate, marktAus, positionsGroesse, pruefen, punkte } from './bewertung.js';
 import { einstellungPruefen } from './einstellung.js';
 import { GRUNDGEBUEHR_SOL, gebuehrSatz, kaufen, verkaufen, verkaufsWert, ANGEBOT } from './kurve.js';
 import type { LiveAusfuehrer } from './ausfuehrung.js';
@@ -70,6 +71,8 @@ const MIGRATIONEN = [
   // E233: feine Equity-Proben (jeder Takt + Echtzeit-Trades), 6 h – für 5-s- bis 5-min-Kerzen auch nach einem Neustart
   `CREATE TABLE equity_fein (bot_id TEXT NOT NULL, zeit INTEGER NOT NULL, wert REAL NOT NULL);
    CREATE INDEX equity_fein_bot ON equity_fein (bot_id, zeit);`,
+  // E234: Dev-Historie (Tokens je Ersteller in 24 h)
+  `CREATE INDEX tokens_creator ON tokens (creator, erstellt);`,
 ];
 
 export function kryptoDb(datei: string): KDB {
@@ -208,8 +211,8 @@ export class Kryptowerk {
   ) {}
 
   /** E232: letzter Kurs aus dem Strom je Token + Ticks für Kerzen und Kauf/Verkauf */
-  private stromKurs = new Map<string, { zeit: number; preis: number; vSol: number }>();
-  private stromTicks = new Map<string, { zeit: number; preis: number; kauf: boolean }[]>();
+  private stromKurs = new Map<string, { zeit: number; preis: number; vSol: number; echtSol: number }>();
+  private stromTicks = new Map<string, { zeit: number; preis: number; kauf: boolean; sol: number }[]>();
   private zuletztGepflegt = 0;
   /** E233: feine Equity-Probe (jeder Takt + Echtzeit-Trades gehaltener Tokens) – in der DB, damit ein Neustart nichts verliert */
   private probeMerken(botId: string, kasse: number) {
@@ -265,7 +268,12 @@ export class Kryptowerk {
     return b;
   }
   private einstellung(b: BotZeile): KryptoEinstellung {
-    return JSON.parse(b.einstellung_json) as KryptoEinstellung;
+    const e = JSON.parse(b.einstellung_json) as KryptoEinstellung;
+    // E234: neue Felder für Bots, die vorher angelegt wurden
+    e.filter.maxDevTokens24h ??= KRYPTO_STANDARD.filter.maxDevTokens24h;
+    e.filter.minEchtzeitKaufVerhaeltnis ??= KRYPTO_STANDARD.filter.minEchtzeitKaufVerhaeltnis;
+    e.ausstieg.notausEinzelverkaufProzent ??= KRYPTO_STANDARD.ausstieg.notausEinzelverkaufProzent;
+    return e;
   }
 
   anlegen(roh: unknown, modus: unknown = 'paper'): KryptoBot {
@@ -344,6 +352,7 @@ export class Kryptowerk {
   neuerToken(t: NeuerTokenT, zeit: number) {
     if (this.tokens.has(t.mint)) return;
     const info: TokenInfo = { mint: t.mint, symbol: (t.symbol || '?').slice(0, 20), name: (t.name || '').slice(0, 60), erstellt: zeit, devToken: t.initialBuy ?? null, creator: t.traderPublicKey ?? null };
+    info.devTokens24h = this.devTokens24h(info.creator, zeit, t.mint);
     this.tokens.set(t.mint, { info, letzter: null, abgefragt: 0, rug: null, rugFehler: 0, bewertet: new Map(), aufzeichnen: false });
     this.o.db
       .prepare('INSERT OR IGNORE INTO tokens (mint, symbol, name, erstellt, creator, dev_token, start_sol, start_marktwert_sol, uri) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
@@ -356,6 +365,30 @@ export class Kryptowerk {
         if (!gehalten.has(m) && !this.aktiv().some((a) => a.mint === m)) this.tokens.delete(m);
       }
     }
+  }
+
+  /** E234: wie viele ANDERE Tokens derselbe Ersteller in den 24 h davor gestartet hat (eigene Aufzeichnung) */
+  private devTokens24h(creator: string | null, zeit: number, mint: string): number | undefined {
+    if (!creator) return undefined;
+    return (this.o.db.prepare('SELECT COUNT(*) AS n FROM tokens WHERE creator = ? AND erstellt >= ? AND erstellt <= ? AND mint != ?').get(creator, zeit - 86_400_000, zeit, mint) as { n: number }).n;
+  }
+
+  /** E234: Kaufdruck der letzten 60 s aus dem Strom (null = keine Strom-Daten für diesen Token) */
+  echtzeit60(mint: string): Echtzeit60 | null {
+    const l = this.stromTicks.get(mint);
+    if (!l?.length) return null;
+    const jetzt = this.o.uhr.jetzt();
+    let kaeufe = 0;
+    let verkaeufe = 0;
+    let nettoSol = 0;
+    for (let i = l.length - 1; i >= 0 && jetzt - l[i]!.zeit <= 60_000; i--) {
+      const t = l[i]!;
+      if (t.sol === 0) continue;
+      if (t.kauf) kaeufe++;
+      else verkaeufe++;
+      nettoSol += t.sol;
+    }
+    return { kaeufe, verkaeufe, nettoSol };
   }
 
   // ---- E232: Echtzeit-Kurse (Bonding Curve) --------------------------------------------------------
@@ -392,14 +425,16 @@ export class Kryptowerk {
   /** Eine Änderung der Bonding Curve (≈ ein Trade): Kurs sofort übernehmen, Ausstiege gehaltener Tokens sofort prüfen */
   kurveTick(mint: string, stand: KurveStand, zeit: number) {
     const vorher = this.stromKurs.get(mint);
-    this.stromKurs.set(mint, { zeit, preis: stand.preisSol, vSol: stand.vSol });
+    this.stromKurs.set(mint, { zeit, preis: stand.preisSol, vSol: stand.vSol, echtSol: stand.echtSol });
     const l = this.stromTicks.get(mint) ?? [];
-    l.push({ zeit, preis: stand.preisSol, kauf: vorher ? stand.vSol >= vorher.vSol : true });
+    l.push({ zeit, preis: stand.preisSol, kauf: vorher ? stand.vSol >= vorher.vSol : true, sol: vorher ? stand.vSol - vorher.vSol : 0 });
     if (l.length > 3000) l.splice(0, l.length - 3000);
     this.stromTicks.set(mint, l);
     const b = this.tokens.get(mint);
     if (!b?.letzter || b.letzter.dex !== 'pumpfun' || stand.komplett) return;
     b.letzter = this.mitStromKurs(b.letzter);
+    // E234: großer Einzelverkauf (echte SOL der Kurve fallen in EINEM Schritt stark) → sofort raus, ohne auf Stop-Loss zu warten
+    if (vorher && vorher.echtSol >= 1 && stand.echtSol < vorher.echtSol) this.notausstiegPruefen(mint, (1 - stand.echtSol / vorher.echtSol) * 100, zeit);
     const gehalten = this.offenePositionen().some((p) => p.mint === mint) || this.aktiv().some((a) => a.mint === mint);
     if (gehalten && zeit - this.zuletztGepflegt >= 250) {
       this.zuletztGepflegt = zeit;
@@ -407,6 +442,20 @@ export class Kryptowerk {
       this.auftraegeAusfuehren();
       // E233: Equity der haltenden Bots sofort fein mitschreiben (5-s-Kerzen zeigen echte Ausschläge)
       for (const botId of new Set(this.offenePositionen().filter((p) => p.mint === mint).map((p) => p.bot_id))) this.probeMerken(botId, this.botZeile(botId).kasse_sol);
+    }
+  }
+
+  /** E234: offene Positionen in `mint` verkaufen, wenn ein einzelner Verkauf die Liquidität um mehr als die Schwelle des Bots gesenkt hat */
+  private notausstiegPruefen(mint: string, fallProzent: number, jetzt: number) {
+    for (const p of this.offenePositionen()) {
+      if (p.mint !== mint || this.aktiv().some((a) => a.positionId === p.id)) continue;
+      const e = this.einstellung(this.botZeile(p.bot_id));
+      const schwelle = e.ausstieg.notausEinzelverkaufProzent ?? 15;
+      if (!(schwelle > 0) || fallProzent < schwelle) continue;
+      const grund = `Großer Einzelverkauf: Liquidität −${fallProzent.toFixed(0)} % in einem Trade`;
+      this.auftraege.push({ botId: p.bot_id, art: 'verkauf', mint: p.mint, symbol: p.symbol, name: p.name, menge: p.rest_token, positionId: p.id, grund, entschieden: jetzt, ab: jetzt + this.verzoegerung(p.bot_id, e), versuche: 0 });
+      this.entscheidungMerken(p.bot_id, p.mint, p.symbol, 'sell', null, grund, 'code');
+      this.modulMerken(p.bot_id, 'sl', `${p.symbol}: ${grund}`, 'schlecht');
     }
   }
 
@@ -504,7 +553,7 @@ export class Kryptowerk {
       if (!b) {
         // gehaltener Token nach einem Neustart: Daten aus der Aufzeichnung
         const t = this.o.db.prepare('SELECT * FROM tokens WHERE mint = ?').get(s.mint) as { symbol: string; name: string; erstellt: number; creator: string | null; dev_token: number | null } | undefined;
-        b = { info: { mint: s.mint, symbol: t?.symbol ?? s.symbol, name: t?.name ?? s.name, erstellt: t?.erstellt ?? jetzt, devToken: t?.dev_token ?? null, creator: t?.creator ?? null }, letzter: null, abgefragt: jetzt, rug: null, rugFehler: 0, bewertet: new Map(), aufzeichnen: true };
+        b = { info: { mint: s.mint, symbol: t?.symbol ?? s.symbol, name: t?.name ?? s.name, erstellt: t?.erstellt ?? jetzt, devToken: t?.dev_token ?? null, creator: t?.creator ?? null, devTokens24h: this.devTokens24h(t?.creator ?? null, t?.erstellt ?? jetzt, s.mint) }, letzter: null, abgefragt: jetzt, rug: null, rugFehler: 0, bewertet: new Map(), aufzeichnen: true };
         this.tokens.set(s.mint, b);
       }
       b.letzter = this.mitStromKurs(s);
@@ -533,7 +582,7 @@ export class Kryptowerk {
     for (const b of this.tokens.values()) {
       if (!b.letzter || (b.rug && jetzt - b.rug.zeit < RUG_GUELTIG) || b.rugFehler >= 3) continue;
       const vorfilter = this.laufendeBots().some((bot) => {
-        const s = pruefen(this.einstellung(bot), b.info, b.letzter!, null, jetzt);
+        const s = pruefen(this.einstellung(bot), b.info, b.letzter!, null, jetzt, this.echtzeit60(b.info.mint));
         return !s.some((x) => x.sperre && (x.schluessel === 'volumen' || x.schluessel === 'sniper' || x.schluessel === 'dev'));
       });
       if (!vorfilter) continue;
@@ -581,7 +630,7 @@ export class Kryptowerk {
           if (jetzt - (b.bewertet.get(vorab) ?? 0) < 30_000) continue;
           b.bewertet.set(vorab, jetzt);
           this.zuletztBewertet.set(bot.id, jetzt);
-          for (const s of pruefen(e, b.info, b.letzter, null, jetzt)) {
+          for (const s of pruefen(e, b.info, b.letzter, null, jetzt, this.echtzeit60(b.info.mint))) {
             if (s.schluessel === 'volumen' || s.schluessel === 'sniper' || s.schluessel === 'dev') this.modulMerken(bot.id, s.schluessel, `${b.info.symbol}: ${s.zeile}`, s.ton);
           }
           continue;
@@ -589,7 +638,7 @@ export class Kryptowerk {
         const zuletzt = b.bewertet.get(bot.id) ?? 0;
         if (jetzt - zuletzt < NEU_BEWERTEN) continue;
         b.bewertet.set(bot.id, jetzt);
-        const signale = pruefen(e, b.info, b.letzter, b.rug, jetzt);
+        const signale = pruefen(e, b.info, b.letzter, b.rug, jetzt, this.echtzeit60(b.info.mint));
         this.zuletztBewertet.set(bot.id, jetzt);
         for (const s of signale) this.modulMerken(bot.id, s.schluessel, `${b.info.symbol}: ${s.zeile}`, s.ton);
         const p = punkte(signale);
@@ -632,7 +681,8 @@ export class Kryptowerk {
         botName: e.name,
         prompt: e.prompt,
         daten: {
-          token: { mint: b.info.mint, symbol: b.info.symbol, name: b.info.name, alterSek: Math.round((this.o.uhr.jetzt() - b.info.erstellt) / 1000) },
+          token: { mint: b.info.mint, symbol: b.info.symbol, name: b.info.name, alterSek: Math.round((this.o.uhr.jetzt() - b.info.erstellt) / 1000), devTokens24h: b.info.devTokens24h ?? null },
+          echtzeit60s: this.echtzeit60(b.info.mint),
           markt: { dex: s.dex, preisSol: s.preisSol, marktwertUsd: s.marktwertUsd, volumenUsdM5: s.volumenUsdM5, kaeufeM5: s.kaeufeM5, verkaeufeM5: s.verkaeufeM5, aenderungM5: s.aenderungM5, aenderungH1: s.aenderungH1 },
           rugcheck: b.rug,
           module: Object.fromEntries(signale.map((x) => [x.schluessel, x.zeile])),
@@ -1079,7 +1129,23 @@ export class Kryptowerk {
       umsatzSol: g.umsatz,
       geblockteRugs: rugs,
       heuteSol: this.heute(id, e),
+      tage: this.tage(id, seit),
     };
+  }
+
+  /** E234: Ergebnis je Wiener Kalendertag (geschlossene Positionen), höchstens die letzten 7 Tage mit Trades, neuester zuerst */
+  private tage(id: string, seit: number) {
+    const ab = Math.max(seit, this.o.uhr.jetzt() - 8 * 86_400_000);
+    const zeilen = this.o.db.prepare('SELECT geschlossen, gewinn_sol FROM positionen WHERE bot_id = ? AND offen = 0 AND geschlossen >= ? AND geoeffnet >= ?').all(id, ab, seit) as { geschlossen: number; gewinn_sol: number | null }[];
+    const je = new Map<string, { tag: string; gewinnSol: number; trades: number }>();
+    for (const z of zeilen) {
+      const tag = tagIn(z.geschlossen);
+      const t = je.get(tag) ?? { tag, gewinnSol: 0, trades: 0 };
+      t.gewinnSol += z.gewinn_sol ?? 0;
+      t.trades++;
+      je.set(tag, t);
+    }
+    return [...je.values()].sort((a, b) => (a.tag < b.tag ? 1 : -1)).slice(0, 7);
   }
 
   bot(id: string): KryptoBot {

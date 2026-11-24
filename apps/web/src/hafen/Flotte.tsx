@@ -292,7 +292,7 @@ function BotFormular({ start, id, fertig, abbrechen }: { start: KryptoEinstellun
       <input
         type="number"
         step={o.schritt ?? 'any'}
-        value={String((e[g] as Record<string, unknown>)[k as string])}
+        value={String((e[g] as Record<string, unknown>)[k as string] ?? '')}
         onChange={(ev) => setE((x) => ({ ...x, [g]: { ...(x[g] as object), [k]: Number(ev.target.value) } }))}
       />
     </label>
@@ -366,11 +366,13 @@ function BotFormular({ start, id, fertig, abbrechen }: { start: KryptoEinstellun
         {zahl('filter', 'minVolumenUsdM5', 'Volumen 5 min mindestens ($)')}
         {zahl('filter', 'minKaeufeM5', 'Käufe 5 min mindestens', { schritt: 1 })}
         {zahl('filter', 'minKaufVerhaeltnis', 'Käufe ÷ Verkäufe mindestens')}
+        {zahl('filter', 'minEchtzeitKaufVerhaeltnis', 'Käufe ÷ Verkäufe letzte 60 s (Echtzeit, 0 = aus)', { hilfe: 'Aus dem Echtzeit-Strom. Ohne Strom-Daten oder bei weniger als 3 Trades sperrt der Filter nicht.' })}
         {zahl('filter', 'minAlterSek', 'Alter mindestens (s)', { schritt: 1 })}
         {zahl('filter', 'maxAlterSek', 'Alter höchstens (s)', { schritt: 1 })}
         {zahl('filter', 'minMarketCapUsd', 'Marktwert mindestens ($)')}
         {zahl('filter', 'maxMarketCapUsd', 'Marktwert höchstens ($)')}
         {zahl('filter', 'maxDevProzent', 'Entwickler hält höchstens (%)')}
+        {zahl('filter', 'maxDevTokens24h', 'Ersteller: andere Tokens in 24 h höchstens', { schritt: 1, hilfe: 'Serien-Ersteller starten oft Dutzende Tokens am Tag – meist Rug-Fabriken.' })}
         {zahl('filter', 'maxTopHalterProzent', 'Größter Halter höchstens (%)')}
         {zahl('filter', 'minLiquiditaetSol', 'Liquidität mindestens (SOL)')}
       </fieldset>
@@ -403,6 +405,7 @@ function BotFormular({ start, id, fertig, abbrechen }: { start: KryptoEinstellun
         {zahl('ausstieg', 'stopLossProzent', 'Stop-Loss (% Verlust)')}
         {zahl('ausstieg', 'trailingProzent', 'Trailing Stop (% vom Hoch, 0 = aus)')}
         {zahl('ausstieg', 'maxHaltMinuten', 'Haltedauer höchstens (min)', { schritt: 1 })}
+        {zahl('ausstieg', 'notausEinzelverkaufProzent', 'Notausstieg: ein Verkauf senkt Liquidität um % (0 = aus)', { hilfe: 'Braucht den Echtzeit-Strom: fällt die echte SOL-Liquidität der Kurve in EINEM Trade um so viel, verkauft der Bot sofort.' })}
       </fieldset>
       <fieldset>
         <legend>Simulation (realistisch, nicht schönen)</legend>

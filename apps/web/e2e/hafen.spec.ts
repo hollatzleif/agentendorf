@@ -81,6 +81,7 @@ test('Terminal Kielwasser: Kopf, Token-Leiste, Equity-Kerzen, Agent mit Modulen,
   const eq = page.getByRole('region', { name: 'Bot-Equity' });
   await expect(eq.locator('.kw-popup')).toHaveCount(0);
   await expect(eq.getByTestId('letzter-trade')).toContainText('PEPEZ');
+  await expect(page.getByTestId('tage-im-plus')).toContainText('2/3');
   const chart = eq.getByRole('img', { name: /Equity:/ });
   await expect(chart).toHaveAttribute('aria-label', /60 Kerzen, 2 Trades/); // Fehlschlag ist kein Marker
   await eq.locator('.kw-marker').first().hover();
