@@ -68,6 +68,11 @@ test('Terminal Kielwasser: Kopf, Token-Leiste, Equity-Kerzen, Agent mit Modulen,
   await expect(page.getByRole('region', { name: 'PnL' })).toContainText('37');
   await expect(page.getByRole('region', { name: 'Entscheidungen' })).toContainText('RUG');
   await expect(page.getByRole('region', { name: 'Trades' })).toContainText('Trailing Stop');
+  // E232: Echtzeit-Kurse – Status und Kerzen des gehaltenen Tokens
+  const echt = page.getByRole('region', { name: 'Echtzeit-Kurse' });
+  await expect(echt.getByTestId('echtzeit-status')).toContainText('● live · 7 Tokens · 42 Trades/min · 12,4 MB heute');
+  await expect(echt).toContainText('MOONCAT · gehalten');
+  await expect(echt.getByRole('img', { name: /MOONCAT: 60 Kerzen/ })).toBeVisible();
   // keine Modulkarte ragt aus der Agenten-Tafel
   const raus = await agent.evaluate((el) => {
     const r = el.getBoundingClientRect();

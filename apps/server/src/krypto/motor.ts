@@ -10,6 +10,7 @@ import {
   type KryptoEntscheidung,
   type KryptoKennzahlen,
   type KryptoKerze,
+  type KryptoTokenKerzen,
   type KryptoModul,
   type KryptoModulSchluessel,
   type KryptoPosition,
@@ -25,6 +26,7 @@ import { GRUNDGEBUEHR_SOL, gebuehrSatz, kaufen, verkaufen, verkaufsWert, ANGEBOT
 import type { LiveAusfuehrer } from './ausfuehrung.js';
 import { istAdresse, type WalletTresor } from './wallet.js';
 import type { DexScreener, NeuerTokenT, PumpPortal, RugBericht, RugCheck, Schnappschuss } from './quellen.js';
+import type { KurveStand, KurveStrom } from './strom.js';
 
 export type KDB = Database.Database;
 
@@ -195,8 +197,15 @@ export class Kryptowerk {
       auszahlung?: string;
       /** Bot muss so lange im Paper gelaufen sein (Standard 24 h) */
       paperMindestMs?: number;
+      /** E232: Echtzeit-Kurse für Tokens auf der Bonding Curve */
+      strom?: KurveStrom;
     },
   ) {}
+
+  /** E232: letzter Kurs aus dem Strom je Token + Ticks für Kerzen und Kauf/Verkauf */
+  private stromKurs = new Map<string, { zeit: number; preis: number; vSol: number }>();
+  private stromTicks = new Map<string, { zeit: number; preis: number; kauf: boolean }[]>();
+  private zuletztGepflegt = 0;
 
   private liveLaeuft = new Set<Auftrag>();
   private aufgezeichnet = new Map<string, number>();
@@ -216,6 +225,7 @@ export class Kryptowerk {
   beenden() {
     if (this.zeitgeber) clearInterval(this.zeitgeber);
     this.o.portal?.stop();
+    this.o.strom?.stop();
   }
 
   private verbindungPruefen() {
@@ -339,6 +349,88 @@ export class Kryptowerk {
     }
   }
 
+  // ---- E232: Echtzeit-Kurse (Bonding Curve) --------------------------------------------------------
+
+  /** DexScreener hinkt hinterher: ist der Strom-Kurs frischer (≤ 15 s), gilt er – Volumen & Co. bleiben von DexScreener */
+  private mitStromKurs(s: Schnappschuss): Schnappschuss {
+    const k = this.stromKurs.get(s.mint);
+    if (s.dex !== 'pumpfun' || !k || this.o.uhr.jetzt() - k.zeit > 15_000 || !(s.preisSol > 0)) return s;
+    return { ...s, zeit: Math.max(s.zeit, k.zeit), preisSol: k.preis, marktwertUsd: s.marktwertUsd != null ? (s.marktwertUsd * k.preis) / s.preisSol : null };
+  }
+
+  /** Was der Strom beobachten soll: Gehaltenes und Aufträge zuerst, dann die lebhaftesten Kandidaten auf der Kurve */
+  private stromAbgleichen() {
+    const strom = this.o.strom;
+    if (!strom) return;
+    const jetzt = this.o.uhr.jetzt();
+    const vorn = [...new Set([...this.offenePositionen().map((p) => p.mint), ...this.aktiv().map((a) => a.mint)])];
+    const fenster = this.fensterSek() * 1000;
+    const kandidaten = this.laufendeBots().length
+      ? [...this.tokens.values()]
+          .filter((b) => b.letzter?.dex === 'pumpfun' && jetzt - b.letzter.zeit < 2 * MINUTE && jetzt - b.info.erstellt <= fenster && !vorn.includes(b.info.mint))
+          .sort((a, b) => b.letzter!.volumenUsdM5 - a.letzter!.volumenUsdM5)
+          .map((b) => b.info.mint)
+      : [];
+    strom.setzen(vorn, kandidaten);
+    // alte Ticks weg (Kerzen zeigen 10 min)
+    for (const [m, l] of this.stromTicks) {
+      const rest = l.filter((t) => jetzt - t.zeit < 15 * MINUTE);
+      if (rest.length) this.stromTicks.set(m, rest);
+      else (this.stromTicks.delete(m), this.stromKurs.delete(m));
+    }
+  }
+
+  /** Eine Änderung der Bonding Curve (≈ ein Trade): Kurs sofort übernehmen, Ausstiege gehaltener Tokens sofort prüfen */
+  kurveTick(mint: string, stand: KurveStand, zeit: number) {
+    const vorher = this.stromKurs.get(mint);
+    this.stromKurs.set(mint, { zeit, preis: stand.preisSol, vSol: stand.vSol });
+    const l = this.stromTicks.get(mint) ?? [];
+    l.push({ zeit, preis: stand.preisSol, kauf: vorher ? stand.vSol >= vorher.vSol : true });
+    if (l.length > 3000) l.splice(0, l.length - 3000);
+    this.stromTicks.set(mint, l);
+    const b = this.tokens.get(mint);
+    if (!b?.letzter || b.letzter.dex !== 'pumpfun' || stand.komplett) return;
+    b.letzter = this.mitStromKurs(b.letzter);
+    const gehalten = this.offenePositionen().some((p) => p.mint === mint) || this.aktiv().some((a) => a.mint === mint);
+    if (gehalten && zeit - this.zuletztGepflegt >= 250) {
+      this.zuletztGepflegt = zeit;
+      this.positionenPflegen();
+      this.auftraegeAusfuehren();
+    }
+  }
+
+  /** Gehaltene Tokens zuerst, dann die lebhaftesten aus dem Strom – zusammen höchstens `max` Tafeln */
+  private tokenKerzenFuer(gehalten: { mint: string; symbol: string }[], max = 4): KryptoTokenKerzen[] {
+    const jetzt = this.o.uhr.jetzt();
+    const fest = new Set(gehalten.map((g) => g.mint));
+    const aktiv = [...this.stromTicks.entries()]
+      .filter(([m]) => !fest.has(m))
+      .map(([m, l]) => ({ mint: m, n: l.filter((t) => jetzt - t.zeit < 5 * MINUTE).length }))
+      .filter((x) => x.n >= 2)
+      .sort((a, b) => b.n - a.n)
+      .map((x) => ({ mint: x.mint, symbol: this.tokens.get(x.mint)?.info.symbol ?? x.mint.slice(0, 4) }));
+    const gehaltenKerzen = this.tokenKerzen(gehalten).map((k) => ({ ...k, gehalten: true }));
+    return [...gehaltenKerzen, ...this.tokenKerzen(aktiv.slice(0, Math.max(0, max - gehaltenKerzen.length)))];
+  }
+
+  private tokenKerzen(mints: { mint: string; symbol: string }[]): KryptoTokenKerzen[] {
+    const jetzt = this.o.uhr.jetzt();
+    const r: KryptoTokenKerzen[] = [];
+    for (const { mint, symbol } of mints) {
+      const ticks = (this.stromTicks.get(mint) ?? []).filter((t) => jetzt - t.zeit < 10 * MINUTE);
+      if (!ticks.length) continue;
+      const kerzen: KryptoKerze[] = [];
+      for (const t of ticks) {
+        const z = Math.floor(t.zeit / 5000) * 5000;
+        const k = kerzen.at(-1);
+        if (k && k.zeit === z) ((k.h = Math.max(k.h, t.preis)), (k.l = Math.min(k.l, t.preis)), (k.c = t.preis));
+        else kerzen.push({ zeit: z, o: k?.c ?? t.preis, h: Math.max(k?.c ?? t.preis, t.preis), l: Math.min(k?.c ?? t.preis, t.preis), c: t.preis });
+      }
+      r.push({ mint, symbol, kerzen: kerzen.slice(-120), kaeufe: ticks.filter((t) => t.kauf).length, verkaeufe: ticks.filter((t) => !t.kauf).length });
+    }
+    return r;
+  }
+
   private offenePositionen(botId?: string): PositionZeile[] {
     return (botId ? this.o.db.prepare('SELECT * FROM positionen WHERE offen = 1 AND bot_id = ?').all(botId) : this.o.db.prepare('SELECT * FROM positionen WHERE offen = 1').all()) as PositionZeile[];
   }
@@ -353,6 +445,7 @@ export class Kryptowerk {
     this.taktLaeuft = true;
     try {
       await this.kurseHolen();
+      this.stromAbgleichen();
       this.auftraegeAusfuehren();
       this.positionenPflegen();
       await this.rugHolen();
@@ -403,7 +496,7 @@ export class Kryptowerk {
         b = { info: { mint: s.mint, symbol: t?.symbol ?? s.symbol, name: t?.name ?? s.name, erstellt: t?.erstellt ?? jetzt, devToken: t?.dev_token ?? null, creator: t?.creator ?? null }, letzter: null, abgefragt: jetzt, rug: null, rugFehler: 0, bewertet: new Map(), aufzeichnen: true };
         this.tokens.set(s.mint, b);
       }
-      b.letzter = s;
+      b.letzter = this.mitStromKurs(s);
       // Aufzeichnung für den Backtest: Kandidaten und Gehaltenes immer, alle anderen höchstens alle 30 s
       const zuletzt = this.aufgezeichnet.get(s.mint) ?? 0;
       if (b.aufzeichnen || gehalten.has(s.mint) || s.zeit - zuletzt >= 30_000) this.aufgezeichnet.set(s.mint, s.zeit);
@@ -1007,6 +1100,7 @@ export class Kryptowerk {
       beobachtet: this.tokens.size,
       solUsd: this.solUsd,
       bots: this.botZeilen().map((b) => this.bot(b.id)),
+      echtzeit: this.o.strom?.status() ?? null,
       ...(this.fehler || this.o.portal?.fehler ? { fehler: (this.fehler ?? this.o.portal?.fehler) as string } : {}),
     };
   }
@@ -1122,6 +1216,8 @@ export class Kryptowerk {
       xHinweis: 'X-Sentiment braucht einen Grok-Schlüssel (xAI) – noch nicht eingerichtet.',
       pnlStunden,
       besterTradeSol: bester,
+      echtzeit: this.o.strom?.status() ?? null,
+      tokenKerzen: this.tokenKerzenFuer(positionen.map((p) => ({ mint: p.mint, symbol: p.symbol }))),
     };
   }
 }

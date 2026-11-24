@@ -2567,3 +2567,28 @@ Leif: „Haben die Agenten schon die nötigen Tools, um Bots anzulegen und im Pa
 - Grenzen im Code: höchstens 6 eigene Bots der Agenten, davon höchstens 2 Prompt-Bots (je bis 0,50 $/Tag – bevorzugt Regel-Bots, die auch der Backtest prüft), Flotte insgesamt höchstens 12. Neue Arbeitsanweisung `Hafen/gebaeude.md` (alte Fassung per Hash ersetzbar). In der App lässt sich „Hafen“ beim Anlegen eines Skills ankreuzen.
 
 **Tests:** `apps/server/test/e231-hafen-werkzeuge.test.ts` gegen ein echtes Kryptowerk (Motor + HTTP-Server): Leine, Zusammenführen, anlegen/ändern/Status/Rückgängig, Live-Bot unantastbar (auch per Rückgängig), nie ein Aufruf an scharf/entschärfen/auszahlen, Not-Aus mit Meldung und Aufheben, Grenze 8 Bots, Backtest nur Regeln, Morgenzeitung.
+
+## E232 – Echtzeit-Kurse im Hafen (Helius-WebSocket, Bonding Curve) + Backtest hält das Kryptowerk nicht mehr an (24.11.)
+
+Leif fragte, warum Bots in Videos „alle 20 Sekunden“ handeln und Kerzen im Sekundentakt haben. Antwort: derselbe Markt, aber ein Echtzeit-Strom aller Trades statt Kurs-Abfragen bei DexScreener (≤ 60/min, hinkt hinterher). Drei Wege geprüft (Quellen: pumpportal.fun/fees, helius.dev/docs/billing/plans, 24.11.2026):
+- PumpPortal-Trade-Strom: seit 1. 5. 2026 0,01 SOL je 10 000 Trades + API-Schlüssel mit Wallet – bei 6–20 beobachteten Tokens grob 0,3–3 SOL/Tag (Hochrechnung). Zu teuer für Paper.
+- Helius Enhanced WebSockets ab 49 $/Monat, LaserStream gRPC (Mainnet) ab 499 $/Monat.
+- **Gewählt (Leif: „mach Weg 2“): Standard-WebSocket von Helius** (im kostenlosen Tarif, 20 Credits je MB): `accountSubscribe` auf die Bonding-Curve-Konten.
+
+**Geprüft statt angenommen**
+- Kontolayout aus der offiziellen IDL (`github.com/pump-fun/pump-public-docs`, `idl/pump.json`): Diskriminator `[23,183,248,55,96,216,172,96]`, dann u64 virtual_token/virtual_quote/real_token/real_quote/total_supply, bool complete (Offset 48). Echte Mainnet-Konten mit 49 und 151 Byte als Fixture (`test/fixtures/pump/bonding-curves.json`): Start genau 1,073e15 Roh-Token (6 Dezimalen) / 30e9 Lamports = unser K.
+- Adresse = PDA `["bonding-curve", mint]` – gegen sechs echte PumpPortal-Paare (mint ↔ bondingCurveKey) nachgerechnet: alle gleich.
+- Live gegen das öffentliche Mainnet: Bestätigung = Abo-Nummer, jede Änderung ≈ 520 Byte, Konten auch mit 166 Byte; **Kurven gegen andere Quote-Token gibt es** (quote_mint ≠ Nullen/SOL) – die verwirft der Dekoder, ihre Reserven sind keine SOL.
+
+**So läuft es** (`krypto/strom.ts`, `motor.ts`)
+- Der Strom nutzt dieselbe Adresse wie `KRYPTO_RPC_URL` (https → wss). Ohne RPC: aus, alles wie bisher.
+- Abonniert: zuerst alle gehaltenen Tokens und offenen Aufträge, dann die lebhaftesten Kandidaten auf der Kurve (zusammen höchstens 20; schon abonnierte Kandidaten behalten Vorrang, kein ständiges Ab-/Anmelden). Ohne laufende Bots und Positionen schließt die Verbindung nach einer Minute.
+- Jede Änderung (≈ ein Trade) setzt sofort den Kurs. Bei gehaltenen Tokens prüft der Motor Take Profit/Stop Loss/Trailing sofort (höchstens alle 250 ms) statt beim nächsten DexScreener-Stand. DexScreener liefert weiter Volumen, Käufe/Verkäufe und Filterdaten; sein Kurs überschreibt einen frischeren Strom-Kurs (≤ 15 s) nicht.
+- Paper bleibt Paper: dieselbe Ausführung mit Verzögerung, Slippage und Gebühren – nur der Kurs ist aktueller.
+- Kosten-Grenze im Code: höchstens `KRYPTO_ECHTZEIT_MB_TAG` (Standard 800 MB ≈ 16 000 Credits) je Tag, dann bis Mitternacht (UTC) nur DexScreener. `KRYPTO_ECHTZEIT=aus` schaltet ab (beides optional in `/srv/dorf/krypto.env`).
+- Terminal: Tafel „⚡ Echtzeit-Kurse“ (Status, Tokens, Trades/min, MB heute) und 5-Sekunden-Kerzen je gehaltenem Token mit Käufen/Verkäufen (aus der Richtung der SOL-Reserve).
+- **Nicht dabei:** Tokens nach der Migration zu PumpSwap (bräuchte Pool + zwei Tresorkonten je Token) – dort bleibt DexScreener.
+
+**Backtest:** las vorher alle Kurse der Aufzeichnung in einem Aufruf und rechnete 200 Schritte am Stück – bei Stunden an Daten hing das Kryptowerk, das Dorf lief in die 15-s-Grenze („Kryptowerk nicht erreichbar: aborted due to timeout“). Jetzt stückweise (5000 Zeilen nach rowid) und spätestens alle ~25 ms Rechenzeit abgeben.
+
+**Tests:** `test/e232-echtzeit.test.ts` (Dekoder an echten Konten, Quote ≠ SOL, PDA an echten Paaren, Strom gegen nachgebauten WebSocket im echten Nachrichtenformat: Abo/Abmeldung/Grenze/Vorrang, Motor: Kurssturz → Stop-Loss ohne Takt, Ausführung zum Strom-Kurs trotz hinterherhinkendem DexScreener, Kerzen), e2e Terminal.

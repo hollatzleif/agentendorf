@@ -2,7 +2,7 @@
 // X-Feed, PnL und das Protokoll. Daten alle 2 s vom Dorf (das sie vom Kryptowerk holt). Alles Paper Trading.
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { KryptoKerze, KryptoModul, KryptoTerminal } from '@dorf/shared';
+import type { KryptoKerze, KryptoModul, KryptoTerminal, KryptoTokenKerzen } from '@dorf/shared';
 import { api } from '../api';
 import { linkKlick } from '../router';
 import { farbeAus, prozent, sol, solVz, stundeWien, uhrzeit, usd, usdKurz } from './format';
@@ -150,6 +150,8 @@ function Terminal({ t, jetzt }: { t: KryptoTerminal; jetzt: number }) {
         </section>
         <Agent t={t} jetzt={jetzt} />
       </div>
+
+      <Echtzeit t={t} />
 
       <div className="kw-unten">
         <section className="kw-tafel" aria-label="Volumen">
@@ -407,6 +409,81 @@ function EquityKerzen({ kerzen, start, letzter }: { kerzen: KryptoKerze[]; start
           </span>
         </div>
       )}
+    </div>
+  );
+}
+
+/** E232: Echtzeit-Kurse (Bonding Curve) – Status und 5-Sekunden-Kerzen je gehaltenem Token */
+function Echtzeit({ t }: { t: KryptoTerminal }) {
+  const e = t.echtzeit;
+  const zeile = !e
+    ? 'aus – braucht den Solana-Zugang (dorf krypto-rpc)'
+    : e.grenzeErreicht
+      ? `Tagesgrenze ${e.grenzeMb} MB erreicht – bis morgen nur DexScreener`
+      : !e.an
+        ? 'bereit – startet, sobald ein Bot läuft'
+        : `${e.online ? '● live' : '○ verbindet …'} · ${e.abos} Tokens · ${e.ticksMinute} Trades/min · ${e.mbHeute.toLocaleString('de-DE')} MB heute${e.fehler ? ` · ${e.fehler}` : ''}`;
+  return (
+    <section className="kw-tafel" aria-label="Echtzeit-Kurse">
+      <div className="kw-chart-kopf">
+        <h3>⚡ Echtzeit-Kurse · 5 s</h3>
+        <span className="leise mono" style={{ fontSize: '0.74rem' }} data-testid="echtzeit-status">
+          {zeile}
+        </span>
+      </div>
+      {t.tokenKerzen?.length ? (
+        <div className="kw-echtzeit">
+          {t.tokenKerzen.map((k) => (
+            <TokenKerzen key={k.mint} k={k} />
+          ))}
+        </div>
+      ) : (
+        <p className="leise mono" style={{ fontSize: '0.74rem' }}>
+          {t.echtzeit?.an ? 'Noch keine Trades seit dem Abo – die Kerzen erscheinen mit dem ersten Trade (nur Tokens auf der Bonding Curve).' : 'Sobald der Strom läuft, erscheinen hier 5-Sekunden-Kerzen: gehaltene Tokens zuerst, dann die lebhaftesten beobachteten.'}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function TokenKerzen({ k }: { k: KryptoTokenKerzen }) {
+  const B = 320;
+  const H = 140;
+  const werte = k.kerzen.flatMap((x) => [x.h, x.l]);
+  let lo = Math.min(...werte);
+  let hi = Math.max(...werte);
+  if (hi - lo < hi * 1e-6) ((lo *= 0.995), (hi *= 1.005));
+  const y = (v: number) => 6 + ((hi - v) / (hi - lo)) * (H - 12);
+  const n = Math.max(k.kerzen.length, 30);
+  const w = (B - 8) / n;
+  const x = (i: number) => 4 + (n - k.kerzen.length + i) * w + w / 2;
+  const erst = k.kerzen[0]!.o;
+  const letzt = k.kerzen.at(-1)!.c;
+  const pz = (letzt / erst - 1) * 100;
+  return (
+    <div className="kw-token-kerzen">
+      <div className="zeile">
+        <b>
+          {k.symbol}
+          {k.gehalten ? <span className="kw-gehalten"> · gehalten</span> : <span className="leise"> · beobachtet</span>}
+        </b>
+        <span className={pz >= 0 ? 'plus' : 'minus'}>{prozent(pz, 1)} · 10 min</span>
+        <span>
+          <span className="plus">{k.kaeufe}↑</span> <span className="minus">{k.verkaeufe}↓</span>
+        </span>
+      </div>
+      <svg viewBox={`0 0 ${B} ${H}`} role="img" aria-label={`${k.symbol}: ${k.kerzen.length} Kerzen, ${prozent(pz, 1)}`}>
+        {k.kerzen.map((c, i) => {
+          const farbe = c.c >= c.o ? '#22c55e' : '#f43f5e';
+          const kw = Math.max(1.5, w * 0.62);
+          return (
+            <g key={c.zeit}>
+              <line x1={x(i)} x2={x(i)} y1={y(c.h)} y2={y(c.l)} stroke={farbe} strokeWidth={1} />
+              <rect x={x(i) - kw / 2} y={Math.min(y(c.o), y(c.c))} width={kw} height={Math.max(1, Math.abs(y(c.o) - y(c.c)))} fill={farbe} />
+            </g>
+          );
+        })}
+      </svg>
     </div>
   );
 }

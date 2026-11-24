@@ -79,5 +79,21 @@ export function terminal(): KryptoTerminal {
     xHinweis: 'X-Sentiment braucht einen Grok-Schlüssel (xAI) – noch nicht eingerichtet.',
     pnlStunden: Array.from({ length: 24 }, (_, i) => (i < 6 ? null : i % 4 === 0 ? -0.08 : i % 3 === 0 ? 0.21 : null)),
     besterTradeSol: 0.29,
+    // E232: Echtzeit-Kurse
+    echtzeit: { an: true, online: true, abos: 7, ticksMinute: 42, mbHeute: 12.4, grenzeMb: 800, grenzeErreicht: false, fehler: null },
+    tokenKerzen: [
+      {
+        mint: 'MOONCATmint1111111111111111111111111pump',
+        symbol: 'MOONCAT',
+        gehalten: true,
+        kaeufe: 31,
+        verkaeufe: 12,
+        kerzen: Array.from({ length: 60 }, (_, i) => {
+          const o = 4.1e-8 * (1 + i * 0.003 + Math.sin(i / 4) * 0.01);
+          const c = 4.1e-8 * (1 + (i + 1) * 0.003 + Math.sin((i + 1) / 4) * 0.01);
+          return { zeit: jetzt - (60 - i) * 5000, o, c, h: Math.max(o, c) * 1.002, l: Math.min(o, c) * 0.998 };
+        }),
+      },
+    ],
   };
 }

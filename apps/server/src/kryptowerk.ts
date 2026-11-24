@@ -10,6 +10,7 @@ import { kryptoServer } from './krypto/server.js';
 import { WalletTresor, istAdresse } from './krypto/wallet.js';
 import { LiveAusfuehrer } from './krypto/ausfuehrung.js';
 import { Backtests } from './krypto/backtest.js';
+import { KurveStrom, wssAusRpc } from './krypto/strom.js';
 
 const geheimnis = process.env.KRYPTO_GEHEIMNIS ?? '';
 const daten = process.env.KRYPTO_DATEN ?? '/krypto';
@@ -40,6 +41,10 @@ if (process.argv[2] === 'wallets' || process.argv[2] === 'export') {
 const Antwort = z.object({ action: z.enum(['buy', 'sell', 'hold']), token: z.string(), confidence: z.number(), reason: z.string() });
 
 let werk: Kryptowerk;
+// E232: Echtzeit-Kurse über den WebSocket desselben RPC (Helius: Standard-WebSockets im kostenlosen Tarif); KRYPTO_ECHTZEIT=aus schaltet ab
+const wss = rpcUrl && process.env.KRYPTO_ECHTZEIT !== 'aus' ? wssAusRpc(rpcUrl) : null;
+const grenzeMb = Number(process.env.KRYPTO_ECHTZEIT_MB_TAG ?? '') || undefined;
+const strom = wss ? new KurveStrom({ url: wss, tick: (m, s, z) => werk.kurveTick(m, s, z), log, ...(grenzeMb ? { grenzeMb } : {}) }) : undefined;
 const portal = new PumpPortal({ neu: (t, zeit) => werk.neuerToken(t, zeit), log });
 werk = new Kryptowerk({
   db,
@@ -49,6 +54,7 @@ werk = new Kryptowerk({
   portal,
   log,
   tresor,
+  ...(strom ? { strom } : {}),
   ...(rpcUrl && /^https:\/\//.test(rpcUrl) && tresor.bereit ? { live: LiveAusfuehrer.mitRpcUrl(tresor, rpcUrl) } : {}),
   ...(auszahlung ? { auszahlung } : {}),
   llm: async (a): Promise<LlmAntwort> => {
@@ -65,7 +71,7 @@ werk = new Kryptowerk({
 });
 const app = kryptoServer(werk, geheimnis, new Backtests({ db }));
 if (!tresor.bereit) log('Hauptschlüssel fehlt – Bots bekommen kein Wallet, Live ist aus (dorf deploy legt ihn an).');
-if (!rpcUrl) log('Kein RPC – Live ist aus (dorf krypto-rpc).');
+if (!rpcUrl) log('Kein RPC – Live und Echtzeit-Kurse sind aus (dorf krypto-rpc).');
 werk.starten();
 await app.listen({ host: '0.0.0.0', port: Number(process.env.PORT ?? 4300) });
 log('bereit');

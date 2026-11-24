@@ -71,6 +71,8 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
                   E228: wallet.ts (je Bot eigenes Wallet, AES-256-GCM, Hauptschlüssel nur in krypto.env – nie im Log/LLM/Dorf),
                   ausfuehrung.ts (PumpPortal Local trade-local → nur signieren, wenn das Bot-Wallet zahlt → Leifs RPC), backtest.ts (dieselbe
                   Maschine über die Aufzeichnungen, nur Regel-Bots). Scharf schalten nur mit Passwort/TOTP + „SCHARF“ nach ≥ 24 h Paper.
+                  E232: strom.ts – Echtzeit-Kurse per accountSubscribe auf Bonding-Curve-Konten (IDL-Layout, PDA ["bonding-curve", mint], nur
+                  Quote SOL) über wss von KRYPTO_RPC_URL; gehaltene Tokens zuerst, ≤ 20 Abos, MB-Grenze je Tag, DexScreener bleibt für Volumen/Filter
   agenten/werkzeuge-hafen.ts E231: hafen_* für Agenten (werkzeuge: [hafen], Helfer-Fähigkeit hafen, Bürgermeister) – Flotte lesen, PAPER-Bots
                   anlegen/ändern/Status (Rückgängig), eigene Paper-Bots löschen (dorf_stand hafen_agentenbots), Backtest (Regeln), Not-Aus (Meldung,
                   Rückgängig = aufheben); nie scharf/auszahlen/Wallet/Leifs Bots löschen/Live ändern
@@ -314,6 +316,7 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E213 (22.11.): Handschrift kann Mathe – Formeln ($…$ oder schlicht), Rechenwege am „=“ ausgerichtet, Brüche/Wurzeln/∑∫, Markdown-Tabellen mit Handgitter (handformel.py + Hershey); „=“ wird nicht mehr zu „-“
 - [x] E214 (22.11.): Handschrift realistischer – gerade Linien wie GoodNotes (Tabellen, Bruchstriche), ruhigere Formeln, gleichmäßiger Stift, Logik-Zeichen (∧ ∨ ¬ ↔ ⊢ ⊨ ⊤ ⊥ □), Wahrheitstafeln mittig
 - [x] E215 (22.11.): Handschrift `stil: einheitlich` (Standard) – EINE Hand für Text, Formeln und Tabellen (Schreiber-Profil je Dokument, jedes Zeichen einmalig verformt, Wortgrundlinien, Unterschneiden); `stil: ki` = KI-Modell für freien Fließtext
+- [x] E232 (24.11.): Echtzeit-Kurse im Hafen über den Helius-WebSocket (Bonding Curve, kostenloser Tarif, Tagesgrenze) – Ausstiege in Sekunden, 5-s-Kerzen im Terminal; Backtest hält das Kryptowerk nicht mehr an – Abnahme mit echtem Helius-Zugang steht aus
 - [x] E231 (24.11.): Hafen-Werkzeuge für Agenten – Paper-Bots anlegen/ändern/starten mit „Rückgängig“, Auswertung, Backtest, Not-Aus; Hafenmeister (täglich 06:05: eigene Paper-Bots auswerten, Logbuch, schwächste löschen, leicht abgewandelte Nachfolger – höchstens 6 eigene, 2 Prompt) → „⚓ Hafen“ in der Morgenzeitung – nie scharf/auszahlen, nie Leifs Bots
 - [x] E230 (24.11.): Paketwerk – Konsole in der App (Einstellungen → 🧪 Paketwerk), mit der Leif Python-Pakete für den Rechenraum installiert (pip --user, eigener Container mit Internet, Rechenraum liest nur); Agenten schlagen Befehle mit Link vor – Container kommt mit dem Deploy
 - [x] E229 (24.11.): Rechenraum mit scikit-learn 1.9.1 (Wheels mit Prüfsumme, Datensätze wie load_wine, Rauchtest mit Random Forest) – Image kommt mit dem Deploy

@@ -259,6 +259,34 @@ export interface KryptoTerminal {
   /** Gewinn je Stunde (Wien) heute, Index 0–23 */
   pnlStunden: (number | null)[];
   besterTradeSol: number | null;
+  /** E232 */
+  echtzeit?: KryptoEchtzeit | null;
+  tokenKerzen?: KryptoTokenKerzen[];
+}
+
+/** E232: Echtzeit-Kurse (Bonding Curve über den Solana-WebSocket von Leifs RPC) */
+export interface KryptoEchtzeit {
+  an: boolean;
+  online: boolean;
+  /** abonnierte Tokens */
+  abos: number;
+  /** Änderungen (≈ Trades) in der letzten Minute */
+  ticksMinute: number;
+  mbHeute: number;
+  grenzeMb: number;
+  grenzeErreicht: boolean;
+  fehler: string | null;
+}
+
+/** E232: Kurs-Kerzen eines gehaltenen Tokens aus dem Echtzeit-Strom (5-Sekunden-Kerzen, letzte 10 min) */
+export interface KryptoTokenKerzen {
+  mint: string;
+  symbol: string;
+  kerzen: KryptoKerze[];
+  kaeufe: number;
+  verkaeufe: number;
+  /** gehalten (offene Position dieses Bots) – sonst nur beobachtet */
+  gehalten?: boolean;
 }
 
 export interface KryptoUebersicht {
@@ -273,6 +301,8 @@ export interface KryptoUebersicht {
   solUsd: number | null;
   bots: KryptoBot[];
   fehler?: string;
+  /** E232: null = kein RPC eingerichtet */
+  echtzeit?: KryptoEchtzeit | null;
 }
 
 /** Vorgaben für einen neuen Bot – Paper Trading, vorsichtige Limits */

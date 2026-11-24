@@ -159,3 +159,10 @@
 .hafen-trades { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25rem; font-size: 0.82rem; font-variant-numeric: tabular-nums; max-height: 22rem; overflow-y: auto; }
 .hafen-trades li span:first-child { color: var(--leise); margin-right: 0.4rem; }
 .kw-pille.live { border-color: var(--kw-rot); color: #fecdd3; background: rgb(244 63 94 / 0.15); }
+
+/* E232: Echtzeit-Kurse je gehaltenem Token */
+.kw-echtzeit { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0.6rem; margin-top: 0.5rem; }
+.kw-token-kerzen { background: var(--kw-tafel2); border: 1px solid var(--kw-rand); border-radius: 10px; padding: 0.45rem 0.55rem; min-width: 0; }
+.kw-token-kerzen .zeile { display: flex; justify-content: space-between; gap: 0.5rem; font-family: var(--kw-mono); font-size: 0.74rem; }
+.kw-token-kerzen svg { width: 100%; height: auto; display: block; margin-top: 0.3rem; }
+.kw-token-kerzen .kw-gehalten { color: var(--kw-lila); font-weight: 600; }
