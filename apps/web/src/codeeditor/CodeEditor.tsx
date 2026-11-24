@@ -111,7 +111,8 @@ function Werkbank({ projekt }: { projekt: string }) {
   const terminalZaehler = useRef(0);
   /** Handy: genau ein Bereich sichtbar */
   const [bereich, setBereich] = useState<'seite' | 'editor' | 'terminal'>('seite');
-  const [thema, setThema] = useState<Thema>(() => (localStorage.getItem('dorf-editor-thema') === 'dunkel' ? 'dunkel' : 'hell'));
+  // E224: ohne eigene Wahl folgt der Editor dem Aussehen der App (dunkel/hell)
+  const [thema, setThema] = useState<Thema>(() => { const g = localStorage.getItem('dorf-editor-thema'); return g === 'dunkel' || g === 'hell' ? g : document.documentElement.dataset.dunkel === 'ja' ? 'dunkel' : 'hell'; });
   const [frage, setFrage] = useState<{ opt: FrageOpt; antwort: (w: string | null) => void } | null>(null);
   const [meldung, setMeldung] = useState<{ text: string; fehler: boolean } | null>(null);
   const [konflikt, setKonflikt] = useState<string | null>(null);

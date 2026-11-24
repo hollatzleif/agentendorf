@@ -47,6 +47,9 @@ export const TITEL_GEWICHTE = ['normal', 'fett', 'extra'] as const;
 export const FOKUS_RINGE = ['gelb', 'akzent', 'dick'] as const;
 export const STARTSEITEN = ['dorf', 'liste', 'heute'] as const;
 export const DUNKEL_AUTO = ['aus', 'system', 'nachts'] as const;
+export const NAVIGATIONEN = ['oben', 'unten'] as const;
+export const BUCHSTABEN = ['eng', 'normal', 'weit'] as const;
+export const KARTEN = ['tafel', 'glas', 'schlicht'] as const;
 
 /** Prüfung auf dem Server: apps/server/src/aussehen.ts (Zod) – hier nur Typ und Standard */
 export interface AussehenT {
@@ -77,6 +80,11 @@ export interface AussehenT {
   /** automatisch dunkel: nach dem System (Handy/PC im Dunkelmodus) oder nachts (20–7 Uhr) – dann gilt dunkelVorlage */
   dunkelAuto: (typeof DUNKEL_AUTO)[number];
   dunkelVorlage: Vorlage;
+  /** Handy: Navigation unten (Daumen) statt oben */
+  navigation: (typeof NAVIGATIONEN)[number];
+  buchstaben: (typeof BUCHSTABEN)[number];
+  /** Tafeln: wie bisher, Glas (durchscheinend) oder schlicht */
+  karten: (typeof KARTEN)[number];
   /** eigenes CSS (max. 20 000 Zeichen) */
   css: string;
 }
@@ -104,6 +112,9 @@ export const AUSSEHEN_STANDARD: AussehenT = {
   startseite: 'dorf',
   dunkelAuto: 'aus',
   dunkelVorlage: 'nacht',
+  navigation: 'oben',
+  buchstaben: 'normal',
+  karten: 'tafel',
   css: '',
 };
 

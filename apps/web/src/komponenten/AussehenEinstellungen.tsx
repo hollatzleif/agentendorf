@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ANIMATIONEN,
+  BUCHSTABEN,
+  KARTEN,
+  NAVIGATIONEN,
   DUNKEL_AUTO,
   AUSSEHEN_STANDARD,
   BREITEN,
@@ -25,7 +28,7 @@ import {
   type Vorlage,
 } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
-import { aussehenAnwenden, aussehenMerken, farbenVon, geraetAussehen, geraetAussehenSetzen, SCHRIFT_STAPEL, wirksam } from '../aussehen';
+import { aussehenAnwenden, aussehenMerken, farbenVon, geraetAussehen, geraetAussehenSetzen, SCHRIFT_STAPEL, schnellDunkelZuruecksetzen, wirksam } from '../aussehen';
 
 const VORLAGE_TEXT: Record<Vorlage, string> = {
   spiel: 'Spiel (wie bisher)',
@@ -54,6 +57,7 @@ const TEXTE: Record<string, string> = {
   fett: 'Fett', extra: 'Extra fett',
   dorf: '3D-Dorf', liste: 'Dorf als Liste', heute: '„Heute“',
   system: 'Wie das Gerät', nachts: 'Nachts (20–7 Uhr)',
+  oben: 'Oben', unten: 'Unten (Handy)', eng: 'Eng', weit: 'Weit', tafel: 'Tafel', glas: 'Glas',
 };
 const AKZENTE = ['#2f8a2b', '#2a78d6', '#6250d6', '#b5548f', '#e34948', '#eb6834', '#d97706', '#0e7490', '#1baf7a', '#111827'];
 
@@ -258,6 +262,8 @@ export function AussehenEinstellungen() {
           <Wahl text="Knöpfe" werte={KNOEPFE} wert={w.knoepfe} setzen={(x) => aendern({ knoepfe: x })} />
           <Wahl text="Hintergrund" werte={HINTERGRUENDE} wert={w.hintergrund} setzen={(x) => aendern({ hintergrund: x })} />
           <Wahl text="Abstände" werte={DICHTEN} wert={w.dichte} setzen={(x) => aendern({ dichte: x })} />
+          <Wahl text="Tafeln" werte={KARTEN} wert={w.karten} setzen={(x) => aendern({ karten: x })} />
+          <Wahl text="Buchstabenabstand" werte={BUCHSTABEN} wert={w.buchstaben} setzen={(x) => aendern({ buchstaben: x })} />
         </div>
       </section>
 
@@ -265,6 +271,21 @@ export function AussehenEinstellungen() {
         <h3>Anzeige</h3>
         <div className="aussehen-gruppe">
           <Wahl text="Startseite" werte={STARTSEITEN} wert={a.startseite} setzen={(x) => aendern({ startseite: x })} />
+          {localStorage.getItem('dorf-dunkel-jetzt') && (
+            <p className="hinweis">
+              Der Schnellschalter 🌙/☀️ oben in der Kopfleiste gilt gerade auf diesem Gerät.{' '}
+              <button
+                type="button"
+                className="klein"
+                onClick={() => {
+                  schnellDunkelZuruecksetzen();
+                  setMeldung('Schnellschalter aus – wieder nach Einstellung.');
+                }}
+              >
+                Wieder automatisch
+              </button>
+            </p>
+          )}
           <Wahl text="Automatisch dunkel" werte={DUNKEL_AUTO} wert={a.dunkelAuto} setzen={(x) => aendern({ dunkelAuto: x })} hilfe="Dann gilt die dunkle Vorlage – zum Beispiel abends oder wenn dein Handy im Dunkelmodus ist" />
           {a.dunkelAuto !== 'aus' && (
             <label className="aussehen-feld">
@@ -278,6 +299,7 @@ export function AussehenEinstellungen() {
               </select>
             </label>
           )}
+          <Wahl text="Navigation" werte={NAVIGATIONEN} wert={w.navigation} setzen={(x) => aendern({ navigation: x })} hilfe="Am Handy: Leiste unten – mit dem Daumen erreichbar" />
           <Wahl text="Seitenbreite" werte={BREITEN} wert={w.breite} setzen={(x) => aendern({ breite: x })} />
           <Wahl text="Tabellen" werte={TABELLEN} wert={w.tabellen} setzen={(x) => aendern({ tabellen: x })} />
           <Wahl text="Kopfleiste" werte={['mitlaufend', 'fest'] as const} wert={w.kopfleiste} setzen={(x) => aendern({ kopfleiste: x })} />

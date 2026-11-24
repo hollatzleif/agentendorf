@@ -2314,3 +2314,16 @@ Leif: In den Einstellungen soll es ganz viele Möglichkeiten geben, das Aussehen
 **Speicher:** `GET/PUT /api/aussehen` (`dorf_stand` 'aussehen', Zod in `apps/server/src/aussehen.ts`, Live-Ereignis `aussehen.geaendert`). Die App merkt sich den letzten Stand im Gerät und wendet ihn in `main.tsx` vor dem ersten Zeichnen an, damit beim Laden nichts aufblitzt. Die Typen und Vorlagen stehen in `packages/shared/src/aussehen.ts`.
 
 **Dazu in der Börse:** Ein Klick auf den Namen eines Teils zeigt nur diesen Teil (Diagramm und Kennzahlen). „⬇ CSV“ lädt die Tabelle für den gewählten Zeitraum herunter, mit Semikolon und deutschem Komma für Excel.
+
+## E225 – Nachtrag zur Nacht: mehr Börse, mehr Aussehen (24.11.)
+
+**Börse:**
+- **Wie ähnlich laufen deine Werte?** Korrelation der Tagesrenditen im gewählten Zeitraum als Matrix, höchstens 8 Werte. Viele hohe Werte bedeuten, dass die Streuung weniger schützt, als die Zahl der Positionen vermuten lässt.
+- **Einzeln ansehen:** Ein Klick auf den Namen zeigt nur diesen Wert. Im Wert-Modus zeichnet das Diagramm eine Linie beim Einstand (Kaufwert), damit man sofort sieht, ob man im Plus ist.
+- **Rechner „Was wäre wenn“:** Einmalbetrag und/oder monatlich ab einem Tag in einen Wert mit echtem Kursverlauf (`wasWaereWenn` in shared, ohne Kosten, Steuern und Dividenden).
+- Kennzahlen aller Teile werden nur neu gerechnet, wenn sich Daten oder Zeitraum ändern (schneller, vor allem am Handy). Die Seite bleibt am Handy so breit wie der Bildschirm; die Tabelle scrollt für sich.
+
+**Aussehen:**
+- **Schnellschalter 🌙/☀️** in der Kopfleiste, nur für dieses Gerät. Er überstimmt Vorlage und „automatisch dunkel“, bis man in den Einstellungen „Wieder automatisch“ wählt.
+- **Navigation unten** am Handy (Daumen), **Buchstabenabstand** (eng, normal, weit), **Tafeln** als Tafel, Glas (durchscheinend, unscharfer Hintergrund) oder schlicht.
+- Der Code-Editor im Codehaus folgt ohne eigene Wahl dem Aussehen (hell oder dunkel).

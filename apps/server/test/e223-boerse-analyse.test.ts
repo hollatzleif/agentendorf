@@ -154,3 +154,25 @@ describe('Börse-Berater (E223): Vorlagen-Aktionen sind gültig', () => {
     }
   });
 });
+
+describe('Börse-Rechnungen 2 (E224)', async () => {
+  const b = await import('@dorf/shared');
+  const tage = Array.from({ length: 60 }, (_, i) => new Date(Date.UTC(2026, 0, 1) + i * 86_400_000).toISOString().slice(0, 10));
+  it('Korrelation: gleich = 1, gespiegelt = −1, zu wenig Tage = null', () => {
+    const a: [string, number][] = tage.map((d, i) => [d, 100 + Math.sin(i) * 5 + i]);
+    const gespiegelt: [string, number][] = a.map(([d, v], i) => [d, i ? 2 * a[0]![1] * (a[i - 1]![1] / a[0]![1]) * 0 + (200 - v) : 200 - v]);
+    expect(b.korrelation(a, a)).toBeCloseTo(1);
+    expect(b.korrelation(a, gespiegelt)!).toBeLessThan(-0.9);
+    expect(b.korrelation(a.slice(0, 10), a.slice(0, 10))).toBeNull();
+  });
+  it('Was wäre wenn: Einmalbetrag und monatlich', () => {
+    const p: [string, number][] = [['2026-01-02', 10], ['2026-01-15', 12], ['2026-02-02', 20], ['2026-03-02', 40]];
+    const r = b.wasWaereWenn(p, { von: '2026-01-01', einmal: 100, monatlich: 0 })!;
+    expect(r).toMatchObject({ start: '2026-01-02', ende: '2026-03-02', eingezahlt: 100, wert: 400, gewinn: 300 });
+    const m = b.wasWaereWenn(p, { von: '2026-01-01', einmal: 0, monatlich: 40 })!;
+    // Jan: 4 Stück, Feb: 2, Mär: 1 → 7 × 40 = 280
+    expect(m.eingezahlt).toBe(120);
+    expect(m.wert).toBeCloseTo(280);
+    expect(b.wasWaereWenn(p, { von: '2027-01-01', einmal: 1, monatlich: 0 })).toBeNull();
+  });
+});

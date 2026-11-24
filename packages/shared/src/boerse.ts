@@ -235,3 +235,70 @@ export function konzentration(werte: number[]) {
 export function verdopplungJahre(rendite: number) {
   return rendite > 0 ? Math.log(2) / Math.log(1 + rendite) : null;
 }
+
+/** Tagesrenditen an gemeinsamen Tagen – für die Korrelation zweier Reihen */
+function renditen(p: Punkt[]): Map<string, number> {
+  const r = new Map<string, number>();
+  for (let i = 1; i < p.length; i++) if (p[i - 1]![1] > 0) r.set(p[i]![0], p[i]![1] / p[i - 1]![1] - 1);
+  return r;
+}
+/** Korrelation der Tagesrenditen (−1 … 1); null bei weniger als 20 gemeinsamen Tagen */
+export function korrelation(a: Punkt[], b: Punkt[]): number | null {
+  const ra = renditen(a);
+  const rb = renditen(b);
+  const x: number[] = [];
+  const y: number[] = [];
+  for (const [d, v] of ra) {
+    const w = rb.get(d);
+    if (w !== undefined) {
+      x.push(v);
+      y.push(w);
+    }
+  }
+  if (x.length < 20) return null;
+  const mx = x.reduce((s, v) => s + v, 0) / x.length;
+  const my = y.reduce((s, v) => s + v, 0) / y.length;
+  let sxy = 0;
+  let sxx = 0;
+  let syy = 0;
+  for (let i = 0; i < x.length; i++) {
+    sxy += (x[i]! - mx) * (y[i]! - my);
+    sxx += (x[i]! - mx) ** 2;
+    syy += (y[i]! - my) ** 2;
+  }
+  return sxx && syy ? sxy / Math.sqrt(sxx * syy) : null;
+}
+
+/**
+ * „Was wäre wenn“: Einmalbetrag am Tag `von` (erster Kurs ab dann) und/oder monatlich ab dann (erster Kurs jedes Monats)
+ * in einen Wert mit Kursreihe `p` – was wäre es am letzten Kurs wert? Ohne Kosten, Steuern und Dividenden.
+ */
+export function wasWaereWenn(p: Punkt[], o: { von: string; einmal: number; monatlich: number }) {
+  const ab = p.filter(([d]) => d >= o.von);
+  if (!ab.length) return null;
+  let stueck = ab[0]![1] > 0 ? o.einmal / ab[0]![1] : 0;
+  let eingezahlt = o.einmal;
+  if (o.monatlich > 0) {
+    let monat = '';
+    for (const [d, k] of ab) {
+      if (d.slice(0, 7) !== monat && k > 0) {
+        monat = d.slice(0, 7);
+        stueck += o.monatlich / k;
+        eingezahlt += o.monatlich;
+      }
+    }
+  }
+  const ende = ab.at(-1)!;
+  const wert = stueck * ende[1];
+  const verlauf: Punkt[] = [];
+  let s = ab[0]![1] > 0 ? o.einmal / ab[0]![1] : 0;
+  let monat = '';
+  for (const [d, k] of ab) {
+    if (o.monatlich > 0 && d.slice(0, 7) !== monat && k > 0) {
+      monat = d.slice(0, 7);
+      s += o.monatlich / k;
+    }
+    verlauf.push([d, s * k]);
+  }
+  return { start: ab[0]![0], ende: ende[0], eingezahlt, wert, gewinn: wert - eingezahlt, prozent: eingezahlt ? wert / eingezahlt - 1 : null, verlauf };
+}

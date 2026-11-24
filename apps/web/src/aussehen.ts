@@ -89,6 +89,18 @@ export function variablen(a: AussehenT): Record<string, string> {
 
 let gesetzt: string[] = [];
 
+const SCHNELL = 'dorf-dunkel-jetzt';
+/** E224: Schnellschalter 🌙/☀️ in der Kopfleiste – nur dieses Gerät, bis man ihn wieder auf „automatisch“ stellt */
+export function schnellDunkelUmschalten() {
+  const jetzt = document.documentElement.dataset.dunkel === 'ja';
+  localStorage.setItem(SCHNELL, jetzt ? 'aus' : 'an');
+  if (zuletzt) aussehenAnwenden(zuletzt);
+}
+export function schnellDunkelZuruecksetzen() {
+  localStorage.removeItem(SCHNELL);
+  if (zuletzt) aussehenAnwenden(zuletzt);
+}
+
 /** automatisch dunkel? (System-Dunkelmodus oder 20–7 Uhr) */
 export function jetztDunkel(a: AussehenT) {
   if (a.dunkelAuto === 'system') return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
@@ -112,8 +124,12 @@ export function aussehenAnwenden(rohEingabe: AussehenT) {
   zuletzt = rohEingabe;
   beobachten();
   const voll = { ...AUSSEHEN_STANDARD, ...rohEingabe };
-  // automatisch dunkel: die dunkle Vorlage (mit ihrem Stil) – eigene Farben gelten dann nicht, alles andere schon
-  const roh = jetztDunkel(voll) && !VORLAGE_FARBEN[voll.vorlage].dunkel ? { ...voll, vorlage: voll.dunkelVorlage, farben: {} } : voll;
+  // Schnellschalter in der Kopfleiste (dieses Gerät) geht vor; sonst automatisch dunkel nach Einstellung
+  const schnell = localStorage.getItem(SCHNELL);
+  const vorlageDunkel = !!VORLAGE_FARBEN[voll.vorlage].dunkel;
+  const dunkelWunsch = schnell === 'an' ? true : schnell === 'aus' ? false : jetztDunkel(voll) || vorlageDunkel;
+  // dunkel gewünscht, Vorlage hell → die dunkle Vorlage (eigene Farben gelten dann nicht); hell gewünscht, Vorlage dunkel → Spiel-Look
+  const roh = dunkelWunsch && !vorlageDunkel ? { ...voll, vorlage: voll.dunkelVorlage, farben: {} } : !dunkelWunsch && vorlageDunkel ? { ...voll, vorlage: 'spiel' as const, farben: {} } : voll;
   const a = wirksam(roh);
   const html = document.documentElement;
   for (const k of gesetzt) html.style.removeProperty(k);
@@ -144,6 +160,9 @@ export function aussehenAnwenden(rohEingabe: AussehenT) {
   d.tabellen = a.tabellen;
   d.kopfleiste = a.kopfleiste;
   d.fokus = a.fokusRing;
+  d.navigation = a.navigation;
+  d.buchstaben = a.buchstaben;
+  d.karten = a.karten;
   d.ecken = a.ecken === AUSSEHEN_STANDARD.ecken ? 'standard' : 'eigen';
   // eigenes CSS
   let stil = document.getElementById('dorf-eigenes-css') as HTMLStyleElement | null;

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { DUNKEL_AUTO, ANIMATIONEN, AUSSEHEN_STANDARD, BREITEN, DICHTEN, FARB_ROLLEN, FOKUS_RINGE, HINTERGRUENDE, KNOEPFE, RAHMEN, SCHATTEN, SCHRIFTEN, STARTSEITEN, TABELLEN, TITEL_GEWICHTE, VORLAGEN, type AussehenT } from '@dorf/shared';
+import { BUCHSTABEN, KARTEN, NAVIGATIONEN, DUNKEL_AUTO, ANIMATIONEN, AUSSEHEN_STANDARD, BREITEN, DICHTEN, FARB_ROLLEN, FOKUS_RINGE, HINTERGRUENDE, KNOEPFE, RAHMEN, SCHATTEN, SCHRIFTEN, STARTSEITEN, TABELLEN, TITEL_GEWICHTE, VORLAGEN, type AussehenT } from '@dorf/shared';
 import type { DB } from './db.js';
 import type { LiveHub } from './live.js';
 import { DorfFehler } from './fehler.js';
@@ -36,6 +36,9 @@ export const AussehenSchema = z
     startseite: z.enum(STARTSEITEN),
     dunkelAuto: z.enum(DUNKEL_AUTO),
     dunkelVorlage: z.enum(VORLAGEN),
+    navigation: z.enum(NAVIGATIONEN),
+    buchstaben: z.enum(BUCHSTABEN),
+    karten: z.enum(KARTEN),
     css: z
       .string()
       .max(20_000)

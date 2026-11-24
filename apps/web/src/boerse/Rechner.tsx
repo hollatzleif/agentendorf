@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { entnahme, kostenEffekt, rebalancing, sparplan, verdopplungJahre, type BoerseAnalyse, type Punkt } from '@dorf/shared';
+import { entnahme, kostenEffekt, rebalancing, sparplan, verdopplungJahre, wasWaereWenn, type BoerseAnalyse, type Punkt } from '@dorf/shared';
 import { api } from '../api';
-import { LinienDiagramm, geldFormat, usePrivat } from './teile';
+import { LinienDiagramm, datumKurz, geldFormat, prozentText, usePrivat } from './teile';
 
 /** Zahl aus einem deutschen Eingabefeld („1.234,5“ oder „1234.5“) */
 const zahl = (t: string) => {
@@ -40,6 +40,7 @@ const RECHNER = [
   ['rebalancing', '⚖️ Umschichten'],
   ['kosten', '💸 Kosten'],
   ['ziel', '🎯 Sparziel'],
+  ['waere', '🔮 Was wäre wenn'],
 ] as const;
 
 /** E223: Börse → Rechner – reine Arithmetik, keine Empfehlung */
@@ -71,6 +72,7 @@ export function BoerseRechner() {
       {welcher === 'rebalancing' && <Umschichten geld={geld} />}
       {welcher === 'kosten' && <Kosten geld={geld} />}
       {welcher === 'ziel' && <Sparziel geld={geld} />}
+      {welcher === 'waere' && <WasWaere />}
       <p className="leise">Rechenbeispiele mit festen Annahmen – echte Renditen schwanken, Vergangenes garantiert nichts. Steuern sind nicht eingerechnet.</p>
     </div>
   );
@@ -290,6 +292,60 @@ function Sparziel({ geld }: { geld: Geld }) {
           </>
         )}
       </p>
+    </section>
+  );
+}
+
+/** Was wäre, wenn ich damals in X investiert hätte? (echter Kursverlauf, ohne Kosten, Steuern, Dividenden) */
+function WasWaere() {
+  const q = useQuery({ queryKey: ['boerse', 'analyse'], queryFn: () => api<BoerseAnalyse>('/api/boerse/analyse') });
+  const [privat] = usePrivat();
+  const namen = new Map<string, string>();
+  for (const p of q.data?.saxo?.positionen ?? []) if (p.symbol && q.data?.zuordnung[p.symbol]) namen.set(q.data.zuordnung[p.symbol]!.kuerzel, p.name);
+  for (const w of [...(q.data?.eigen ?? []), ...(q.data?.watchlist ?? [])]) if (w.symbol) namen.set(w.symbol, w.name);
+  const kuerzel = Object.keys(q.data?.historien ?? {}).filter((k) => (q.data!.historien[k]!.punkte.length ?? 0) > 20);
+  const [f, s] = useFelder('waere', { wert: '', von: '', einmal: '1000', monatlich: '0' });
+  if (!q.data) return <p className="leise">Lade …</p>;
+  if (!kuerzel.length) return <p className="hinweis">Dafür braucht es Kursverläufe – in Analyse → „Kursverläufe & Kürzel“ laden.</p>;
+  const wahl = kuerzel.includes(f.wert) ? f.wert : kuerzel[0]!;
+  const h = q.data.historien[wahl]!;
+  const erster = h.punkte[0]![0];
+  const von = f.von && f.von >= erster ? f.von : erster;
+  const r = wasWaereWenn(h.punkte, { von, einmal: zahl(f.einmal), monatlich: zahl(f.monatlich) });
+  const geld = geldFormat(privat, h.waehrung, 0);
+  return (
+    <section className="karte innen rechner">
+      <div className="rechner-felder">
+        <label className="rechner-feld">
+          <span>Wert</span>
+          <select value={wahl} onChange={(e) => s('wert', e.target.value)} aria-label="Wert">
+            {kuerzel.map((k) => (
+              <option key={k} value={k}>
+                {namen.get(k) ?? k} ({k})
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="rechner-feld">
+          <span>Ab (frühestens {datumKurz(erster)})</span>
+          <input type="date" value={von} min={erster} onChange={(e) => s('von', e.target.value)} aria-label="Ab" />
+        </label>
+        <Feld text="Einmal" wert={f.einmal} setzen={(v) => s('einmal', v)} einheit={h.waehrung} />
+        <Feld text="Monatlich" wert={f.monatlich} setzen={(v) => s('monatlich', v)} einheit={h.waehrung} />
+      </div>
+      {r && (
+        <>
+          <p className="rechner-ergebnis">
+            Aus <strong>{geld(r.eingezahlt)}</strong> wären bis {datumKurz(r.ende)} <strong>{geld(r.wert)}</strong> geworden –{' '}
+            <strong className={r.gewinn >= 0 ? 'plus' : 'minus'}>
+              {geld(r.gewinn, true)} ({prozentText(r.prozent)})
+            </strong>
+            .
+          </p>
+          <LinienDiagramm reihen={[{ schluessel: 'w', name: namen.get(wahl) ?? wahl, farbe: '#2a78d6', punkte: r.verlauf }]} format={(n) => geld(n)} hoehe={220} />
+        </>
+      )}
+      <p className="leise">In der Währung des Kurses ({h.waehrung}). Die kostenlose EODHD-Stufe liefert etwa ein Jahr Verlauf; das Dorf sammelt ab dann jeden Tag weiter.</p>
     </section>
   );
 }

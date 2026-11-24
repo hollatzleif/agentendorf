@@ -36,6 +36,14 @@ test('Aussehen: Vorlage, Vorschau, Verwerfen, Speichern, eigene Farbe und Stile'
     await page.getByRole('button', { name: 'Akzent #e34948' }).click();
     await page.getByRole('button', { name: 'Speichern' }).click();
     await expect.poll(() => html.evaluate((e) => e.style.getPropertyValue('--gruen'))).toBe('#e34948');
+    // Schnellschalter in der Kopfleiste: dieses Gerät, überstimmt die Einstellung
+    await page.getByRole('button', { name: 'Hell schalten' }).click();
+    await expect(html).toHaveAttribute('data-dunkel', 'nein');
+    await page.reload();
+    await expect(html).toHaveAttribute('data-dunkel', 'nein');
+    await page.goto('/einstellungen');
+    await page.getByRole('button', { name: 'Wieder automatisch' }).click();
+    await expect(html).toHaveAttribute('data-dunkel', 'ja');
   } finally {
     await page.request.put('/api/aussehen', { headers: { origin: 'http://127.0.0.1:3999' }, data: {} });
     await page.evaluate(() => localStorage.removeItem('dorf-aussehen'));

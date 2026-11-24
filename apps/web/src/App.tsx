@@ -1,5 +1,5 @@
-import { lazy, Suspense, useEffect } from 'react';
-import { useAussehen } from './aussehen';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { schnellDunkelUmschalten, useAussehen } from './aussehen';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { FreigabeInfo, Ich, Konflikt } from '@dorf/shared';
 import { api } from './api';
@@ -133,6 +133,7 @@ function Rahmen() {
           {nav('/einstellungen', 'Einstellungen', pfad === '/einstellungen')}
         </nav>
         <div className="status">
+          <DunkelSchalter />
           {nf > 0 && (
             <a href="/gebaeude/Rathaus?reiter=freigaben" onClick={linkKlick} className="abzeichen brief" title="Freigaben warten auf dich">
               ✉️ {nf}
@@ -153,5 +154,25 @@ function Rahmen() {
         </SeitenFehler>
       </main>
     </div>
+  );
+}
+
+/** E224: 🌙/☀️ – schnell hell/dunkel auf diesem Gerät (Einstellungen → Aussehen für alles Weitere) */
+function DunkelSchalter() {
+  const [, neu] = useState(0);
+  const dunkel = document.documentElement.dataset.dunkel === 'ja';
+  return (
+    <button
+      type="button"
+      className="dunkel-schalter"
+      title={dunkel ? 'Hell (dieses Gerät)' : 'Dunkel (dieses Gerät)'}
+      aria-label={dunkel ? 'Hell schalten' : 'Dunkel schalten'}
+      onClick={() => {
+        schnellDunkelUmschalten();
+        neu((x) => x + 1);
+      }}
+    >
+      {dunkel ? '☀️' : '🌙'}
+    </button>
   );
 }

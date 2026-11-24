@@ -11,8 +11,8 @@ async function anmelden(page: Page) {
   await expect(page.getByRole('heading', { name: 'Dorfplatz' })).toBeVisible();
 }
 
-test('Börse-Analyse: Zeitraum, Teile ein- und ausblenden, Kennzahlen, Aufteilung, Monate, Beträge verbergen', async ({ page }) => {
-  test.slow(); // 3 Jahre Tageswerte für 7 Reihen – am Handy in der CI langsam
+test('Börse-Analyse: Zeitraum, Teile ein- und ausblenden, Kennzahlen, Aufteilung, Monate, Beträge verbergen', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'ausführlich am Desktop; am Handy der schlanke Test unten');
   await anmelden(page);
   await page.goto('/gebaeude/Boerse?reiter=analyse');
   const kacheln = page.getByLabel('Kennzahlen: Saxo-Konto gesamt');
@@ -39,9 +39,20 @@ test('Börse-Analyse: Zeitraum, Teile ein- und ausblenden, Kennzahlen, Aufteilun
   await page.getByLabel('Aufteilen nach').selectOption('waehrung');
   await expect(page.getByRole('region', { name: 'Aufteilung' })).toContainText('USD');
   await expect(page.getByRole('region', { name: 'Monatsrenditen' }).locator('tbody tr').first()).toContainText(String(new Date().getFullYear()));
+  // ähnlich laufende Werte, einzeln ansehen (Einstandslinie), CSV
+  await expect(page.getByRole('region', { name: 'Wie ähnlich laufen deine Werte' })).toContainText('Apple');
+  await page.getByRole('region', { name: 'Teile des Depots' }).getByRole('button', { name: 'Apple Inc.' }).click();
+  await page.getByRole('group', { name: 'Anzeige' }).getByRole('button', { name: 'Wert' }).click();
+  await expect(page.getByLabel('Kennzahlen: Apple Inc.')).toBeVisible();
+  await expect(page.locator('.diagramm-referenz-text')).toContainText('Einstand');
+  if (info.project.name === 'desktop') {
+    const download = page.waitForEvent('download');
+    await page.getByRole('button', { name: '⬇ CSV' }).click();
+    expect((await download).suggestedFilename()).toMatch(/^boerse-analyse-.+\.csv$/);
+  }
   // Beträge verbergen
   await page.getByRole('button', { name: '👁 Beträge' }).click();
-  await expect(page.getByLabel('Kennzahlen: Saxo-Konto gesamt')).toContainText('•••');
+  await expect(page.getByLabel('Kennzahlen: Apple Inc.')).toContainText('•••');
 });
 
 test('Börse-Rechner (Sparplan, Umschichten) und Berater (Karten, Schnellfrage füllt das Formular)', async ({ page }, info) => {
@@ -57,9 +68,25 @@ test('Börse-Rechner (Sparplan, Umschichten) und Berater (Karten, Schnellfrage f
   await page.getByRole('tab', { name: '⚖️ Umschichten' }).click();
   await page.getByLabel('Ziel für Vanguard FTSE All-World').fill('100');
   await expect(page.locator('tr', { hasText: 'Apple Inc.' }).locator('td.minus')).toBeVisible();
+  await page.getByRole('tab', { name: '🔮 Was wäre wenn' }).click();
+  await page.getByLabel('Einmal').fill('1000');
+  await expect(page.locator('.rechner-ergebnis')).toContainText('wären bis');
   await page.goto('/gebaeude/Boerse?reiter=berater');
   await expect(page.getByRole('button', { name: /Aktie analysieren/ })).toBeEnabled();
   await page.getByRole('button', { name: 'Welcher Welt-ETF passt zu mir?' }).click();
   await expect(page.getByLabel(/Thema oder ETFs/)).toHaveValue(/Welt-ETF/);
   await expect(page.getByRole('button', { name: /Starten|Los/ }).first()).toBeVisible();
+});
+
+test('Börse-Analyse am Handy: Kennzahlen, Diagramm, Tabelle – nichts ragt über den Bildschirm', async ({ page }, info) => {
+  test.skip(info.project.name !== 'handy', 'nur Handy');
+  await anmelden(page);
+  await page.goto('/gebaeude/Boerse?reiter=analyse');
+  await expect(page.getByLabel('Kennzahlen: Saxo-Konto gesamt')).toContainText('1 Jahr');
+  await expect(page.locator('.diagramm svg').first()).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Teile des Depots' })).toContainText('Apple Inc.');
+  const breit = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(breit).toBeLessThanOrEqual(1);
+  await page.getByRole('group', { name: 'Zeitraum' }).getByRole('button', { name: 'Max' }).click();
+  await expect(page.getByLabel('Kennzahlen: Saxo-Konto gesamt')).toContainText('Alles');
 });

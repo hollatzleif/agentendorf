@@ -45,7 +45,7 @@ export interface Reihe {
  * Liniendiagramm mit Achsen, Fadenkreuz und Tooltip (alle sichtbaren Reihen am Tag unter dem Zeiger).
  * `format` beschriftet die y-Achse und den Tooltip.
  */
-export function LinienDiagramm({ reihen, format, hoehe = 280, nullLinie }: { reihen: Reihe[]; format: (n: number) => string; hoehe?: number; nullLinie?: number }) {
+export function LinienDiagramm({ reihen, format, hoehe = 280, nullLinie, referenz }: { reihen: Reihe[]; format: (n: number) => string; hoehe?: number; nullLinie?: number; referenz?: { wert: number; text: string } }) {
   // Breite = echte Breite des Rahmens (Schrift bleibt lesbar, am Handy wie am PC)
   const [B, setB] = useState(820);
   const rahmen = useRef<HTMLDivElement>(null);
@@ -71,8 +71,9 @@ export function LinienDiagramm({ reihen, format, hoehe = 280, nullLinie }: { rei
         <p className="leise">Für diesen Zeitraum gibt es zu wenige Daten.</p>
       </div>
     );
-  let min = Math.min(...werte, ...(nullLinie != null ? [nullLinie] : []));
-  let max = Math.max(...werte, ...(nullLinie != null ? [nullLinie] : []));
+  const extra = [...(nullLinie != null ? [nullLinie] : []), ...(referenz ? [referenz.wert] : [])];
+  let min = Math.min(...werte, ...extra);
+  let max = Math.max(...werte, ...extra);
   if (min === max) {
     min -= 1;
     max += 1;
@@ -123,6 +124,14 @@ export function LinienDiagramm({ reihen, format, hoehe = 280, nullLinie }: { rei
           </text>
         ))}
         {nullLinie != null && <line x1={L} x2={B - R} y1={y(nullLinie)} y2={y(nullLinie)} className="diagramm-null" />}
+        {referenz && (
+          <g>
+            <line x1={L} x2={B - R} y1={y(referenz.wert)} y2={y(referenz.wert)} className="diagramm-referenz" />
+            <text x={B - R - 4} y={y(referenz.wert) - 5} textAnchor="end" className="diagramm-achse diagramm-referenz-text">
+              {referenz.text}
+            </text>
+          </g>
+        )}
         {reihen.map((r) => (
           <path key={r.schluessel} d={pfad(r.punkte)} fill="none" stroke={r.farbe} strokeWidth={2} strokeDasharray={r.strich ? '6 4' : undefined} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
         ))}

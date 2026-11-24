@@ -5,6 +5,7 @@ import {
   jahresRendite,
   kennzahlen,
   konzentration,
+  korrelation,
   monatsRenditen,
   schneiden,
   summieren,
@@ -37,6 +38,8 @@ interface Teil {
   rendite?: Punkt[];
   /** Hinweis zur Herkunft der Reihe */
   quelle: string;
+  /** Einstand (Kaufwert) in Kontowährung, wenn bekannt */
+  einstandWert?: number;
   gesamt?: boolean;
   nurKurs?: boolean;
 }
@@ -67,7 +70,8 @@ function teileBauen(a: BoerseAnalyse): Teil[] {
     teile.push({ schluessel: 'saxo', name: 'Saxo-Konto gesamt', depot: 'Saxo', art: 'Konto', waehrung: s.waehrung, wert: s.gesamt, reihe: [...zusammen.entries()].sort((x, y) => x[0].localeCompare(y[0])), rendite, quelle: 'Saxo-Performance (Kontowert, inkl. Ein-/Auszahlungen)', gesamt: true });
     for (const p of s.positionen) {
       const r = saxoReihe(a, p.symbol, p.name);
-      teile.push({ schluessel: `saxo:${p.symbol ?? p.name}`, name: p.name, depot: 'Saxo', art: p.art ?? 'Sonstiges', waehrung: p.waehrung ?? s.waehrung, wert: p.wert ?? null, reihe: r.reihe, quelle: r.quelle });
+      const faktor = p.wert && p.kurs && p.stueck ? p.wert / (p.kurs * p.stueck) : null;
+      teile.push({ schluessel: `saxo:${p.symbol ?? p.name}`, name: p.name, depot: 'Saxo', art: p.art ?? 'Sonstiges', waehrung: p.waehrung ?? s.waehrung, wert: p.wert ?? null, reihe: r.reihe, quelle: r.quelle, ...(p.einstand && p.stueck && faktor ? { einstandWert: p.einstand * p.stueck * faktor } : {}) });
     }
     if (s.bar) teile.push({ schluessel: 'saxo:bar', name: 'Bargeld (Saxo)', depot: 'Saxo', art: 'Bargeld', waehrung: s.waehrung, wert: s.bar, reihe: s.tage.length ? [] : [], quelle: 'nur aktueller Stand' });
   }
@@ -76,7 +80,7 @@ function teileBauen(a: BoerseAnalyse): Teil[] {
     const h = w.symbol ? a.historien[w.symbol] : undefined;
     const faktor = w.kurs && w.wertEur && w.stueck ? w.wertEur / (w.kurs * w.stueck) : w.waehrung === 'EUR' ? 1 : null;
     const reihe: Punkt[] = h && w.stueck && faktor ? h.punkte.map(([d, k]) => [d, k * w.stueck! * faktor]) : [];
-    eigene.push({ schluessel: `eigen:${w.index}`, name: w.name, depot: 'Eigenes Depot', art: w.symbol?.endsWith('.US') ? 'Aktie/ETF (US)' : 'Aktie/ETF', waehrung: w.waehrung ?? 'EUR', wert: w.wertEur ?? null, reihe, quelle: h ? `Kursverlauf ${w.symbol} × ${w.stueck ?? 0} Stück` : 'noch kein Kursverlauf' });
+    eigene.push({ schluessel: `eigen:${w.index}`, name: w.name, depot: 'Eigenes Depot', art: w.symbol?.endsWith('.US') ? 'Aktie/ETF (US)' : 'Aktie/ETF', waehrung: w.waehrung ?? 'EUR', wert: w.wertEur ?? null, reihe, quelle: h ? `Kursverlauf ${w.symbol} × ${w.stueck ?? 0} Stück` : 'noch kein Kursverlauf', ...(w.einstand && w.stueck ? { einstandWert: w.einstand * w.stueck } : {}) });
   }
   if (eigene.length) {
     const mit = eigene.filter((e) => e.reihe.length);
@@ -328,7 +332,12 @@ export function BoerseAnalyseAnsicht() {
       )}
 
       <section className="karte innen ba-diagramm" aria-label="Verlauf">
-        <LinienDiagramm reihen={reihen} format={format} nullLinie={anzeigeJetzt === 'prozent' ? 0 : anzeigeJetzt === 'index' ? 100 : undefined} />
+        <LinienDiagramm
+          reihen={reihen}
+          format={format}
+          nullLinie={anzeigeJetzt === 'prozent' ? 0 : anzeigeJetzt === 'index' ? 100 : undefined}
+          referenz={anzeigeJetzt === 'wert' && sichtbare.length === 1 && sichtbare[0]!.einstandWert ? { wert: sichtbare[0]!.einstandWert, text: `Einstand ${geld0(sichtbare[0]!.einstandWert)}` } : undefined}
+        />
         {nurKurs && anzeige === 'wert' && <p className="leise">Watchlist-Werte haben keinen Depotwert – darum als Index (Start = 100).</p>}
       </section>
 
@@ -493,6 +502,8 @@ export function BoerseAnalyseAnsicht() {
         )}
       </section>
 
+      <Aehnlichkeit teile={teile.filter((t) => !t.gesamt && t.reihe.length > 20)} von={von} bis={bis} farbeVon={farbeVon} />
+
       <details className="karte innen" aria-label="Kursverläufe">
         <summary>
           <strong>Kursverläufe & Kürzel</strong> <span className="leise">· EODHD heute {a.abrufeHeute}/{a.abrufeMax}</span>
@@ -522,6 +533,54 @@ export function BoerseAnalyseAnsicht() {
         </ul>
       </details>
     </div>
+  );
+}
+
+/** Wie ähnlich laufen die Werte? Korrelation der Tagesrenditen im gewählten Zeitraum (höchstens 8 Werte) */
+function Aehnlichkeit({ teile, von, bis, farbeVon }: { teile: Teil[]; von: string | null; bis: string | null; farbeVon: (k: string) => string }) {
+  const liste = teile.slice(0, 8);
+  const matrix = useMemo(() => liste.map((a) => liste.map((b) => (a === b ? 1 : korrelation(schneiden(a.reihe, von, bis), schneiden(b.reihe, von, bis))))), [liste, von, bis]);
+  if (liste.length < 2) return null;
+  const paare: { a: string; b: string; r: number }[] = [];
+  liste.forEach((a, i) => liste.forEach((b, j) => j > i && matrix[i]![j] != null && paare.push({ a: a.name, b: b.name, r: matrix[i]![j]! })));
+  const aehnlichste = [...paare].sort((x, y) => y.r - x.r)[0];
+  return (
+    <section className="karte innen" aria-label="Wie ähnlich laufen deine Werte">
+      <h3>Wie ähnlich laufen deine Werte?</h3>
+      <p className="leise">
+        1 = bewegen sich gleich, 0 = unabhängig, −1 = gegenläufig (Tagesrenditen im Zeitraum). Viele hohe Werte heißt: Die Streuung schützt weniger, als die Zahl der Positionen vermuten lässt.
+        {aehnlichste && aehnlichste.r > 0.8 ? ` Am ähnlichsten: ${aehnlichste.a} und ${aehnlichste.b} (${aehnlichste.r.toFixed(2).replace('.', ',')}).` : ''}
+      </p>
+      <div className="tabelle-rahmen">
+        <table className="ba-korrelation">
+          <thead>
+            <tr>
+              <th />
+              {liste.map((t) => (
+                <th key={t.schluessel} title={t.name}>
+                  <span className="diagramm-punkt" style={{ background: farbeVon(t.schluessel) }} /> {t.name.split(/\s+/)[0]}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {liste.map((a, i) => (
+              <tr key={a.schluessel}>
+                <th>{a.name}</th>
+                {liste.map((b, j) => {
+                  const r = matrix[i]![j];
+                  return (
+                    <td key={b.schluessel} style={r == null || i === j ? undefined : { background: `rgba(42, 120, 214, ${Math.max(0, r) * 0.6})` }} title={r == null ? 'zu wenig gemeinsame Tage' : `${a.name} ↔ ${b.name}: ${r.toFixed(2)}`}>
+                      {i === j ? '·' : r == null ? '–' : r.toFixed(2).replace('.', ',')}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 

@@ -2024,9 +2024,34 @@ details.karte > summary { cursor: pointer; }
 .aussehen-feld { display: grid; gap: 0.3rem; font-weight: 700; font-size: 0.9rem; }
 .aussehen-feld .ba-chips button.klein { font-weight: 700; }
 .aussehen-farben { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: 0.5rem 1rem; }
-.aussehen-farbe { display: flex; align-items: center; gap: 0.5rem; font-size: 0.88rem; }
+.aussehen-farbe { display: flex; flex-direction: row !important; align-items: center; gap: 0.5rem; font-size: 0.88rem; font-weight: 600; }
 .aussehen-farbe input[type='color'] { width: 2.4rem; height: 2rem; padding: 0.1rem; border-radius: 8px; flex: none; cursor: pointer; }
 .aussehen-farbe button.klein { margin-left: auto; }
 .aussehen-css { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.85rem; min-height: 8rem; }
 .aussehen-vorschau { display: grid; gap: 0.6rem; }
 .aussehen-leiste { position: sticky; bottom: 0.5rem; z-index: 5; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; padding: 0.6rem 0.8rem; background: var(--karte); border: 2px solid var(--navy); border-radius: 14px; box-shadow: var(--schatten); }
+
+.kopf .dunkel-schalter { background: transparent !important; border: none !important; box-shadow: none !important; padding: 0.15rem 0.35rem; font-size: 1.05rem; line-height: 1; }
+.kopf .dunkel-schalter:hover { transform: scale(1.12); }
+
+.diagramm-referenz { stroke: var(--dach); stroke-width: 1.5; stroke-dasharray: 7 4; vector-effect: non-scaling-stroke; }
+.diagramm-referenz-text { fill: var(--dach); font-weight: 700; }
+.ba-korrelation { border-collapse: separate; border-spacing: 2px; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.ba-korrelation th { font-weight: 800; color: var(--leise); text-align: left; padding: 0.2rem 0.4rem; white-space: nowrap; }
+.ba-korrelation td { text-align: center; min-width: 3.2rem; padding: 0.3rem; border-radius: 5px; }
+.boerse-analyse > *, .boerse-rechner > *, .boerse-berater > *, .ba-raster > *, .aussehen > * { min-width: 0; }
+@media (max-width: 760px) {
+  .ba-tabelle th:nth-child(6), .ba-tabelle td:nth-child(6), .ba-tabelle th:nth-child(8), .ba-tabelle td:nth-child(8) { display: none; }
+}
+
+/* E224: Tafeln, Buchstaben, Navigation */
+:root[data-karten='glas'] .karte { background: color-mix(in srgb, var(--karte) 72%, transparent); backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2); }
+:root[data-karten='glas'] :is(.todo, .bank-kachel) { background: color-mix(in srgb, var(--flaeche) 80%, transparent); }
+:root[data-karten='schlicht'] .karte { border-width: 1px; border-color: var(--rand); box-shadow: none; }
+:root[data-buchstaben='eng'] body { letter-spacing: -0.012em; }
+:root[data-buchstaben='weit'] body { letter-spacing: 0.035em; }
+@media (max-width: 760px) {
+  :root[data-navigation='unten'] .kopf { position: fixed; top: auto; bottom: 0; left: 0; right: 0; border-bottom: none; border-top: 3px solid var(--navy-dunkel); padding-top: 0.45rem; padding-bottom: max(0.45rem, env(safe-area-inset-bottom)); }
+  :root[data-navigation='unten'] main { padding-bottom: 5rem; }
+  :root[data-navigation='unten'] .kopf .marke span { display: none; }
+}
