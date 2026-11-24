@@ -91,7 +91,8 @@ describe('Saxo (E73): nur lesen', () => {
     const ue = (await x.d.app.inject({ url: '/api/boerse/saxo', headers: x.h })).json();
     expect(ue).toMatchObject({ verbunden: true, stand: { waehrung: 'CHF', gesamt: 12500.5, bar: 500.5 } });
     expect(ue.stand.positionen.map((p: { name: string; wert: number; gewinn: number }) => [p.name, p.wert, p.gewinn])).toEqual([
-      ['Vanguard FTSE All-World', 7500, 1500],
+      // E226: MarketValue (EUR) ist kein Wert in Kontowährung (CHF) → Kontowert − Bargeld − Nestlé = 8000, Gewinn anteilig
+      ['Vanguard FTSE All-World', 8000, 1600],
       ['Nestlé SA', 4000, -500],
     ]);
     expect(ue.verlauf).toEqual([

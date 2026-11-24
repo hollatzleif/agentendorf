@@ -329,7 +329,7 @@ button.schliessen:active { box-shadow: 0 1px 0 #8f1f1b; }
 }
 .dorf-panel-kopf h2, .dorf-panel-kopf h1 { color: #fff; text-shadow: 0 2px 0 var(--navy-dunkel); margin: 0; }
 .dorf-panel-kopf .knopf, .dorf-panel-kopf button:not(.schliessen) { font-size: 0.85rem; padding: 0.2rem 0.65rem; }
-.dorf-panel-inhalt { overflow: auto; padding: 0 1rem 1rem; flex: 1; overscroll-behavior: contain; }
+.dorf-panel-inhalt { position: relative; overflow: auto; padding: 0 1rem 1rem; flex: 1; overscroll-behavior: contain; } /* E226: Bezug für absolut gesetzte Teile (sonst schob das Fenster selbst – leerer Bereich) */
 .dorf-panel-inhalt h2 { margin: 0.2rem 0 0.6rem; }
 .dorf-panel-inhalt .karte { border-width: 2px; box-shadow: 0 3px 0 var(--navy); }
 
@@ -1887,7 +1887,7 @@ a.datei-karte:hover { border-color: var(--gruen-dunkel); }
 .ba-tabelle tr.ba-aus td:not(:first-child) { opacity: 0.55; }
 .ba-sort { all: unset; cursor: pointer; font-weight: 800; }
 .ba-sort:focus-visible { outline: 3px solid var(--fokus); border-radius: 4px; }
-.ba-auge { display: inline-flex; align-items: center; cursor: pointer; }
+.ba-auge { position: relative; display: inline-flex; align-items: center; cursor: pointer; }
 .ba-auge input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .ba-auge .diagramm-punkt { width: 1.05rem; height: 1.05rem; border: 2.5px solid; }
 .ba-auge input:focus-visible + .diagramm-punkt { outline: 3px solid var(--fokus); outline-offset: 2px; }
@@ -1940,7 +1940,7 @@ details.karte > summary { cursor: pointer; }
   .diagramm-tip { font-size: 0.74rem; min-width: 9rem; }
 }
 
-.ba-tabelle th:nth-child(2), .ba-tabelle td:nth-child(2) { text-align: left; }
+.tabelle.zahlen.ba-tabelle th:nth-child(2), .tabelle.zahlen.ba-tabelle td:nth-child(2) { text-align: left; }
 .ba-gv ol { list-style: none; padding-left: 0; counter-reset: gv; }
 .ba-gv li { counter-increment: gv; }
 .ba-gv li:not(.ba-gv-kopf)::before { content: counter(gv) '. '; color: var(--leise); }
@@ -2066,3 +2066,21 @@ details.karte > summary { cursor: pointer; }
 :root[data-links='aus'] a { text-decoration: none; }
 .aussehen-diagramm { display: flex; gap: 3px; }
 .aussehen-diagramm span { width: 1.3rem; height: 0.55rem; border-radius: 3px; }
+
+/* E226: Analyse richtet sich nach dem Platz, den sie hat (schmales Gebäude-Fenster im Dorf, Programm) – nicht nach dem Bildschirm */
+.boerse-analyse { container: ba / inline-size; }
+.ba-link { text-decoration: underline; font-weight: 700; color: var(--gruen-dunkel); }
+.ba-hinweis { margin: 0.4rem 0 0; }
+@container ba (max-width: 640px) {
+  .boerse-analyse .karte.innen { padding: 0.6rem 0.65rem; border-radius: 12px; }
+  .ba-raster { grid-template-columns: 1fr; }
+  .ba-gv { grid-template-columns: 1fr; }
+  .ba-tabelle th:nth-child(n + 6), .ba-tabelle td:nth-child(n + 6) { display: none; }
+  .ba-tabelle td:nth-child(2) { min-width: 7.5rem; }
+  .ba-tabelle td, .ba-tabelle th { padding-left: 0.3rem; padding-right: 0.3rem; font-size: 0.85rem; }
+  .ba-monate { font-size: 0.66rem; border-spacing: 1px; }
+  .ba-monate td { min-width: 0; padding: 0.25rem 0.1rem; }
+  .ba-monate th { padding: 0.1rem; }
+  .ba-kacheln { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ba-kuerzel-form input { width: 7rem; }
+}

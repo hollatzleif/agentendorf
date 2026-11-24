@@ -2334,3 +2334,28 @@ Leif: In den Einstellungen soll es ganz viele Möglichkeiten geben, das Aussehen
   - **Diagramm-Farben:** standard, kräftig, pastell oder einfarbig.
   - **Links unterstrichen** an oder aus.
   - **Telegram `/depot`:** Saxo-Kontowert, Rendite seit Jahresbeginn und über 12 Monate, die zuletzt am stärksten bewegten Werte, „Gestern“ (E222), dazu das eigene Depot. Mit Link zur Analyse.
+
+## E226 – Börse: Positionen mit 0 € und die Analyse im schmalen Fenster (24.11.)
+
+Leif hat gemeldet, dass in der Analyse alle Saxo-ETFs mit 0,00 CHF stehen. Als Diagramm kam nur „Saxo-Konto gesamt“, und im Gebäude-Fenster des Dorfs wirkte die Ansicht seltsam: unten leer, die Spalten gequetscht.
+
+- **Ursache 0 €:** Saxo liefert `MarketValueInBaseCurrency` bei Leifs ETFs (EUR-Werte, Konto in CHF) als **0**. Der Code nahm den ersten vorhandenen Wert (`??`), also auch die 0. Damit waren der Wert, der Anteil und der Umrechnungsfaktor für die Kursverläufe (Wert ÷ Kurs ÷ Stück) alle 0, und jede Positionslinie lag flach bei null.
+- **Jetzt (`saxoWertWaehlen`, `werteErgaenzen` in saxo.ts):**
+  - Es zählt der erste Wert **ungleich 0** aus `MarketValueInBaseCurrency` und `ExposureInBaseCurrency`. `MarketValue`/`Exposure` gelten nur, wenn die Position in Kontowährung ist.
+  - Fehlt der Wert trotz Stück und Kurs, gilt: Stück × Kurs × Umrechnung.
+  - Die Umrechnung kommt aus dem Gewinn in beiden Währungen. Fehlt der, nimmt das Dorf eine andere Position derselben Währung. Fehlt auch die, wird **Kontowert − Bargeld** anteilig nach Stück × Kurs verteilt. Das ist exakt, solange alle unbekannten Positionen dieselbe Währung haben, so wie bei Leif.
+  - Nachgerechnete Werte tragen `geschaetzt: true` und stehen in der App mit „≈“.
+  - Ältere gespeicherte Stände und Tagesstände werden **beim Lesen** repariert, ohne Migration. Für die Tagesstände nimmt das Dorf die Umrechnung je Währung aus dem aktuellen Stand.
+  - Ein alter Test hatte einen EUR-Marktwert als CHF gezählt. Er erwartet jetzt die Summe, die zum Kontowert passt.
+- **Diagramm:**
+  - Tagesstände mit Wert 0 zählen nicht als Punkt.
+  - Sichtbare Teile ohne Linie im Zeitraum werden jetzt **benannt**, mit dem Weg zu „Kursverläufe & Kürzel“; vorher fielen sie stumm weg.
+  - Wer im Euro-Modus Gesamt und Positionen zusammen ansieht, bekommt den Knopf „in % vergleichen“.
+- **Schmales Fenster:**
+  - Die Ein/Aus-Kästchen waren absolut gesetzt, ohne Bezug in ihrer Zeile. Ihr Bezug war deshalb das ganze Gebäude-Fenster: Das Fenster (`overflow: hidden`) wurde scrollbar, und ein Klick schob den Inhalt nach oben weg. Das war der leere Bereich.
+  - Die Abhilfe: `.ba-auge` und `.dorf-panel-inhalt` bekommen `position: relative`.
+  - Die Analyse richtet sich per **Container-Query** nach ihrer eigenen Breite statt nach dem Bildschirm (Programm, Gebäude-Fenster). Unter 640 px entfallen die Spalten ab „€ im Zeitraum“, die Monats-Heatmap wird kompakt, Karten und Kacheln werden enger.
+  - Namen stehen links.
+- **Tests:**
+  - Server: `e226-saxo-werte.test.ts`.
+  - e2e: `boerse.spec.ts` „E226“ im echten Gebäude-Fenster. Geprüft wird: „≈“, der Hinweis, die ausgeblendeten Spalten, dass das Fenster selbst nie scrollt und dass nichts hinausragt.

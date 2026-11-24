@@ -95,3 +95,34 @@ test('Börse-Analyse am Handy: Kennzahlen, Diagramm, Tabelle – nichts ragt üb
   await page.getByRole('group', { name: 'Zeitraum' }).getByRole('button', { name: 'Max' }).click();
   await expect(page.getByLabel('Kennzahlen: Saxo-Konto gesamt')).toContainText('Alles');
 });
+
+test('E226: Börse-Analyse im schmalen Gebäude-Fenster des Dorfs – nachgerechnete Werte (≈), Hinweis bei Positionen ohne Linie, nichts ragt hinaus', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'Gebäude-Fenster neben dem 3D-Dorf gibt es am Desktop');
+  const daten = analyseDaten();
+  // wie bei Leif: Saxo meldete 0 → Server rechnet nach; Nestlé hat (noch) keinen Kursverlauf
+  daten.saxo!.positionen = daten.saxo!.positionen.map((p) => (p.symbol === 'VWCE:xetr' ? { ...p, geschaetzt: true } : p));
+  delete daten.historien['NESN.SW'];
+  await page.route('**/api/boerse/analyse', (r) => r.fulfill({ json: daten }));
+  await page.goto('/');
+  await page.getByLabel('Passwort').fill('e2e-Passwort-sehr-lang-1');
+  await page.getByRole('button', { name: 'Ins Dorf' }).click();
+  await expect(page.getByLabel('Passwort')).toHaveCount(0);
+  await page.goto('/?g=Boerse&reiter=analyse');
+  const panel = page.locator('.dorf-panel');
+  await expect(panel.getByLabel('Kennzahlen: Saxo-Konto gesamt')).toBeVisible({ timeout: 20_000 });
+  const teile = panel.getByRole('region', { name: 'Teile des Depots' });
+  await expect(teile.locator('tr', { hasText: 'Vanguard' })).toContainText('≈');
+  await panel.getByLabel('Nestlé SA im Diagramm').check();
+  await expect(panel.getByRole('status').filter({ hasText: 'Ohne Linie im Zeitraum' })).toContainText('Nestlé SA');
+  await expect(panel.getByRole('button', { name: 'in % vergleichen' })).toBeVisible();
+  // schmaler Container: Spalten ab „€ im Zeitraum“ ausgeblendet, kein waagrechtes Scrollen im Fenster
+  await expect(teile.getByRole('columnheader', { name: 'Schwankung' })).toBeHidden();
+  const ueber = await panel.evaluate((el) => {
+    const innen = el.querySelector('.boerse-analyse') as HTMLElement;
+    return innen.scrollWidth - innen.clientWidth;
+  });
+  expect(ueber).toBeLessThanOrEqual(1);
+  // das Fenster selbst scrollt nie (sonst bleibt nach einem Klick ein leerer Bereich stehen) – nur sein Inhalt
+  expect(await panel.evaluate((el) => [el.scrollTop, el.scrollHeight - el.clientHeight])).toEqual([0, 0]);
+  await page.screenshot({ path: info.outputPath('panel.png') });
+});

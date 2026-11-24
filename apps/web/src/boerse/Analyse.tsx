@@ -26,6 +26,8 @@ type Gruppe = 'position' | 'art' | 'waehrung' | 'depot';
 
 interface Teil {
   schluessel: string;
+  /** E226: Wert nachgerechnet (Saxo meldete 0) */
+  geschaetzt?: boolean;
   name: string;
   depot: 'Saxo' | 'Eigenes Depot' | 'Watchlist';
   art: string;
@@ -47,7 +49,7 @@ interface Teil {
 /** Wertreihe einer Saxo-Position: genaue Tagesstände, davor Kursverlauf × heutige Stück × heutiger Umrechnungsfaktor */
 function saxoReihe(a: BoerseAnalyse, symbol: string | undefined, name: string): { reihe: Punkt[]; quelle: string } {
   const s = a.saxo!;
-  const genau: Punkt[] = s.tage.map((t) => [t.tag, t.positionen.find((p) => (p.symbol ?? p.name) === (symbol ?? name))?.wert ?? NaN] as Punkt).filter(([, v]) => Number.isFinite(v));
+  const genau: Punkt[] = s.tage.map((t) => [t.tag, t.positionen.find((p) => (p.symbol ?? p.name) === (symbol ?? name))?.wert ?? NaN] as Punkt).filter(([, v]) => Number.isFinite(v) && v !== 0);
   const jetzt = s.positionen.find((p) => (p.symbol ?? p.name) === (symbol ?? name));
   const kuerzel = symbol ? a.zuordnung[symbol]?.kuerzel : undefined;
   const h = kuerzel ? a.historien[kuerzel] : undefined;
@@ -71,7 +73,7 @@ function teileBauen(a: BoerseAnalyse): Teil[] {
     for (const p of s.positionen) {
       const r = saxoReihe(a, p.symbol, p.name);
       const faktor = p.wert && p.kurs && p.stueck ? p.wert / (p.kurs * p.stueck) : null;
-      teile.push({ schluessel: `saxo:${p.symbol ?? p.name}`, name: p.name, depot: 'Saxo', art: p.art ?? 'Sonstiges', waehrung: p.waehrung ?? s.waehrung, wert: p.wert ?? null, reihe: r.reihe, quelle: r.quelle, ...(p.einstand && p.stueck && faktor ? { einstandWert: p.einstand * p.stueck * faktor } : {}) });
+      teile.push({ schluessel: `saxo:${p.symbol ?? p.name}`, name: p.name, ...(p.geschaetzt ? { geschaetzt: true } : {}), depot: 'Saxo', art: p.art ?? 'Sonstiges', waehrung: p.waehrung ?? s.waehrung, wert: p.wert ?? null, reihe: r.reihe, quelle: r.quelle, ...(p.einstand && p.stueck && faktor ? { einstandWert: p.einstand * p.stueck * faktor } : {}) });
     }
     if (s.bar) teile.push({ schluessel: 'saxo:bar', name: 'Bargeld (Saxo)', depot: 'Saxo', art: 'Bargeld', waehrung: s.waehrung, wert: s.bar, reihe: s.tage.length ? [] : [], quelle: 'nur aktueller Stand' });
   }
@@ -181,6 +183,7 @@ export function BoerseAnalyseAnsicht() {
       return { schluessel: t.schluessel, name: t.name, farbe: farbeVon(t.schluessel), punkte };
     })
     .filter((r) => r.punkte.length > 1);
+  const ohneLinie = sichtbare.filter((t) => !reihen.some((r) => r.schluessel === t.schluessel) && t.schluessel !== 'saxo:bar');
   if (summeZeigen && anzeigeJetzt === 'wert') {
     const teilReihen = sichtbare.filter((t) => !t.gesamt && !t.nurKurs).map(imZeitraum).filter((r) => r.length);
     if (teilReihen.length > 1) reihen.push({ schluessel: 'summe', name: 'Summe der sichtbaren Positionen', farbe: 'var(--text)', punkte: summieren(teilReihen), strich: true });
@@ -341,6 +344,20 @@ export function BoerseAnalyseAnsicht() {
           referenz={anzeigeJetzt === 'wert' && sichtbare.length === 1 && sichtbare[0]!.einstandWert ? { wert: sichtbare[0]!.einstandWert, text: `Einstand ${geld0(sichtbare[0]!.einstandWert)}` } : undefined}
         />
         {nurKurs && anzeige === 'wert' && <p className="leise">Watchlist-Werte haben keinen Depotwert – darum als Index (Start = 100).</p>}
+        {ohneLinie.length > 0 && (
+          <p className="leise ba-hinweis" role="status">
+            Ohne Linie im Zeitraum: {ohneLinie.map((t) => t.name).join(', ')} – {ohneLinie.some((t) => t.depot === 'Saxo') ? 'für Saxo-Positionen braucht es einen Kursverlauf (unten bei „Kursverläufe & Kürzel“ laden) oder mindestens zwei Tagesstände.' : 'noch kein Kursverlauf (unten bei „Kursverläufe & Kürzel“ laden).'}
+          </p>
+        )}
+        {anzeigeJetzt === 'wert' && sichtbare.some((t) => t.gesamt) && sichtbare.some((t) => !t.gesamt && !t.nurKurs) && (
+          <p className="leise">
+            Tipp: Gesamt und einzelne Positionen liegen in Euro weit auseinander –{' '}
+            <button type="button" className="ba-sort ba-link" onClick={() => anzeigeWaehlen('prozent')}>
+              in % vergleichen
+            </button>
+            .
+          </p>
+        )}
       </section>
 
       <section className="karte innen" aria-label="Teile des Depots">
@@ -699,7 +716,7 @@ function ZeileTeil({ t, k, an, farbe, umschalten, einzeln, geld, summe }: { t: T
           {t.reihe.length ? '' : ' · ohne Verlauf'}
         </div>
       </td>
-      <td>{t.nurKurs ? '' : geld(t.wert)}</td>
+      <td title={t.geschaetzt ? 'Saxo meldet hier keinen Marktwert – aus Stück × Kurs nachgerechnet' : undefined}>{t.nurKurs ? '' : t.wert == null ? '–' : `${t.geschaetzt ? '≈ ' : ''}${geld(t.wert)}`}</td>
       <td>{!t.nurKurs && !t.gesamt && summe && t.wert ? `${((t.wert / summe) * 100).toLocaleString('de-DE', { maximumFractionDigits: 1 })} %` : ''}</td>
       <td className={(k?.prozent ?? 0) >= 0 ? 'plus' : 'minus'}>{prozentText(k?.prozent)}</td>
       <td className={(k?.differenz ?? 0) >= 0 ? 'plus' : 'minus'}>{t.nurKurs || !k ? '' : geld(k.differenz, true)}</td>

@@ -120,6 +120,7 @@ const NetPosition = z
         CurrentPriceDelayMinutes: Zahl,
         MarketValue: Zahl,
         MarketValueInBaseCurrency: Zahl,
+        Exposure: Zahl,
         ExposureInBaseCurrency: Zahl,
         ProfitLossOnTrade: Zahl,
         ProfitLossOnTradeInBaseCurrency: Zahl,
@@ -326,12 +327,14 @@ export class Saxo {
         einstand: p.NetPositionView?.AverageOpenPrice,
         kurs: p.NetPositionView?.CurrentPrice,
         verzoegerungMin: p.NetPositionView?.CurrentPriceDelayMinutes,
-        wert: p.NetPositionView?.MarketValueInBaseCurrency ?? p.NetPositionView?.ExposureInBaseCurrency ?? p.NetPositionView?.MarketValue,
-        gewinn: p.NetPositionView?.ProfitLossOnTradeInBaseCurrency ?? p.NetPositionView?.ProfitLossOnTrade,
+        ...saxoWertWaehlen(p.NetPositionView, p.DisplayAndFormat?.Currency, saldo.Currency ?? kunde.DefaultCurrency ?? 'EUR'),
         tagProzent: p.NetPositionView?.InstrumentPriceDayPercentChange,
       }));
-      positionen.sort((a, b) => (b.wert ?? 0) - (a.wert ?? 0));
       const waehrung = saldo.Currency ?? kunde.DefaultCurrency ?? 'EUR';
+      // E226: Saxo meldet den Marktwert mancher ETFs als 0 → aus Stück × Kurs × Kurs der Währung nachrechnen
+      const summe = saldo.TotalValue != null && saldo.CashBalance != null ? saldo.TotalValue - saldo.CashBalance : null;
+      positionen.splice(0, positionen.length, ...werteErgaenzen(positionen, waehrung, summe));
+      positionen.sort((a, b) => (b.wert ?? 0) - (a.wert ?? 0));
       this.merken('saxo_stand', {
         zeit: jetzt,
         waehrung,
@@ -371,9 +374,17 @@ export class Saxo {
     }
   }
 
+  /** Aktueller Stand – ältere Stände (vor E226) mit Wert 0 werden beim Lesen nachgerechnet */
+  private aktuellerStand() {
+    const stand = this.stand<{ zeit: number; waehrung: string; gesamt?: number; bar?: number; positionen: SaxoPosition[] }>('saxo_stand');
+    if (!stand) return undefined;
+    const summe = stand.gesamt != null && stand.bar != null ? stand.gesamt - stand.bar : null;
+    return { ...stand, positionen: werteErgaenzen(stand.positionen, stand.waehrung, summe) };
+  }
+
   uebersicht(): SaxoUebersicht {
     const s = this.sitzung;
-    const stand = this.stand<{ zeit: number; waehrung: string; gesamt?: number; bar?: number; positionen: SaxoPosition[] }>('saxo_stand');
+    const stand = this.aktuellerStand();
     const verlauf = this.stand<{ verlauf: { datum: string; wert: number; rendite: number | null }[] }>('saxo_verlauf')?.verlauf ?? [];
     const fehler = this.stand<{ zeit: number; text: string }>('saxo_fehler');
     const jahr = new Date(this.o.uhr.jetzt()).getUTCFullYear();
@@ -421,7 +432,14 @@ export class Saxo {
 
   /** Gespeicherte Tagesstände (ältester zuerst) */
   tagesstaende(): SaxoTagesstand[] {
-    return this.stand<SaxoTagesstand[]>('saxo_tage') ?? [];
+    const tage = this.stand<SaxoTagesstand[]>('saxo_tage') ?? [];
+    if (!tage.some((t) => t.positionen.some(wertFehlt))) return tage;
+    // E226: alte Tage mit Wert 0 – Umrechnung je Währung aus dem aktuellen Stand, Rest anteilig
+    const jetzt = this.aktuellerStand();
+    const fx = new Map<string, number>();
+    for (const p of jetzt?.positionen ?? []) if (p.wert && p.kurs && p.stueck && p.waehrung) fx.set(p.waehrung, p.wert / (p.kurs * p.stueck));
+    const bar = jetzt?.bar ?? null;
+    return tage.map((t) => (t.positionen.some(wertFehlt) ? { ...t, positionen: werteErgaenzen(t.positionen, t.waehrung, t.gesamt != null && bar != null ? t.gesamt - bar : null, fx) } : t));
   }
 
   /**
@@ -484,7 +502,7 @@ export class Saxo {
   /** E223: Daten für die Analyse in der App (Konto-Reihe, Tagesstände, jetzt) – null, wenn Saxo nicht eingerichtet */
   analyse(): BoerseAnalyse['saxo'] {
     if (!this.o.konfig) return null;
-    const stand = this.stand<{ waehrung: string; gesamt?: number; bar?: number; positionen: SaxoPosition[] }>('saxo_stand');
+    const stand = this.aktuellerStand();
     const verlauf = this.stand<{ verlauf: { datum: string; wert: number; rendite: number | null }[] }>('saxo_verlauf')?.verlauf ?? [];
     if (!stand && !verlauf.length) return null;
     return {
@@ -569,4 +587,62 @@ export function bewegungZeilen(b: SaxoBewegung, max = 5): string[] {
   for (const p of bewegt) z.push(`${p.name}: ${geldText(p.delta!, b.waehrung, true)}${p.prozent != null ? ` (${prozentText(p.prozent)})` : ''}`);
   if (!bewegt.length && !handel.length) z.push('Keine nennenswerte Bewegung bei den Positionen.');
   return z;
+}
+
+// ---- E226: Positionswerte ---------------------------------------------------------------------------------
+
+const wertFehlt = (p: SaxoPosition) => !p.wert && !!p.kurs && !!p.stueck;
+
+/** Erster Wert ungleich 0: Saxo liefert MarketValueInBaseCurrency bei manchen ETFs als 0 */
+export function saxoWertWaehlen(
+  v: { MarketValueInBaseCurrency?: number; ExposureInBaseCurrency?: number; MarketValue?: number; Exposure?: number; ProfitLossOnTradeInBaseCurrency?: number; ProfitLossOnTrade?: number } | undefined,
+  waehrung: string | undefined,
+  basis: string,
+): { wert?: number; gewinn?: number; fx?: number } {
+  if (!v) return {};
+  const gleich = !waehrung || waehrung === basis;
+  const kandidaten = [v.MarketValueInBaseCurrency, v.ExposureInBaseCurrency, ...(gleich ? [v.MarketValue, v.Exposure] : [])];
+  const wert = kandidaten.find((x) => x != null && Number.isFinite(x) && x !== 0);
+  const plB = v.ProfitLossOnTradeInBaseCurrency;
+  const plI = v.ProfitLossOnTrade;
+  // Umrechnung aus Gewinn/Verlust in beiden Währungen (nur wenn beide ≠ 0)
+  const fx = gleich ? 1 : plB && plI ? plB / plI : undefined;
+  const gewinn = plB != null && (plB !== 0 || !plI) ? plB : gleich ? plI : fx && plI != null ? plI * fx : undefined;
+  return { ...(wert != null ? { wert } : {}), ...(gewinn != null ? { gewinn } : {}), ...(fx != null && Number.isFinite(fx) && fx > 0 ? { fx } : {}) };
+}
+
+/**
+ * Fehlende Werte (0/leer, aber Stück und Kurs bekannt) nachrechnen: Stück × Kurs × Umrechnung. Die Umrechnung kommt
+ * aus derselben Position (Gewinn in beiden Währungen), einer anderen Position derselben Währung, `fxBekannt` – sonst
+ * wird die Summe aller Positionen (Kontowert − Bargeld) anteilig nach Stück × Kurs verteilt. Geschätztes ist markiert.
+ */
+export function werteErgaenzen(positionen: (SaxoPosition & { fx?: number })[], basis: string, summe: number | null, fxBekannt = new Map<string, number>()): SaxoPosition[] {
+  const fx = new Map(fxBekannt);
+  const w = (p: SaxoPosition) => p.waehrung ?? basis;
+  fx.set(basis, 1);
+  for (const p of positionen) {
+    if (p.fx && !fx.has(w(p))) fx.set(w(p), p.fx);
+    if (p.wert && p.kurs && p.stueck && !fx.has(w(p))) fx.set(w(p), p.wert / (p.kurs * p.stueck));
+  }
+  const raus = positionen.map(({ fx: _fx, ...p }) => {
+    if (!wertFehlt(p)) return p as SaxoPosition;
+    const f = fx.get(w(p));
+    if (f == null) return p as SaxoPosition;
+    const wert = Math.round(p.kurs! * p.stueck! * f * 100) / 100;
+    const gewinn = !p.gewinn && p.einstand ? Math.round((p.kurs! - p.einstand) * p.stueck! * f * 100) / 100 : p.gewinn;
+    return { ...p, wert, ...(gewinn != null ? { gewinn } : {}), geschaetzt: true } as SaxoPosition;
+  });
+  const offen = raus.filter(wertFehlt);
+  if (offen.length && summe != null) {
+    const bekannt = raus.reduce((x, p) => x + (wertFehlt(p) ? 0 : (p.wert ?? 0)), 0);
+    const rest = summe - bekannt;
+    const roh = offen.reduce((x, p) => x + p.kurs! * p.stueck!, 0);
+    if (rest > 0 && roh > 0)
+      for (const p of offen) {
+        const anteil = (p.kurs! * p.stueck!) / roh;
+        Object.assign(p, { wert: Math.round(rest * anteil * 100) / 100, geschaetzt: true });
+        if (!p.gewinn && p.einstand) p.gewinn = Math.round(((p.kurs! - p.einstand) / p.kurs!) * p.wert! * 100) / 100;
+      }
+  }
+  return raus;
 }

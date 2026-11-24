@@ -872,6 +872,8 @@ export interface SaxoPosition {
   wert?: number;
   gewinn?: number;
   tagProzent?: number;
+  /** E226: Wert nachgerechnet (Saxo meldete 0) */
+  geschaetzt?: boolean;
 }
 
 export interface SaxoUebersicht {
