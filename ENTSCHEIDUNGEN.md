@@ -2359,3 +2359,15 @@ Leif hat gemeldet, dass in der Analyse alle Saxo-ETFs mit 0,00 CHF stehen. Als D
 - **Tests:**
   - Server: `e226-saxo-werte.test.ts`.
   - e2e: `boerse.spec.ts` „E226“ im echten Gebäude-Fenster. Geprüft wird: „≈“, der Hinweis, die ausgeblendeten Spalten, dass das Fenster selbst nie scrollt und dass nichts hinausragt.
+
+**Nachtrag E226 (nach dem Deploy, Leifs zweiter Screenshot):** Leif sieht weiter überall 0,00. Darunter ist auch eine CHF-Position (UBS Core SPI), bei der eine Umrechnung keine Rolle spielt. Die Nachrechnung greift also nicht: Saxo schickt bei seinen Positionen offenbar auch **keinen Kurs** (vermutlich fehlen dem API-Zugang die Kursdaten). Belegt ist das nicht, also wird nichts erfunden.
+
+- **Diagnose:** Bei jedem Abruf merkt sich das Dorf die einfachen Felder aus NetPositionBase, NetPositionView und DisplayAndFormat (`saxo_roh`, nur Zahlen und kurze Texte). In der Analyse stehen sie unter „Warum fehlen Saxo-Werte?“. Damit lässt sich am echten Konto sehen, was ankommt.
+- **Bewertung mit Schlusskursen** (`mitSchlusskursen`, im Analyse-Endpunkt): Fehlt der Wert, gilt der letzte Schlusskurs von EODHD × Stück × EZB-Umrechnung in die Kontowährung. Die Quelle steht dabei („Schlusskurs VWCE.XETRA vom …“).
+  - EZB-Kurse holt das Dorf jetzt auch für die Währungen des Saxo-Kontos (`saxoWaehrungen`).
+  - Ohne Kurs, Schlusskurs oder Umrechnung bleibt die Position ohne Wert und zeigt „–“. Eine erfundene Zahl gibt es nicht.
+- **Kursverläufe:**
+  - Der Fehler je Kürzel wird gemerkt (`kurshist_fehler`) und steht in der App bei der Zuordnung.
+  - Verläufe werden auch nachgeholt, wenn bei den Tageskursen etwas schiefging. Nur bei Tageslimit oder Schlüssel-Fehler bleibt das aus.
+  - Der Verlauf je Position rechnet gegen den letzten Schlusskurs des Verlaufs, nicht mehr gegen Saxos Kurs.
+  - Fehlt ein Verlauf, ist der Abschnitt „Kursverläufe & Kürzel“ von selbst offen.

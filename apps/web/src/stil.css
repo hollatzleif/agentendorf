@@ -2084,3 +2084,6 @@ details.karte > summary { cursor: pointer; }
   .ba-kacheln { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ba-kuerzel-form input { width: 7rem; }
 }
+.ba-roh code { display: block; white-space: pre; font-size: 0.75rem; overflow-x: auto; padding: 0.4rem; background: var(--flaeche-2); border-radius: 8px; }
+.ba-roh summary { cursor: pointer; font-weight: 700; font-size: 0.85rem; }
+.ba-fehler { font-size: 0.8rem; flex-basis: 100%; }

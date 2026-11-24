@@ -874,6 +874,8 @@ export interface SaxoPosition {
   tagProzent?: number;
   /** E226: Wert nachgerechnet (Saxo meldete 0) */
   geschaetzt?: boolean;
+  /** E226: Kurs nicht von Saxo, sondern letzter Schlusskurs (EODHD) */
+  kursQuelle?: string;
 }
 
 export interface SaxoUebersicht {
@@ -906,6 +908,8 @@ export interface BoerseAnalyse {
     positionen: SaxoPosition[];
     bar: number | null;
     gesamt: number | null;
+    /** E226: was Saxo je Position wirklich liefert (Zahlen/kurze Texte aus NetPositionBase/-View) – zur Diagnose */
+    roh?: { name: string; felder: Record<string, string | number | boolean> }[];
   } | null;
   /** eigenes Depot (Boerse/depot.md) */
   eigen: BoerseWert[];
@@ -913,7 +917,7 @@ export interface BoerseAnalyse {
   /** Schlusskurse je EODHD-Kürzel (aufsteigend), so weit geladen */
   historien: Record<string, { waehrung: string; punkte: [string, number][]; stand: string }>;
   /** Saxo-Symbol → EODHD-Kürzel (automatisch abgeleitet oder von Leif gesetzt) */
-  zuordnung: Record<string, { kuerzel: string; eigen: boolean }>;
+  zuordnung: Record<string, { kuerzel: string; eigen: boolean; fehler?: string }>;
   eodhd: boolean;
   abrufeHeute: number;
   abrufeMax: number;

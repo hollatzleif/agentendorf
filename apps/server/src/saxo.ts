@@ -331,6 +331,8 @@ export class Saxo {
         tagProzent: p.NetPositionView?.InstrumentPriceDayPercentChange,
       }));
       const waehrung = saldo.Currency ?? kunde.DefaultCurrency ?? 'EUR';
+      // E226: zur Diagnose merken, was Saxo je Position wirklich schickt (nur Zahlen, Wahrheitswerte, kurze Texte)
+      this.merken('saxo_roh', pos.Data.map((p) => ({ name: p.DisplayAndFormat?.Description ?? p.DisplayAndFormat?.Symbol ?? '?', felder: rohFelder(p) })));
       // E226: Saxo meldet den Marktwert mancher ETFs als 0 → aus Stück × Kurs × Kurs der Währung nachrechnen
       const summe = saldo.TotalValue != null && saldo.CashBalance != null ? saldo.TotalValue - saldo.CashBalance : null;
       positionen.splice(0, positionen.length, ...werteErgaenzen(positionen, waehrung, summe));
@@ -513,7 +515,14 @@ export class Saxo {
       positionen: stand?.positionen ?? [],
       bar: stand?.bar ?? null,
       gesamt: stand?.gesamt ?? null,
+      roh: this.stand<{ name: string; felder: Record<string, string | number | boolean> }[]>('saxo_roh') ?? [],
     };
+  }
+
+  /** E226: Kontowährung und Währungen der Positionen (für die EZB-Kurse) */
+  waehrungen(): string[] {
+    const st = this.stand<{ waehrung: string; positionen: SaxoPosition[] }>('saxo_stand');
+    return st ? [...new Set([st.waehrung, ...st.positionen.map((p) => p.waehrung).filter((w): w is string => !!w)])] : [];
   }
 
   /** Symbole der aktuellen Positionen (für Kursverläufe) */
@@ -645,4 +654,50 @@ export function werteErgaenzen(positionen: (SaxoPosition & { fx?: number })[], b
       }
   }
   return raus;
+}
+
+/** E226: flache Liste der einfachen Felder aus NetPositionBase/-View/DisplayAndFormat (für die Diagnose in der App) */
+function rohFelder(p: Record<string, unknown>): Record<string, string | number | boolean> {
+  const r: Record<string, string | number | boolean> = {};
+  for (const teil of ['NetPositionBase', 'NetPositionView', 'DisplayAndFormat']) {
+    const o = p[teil];
+    if (!o || typeof o !== 'object') continue;
+    for (const [k, v] of Object.entries(o as Record<string, unknown>).slice(0, 60)) {
+      if (typeof v === 'number' || typeof v === 'boolean') r[`${teil}.${k}`] = v;
+      else if (typeof v === 'string' && v.length <= 60) r[`${teil}.${k}`] = v;
+    }
+  }
+  return r;
+}
+
+/**
+ * E226: Positionen ohne Wert (Saxo schickt keinen Kurs/Marktwert) mit dem letzten Schlusskurs aus EODHD bewerten:
+ * Schlusskurs × Stück × Umrechnung in die Kontowährung (EZB). Was danach noch fehlt, verteilt werteErgaenzen anteilig.
+ */
+export function mitSchlusskursen(
+  positionen: SaxoPosition[],
+  basis: string,
+  summe: number | null,
+  kuerzelVon: (symbol: string) => string | undefined,
+  letzterKurs: (kuerzel: string) => { kurs: number; datum: string; waehrung: string } | undefined,
+  umrechnung: (von: string, nach: string) => number | undefined,
+): SaxoPosition[] {
+  const neu = positionen.map((p) => {
+    if (p.wert || !p.stueck || !p.symbol) return p;
+    const k = kuerzelVon(p.symbol);
+    const l = k ? letzterKurs(k) : undefined;
+    const f = l ? umrechnung(l.waehrung, basis) : undefined;
+    if (!l || !f) return p;
+    const wert = Math.round(l.kurs * p.stueck * f * 100) / 100;
+    const gewinn = !p.gewinn && p.einstand && (p.waehrung ?? l.waehrung) === l.waehrung ? Math.round((l.kurs - p.einstand) * p.stueck * f * 100) / 100 : p.gewinn;
+    return {
+      ...p,
+      wert,
+      ...(gewinn != null ? { gewinn } : {}),
+      ...(!p.kurs && (p.waehrung ?? l.waehrung) === l.waehrung ? { kurs: l.kurs } : {}),
+      geschaetzt: true,
+      kursQuelle: `Schlusskurs ${k} vom ${l.datum}`,
+    };
+  });
+  return werteErgaenzen(neu, basis, summe);
 }

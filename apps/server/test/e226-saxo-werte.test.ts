@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { saxoWertWaehlen, werteErgaenzen } from '../src/saxo.js';
+import { mitSchlusskursen, saxoWertWaehlen, werteErgaenzen } from '../src/saxo.js';
 
 /** E226: Saxo meldet MarketValueInBaseCurrency bei manchen ETFs als 0 → Wert aus Stück × Kurs × Umrechnung */
 describe('E226 Saxo-Positionswerte', () => {
@@ -38,5 +38,30 @@ describe('E226 Saxo-Positionswerte', () => {
 
   it('gleiche Währung wie das Konto: Stück × Kurs', () => {
     expect(werteErgaenzen([{ name: 'A', waehrung: 'CHF', stueck: 3, kurs: 10, wert: 0 }], 'CHF', null)[0]!.wert).toBe(30);
+  });
+
+  it('ohne Kurs und Marktwert von Saxo: letzter Schlusskurs (EODHD) × Stück × EZB-Umrechnung, Rest anteilig', () => {
+    const kurse: Record<string, { kurs: number; datum: string; waehrung: string }> = { 'VWCE.XETRA': { kurs: 120, datum: '2026-11-23', waehrung: 'EUR' } };
+    const r = mitSchlusskursen(
+      [
+        { name: 'Vanguard', symbol: 'VWCE:xetr', waehrung: 'EUR', stueck: 10, wert: 0, einstand: 100 },
+        { name: 'Ohne Kürzel', symbol: 'XYZ:xxxx', waehrung: 'EUR', stueck: 5, wert: 0 },
+        { name: 'Nestlé', symbol: 'NESN:xswx', waehrung: 'CHF', stueck: 2, kurs: 80, wert: 160 },
+      ],
+      'CHF',
+      2000,
+      (s) => (s === 'VWCE:xetr' ? 'VWCE.XETRA' : undefined),
+      (k) => kurse[k],
+      (v, n) => (v === 'EUR' && n === 'CHF' ? 0.93 : v === n ? 1 : undefined),
+    );
+    expect(r[0]).toMatchObject({ wert: 1116, kurs: 120, gewinn: 186, geschaetzt: true, kursQuelle: 'Schlusskurs VWCE.XETRA vom 2026-11-23' });
+    // ohne Kurs und ohne Schlusskurs lässt sich nichts verteilen (kein Gewicht) – bleibt ohne Wert statt erfunden
+    expect(r[1]!.wert).toBe(0);
+    expect(r[2]!.wert).toBe(160);
+  });
+
+  it('ohne EZB-Kurs keine Schätzung in fremder Währung', () => {
+    const r = mitSchlusskursen([{ name: 'A', symbol: 'A:x', waehrung: 'USD', stueck: 1, wert: 0 }], 'CHF', null, () => 'A.US', () => ({ kurs: 10, datum: 'x', waehrung: 'USD' }), () => undefined);
+    expect(r[0]!.wert).toBe(0);
   });
 });

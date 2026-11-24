@@ -58,6 +58,9 @@ describe('Börse-Analyse (E223)', () => {
       ['2026-11-13', 100],
     ]);
     expect(d.boerse.historie('GIBTS.NICHT')!.punkte).toEqual([]);
+    // E226: der Grund bleibt je Kürzel stehen (App zeigt ihn bei der Zuordnung)
+    expect(d.boerse.historieFehler()).toEqual({ 'GIBTS.NICHT': 'EODHD antwortet mit 404.' });
+    expect(d.boerse.letzterKurs('VWCE.XETRA')).toEqual({ kurs: 110, datum: '2026-11-16', waehrung: 'EUR' });
     // nächster Tag: Tageskurs verlängert den Verlauf; der Fehlschlag wird erst nach 7 Tagen neu versucht
     d.uhr.vor(86_400_000);
     x.abrufe.length = 0;
@@ -81,6 +84,11 @@ describe('Börse-Analyse (E223)', () => {
     const d = await testDorf({ boerse: x.k });
     const h = await kopf(d);
     for (let i = 0; i < ABRUFE_PRO_TAG - 1; i++) d.db.prepare('INSERT INTO boerse_abrufe (tag, anzahl) VALUES (?, 1) ON CONFLICT(tag) DO UPDATE SET anzahl = anzahl + 1').run('2026-11-16');
+    // E226: Umrechnung über EZB-Kurse (Einheiten je Euro)
+    d.db.prepare('INSERT INTO boerse_wechselkurse (waehrung, datum, je_eur, abgerufen) VALUES (?, ?, ?, ?)').run('CHF', '2026-11-13', 0.93, 0);
+    expect(d.boerse.umrechnung('EUR', 'CHF')).toBeCloseTo(0.93);
+    expect(d.boerse.umrechnung('CHF', 'EUR')).toBeCloseTo(1 / 0.93);
+    expect(d.boerse.umrechnung('USD', 'CHF')).toBeUndefined();
     const r = (await d.app.inject({ method: 'POST', url: '/api/boerse/historie', headers: h, payload: { kuerzel: ['AAA.US', 'BBB.US', 'kaputt'] } })).json();
     expect(r).toMatchObject({ geholt: 1, offen: 1 });
     expect(x.abrufe).toEqual(['historie AAA.US 2021-11-17']);

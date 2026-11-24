@@ -410,6 +410,7 @@ export async function dorfStarten(
   });
   agenten.saxo = saxo; // E222: depot_* für die Agenten
   boerse.saxoSymbole = () => saxo.symbole(); // E223: Kursverläufe auch für Saxo-Positionen
+  boerse.saxoWaehrungen = () => saxo.waehrungen(); // E226: EZB-Kurse für Konto- und Positionswährungen
   const depotZeilen = { zeitungsZeilen: async () => [...saxo.zeitungsZeilen(), ...(await boerse.zeitungsZeilen())] };
   // Nacht 18./19.11.: Karteikarten je Fach
   const karten = new Karteikasten({ db, uhr, vault, hub });

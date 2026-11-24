@@ -2,6 +2,7 @@ import type { Boerse } from './boerse.js';
 import { aussehenRouten } from './aussehen.js';
 import type { BoerseAnalyse } from '@dorf/shared';
 import type { Saxo } from './saxo.js';
+import { mitSchlusskursen } from './saxo.js';
 import type { Kirchturm } from './kirchturm.js';
 import { etappenPlan, fachPasst, fachZuordnen, projekteAus, terminAusText, type FachStand, type PruefungStand, type UniFach } from '@dorf/shared';
 import { tagPlanen } from './tagesplan.js';
@@ -481,7 +482,13 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
     // E223: Analyse – Konto-Reihe, Tagesstände, eigenes Depot, Kursverläufe (gerechnet wird in der App)
     app.get('/api/boerse/analyse', async (): Promise<BoerseAnalyse> => {
       const u = await boerse.uebersicht();
-      const saxo = a.saxo?.analyse() ?? null;
+      let saxo = a.saxo?.analyse() ?? null;
+      const zuordnung = boerse.zuordnung(a.saxo?.symbole() ?? []);
+      // E226: Positionen, für die Saxo weder Kurs noch Marktwert schickt, mit dem letzten Schlusskurs (EODHD) bewerten
+      if (saxo?.positionen.some((p) => !p.wert)) {
+        const summe = saxo.gesamt != null && saxo.bar != null ? saxo.gesamt - saxo.bar : null;
+        saxo = { ...saxo, positionen: mitSchlusskursen(saxo.positionen, saxo.waehrung, summe, (s) => zuordnung[s]?.kuerzel, (k) => boerse.letzterKurs(k), (v, n) => boerse.umrechnung(v, n)) };
+      }
       const kuerzel = await boerse.verlaufsKuerzel();
       const historien: BoerseAnalyse['historien'] = {};
       for (const k of kuerzel) {
@@ -493,7 +500,7 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
         eigen: u.positionen,
         watchlist: u.watchlist,
         historien,
-        zuordnung: boerse.zuordnung(a.saxo?.symbole() ?? []),
+        zuordnung,
         eodhd: u.eingerichtet,
         abrufeHeute: u.abrufeHeute,
         abrufeMax: u.abrufeMax,

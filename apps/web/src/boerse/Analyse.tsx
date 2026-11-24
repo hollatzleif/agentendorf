@@ -53,8 +53,9 @@ function saxoReihe(a: BoerseAnalyse, symbol: string | undefined, name: string): 
   const jetzt = s.positionen.find((p) => (p.symbol ?? p.name) === (symbol ?? name));
   const kuerzel = symbol ? a.zuordnung[symbol]?.kuerzel : undefined;
   const h = kuerzel ? a.historien[kuerzel] : undefined;
-  if (!h?.punkte.length || !jetzt?.stueck || !jetzt.kurs || !jetzt.wert) return { reihe: genau, quelle: genau.length ? 'Tagesstände' : 'noch kein Verlauf' };
-  const faktor = jetzt.wert / (jetzt.kurs * jetzt.stueck);
+  if (!h?.punkte.length || !jetzt?.stueck || !jetzt.wert) return { reihe: genau, quelle: genau.length ? 'Tagesstände' : 'noch kein Verlauf' };
+  // E226: Faktor gegen den letzten Schlusskurs des Verlaufs (gleiche Währung wie der Verlauf; Saxo schickt nicht immer einen Kurs)
+  const faktor = jetzt.wert / (h.punkte.at(-1)![1] * jetzt.stueck);
   const ab = genau[0]?.[0] ?? '9999';
   const davor: Punkt[] = h.punkte.filter(([d]) => d < ab).map(([d, k]) => [d, k * jetzt.stueck! * faktor]);
   return { reihe: [...davor, ...genau], quelle: genau.length ? `Kursverlauf ${kuerzel} (heutige Stückzahl), ab ${datumKurz(ab)} genaue Tagesstände` : `Kursverlauf ${kuerzel} × heutige Stückzahl` };
@@ -183,6 +184,9 @@ export function BoerseAnalyseAnsicht() {
       return { schluessel: t.schluessel, name: t.name, farbe: farbeVon(t.schluessel), punkte };
     })
     .filter((r) => r.punkte.length > 1);
+  const saxoPos = a.saxo?.positionen ?? [];
+  const saxoOhneWert = saxoPos.some((p) => !p.wert || p.geschaetzt);
+  const kursOffen = saxoPos.some((p) => p.symbol && !a.historien[a.zuordnung[p.symbol]?.kuerzel ?? '']?.punkte.length) || undefined;
   const ohneLinie = sichtbare.filter((t) => !reihen.some((r) => r.schluessel === t.schluessel) && t.schluessel !== 'saxo:bar');
   if (summeZeigen && anzeigeJetzt === 'wert') {
     const teilReihen = sichtbare.filter((t) => !t.gesamt && !t.nurKurs).map(imZeitraum).filter((r) => r.length);
@@ -523,7 +527,9 @@ export function BoerseAnalyseAnsicht() {
 
       <Aehnlichkeit teile={teile.filter((t) => !t.gesamt && t.reihe.length > 20)} von={von} bis={bis} farbeVon={farbeVon} />
 
-      <details className="karte innen" aria-label="Kursverläufe">
+      {saxoOhneWert && <SaxoDiagnose a={a} />}
+
+      <details className="karte innen" aria-label="Kursverläufe" open={kursOffen}>
         <summary>
           <strong>Kursverläufe & Kürzel</strong> <span className="leise">· EODHD heute {a.abrufeHeute}/{a.abrufeMax}</span>
         </summary>
@@ -716,7 +722,7 @@ function ZeileTeil({ t, k, an, farbe, umschalten, einzeln, geld, summe }: { t: T
           {t.reihe.length ? '' : ' · ohne Verlauf'}
         </div>
       </td>
-      <td title={t.geschaetzt ? 'Saxo meldet hier keinen Marktwert – aus Stück × Kurs nachgerechnet' : undefined}>{t.nurKurs ? '' : t.wert == null ? '–' : `${t.geschaetzt ? '≈ ' : ''}${geld(t.wert)}`}</td>
+      <td title={t.geschaetzt ? 'Saxo meldet hier keinen Marktwert – aus Stück × Kurs nachgerechnet' : undefined}>{t.nurKurs ? '' : !t.wert && !t.gesamt ? '–' : `${t.geschaetzt ? '≈ ' : ''}${geld(t.wert)}`}</td>
       <td>{!t.nurKurs && !t.gesamt && summe && t.wert ? `${((t.wert / summe) * 100).toLocaleString('de-DE', { maximumFractionDigits: 1 })} %` : ''}</td>
       <td className={(k?.prozent ?? 0) >= 0 ? 'plus' : 'minus'}>{prozentText(k?.prozent)}</td>
       <td className={(k?.differenz ?? 0) >= 0 ? 'plus' : 'minus'}>{t.nurKurs || !k ? '' : geld(k.differenz, true)}</td>
@@ -726,7 +732,55 @@ function ZeileTeil({ t, k, an, farbe, umschalten, einzeln, geld, summe }: { t: T
   );
 }
 
-function KuerzelZeile({ name, saxo, z, punkte, setzen }: { name: string; saxo: string; z?: { kuerzel: string; eigen: boolean }; punkte: number; setzen: (saxo: string, k: string) => Promise<void> }) {
+/** E226: Was Saxo je Position wirklich schickt – damit sich sehen lässt, warum Kurs/Wert fehlen */
+function SaxoDiagnose({ a }: { a: BoerseAnalyse }) {
+  const roh = a.saxo?.roh ?? [];
+  const fehlen = (a.saxo?.positionen ?? []).filter((p) => !p.wert);
+  const geschaetzt = (a.saxo?.positionen ?? []).filter((p) => p.wert && p.geschaetzt);
+  return (
+    <details className="karte innen" aria-label="Saxo-Diagnose">
+      <summary>
+        <strong>Warum fehlen Saxo-Werte?</strong>{' '}
+        <span className="leise">
+          · {fehlen.length ? `${fehlen.length} ohne Wert` : ''}
+          {fehlen.length > 0 && geschaetzt.length > 0 ? ', ' : ''}
+          {geschaetzt.length ? `${geschaetzt.length} nachgerechnet (≈)` : ''}
+        </span>
+      </summary>
+      <p className="leise">
+        Saxo schickt für diese Positionen keinen Marktwert (oft auch keinen Kurs) – meist, weil dem API-Zugang die Kursdaten fehlen. Das Dorf rechnet dann mit dem letzten
+        Schlusskurs von EODHD × Stückzahl (dafür braucht es den Kursverlauf unten) oder verteilt den Kontowert anteilig. Unten steht, was Saxo wirklich liefert.
+      </p>
+      {geschaetzt.length > 0 && (
+        <ul className="leise">
+          {geschaetzt.map((p) => (
+            <li key={p.symbol ?? p.name}>
+              {p.name}: {p.kursQuelle ?? 'anteilig aus Kontowert − Bargeld'}
+            </li>
+          ))}
+        </ul>
+      )}
+      {roh.length ? (
+        <div className="tabelle-rahmen">
+          {roh.map((r) => (
+            <details key={r.name} className="ba-roh">
+              <summary>{r.name}</summary>
+              <code>
+                {Object.entries(r.felder)
+                  .map(([k, v]) => `${k.replace(/^NetPosition/, '')} = ${v}`)
+                  .join('\n')}
+              </code>
+            </details>
+          ))}
+        </div>
+      ) : (
+        <p className="leise">Rohdaten kommen mit dem nächsten Abruf von Saxo (alle 30 Minuten).</p>
+      )}
+    </details>
+  );
+}
+
+function KuerzelZeile({ name, saxo, z, punkte, setzen }: { name: string; saxo: string; z?: { kuerzel: string; eigen: boolean; fehler?: string }; punkte: number; setzen: (saxo: string, k: string) => Promise<void> }) {
   const [wert, setWert] = useState(z?.eigen ? z.kuerzel : '');
   return (
     <li>
@@ -744,6 +798,7 @@ function KuerzelZeile({ name, saxo, z, punkte, setzen }: { name: string; saxo: s
         </button>
       </form>
       <span className="leise">{punkte ? `${punkte} Kurse` : 'noch kein Verlauf'}</span>
+      {!punkte && z?.fehler && <span className="minus ba-fehler">EODHD: {z.fehler} – Kürzel prüfen (z. B. auf eodhd.com suchen)</span>}
     </li>
   );
 }

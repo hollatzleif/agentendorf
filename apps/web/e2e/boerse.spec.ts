@@ -102,6 +102,11 @@ test('E226: Börse-Analyse im schmalen Gebäude-Fenster des Dorfs – nachgerech
   // wie bei Leif: Saxo meldete 0 → Server rechnet nach; Nestlé hat (noch) keinen Kursverlauf
   daten.saxo!.positionen = daten.saxo!.positionen.map((p) => (p.symbol === 'VWCE:xetr' ? { ...p, geschaetzt: true } : p));
   delete daten.historien['NESN.SW'];
+  // Microsoft: Saxo schickt weder Kurs noch Wert, EODHD kennt das Kürzel nicht
+  daten.saxo!.positionen = daten.saxo!.positionen.map((p) => (p.symbol === 'MSFT:xnas' ? { ...p, wert: 0, kurs: undefined } : p));
+  daten.saxo!.roh = [{ name: 'Microsoft Corp.', felder: { 'NetPositionBase.Amount': 6, 'NetPositionView.CalculationReliability': 'NoMarketAccess' } }];
+  daten.zuordnung['MSFT:xnas'] = { kuerzel: 'MSFT.US', eigen: false, fehler: 'EODHD antwortet mit 404.' };
+  delete daten.historien['MSFT.US'];
   await page.route('**/api/boerse/analyse', (r) => r.fulfill({ json: daten }));
   await page.goto('/');
   await page.getByLabel('Passwort').fill('e2e-Passwort-sehr-lang-1');
@@ -112,6 +117,13 @@ test('E226: Börse-Analyse im schmalen Gebäude-Fenster des Dorfs – nachgerech
   await expect(panel.getByLabel('Kennzahlen: Saxo-Konto gesamt')).toBeVisible({ timeout: 20_000 });
   const teile = panel.getByRole('region', { name: 'Teile des Depots' });
   await expect(teile.locator('tr', { hasText: 'Vanguard' })).toContainText('≈');
+  await expect(teile.locator('tr', { hasText: 'Microsoft' }).locator('td').nth(2)).toHaveText('–');
+  const diagnose = panel.getByRole('group', { name: 'Saxo-Diagnose' });
+  await diagnose.locator('summary').first().click();
+  await expect(diagnose).toContainText('1 ohne Wert');
+  await diagnose.getByText('Microsoft Corp.').click();
+  await expect(diagnose).toContainText('CalculationReliability = NoMarketAccess');
+  await expect(panel.getByRole('group', { name: 'Kursverläufe' })).toContainText('EODHD: EODHD antwortet mit 404.');
   await panel.getByLabel('Nestlé SA im Diagramm').check();
   await expect(panel.getByRole('status').filter({ hasText: 'Ohne Linie im Zeitraum' })).toContainText('Nestlé SA');
   await expect(panel.getByRole('button', { name: 'in % vergleichen' })).toBeVisible();

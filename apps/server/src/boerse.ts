@@ -210,7 +210,7 @@ export class Boerse {
     let abgerufen = 0;
     let fehler: string | undefined;
     // Wechselkurse (EZB, zählen nicht gegen EODHD) – nur für Währungen, die im Depot vorkommen
-    const gebraucht = new Set(alle.map((w) => (w.symbol ? waehrungVon(w.symbol) : waehrungVon(`.${w.boerse}`))));
+    const gebraucht = new Set([...alle.map((w) => (w.symbol ? waehrungVon(w.symbol) : waehrungVon(`.${w.boerse}`))), ...this.saxoWaehrungen()]);
     for (const wae of FREMDWAEHRUNGEN) {
       if (!this.o.fx || !gebraucht.has(wae)) continue;
       try {
@@ -255,7 +255,8 @@ export class Boerse {
     // noch nicht versucht (Tageslimit) – kommen morgen zuerst dran
     const offen = kandidaten.length - versucht;
     // E223: übrige Abrufe nebenbei für fehlende/alte Kursverläufe (höchstens HISTORIEN_NEBENBEI, 3 bleiben für Leifs Klicks)
-    if (!fehler) await this.historienNachholen({ max: HISTORIEN_NEBENBEI, reserve: 3 }).catch((e) => this.o.log?.(`Börse: Kursverläufe: ${(e as Error).message}`));
+    // E226: auch nach einem Fehler bei den Tageskursen (z. B. ein unbekanntes Kürzel im eigenen Depot) – nur nicht bei Limit/Schlüssel
+    if (!fehler || !/Tageslimit|Schlüssel/.test(fehler)) await this.historienNachholen({ max: HISTORIEN_NEBENBEI, reserve: 3 }).catch((e) => this.o.log?.(`Börse: Kursverläufe: ${(e as Error).message}`));
     this.o.db.prepare("INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES ('boerse_letzter', ?)").run(JSON.stringify({ zeit: this.o.uhr.jetzt(), abgerufen, offen, fehler: fehler ?? null }));
     if (abgerufen || fehler) this.o.hub.senden({ typ: 'boerse.geaendert' });
     if (abgerufen) await this.alarmePruefen().catch((e) => this.o.log?.(`Börse: Kursalarme: ${(e as Error).message}`));
@@ -282,15 +283,13 @@ export class Boerse {
   }
 
   /** Saxo-Symbol → EODHD-Kürzel: Leifs eigene Zuordnung vor der automatischen */
-  zuordnung(saxoSymbole: string[]): Record<string, { kuerzel: string; eigen: boolean }> {
+  zuordnung(saxoSymbole: string[]): Record<string, { kuerzel: string; eigen: boolean; fehler?: string }> {
     const eigen = this.eigeneZuordnung();
-    const r: Record<string, { kuerzel: string; eigen: boolean }> = {};
+    const fehler = this.historieFehler();
+    const r: Record<string, { kuerzel: string; eigen: boolean; fehler?: string }> = {};
     for (const s of saxoSymbole) {
-      if (eigen[s]) r[s] = { kuerzel: eigen[s]!, eigen: true };
-      else {
-        const k = saxoZuEodhd(s);
-        if (k) r[s] = { kuerzel: k, eigen: false };
-      }
+      const k = eigen[s] ?? saxoZuEodhd(s);
+      if (k) r[s] = { kuerzel: k, eigen: !!eigen[s], ...(fehler[k] ? { fehler: fehler[k] } : {}) };
     }
     return r;
   }
@@ -311,6 +310,37 @@ export class Boerse {
 
   /** Saxo-Positionen, deren Verlauf das Dorf mitlädt (setzt dorf.ts) */
   saxoSymbole: () => string[] = () => [];
+  /** E226: Währungen des Saxo-Kontos und seiner Positionen (für die EZB-Kurse; setzt dorf.ts) */
+  saxoWaehrungen: () => string[] = () => [];
+
+  /** E226: letzter Fehler je Kürzel beim Laden des Kursverlaufs (null = gelöscht) */
+  private historieFehlerMerken(symbol: string, text: string | null) {
+    const m = this.historieFehler();
+    if (text) m[symbol] = text;
+    else delete m[symbol];
+    this.o.db.prepare("INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES ('kurshist_fehler', ?)").run(JSON.stringify(m));
+  }
+  historieFehler(): Record<string, string> {
+    return JSON.parse((this.o.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'kurshist_fehler'").get() as { wert: string } | undefined)?.wert ?? '{}');
+  }
+
+  /** E226: Umrechnung von einer Währung in eine andere über die EZB-Kurse (Einheiten je Euro); undefined, wenn ein Kurs fehlt */
+  umrechnung(von: string, nach: string): number | undefined {
+    if (von === nach) return 1;
+    const je = (w: string) => (w === 'EUR' ? 1 : this.fx(w)?.je_eur);
+    const a = je(von);
+    const z2 = je(nach);
+    return a && z2 ? z2 / a : undefined;
+  }
+
+  /** E226: letzter bekannter Schlusskurs eines Kürzels (Tageskurs oder Ende des Verlaufs) */
+  letzterKurs(symbol: string): { kurs: number; datum: string; waehrung: string } | undefined {
+    const k = this.o.db.prepare('SELECT kurs, datum, waehrung FROM boerse_kurse WHERE symbol = ?').get(symbol) as { kurs: number; datum: string; waehrung: string } | undefined;
+    const h = this.historie(symbol);
+    const p = h?.punkte.at(-1);
+    if (p && (!k || p[0] > k.datum)) return { kurs: p[1], datum: p[0], waehrung: h!.waehrung };
+    return k ?? undefined;
+  }
 
   /** Alle Kürzel, für die ein Kursverlauf sinnvoll ist: eigenes Depot, Watchlist, Saxo-Positionen */
   async verlaufsKuerzel(): Promise<{ symbol: string; waehrung: string }[]> {
@@ -350,10 +380,12 @@ export class Boerse {
         const von = h?.punkte.length ? h.punkte.at(-1)![0] : new Date(this.o.uhr.jetzt() - HISTORIE_TAGE * 86_400_000).toISOString().slice(0, 10);
         const punkte = await k.historie(x.symbol, von);
         this.historieMischen(x.symbol, x.waehrung, punkte);
+        this.historieFehlerMerken(x.symbol, punkte.length ? null : 'EODHD liefert für dieses Kürzel keine Kurse');
         geholt++;
       } catch (e) {
         fehler = `${x.symbol}: ${(e as Error).message}`;
         if (/Tageslimit|Schlüssel/.test(fehler)) break;
+        this.historieFehlerMerken(x.symbol, (e as Error).message.slice(0, 200));
         // unbekanntes Kürzel o. ä.: leer merken, damit es nicht jeden Tag einen Abruf kostet (nach 7 Tagen neuer Versuch)
         if (!this.historie(x.symbol)) this.historieMischen(x.symbol, x.waehrung, []);
       }
