@@ -1,0 +1,154 @@
+/* E227: Hafen – Terminal „Kielwasser“ (dunkel, leicht bläulich, Lila als Akzent) und Flotten-Übersicht */
+.kw {
+  --kw-grund: #0a0c14;
+  --kw-tafel: #10131f;
+  --kw-tafel2: #151a2a;
+  --kw-rand: #232a40;
+  --kw-text: #e6e8f2;
+  --kw-leise: #8a90a8;
+  --kw-lila: #8b5cf6;
+  --kw-lila-hell: #c4b5fd;
+  --kw-gruen: #22c55e;
+  --kw-rot: #f43f5e;
+  --kw-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+  background: radial-gradient(1200px 600px at 70% -10%, #1a1440 0%, transparent 60%), var(--kw-grund);
+  color: var(--kw-text);
+  min-height: 100vh;
+  padding: 0.9rem;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  display: grid;
+  gap: 0.8rem;
+  container: kw / inline-size;
+}
+.kw * { box-sizing: border-box; }
+.kw h2, .kw h3 { margin: 0; font-weight: 800; letter-spacing: 0.01em; color: var(--kw-text); text-shadow: none; }
+.kw h3 { font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--kw-leise); }
+.kw .mono, .kw-mono { font-family: var(--kw-mono); font-variant-numeric: tabular-nums; }
+.kw .plus { color: var(--kw-gruen); }
+.kw .minus { color: var(--kw-rot); }
+.kw .leise { color: var(--kw-leise); }
+.kw-tafel { background: var(--kw-tafel); border: 1px solid var(--kw-rand); border-radius: 14px; padding: 0.8rem 0.9rem; min-width: 0; overflow: hidden; }
+.kw a { color: var(--kw-lila-hell); }
+.kw button.kw-knopf { all: unset; cursor: pointer; font: 700 0.8rem system-ui, sans-serif; padding: 0.35rem 0.7rem; border-radius: 999px; border: 1px solid var(--kw-rand); background: var(--kw-tafel2); color: var(--kw-text); }
+.kw button.kw-knopf:hover { border-color: var(--kw-lila); }
+.kw button.kw-knopf:focus-visible { outline: 2px solid var(--kw-lila-hell); outline-offset: 2px; }
+.kw button.kw-notaus { background: #3b0d17; border-color: var(--kw-rot); color: #ffd5dc; }
+
+/* Kopfzeile */
+.kw-kopf { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.kw-wer { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
+.kw-avatar { width: 3rem; height: 3rem; border-radius: 14px; display: grid; place-items: center; font-size: 1.6rem; background: linear-gradient(135deg, #2e1f5e, #151a2a); border: 1px solid var(--kw-lila); }
+.kw-name { font-size: 1.35rem; font-weight: 900; display: flex; align-items: center; gap: 0.5rem; }
+.kw-zeile { font-family: var(--kw-mono); font-size: 0.78rem; color: var(--kw-leise); display: flex; gap: 0.6rem; flex-wrap: wrap; }
+.kw-pille { font-family: var(--kw-mono); font-size: 0.7rem; font-weight: 700; padding: 0.1rem 0.45rem; border-radius: 999px; border: 1px solid var(--kw-lila); color: var(--kw-lila-hell); }
+.kw-online { display: inline-flex; align-items: center; gap: 0.3rem; font-family: var(--kw-mono); font-size: 0.72rem; color: var(--kw-gruen); }
+.kw-online::before { content: ''; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; animation: kw-puls 1.6s ease-in-out infinite; }
+.kw-online.aus { color: var(--kw-leise); }
+.kw-online.aus::before { animation: none; box-shadow: none; }
+.kw-konto { text-align: right; }
+.kw-konto strong { display: block; font-family: var(--kw-mono); font-size: 2rem; font-weight: 800; line-height: 1.1; }
+.kw-konto span { font-family: var(--kw-mono); font-size: 0.8rem; color: var(--kw-leise); }
+
+/* Token-Leiste und Stunden */
+.kw-pillen { display: flex; gap: 0.45rem; overflow-x: auto; padding-bottom: 0.2rem; scrollbar-width: thin; }
+.kw-token { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.65rem; border-radius: 999px; border: 1px solid var(--kw-rand); background: var(--kw-tafel2); font-family: var(--kw-mono); font-size: 0.78rem; white-space: nowrap; }
+.kw-token.aktiv { border-color: var(--kw-lila); box-shadow: 0 0 0 1px var(--kw-lila) inset, 0 0 14px rgb(139 92 246 / 0.35); }
+.kw-token i { width: 1.1rem; height: 1.1rem; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 0.6rem; font-weight: 800; color: #fff; }
+.kw-stunden { display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 3px; margin-top: 0.55rem; }
+.kw-stunden div { font-family: var(--kw-mono); font-size: 0.6rem; text-align: center; padding: 0.2rem 0; border-radius: 4px; background: var(--kw-tafel2); color: var(--kw-leise); border: 1px solid transparent; }
+.kw-stunden div.jetzt { border-color: var(--kw-lila); color: var(--kw-lila-hell); font-weight: 800; }
+.kw-stunden div.plus { background: rgb(34 197 94 / 0.22); color: #bbf7d0; }
+.kw-stunden div.minus { background: rgb(244 63 94 / 0.22); color: #fecdd3; }
+
+/* Mitte: Chart + Agent */
+.kw-mitte { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.8rem; }
+.kw-chart-kopf { display: flex; justify-content: space-between; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+.kw-ohlc { font-family: var(--kw-mono); font-size: 0.72rem; color: var(--kw-leise); display: flex; gap: 0.7rem; flex-wrap: wrap; }
+.kw-ohlc b { color: var(--kw-text); font-weight: 600; }
+.kw-lage { font-family: var(--kw-mono); font-size: 0.72rem; font-weight: 800; padding: 0.15rem 0.5rem; border-radius: 6px; background: var(--kw-tafel2); border: 1px solid var(--kw-rand); }
+.kw-lage.long { color: var(--kw-gruen); border-color: var(--kw-gruen); }
+.kw-chart { position: relative; margin-top: 0.4rem; }
+.kw-chart svg { display: block; width: 100%; height: auto; }
+.kw-popup { position: absolute; background: var(--kw-tafel2); border: 1px solid var(--kw-lila); border-radius: 10px; padding: 0.35rem 0.55rem; font-family: var(--kw-mono); font-size: 0.7rem; pointer-events: none; box-shadow: 0 6px 20px rgb(0 0 0 / 0.45); white-space: nowrap; }
+
+/* Agenten-Ansicht */
+.kw-agent { position: relative; }
+.kw-agent-kopf { display: flex; justify-content: space-between; align-items: center; }
+.kw-kreis { position: relative; width: 100%; aspect-ratio: 0.86 / 1; max-height: 40rem; margin: 0 auto; }
+.kw-kreis > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.kw-kern { position: absolute; left: 50%; top: 50%; width: 28%; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; display: grid; place-items: center; text-align: center; background: radial-gradient(circle at 35% 30%, #3b2a7a, #12101f 70%); border: 1px solid var(--kw-lila); box-shadow: 0 0 40px rgb(139 92 246 / 0.35); }
+.kw-kern::before { content: ''; position: absolute; inset: -9%; border-radius: 50%; border: 2px solid transparent; border-top-color: var(--kw-lila-hell); border-right-color: rgb(139 92 246 / 0.4); animation: kw-dreh 2.4s linear infinite; }
+.kw-kern.ruhig::before { animation-duration: 9s; opacity: 0.5; }
+.kw-kern b { display: block; font-size: 1.6rem; }
+.kw-kern span { font-family: var(--kw-mono); font-size: 0.68rem; color: var(--kw-lila-hell); }
+.kw-modul { position: absolute; width: 21%; transform: translate(-50%, -50%); background: var(--kw-tafel2); border: 1px solid var(--kw-rand); border-radius: 10px; padding: 0.3rem 0.4rem; transition: box-shadow 0.3s, border-color 0.3s; }
+.kw-modul.aus { opacity: 0.45; }
+.kw-modul.leuchtet.gut { border-color: var(--kw-gruen); box-shadow: 0 0 16px rgb(34 197 94 / 0.45); }
+.kw-modul.leuchtet.schlecht { border-color: var(--kw-rot); box-shadow: 0 0 16px rgb(244 63 94 / 0.45); }
+.kw-modul.leuchtet.neutral { border-color: var(--kw-lila); box-shadow: 0 0 16px rgb(139 92 246 / 0.45); }
+.kw-modul-kopf { display: flex; align-items: center; gap: 0.35rem; font-size: 0.7rem; font-weight: 800; white-space: nowrap; overflow: hidden; }
+.kw-modul-kopf i { flex: none; width: 1.15rem; height: 1.15rem; border-radius: 5px; display: grid; place-items: center; font-style: normal; font-size: 0.65rem; font-weight: 900; color: #0a0c14; }
+.kw-modul p { margin: 0.15rem 0 0; font-family: var(--kw-mono); font-size: 0.62rem; color: var(--kw-leise); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* unten: drei Tafeln */
+.kw-unten { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.8rem; }
+.kw-balken { display: flex; align-items: flex-end; gap: 2px; height: 4.5rem; margin: 0.5rem 0; }
+.kw-balken div { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 1px; height: 100%; }
+.kw-balken span { display: block; border-radius: 2px 2px 0 0; min-height: 1px; }
+.kw-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; font-family: var(--kw-mono); font-size: 0.74rem; }
+.kw-liste li { display: grid; gap: 0.2rem; }
+.kw-liste .zeile { display: flex; justify-content: space-between; gap: 0.5rem; }
+.kw-fortschritt { height: 4px; border-radius: 2px; background: var(--kw-tafel2); overflow: hidden; }
+.kw-fortschritt b { display: block; height: 100%; background: linear-gradient(90deg, var(--kw-lila), var(--kw-lila-hell)); }
+.kw-zahlen { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem; }
+.kw-zahlen div { background: var(--kw-tafel2); border-radius: 10px; padding: 0.45rem 0.55rem; }
+.kw-zahlen span { display: block; font-size: 0.65rem; color: var(--kw-leise); text-transform: uppercase; letter-spacing: 0.06em; }
+.kw-zahlen strong { font-family: var(--kw-mono); font-size: 1.05rem; }
+
+/* Protokoll */
+.kw-protokoll { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.8rem; }
+.kw-eintraege { list-style: none; margin: 0.5rem 0 0; padding: 0; display: grid; gap: 0.3rem; max-height: 22rem; overflow-y: auto; font-family: var(--kw-mono); font-size: 0.72rem; }
+.kw-eintraege li { display: grid; grid-template-columns: 4.2rem 3.2rem minmax(0, 1fr); gap: 0.4rem; padding: 0.3rem 0.4rem; border-radius: 6px; background: var(--kw-tafel2); }
+.kw-eintraege li span:last-child { color: var(--kw-leise); overflow-wrap: anywhere; }
+.kw-tag { font-weight: 800; }
+.kw-tag.buy, .kw-tag.kauf { color: var(--kw-gruen); }
+.kw-tag.sell, .kw-tag.verkauf { color: var(--kw-lila-hell); }
+.kw-tag.block, .kw-tag.fehlschlag { color: var(--kw-rot); }
+.kw-tag.hold { color: var(--kw-leise); }
+
+@keyframes kw-dreh { to { transform: rotate(360deg); } }
+@keyframes kw-puls { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) {
+  .kw-kern::before, .kw-online::before { animation: none; }
+}
+
+/* schmal: untereinander; Module als Raster statt im Kreis */
+@container kw (max-width: 900px) {
+  .kw-mitte, .kw-unten, .kw-protokoll { grid-template-columns: minmax(0, 1fr); }
+}
+@container kw (max-width: 560px) {
+  .kw-kreis { aspect-ratio: auto; max-height: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; }
+  .kw-kreis > svg { display: none; }
+  .kw-kern { position: relative; left: auto; top: auto; transform: none; width: auto; min-width: 0; aspect-ratio: auto; border-radius: 14px; grid-column: 1 / -1; padding: 0.8rem; }
+  .kw-kern::before { display: none; }
+  .kw-modul { position: relative; left: auto !important; top: auto !important; transform: none; width: auto; min-width: 0; }
+  .kw-konto { text-align: left; }
+  .kw-stunden { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+}
+
+/* Flotte (im Gebäude, heller App-Stil) */
+.hafen-kopf { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.hafen-notaus { background: #c81e3a !important; color: #fff !important; border-color: #7f1022 !important; box-shadow: 0 3px 0 #7f1022 !important; font-weight: 900; }
+.hafen-bots { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 0.7rem; }
+.hafen-bot { display: grid; gap: 0.45rem; }
+.hafen-bot-kopf { display: flex; align-items: center; gap: 0.55rem; }
+.hafen-bot-kopf .avatar { font-size: 1.6rem; }
+.hafen-zahlen { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.35rem; font-variant-numeric: tabular-nums; }
+.hafen-zahlen div { display: grid; }
+.hafen-zahlen span { font-size: 0.7rem; color: var(--leise); }
+.hafen-knoepfe { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.hafen-formular fieldset { border: 1px solid var(--rand, #c9c2b0); border-radius: 12px; padding: 0.6rem 0.8rem; margin: 0 0 0.7rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: 0.5rem 0.8rem; }
+.hafen-formular legend { font-weight: 800; padding: 0 0.3rem; }
+.hafen-formular label { display: grid; gap: 0.15rem; font-size: 0.85rem; }
+.hafen-formular label.breit { grid-column: 1 / -1; }
+.hafen-hinweis { border-left: 4px solid #8b5cf6; padding: 0.4rem 0.7rem; background: color-mix(in srgb, #8b5cf6 8%, transparent); border-radius: 6px; }

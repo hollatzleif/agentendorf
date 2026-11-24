@@ -17,5 +17,5 @@ const plugins = [{
     b.onResolve({ filter: /^@dorf\/shared$/ }, () => ({ path: new URL('../../packages/shared/src/index.ts', import.meta.url).pathname }));
   },
 }];
-await build({ ...gemeinsam, plugins, entryPoints: ['src/start.ts', 'src/cli.ts'], outdir: 'dist' });
+await build({ ...gemeinsam, plugins, entryPoints: ['src/start.ts', 'src/cli.ts', 'src/kryptowerk.ts'], outdir: 'dist' });
 console.log('Server gebaut.');

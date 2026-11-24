@@ -1086,6 +1086,49 @@ const atelier: Bauer = (b, _g, rnd) => {
   return { rauch: [new THREE.Vector3(-1.0, BODEN + 2.5, -0.9)], hoehe: BODEN + 2.9 };
 };
 
+/** Hafen (E227): Hafenmeisterei mit Steg ins Becken, kleinem Boot, Poller und Leuchtfeuer (lila – das Terminal „Kielwasser“) */
+const hafen: Bauer = (b, _g, rnd) => {
+  grundstueck(b, 'pflaster');
+  const holz = '#7a5232';
+  const wf = '#e9eef2';
+  // Hafenbecken vorne rechts: Wasser mit Kaimauer
+  b.teil(quader(2.3, 0.04, 1.9), '#3d8fd1', 0.75, BODEN + 0.01, 1.0, { keinSchatten: true, name: 'wasser' });
+  for (const [x, z, w, d] of [[0.75, 0.03, 2.3, 0.1], [-0.42, 1.0, 0.1, 1.9]] as const) b.teil(quader(w, 0.16, d), '#9aa3ab', x, BODEN + 0.08, z);
+  // Steg ins Becken
+  b.teil(quader(0.42, 0.05, 1.5), holz, 0.35, BODEN + 0.14, 1.2);
+  for (const z of [0.6, 1.2, 1.8]) for (const x of [0.16, 0.54]) b.teil(zylinder(0.035, 0.035, 0.3, 6), dunkler(holz, 0.1), x, BODEN + 0.05, z);
+  // Boot mit lila Streifen
+  b.mit(1.2, BODEN + 0.06, 1.35, 0.25, () => {
+    b.teil(kasten(0.45, 0.16, 1.0, 0.06), '#f4f1ea', 0, 0.08, 0);
+    b.teil(quader(0.46, 0.04, 1.0), '#8b5cf6', 0, 0.14, 0);
+    b.teil(quader(0.3, 0.16, 0.34), '#2b3a55', 0, 0.26, -0.12);
+    b.teil(zylinder(0.015, 0.015, 0.55, 6), '#ddd', 0, 0.45, 0.15);
+  });
+  // Hafenmeisterei
+  b.mit(-0.6, 0, -0.75, 0, () => {
+    wand(b, 2.3, 1.45, 1.9, wf, { sockel: '#56606b', gesims: '#2b3a55' });
+    tuer(b, -0.55, 0.95, 0, '#2b3a55', { w: 0.45, h: 0.9 });
+    fenster(b, 0.45, BODEN + 0.85, 0.95, 0, { w: 0.9, h: 0.6, sprossen: true, rahmen: '#2b3a55', licht: true });
+    for (const sx of [-1, 1]) fenster(b, sx * 1.15, BODEN + 0.85, 0, (sx * Math.PI) / 2, { w: 0.55, h: 0.55, rahmen: '#2b3a55' });
+    satteldach(b, 2.3, 1.9, 0.75, BODEN + 1.45, '#2b3a55', { giebelFarbe: wf });
+    tafel(b, 'HAFEN', 0, BODEN + 1.25, 0.96, 0, 1.1, 0.22, { grund: '#12131f', schrift: '#c4b5fd', rahmen: '#8b5cf6' });
+    b.licht(0.45, BODEN + 0.9, 1.2, 1.2);
+  });
+  // Leuchtfeuer hinten rechts (rot-weiß, lila Licht)
+  b.mit(1.45, BODEN, -1.3, 0, () => {
+    for (let i = 0; i < 4; i++) b.teil(zylinder(0.24 - i * 0.025, 0.26 - i * 0.025, 0.42, 14), i % 2 ? '#f4f1ea' : '#d2352a', 0, 0.21 + i * 0.42, 0);
+    b.teil(zylinder(0.17, 0.17, 0.26, 12), '#c4b5fd', 0, 1.82, 0, { leuchten: '#a78bfa' });
+    b.teil(kegel(0.22, 0.26, 12), '#2b3a55', 0, 2.08, 0);
+    b.licht(0, 1.82, 0, 2.2);
+  });
+  // Poller und Kisten
+  for (const x of [-0.15, 1.75]) b.teil(zylinder(0.07, 0.08, 0.2, 8), '#30343b', x, BODEN + 0.1, 0.2);
+  kiste(b, -1.6, 1.4, 0.9);
+  kiste(b, -1.25, 1.65, 0.7);
+  busch(b, -1.85, -1.85, 0.8, rnd);
+  return { rauch: [], hoehe: BODEN + 2.6 };
+};
+
 const BAUER: Record<string, Bauer> = {
   rathaus,
   uni,
@@ -1099,6 +1142,7 @@ const BAUER: Record<string, Bauer> = {
   kirchturm,
   codehaus,
   atelier,
+  hafen,
 };
 
 export function modellArt(g: Gebaeude): string {

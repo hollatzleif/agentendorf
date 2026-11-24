@@ -29,6 +29,7 @@ const CodeEditorSeite = lazy(() => import('./codeeditor/CodeEditor'));
 // E205: das echte VS Code des Codehauses, eingebettet (eigener Ursprung) + Erweiterungen
 const VsCodeSeite = lazy(() => import('./seiten/VsCodeSeite'));
 // E198: der Bildeditor (und sein Stylesheet) wird nur auf dieser Seite geladen
+const KielwasserSeite = lazy(() => import('./hafen/Terminal').then((m) => ({ default: m.KielwasserSeite })));
 const AtelierSeite = lazy(() => import('./atelier/Atelier').then((m) => ({ default: m.AtelierSeite })));
 // E216: Schriftprobe – Leifs Hand für handschrift_schreiben
 const Schriftprobe = lazy(() => import('./seiten/Schriftprobe').then((m) => ({ default: m.Schriftprobe })));
@@ -103,6 +104,7 @@ function Rahmen() {
   else if (pfad === '/heute') seite = <Heute />;
   else if (pfad === '/fokus') seite = <FokusVollbild />;
   else if (pfad === '/atelier') seite = <AtelierSeite />;
+  else if (/^\/hafen\/[0-9a-f-]{36}$/.test(pfad)) seite = <KielwasserSeite botId={pfad.slice('/hafen/'.length)} />;
   else if (pfad === '/schriftprobe') seite = <Schriftprobe />;
   else if (pfad === '/anleitung') seite = <Anleitung />;
   else if (pfad === '/planen') seite = <WochePlanen />;
@@ -127,7 +129,7 @@ function Rahmen() {
           <img src="/favicon.svg" alt="" width={28} height={28} /> Agentendorf
         </a>
         <nav>
-          {nav('/', 'Dorf', pfad === '/' || pfad.startsWith('/gebaeude') || pfad.startsWith('/chats') || pfad.startsWith('/codehaus') || pfad === '/atelier' || pfad === '/schriftprobe')}
+          {nav('/', 'Dorf', pfad === '/' || pfad.startsWith('/gebaeude') || pfad.startsWith('/chats') || pfad.startsWith('/codehaus') || pfad === '/atelier' || pfad === '/schriftprobe' || pfad.startsWith('/hafen/'))}
           {nav('/heute', 'Heute', pfad === '/heute')}
           {nav('/bibliothek', 'Bibliothek', pfad === '/bibliothek')}
           {nav('/einstellungen', 'Einstellungen', pfad === '/einstellungen')}

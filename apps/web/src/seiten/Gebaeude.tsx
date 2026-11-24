@@ -34,6 +34,7 @@ import { MarktKalender } from '../komponenten/MarktKalender';
 // E223: Börse-Analyse, Rechner, Berater – erst beim Öffnen geladen
 const BoerseAnalyseAnsicht = lazy(() => import('../boerse/Analyse').then((m) => ({ default: m.BoerseAnalyseAnsicht })));
 const BoerseRechner = lazy(() => import('../boerse/Rechner').then((m) => ({ default: m.BoerseRechner })));
+const HafenFlotte = lazy(() => import('../hafen/Flotte').then((m) => ({ default: m.HafenFlotte })));
 const BoerseBerater = lazy(() => import('../boerse/Berater').then((m) => ({ default: m.BoerseBerater })));
 
 const REITER = [
@@ -72,6 +73,7 @@ const CODEHAUS_VORNE = [
   ['vscode', 'VS Code'],
 ] as const;
 const ATELIER_VORNE = [['bilder', 'Bilder']] as const;
+const HAFEN_VORNE = [['flotte', 'Flotte']] as const;
 const CORPS_VORNE = [
   ['termine', 'Termine'],
   ['aemter', 'Ämter & Aufgaben'],
@@ -90,11 +92,11 @@ const RATHAUS_REITER = [
 
 /** Alle Reiter eines Gebäudes (Schlüssel, Titel) – auch für die Knöpfe im Dorf */
 export function reiterFuer(id: string): readonly (readonly [string, string])[] {
-  return id === 'Rathaus' ? [...RATHAUS_VORNE, ...REITER, ...RATHAUS_REITER] : id === 'Uni' ? [...UNI_VORNE, ...REITER] : id === 'Post' ? [...POST_VORNE, ...REITER] : id === 'Marktplatz' ? [...MARKT_VORNE, ...REITER] : id === 'Einkaufsladen' ? [...EINKAUF_VORNE, ...REITER] : id === 'Bank' ? [...BANK_VORNE, ...REITER] : id === 'Corpshaus' ? [...CORPS_VORNE, ...REITER] : id === 'Boerse' ? [...BOERSE_VORNE, ...REITER] : id === 'Kirchturm' ? [...KIRCHTURM_VORNE, ...REITER] : id === 'Codehaus' ? [...CODEHAUS_VORNE, ...REITER] : id === 'Atelier' ? [...ATELIER_VORNE, ...REITER] : REITER;
+  return id === 'Rathaus' ? [...RATHAUS_VORNE, ...REITER, ...RATHAUS_REITER] : id === 'Uni' ? [...UNI_VORNE, ...REITER] : id === 'Post' ? [...POST_VORNE, ...REITER] : id === 'Marktplatz' ? [...MARKT_VORNE, ...REITER] : id === 'Einkaufsladen' ? [...EINKAUF_VORNE, ...REITER] : id === 'Bank' ? [...BANK_VORNE, ...REITER] : id === 'Corpshaus' ? [...CORPS_VORNE, ...REITER] : id === 'Boerse' ? [...BOERSE_VORNE, ...REITER] : id === 'Kirchturm' ? [...KIRCHTURM_VORNE, ...REITER] : id === 'Codehaus' ? [...CODEHAUS_VORNE, ...REITER] : id === 'Atelier' ? [...ATELIER_VORNE, ...REITER] : id === 'Hafen' ? [...HAFEN_VORNE, ...REITER] : REITER;
 }
 
 export function standardReiter(id: string) {
-  return id === 'Rathaus' ? 'schreibtisch' : id === 'Uni' ? 'studium' : id === 'Post' ? 'eingang' : id === 'Marktplatz' ? 'todo' : id === 'Einkaufsladen' ? 'einkauf' : id === 'Bank' ? 'konto' : id === 'Corpshaus' ? 'termine' : id === 'Boerse' ? 'depot' : id === 'Kirchturm' ? 'uhr' : id === 'Codehaus' ? 'code' : id === 'Atelier' ? 'bilder' : 'aktionen';
+  return id === 'Rathaus' ? 'schreibtisch' : id === 'Uni' ? 'studium' : id === 'Post' ? 'eingang' : id === 'Marktplatz' ? 'todo' : id === 'Einkaufsladen' ? 'einkauf' : id === 'Bank' ? 'konto' : id === 'Corpshaus' ? 'termine' : id === 'Boerse' ? 'depot' : id === 'Kirchturm' ? 'uhr' : id === 'Codehaus' ? 'code' : id === 'Atelier' ? 'bilder' : id === 'Hafen' ? 'flotte' : 'aktionen';
 }
 
 export function GebaeudeSeite({ id }: { id: string }) {
@@ -168,6 +170,11 @@ export function GebaeudeInhalt({ id, reiter, reiterWaehlen, kompakt }: { id: str
             {reiter === 'analyse' && <BoerseAnalyseAnsicht />}
             {reiter === 'rechner' && <BoerseRechner />}
             {reiter === 'berater' && <BoerseBerater />}
+          </Suspense>
+        )}
+        {reiter === 'flotte' && id === 'Hafen' && (
+          <Suspense fallback={<p className="leise">Lade …</p>}>
+            <HafenFlotte />
           </Suspense>
         )}
         {reiter === 'uhr' && <KirchturmUhr />}

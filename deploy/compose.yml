@@ -52,7 +52,7 @@ services:
     security_opt:
       - no-new-privileges:true
     mem_limit: 768m
-    networks: [default, rechennetz, browsernetz, codingnetz]
+    networks: [default, rechennetz, browsernetz, codingnetz, kryptonetz]
     # kein Port nach außen – nur Caddy spricht mit dem Dorf (3000); die Werkstatt ruft Werkzeuge über 3001 auf
 
   werkstatt:
@@ -140,6 +140,36 @@ services:
     cpus: 1.0
     pids_limit: 512
 
+  kryptowerk:
+    # E227 Hafen: Krypto-Bots im Paper Trading. Gleiches Image wie das Dorf, eigener Prozess und eigene Datenbank.
+    # Internet (PumpPortal, DexScreener, RugCheck), aber KEIN Vault, KEINE Dorf-Geheimnisse, kein Wallet, kein Schlüssel –
+    # nur KRYPTO_GEHEIMNIS (krypto.env). Spricht nur mit dem Dorf (kryptonetz); LLM-Bewertungen laufen über das Dorf.
+    image: agentendorf:${DORF_VERSION:-latest}
+    command: ["node", "--enable-source-maps", "dist/kryptowerk.js"]
+    restart: unless-stopped
+    env_file: /srv/dorf/krypto.env
+    environment:
+      TZ: Europe/Vienna
+      KRYPTO_DATEN: /krypto
+      DORF_INTERN_URL: http://dorf:3001
+      PORT: "4300"
+    user: "${DORF_UID:-1000}:${DORF_UID:-1000}"
+    volumes:
+      - /srv/dorf/krypto:/krypto
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4300/gesund').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+    mem_limit: 384m
+    cpus: 0.5
+    pids_limit: 128
+    networks: [kryptonetz]
+
   coding:
     # Codehaus (E191): VS Code im Browser (openvscode-server, nach außen über das Tor im Runner auf Port 3000 – E195) + Runner für Coding-Agenten (Port 4000, claude-CLI
     # mit Bash/Edit/Write). Leifs Entscheidung: Internet, GitHub (klonen/pushen/PR/mergen) und der Vault LES- UND SCHREIBBAR.
@@ -205,6 +235,8 @@ networks:
   # Codehaus: Caddy → VS Code (3000), Dorf → Runner (4000), Runner → Dorf-Werkzeuge (3001, Lauf-Token). Mit Internet
   # (npm, pip, git). Werkstatt, Rechenraum, Browser und Syncthing hängen NICHT in diesem Netz.
   codingnetz: {}
+  # E227: Dorf ↔ Kryptowerk; mit Internet (PumpPortal, DexScreener, RugCheck), sonst niemand
+  kryptonetz: {}
 
 volumes:
   caddy-daten:

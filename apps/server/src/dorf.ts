@@ -17,6 +17,8 @@ import type { Motor } from './agenten/motor.js';
 import { motorenBauen, type Motoren } from './agenten/motoren.js';
 import { WerkzeugRegister } from './agenten/register.js';
 import { internBauen } from './intern.js';
+import { Hafen, kryptoBewertenBauen, kryptoInternRouten } from './krypto-dorf.js';
+import type { KryptoUebersicht } from '@dorf/shared';
 import { Schreibtisch } from './schreibtisch.js';
 import { Buergermeister } from './agenten/buergermeister.js';
 import fs from 'node:fs';
@@ -98,6 +100,8 @@ const PFLICHT_DATEIEN = [
   'Codehaus/aktionen/programmieren.md',
   'Codehaus/aktionen/repo-klonen.md',
   'Codehaus/aktionen/pr-pruefen.md',
+  // E227 Hafen
+  'Hafen/gebaeude.md',
   // E198 Atelier
   'Atelier/gebaeude.md',
   'Atelier/aktionen/bild-bearbeiten.md',
@@ -171,6 +175,8 @@ export async function dorfStarten(
     moodleBrowser?: MoodleBrowserKlient;
     /** Für Tests: nachgebauter Kurs-Anbieter und EZB-Kurs */
     boerse?: BoerseKlient;
+    /** E227: Kryptowerk nachgebaut (Tests) */
+    hafenHolen?: typeof fetch;
     boerseFx?: (waehrung: Fremdwaehrung) => Promise<{ datum: string; kurs: number }>;
     /** Tests: Google Kalender nachgebaut */
     kalenderKlient?: KalenderKlient;
@@ -264,6 +270,8 @@ export async function dorfStarten(
   agenten.quellen = (q) => (q === 'post.mails' ? postbote.quelle() : uni.quelle(q));
   const googleZugang = konfig.gmail ? new GoogleZugang({ ...konfig.gmail, tokenUrl: konfig.googleTokenUrl }) : undefined;
   const gmail = opt.gmail ?? (googleZugang ? gmailKlient(googleZugang, konfig.gmailApiUrl) : undefined);
+  // E227: Hafen – Kryptowerk (eigener Container, Paper Trading)
+  const hafen = new Hafen({ url: konfig.kryptoUrl, ...(konfig.kryptoGeheimnis ? { geheimnis: konfig.kryptoGeheimnis } : {}), ...(opt.hafenHolen ? { holen: opt.hafenHolen } : {}) });
   const ki = new SystemAufrufe({
     db,
     uhr,
@@ -516,6 +524,10 @@ export async function dorfStarten(
       woche: wochenrueckblick,
       suche,
       noten,
+      notaus: async () => {
+        const u = await hafen.anfrage<KryptoUebersicht>('POST', '/notaus', { grund: 'Not-Aus (Telegram)' });
+        return `🛑 <b>Not-Aus</b> – alle ${u.bots.length} Bots gestoppt, offene Positionen werden (simuliert) verkauft. Wieder starten: im Hafen „Not-Aus aufheben“, dann jeden Bot einzeln.`;
+      },
       depot: async () => [...saxo.kurzbericht(), ...(await boerse.zeitungsZeilen()).map((x) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;'))],
       statistik: (n) => statistik({ db, uhr, todos, gewohnheiten }, n),
       log: (t) => console.warn(t),
@@ -566,7 +578,9 @@ export async function dorfStarten(
   const planTakt = opt.beobachten !== false ? setInterval(() => void buergermeister.faelligePlaeneAnnehmen().catch((e) => console.warn(`Pläne: ${(e as Error).message}`)), 60_000) : undefined;
   planTakt?.unref();
   const dorfplan = new Dorfplan({ db, uhr, hub, vault, uni, wetter, todos, kirchturm });
-  const app = await appBauen({ konfig, ki, lernziele, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen, dorfplan, automatik, listen, bank, corps, boerse, saxo, kirchturm, googleKalender, wochenrueckblick, karten, gewohnheiten, wochenziele, notizen, noten });
+  // E227: Hafen – Kryptowerk (eigener Container) + LLM-Bewertung für Prompt-Bots auf dem internen Port
+  kryptoInternRouten(intern, konfig.kryptoGeheimnis, kryptoBewertenBauen({ db, uhr, ...(ki ? { ki } : {}) }));
+  const app = await appBauen({ konfig, ki, lernziele, db, uhr, vault, suche, hub, agenten, schreibtisch, buergermeister, telegram, uni, postbote, morgenzeitung, aufwachen, dorfplan, automatik, listen, bank, corps, boerse, saxo, kirchturm, googleKalender, wochenrueckblick, karten, gewohnheiten, wochenziele, notizen, noten, hafen });
   // Abhaken in Obsidian kommt ohne Ereignis an → zusätzlich alle 10 Minuten abgleichen
   const uniTodoTakt = opt.beobachten !== false ? setInterval(() => uniTodosAnstossen(), 600_000) : undefined;
   uniTodoTakt?.unref();
@@ -591,5 +605,5 @@ export async function dorfStarten(
     await agenten.ruhe();
     db.close();
   });
-  return { app, lernziele, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan, wetter, automatik, todos, listen, bank, corps, boerse, uniTodos, saxo, kirchturm, googleKalender, wochenrueckblick, karten, gewohnheiten, wochenziele, erinnerungen, notizen, noten };
+  return { app, hafen, lernziele, db, vault, suche, hub, angelegt, agenten, intern, register, schreibtisch, buergermeister, telegram, uni, postbote, ki, kalender, morgenzeitung, aufwachen, dorfplan, wetter, automatik, todos, listen, bank, corps, boerse, uniTodos, saxo, kirchturm, googleKalender, wochenrueckblick, karten, gewohnheiten, wochenziele, erinnerungen, notizen, noten };
 }

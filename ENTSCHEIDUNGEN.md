@@ -2371,3 +2371,75 @@ Leif hat gemeldet, dass in der Analyse alle Saxo-ETFs mit 0,00 CHF stehen. Als D
   - Verläufe werden auch nachgeholt, wenn bei den Tageskursen etwas schiefging. Nur bei Tageslimit oder Schlüssel-Fehler bleibt das aus.
   - Der Verlauf je Position rechnet gegen den letzten Schlusskurs des Verlaufs, nicht mehr gegen Saxos Kurs.
   - Fehlt ein Verlauf, ist der Abschnitt „Kursverläufe & Kürzel“ von selbst offen.
+
+## E227 – Hafen: Krypto-Bots im Paper Trading (24.11.)
+
+Leif wollte mehrere Trading-Bots für Memecoins auf Pump.fun, jeden mit eigener Strategie und eigenem Wallet, um Strategien zu vergleichen. **Gebaut ist nur der erste Schritt, wie Leif es verlangt hat: Datenanbindung, Paper Trading, Protokoll, Dashboard.** Live-Trading kommt erst als eigene, letzte Etappe mit eigener Freigabe. Dann ist auch zu entscheiden, wie das zur Grundregel „Senden, Zahlen gibt es nicht“ passt.
+
+**Aufbau**
+- **Kryptowerk:** ein eigener Container, gleiches Image wie das Dorf, Einstieg `dist/kryptowerk.js`.
+  - Eigene SQLite-Datenbank unter `/srv/dorf/krypto`, die ins Backup kommt.
+  - Internet, aber kein Vault und keine Dorf-Geheimnisse, nur `KRYPTO_GEHEIMNIS` (`krypto.env`). Es gibt kein Wallet und keinen Schlüssel.
+  - Netz `kryptonetz`, darin nur Dorf und Kryptowerk.
+- **Das Dorf** reicht Leifs Klicks durch (`/api/krypto/*`, `krypto-dorf.ts`). Die App spricht nie direkt mit dem Kryptowerk.
+
+**Daten:** Alle drei Quellen wurden am 24.11. gegen die echten Schnittstellen geprüft, mit echten Ereignissen und Antworten.
+- **PumpPortal:** `wss://pumpportal.fun/api/data`. `subscribeNewToken` und `subscribeMigration` sind kostenlos und brauchen keinen Schlüssel. Es gibt EINE Verbindung, sonst sperrt PumpPortal.
+  - Trades je Token kosten Geld (Schlüssel plus Wallet, 0,01 SOL je 10 000 Nachrichten). Darum nutzt das Dorf sie nicht.
+  - Folge davon: Kurse nach dem Kauf kommen von DexScreener.
+- **DexScreener:** `/tokens/v1/solana/{bis 30 Adressen}`. Erlaubt sind 300 Anfragen pro Minute; das Dorf nimmt sich höchstens 60.
+  - Pump.fun-Paare haben `dexId: pumpfun`, `pairAddress` ist die Bonding Curve, und es gibt keine `liquidity`.
+- **RugCheck:** `/v1/tokens/{mint}/report/summary`, ohne Schlüssel, laut Swagger ohne security.
+  - Das Dorf schickt höchstens alle 2 s eine Anfrage, und nur für Kandidaten, die den Vorfilter eines Bots bestehen.
+- KOL-Watch und X-Sentiment bleiben aus. Dafür bräuchte es den kostenpflichtigen Trade-Strom bzw. einen Grok-Schlüssel. Das Terminal sagt das so.
+
+**Paper Trading (`kurve.ts`, `motor.ts`)**
+- **Bonding Curve:** konstantes Produkt aus virtuellen Reserven, Start 30 SOL und 1,073 Mrd. Token, nachgeprüft an echten create-Ereignissen. Aus dem Kurs folgen die Reserven (vSol = √(K·p)).
+- **Nach der Kurve:** PumpSwap mit den echten Pool-Reserven von DexScreener.
+- **Gebühren** laut pump.fun/docs/fees: 1,25 % auf der Kurve, auf PumpSwap gestaffelt nach Marktwert. Dazu die Grundgebühr und eine Priority Fee je Transaktion.
+- **Slippage** ergibt sich aus der Kurve bzw. dem Pool.
+- **Verzögerung:** Ausgeführt wird zum ersten Kurs nach der Verzögerung (mindestens 300 ms, Standard 1500 ms), nie zum Kurs, den der Bot gesehen hat.
+- **Fehlschläge:** Ein Teil der Transaktionen schlägt fehl (Standard 5 %); die Netzgebühr ist dann trotzdem weg.
+- **Kein Hebel.**
+- **Ausstieg:** Take-Profit-Stufen, Stop-Loss, Trailing Stop und eine Haltedauer, alles im Code.
+
+**Strategie und Risiko**
+- Die zwölf Prüfmodule (Rug, Dev, Bundle, KOL, X, Holder, Volumen, Sniper = Einstiegsfenster, Größe, TP, SL, Gate) sind Code.
+- Ein **Regel-Bot** kauft ab einer Punktzahl.
+- Ein **Prompt-Bot** fragt das LLM. Das Dorf ruft das System-Modell auf (Haiku 5.5, nur JSON `{action, token, confidence, reason}`).
+  - Fremde Daten stehen in einer Hülle mit Zufallsmarke.
+  - Grenze: höchstens 0,50 $ je Bot und Tag, gezählt an den echten Kosten (Auslöser `krypto`). Das zählt NICHT gegen das Tagesbudget für Post und Zeitung.
+  - Zusätzlich gibt es eine Höchstzahl an Aufrufen je Bot und Tag.
+- **Das LLM schlägt nur vor.** Kaufen darf erst, wer die Filter besteht, die Mindestsicherheit erreicht und durchs Risk-Gate kommt.
+- **Das Risk-Gate prüft:** Not-Aus, schon im Bestand, offene Positionen, Tagesverlust (Equity seit Wiener Mitternacht), Kapital mit Gebührenpuffer.
+- Die Positionsgröße ist der kleinere Wert aus Einsatz je Trade und Prozent des Kapitals.
+- Einstellungen prüft Zod mit engen Grenzen (z. B. höchstens 20 offene Positionen, Verzögerung mindestens 300 ms, höchstens 90 % Fehlschläge).
+- Das Startkapital ist nach dem ersten Trade fest, damit die Kennzahlen stimmen.
+
+**Not-Aus:** in der App mit Rückfrage und per Telegram `/notaus`.
+- Alle Bots werden sofort gestoppt, offene Positionen simuliert verkauft.
+- Neue Bots starten während des Not-Aus gestoppt.
+- Nach dem Aufheben bleiben die Bots pausiert, jeder wird einzeln gestartet.
+
+**Protokoll und Kennzahlen**
+- Gespeichert werden jede Entscheidung mit Begründung und Modulzeilen, jeder Trade mit Gebühr, Slippage und tatsächlicher Verzögerung, und die Equity jede Minute.
+- Kennzahlen: Gewinn/Verlust, Trefferquote, max. Drawdown, Gebühren, geblockte Rugs.
+- Was das Dorf aufzeichnet: neue Tokens immer, Kurse für Kandidaten und gehaltene Tokens. Daraus entsteht später der Backtest, denn historische Pump.fun-Daten gibt es nicht frei.
+- Aufbewahrung: 14 Tage für Kurse, 7 Tage für Halte- und Sperr-Entscheidungen.
+
+**App**
+- **Gebäude „Hafen“** mit eigenem 3D-Modell (Hafenmeisterei, Becken, Steg, Boot, lila Leuchtfeuer).
+- **Reiter Flotte:** Vergleichskurve (Start = 100, eine Achse, feste Farbe je Bot), Bot-Karten, Formular für Regeln oder Prompt, Not-Aus.
+- **Terminal „Kielwasser“** (`/hafen/<id>`), dunkel, Lila als Akzent, Daten in Monospace:
+  - Kopfzeile mit laufender Uhr und Online-Punkt
+  - Token-Pillen und Stunden-Leiste
+  - 15-Minuten-Kerzen der Equity mit Startlinie und Karte zum letzten Trade („1× – kein Hebel“)
+  - der Kern mit den zwölf Modulen auf einer Ellipse; leuchten und wandern nur bei echten Signalen
+  - Volumen, X-Feed, PnL, Entscheidungen und Trades
+  - Die Ansicht richtet sich per Container-Query nach dem Platz; auf schmalen Bildschirmen steht alles untereinander.
+
+**Live-Probe:** Das Kryptowerk lief hier 2,5 Minuten gegen die echten Quellen. Es kamen etwa 4–5 neue Tokens pro Minute an, DexScreener-Kurse kamen an, der SOL-Kurs lag bei rund 70 $. Kein Token bestand die vorsichtigen Standardfilter, darum wurde nichts gekauft.
+
+**Tests:** `e227-krypto.test.ts` (Kurve, Gebühren, Module, Gate, ganzer Ablauf mit Verzögerung/TP/Trailing/SL/Fehlschlag/Rug/Not-Aus/Prompt-Bot, Schnittstelle, Quellen-Parser mit echten Antwortformen), `e227-hafen.test.ts` (Durchreiche, Bewertung mit Budget je Bot, Telegram), e2e `hafen.spec.ts` (Flotte, Formular-Fehler, Not-Aus-Rückfrage, Terminal auf Desktop und Handy).
+
+**Offen:** Backtest auf den Aufzeichnungen (K5); X-Sentiment (Grok-Schlüssel) und KOL-Watch (PumpPortal-Schlüssel) auf Wunsch; Live-Trading mit eigenem Wallet je Bot erst nach eigener Etappe und Freigabe.

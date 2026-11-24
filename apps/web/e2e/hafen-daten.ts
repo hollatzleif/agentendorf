@@ -1,0 +1,79 @@
+import { KRYPTO_MODULE, KRYPTO_STANDARD, type KryptoBot, type KryptoTerminal, type KryptoUebersicht } from '@dorf/shared';
+
+/** E227: nachgebaute Daten für den Hafen – fest, ohne Zufall */
+export const BOT_ID = '11111111-2222-4333-8444-555555555555';
+export const BOT2_ID = '66666666-7777-4888-8999-000000000000';
+
+function bot(id: string, name: string, avatar: string, faktor: number, art: 'regeln' | 'prompt' = 'regeln'): KryptoBot {
+  const jetzt = Date.now();
+  const kurve: [number, number][] = Array.from({ length: 24 }, (_, i) => [jetzt - (24 - i) * 3_600_000, 10 * (1 + ((faktor - 1) * i) / 23 + Math.sin(i / 2) * 0.03)]);
+  const kapital = 10 * faktor;
+  return {
+    id,
+    einstellung: { ...structuredClone(KRYPTO_STANDARD), name, avatar, art, prompt: art === 'prompt' ? 'Kaufe nur bei starkem Volumen und sauberem RugCheck.' : '' },
+    modus: 'paper',
+    status: 'laeuft',
+    erstellt: new Date(jetzt - 26 * 3_600_000).toISOString(),
+    kennzahlen: { kapitalSol: kapital, startSol: 10, faktor, gewinnSol: kapital - 10, gewinnProzent: (faktor - 1) * 100, trades: 21, gewonnen: 13, verloren: 8, trefferquote: 13 / 21, maxDrawdownProzent: 18.4, offen: 1, gebuehrenSol: 0.412, geblockteRugs: 37, heuteSol: 0.61 },
+    kurve: [...kurve, [jetzt, kapital]],
+  };
+}
+
+export function uebersicht(): KryptoUebersicht {
+  return { verbunden: true, notaus: false, datenOnline: true, beobachtet: 214, solUsd: 70.2, bots: [bot(BOT_ID, 'Schwarm', '🦈', 1.184), bot(BOT2_ID, 'Grübler', '🐙', 0.93, 'prompt')] };
+}
+
+export function terminal(): KryptoTerminal {
+  const jetzt = Date.now();
+  const b = bot(BOT_ID, 'Schwarm', '🦈', 1.184);
+  const kerzen = Array.from({ length: 60 }, (_, i) => {
+    const o = 10 + i * 0.03 + Math.sin(i / 3) * 0.25;
+    const c = 10 + (i + 1) * 0.03 + Math.sin((i + 1) / 3) * 0.25;
+    return { zeit: jetzt - (60 - i) * 900_000, o, c, h: Math.max(o, c) + 0.08, l: Math.min(o, c) - 0.06 };
+  });
+  const module = KRYPTO_MODULE.map((m, i) => ({
+    ...m,
+    an: m.schluessel !== 'kol' && m.schluessel !== 'x',
+    zeile: m.schluessel === 'kol' ? 'aus – braucht PumpPortal-Schlüssel' : m.schluessel === 'x' ? 'aus – braucht Grok-Schlüssel' : ['MOONCAT: Score 4', 'MOONCAT: Dev 1,9 %', 'keine Bundles gemeldet', '', '', 'Top-Halter 6,2 %', 'MOONCAT: $18,4k/5m · 140↑ 52↓', '3m · MC $41k · 22,0 SOL · +18 %', '0.500 SOL je Trade', 'MOONCAT → +50 %', '−25 % · Trail 20 %', 'frei · 9.10 SOL frei'][i]!,
+    zuletzt: i % 3 === 0 ? jetzt : jetzt - 60_000,
+    ton: (i % 2 ? 'gut' : 'neutral') as 'gut' | 'neutral',
+  }));
+  return {
+    bot: b,
+    jetzt,
+    datenOnline: true,
+    solUsd: 70.2,
+    kerzen,
+    lage: 'LONG',
+    positionen: [{ id: 'p1', mint: 'MOONCATmint1111111111111111111111111pump', symbol: 'MOONCAT', name: 'Moon Cat', geoeffnet: jetzt - 300_000, einsatzSol: 0.5005, einstiegPreis: 4.1e-8, preis: 4.8e-8, wertSol: 0.57, prozent: 17.1, tpStufe: 0 }],
+    trades: [
+      { id: 3, zeit: jetzt - 600_000, art: 'verkauf', symbol: 'PEPEZ', mint: 'p', sol: 0.83, preis: 6e-8, gebuehrSol: 0.0109, slippageProzent: 2.1, verzoegerungMs: 1612, grund: 'Trailing Stop −21,0 % vom Hoch', gewinnSol: 0.29, gewinnProzent: 58.2 },
+      { id: 2, zeit: jetzt - 900_000, art: 'kauf', symbol: 'MOONCAT', mint: 'm', sol: 0.5, preis: 4.1e-8, gebuehrSol: 0.0068, slippageProzent: 2.4, verzoegerungMs: 1540, grund: '74 Punkte' },
+      { id: 1, zeit: jetzt - 1_200_000, art: 'fehlschlag', symbol: 'DOGGO', mint: 'd', sol: 0, preis: 3e-8, gebuehrSol: 0.000505, slippageProzent: 0, verzoegerungMs: 1700, grund: 'Kauf-Transaktion fehlgeschlagen (simuliert) – Netzgebühr bezahlt' },
+    ],
+    entscheidungen: [
+      { id: 9, zeit: jetzt - 5_000, mint: 'r', symbol: 'RUGME', aktion: 'block', sicherheit: null, grund: 'RUG · Rug-Filter: Score 81 · 2× danger > 40', quelle: 'code' },
+      { id: 8, zeit: jetzt - 900_000, mint: 'm', symbol: 'MOONCAT', aktion: 'buy', sicherheit: 0.74, grund: '74 Punkte', quelle: 'regeln' },
+      { id: 7, zeit: jetzt - 950_000, mint: 'h', symbol: 'HOLDME', aktion: 'hold', sicherheit: 0.41, grund: '41 Punkte < 60', quelle: 'regeln' },
+    ],
+    module,
+    status: 'scoring …',
+    pillen: [
+      { mint: 'MOONCATmint1111111111111111111111111pump', symbol: 'MOONCAT', prozent: 17.1, gehalten: true },
+      { mint: 'a', symbol: 'FROGGY', prozent: 42.3, gehalten: false },
+      { mint: 'b', symbol: 'SADCAT', prozent: -12.8, gehalten: false },
+      { mint: 'c', symbol: 'WIFHAT2', prozent: 5.2, gehalten: false },
+      { mint: 'd', symbol: 'BONKER', prozent: -3.1, gehalten: false },
+    ],
+    topVolumen: [
+      { symbol: 'FROGGY', usd: 48_200, kaeufe: 310, verkaeufe: 140 },
+      { symbol: 'MOONCAT', usd: 18_400, kaeufe: 140, verkaeufe: 52 },
+      { symbol: 'SADCAT', usd: 9_100, kaeufe: 61, verkaeufe: 88 },
+    ],
+    volumenBalken: Array.from({ length: 30 }, (_, i) => ({ zeit: jetzt - (30 - i) * 60_000, kaeufe: 200 + ((i * 37) % 120), verkaeufe: 120 + ((i * 53) % 90) })),
+    xFeed: [],
+    xHinweis: 'X-Sentiment braucht einen Grok-Schlüssel (xAI) – noch nicht eingerichtet.',
+    pnlStunden: Array.from({ length: 24 }, (_, i) => (i < 6 ? null : i % 4 === 0 ? -0.08 : i % 3 === 0 ? 0.21 : null)),
+    besterTradeSol: 0.29,
+  };
+}

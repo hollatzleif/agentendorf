@@ -57,9 +57,11 @@ export class SystemAufrufe {
     maxTokens?: number;
     /** Leif hat geklickt (z. B. „Schritte vorschlagen“) – zählt nicht gegen das Tagesbudget */
     vonLeif?: boolean;
+    /** E227: eigene Abrechnung (z. B. 'krypto') – zählt nicht gegen das Tagesbudget, die Grenze prüft der Aufrufer */
+    ausloeser?: string;
   }): Promise<T> {
     if (!this.o.klient) throw new Error('Kein API-Schlüssel: ANTHROPIC_API_KEY in /srv/dorf/.env eintragen (dorf api-schluessel).');
-    if (!a.vonLeif && this.o.budgetErreicht) {
+    if (!a.vonLeif && !a.ausloeser && this.o.budgetErreicht) {
       const grenze = await this.o.budgetErreicht();
       if (grenze !== null) throw new BudgetErreicht(grenze);
     }
@@ -116,7 +118,7 @@ export class SystemAufrufe {
                            ein_token, aus_token, cache_lesen, cache_schreiben, kosten_usd, fehler, zusammenfassung)
        VALUES (?, ?, ?, 'api', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
-      laufId, chat.id, nummer, tatsaechlichesModell, a.stufe, aufwand, fehler ? 'fehler' : 'fertig', a.vonLeif ? 'klick' : 'zeitplan', a.kurzAuftrag, start, start, ende,
+      laufId, chat.id, nummer, tatsaechlichesModell, a.stufe, aufwand, fehler ? 'fehler' : 'fertig', a.ausloeser ?? (a.vonLeif ? 'klick' : 'zeitplan'), a.kurzAuftrag, start, start, ende,
       t.ein, t.aus, t.cacheLesen, t.cacheSchreiben, kostenSchaetzen(stufen.preise, tatsaechlichesModell, t), fehler, kurz,
     );
     const nachricht = db.prepare('INSERT INTO nachrichten (chat_id, lauf_id, rolle, text, motor, erstellt) VALUES (?, ?, ?, ?, ?, ?)');

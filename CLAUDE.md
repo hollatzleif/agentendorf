@@ -63,6 +63,13 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
   src/atelier.ts  E198 Atelier: /api/atelier/* – öffnen (HEIC/TIFF/SVG nur über den Rechenraum), speichern (nur PNG/JPG/WebP/.atelier,
                   Anfangsbytes geprüft, VaultDienst mit basisVersion → Konfliktkopie), ki (Hintergrund/Hochskalieren im Rechenraum),
                   generieren/fuellen (Cloudflare Workers AI, nur mit CLOUDFLARE_* – der einzige Weg nach draußen, nur auf Leifs Klick)
+  src/krypto/     E227 Hafen – Kryptowerk (eigener Container, gleicher Build: dist/kryptowerk.js, eigene SQLite unter /srv/dorf/krypto):
+                  quellen.ts (PumpPortal-WS nur newToken/migration, DexScreener ≤ 60/min, RugCheck ≤ 1/2 s – gegen echte Schnittstellen geprüft),
+                  kurve.ts (Bonding Curve K = 30·1,073e9, PumpSwap-Pool, Gebühren laut pump.fun/docs/fees), bewertung.ts (12 Prüfmodule,
+                  Punkte, Risk-Gate – alles Code), einstellung.ts (Zod), motor.ts (Beobachtung, Paper-Ausführung mit Verzögerung/Slippage/
+                  Fehlschlag, TP/SL/Trailing, Protokoll, Kennzahlen, Not-Aus), server.ts (Bearer KRYPTO_GEHEIMNIS). Kein Wallet, kein Live.
+  src/krypto-dorf.ts E227: /api/krypto/* (Durchreiche), /intern/krypto/bewerten (LLM für Prompt-Bots, nur JSON, ≤ 0,50 $ je Bot/Tag, Auslöser
+                  krypto – nicht im Tagesbudget), Telegram /notaus; App: apps/web/src/hafen/ (Flotte, Terminal „Kielwasser“ /hafen/<id>)
   src/aussehen.ts E224: Aussehen der App (GET/PUT /api/aussehen, Zod, dorf_stand, Live) – Typen/Vorlagen in packages/shared/src/aussehen.ts,
                   Anwenden in apps/web/src/aussehen.ts (CSS-Variablen + data-Attribute an <html>; stil.css: keine festen Farben mehr, color-mix für Tönungen)
   src/schriftprobe.ts E216: Leifs Schriftprobe (Atelier/schriftprobe.json, GET/PUT /api/atelier/schriftprobe, Zod-Grenzen) – handschrift_schreiben
@@ -298,6 +305,7 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E213 (22.11.): Handschrift kann Mathe – Formeln ($…$ oder schlicht), Rechenwege am „=“ ausgerichtet, Brüche/Wurzeln/∑∫, Markdown-Tabellen mit Handgitter (handformel.py + Hershey); „=“ wird nicht mehr zu „-“
 - [x] E214 (22.11.): Handschrift realistischer – gerade Linien wie GoodNotes (Tabellen, Bruchstriche), ruhigere Formeln, gleichmäßiger Stift, Logik-Zeichen (∧ ∨ ¬ ↔ ⊢ ⊨ ⊤ ⊥ □), Wahrheitstafeln mittig
 - [x] E215 (22.11.): Handschrift `stil: einheitlich` (Standard) – EINE Hand für Text, Formeln und Tabellen (Schreiber-Profil je Dokument, jedes Zeichen einmalig verformt, Wortgrundlinien, Unterschneiden); `stil: ki` = KI-Modell für freien Fließtext
+- [x] E227 (24.11.): Hafen – Krypto-Bots für Pump.fun im Paper Trading (Kryptowerk-Container, PumpPortal/DexScreener/RugCheck, Bonding-Curve-Simulation mit Gebühren/Slippage/Verzögerung/Fehlschlägen, Regel- und Prompt-Bots mit Risk-Gate, Protokoll, Flotte mit Vergleich, Terminal „Kielwasser“, Not-Aus in App und Telegram) – kein Live-Trading; Backtest (K5) und Live (eigene Etappe) offen; Abnahme mit echten Läufen auf dem Server
 - [x] E226 (24.11.): Börse – Saxo-Positionen mit 0 € (Saxo meldet MarketValueInBaseCurrency als 0 → Stück × Kurs × Umrechnung bzw. anteilig, „≈“, alte Stände beim Lesen repariert), Hinweis für Teile ohne Linie, Analyse im schmalen Gebäude-Fenster (Container-Query, Fenster scrollte selbst → leerer Bereich)
 - [x] E225 (24.11.): Börse – Ähnlichkeit (Korrelation), Einstandslinie, Was-wäre-wenn, Mini-Verläufe, Depot-Ziel, CSV, Telegram /depot; Aussehen – 🌙/☀️-Schnellschalter, Navigation unten, Tafeln Glas/schlicht, Buchstabenabstand, Diagramm-Farben, Meine Looks (/api/aussehen/looks)
 - [x] E224 (24.11.): Aussehen – Einstellungen → 🎨 Aussehen: 11 Vorlagen (auch dunkel), 13 Farbrollen, 7 Schriften, Größe/Zeilenabstand, Ecken, Schatten, Rahmen, Knöpfe, Hintergrund, Abstände, Startseite, Breite, Tabellen, Bewegung, automatisch dunkel, eigenes CSS, nur dieses Gerät; stil.css über Variablen (Spiel-Look unverändert)

@@ -47,7 +47,7 @@ export async function aufwachEinstellungen(vault: VaultDienst): Promise<AufwachE
 }
 
 /** Linzer Mitternacht (Beginn des Budget-Tags) */
-function tagesbeginnLinz(ms: number) {
+export function tagesbeginnLinz(ms: number) {
   const [j, mo, t] = tagFormat.format(new Date(ms)).split('-').map(Number) as [number, number, number];
   return ortszeitZuUtc(j, mo, t, 0, 0, 0, 'Europe/Vienna');
 }

@@ -20,7 +20,7 @@ import { passwortSetzen } from '../src/auth/passwort.js';
 import { cookieAus, ORIGIN, testDorf } from './hilfen.js';
 
 const PW = 'ein-sehr-langes-testpasswort';
-const VORLAGE = ['Rathaus', 'Uni', 'Post', 'Marktplatz', 'Bibliothek', 'Corpshaus', 'Bank', 'Boerse', 'Einkaufsladen', 'Kirchturm', 'Codehaus', 'Atelier'];
+const VORLAGE = ['Rathaus', 'Uni', 'Post', 'Marktplatz', 'Bibliothek', 'Corpshaus', 'Bank', 'Boerse', 'Einkaufsladen', 'Kirchturm', 'Codehaus', 'Atelier', 'Hafen'];
 
 async function angemeldet() {
   const d = await testDorf();

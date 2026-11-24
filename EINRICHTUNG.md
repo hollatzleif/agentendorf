@@ -177,6 +177,15 @@ Die JKU sperrt den Zugang für die Moodle-App. Deshalb holt das Dorf nur die **T
 - Alle Agenten können To-dos anlegen, abhaken, bearbeiten und löschen. Gelöschtes landet im Papierkorb des Vaults.
 - Jedes To-do ist eine Datei in `Marktplatz/todos/`, du kannst sie also auch in Obsidian bearbeiten.
 
+### Hafen: Krypto-Bots (Paper Trading)
+
+- **Einrichten musst du nichts.** Mit dem Deploy legt `dorf` das Geheimnis an (`/srv/dorf/krypto.env`), dazu den Datenordner `/srv/dorf/krypto`, und startet den Container `kryptowerk`. Prüfen: `dorf status`.
+- **In der App:** Hafen → Flotte → „+ Neuer Bot“. Jeder Bot startet im **Paper Trading**: echte Live-Daten von Pump.fun, aber nur simulierte Trades mit Gebühren, Slippage, Verzögerung und Fehlschlägen. Es gibt kein Wallet und keinen Hebel.
+- **Terminal:** „Terminal öffnen“ zeigt den Bot live (Kielwasser).
+- **Prompt-Bots** brauchen den API-Schlüssel des Dorfs (`dorf api-schluessel`) und kosten höchstens 0,50 $ je Bot und Tag. Das zählt nicht gegen das Tagesbudget für Post und Zeitung.
+- **Not-Aus:** In der App gibt es den roten Knopf, in Telegram `/notaus`. Danach in der App „Not-Aus aufheben“ und jeden Bot einzeln starten.
+- **Noch nicht dabei:** X-Sentiment (bräuchte einen Grok-Schlüssel von xAI), KOL-Watch (bräuchte einen PumpPortal-Schlüssel mit Wallet, kostet je Nachricht), Backtest und Live-Trading.
+
 ### Programme für Mac und Windows
 
 - **Herunterladen:** Einstellungen → Programme (Mac mit Apple Silicon, Windows).

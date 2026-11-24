@@ -46,6 +46,9 @@ const Schema = z.object({
   CLOUDFLARE_API_TOKEN: z.string().optional(),
   CLOUDFLARE_API_URL: z.string().default('https://api.cloudflare.com/client/v4'),
   BROWSER_URL: z.string().default('http://browser:4200'),
+  // E227 Hafen: Kryptowerk (eigener Container, Paper Trading) – ohne Geheimnis ist der Hafen aus
+  KRYPTO_URL: z.string().default('http://kryptowerk:4300'),
+  KRYPTO_GEHEIMNIS: z.string().optional(),
   WETTER_URL: z.string().optional(),
   WETTER_ORT: z.string().default('Konstanz'),
   // Etappe 7: Börse – Kurse von EODHD (Leifs Schlüssel, nur .env), Wechselkurs von der EZB (ohne Schlüssel)
@@ -118,6 +121,8 @@ export interface Konfig {
   cloudflare?: { accountId: string; token: string; url: string };
   rechenraumUrl: string;
   rechenraumGeheimnis?: string;
+  kryptoUrl: string;
+  kryptoGeheimnis?: string;
   browserUrl: string;
   wetterUrl?: string;
   wetterOrt: string;
@@ -175,6 +180,8 @@ export function konfigLaden(env: NodeJS.ProcessEnv = process.env): Konfig {
         : undefined,
     rechenraumUrl: e.RECHENRAUM_URL,
     rechenraumGeheimnis: e.RECHENRAUM_GEHEIMNIS || undefined,
+    kryptoUrl: e.KRYPTO_URL.replace(/\/$/, ''),
+    kryptoGeheimnis: e.KRYPTO_GEHEIMNIS && e.KRYPTO_GEHEIMNIS.length >= 32 ? e.KRYPTO_GEHEIMNIS : undefined,
     browserUrl: e.BROWSER_URL,
     wetterUrl: e.WETTER_URL || undefined,
     wetterOrt: e.WETTER_ORT,

@@ -1,5 +1,6 @@
 import type { Boerse } from './boerse.js';
 import { aussehenRouten } from './aussehen.js';
+import { type Hafen, hafenRouten } from './krypto-dorf.js';
 import type { BoerseAnalyse } from '@dorf/shared';
 import type { Saxo } from './saxo.js';
 import { mitSchlusskursen } from './saxo.js';
@@ -119,6 +120,7 @@ export interface Abhaengigkeiten {
   notizen?: Notizen;
   noten?: Noten;
   googleKalender?: GoogleKalender;
+  hafen?: Hafen;
 }
 
 /** Für Agenten-HTML: Skripte ja, aber undurchsichtiger Ursprung und kein Netz. Bilder/Schriften nur eingebettet (data:). */
@@ -773,6 +775,7 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
   atelierRouten(app, { konfig, vault, rechenraum: () => a.agenten.rechenraum }); // E198
   schriftprobeRouten(app, { vault }); // E216
   aussehenRouten(app, { db: a.db, hub: a.hub }); // E224
+  if (a.hafen) hafenRouten(app, a.hafen); // E227
 
   // ---- E65: To-do-Brett (Marktplatz) ----
   // Etappe 7: alle Listen unter /api/listen/<name>; /api/todos bleibt für die To-do-Liste

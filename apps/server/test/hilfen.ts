@@ -47,6 +47,7 @@ export async function testDorf(
     boerseFx?: (waehrung: 'USD' | 'CHF') => Promise<{ datum: string; kurs: number }>;
     saxoHolen?: typeof fetch;
     kalenderKlient?: import('../src/kalender-google.js').KalenderKlient;
+    hafenHolen?: typeof fetch;
   } = {},
 ) {
   const daten = tempOrdner();
@@ -74,6 +75,7 @@ export async function testDorf(
     boerse: opt.boerse,
     saxoHolen: opt.saxoHolen,
     kalenderKlient: opt.kalenderKlient,
+    hafenHolen: opt.hafenHolen,
     // nie echtes Netz in Tests
     boerseFx: opt.boerseFx ?? (async (w) => ({ datum: '2026-11-13', kurs: w === 'CHF' ? 0.94 : 1.1 })),
   });

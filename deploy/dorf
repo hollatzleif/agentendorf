@@ -107,6 +107,16 @@ geheimnisse_sicherstellen() {
   chmod 600 "$BASIS/rechenraum.env"
   [ -n "$uid" ] && chown "$uid:$uid" "$BASIS/rechenraum.env" 2>/dev/null || true
   mkdir -p "$BASIS/claude"
+  # E227 Hafen: Kryptowerk – eigenes Geheimnis, eigene Datei, eigener Datenordner (bekommt sonst NICHTS aus .env)
+  if ! grep -qE '^KRYPTO_GEHEIMNIS=.{32,}' "$ENV_DATEI"; then
+    g=$(zufall 40)
+    sed -i '/^KRYPTO_GEHEIMNIS=/d' "$ENV_DATEI"
+    echo "KRYPTO_GEHEIMNIS=$g" >> "$ENV_DATEI"
+  fi
+  printf '# Nur für das Kryptowerk (Hafen, wird von dorf deploy erzeugt)\nKRYPTO_GEHEIMNIS=%s\n' "$(grep -E '^KRYPTO_GEHEIMNIS=' "$ENV_DATEI" | cut -d= -f2)" > "$BASIS/krypto.env"
+  chmod 600 "$BASIS/krypto.env"
+  mkdir -p "$BASIS/krypto"
+  chown "${uid:-1000}:${uid:-1000}" "$BASIS/krypto.env" "$BASIS/krypto" 2>/dev/null || true
   [ -n "$uid" ] && chown "$uid:$uid" "$BASIS/claude" "$BASIS/werkstatt.env" 2>/dev/null || true
   # Moodle-Browser: eigenes Geheimnis; browser.env (Leifs JKU-Zugang) bekommt NUR der Browser-Container
   if ! grep -qE '^BROWSER_GEHEIMNIS=.{32,}' "$ENV_DATEI"; then
@@ -400,7 +410,7 @@ cmd_backup() {
   local ziele=("$BASIS/vault" "$BASIS/daten/sicherung" "$ENV_DATEI")
   local z
   # Codehaus: Projekte und Einstellungen ja (auch was noch nicht auf GitHub liegt) – ohne alles, was sich neu holen lässt
-  for z in "$BASIS/syncthing/config" "$BASIS/werkstatt.env" "$BASIS/coding.env" "$BASIS/coding"; do [ -e "$z" ] && ziele+=("$z"); done
+  for z in "$BASIS/syncthing/config" "$BASIS/werkstatt.env" "$BASIS/coding.env" "$BASIS/coding" "$BASIS/krypto"; do [ -e "$z" ] && ziele+=("$z"); done
   restic backup --tag taeglich --host agentendorf ${DORF_BACKUP_ZEIT:+--time "$DORF_BACKUP_ZEIT"} \
     --exclude "$BASIS/syncthing/index-*" \
     --exclude "$BASIS/coding/.tmp" --exclude "$BASIS/coding/.heim/.cache" --exclude "$BASIS/coding/.heim/.npm" \
