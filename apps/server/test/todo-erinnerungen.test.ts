@@ -23,7 +23,8 @@ describe('Erinnerungen an To-dos (E94)', () => {
     expect(k).toEqual([expect.objectContaining({ quelle: 'erinnerung', bezugId: t.pfad, titel: '🔔 Mama anrufen', schlummern: true })]);
     // Schlummern im Kirchturm → neue Zeit +10 min, läutet dann wieder
     d.kirchturm.ausfuehren({ befehl: 'klingel', id: k[0]!.id, aktion: 'schlummern' });
-    await new Promise((r) => setTimeout(r, 20));
+    // das Verschieben speichert asynchron – warten (bis 3 s) statt fester 20 ms (die reichten in der CI nicht immer)
+    for (let i = 0; i < 150 && (await d.todos.holen(t.pfad)).erinnerung !== '2026-11-16T13:40'; i++) await new Promise((r) => setTimeout(r, 20));
     expect((await d.todos.holen(t.pfad)).erinnerung).toBe('2026-11-16T13:40');
     d.uhr.vor(10 * MIN);
     expect(await d.erinnerungen.pruefen()).toBe(1);
