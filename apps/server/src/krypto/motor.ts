@@ -33,9 +33,10 @@ import { istAdresse, type WalletTresor } from './wallet.js';
 import type { DexScreener, NeuerTokenT, PumpPortal, RugBericht, RugCheck, Schnappschuss } from './quellen.js';
 import type { KurveStand, KurveStrom } from './strom.js';
 import type { MusterDienst } from './muster/dienst.js';
-import { merkmale, ratAus } from './muster/merkmale.js';
+import { ratAus } from './muster/merkmale.js';
 import { rlHandlung } from './muster/rl.js';
-import type { RlLage, Tick } from './muster/typen.js';
+import { musterSignale as signaleRechnen } from './muster/signale.js';
+import type { MusterSignale, RlLage, Tick } from './muster/typen.js';
 
 export type KDB = Database.Database;
 
@@ -89,6 +90,12 @@ const MIGRATIONEN = [
   // E235: Nachschuss (frisches Paper-Spielgeld für RL-Bots nach Pleite – zählt zum Startkapital, nie als Gewinn)
   `CREATE TABLE nachschuss (bot_id TEXT NOT NULL, zeit INTEGER NOT NULL, sol REAL NOT NULL);
    CREATE INDEX nachschuss_bot ON nachschuss (bot_id, zeit);`,
+  // E236: Muster-Modelle je Schlüssel (basis, pump, absturz, hoch/tief, Früh-Modelle) – je Schlüssel einzeln ersetzt;
+  // muster_modelle bleibt das Lauf-Protokoll, rl_aktiv = RL-Agent dieses Laufs wurde übernommen
+  `CREATE TABLE muster_einzel (schluessel TEXT NOT NULL, version INTEGER NOT NULL, erstellt INTEGER NOT NULL, gbdt_json TEXT NOT NULL,
+     info_json TEXT NOT NULL, aktiv INTEGER NOT NULL, PRIMARY KEY (schluessel, version));
+   ALTER TABLE muster_modelle ADD COLUMN rl_aktiv INTEGER NOT NULL DEFAULT 0;
+   UPDATE muster_modelle SET rl_aktiv = aktiv;`,
 ];
 
 export function kryptoDb(datei: string): KDB {
@@ -192,8 +199,27 @@ const KURSE_BEHALTEN = 14 * 86_400_000;
 /** E235: Echtzeit-Ticks für das Training: 7 Tage, höchstens 3 Mio. Zeilen */
 const TICKS_BEHALTEN = 7 * 86_400_000;
 const TICKS_HOECHSTENS = 3_000_000;
-/** E235: Muster-Wahrscheinlichkeit je Token höchstens alle 2 s neu rechnen; RL-Entscheidung je Position höchstens jede Sekunde */
+/** E235: Muster-Signale je Token höchstens alle 2 s neu rechnen; RL-Entscheidung je Position höchstens jede Sekunde */
 const MUSTER_NEU_MS = 2000;
+/** E236: gehaltene Position und Absturz-Erkenner ab so viel → sofort raus (RL-Bots immer, andere nur mit musterGewicht > 0) */
+const ABSTURZ_RAUS = 0.7;
+/** E236: Kauf über den Pump-Erkenner ab so viel (wie ratAus/rl.ts) */
+const PUMP_KAUF = 0.3;
+const pz = (x: number) => `${Math.round(x * 100)} %`;
+/** E236: Punkte des Muster-Modells für Regel-/Prompt-Bots: Gewicht × clamp((p − 0,5)·2 + 🚀 − 💥, −1, 1), fehlende Signale neutral */
+export function musterPunkte(s: Pick<MusterSignale, 'p' | 'pump' | 'absturz'>, gewicht: number): number {
+  const roh = (s.p != null ? (s.p - 0.5) * 2 : 0) + (s.pump ?? 0) - (s.absturz ?? 0);
+  const z = Math.round(gewicht * Math.max(-1, Math.min(1, roh)));
+  return z === 0 ? 0 : z;
+}
+/** E236: Signale als kurze Zeile – nur aktive („Muster p 62 % · 🚀 31 % · 💥 8 %“) */
+function signalZeile(s: MusterSignale): string {
+  const teile: string[] = [];
+  if (s.p != null) teile.push(`p ${pz(s.p)}`);
+  if (s.pump != null) teile.push(`🚀 ${pz(s.pump)}`);
+  if (s.absturz != null) teile.push(`💥 ${pz(s.absturz)}`);
+  return `Muster ${teile.join(' · ')}`;
+}
 const RL_POSITION_MS = 1000;
 /** E235: ein RL-Bot sieht sich einen Kandidaten höchstens alle 10 s an */
 const RL_KANDIDAT_MS = 10_000;
@@ -243,8 +269,8 @@ export class Kryptowerk {
   private stromTicks = new Map<string, { zeit: number; preis: number; kauf: boolean; sol: number; echtSol: number }[]>();
   /** E235: Ticks, die noch in strom_ticks geschrieben werden (gesammelt im Takt, eine Transaktion) */
   private tickPuffer: [string, number, number, number, number][] = [];
-  /** E235: Muster-Wahrscheinlichkeit je Token (gedrosselt) und letzte RL-Entscheidung je Position */
-  private musterCache = new Map<string, { zeit: number; p: number | null }>();
+  /** E235/E236: Muster-Signale je Token (gedrosselt) und letzte RL-Entscheidung je Position */
+  private musterCache = new Map<string, { zeit: number; s: MusterSignale | null }>();
   private rlZuletzt = new Map<string, number>();
   private zuletztGepflegt = 0;
   /** E233: feine Equity-Probe (jeder Takt + Echtzeit-Trades gehaltener Tokens) – in der DB, damit ein Neustart nichts verliert */
@@ -635,7 +661,7 @@ export class Kryptowerk {
         const e = this.einstellung(bot);
         const s = pruefen(e, b.info, b.letzter!, null, jetzt, this.echtzeit60(b.info.mint));
         // E235: RL-Bots handeln Strom-Tokens nach Modell – vorab zählt nur der Dev-Check (Rug/Bundle prüft RugCheck selbst)
-        if (e.art === 'rl') return !!this.o.muster?.aktiv && this.stromTicks.has(b.info.mint) && !s.some((x) => x.sperre && x.schluessel === 'dev');
+        if (e.art === 'rl') return !!this.o.muster?.rlBereit && this.stromTicks.has(b.info.mint) && !s.some((x) => x.sperre && x.schluessel === 'dev');
         return !s.some((x) => x.sperre && (x.schluessel === 'volumen' || x.schluessel === 'sniper' || x.schluessel === 'dev'));
       });
       if (!vorfilter) continue;
@@ -734,6 +760,7 @@ export class Kryptowerk {
     this.modulMerken(botId, 'gate', 'LLM bewertet …', 'neutral');
     try {
       const s = b.letzter!;
+      const muster = this.musterSignale(b.info.mint);
       const a = await this.o.llm({
         botId,
         botName: e.name,
@@ -745,6 +772,8 @@ export class Kryptowerk {
           rugcheck: b.rug,
           module: Object.fromEntries(signale.map((x) => [x.schluessel, x.zeile])),
           punkteNachRegeln: p,
+          // E236: Signale des Muster-Modells (nur aktive Modelle, sonst null) – fehlt ohne Modell/Ticks
+          ...(muster ? { muster } : {}),
         },
       });
       const sicher = Math.max(0, Math.min(1, a.confidence));
@@ -777,28 +806,40 @@ export class Kryptowerk {
 
   // ---- E235: Muster-Modell, RL-Agent, Nachschuss -----------------------------------------------------
 
-  /** Strom-Ticks der letzten 10 min im Format des Muster-Kerns (Merkmale brauchen nur die letzten ~2 min) */
+  /** Strom-Ticks im Speicher (bis 15 min, höchstens 3000) im Format des Muster-Kerns – die Früh-Merkmale zählen ab dem ersten Tick */
   private musterTicks(mint: string, jetzt: number): Tick[] {
     const r: Tick[] = [];
-    for (const t of this.stromTicks.get(mint) ?? []) if (jetzt - t.zeit < 10 * MINUTE && t.zeit <= jetzt) r.push({ zeit: t.zeit, preis: t.preis, sol: t.sol, echtSol: t.echtSol });
+    for (const t of this.stromTicks.get(mint) ?? []) if (t.zeit <= jetzt) r.push({ zeit: t.zeit, preis: t.preis, sol: t.sol, echtSol: t.echtSol });
     return r;
   }
 
-  /** Muster-Wahrscheinlichkeit aus den Echtzeit-Ticks – null ohne aktives Modell oder ohne genug Ticks; je Token höchstens alle 2 s neu */
-  musterP(mint: string): number | null {
+  /**
+   * E236: alle Signale der gültigen Muster-Modelle aus den Echtzeit-Ticks (p, 🚀, 💥, Hoch/Tief) – null ohne gültiges Modell oder ohne
+   * genug Ticks; je Token höchstens alle 2 s neu. Nicht endliche Werte gelten als „nicht aktiv“ (null).
+   */
+  musterSignale(mint: string): MusterSignale | null {
     const m = this.o.muster;
-    if (!m?.aktiv) return null;
+    if (!m?.signaleAktiv) return null;
     const jetzt = this.o.uhr.jetzt();
     const c = this.musterCache.get(mint);
-    if (c && jetzt - c.zeit < MUSTER_NEU_MS) return c.p;
+    if (c && jetzt - c.zeit < MUSTER_NEU_MS) return c.s;
     const info = this.tokens.get(mint)?.info;
-    let p: number | null = null;
+    let s: MusterSignale | null = null;
     if (info) {
-      const x = merkmale(this.musterTicks(mint, jetzt), jetzt, { mint, erstellt: info.erstellt, ...(info.devTokens24h != null ? { devTokens24h: info.devTokens24h } : {}) });
-      p = x ? m.vorhersagen(x) : null;
+      const roh = signaleRechnen(m.gueltigeModelle(), this.musterTicks(mint, jetzt), jetzt, { mint, erstellt: info.erstellt, ...(info.devTokens24h != null ? { devTokens24h: info.devTokens24h } : {}) });
+      if (roh) {
+        const w = (x: number | null | undefined) => (x != null && Number.isFinite(x) ? Math.max(0, Math.min(1, x)) : null);
+        const z = (x: number | null | undefined) => (x != null && Number.isFinite(x) ? x : null);
+        s = { p: w(roh.p), pump: w(roh.pump), absturz: w(roh.absturz), hoch1: z(roh.hoch1), tief1: z(roh.tief1), hoch5: z(roh.hoch5), tief5: z(roh.tief5), frueh: !!roh.frueh };
+      }
     }
-    this.musterCache.set(mint, { zeit: jetzt, p });
-    return p;
+    this.musterCache.set(mint, { zeit: jetzt, s });
+    return s;
+  }
+
+  /** Wahrscheinlichkeit des Grundsignals (basis) – null ohne gültiges basis-Modell */
+  musterP(mint: string): number | null {
+    return this.musterSignale(mint)?.p ?? null;
   }
 
   /** Kursänderung der letzten 30 s in % (aus dem Strom; 0 ohne Daten) */
@@ -813,16 +854,19 @@ export class Kryptowerk {
     return basis > 0 ? (l.at(-1)!.preis / basis - 1) * 100 : 0;
   }
 
-  /** regeln.musterGewicht > 0: der Rat des Modells steuert ±Gewicht Punkte bei (eigene Zeile im Volumen-Signal) */
+  /**
+   * regeln.musterGewicht > 0: das Modell steuert Punkte bei (eigene Zeile im Volumen-Signal) –
+   * E236: Gewicht × clamp((p − 0,5)·2 + 🚀 − 💥, −1, 1); nur aktive Signale zählen, fehlende sind neutral.
+   */
   private musterEinrechnen(e: KryptoEinstellung, mint: string, signale: Signal[]) {
     const gewicht = e.regeln.musterGewicht ?? 0;
     if (!(gewicht > 0)) return;
-    const p = this.musterP(mint);
-    const v = signale.find((s) => s.schluessel === 'volumen');
-    if (p == null || !v) return;
-    const zusatz = Math.max(-gewicht, Math.min(gewicht, Math.round((p - 0.5) * 2 * gewicht)));
+    const s = this.musterSignale(mint);
+    const v = signale.find((x) => x.schluessel === 'volumen');
+    if (!s || !v || (s.p == null && s.pump == null && s.absturz == null)) return;
+    const zusatz = musterPunkte(s, gewicht);
     v.punkte += zusatz;
-    v.zeile += ` · Muster ${Math.round(p * 100)} % ${zusatz >= 0 ? '+' : ''}${zusatz}`;
+    v.zeile += ` · ${signalZeile(s)} ${zusatz >= 0 ? '+' : ''}${zusatz}`;
   }
 
   /**
@@ -831,8 +875,9 @@ export class Kryptowerk {
    */
   private rlBewerten(bot: BotZeile, e: KryptoEinstellung, jetzt: number) {
     const muster = this.o.muster;
-    if (!muster?.aktiv) return this.modulMerken(bot.id, 'gate', 'wartet auf Modell', 'neutral');
+    if (!muster?.rlBereit) return this.modulMerken(bot.id, 'gate', 'wartet auf Modell', 'neutral');
     const g = e.rl ?? KRYPTO_RL_STANDARD;
+    const maxAbsturz = g.maxAbsturz ?? KRYPTO_RL_STANDARD.maxAbsturz ?? 0.35;
     for (const mint of this.stromTicks.keys()) {
       const b = this.tokens.get(mint);
       if (!b?.letzter || b.letzter.dex !== 'pumpfun' || jetzt - b.letzter.zeit > 30_000) continue;
@@ -842,8 +887,10 @@ export class Kryptowerk {
       if (jetzt - (b.bewertet.get(schluessel) ?? 0) < RL_KANDIDAT_MS) continue;
       b.bewertet.set(schluessel, jetzt);
       this.zuletztBewertet.set(bot.id, jetzt);
-      const p = this.musterP(mint);
-      if (p == null) continue;
+      const ms = this.musterSignale(mint);
+      // E236: ohne Grundsignal auch über den Pump-Erkenner (p zählt dann als 0)
+      if (!ms || (ms.p == null && ms.pump == null)) continue;
+      const p = ms.p ?? 0;
       const signale = pruefen(e, b.info, b.letzter, b.rug, jetzt, this.echtzeit60(mint));
       const hart = signale.filter((s) => s.sperre && (s.schluessel === 'rug' || s.schluessel === 'dev' || s.schluessel === 'bundle'));
       for (const s of signale) if (s.schluessel === 'rug' || s.schluessel === 'dev' || s.schluessel === 'bundle') this.modulMerken(bot.id, s.schluessel, `${b.info.symbol}: ${s.zeile}`, s.ton);
@@ -863,43 +910,72 @@ export class Kryptowerk {
         this.modulMerken(bot.id, 'gate', frei.grund, 'schlecht');
         continue;
       }
-      const lageRl: RlLage = { p, haelt: false, plusProzent: 0, haltSek: 0, trend30Prozent: this.trend30(mint, jetzt) };
+      // E236: eigene Sperre des Motors (unabhängig vom Agenten): Absturz-Erkenner zu hoch → kein Kauf
+      if (ms.absturz != null && ms.absturz >= maxAbsturz) {
+        this.modulMerken(bot.id, 'volumen', `${b.info.symbol}: 💥 ${pz(ms.absturz)} ≥ ${pz(maxAbsturz)} – kein Kauf`, 'schlecht');
+        continue;
+      }
+      const lageRl: RlLage = { p, pump: ms.pump, absturz: ms.absturz, hoch5: ms.hoch5, tief5: ms.tief5, haelt: false, plusProzent: 0, haltSek: 0, trend30Prozent: this.trend30(mint, jetzt) };
       const h = rlHandlung(muster.rl, lageRl, g, this.o.zufall ?? Math.random);
-      this.modulMerken(bot.id, 'volumen', `${b.info.symbol}: Muster ${Math.round(p * 100)} % → ${h}`, h === 'kaufen' ? 'gut' : 'neutral');
-      // zweite Sicherung: nie unter minSicherheit kaufen (auch nicht beim Erkunden)
-      if (h !== 'kaufen' || p < g.minSicherheit) continue;
-      this.kaufVersuchen(bot.id, e, b, groesse, `RL: kaufen · Muster ${Math.round(p * 100)} % ≥ ${Math.round(g.minSicherheit * 100)} %`, 'modell', p, signale);
+      this.modulMerken(bot.id, 'volumen', `${b.info.symbol}: ${signalZeile(ms)} → ${h}`, h === 'kaufen' ? 'gut' : 'neutral');
+      // zweite Sicherung: nie ohne p ≥ minSicherheit oder 🚀 ≥ 30 % kaufen (auch nicht beim Erkunden)
+      const ueberP = ms.p != null && ms.p >= g.minSicherheit;
+      const ueberPump = ms.pump != null && ms.pump >= PUMP_KAUF;
+      if (h !== 'kaufen' || (!ueberP && !ueberPump)) continue;
+      const warum = ueberP ? `Muster ${pz(ms.p!)} ≥ ${pz(g.minSicherheit)}` : `🚀 Pump ${pz(ms.pump!)} ≥ ${pz(PUMP_KAUF)}`;
+      const zusatz = [ueberP && ms.pump != null ? `🚀 ${pz(ms.pump)}` : '', ms.absturz != null ? `💥 ${pz(ms.absturz)}` : ''].filter(Boolean).join(' · ');
+      this.kaufVersuchen(bot.id, e, b, groesse, `RL: kaufen · ${warum}${zusatz ? ` · ${zusatz}` : ''}`, 'modell', ueberP ? ms.p! : ms.pump!, signale);
     }
   }
 
-  /** Gehaltene Positionen der RL-Bots: bei Strom-Ticks (je Position höchstens jede Sekunde) entscheidet der Agent warten/halb/raus. Stop-Loss & Co. bleiben (positionenPflegen) */
+  /**
+   * Gehaltene Positionen: bei Strom-Ticks (je Position höchstens jede Sekunde). RL-Bots (Paper): der Agent entscheidet warten/halb/raus.
+   * E236: Absturz-Erkenner ≥ 70 % → sofort raus – für RL-Bots immer, für alle anderen Bots nur mit musterGewicht > 0 (sonst nur
+   * anzeigen, Leifs Regel). Stop-Loss & Co. bleiben (positionenPflegen).
+   */
   private rlPflegen() {
     const muster = this.o.muster;
-    if (!muster?.aktiv) return;
+    if (!muster?.signaleAktiv) return;
     const jetzt = this.o.uhr.jetzt();
     const offen = this.offenePositionen();
     const ids = new Set(offen.map((p) => p.id));
     for (const k of this.rlZuletzt.keys()) if (!ids.has(k)) this.rlZuletzt.delete(k);
-    const einst = new Map<string, KryptoEinstellung | null>();
+    const einst = new Map<string, { e: KryptoEinstellung; rl: boolean } | null>();
     for (const p of offen) {
       if (!einst.has(p.bot_id)) {
         const bz = this.botZeile(p.bot_id);
         const e = this.einstellung(bz);
-        einst.set(p.bot_id, bz.modus === 'paper' && e.art === 'rl' ? e : null);
+        const rl = bz.modus === 'paper' && e.art === 'rl';
+        einst.set(p.bot_id, rl || (e.art !== 'rl' && (e.regeln.musterGewicht ?? 0) > 0) ? { e, rl } : null);
       }
-      const e = einst.get(p.bot_id);
-      if (!e || !this.stromTicks.has(p.mint) || this.aktiv().some((a) => a.positionId === p.id)) continue;
+      const be = einst.get(p.bot_id);
+      if (!be || !this.stromTicks.has(p.mint) || this.aktiv().some((a) => a.positionId === p.id)) continue;
       if (jetzt - (this.rlZuletzt.get(p.id) ?? 0) < RL_POSITION_MS) continue;
       const s = this.tokens.get(p.mint)?.letzter;
-      const pm = this.musterP(p.mint);
-      if (!s || pm == null) continue;
-      this.rlZuletzt.set(p.id, jetzt);
+      const ms = this.musterSignale(p.mint);
+      if (!s || !ms) continue;
       const plus = (s.preisSol / p.einstieg_spot - 1) * 100;
-      const h = rlHandlung(muster.rl, { p: pm, haelt: true, plusProzent: plus, haltSek: (jetzt - p.geoeffnet) / 1000, trend30Prozent: this.trend30(p.mint, jetzt) }, e.rl ?? KRYPTO_RL_STANDARD, this.o.zufall ?? Math.random);
-      if (h !== 'halb' && h !== 'raus') continue;
-      const grund = `RL: ${h === 'raus' ? 'raus' : 'halb verkaufen'} · Muster ${Math.round(pm * 100)} % · ${plus >= 0 ? '+' : ''}${plus.toFixed(1)} %`;
+      const { e, rl } = be;
+      let h: 'halb' | 'raus' | null = null;
+      let grund = '';
+      let sicherheit: number | null = null;
+      if (ms.absturz != null && ms.absturz >= ABSTURZ_RAUS) {
+        h = 'raus';
+        grund = `Absturz-Erkenner ${pz(ms.absturz)}${ms.frueh ? ' (Früh-Modell)' : ''} · ${plus >= 0 ? '+' : ''}${plus.toFixed(1)} %`;
+        sicherheit = ms.absturz;
+      } else if (rl && (ms.p != null || ms.pump != null)) {
+        const pm = ms.p ?? 0;
+        const wahl = rlHandlung(muster.rl, { p: pm, pump: ms.pump, absturz: ms.absturz, hoch5: ms.hoch5, tief5: ms.tief5, haelt: true, plusProzent: plus, haltSek: (jetzt - p.geoeffnet) / 1000, trend30Prozent: this.trend30(p.mint, jetzt) }, e.rl ?? KRYPTO_RL_STANDARD, this.o.zufall ?? Math.random);
+        if (wahl === 'halb' || wahl === 'raus') {
+          h = wahl;
+          grund = `RL: ${h === 'raus' ? 'raus' : 'halb verkaufen'} · ${ms.p != null ? `Muster ${pz(ms.p)}` : signalZeile(ms)} · ${plus >= 0 ? '+' : ''}${plus.toFixed(1)} %`;
+          sicherheit = pm;
+        }
+      }
+      this.rlZuletzt.set(p.id, jetzt);
+      if (!h) continue;
       this.auftraege.push({ botId: p.bot_id, art: 'verkauf', mint: p.mint, symbol: p.symbol, name: p.name, menge: h === 'raus' ? p.rest_token : p.rest_token / 2, positionId: p.id, grund, entschieden: jetzt, ab: jetzt + this.verzoegerung(p.bot_id, e), versuche: 0 });
-      this.entscheidungMerken(p.bot_id, p.mint, p.symbol, 'sell', pm, grund, 'modell');
+      this.entscheidungMerken(p.bot_id, p.mint, p.symbol, 'sell', sicherheit, grund, 'modell');
       this.modulMerken(p.bot_id, plus >= 0 ? 'tp' : 'sl', `${p.symbol}: ${grund}`, plus >= 0 ? 'gut' : 'schlecht');
     }
   }
@@ -945,7 +1021,7 @@ export class Kryptowerk {
 
   /** Rat des Modells zu gehaltenen und beobachteten Strom-Tokens (höchstens 8; leer ohne aktives Modell) */
   private musterRatFuer(gehalten: { mint: string; symbol: string }[]): KryptoMusterRat[] {
-    if (!this.o.muster?.aktiv) return [];
+    if (!this.o.muster?.signaleAktiv) return [];
     const jetzt = this.o.uhr.jetzt();
     const fest = new Set(gehalten.map((g) => g.mint));
     const beobachtet = [...this.stromTicks.entries()]
@@ -960,9 +1036,11 @@ export class Kryptowerk {
       if (r.length >= 8) break;
       if (gesehen.has(mint) || !this.stromTicks.has(mint)) continue;
       gesehen.add(mint);
-      const p = this.musterP(mint);
-      if (p == null) continue;
-      r.push({ mint, symbol, wahrscheinlichkeit: p, rat: ratAus(p, fest.has(mint)), zeit: this.musterCache.get(mint)?.zeit ?? jetzt });
+      const s = this.musterSignale(mint);
+      // E236: Rat auch, wenn nur 🚀/💥 aktiv sind (ohne Grundsignal ist wahrscheinlichkeit null)
+      if (!s || (s.p == null && s.pump == null && s.absturz == null)) continue;
+      const ausblick = s.hoch1 != null || s.tief1 != null || s.hoch5 != null || s.tief5 != null ? { hoch1: s.hoch1, tief1: s.tief1, hoch5: s.hoch5, tief5: s.tief5 } : null;
+      r.push({ mint, symbol, wahrscheinlichkeit: s.p, rat: ratAus(s, fest.has(mint)), zeit: this.musterCache.get(mint)?.zeit ?? jetzt, pump: s.pump, absturz: s.absturz, ausblick, frueh: s.frueh });
     }
     return r;
   }
@@ -1551,7 +1629,7 @@ export class Kryptowerk {
       return { ...x, an: true, zeile: z?.zeile ?? ersatz, zuletzt: z?.zeit ?? null, ton: z?.ton ?? 'neutral' };
     });
     const zuletzt = this.zuletztBewertet.get(id) ?? 0;
-    const status = this.notaus ? 'Not-Aus' : bot.status === 'pausiert' ? 'pausiert' : bot.status === 'gestoppt' ? 'gestoppt' : e.art === 'rl' && !this.o.muster?.aktiv ? 'wartet auf Modell' : this.llmLaeuft.has(id) ? 'LLM denkt …' : jetzt - zuletzt < 10_000 ? 'scoring …' : this.o.portal?.online ? 'lauscht …' : 'wartet auf Daten';
+    const status = this.notaus ? 'Not-Aus' : bot.status === 'pausiert' ? 'pausiert' : bot.status === 'gestoppt' ? 'gestoppt' : e.art === 'rl' && !this.o.muster?.rlBereit ? 'wartet auf Modell' : this.llmLaeuft.has(id) ? 'LLM denkt …' : jetzt - zuletzt < 10_000 ? 'scoring …' : this.o.portal?.online ? 'lauscht …' : 'wartet auf Daten';
     const beobachtet = [...this.tokens.values()].filter((b) => b.letzter && jetzt - b.letzter.zeit < 5 * MINUTE);
     const gehalten = new Set(positionen.map((p) => p.mint));
     const pillen = [

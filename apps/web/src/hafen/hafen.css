@@ -198,3 +198,16 @@
 .kw-rat.kaufen { color: var(--kw-gruen); }
 .kw-rat.raus { color: var(--kw-rot); }
 .kw-rat.halten { color: var(--kw-lila-hell); }
+
+/* E236: alle Muster-Modelle (Flotte) und mehr Signale im Muster-Rat (Terminal) */
+.hafen-tabelle-huelle { overflow-x: auto; }
+.hafen-modelle { width: 100%; border-collapse: collapse; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.hafen-modelle th, .hafen-modelle td { text-align: left; padding: 0.2rem 0.4rem; border-bottom: 1px solid color-mix(in srgb, var(--leise) 25%, transparent); vertical-align: top; }
+.hafen-modelle th { font-weight: 700; color: var(--leise); }
+.hafen-modelle tr:not(.an) td:first-child { color: var(--leise); }
+.hafen-punkt { display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 50%; background: #9ca3af; vertical-align: middle; }
+.hafen-punkt.an { background: #10b981; }
+.hafen-gruende { display: block; font-size: 0.72rem; margin-left: 1rem; }
+.kw-signale { display: flex; flex-wrap: wrap; gap: 0.15rem 0.6rem; font-family: var(--kw-mono); font-size: 0.7rem; margin-top: 0.15rem; }
+.kw-signale .gefahr { color: var(--kw-rot); font-weight: 800; }
+.kw-frueh { font-size: 0.62rem; font-weight: 800; padding: 0 0.35rem; border-radius: 999px; border: 1px solid var(--kw-lila); color: var(--kw-lila-hell); margin-left: 0.3rem; }

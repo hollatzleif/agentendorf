@@ -126,18 +126,66 @@ export interface KryptoRlGrenzen {
   erkunden: number;
   /** Nachschuss nach Pleite (Paper-Spielgeld, zählt nie als Gewinn) */
   nachschuss: boolean;
+  /** E236: kein Kauf, wenn der Absturz-Erkenner mindestens so viel sieht (0–1); gehalten ab 0,7 sofort raus (harte Sicherung) */
+  maxAbsturz?: number;
 }
 
-export const KRYPTO_RL_STANDARD: KryptoRlGrenzen = { minSicherheit: 0.6, erkunden: 0.05, nachschuss: true };
+export const KRYPTO_RL_STANDARD: KryptoRlGrenzen = { minSicherheit: 0.6, erkunden: 0.05, nachschuss: true, maxAbsturz: 0.35 };
 
 /** Was das Modell gerade zu einem Token rät */
 export interface KryptoMusterRat {
   mint: string;
   symbol: string;
-  /** Wahrscheinlichkeit, dass der Kurs erst um +zielProzent steigt, bevor er um −stopProzent fällt (im Horizont) */
-  wahrscheinlichkeit: number;
+  /** Wahrscheinlichkeit, dass der Kurs erst um +zielProzent steigt, bevor er um −stopProzent fällt (im Horizont); E236: null, wenn das Grundsignal nicht aktiv ist */
+  wahrscheinlichkeit: number | null;
   rat: 'kaufen' | 'halten' | 'raus';
   zeit: number;
+  /** E236: 🚀 P(+50 % in 2 min, bevor −20 %) – null ohne aktives Modell */
+  pump?: number | null;
+  /** E236: 💥 P(−30 % in 2 min, bevor +20 %) – null ohne aktives Modell */
+  absturz?: number | null;
+  /** E236: erwartetes Hoch/Tief in % gegenüber jetzt (1 und 5 min) – Felder null, wenn das jeweilige Modell nicht aktiv ist */
+  ausblick?: { hoch1: number | null; tief1: number | null; hoch5: number | null; tief5: number | null } | null;
+  /** E236: Pump/Absturz kamen vom Früh-Modell (Token ≤ 90 s alt) */
+  frueh?: boolean;
+}
+
+/** E236: Schlüssel der einzelnen Muster-Modelle */
+export type KryptoMusterSchluessel = 'basis' | 'pump' | 'absturz' | 'hoch1' | 'tief1' | 'hoch5' | 'tief5' | 'fruehPump' | 'fruehAbsturz';
+export const KRYPTO_MUSTER_MODELLE: { schluessel: KryptoMusterSchluessel; name: string; art: 'wahrscheinlichkeit' | 'wert' }[] = [
+  { schluessel: 'basis', name: 'Grundsignal (+20 % vor −15 %, 5 min)', art: 'wahrscheinlichkeit' },
+  { schluessel: 'pump', name: '🚀 Pump (+50 % vor −20 %, 2 min)', art: 'wahrscheinlichkeit' },
+  { schluessel: 'absturz', name: '💥 Absturz (−30 % vor +20 %, 2 min)', art: 'wahrscheinlichkeit' },
+  { schluessel: 'hoch1', name: 'Hoch in 1 min (%)', art: 'wert' },
+  { schluessel: 'tief1', name: 'Tief in 1 min (%)', art: 'wert' },
+  { schluessel: 'hoch5', name: 'Hoch in 5 min (%)', art: 'wert' },
+  { schluessel: 'tief5', name: 'Tief in 5 min (%)', art: 'wert' },
+  { schluessel: 'fruehPump', name: '🚀 Pump – Früh-Modell (Token ≤ 90 s)', art: 'wahrscheinlichkeit' },
+  { schluessel: 'fruehAbsturz', name: '💥 Absturz – Früh-Modell (Token ≤ 90 s)', art: 'wahrscheinlichkeit' },
+];
+
+/** E236: Stand eines einzelnen Muster-Modells */
+export interface KryptoMusterModellInfo {
+  schluessel: KryptoMusterSchluessel;
+  version: number;
+  trainiert: string;
+  aktiv: boolean;
+  /** warum nicht aktiv (leer, wenn aktiv) */
+  gruende: string[];
+  beispiele: number;
+  test: {
+    beispiele: number;
+    tokens: number;
+    /** Wahrscheinlichkeits-Modelle */
+    auc: number | null;
+    aucUntergrenze: number | null;
+    praezision: number | null;
+    basis: number | null;
+    /** Wert-Modelle: mittlerer absoluter Fehler in %-Punkten gegen den Median als Schätzung */
+    fehler: number | null;
+    fehlerBasis: number | null;
+  };
+  merkmale: { name: string; wichtigkeit: number }[];
 }
 
 export interface KryptoMusterStatus {
@@ -166,6 +214,8 @@ export interface KryptoMusterStatus {
   daten: { ticks: number; tokens: number; von: string | null; bis: string | null };
   /** Kurzbericht in Markdown (für den Hafenmeister) */
   bericht: string;
+  /** E236: alle Modelle (basis entspricht `modell`) – das jeweils gültige je Schlüssel */
+  modelle?: KryptoMusterModellInfo[];
 }
 
 export interface KryptoWallet {

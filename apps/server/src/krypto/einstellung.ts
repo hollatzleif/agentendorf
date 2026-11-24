@@ -10,7 +10,8 @@ export const EinstellungSchema = z
     avatar: z.string().trim().min(1).max(8),
     // E235: rl = Muster-Modell + RL-Agent, nur Paper Trading
     art: z.enum(['regeln', 'prompt', 'rl']),
-    rl: z.object({ minSicherheit: zahl(0, 1), erkunden: zahl(0, 0.3), nachschuss: z.boolean() }).strict().optional(),
+    // E236: maxAbsturz optional (alte rl-Objekte ohne Feld bleiben gültig; der Motor nimmt dann den Standard 0,35)
+    rl: z.object({ minSicherheit: zahl(0, 1), erkunden: zahl(0, 0.3), nachschuss: z.boolean(), maxAbsturz: zahl(0, 1).optional() }).strict().optional(),
     prompt: z.string().max(4000),
     startkapitalSol: zahl(0.1, 10_000),
     filter: z

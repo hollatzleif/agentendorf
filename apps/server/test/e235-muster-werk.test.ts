@@ -176,12 +176,14 @@ describe('Muster-Dienst: Training (E235)', () => {
     st = m2.status();
     expect(st.modell!.version).toBe(1);
     expect(m2.aktiv).toBe(true);
-    expect(m2.rl).toBe(rlAlt);
+    // E236: der RL-Agent wechselt, sobald nach dem Training ein Wahrscheinlichkeits-Modell gültig ist (hier das alte basis v1)
+    expect(m2.rl).not.toBe(rlAlt);
+    expect(m2.rl).toMatchObject({ version: 2 });
     expect(st.bericht).toMatch(/nicht aktiv/);
     expect(st.bericht).toMatch(/bisherige Modell v1 .* bleibt aktiv/);
-    expect(db.prepare('SELECT version, aktiv FROM muster_modelle ORDER BY version').all()).toEqual([
-      { version: 1, aktiv: 1 },
-      { version: 2, aktiv: 0 },
+    expect(db.prepare('SELECT version, aktiv, rl_aktiv FROM muster_modelle ORDER BY version').all()).toEqual([
+      { version: 1, aktiv: 1, rl_aktiv: 1 },
+      { version: 2, aktiv: 0, rl_aktiv: 1 },
     ]);
   }, 120_000);
 
@@ -193,7 +195,7 @@ describe('Muster-Dienst: Training (E235)', () => {
     const trainer: Trainer = async (_d, o) => {
       aufrufe.push(o.altAuc);
       if (fehler) throw new Error('Speicher voll');
-      return { gbdt: festesModell(0.7, o.version), rl: null, modell: { version: o.version, trainiert: '', beispiele: 1, positivAnteil: 0.5, test: { beispiele: 300, auc: 0.6, praezision: null, basis: 0.5 }, aktiv: true, merkmale: [] }, rlInfo: null, bericht: 'ok' };
+      return { gbdt: festesModell(0.7, o.version), rl: null, modell: { version: o.version, trainiert: '', beispiele: 1, positivAnteil: 0.5, test: { beispiele: 300, auc: 0.6, praezision: null, basis: 0.5 }, aktiv: true, merkmale: [] }, rlInfo: null, modelle: {}, bericht: 'ok' };
     };
     const m = new MusterDienst({ db, uhr, trainer });
     m.trainingStarten();
@@ -218,7 +220,7 @@ describe('Kryptowerk-API /muster (E235)', () => {
     let loslassen!: () => void;
     const trainer: Trainer = async () => {
       await new Promise<void>((r) => (loslassen = r));
-      return { gbdt: null, rl: null, modell: null, rlInfo: null, bericht: 'zu wenig Daten' };
+      return { gbdt: null, rl: null, modell: null, rlInfo: null, modelle: {}, bericht: 'zu wenig Daten' };
     };
     const muster = new MusterDienst({ db, uhr, trainer });
     const werk = new Kryptowerk({ db, uhr, dex: {} as DexScreener, rug: { bereit: () => false } as unknown as RugCheck, muster });
@@ -254,7 +256,7 @@ describe('Kryptowerk-API /muster (E235)', () => {
 describe('Einstellung (E235)', () => {
   it('art rl mit Standard-Grenzen, Grenzen geprüft, leerer Prompt erlaubt; musterGewicht 0–30, Standard 0', () => {
     const e = einstellungPruefen({ ...KRYPTO_STANDARD, art: 'rl', prompt: '' });
-    expect(e.rl).toEqual({ minSicherheit: 0.6, erkunden: 0.05, nachschuss: true });
+    expect(e.rl).toEqual({ minSicherheit: 0.6, erkunden: 0.05, nachschuss: true, maxAbsturz: 0.35 });
     expect(() => einstellungPruefen({ ...KRYPTO_STANDARD, art: 'rl', rl: { minSicherheit: 0.6, erkunden: 0.5, nachschuss: true } })).toThrow();
     expect(() => einstellungPruefen({ ...KRYPTO_STANDARD, art: 'rl', rl: { minSicherheit: 1.2, erkunden: 0, nachschuss: true } })).toThrow();
     const alt = structuredClone(KRYPTO_STANDARD) as unknown as { regeln: Record<string, unknown> };
@@ -304,7 +306,7 @@ describe('Rat und musterGewicht (E235)', () => {
     expect(null0).toEqual(ohne);
     const mit = await lauf(30, 0.25);
     expect(mit.punkte).toBe(ohne.punkte - 15);
-    expect(mit.vol).toMatch(/Muster 25 % -15/);
+    expect(mit.vol).toMatch(/Muster p 25 % -15/);
     const begrenzt = await lauf(10, 0.01);
     expect(begrenzt.punkte).toBe(ohne.punkte - 10);
   });

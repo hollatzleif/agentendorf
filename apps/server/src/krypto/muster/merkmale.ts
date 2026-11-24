@@ -1,8 +1,13 @@
 // E235: Merkmale aus den Ticks der letzten 2 min (die „Augen“ des Muster-Modells) und das Label „erst +Ziel, dann −Stop“.
 // Reiner Code: nur die übergebenen Ticks, nur Ticks mit zeit <= t (keine Zukunftsdaten in den Merkmalen).
-import type { Tick, TokenMeta, Ziel } from "./typen.js";
+// E236: dazu Früh-Merkmale „seit Start“ (für junge Tokens), größter Einzelkauf/-verkauf, Label in beide Richtungen,
+// Hoch/Tief im Horizont (extreme) und der Rat aus allen Signalen.
+import type { MusterSignale, Tick, TokenMeta, Ziel } from "./typen.js";
 
 const FENSTER_MS = 120_000;
+/** E236: „seit Start“ = seit dem ersten Tick, höchstens die letzten 10 min – so viel hält das Kryptowerk live je Token
+ *  (motor.ts musterTicks); im Training gilt dieselbe Grenze, sonst sähe das Modell dort mehr als im Betrieb. */
+export const LANG_FENSTER_MS = 600_000;
 const KERZE_MS = 5_000;
 const KERZEN = FENSTER_MS / KERZE_MS;
 
@@ -34,6 +39,15 @@ export const MERKMAL_NAMEN: string[] = [
   "abstandHoch120s",
   "alterSek",
   "devTokens24h",
+  // E236: Früh-Merkmale (seit dem ersten Tick, höchstens 10 min) und Einzel-Trades
+  "kaeufeSeitStart",
+  "verkaeufeSeitStart",
+  "nettoSolSeitStart",
+  "renditeSeitStart",
+  "hoechsteRenditeSeitStart",
+  "sekSeitErstemTick",
+  "groessterKauf30s",
+  "groessterVerkauf30s",
 ];
 
 /** Index des letzten Ticks mit zeit <= t (−1, wenn keiner) – binäre Suche, Ticks aufsteigend nach zeit */
@@ -112,6 +126,8 @@ export function merkmale(
   let netto60 = 0;
   let ticks60 = 0;
   let hoechster = 0;
+  let groessterKauf30 = 0;
+  let groessterVerkauf30 = 0;
   for (let i = iStart; i <= iT; i++) {
     const k = ticks[i]!;
     const idx = Math.min(KERZEN - 1, Math.floor((t - k.zeit) / KERZE_MS));
@@ -128,6 +144,8 @@ export function merkmale(
         if (k.sol > 0) kaeufe30++;
         else if (k.sol < 0) verkaeufe30++;
         netto30 += k.sol;
+        if (k.sol > groessterKauf30) groessterKauf30 = k.sol;
+        if (-k.sol > groessterVerkauf30) groessterVerkauf30 = -k.sol;
       }
     }
   }
@@ -149,6 +167,21 @@ export function merkmale(
   };
   let gruen = 0;
   for (let k = 0; k < KERZEN && zu[k]! > auf[k]!; k++) gruen++;
+
+  // E236: seit dem ersten Tick (höchstens LANG_FENSTER_MS zurück, Grenze wie live: zeit > t − 10 min)
+  const iLang = letzterIndex(ticks, t - LANG_FENSTER_MS) + 1;
+  const erster = ticks[iLang]!;
+  let kaeufeStart = 0;
+  let verkaeufeStart = 0;
+  let nettoStart = 0;
+  let hoechsterStart = 0;
+  for (let i = iLang; i <= iT; i++) {
+    const k = ticks[i]!;
+    if (k.sol > 0) kaeufeStart++;
+    else if (k.sol < 0) verkaeufeStart++;
+    nettoStart += k.sol;
+    if (k.preis > hoechsterStart) hoechsterStart = k.preis;
+  }
 
   const roh = [
     ...renditen,
@@ -174,13 +207,22 @@ export function merkmale(
     prozent(preis, hoechster),
     (t - meta.erstellt) / 1000,
     meta.devTokens24h ?? -1,
+    kaeufeStart,
+    verkaeufeStart,
+    nettoStart,
+    prozent(preis, erster.preis),
+    prozent(hoechsterStart, erster.preis),
+    (t - erster.zeit) / 1000,
+    groessterKauf30,
+    groessterVerkauf30,
   ];
   return roh.map(endlich);
 }
 
 /**
  * Label bei t: 1, wenn der Kurs danach (bis t + horizont) zuerst +zielProzent erreicht; 0, wenn zuerst −stopProzent oder
- * der Horizont ohne Ziel vergeht; null, wenn die Aufzeichnung den Horizont nicht abdeckt (kein Tick bei/nach t + horizont) –
+ * der Horizont ohne Ziel vergeht (E236, richtung 'ab': 1, wenn zuerst −zielProzent; 0, wenn zuerst +stopProzent oder der
+ * Horizont ohne Absturz vergeht); null, wenn die Aufzeichnung den Horizont nicht abdeckt (kein Tick bei/nach t + horizont) –
  * auch dann, wenn Ziel oder Stop schon vorher erreicht wären (sonst Auswahlverzerrung am Ende der Aufzeichnung).
  */
 export function label(ticks: Tick[], t: number, ziel: Ziel): 0 | 1 | null {
@@ -188,8 +230,9 @@ export function label(ticks: Tick[], t: number, ziel: Ziel): 0 | 1 | null {
   if (i < 0) return null;
   const p0 = ticks[i]!.preis;
   if (!(p0 > 0)) return null;
-  const oben = p0 * (1 + ziel.zielProzent / 100);
-  const unten = p0 * (1 - ziel.stopProzent / 100);
+  const ab = ziel.richtung === "ab";
+  const oben = p0 * (1 + (ab ? ziel.stopProzent : ziel.zielProzent) / 100);
+  const unten = p0 * (1 - (ab ? ziel.zielProzent : ziel.stopProzent) / 100);
   const ende = t + ziel.horizontMs;
   // erst prüfen, ob die Aufzeichnung den Horizont abdeckt: sonst kämen am Ende nur „schnell entschiedene“ Fälle durch
   // (Auswahlverzerrung – das Modell lernte „kurz vor dem Ende steigt es oft“)
@@ -197,17 +240,59 @@ export function label(ticks: Tick[], t: number, ziel: Ziel): 0 | 1 | null {
   for (let j = i + 1; j < ticks.length; j++) {
     const k = ticks[j]!;
     if (k.zeit > ende) return 0;
-    if (k.preis >= oben) return 1;
-    if (k.preis <= unten) return 0;
+    if (k.preis >= oben) return ab ? 0 : 1;
+    if (k.preis <= unten) return ab ? 1 : 0;
   }
   return 0;
 }
 
-/** Rat aus der Muster-Wahrscheinlichkeit: kaufen ab 0,6; raus (nur gehalten) unter 0,3; sonst halten */
+/** E236: Grenzen für Hoch/Tief in % (Kurs kann nicht unter −100 %; Ausreißer über +500 % kappen) */
+export const EXTREM_MIN = -95;
+export const EXTREM_MAX = 500;
+
+/**
+ * E236: höchster und tiefster Kurs in (t, t + horizont] gegenüber dem Kurs bei t, in % (tief ≤ 0 ≤ hoch, der Kurs bei t
+ * zählt mit), begrenzt auf [EXTREM_MIN, EXTREM_MAX]; null, wenn die Aufzeichnung den Horizont nicht abdeckt (wie label).
+ */
+export function extreme(
+  ticks: Tick[],
+  t: number,
+  horizontMs: number,
+): { hoch: number; tief: number } | null {
+  const i = letzterIndex(ticks, t);
+  if (i < 0) return null;
+  const p0 = ticks[i]!.preis;
+  if (!(p0 > 0)) return null;
+  const ende = t + horizontMs;
+  if (ticks[ticks.length - 1]!.zeit < ende) return null;
+  let hoch = p0;
+  let tief = p0;
+  for (let j = i + 1; j < ticks.length; j++) {
+    const k = ticks[j]!;
+    if (k.zeit > ende) break;
+    if (!(k.preis > 0)) continue;
+    if (k.preis > hoch) hoch = k.preis;
+    if (k.preis < tief) tief = k.preis;
+  }
+  const begrenzt = (x: number) =>
+    Math.max(EXTREM_MIN, Math.min(EXTREM_MAX, endlich(x)));
+  return { hoch: begrenzt(prozent(hoch, p0)), tief: begrenzt(prozent(tief, p0)) };
+}
+
+/**
+ * E236: Rat aus allen Signalen (null = Modell nicht aktiv):
+ * kaufen – nicht gehalten und (p ≥ 0,6 oder 🚀 ≥ 0,3) und kein 💥 ≥ 0,35;
+ * raus – gehalten und (💥 ≥ 0,5 oder p < 0,3); sonst halten.
+ */
 export function ratAus(
-  p: number,
+  s: MusterSignale,
   haelt: boolean,
 ): "kaufen" | "halten" | "raus" {
-  if (haelt) return p < 0.3 ? "raus" : "halten";
-  return p >= 0.6 ? "kaufen" : "halten";
+  if (haelt)
+    return (s.absturz != null && s.absturz >= 0.5) || (s.p != null && s.p < 0.3)
+      ? "raus"
+      : "halten";
+  const auf = (s.p != null && s.p >= 0.6) || (s.pump != null && s.pump >= 0.3);
+  const sicher = s.absturz == null || s.absturz < 0.35;
+  return auf && sicher ? "kaufen" : "halten";
 }

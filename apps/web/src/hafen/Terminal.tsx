@@ -655,24 +655,59 @@ function MusterRat({ t }: { t: KryptoTerminal }) {
       <div className="kw-chart-kopf">
         <h3>🧠 Muster-Rat</h3>
         <span className="leise mono" style={{ fontSize: '0.72rem' }}>
-          {t.bot.einstellung.art === 'rl' ? 'handelt danach (RL, nur Paper)' : gewicht > 0 ? `zählt bis ${gewicht} Punkte` : 'nur Anzeige'}
+          {t.bot.einstellung.art === 'rl' ? 'handelt danach (RL, nur Paper)' : gewicht > 0 ? `zählt bis ${gewicht} Punkte · 💥 ≥ 70 % → raus` : 'nur Anzeige'}
         </span>
       </div>
       {rat.length ? (
         <ul className="kw-liste" style={{ marginTop: '0.5rem' }}>
-          {rat.map((x) => (
-            <li key={x.mint}>
-              <div className="zeile" title={x.mint}>
-                <span>{x.symbol}</span>
-                <span>
-                  {Math.round(x.wahrscheinlichkeit * 100)} % · <b className={`kw-rat ${x.rat}`}>{x.rat === 'kaufen' ? 'KAUFEN' : x.rat === 'raus' ? 'RAUS' : 'HALTEN'}</b>
-                </span>
-              </div>
-              <div className="kw-fortschritt">
-                <b style={{ width: `${Math.round(x.wahrscheinlichkeit * 100)}%` }} />
-              </div>
-            </li>
-          ))}
+          {rat.map((x) => {
+            const p = typeof x.wahrscheinlichkeit === 'number' && Number.isFinite(x.wahrscheinlichkeit) ? x.wahrscheinlichkeit : null;
+            const pz = (v: number) => `${Math.round(v * 100)} %`;
+            const vz = (v: number) => `${v >= 0 ? '+' : '−'}${Math.round(Math.abs(v))} %`;
+            const a = x.ausblick;
+            const hoch = a?.hoch5 ?? null;
+            const tief = a?.tief5 ?? null;
+            return (
+              <li key={x.mint}>
+                <div className="zeile" title={x.mint}>
+                  <span>
+                    {x.symbol}
+                    {x.frueh && (
+                      <span className="kw-frueh" title="Pump/Absturz vom Früh-Modell (Token höchstens 90 s alt)">
+                        früh
+                      </span>
+                    )}
+                  </span>
+                  <span>
+                    {p != null && <>p {pz(p)} · </>}
+                    <b className={`kw-rat ${x.rat}`}>{x.rat === 'kaufen' ? 'KAUFEN' : x.rat === 'raus' ? 'RAUS' : 'HALTEN'}</b>
+                  </span>
+                </div>
+                {(x.pump != null || x.absturz != null || hoch != null || tief != null) && (
+                  <div className="kw-signale" data-testid="muster-signale">
+                    {x.pump != null && <span title="🚀 Pump: +50 % in 2 min, bevor −20 %">🚀 {pz(x.pump)}</span>}
+                    {x.absturz != null && (
+                      <span className={x.absturz >= 0.35 ? 'gefahr' : undefined} title="💥 Absturz: −30 % in 2 min, bevor +20 %">
+                        💥 {pz(x.absturz)}
+                      </span>
+                    )}
+                    {(hoch != null || tief != null) && (
+                      <span title="erwartetes Hoch/Tief in den nächsten 5 min gegenüber jetzt">
+                        5 min: {hoch != null && <>Hoch {vz(hoch)}</>}
+                        {hoch != null && tief != null && ' / '}
+                        {tief != null && <>Tief {vz(tief)}</>}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {p != null && (
+                  <div className="kw-fortschritt">
+                    <b style={{ width: `${Math.round(p * 100)}%` }} />
+                  </div>
+                )}
+              </li>
+            );
+          })}
         </ul>
       ) : (
         <p className="leise mono" style={{ fontSize: '0.74rem' }}>

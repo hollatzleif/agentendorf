@@ -202,12 +202,22 @@ describe("E235 Label", () => {
     expect(label(mit([[10_000, 100]]), T0, ziel)).toBeNull();
   });
 
-  it("ratAus", () => {
-    expect(ratAus(0.6, false)).toBe("kaufen");
-    expect(ratAus(0.59, false)).toBe("halten");
-    expect(ratAus(0.2, false)).toBe("halten");
-    expect(ratAus(0.29, true)).toBe("raus");
-    expect(ratAus(0.9, true)).toBe("halten");
+  it("ratAus (nur Grundsignal – E236: Signatur mit allen Signalen)", () => {
+    const nur = (p: number) => ({
+      p,
+      pump: null,
+      absturz: null,
+      hoch1: null,
+      tief1: null,
+      hoch5: null,
+      tief5: null,
+      frueh: false,
+    });
+    expect(ratAus(nur(0.6), false)).toBe("kaufen");
+    expect(ratAus(nur(0.59), false)).toBe("halten");
+    expect(ratAus(nur(0.2), false)).toBe("halten");
+    expect(ratAus(nur(0.29), true)).toBe("raus");
+    expect(ratAus(nur(0.9), true)).toBe("halten");
   });
 });
 

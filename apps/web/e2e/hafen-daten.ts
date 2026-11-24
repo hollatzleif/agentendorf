@@ -1,4 +1,4 @@
-import { KRYPTO_MODULE, KRYPTO_STANDARD, type KryptoBot, type KryptoMusterStatus, type KryptoTerminal, type KryptoUebersicht } from '@dorf/shared';
+import { KRYPTO_MODULE, KRYPTO_STANDARD, type KryptoBot, type KryptoMusterModellInfo, type KryptoMusterStatus, type KryptoTerminal, type KryptoUebersicht } from '@dorf/shared';
 
 /** E227: nachgebaute Daten für den Hafen – fest, ohne Zufall */
 export const BOT_ID = '11111111-2222-4333-8444-555555555555';
@@ -52,6 +52,27 @@ export function muster(laeuft = false): KryptoMusterStatus {
     training: { laeuft, fortschritt: laeuft ? 0.4 : 0, letzter: new Date(jetzt - 2 * 3_600_000).toISOString(), naechster: new Date(jetzt + 3 * 3_600_000).toISOString(), fehler: null, dauerMs: 61_000 },
     daten: { ticks: 1_204_000, tokens: 3_100, von: new Date(jetzt - 72 * 3_600_000).toISOString(), bis: new Date(jetzt).toISOString() },
     bericht: '## Muster-Modell v4\nTest-AUC 0,61 – besser als Raten.',
+    // E236: alle Modelle
+    modelle: [
+      modellInfo('basis', true, { auc: 0.612, aucUntergrenze: 0.57, praezision: 0.31, basis: 0.17 }),
+      modellInfo('pump', false, { auc: 0.58, aucUntergrenze: 0.49, praezision: null, basis: 0.01 }, ['zu wenige Pumps im Test (12 < 30)']),
+      modellInfo('absturz', true, { auc: 0.664, aucUntergrenze: 0.62, praezision: 0.44, basis: 0.21 }),
+      modellInfo('hoch5', true, { fehler: 18.4, fehlerBasis: 23.9 }),
+      modellInfo('tief5', false, { fehler: 14.9, fehlerBasis: 15.1 }, ['Fehler nicht ≥ 5 % besser als der Median']),
+    ],
+  };
+}
+
+function modellInfo(schluessel: KryptoMusterModellInfo['schluessel'], aktiv: boolean, t: Partial<KryptoMusterModellInfo['test']>, gruende: string[] = []): KryptoMusterModellInfo {
+  return {
+    schluessel,
+    version: 4,
+    trainiert: new Date(Date.now() - 2 * 3_600_000).toISOString(),
+    aktiv,
+    gruende,
+    beispiele: 48_210,
+    test: { beispiele: 12_050, tokens: 412, auc: null, aucUntergrenze: null, praezision: null, basis: null, fehler: null, fehlerBasis: null, ...t },
+    merkmale: [],
   };
 }
 
@@ -112,8 +133,8 @@ export function terminal(): KryptoTerminal {
     besterTradeSol: 0.29,
     // E235: Rat des Muster-Modells
     musterRat: [
-      { mint: 'MOONCATmint1111111111111111111111111pump', symbol: 'MOONCAT', wahrscheinlichkeit: 0.72, rat: 'kaufen', zeit: jetzt - 4000 },
-      { mint: 'b', symbol: 'SADCAT', wahrscheinlichkeit: 0.18, rat: 'raus', zeit: jetzt - 6000 },
+      { mint: 'MOONCATmint1111111111111111111111111pump', symbol: 'MOONCAT', wahrscheinlichkeit: 0.72, rat: 'kaufen', zeit: jetzt - 4000, pump: 0.34, absturz: 0.08, ausblick: { hoch1: 9, tief1: -4, hoch5: 27, tief5: -12 }, frueh: true },
+      { mint: 'b', symbol: 'SADCAT', wahrscheinlichkeit: 0.18, rat: 'raus', zeit: jetzt - 6000, pump: 0.02, absturz: 0.61, ausblick: { hoch1: null, tief1: null, hoch5: 3, tief5: -38 }, frueh: false },
     ],
     // E232: Echtzeit-Kurse
     echtzeit: { an: true, online: true, abos: 7, ticksMinute: 42, mbHeute: 12.4, grenzeMb: 800, grenzeErreicht: false, fehler: null },

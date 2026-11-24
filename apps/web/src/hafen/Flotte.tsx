@@ -2,7 +2,7 @@
 // Not-Aus. Jeder neue Bot läuft im Paper Trading.
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { KRYPTO_PAPER_MINDESTENS_STUNDEN, KRYPTO_RL_STANDARD, KRYPTO_STANDARD, type KryptoBacktest, type KryptoBot, type KryptoEinstellung, type KryptoMusterStatus, type KryptoUebersicht } from '@dorf/shared';
+import { KRYPTO_MUSTER_MODELLE, KRYPTO_PAPER_MINDESTENS_STUNDEN, KRYPTO_RL_STANDARD, KRYPTO_STANDARD, type KryptoBacktest, type KryptoBot, type KryptoEinstellung, type KryptoMusterModellInfo, type KryptoMusterStatus, type KryptoUebersicht } from '@dorf/shared';
 import { ApiFehler, api } from '../api';
 import { bibliothekUrl, linkKlick } from '../router';
 import { prozent, sol, solVz, uhrzeit } from './format';
@@ -288,7 +288,7 @@ function BotFormular({ start, id, fertig, abbrechen }: { start: KryptoEinstellun
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, setLaeuft] = useState(false);
   const setzen = <K extends keyof KryptoEinstellung>(k: K, v: KryptoEinstellung[K]) => setE((x) => ({ ...x, [k]: v }));
-  const zahl = <G extends 'filter' | 'limits' | 'ausstieg' | 'simulation' | 'regeln'>(g: G, k: keyof KryptoEinstellung[G], label: string, o: { schritt?: number; hilfe?: string } = {}) => (
+  const zahl = <G extends 'filter' | 'limits' | 'ausstieg' | 'simulation' | 'regeln'>(g: G, k: keyof KryptoEinstellung[G], label: string, o: { schritt?: number; hilfe?: string; hinweis?: string } = {}) => (
     <label title={o.hilfe}>
       {label}
       <input
@@ -297,6 +297,7 @@ function BotFormular({ start, id, fertig, abbrechen }: { start: KryptoEinstellun
         value={String((e[g] as Record<string, unknown>)[k as string] ?? '')}
         onChange={(ev) => setE((x) => ({ ...x, [g]: { ...(x[g] as object), [k]: Number(ev.target.value) } }))}
       />
+      {o.hinweis && <small className="leise">{o.hinweis}</small>}
     </label>
   );
   const speichern = async () => {
@@ -356,6 +357,11 @@ function BotFormular({ start, id, fertig, abbrechen }: { start: KryptoEinstellun
               RL: Erkunden (0–0,3)
               <input type="number" step={0.01} min={0} max={0.3} value={e.rl?.erkunden ?? KRYPTO_RL_STANDARD.erkunden} onChange={(ev) => setE((x) => ({ ...x, rl: { ...KRYPTO_RL_STANDARD, ...x.rl, erkunden: Number(ev.target.value) } }))} />
             </label>
+            <label title="Kein Kauf, wenn der Absturz-Erkenner (💥 −30 % in 2 min) mindestens so viel sieht. Gehalten ab 70 % sofort raus – immer, als harte Sicherung.">
+              RL: Kein Kauf ab Absturz-Risiko (0–1)
+              <input type="number" step={0.05} min={0} max={1} value={e.rl?.maxAbsturz ?? KRYPTO_RL_STANDARD.maxAbsturz ?? 0.35} onChange={(ev) => setE((x) => ({ ...x, rl: { ...KRYPTO_RL_STANDARD, ...x.rl, maxAbsturz: Number(ev.target.value) } }))} />
+              <small className="leise">gehalten ab 70 % sofort raus</small>
+            </label>
             <label title="Frisches Paper-Spielgeld, wenn das Kapital aufgebraucht ist – zählt zum Startkapital, nie als Gewinn.">
               RL: Nachschuss nach Pleite
               <select value={(e.rl?.nachschuss ?? KRYPTO_RL_STANDARD.nachschuss) ? 'ja' : 'nein'} onChange={(ev) => setE((x) => ({ ...x, rl: { ...KRYPTO_RL_STANDARD, ...x.rl, nachschuss: ev.target.value === 'ja' } }))}>
@@ -368,7 +374,11 @@ function BotFormular({ start, id, fertig, abbrechen }: { start: KryptoEinstellun
             </p>
           </>
         ) : (
-          zahl('regeln', 'musterGewicht', 'Muster-Rat Gewicht (0 = nur anzeigen)', { schritt: 1, hilfe: 'So viele Punkte (0–30) darf der Rat des Muster-Modells beisteuern – erst erhöhen, wenn sich das Modell bewährt hat.' })
+          zahl('regeln', 'musterGewicht', 'Muster-Rat Gewicht (0 = nur anzeigen)', {
+            schritt: 1,
+            hilfe: 'So viele Punkte (0–30) darf der Rat des Muster-Modells beisteuern – erst erhöhen, wenn sich das Modell bewährt hat. Über 0 verkauft der Bot außerdem, sobald der aktive Absturz-Erkenner ≥ 70 % sieht.',
+            hinweis: '> 0: auch Verkauf bei Absturz-Risiko ≥ 70 %',
+          })
         )}
         {e.art === 'rl' ? null : e.art === 'prompt' ? (
           <>
@@ -537,10 +547,11 @@ function MusterTafel() {
                   </b>
                 </div>
               </div>
+              {m.modelle?.length ? <ModellTabelle modelle={m.modelle} /> : null}
               {m.modell.merkmale.length > 0 && (
                 <div>
                   <span className="leise" style={{ fontSize: '0.8rem' }}>
-                    Wichtigste Merkmale
+                    Wichtigste Merkmale{m.modelle?.length ? ' (Grundsignal)' : ''}
                   </span>
                   <ul className="hafen-merkmale" aria-label="Wichtigste Merkmale">
                     {m.modell.merkmale.slice(0, 5).map((x) => (
@@ -554,6 +565,8 @@ function MusterTafel() {
                 </div>
               )}
             </>
+          ) : m.modelle?.length ? (
+            <ModellTabelle modelle={m.modelle} />
           ) : (
             <p className="leise" style={{ margin: 0 }}>
               Noch kein Modell trainiert – es braucht erst genug aufgezeichnete Ticks aus dem Echtzeit-Strom.
@@ -583,6 +596,55 @@ function MusterTafel() {
         </>
       )}
     </section>
+  );
+}
+
+/** E236: alle Muster-Modelle – aktiv? Test gegen Raten (AUC) bzw. gegen den Median (Fehler), Test-Tokens, Gründe */
+function ModellTabelle({ modelle }: { modelle: KryptoMusterModellInfo[] }) {
+  const reihe = (s: KryptoMusterModellInfo['schluessel']) => {
+    const i = KRYPTO_MUSTER_MODELLE.findIndex((x) => x.schluessel === s);
+    return i < 0 ? 99 : i;
+  };
+  const sortiert = [...modelle].sort((a, b) => reihe(a.schluessel) - reihe(b.schluessel));
+  const k = (n: number, st: number) => n.toLocaleString('de-DE', { minimumFractionDigits: st, maximumFractionDigits: st });
+  return (
+    <div className="hafen-tabelle-huelle">
+      <table className="hafen-modelle" data-testid="muster-modelle">
+        <thead>
+          <tr>
+            <th>Modell</th>
+            <th title="Test auf den neuesten, nie gesehenen Daten: AUC gegen 0,5 (Raten) bzw. mittlerer Fehler gegen den Median">Test</th>
+            <th title="Tokens im Test">Tokens</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sortiert.map((mo) => {
+            const def = KRYPTO_MUSTER_MODELLE.find((x) => x.schluessel === mo.schluessel);
+            const wert = def?.art === 'wert';
+            const t = mo.test;
+            const gruende = mo.gruende.join(' · ');
+            return (
+              <tr key={mo.schluessel} data-schluessel={mo.schluessel} className={mo.aktiv ? 'an' : undefined} title={mo.aktiv ? `aktiv – v${mo.version}` : `nicht aktiv${gruende ? `: ${gruende}` : ''}`}>
+                <td>
+                  <span className={`hafen-punkt${mo.aktiv ? ' an' : ''}`} aria-label={mo.aktiv ? 'aktiv' : 'nicht aktiv'} /> {def?.name ?? mo.schluessel}
+                  {!mo.aktiv && gruende && <small className="leise hafen-gruende">{gruende}</small>}
+                </td>
+                <td className="mono">
+                  {wert
+                    ? t.fehler == null
+                      ? '–'
+                      : `±${k(t.fehler, 1)} vs. Median ±${t.fehlerBasis == null ? '–' : k(t.fehlerBasis, 1)}`
+                    : t.auc == null
+                      ? '–'
+                      : `AUC ${k(t.auc, 3)} vs. Raten 0,5`}
+                </td>
+                <td className="mono">{t.tokens.toLocaleString('de-DE')}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

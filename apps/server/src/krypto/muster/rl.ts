@@ -6,6 +6,11 @@
 // PumpPortal 0,5 % je Seite, Netzgebühr je Transaktion. Einsatz fest 0,5 SOL je Kauf, Startkapital 10 SOL;
 // fällt das Kapital ohne Position unter den Einsatz → Pleite: Strafe −2 (nur Lernsignal) und Nachschuss 10 SOL
 // (zählt nie als Gewinn). Belohnung = realisierter Gewinn in SOL beim (Teil-)Verkauf.
+//
+// E236: Der Agent sieht auch 🚀 Pump, 💥 Absturz und das erwartete Hoch/Tief in 5 min (grob gestuft, nur wenn das jeweilige
+// Modell aktiv ist – sonst bleibt der Zustandsschlüssel wie in E235, alte Q-Tabellen gelten weiter). Harte Sicherungen im
+// Code: kein Kauf ab 💥 ≥ maxAbsturz (Standard 0,35); gehalten und 💥 ≥ 0,7 → nur noch „raus“. Kauf mit p ≥ minSicherheit
+// oder 🚀 ≥ 0,3 (dann auch ohne aktives Grundsignal – p ist dann 0).
 import type { KryptoRlGrenzen } from "@dorf/shared";
 import { GRUNDGEBUEHR_SOL, kaufen, kurveAusKurs, verkaufen } from "../kurve.js";
 import { takt } from "./gbdt.js";
@@ -25,6 +30,11 @@ export const RL_NETZ_SOL = GRUNDGEBUEHR_SOL + 0.0001;
 
 const GAMMA = 0.99;
 const ALPHA = 0.1;
+/** E236: Kauf auch ohne Grundsignal, wenn der Pump-Erkenner so viel sieht */
+export const RL_PUMP_KAUF = 0.3;
+/** E236: gehalten und Absturz-Erkenner ≥ so viel → nur noch raus (harte Sicherung) */
+export const RL_ABSTURZ_RAUS = 0.7;
+const MAX_ABSTURZ_STANDARD = 0.35;
 
 function stufeVon(x: number, grenzen: number[]) {
   let i = 0;
@@ -32,28 +42,83 @@ function stufeVon(x: number, grenzen: number[]) {
   return i;
 }
 
-/** Zustandsschlüssel: p in 10 Stufen, hält?, Plus-Stufe, Haltezeit-Stufe, Trend-Stufe */
+const zahlOderNull = (x: number | null | undefined) =>
+  x != null && Number.isFinite(x) ? x : null;
+
+/** Wahrscheinlichkeit in 4 Stufen: n (nicht aktiv), < 0,15, < 0,35, ≥ 0,35 */
+function wStufe(x: number | null | undefined): string {
+  const v = zahlOderNull(x);
+  return v === null ? "n" : String(stufeVon(v, [0.15, 0.35]));
+}
+
+/** Hoch/Tief grob in 3 Stufen (n = nicht aktiv): Hoch < 10 / < 30 / ≥ 30 %, Tief > −10 / > −25 / ≤ −25 % */
+function hochStufe(x: number | null | undefined): string {
+  const v = zahlOderNull(x);
+  return v === null ? "n" : String(stufeVon(v, [10, 30]));
+}
+function tiefStufe(x: number | null | undefined): string {
+  const v = zahlOderNull(x);
+  return v === null ? "n" : String(2 - stufeVon(v, [-25, -10]));
+}
+
+/**
+ * Zustandsschlüssel: p in 10 Stufen, hält?, Plus-Stufe, Haltezeit-Stufe, Trend-Stufe. E236: dazu – nur wenn mindestens
+ * ein Signal aktiv ist – ohne Position Pump/Absturz/Hoch5/Tief5, mit Position Absturz/Hoch5 (Zustandsraum klein halten).
+ */
 export function rlZustand(l: RlLage): string {
   const p = Math.max(
     0,
     Math.min(9, Math.floor((Number.isFinite(l.p) ? l.p : 0) * 10)),
   );
   const trend = stufeVon(l.trend30Prozent, [-5, -1, 1, 5]);
-  if (!l.haelt) return `w|${p}|${trend}`;
+  const signale =
+    zahlOderNull(l.pump) !== null ||
+    zahlOderNull(l.absturz) !== null ||
+    zahlOderNull(l.hoch5) !== null ||
+    zahlOderNull(l.tief5) !== null;
+  if (!l.haelt) {
+    const basis = `w|${p}|${trend}`;
+    return signale
+      ? `${basis}|p${wStufe(l.pump)}a${wStufe(l.absturz)}h${hochStufe(l.hoch5)}t${tiefStufe(l.tief5)}`
+      : basis;
+  }
   const plus = stufeVon(l.plusProzent, [-10, 0, 10, 20]);
   const halt = stufeVon(l.haltSek, [30, 60, 120, 300]);
-  return `h|${p}|${plus}|${halt}|${trend}`;
+  const basis = `h|${p}|${plus}|${halt}|${trend}`;
+  return signale ? `${basis}|a${wStufe(l.absturz)}h${hochStufe(l.hoch5)}` : basis;
 }
 
-/** erlaubte Handlungen: ohne Position warten/kaufen (kaufen nur ab minSicherheit), mit Position warten/halb/raus */
+/** E236: Kauf erlaubt? (p ≥ minSicherheit oder 🚀 ≥ 0,3) und nicht 💥 ≥ maxAbsturz */
+function kaufErlaubt(l: RlLage, g: KryptoRlGrenzen): boolean {
+  const absturz = zahlOderNull(l.absturz);
+  if (absturz !== null && absturz >= (g.maxAbsturz ?? MAX_ABSTURZ_STANDARD))
+    return false;
+  const pump = zahlOderNull(l.pump);
+  return l.p >= g.minSicherheit || (pump !== null && pump >= RL_PUMP_KAUF);
+}
+
+/** erlaubte Handlungen: ohne Position warten/kaufen (kaufen nur nach kaufErlaubt), mit Position warten/halb/raus –
+ *  E236: gehalten und 💥 ≥ 0,7 → nur raus */
 export function rlErlaubt(l: RlLage, g: KryptoRlGrenzen): RlHandlung[] {
-  if (l.haelt) return ["warten", "halb", "raus"];
-  return l.p >= g.minSicherheit ? ["warten", "kaufen"] : ["warten"];
+  if (l.haelt) {
+    const absturz = zahlOderNull(l.absturz);
+    if (absturz !== null && absturz >= RL_ABSTURZ_RAUS) return ["raus"];
+    return ["warten", "halb", "raus"];
+  }
+  return kaufErlaubt(l, g) ? ["warten", "kaufen"] : ["warten"];
 }
 
+/** Regel ohne Q-Werte: kaufen, wenn erlaubt; raus bei 💥 ≥ 0,5, Minus ≥ 10 % oder schwachem Signal (p < 0,3 – ist nur
+ *  das Pump-Signal aktiv (p = 0), dann 🚀 < 0,3) */
 function regel(l: RlLage, g: KryptoRlGrenzen): RlHandlung {
-  if (!l.haelt) return l.p >= g.minSicherheit ? "kaufen" : "warten";
-  return l.p < 0.3 || l.plusProzent <= -10 ? "raus" : "warten";
+  if (!l.haelt) return kaufErlaubt(l, g) ? "kaufen" : "warten";
+  const absturz = zahlOderNull(l.absturz);
+  const pump = zahlOderNull(l.pump);
+  const schwach =
+    l.p < 0.3 && (pump === null || pump < RL_PUMP_KAUF);
+  return (absturz !== null && absturz >= 0.5) || schwach || l.plusProzent <= -10
+    ? "raus"
+    : "warten";
 }
 
 export function rlHandlung(
@@ -81,12 +146,17 @@ export function rlHandlung(
   return beste;
 }
 
-/** Ein Zeitschritt einer Episode (alle 5 s): Kurs = letzter Tick, p = Muster-Vorhersage */
+/** Ein Zeitschritt einer Episode (alle 5 s): Kurs = letzter Tick, p = Muster-Vorhersage (0 ohne aktives Grundsignal);
+ *  E236: die übrigen Signale (null/fehlt = Modell nicht aktiv) */
 export interface RlSchritt {
   zeit: number;
   preis: number;
   p: number;
   trend30Prozent: number;
+  pump?: number | null;
+  absturz?: number | null;
+  hoch5?: number | null;
+  tief5?: number | null;
 }
 export type RlEpisode = RlSchritt[];
 
@@ -180,6 +250,10 @@ async function simulieren(
       const schritt = ep[i]!;
       const lage: RlLage = {
         p: schritt.p,
+        pump: schritt.pump ?? null,
+        absturz: schritt.absturz ?? null,
+        hoch5: schritt.hoch5 ?? null,
+        tief5: schritt.tief5 ?? null,
         haelt: pos !== null,
         plusProzent: pos ? (schritt.preis / pos.einstieg - 1) * 100 : 0,
         haltSek: pos ? (schritt.zeit - pos.seit) / 1000 : 0,
@@ -259,7 +333,8 @@ async function simulieren(
   return erg;
 }
 
-/** Q-Learning über mehrere Durchläufe (epsilon-greedy, abnehmend); Kauf ist im Training überall erlaubt */
+/** Q-Learning über mehrere Durchläufe (epsilon-greedy, abnehmend); Kauf ist im Training überall erlaubt (auch bei hohem 💥 –
+ *  der Agent soll lernen, dass das teuer ist), nur „gehalten + 💥 ≥ 0,7 → raus“ gilt wie live */
 export async function rlTrainieren(
   episoden: RlEpisode[],
   o: { version?: number; epochen?: number; seed?: number } = {},
@@ -279,7 +354,7 @@ export async function rlTrainieren(
     await simulieren(
       modell,
       reihe,
-      { minSicherheit: 0, erkunden, nachschuss: true },
+      { minSicherheit: 0, erkunden, nachschuss: true, maxAbsturz: Infinity },
       zufall,
       true,
       warte,

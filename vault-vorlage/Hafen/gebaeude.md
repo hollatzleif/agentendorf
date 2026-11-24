@@ -38,7 +38,10 @@ Jeden Morgen (Aktion „Hafenmeister“) züchtet er Bots: auswerten, Erkenntnis
 ## Muster-Modell und Muster-Meister
 Das Kryptowerk trainiert alle 5 Stunden ein Muster-Modell auf den Echtzeit-Ticks: Steigt ein Token erst um das Ziel, bevor
 es um den Stop fällt? Getestet wird zeitlich getrennt auf den neuesten, nie gesehenen Daten; Rat gibt es nur, wenn das
-Modell dort klar besser als Raten ist (Test-AUC ≥ 0,55). Ein RL-Bot (Art „RL“, nur Paper) handelt danach; geht ihm das
+Modell dort klar besser als Raten ist (Test-AUC ≥ 0,55). Seit E236 kommen aus denselben Merkmalen weitere Modelle dazu,
+jedes eigens getestet und nur aktiv, wenn es sich bewährt: 🚀 Pump- und 💥 Absturz-Erkenner (2 min), Ausblick auf Hoch/Tief
+in 1 und 5 min, Früh-Modelle für Tokens bis 90 s. Der Absturz-Erkenner bremst Käufe des RL-Bots (`rl.maxAbsturz`) und lässt
+ab 70 % sofort verkaufen – bei `regeln.musterGewicht` > 0 auch Regel- und Prompt-Bots. Ein RL-Bot (Art „RL“, nur Paper) handelt danach; geht ihm das
 Spielgeld aus, gibt es einen **Nachschuss** – der zählt nie als Gewinn. Der Muster-Meister (Aktion, fünfmal am Tag)
 liest den Bericht, pflegt den RL-Bot und schreibt ins Logbuch (`Hafen/muster-logbuch.md`). Den Muster-Rat für andere
 Bots (`regeln.musterGewicht`) schaltet nur Leif hoch.

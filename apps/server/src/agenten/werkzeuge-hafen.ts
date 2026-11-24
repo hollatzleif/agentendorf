@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { KRYPTO_RL_STANDARD, KRYPTO_STANDARD, type KryptoBacktest, type KryptoBot, type KryptoEinstellung, type KryptoKennzahlen, type KryptoMusterStatus, type KryptoTerminal, type KryptoUebersicht } from '@dorf/shared';
+import { KRYPTO_MUSTER_MODELLE, KRYPTO_RL_STANDARD, KRYPTO_STANDARD, type KryptoBacktest, type KryptoBot, type KryptoEinstellung, type KryptoKennzahlen, type KryptoMusterModellInfo, type KryptoMusterStatus, type KryptoTerminal, type KryptoUebersicht } from '@dorf/shared';
 import type { DB } from '../db.js';
 import { DorfFehler } from '../fehler.js';
 import type { Hafen } from '../krypto-dorf.js';
@@ -28,7 +28,7 @@ export const HAFEN_FLOTTE_MAX = 12;
 const AGENTENBOTS = 'hafen_agentenbots';
 
 const EINSTELLUNG_BESCHREIBUNG =
-  'Teil-Einstellung – nur was vom Standard (anlegen) bzw. vom jetzigen Stand (ändern) abweicht. Felder: name (≤ 40), avatar (ein Emoji), art ("regeln" | "prompt" | "rl"), prompt (Strategie in Worten, ≤ 4000, nur art prompt), startkapitalSol (Paper-Spielgeld, Standard 10), minSicherheit (0–1, Prompt-Bots), regeln: {minPunkte 0–100, musterGewicht 0–30 (so viele Punkte darf der Rat des Muster-Modells beisteuern; 0 = nur anzeigen, Standard)}, rl: {minSicherheit 0–1 (Kauf erst ab dieser Wahrscheinlichkeit des Muster-Modells), erkunden 0–0,3 (Anteil zufälliger Handlungen zum Lernen), nachschuss true/false (frisches Paper-Spielgeld nach Pleite – zählt nie als Gewinn)} – nur art rl, RL-Bots handeln nur Paper, filter: {maxRugScore, keineGefahr, minVolumenUsdM5, minKaeufeM5, minKaufVerhaeltnis, minAlterSek, maxAlterSek, minMarketCapUsd, maxMarketCapUsd, maxDevProzent, maxDevTokens24h (andere Tokens desselben Erstellers in 24 h), minEchtzeitKaufVerhaeltnis (Käufe÷Verkäufe der letzten 60 s aus dem Echtzeit-Strom, 0 = aus), maxTopHalterProzent, minLiquiditaetSol}, limits: {einsatzProTradeSol, positionProzent, maxTagesverlustSol, maxOffen, maxLlmProTag}, ausstieg: {takeProfit: [{beiProzent, verkaufProzent}] (ersetzt die ganze Liste), stopLossProzent, trailingProzent, maxHaltMinuten, notausEinzelverkaufProzent (sofort raus, wenn EIN Verkauf die Liquidität um so viel % senkt, 0 = aus)}, simulation: {verzoegerungMs ≥ 300, prioritaetSol, fehlschlagProzent, portalGebuehrProzent}, slippageProzent. Unterobjekte werden Feld für Feld zusammengeführt.';
+  'Teil-Einstellung – nur was vom Standard (anlegen) bzw. vom jetzigen Stand (ändern) abweicht. Felder: name (≤ 40), avatar (ein Emoji), art ("regeln" | "prompt" | "rl"), prompt (Strategie in Worten, ≤ 4000, nur art prompt), startkapitalSol (Paper-Spielgeld, Standard 10), minSicherheit (0–1, Prompt-Bots), regeln: {minPunkte 0–100, musterGewicht 0–30 (so viele Punkte darf der Rat des Muster-Modells beisteuern; 0 = nur anzeigen, Standard; > 0 heißt auch: sieht der aktive Absturz-Erkenner ≥ 70 %, verkauft auch ein Regel-/Prompt-Bot sofort)}, rl: {minSicherheit 0–1 (Kauf erst ab dieser Wahrscheinlichkeit des Muster-Modells – oder bei Pump-Signal ≥ 0,3), erkunden 0–0,3 (Anteil zufälliger Handlungen zum Lernen), nachschuss true/false (frisches Paper-Spielgeld nach Pleite – zählt nie als Gewinn), maxAbsturz 0–1 (kein Kauf, wenn der Absturz-Erkenner mindestens so viel sieht; Standard 0,35; gehalten ab 0,7 immer sofort raus)} – nur art rl, RL-Bots handeln nur Paper, filter: {maxRugScore, keineGefahr, minVolumenUsdM5, minKaeufeM5, minKaufVerhaeltnis, minAlterSek, maxAlterSek, minMarketCapUsd, maxMarketCapUsd, maxDevProzent, maxDevTokens24h (andere Tokens desselben Erstellers in 24 h), minEchtzeitKaufVerhaeltnis (Käufe÷Verkäufe der letzten 60 s aus dem Echtzeit-Strom, 0 = aus), maxTopHalterProzent, minLiquiditaetSol}, limits: {einsatzProTradeSol, positionProzent, maxTagesverlustSol, maxOffen, maxLlmProTag}, ausstieg: {takeProfit: [{beiProzent, verkaufProzent}] (ersetzt die ganze Liste), stopLossProzent, trailingProzent, maxHaltMinuten, notausEinzelverkaufProzent (sofort raus, wenn EIN Verkauf die Liquidität um so viel % senkt, 0 = aus)}, simulation: {verzoegerungMs ≥ 300, prioritaetSol, fehlschlagProzent, portalGebuehrProzent}, slippageProzent. Unterobjekte werden Feld für Feld zusammengeführt.';
 
 export const HAFEN_DEFINITIONEN: Record<HafenWerkzeug, Omit<WerkzeugDefinition, 'name'> & { name: HafenWerkzeug }> = {
   hafen_uebersicht: {
@@ -112,7 +112,7 @@ export const HAFEN_DEFINITIONEN: Record<HafenWerkzeug, Omit<WerkzeugDefinition, 
   hafen_muster: {
     name: 'hafen_muster',
     description:
-      'Das Muster-Modell im Hafen (E235): sagt aus den Echtzeit-Ticks voraus, ob ein Token erst um das Ziel steigt, bevor es um den Stop fällt; dazu ein RL-Agent, der im Zeitraffer über die Aufzeichnungen übt. Ohne Eingabe: Stand als Text – Trainingsbericht, Test-AUC (0,5 = Raten), Präzision vs. Basisrate, wichtigste Merkmale, Zeitraffer, Datenlage, letztes/nächstes Training. Mit {"training": true}: startet sofort ein Training (dauert Minuten; läuft schon eines, passiert nichts). Nur lesen bzw. Training anstoßen.',
+      'Das Muster-Modell im Hafen (E235/E236): mehrere Modelle aus denselben Echtzeit-Tick-Merkmalen – Grundsignal (erst +Ziel, bevor −Stop), 🚀 Pump- und 💥 Absturz-Erkenner (2 min), Ausblick Hoch/Tief in 1 und 5 min (%), Früh-Modelle für Tokens ≤ 90 s; jedes eigens ehrlich getestet und nur aktiv, wenn klar besser als Raten bzw. als der Median. Dazu ein RL-Agent, der mit allen aktiven Signalen im Zeitraffer über die Aufzeichnungen übt. Ohne Eingabe: Stand als Text – je Modell aktiv/nicht aktiv mit Gründen, Test-AUC (0,5 = Raten) bzw. Fehler vs. Median, Präzision vs. Basisrate, wichtigste Merkmale, Zeitraffer, Datenlage, letztes/nächstes Training, Bericht. Mit {"training": true}: startet sofort ein Training (dauert Minuten; läuft schon eines, passiert nichts). Nur lesen bzw. Training anstoßen.',
     input_schema: { type: 'object', properties: { training: { type: 'boolean', description: 'true = jetzt ein Training starten' } }, required: [], additionalProperties: false },
   },
   hafen_notaus: {
@@ -187,6 +187,31 @@ function artText(art: KryptoEinstellung['art']) {
 const z3 = (x: number) => x.toFixed(3).replace('.', ',');
 const ort = (iso: string | null) => (iso ? `${iso.slice(0, 16).replace('T', ' ')} UTC` : '–');
 
+const pzEins = (x: number) => `${(Math.round(x * 10) / 10).toString().replace('.', ',')}`;
+
+/** E236: je Modell eine Zeile – aktiv oder nicht (mit Gründen), Test gegen Raten bzw. gegen den Median */
+function modelleText(modelle: KryptoMusterModellInfo[]) {
+  const zeilen = ['Modelle (je eigens getestet, nur aktive geben Rat):'];
+  const sortiert = [...modelle].sort((a, b) => KRYPTO_MUSTER_MODELLE.findIndex((x) => x.schluessel === a.schluessel) - KRYPTO_MUSTER_MODELLE.findIndex((x) => x.schluessel === b.schluessel));
+  for (const mo of sortiert) {
+    const def = KRYPTO_MUSTER_MODELLE.find((x) => x.schluessel === mo.schluessel);
+    const name = def?.name ?? mo.schluessel;
+    const t = mo.test;
+    const teile: string[] = [];
+    if (def?.art === 'wert' || (t.auc == null && t.fehler != null)) {
+      if (t.fehler != null) teile.push(`Fehler ±${pzEins(t.fehler)} %-Punkte vs. Median ±${t.fehlerBasis == null ? '–' : pzEins(t.fehlerBasis)}`);
+    } else if (t.auc != null) {
+      teile.push(`AUC ${z3(t.auc)} vs. 0,5 (Raten)${t.aucUntergrenze != null ? `, Untergrenze ${z3(t.aucUntergrenze)}` : ''}`);
+      if (t.praezision != null && t.basis != null) teile.push(`Präzision ${Math.round(t.praezision * 100)} % vs. Basisrate ${Math.round(t.basis * 100)} %`);
+      else if (t.basis != null) teile.push(`Basisrate ${Math.round(t.basis * 100)} %`);
+    }
+    teile.push(`Test ${t.beispiele} Beispiele/${t.tokens} Tokens`);
+    const zustand = mo.aktiv ? 'AKTIV' : `nicht aktiv${mo.gruende.length ? ` (${mo.gruende.join('; ')})` : ''}`;
+    zeilen.push(`- ${name} v${mo.version}: ${zustand} · ${teile.join(' · ')}`);
+  }
+  return zeilen;
+}
+
 /** E235: Stand des Muster-Modells als lesbarer Text (für Hafenmeister/Muster-Meister) */
 export function musterText(m: KryptoMusterStatus) {
   const t = m.training;
@@ -206,6 +231,7 @@ export function musterText(m: KryptoMusterStatus) {
       `Wichtigste Merkmale: ${mo.merkmale.slice(0, 5).map((x) => `${x.name} ${Math.round(x.wichtigkeit * 100)} %`).join(', ') || '–'}`,
     );
   }
+  if (m.modelle?.length) zeilen.push('', ...modelleText(m.modelle), '');
   const rl = m.rl;
   if (!rl) zeilen.push('RL-Agent: noch nicht trainiert.');
   else {

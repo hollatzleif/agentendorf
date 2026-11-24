@@ -77,7 +77,7 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
                   anlegen/ändern/Status (Rückgängig), eigene Paper-Bots löschen (dorf_stand hafen_agentenbots), Backtest (Regeln), Not-Aus (Meldung,
                   Rückgängig = aufheben); nie scharf/auszahlen/Wallet/Leifs Bots löschen/Live ändern
   krypto/muster/  E235: merkmale.ts (27 Merkmale aus Strom-Ticks, label), gbdt.ts (Gradient Boosting), rl.ts (Q-Agent, Zeitraffer), training.ts
-                  (Zeit-Split, Aktiv-Regel mit Token-Bootstrap), dienst.ts (Training alle 5 h, muster_modelle, GET/POST /muster) – nur Code, keine Abhängigkeit
+                  (Zeit-Split, Aktiv-Regel mit Token-Bootstrap; E236: 9 Modelle je Schlüssel, signale.ts musterSignale), dienst.ts (Training alle 5 h, muster_modelle, GET/POST /muster) – nur Code, keine Abhängigkeit
   src/krypto-dorf.ts E227: /api/krypto/* (Durchreiche), /intern/krypto/bewerten (LLM für Prompt-Bots, nur JSON, ≤ 0,50 $ je Bot/Tag, Auslöser
                   krypto – nicht im Tagesbudget), Telegram /notaus; App: apps/web/src/hafen/ (Flotte, Terminal „Kielwasser“ /hafen/<id>)
   src/paketwerk.ts E230: /api/paketwerk* → Runner im Container paketwerk (gleiches Image wie der Rechenraum, RECHENRAUM_MODUS=paketwerk,
@@ -318,6 +318,7 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E213 (22.11.): Handschrift kann Mathe – Formeln ($…$ oder schlicht), Rechenwege am „=“ ausgerichtet, Brüche/Wurzeln/∑∫, Markdown-Tabellen mit Handgitter (handformel.py + Hershey); „=“ wird nicht mehr zu „-“
 - [x] E214 (22.11.): Handschrift realistischer – gerade Linien wie GoodNotes (Tabellen, Bruchstriche), ruhigere Formeln, gleichmäßiger Stift, Logik-Zeichen (∧ ∨ ¬ ↔ ⊢ ⊨ ⊤ ⊥ □), Wahrheitstafeln mittig
 - [x] E215 (22.11.): Handschrift `stil: einheitlich` (Standard) – EINE Hand für Text, Formeln und Tabellen (Schreiber-Profil je Dokument, jedes Zeichen einmalig verformt, Wortgrundlinien, Unterschneiden); `stil: ki` = KI-Modell für freien Fließtext
+- [x] E236 (25.11.): Muster-Modell mit 9 Signalen – 🚀 Pump, 💥 Absturz, Hoch/Tief 1 und 5 min, Früh-Modelle (≤ 90 s), je einzeln getestet/aktiv; RL-Bot sieht alles, kein Kauf bei Absturz-Risiko, ab 70 % raus
 - [x] E235 (24.11.): Hafen – Muster-Modell (Gradient Boosting auf Strom-Trades, alle 5 h, ehrlicher Zeit-Test mit Token-Bootstrap) + RL-Bot nur Paper mit Nachschuss (nie Gewinn), Muster-Rat im Terminal (Gewicht 0 = nur anzeigen), Muster-Meister alle 5 h – echte Daten/Training auf dem Server abzunehmen
 - [x] E234 (24.11.): Hafen – Dev-Historie (Serien-Ersteller sperren), Notausstieg bei großem Einzelverkauf (Strom), Kaufdruck der letzten 60 s (Punkte + Filter), Ergebnis je Tag („Tage im Plus“), Hafenmeister prüft mehrere Backtest-Fenster
 - [x] E233 (24.11.): Equity-Kerzen im Terminal wählbar 5 s · 15 s · 1 min · 5 min · 15 min (feine Proben im Speicher, 6 h)

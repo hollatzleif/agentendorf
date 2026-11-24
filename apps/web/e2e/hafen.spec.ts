@@ -211,6 +211,17 @@ test('E235: Muster-Modell in der Flotte (Jetzt trainieren, läuft schon), RL im 
   await expect(tafel).toContainText('1.204.000 Ticks');
   await expect(tafel.getByRole('list', { name: 'Wichtigste Merkmale' }).getByRole('listitem')).toHaveCount(5);
   await expect(tafel.getByTestId('muster-zeitraffer')).toContainText('57 Trades');
+  // E236: Tabelle aller Modelle – aktiv grün, inaktiv mit Grund, Wert-Modelle gegen den Median
+  const modelle = tafel.getByTestId('muster-modelle');
+  await expect(modelle.locator('tbody tr')).toHaveCount(5);
+  await expect(modelle.locator('tr[data-schluessel="basis"] .hafen-punkt.an')).toHaveCount(1);
+  await expect(modelle.locator('tr[data-schluessel="absturz"]')).toContainText('AUC 0,664 vs. Raten 0,5');
+  await expect(modelle.locator('tr[data-schluessel="absturz"] .hafen-punkt.an')).toHaveCount(1);
+  await expect(modelle.locator('tr[data-schluessel="pump"] .hafen-punkt.an')).toHaveCount(0);
+  await expect(modelle.locator('tr[data-schluessel="pump"]')).toContainText('zu wenige Pumps im Test');
+  await expect(modelle.locator('tr[data-schluessel="hoch5"]')).toContainText('±18,4 vs. Median ±23,9');
+  await expect(modelle.locator('tr[data-schluessel="hoch5"] .hafen-punkt.an')).toHaveCount(1);
+  await expect(modelle.locator('tr[data-schluessel="basis"]')).toContainText('412');
   await tafel.getByRole('button', { name: 'Jetzt trainieren' }).click();
   await expect(tafel.getByRole('status')).toContainText('läuft schon');
   await expect(tafel.getByRole('progressbar', { name: 'Training' })).toContainText('40 %');
@@ -220,17 +231,21 @@ test('E235: Muster-Modell in der Flotte (Jetzt trainieren, läuft schon), RL im 
   await page.getByRole('button', { name: '+ Neuer Bot' }).click();
   const form = page.getByRole('region', { name: 'Neuer Bot' });
   await expect(form.getByLabel('Muster-Rat Gewicht (0 = nur anzeigen)')).toHaveValue('0');
+  await expect(form).toContainText('> 0: auch Verkauf bei Absturz-Risiko ≥ 70 %');
   await form.getByLabel('Strategie').selectOption('rl');
   await expect(form.getByLabel('Muster-Rat Gewicht (0 = nur anzeigen)')).toHaveCount(0);
   await expect(form).toContainText('nur im Paper Trading');
   await form.getByLabel('RL: Kauf ab Modell-Sicherheit (0–1)').fill('0.65');
   await expect(form.getByLabel('RL: Erkunden (0–0,3)')).toHaveValue('0.05');
   await form.getByLabel('RL: Nachschuss nach Pleite').selectOption('nein');
+  await expect(form.getByLabel('RL: Kein Kauf ab Absturz-Risiko (0–1)')).toHaveValue('0.35');
+  await expect(form).toContainText('gehalten ab 70 % sofort raus');
+  await form.getByLabel('RL: Kein Kauf ab Absturz-Risiko (0–1)').fill('0.3');
   await form.getByRole('button', { name: 'Bot anlegen (Paper)' }).click();
   await expect(form).toBeHidden();
   const neu = anfragen.find((a) => a.pfad === '/api/krypto/bots' && a.methode === 'POST')!.body as { einstellung: { art: string; rl: unknown } };
   expect(neu.einstellung.art).toBe('rl');
-  expect(neu.einstellung.rl).toEqual({ minSicherheit: 0.65, erkunden: 0.05, nachschuss: false });
+  expect(neu.einstellung.rl).toEqual({ minSicherheit: 0.65, erkunden: 0.05, nachschuss: false, maxAbsturz: 0.3 });
   if (info.project.name === 'handy') {
     const breit = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(breit).toBeLessThanOrEqual(1);
@@ -240,7 +255,17 @@ test('E235: Muster-Modell in der Flotte (Jetzt trainieren, läuft schon), RL im 
   await page.goto(`/hafen/${BOT_ID}`);
   const rat = page.getByRole('region', { name: 'Muster-Rat' });
   await expect(rat).toContainText('MOONCAT');
-  await expect(rat).toContainText('72 %');
+  await expect(rat).toContainText('p 72 %');
+  // E236: Pump/Absturz/Ausblick/früh
+  const mooncat = rat.getByRole('listitem').filter({ hasText: 'MOONCAT' });
+  await expect(mooncat).toContainText('🚀 34 %');
+  await expect(mooncat).toContainText('💥 8 %');
+  await expect(mooncat).toContainText('5 min: Hoch +27 % / Tief −12 %');
+  await expect(mooncat.locator('.kw-frueh')).toHaveText('früh');
+  const sadcat = rat.getByRole('listitem').filter({ hasText: 'SADCAT' });
+  await expect(sadcat.locator('.gefahr')).toContainText('💥 61 %');
+  await expect(sadcat.locator('.kw-frueh')).toHaveCount(0);
+  await expect(mooncat.locator('.gefahr')).toHaveCount(0);
   await expect(rat.locator('.kw-rat.kaufen')).toHaveText('KAUFEN');
   await expect(rat.locator('.kw-rat.raus')).toHaveText('RAUS');
   await expect(rat).toContainText('nur Anzeige');
@@ -248,6 +273,19 @@ test('E235: Muster-Modell in der Flotte (Jetzt trainieren, läuft schon), RL im 
   await expect(pnl.getByTestId('nachschuss')).toContainText('10,00 SOL');
   await expect(pnl.getByTestId('nachschuss')).toContainText('zählt nicht als Gewinn');
   await page.screenshot({ path: info.outputPath('muster-terminal.png'), fullPage: true });
+});
+
+test('E236: Muster-Rat auch ohne Grundsignal (nur Absturz-Erkenner)', async ({ page }) => {
+  await page.route('**/api/krypto/bots/*/terminal**', (r) =>
+    r.fulfill({ json: { ...terminal(), musterRat: [{ mint: 'c', symbol: 'RUGCAT', wahrscheinlichkeit: null, rat: 'halten', zeit: Date.now(), pump: null, absturz: 0.4, ausblick: null, frueh: false }] } }),
+  );
+  await anmelden(page);
+  await page.goto(`/hafen/${BOT_ID}`);
+  const rat = page.getByRole('region', { name: 'Muster-Rat' });
+  await expect(rat).toContainText('RUGCAT');
+  await expect(rat).toContainText('💥 40 %');
+  await expect(rat).not.toContainText(/p \d+ %/);
+  await expect(rat.locator('.kw-rat.halten')).toHaveText('HALTEN');
 });
 
 test('E235: Terminal ohne aktives Modell sagt es', async ({ page }) => {

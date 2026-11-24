@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { KRYPTO_STANDARD, type KryptoBot, type KryptoEinstellung, type KryptoMusterStatus } from '@dorf/shared';
+import { KRYPTO_RL_STANDARD, KRYPTO_STANDARD, type KryptoBot, type KryptoEinstellung, type KryptoMusterStatus } from '@dorf/shared';
 import { werkzeugprofil } from '../src/agenten/leine.js';
 import { aktionLaden } from '../src/agenten/aktionen.js';
 import { zeitplanLesen } from '../src/agenten/zeitplan.js';
@@ -184,7 +184,7 @@ describe('hafen_muster und RL-Bots für Agenten (E235)', () => {
     expect(k.bots).toHaveLength(2);
     const rl = k.bots[0]!.einstellung;
     expect(rl.art).toBe('rl');
-    expect(rl.rl).toEqual({ minSicherheit: 0.65, erkunden: 0.05, nachschuss: true }); // Feld für Feld zusammengeführt
+    expect(rl.rl).toEqual({ ...KRYPTO_RL_STANDARD, minSicherheit: 0.65 }); // Feld für Feld zusammengeführt (E236: samt maxAbsturz)
     expect(k.bots[1]!.einstellung.regeln).toEqual({ ...KRYPTO_STANDARD.regeln, musterGewicht: 10 });
     expect(k.bots[1]!.einstellung.rl).toBeUndefined();
     expect(agentenBots(d.db)).toHaveLength(2);
