@@ -280,7 +280,7 @@ export type Aufwand = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export type LaufStatus = 'wartet_freigabe' | 'wartend' | 'laeuft' | 'fertig' | 'fehler' | 'abgebrochen';
 /** klick = Leif; zeitplan = Bürgermeister von selbst (api, Budget); buergermeister = seine Helfer; automatik = Aktion nach eigenem Zeitplan (Motor der Aktion) */
 export type Ausloeser = 'klick' | 'zeitplan' | 'buergermeister' | 'automatik';
-export type AktionsWerkzeug = 'vault_lesen' | 'vault_suchen' | 'vault_schreiben' | 'web' | 'rechenraum' | 'post' | 'moodle' | 'kalender';
+export type AktionsWerkzeug = 'vault_lesen' | 'vault_suchen' | 'vault_schreiben' | 'web' | 'rechenraum' | 'post' | 'moodle' | 'kalender' | 'hafen';
 
 export interface AktionEingabe {
   name: string;

@@ -156,8 +156,8 @@ function BotKarte({ b, farbe, notaus, bearbeiten, tun, liveMoeglich, auszahlung,
           <span>Max. Drawdown</span>
           <b>{k.maxDrawdownProzent.toLocaleString('de-DE', { maximumFractionDigits: 1 })} %</b>
         </div>
-        <div>
-          <span>Offen · Rugs</span>
+        <div title="Offene Positionen (gerade gehaltene Tokens) · Rugs geblockt (Tokens, die der Rug-Filter aussortiert hat – nicht gekauft)">
+          <span>Offen · Rugs geblockt</span>
           <b>
             {k.offen} · {k.geblockteRugs}
           </b>

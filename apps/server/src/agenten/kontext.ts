@@ -49,6 +49,12 @@ export async function systemPromptBauen(
           '  Dann: Leif kurz sagen, was fehlt und wofür, und den Befehl vorschlagen – mit fester Version, z. B. `pip install statsmodels==0.14.4`, plus Link [Im Paketwerk öffnen](/paketwerk?befehl=pip%20install%20statsmodels%3D%3D0.14.4) (Befehl URL-kodiert; der Link setzt ihn nur in die Zeile, Leif drückt selbst „Ausführen“). Danach weitermachen, sobald er Bescheid gibt.',
         ]
       : []),
+    ...(hat('hafen_uebersicht')
+      ? [
+          '- hafen_*: Leifs Krypto-Bots im Hafen (Pump.fun, Solana). Lesen und auswerten (hafen_uebersicht, hafen_bot_lesen), Backtests für Regel-Bots (hafen_backtest), PAPER-Bots anlegen/ändern/starten/pausieren (Leif bekommt „Rückgängig“), Not-Aus bei Gefahr (hafen_notaus).',
+          '  Scharf schalten, auszahlen, Wallets, Bots löschen und Live-Bots ändern kannst du NICHT – das macht nur Leif in der App; empfiehl es ihm höchstens. Immer nach Gebühren bewerten, kleine Stichproben benennen, keine Gewinnversprechen.',
+        ]
+      : []),
     ...(hat('gedaechtnis_schreiben')
       ? [
           `- gedaechtnis_schreiben: dein Gedächtnis ${GEDAECHTNIS_PFAD} durch die ganze neue Fassung ersetzen (alte Fassung → Archiv).`,

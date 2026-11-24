@@ -58,6 +58,7 @@ describe('Aktionen mit Zeitplan und Ablage', () => {
     const d = await testDorf();
     fs.rmSync(path.join(d.vault.wurzel, 'Bibliothek/aktionen/checkliste.md')); // die Vorlage läuft auch um 06:00 – hier nur „morgens“
     fs.rmSync(path.join(d.vault.wurzel, 'Boerse/aktionen/tagesbericht.md')); // E222: Vorlage Di–Sa 05:00 – würde hier nachgeholt
+    fs.rmSync(path.join(d.vault.wurzel, 'Hafen/aktionen/hafenmeister.md')); // E231: Vorlage täglich 06:05
     fs.writeFileSync(path.join(d.vault.wurzel, 'Bibliothek/aktionen/morgens.md'), aktion('name: Morgens\nmotor: claude-code\nzeitplan: täglich 06:00\neingaben:\n  - name: thema\n    standard: Folien'));
     expect(await d.automatik.pruefen()).toEqual([]); // erst bekannt machen
     d.uhr.vor(17 * STUNDE + MIN); // Di 17.11. 06:01 Linz

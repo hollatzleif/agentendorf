@@ -3,22 +3,39 @@ name: Hafen
 symbol: "⚓"
 status: offen
 reihenfolge: 13
-beschreibung: "Krypto-Bots für Pump.fun im Paper Trading – Strategien testen und vergleichen, ohne echtes Geld"
+beschreibung: "Krypto-Bots für Pump.fun – Strategien im Paper Trading testen, vergleichen und erst dann scharf schalten"
 ---
 
 # Hafen – Arbeitsanweisung
 
-Im Hafen testet Leif Trading-Bots für neue Memecoins auf Solana (Pump.fun). **Alles ist Paper Trading:** echte Live-Daten,
-aber nur simulierte Trades – mit Gebühren, Slippage, Verzögerung und fehlgeschlagenen Transaktionen. Es gibt kein Wallet,
-keinen Schlüssel und keinen Hebel. Live-Trading ist nicht gebaut.
+Im Hafen testet Leif Trading-Bots für neue Memecoins auf Solana (Pump.fun). Neue Bots laufen immer im **Paper Trading**:
+echte Live-Daten, aber simulierte Trades – mit Gebühren (Pump.fun, PumpPortal, Netz), Slippage, Verzögerung und
+fehlgeschlagenen Transaktionen. Scharf (mit echtem Geld aus einem eigenen Bot-Wallet) schaltet **nur Leif**, mit Passwort.
+Die Anleitung für Leif steht in `Hafen/00_Anleitung.html`.
 
 ## Wie es läuft
 - Die Bots leben im Kryptowerk (eigener Container). Sie hören auf neue Tokens (PumpPortal), holen Kurse und Volumen
   (DexScreener) und prüfen auf Betrug (RugCheck).
-- Jeder Bot hat eine Strategie: Regeln (Punkte) oder ein Prompt (das LLM schlägt vor, der Code entscheidet).
+- Jeder Bot hat eine Strategie: Regeln (Punkte) oder ein Prompt (das LLM schlägt nur den Einstieg vor, der Code entscheidet).
+  Verkauft wird immer per Code: Take Profit, Stop Loss, Trailing, maximale Haltedauer.
 - Risikolimits setzt der Code durch: Einsatz je Trade, Tagesverlust, offene Positionen.
-- **Not-Aus:** in der App oder per Telegram `/notaus` – stoppt sofort alle Bots.
+- **Not-Aus:** in der App, per Telegram `/notaus` oder `hafen_notaus` – stoppt sofort alle Bots.
+
+## Was Agenten dürfen (hafen_*)
+- Flotte und Bots lesen und auswerten (`hafen_uebersicht`, `hafen_bot_lesen`), Backtests für Regel-Bots (`hafen_backtest`).
+- **Paper-Bots** anlegen, ändern, starten und pausieren – Leif bekommt dafür „Rückgängig“.
+- **Eigene** Paper-Bots (von einem Agenten angelegt, „🤖 Agent“) löschen – Leifs Bots nie.
+- Den Not-Aus ziehen, wenn etwas schiefläuft (Leif wird sofort benachrichtigt).
+- **Nie:** scharf schalten, entschärfen, auszahlen, Wallets, Leifs Bots löschen, Not-Aus aufheben, Live-Bots ändern. Das
+  gibt es als Werkzeug gar nicht – sag Leif, was du empfiehlst, und er entscheidet.
+
+## Hafenmeister
+Jeden Morgen (Aktion „Hafenmeister“) züchtet er Bots: auswerten, Erkenntnisse ins Logbuch
+(`Hafen/hafenmeister-logbuch.md`), die schwächsten eigenen Bots löschen, leicht abgewandelte Nachfolger anlegen. Höchstens
+6 eigene Bots, davon 2 Prompt-Bots. Kurzfassung in der Morgenzeitung.
 
 ## Regeln für Agenten
-- Agenten handeln hier nicht und ändern keine Bots. Erklären dürfen sie, was in den Protokollen steht.
-- Keine Gewinnversprechen: Die meisten neuen Tokens verlieren schnell an Wert.
+- Bewerten immer **nach Gebühren** (Gewinn, Drawdown), nicht nach Trefferquote. Kleine Stichproben (unter ~30 Trades)
+  als solche benennen.
+- Für Vergleiche lieber einen zweiten Bot anlegen als einen laufenden umbauen; Änderungen begründen.
+- Keine Gewinnversprechen: Die meisten neuen Tokens verlieren schnell an Wert. Paper und Backtest sind keine Garantie.

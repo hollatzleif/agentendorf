@@ -2548,3 +2548,22 @@ Leif wollte, dass fehlende Pakete nicht jedes Mal einen Deploy brauchen („bau 
 - Ein Paket kann im Rechenraum nichts nach draußen schicken (kein Netz dort).
 
 **Tests:** `apps/rechenraum/test/test_paketwerk.py` (Konsole, Ausgabe stückweise, einer zur Zeit, Abbrechen, Zeitgrenze, Paketliste, Rechenraum importiert aus `/pakete`, keine Konsole im Rechenraum und kein Rechenraum im Paketwerk), `apps/server/test/e230-paketwerk.test.ts` (Routen vor dem echten Runner: 401/403 auch kodiert, 409, Abbrechen, nicht eingerichtet/nicht erreichbar, kein Agenten-Werkzeug), `apps/web/e2e/paketwerk.spec.ts`, CI-Rauchtest: `pip install six==1.17.0` im Paketwerk, danach importiert ein Rechenraum ohne Netz das Paket nur lesend.
+
+## E231 – Hafen-Werkzeuge für Agenten (24.11.)
+
+Leif: „Haben die Agenten schon die nötigen Tools, um Bots anzulegen und im Papiermodus zu starten?“ – Nein, bis dahin bediente nur Leif den Hafen. Auf seine Freigabe („los“) mit meinen beiden Empfehlungen: **Not-Aus darf ein Agent ziehen** (macht nur sicherer, Leif wird sofort benachrichtigt) und **Paper-Bots ändern Agenten direkt mit „Rückgängig“** (kein echtes Geld).
+
+**Werkzeuge** (`agenten/leine-hafen.ts`, `agenten/werkzeuge-hafen.ts`), für Aktionen mit `werkzeuge: [hafen]`, freie Helfer mit der Fähigkeit `hafen` und den Bürgermeister:
+- `hafen_uebersicht`, `hafen_bot_lesen` – Kennzahlen nach Gebühren, Einstellungen, Positionen, Trades, Entscheidungen (Token-Namen und LLM-Gründe in der Fremdinhalt-Hülle, der Lauf gilt als „hat Fremdes gelesen“).
+- `hafen_bot_anlegen` – immer Paper (ein eingeschmuggeltes `modus` wird verworfen, das Kryptowerk kennt beim Anlegen ohnehin nur Paper), Teil-Einstellung über `KRYPTO_STANDARD` gelegt, geprüft vom Kryptowerk (Zod strict). Höchstens 8 Bots in der Flotte, wenn ein Agent anlegt (Prompt-Bots kosten je bis 0,50 $/Tag). „Rückgängig“ löscht den Bot (das Kryptowerk verweigert es bei Live-Bots oder Guthaben im Wallet).
+- `hafen_bot_aendern`, `hafen_bot_status` – nur Paper-Bots; „Rückgängig“ setzt die alte Einstellung zurück, aber nur, solange der Bot noch Paper ist.
+- `hafen_backtest` – nur Regel-Bots.
+- `hafen_notaus` – Meldung an Leif (App + Telegram) mit „Rückgängig“ = Not-Aus aufheben (Bots bleiben pausiert).
+
+**Bewusst nicht vorhanden:** scharf schalten, entschärfen, auszahlen, Wallets/Schlüssel, Bots löschen, Not-Aus aufheben, Live-Bots ändern/starten/pausieren. Das bleibt Leifs Klick (Passwort/TOTP).
+
+**Hafenmeister** (Leifs Wunsch, noch während E231: „jeden Tag einige Bots auf dem Papier anlegen, beobachten, in der Morgenzeitung berichten, neue leicht modifizierte anlegen und die alten löschen – über lange Zeit zum perfekten Bot“): Aktion `Hafen/hafenmeister` (täglich 06:05, `claude-code`/Abo, Stufe mittel). Ablauf wie eine Zucht: Logbuch lesen (`Hafen/hafenmeister-logbuch.md`, wächst per `vault_aendern`/anhängen – das Gedächtnis über Wochen), eigene Bots erst nach ≥ 24 h und ~15 Trades beurteilen, die schwächsten (≤ 2 je Tag) ins Logbuch schreiben und löschen, Nachfolger = Champion mit ein bis zwei geänderten Werten (vorher Backtest, wenn möglich), ab und zu ein mutiger Ausreißer. Bericht `Hafen/00_Flottenbericht.md` → Abschnitt „⚓ Hafen“ in der Morgenzeitung (nur wenn von heute).
+- Dafür neu: `hafen_bot_loeschen` – NUR Paper-Bots, die ein Agent angelegt hat (Kennungen in `dorf_stand` `hafen_agentenbots`; Leifs Bots und Live-Bots nie; nicht zurücknehmbar, darum vorher ins Logbuch).
+- Grenzen im Code: höchstens 6 eigene Bots der Agenten, davon höchstens 2 Prompt-Bots (je bis 0,50 $/Tag – bevorzugt Regel-Bots, die auch der Backtest prüft), Flotte insgesamt höchstens 12. Neue Arbeitsanweisung `Hafen/gebaeude.md` (alte Fassung per Hash ersetzbar). In der App lässt sich „Hafen“ beim Anlegen eines Skills ankreuzen.
+
+**Tests:** `apps/server/test/e231-hafen-werkzeuge.test.ts` gegen ein echtes Kryptowerk (Motor + HTTP-Server): Leine, Zusammenführen, anlegen/ändern/Status/Rückgängig, Live-Bot unantastbar (auch per Rückgängig), nie ein Aufruf an scharf/entschärfen/auszahlen, Not-Aus mit Meldung und Aufheben, Grenze 8 Bots, Backtest nur Regeln, Morgenzeitung.

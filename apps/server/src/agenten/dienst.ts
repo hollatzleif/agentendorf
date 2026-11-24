@@ -1,6 +1,7 @@
 import type { ListenName, TodoDienst } from '../todos.js';
 import type { Noten } from '../uni/noten.js';
 import type { Saxo } from '../saxo.js';
+import type { Hafen } from '../krypto-dorf.js';
 import crypto from 'node:crypto';
 import type { Ausloeser, ChatDetail, DateiKarte, ChatInfo, LaufInfo, LaufStatus, Motor as MotorName, Stufe } from '@dorf/shared';
 import type { DB } from '../db.js';
@@ -205,6 +206,8 @@ export class AgentenDienst {
   noten?: Noten;
   /** E222: Saxo-Depot (depot_*), wird in dorf.ts gesetzt */
   saxo?: Saxo;
+  /** E231: Hafen (hafen_*), wird in dorf.ts gesetzt */
+  hafen?: Hafen;
   /** E192: die eigene To-do-Liste des Bürgermeisters (nur seine Läufe bekommen sie) */
   meineTodos?: MeineTodos;
   /** E183: Kirchturm und Tagesnotizen für die Alltags-Werkzeuge (in dorf.ts gesetzt) */
@@ -391,7 +394,7 @@ export class AgentenDienst {
 
   /**
    * Freier Helfer (ohne Aktionsdatei): arbeitet im Zielgebäude nach dessen Arbeitsanweisung – Vault, To-dos, Alltag;
-   * mit `faehigkeiten` zusätzlich Web, Post, Kalender, Moodle oder Rechenraum (E185). Motor: claude-code.
+   * mit `faehigkeiten` zusätzlich Web, Post, Kalender, Moodle, Rechenraum oder Hafen (E185, E231). Motor: claude-code.
    */
   async helferStarten(o: { gebaeude: string; titel: string; auftrag: string; stufe: Stufe; ausloeser: Ausloeser; herkunft: ChatHerkunft; faehigkeiten?: HelferFaehigkeit[] }) {
     const f = o.faehigkeiten ?? [];
@@ -679,6 +682,7 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
           listen: this.listen,
           noten: this.noten,
           saxo: this.saxo,
+          hafen: profil.dorf.includes('hafen_uebersicht') ? this.hafen : undefined,
           kirchturm: this.kirchturm,
           notizen: this.notizen,
           fremdinhalte: !!c.fremdinhalte,

@@ -3,13 +3,14 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Gebaeude } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 
-type Werkzeug = 'vault_schreiben' | 'post' | 'moodle' | 'kalender' | 'rechenraum' | 'web';
+type Werkzeug = 'vault_schreiben' | 'post' | 'moodle' | 'kalender' | 'rechenraum' | 'hafen' | 'web';
 const WERKZEUGE: { id: Werkzeug; text: string; fremd?: boolean }[] = [
   { id: 'vault_schreiben', text: 'Im Gebäude schreiben' },
   { id: 'kalender', text: 'Kalender lesen', fremd: true },
   { id: 'post', text: 'Mails lesen, Entwürfe', fremd: true },
   { id: 'moodle', text: 'Moodle-Browser', fremd: true },
   { id: 'rechenraum', text: 'Rechenraum (LaTeX, Python)' },
+  { id: 'hafen', text: 'Hafen (Paper-Bots, Auswertung)' },
   { id: 'web', text: 'Internet' },
 ];
 

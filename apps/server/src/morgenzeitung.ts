@@ -21,6 +21,8 @@ import { blueteZeile } from './bluete.js';
 import { rundgangEinstellungen, rundgangMeldungenSeit } from './rundgang.js';
 import { tagPlus, uhrzeitIn } from './zeit.js';
 import { TAGESBERICHT_PFAD } from './saxo.js';
+/** E231: Bericht des Hafenmeisters (Aktion Hafen/hafenmeister, 06:05) */
+export const FLOTTENBERICHT_PFAD = 'Hafen/00_Flottenbericht.md';
 
 export const ORDNER = 'Rathaus/morgenzeitung';
 /** Erscheint um 06:30 Linzer Zeit */
@@ -274,13 +276,16 @@ export class Morgenzeitung {
       const warum = await this.tagesberichtLesen(tagPlus(datum, -1));
       abschnitte.push({ titel: '📈 Saxo gestern', zeilen: [...saxo, ...warum.map((w, i) => (i ? w : `Warum: ${w}`))] });
     }
+    // E231: Bericht des Hafenmeisters (06:05) – nur wenn er von heute ist
+    const flotte = await this.tagesberichtLesen(datum, FLOTTENBERICHT_PFAD);
+    if (flotte.length) abschnitte.push({ titel: '⚓ Hafen', zeilen: flotte });
 
     return { datum, einleitung: null, abschnitte };
   }
 
   /** E222: Abschnitt „Für die Zeitung“ aus Boerse/00_Tagesbericht.md – nur wenn der Bericht für `tag` ist */
-  private async tagesberichtLesen(tag: string): Promise<string[]> {
-    const d = await this.o.vault.lesen(TAGESBERICHT_PFAD).catch(() => null);
+  private async tagesberichtLesen(tag: string, pfad = TAGESBERICHT_PFAD): Promise<string[]> {
+    const d = await this.o.vault.lesen(pfad).catch(() => null);
     if (!d) return [];
     const m = matter(d.inhalt);
     const fuer = m.data.tag instanceof Date ? m.data.tag.toISOString().slice(0, 10) : String(m.data.tag ?? '');

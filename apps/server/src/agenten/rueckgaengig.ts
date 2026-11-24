@@ -9,7 +9,7 @@ import { DorfFehler } from '../fehler.js';
  * geänderte oder verschobene Datei), tun Agenten direkt. Jede solche Tat wird hier gemerkt; Leif bekommt eine Meldung
  * (App + Telegram) mit einem Knopf, der sie genau einmal zurücknimmt – ausgeführt vom Dorf, nie vom Agenten.
  */
-export type RueckgaengigArt = 'termin_angelegt' | 'termin_geaendert' | 'termin_geloescht' | 'skill_angelegt' | 'datei_geaendert' | 'datei_verschoben';
+export type RueckgaengigArt = 'termin_angelegt' | 'termin_geaendert' | 'termin_geloescht' | 'skill_angelegt' | 'datei_geaendert' | 'datei_verschoben' | 'hafen_bot_angelegt' | 'hafen_bot_geaendert' | 'hafen_notaus';
 
 interface Zeile {
   id: string;

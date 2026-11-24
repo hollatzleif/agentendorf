@@ -3,6 +3,7 @@ import type { AktionsWerkzeug } from '@dorf/shared';
 import { normalisieren } from '../vault/pfade.js';
 import { DorfFehler } from '../fehler.js';
 import { EXTRA_ALLTAG, EXTRA_NETZ, EXTRA_POST, EXTRA_RECHENRAUM, type ExtraWerkzeug } from './leine-extra.js';
+import { HAFEN_WERKZEUGE, type HafenWerkzeug } from './leine-hafen.js';
 
 /**
  * Die Leine: EINE Stelle im Code, die festlegt, was Agenten dürfen – für beide Motoren.
@@ -70,6 +71,8 @@ export type DorfWerkzeug =
   | 'meine_todos_erledigen'
   // E199: Werkzeuge aus der Ideen-Liste (Gruppen und Einstufung in leine-extra.ts)
   | ExtraWerkzeug
+  // E231: Hafen (Paper-Bots, Auswertung, Backtest, Not-Aus – nie scharf/auszahlen)
+  | HafenWerkzeug
   | 'bild_bearbeiten'; // E198
 export const LESE_WERKZEUGE: DorfWerkzeug[] = ['vault_lesen', 'vault_liste', 'vault_suchen'];
 /**
@@ -101,6 +104,8 @@ export const BUERGERMEISTER_WERKZEUGE: DorfWerkzeug[] = [
   ...KALENDER_WERKZEUGE,
   // E199: Literatur, Zugverbindungen, Wetter – der Bürgermeister hat Web immer (dienst.ts)
   ...EXTRA_NETZ,
+  // E231: Hafen – Flotte auswerten, Paper-Bots anlegen/ändern, Not-Aus (leine-hafen.ts)
+  ...HAFEN_WERKZEUGE,
 ];
 /**
  * Nur Aktionen mit werkzeuge: [rechenraum]. Der Rechenraum hat weder Internet noch Vault. Heraus kommt nur, was
@@ -171,7 +176,7 @@ export const PLAN_OHNE_FRAGE_MAX_HELFER = 5;
 export const PLAN_OHNE_FRAGE_MAX_USD = 2;
 
 /** Was ein freier Helfer zusätzlich bekommen kann (helfer_starten, Plan-Teilaufgaben) */
-export const HELFER_FAEHIGKEITEN = ['web', 'post', 'kalender', 'moodle', 'rechenraum'] as const;
+export const HELFER_FAEHIGKEITEN = ['web', 'post', 'kalender', 'moodle', 'rechenraum', 'hafen'] as const;
 export type HelferFaehigkeit = (typeof HELFER_FAEHIGKEITEN)[number];
 
 export interface Werkzeugprofil {
@@ -210,6 +215,7 @@ export function werkzeugprofil(a: { werkzeuge: AktionsWerkzeug[]; fremdinhalte: 
   if (a.werkzeuge.includes('post')) dorf.push(...POST_WERKZEUGE);
   if (a.werkzeuge.includes('moodle')) dorf.push(...MOODLE_WERKZEUGE);
   if (a.werkzeuge.includes('kalender')) dorf.push(...KALENDER_WERKZEUGE);
+  if (a.werkzeuge.includes('hafen')) dorf.push(...HAFEN_WERKZEUGE); // E231
   // E199: Werkzeuge, die frei gewählten Text nach draußen schicken (Suchwörter, Orte), nur mit Web – wie die Websuche
   if (a.werkzeuge.includes('web')) dorf.push(...EXTRA_NETZ);
   return { dorf, web: a.werkzeuge.includes('web') };

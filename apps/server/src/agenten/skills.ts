@@ -18,7 +18,7 @@ export const SkillEntwurf = z.object({
   anweisung: z.string().trim().min(10, 'Die Anweisung ist zu kurz.').max(50_000),
   motor: z.enum(['api', 'claude-code']).default('claude-code'),
   stufe: z.enum(['klein', 'mittel', 'gross']).default('mittel'),
-  werkzeuge: z.array(z.enum(['vault_lesen', 'vault_suchen', 'vault_schreiben', 'web', 'rechenraum', 'post', 'moodle', 'kalender'])).default(['vault_lesen', 'vault_suchen', 'vault_schreiben']),
+  werkzeuge: z.array(z.enum(['vault_lesen', 'vault_suchen', 'vault_schreiben', 'web', 'rechenraum', 'post', 'moodle', 'kalender', 'hafen'])).default(['vault_lesen', 'vault_suchen', 'vault_schreiben']),
   fremdinhalte: z.boolean().default(false),
   zeitplan: z.string().trim().max(100).optional(),
   ablage: z.string().trim().max(200).optional(),

@@ -30,6 +30,9 @@ import { meinTodoZeile, type MeineTodos } from './meine-todos.js';
 import { aenderungText, ersetzen, GEDAECHTNIS_PFAD, MAX_GEDAECHTNIS, MAX_PERSOENLICHKEIT, PERSOENLICHKEIT_PFAD, textPruefen } from './gedaechtnis.js';
 import { istExtra } from './leine-extra.js';
 import { EXTRA_DEFINITIONEN, extraAufrufen, type ExtraNetz } from './werkzeuge-extra.js';
+import { istHafen } from './leine-hafen.js';
+import { HAFEN_DEFINITIONEN, hafenAufrufen } from './werkzeuge-hafen.js';
+import type { Hafen } from '../krypto-dorf.js';
 
 /** Beschreibung der Dorf-Werkzeuge – identisch für den api-Motor (Tool-Definition) und den MCP-Server der Werkstatt. */
 export interface WerkzeugDefinition {
@@ -130,7 +133,7 @@ export const WERKZEUG_DEFINITIONEN: Record<DorfWerkzeug, WerkzeugDefinition> = {
   helfer_starten: {
     name: 'helfer_starten',
     description:
-      'Nur für den Bürgermeister: startet einen Helfer ohne Rückfrage – nur für große oder lange Arbeit, Kurzes erledigst du selbst. Mit "aktion" (Name aus aktionen_liste, ohne Gebäude) wird diese Aktion mit "eingaben" gestartet, "auftrag" bekommt sie als Zusatz; ohne "aktion" arbeitet ein freier Helfer im Gebäude nach "auftrag" (mit "faehigkeiten" bekommt er Web, Post, Kalender, Moodle oder Rechenraum). Höchstens 5 Helfer je Aufgabe.',
+      'Nur für den Bürgermeister: startet einen Helfer ohne Rückfrage – nur für große oder lange Arbeit, Kurzes erledigst du selbst. Mit "aktion" (Name aus aktionen_liste, ohne Gebäude) wird diese Aktion mit "eingaben" gestartet, "auftrag" bekommt sie als Zusatz; ohne "aktion" arbeitet ein freier Helfer im Gebäude nach "auftrag" (mit "faehigkeiten" bekommt er Web, Post, Kalender, Moodle, Rechenraum oder Hafen). Höchstens 5 Helfer je Aufgabe.',
     input_schema: {
       type: 'object',
       properties: {
@@ -744,6 +747,7 @@ export const WERKZEUG_DEFINITIONEN: Record<DorfWerkzeug, WerkzeugDefinition> = {
   },
   // ---- E199: Werkzeuge aus der Ideen-Liste (werkzeuge-extra.ts) ----
   ...EXTRA_DEFINITIONEN,
+  ...HAFEN_DEFINITIONEN,
 };
 
 /** Führt die Sonder-Werkzeuge einer Rolle aus (Bürgermeister). */
@@ -798,6 +802,8 @@ export interface LaufKontext {
   rueckfrage?: (f: { chatId: string; frage: string; optionen: string[] }) => Promise<void>;
   /** E199: Abrufe freier Schnittstellen (Literatur, Zug, Wetter, EZB) – feste Adressen, eigene Kennung */
   netz?: ExtraNetz;
+  /** E231: Hafen (Kryptowerk) für hafen_* */
+  hafen?: Hafen;
 }
 
 export interface KalenderEintrag {
@@ -897,6 +903,17 @@ export class WerkzeugKiste {
             this.fremd = true;
           },
           lesen: (p) => this.lesen(p),
+          merken: (art, titel, daten, leise) => this.merken(art, titel, daten, leise),
+        });
+      // E231: Hafen-Werkzeuge (werkzeuge-hafen.ts) – nur Paper, nie scharf/auszahlen
+      if (istHafen(name))
+        return await hafenAufrufen(name, eingabe, {
+          hafen: this.k.hafen,
+          db: this.db,
+          log: (...a) => this.log(...a),
+          fremd: () => {
+            this.fremd = true;
+          },
           merken: (art, titel, daten, leise) => this.merken(art, titel, daten, leise),
         });
       switch (name as DorfWerkzeug) {

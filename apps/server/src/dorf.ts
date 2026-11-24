@@ -103,6 +103,8 @@ const PFLICHT_DATEIEN = [
   // E227 Hafen
   'Hafen/gebaeude.md',
   'Hafen/00_Anleitung.html', // E228: Anleitung zum Hafen
+  'Hafen/aktionen/hafenmeister.md', // E231
+  'Hafen/hafenmeister-logbuch.md', // E231
   // E198 Atelier
   'Atelier/gebaeude.md',
   'Atelier/aktionen/bild-bearbeiten.md',
@@ -151,6 +153,7 @@ const VORLAGE_FRUEHERE_FASSUNGEN: Record<string, string[]> = {
   'Bank/gebaeude.md': ['c2349ea31d50afc797ea1c70c9bc3d43ef0f7f605bb5a6f7d5e43555cb482b37'], // geschlossen bis Etappe 7
   'Einkaufsladen/gebaeude.md': ['b334b038336be925930e612231f6129a7f25a723f111d08af9568117fe45e87f'], // geschlossen bis Etappe 7
   'Marktplatz/gebaeude.md': ['b7332c301634c2889f157d87138f392c3f2a49500a7fb31cc30a9d2d41157358'], // bis E64
+  'Hafen/gebaeude.md': ['33c3703227c34eb878405cb216f46775ee44b737eef1481b58b116966ed026aa'], // E227 (Paper only, Agenten ohne Werkzeuge)
   '00_Stadtordnung/rundgang.md': ['60d05e9a34a9e8acce98164fed4eceea9ce8378ec38696613546e08c94697fb8'], // E192–E199 (18 Aktivitäten)
 };
 
@@ -418,6 +421,7 @@ export async function dorfStarten(
     log: (t) => console.warn(t),
   });
   agenten.saxo = saxo; // E222: depot_* für die Agenten
+  agenten.hafen = hafen; // E231: hafen_* für die Agenten
   boerse.saxoSymbole = () => saxo.symbole(); // E223: Kursverläufe auch für Saxo-Positionen
   boerse.saxoWaehrungen = () => saxo.waehrungen(); // E226: EZB-Kurse für Konto- und Positionswährungen
   const depotZeilen = { zeitungsZeilen: async () => [...saxo.zeitungsZeilen(), ...(await boerse.zeitungsZeilen())] };
@@ -462,6 +466,23 @@ export async function dorfStarten(
     if (jetzt && jetzt.version !== x.version) throw new Error(`${x.pfad} wurde seither wieder geändert – die alte Fassung liegt in ${x.archiv}.`);
     await vault.schreiben(x.pfad, (await vault.lesen(x.archiv)).inhalt);
     return `Alte Fassung wiederhergestellt: ${x.pfad}`;
+  });
+  // E231: Hafen-Taten der Agenten zurücknehmen (ausgeführt vom Dorf; Live-Bots fasst das nie an)
+  agenten.rueckgaengig.registrieren('hafen_bot_angelegt', async (x: { id: string; name: string }) => {
+    await hafen.anfrage('DELETE', `/bots/${x.id}`);
+    return `Bot „${x.name}“ wieder gelöscht.`;
+  });
+  agenten.rueckgaengig.registrieren('hafen_bot_geaendert', async (x: { id: string; vorher: unknown }) => {
+    const f = await hafen.anfrage<KryptoUebersicht>('GET', '/uebersicht');
+    const b = f.bots.find((y) => y.id === x.id);
+    if (!b) throw new Error('Den Bot gibt es nicht mehr.');
+    if (b.modus !== 'paper') throw new Error('Der Bot ist inzwischen scharf – Einstellungen von Live-Bots ändert nur Leif in der App.');
+    await hafen.anfrage('PUT', `/bots/${x.id}`, { einstellung: x.vorher });
+    return `Alte Einstellung von „${b.einstellung.name}“ wiederhergestellt.`;
+  });
+  agenten.rueckgaengig.registrieren('hafen_notaus', async () => {
+    await hafen.anfrage('POST', '/notaus/aufheben', {});
+    return 'Not-Aus aufgehoben – Bots wieder einzeln starten (Flotte).';
   });
   agenten.rueckgaengig.registrieren('datei_verschoben', async (x: { von: string; nach: string }) => `Zurück verschoben: ${await vault.verschieben(x.nach, x.von)}`);
   // E112: Blüte für Morgenzeitung und Wochenrückblick (wie im Dorfstatus)
