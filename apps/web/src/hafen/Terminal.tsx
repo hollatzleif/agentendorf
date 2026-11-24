@@ -1,8 +1,8 @@
 // E227: Terminal „Kielwasser“ – ein Bot live: Kopfzeile, Token-Leiste, Equity-Kerzen, Agent mit Prüfmodulen, Volumen,
 // X-Feed, PnL und das Protokoll. Daten alle 2 s vom Dorf (das sie vom Kryptowerk holt). Alles Paper Trading.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { KRYPTO_KERZEN_TAKTE, type KryptoKerze, type KryptoKerzenTakt, type KryptoModul, type KryptoTerminal, type KryptoTokenKerzen } from '@dorf/shared';
+import { KRYPTO_KERZEN_MS, KRYPTO_KERZEN_TAKTE, type KryptoKerze, type KryptoTrade, type KryptoKerzenTakt, type KryptoModul, type KryptoTerminal, type KryptoTokenKerzen } from '@dorf/shared';
 import { api } from '../api';
 import { linkKlick } from '../router';
 import { farbeAus, prozent, sol, solVz, stundeWien, uhrzeit, usd, usdKurz } from './format';
@@ -165,7 +165,15 @@ function Terminal({ t, jetzt, takt, taktWaehlen }: { t: KryptoTerminal; jetzt: n
             <span className={`kw-lage${t.lage === 'LONG' ? ' long' : ''}`}>{t.lage}</span>
           </div>
           <Ohlc k={t.kerzen.at(-1)} />
-          <EquityKerzen kerzen={t.kerzen} sekunden={(t.kerzenTakt ?? '15m').endsWith('s')} start={k.startSol} letzter={letzterGeschlossen ? { symbol: letzterGeschlossen.symbol, sol: letzterGeschlossen.gewinnSol!, prozent: letzterGeschlossen.gewinnProzent!, usd: t.solUsd } : null} />
+          {letzterGeschlossen && (
+            <p className="kw-letzter" data-testid="letzter-trade">
+              Letzter Trade: <b>{letzterGeschlossen.symbol}</b> · 1× (kein Hebel) ·{' '}
+              <span className={letzterGeschlossen.gewinnSol! >= 0 ? 'plus' : 'minus'}>
+                {solVz(letzterGeschlossen.gewinnSol!)} SOL{t.solUsd ? ` (${usd(letzterGeschlossen.gewinnSol! * t.solUsd)})` : ''} · {prozent(letzterGeschlossen.gewinnProzent!)}
+              </span>
+            </p>
+          )}
+          <EquityKerzen key={t.kerzenTakt ?? '15m'} kerzen={t.kerzen} sekunden={(t.kerzenTakt ?? '15m').endsWith('s')} ms={KRYPTO_KERZEN_MS[t.kerzenTakt ?? '15m']} trades={t.chartTrades ?? t.trades} start={k.startSol} />
         </section>
         <Agent t={t} jetzt={jetzt} />
       </div>
@@ -262,7 +270,7 @@ function Terminal({ t, jetzt, takt, taktWaehlen }: { t: KryptoTerminal; jetzt: n
             </div>
           </div>
           <p className="leise mono" style={{ fontSize: '0.68rem', margin: '0.5rem 0 0' }}>
-            Gebühren: Pump.fun {sol(k.gebuehrenArt.pumpSol, 4)} · PumpPortal {sol(k.gebuehrenArt.portalSol, 4)} · Netz {sol(k.gebuehrenArt.netzSol, 4)}
+            Heute, Gesamt und Bester Trade sind schon nach Gebühren. Gebühren: Pump.fun {sol(k.gebuehrenArt.pumpSol, 4)} · PumpPortal {sol(k.gebuehrenArt.portalSol, 4)} · Netz {sol(k.gebuehrenArt.netzSol, 4)}
             <br />
             {b.modus === 'live' ? 'LIVE – echte Transaktionen über PumpPortal und dein RPC.' : `Paper Trading mit Pump.fun- und PumpPortal-Gebühren, Slippage, ${e.simulation.verzoegerungMs} ms Verzögerung, ${e.simulation.fehlschlagProzent} % Fehlschlägen.`}
           </p>
@@ -363,13 +371,28 @@ function Ohlc({ k }: { k: KryptoKerze | undefined }) {
   );
 }
 
-function EquityKerzen({ kerzen, start, letzter, sekunden = false }: { kerzen: KryptoKerze[]; start: number; sekunden?: boolean; letzter: { symbol: string; sol: number; prozent: number; usd: number | null } | null }) {
+/**
+ * E233: Equity-Kerzen mit Zoom (Mausrad/Knöpfe), Verschieben (Ziehen), Fadenkreuz mit Uhrzeit und Werten, und Markern für
+ * Käufe (▲) und Verkäufe (▼) – Details beim Drüberfahren. Ohne Zoom folgt der Chart dem rechten Rand (neueste Kerze).
+ */
+function EquityKerzen({ kerzen: alle, start, sekunden = false, ms, trades }: { kerzen: KryptoKerze[]; start: number; sekunden?: boolean; ms: number; trades: KryptoTrade[] }) {
   const B = 640;
   const H = 420;
   const R = 62; // Preisskala rechts
-  const O = 10;
-  const U = 20;
-  const werte = kerzen.flatMap((k) => [k.h, k.l]).concat(start);
+  const O = 14;
+  const U = 22;
+  const MIN = 10;
+  const n0 = alle.length;
+  // Ausschnitt: Breite in Kerzen und Abstand vom rechten Rand (0 = folgt der neuesten Kerze)
+  const [sicht, setSicht] = useState<{ breite: number; rechts: number } | null>(null);
+  const [zeiger, setZeiger] = useState<number | null>(null); // Kerzen-Index im Ausschnitt
+  const [marker, setMarker] = useState<{ t: KryptoTrade; x: number; y: number } | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const zieh = useRef<{ x: number; rechts: number; bewegt: boolean } | null>(null);
+  const breite = Math.min(n0, Math.max(MIN, sicht?.breite ?? n0));
+  const rechts = Math.min(Math.max(0, sicht?.rechts ?? 0), Math.max(0, n0 - breite));
+  const kerzen = alle.slice(n0 - rechts - breite, n0 - rechts);
+  const werte = kerzen.flatMap((k) => [k.h, k.l]).concat(rechts === 0 && breite === n0 ? [start] : []);
   let lo = Math.min(...werte);
   let hi = Math.max(...werte);
   if (hi - lo < 1e-9) ((lo -= 0.05 * (start || 1)), (hi += 0.05 * (start || 1)));
@@ -380,11 +403,102 @@ function EquityKerzen({ kerzen, start, letzter, sekunden = false }: { kerzen: Kr
   const n = Math.max(kerzen.length, 24);
   const w = (B - R - 8) / n;
   const x = (i: number) => 4 + (n - kerzen.length + i) * w + w / 2;
-  const jetzt = kerzen.at(-1);
+  const letzte = kerzen.at(-1);
   const skala = Array.from({ length: 5 }, (_, i) => lo + ((hi - lo) * (i + 0.5)) / 5);
+  const f3 = (v: number) => v.toLocaleString('de-DE', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+
+  const zoomen = (faktor: number, anteil = 1) => {
+    const neu = Math.round(Math.min(n0, Math.max(MIN, breite * faktor)));
+    // die Kerze unter der Maus bleibt an ihrem Platz
+    const unter = n0 - rechts - breite + anteil * breite;
+    const links = Math.round(unter - anteil * neu);
+    const r = Math.min(Math.max(0, n0 - (links + neu)), Math.max(0, n0 - neu));
+    setSicht(neu >= n0 ? null : { breite: neu, rechts: r });
+  };
+  const vbX = (clientX: number) => {
+    const r = svgRef.current!.getBoundingClientRect();
+    return ((clientX - r.left) / r.width) * B;
+  };
+  const indexBei = (vx: number) => {
+    const i = Math.round((vx - 4 - w / 2) / w) - (n - kerzen.length);
+    return i >= 0 && i < kerzen.length ? i : null;
+  };
+  // Mausrad: zoomen (nicht die Seite scrollen) – nativ, weil React-Rad-Ereignisse passiv sind
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    const rad = (e: WheelEvent) => {
+      e.preventDefault();
+      const r = el.getBoundingClientRect();
+      const anteil = Math.min(1, Math.max(0, ((e.clientX - r.left) / r.width) * (B / (B - R))));
+      zoomen(e.deltaY > 0 ? 1.2 : 1 / 1.2, anteil);
+    };
+    el.addEventListener('wheel', rad, { passive: false });
+    return () => el.removeEventListener('wheel', rad);
+  });
+
+  // Marker: Käufe/Verkäufe an ihrer Kerze, gestapelt, wenn mehrere in eine Kerze fallen
+  const imAusschnitt = kerzen.length ? trades.filter((t) => (t.art === 'kauf' || t.art === 'verkauf') && t.zeit >= kerzen[0]!.zeit && t.zeit < kerzen.at(-1)!.zeit + ms) : [];
+  const zaehler = new Map<string, number>();
+  const marken = imAusschnitt.map((t) => {
+    const slot = Math.floor(t.zeit / ms) * ms;
+    const i = kerzen.findIndex((k) => k.zeit === slot);
+    const k = kerzen[i];
+    if (i < 0 || !k) return null;
+    const schluessel = `${i}-${t.art}`;
+    const nr = zaehler.get(schluessel) ?? 0;
+    zaehler.set(schluessel, nr + 1);
+    const kauf = t.art === 'kauf';
+    const my = kauf ? Math.min(H - U + 8, y(k.l) + 12 + nr * 11) : Math.max(6, y(k.h) - 12 - nr * 11);
+    return { t, mx: x(i), my, kauf };
+  }).filter((m): m is { t: KryptoTrade; mx: number; my: number; kauf: boolean } => !!m);
+
+  const z = zeiger != null ? kerzen[zeiger] : null;
   return (
     <div className="kw-chart">
-      <svg viewBox={`0 0 ${B} ${H}`} role="img" aria-label={`Equity: ${jetzt ? jetzt.c.toFixed(3) : start.toFixed(3)} SOL, Start ${start.toFixed(3)} SOL`}>
+      <div className="kw-zoom" role="group" aria-label="Zoom">
+        <button type="button" onClick={() => zoomen(1 / 1.5)} aria-label="Hineinzoomen" disabled={breite <= MIN}>
+          +
+        </button>
+        <button type="button" onClick={() => zoomen(1.5)} aria-label="Herauszoomen" disabled={!sicht}>
+          −
+        </button>
+        <button type="button" onClick={() => setSicht(null)} disabled={!sicht}>
+          Alles
+        </button>
+      </div>
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${B} ${H}`}
+        role="img"
+        aria-label={`Equity: ${letzte ? letzte.c.toFixed(3) : start.toFixed(3)} SOL, Start ${start.toFixed(3)} SOL, ${kerzen.length} Kerzen, ${marken.length} Trades`}
+        style={{ touchAction: 'none', cursor: zieh.current ? 'grabbing' : 'crosshair' }}
+        onPointerDown={(e) => {
+          zieh.current = { x: e.clientX, rechts, bewegt: false };
+          (e.target as Element).setPointerCapture?.(e.pointerId);
+        }}
+        onPointerMove={(e) => {
+          const vx = vbX(e.clientX);
+          if (zieh.current) {
+            const r = svgRef.current!.getBoundingClientRect();
+            const dx = ((e.clientX - zieh.current.x) / r.width) * B;
+            if (Math.abs(dx) > 3) zieh.current.bewegt = true;
+            if (zieh.current.bewegt && sicht) {
+              const r2 = Math.round(zieh.current.rechts + dx / w);
+              setSicht({ breite, rechts: Math.min(Math.max(0, r2), n0 - breite) });
+            }
+          }
+          setZeiger(indexBei(vx));
+        }}
+        onPointerUp={() => {
+          zieh.current = null;
+        }}
+        onPointerLeave={() => {
+          zieh.current = null;
+          setZeiger(null);
+        }}
+        onDoubleClick={() => setSicht(null)}
+      >
         {skala.map((v) => (
           <g key={v}>
             <line x1={0} x2={B - R} y1={y(v)} y2={y(v)} stroke="#1c2236" strokeWidth={1} />
@@ -393,39 +507,84 @@ function EquityKerzen({ kerzen, start, letzter, sekunden = false }: { kerzen: Kr
             </text>
           </g>
         ))}
-        <line x1={0} x2={B - R} y1={y(start)} y2={y(start)} stroke="#8a90a8" strokeDasharray="4 4" strokeWidth={1} />
-        <text x={4} y={y(start) - 4} fill="#8a90a8" fontSize={10} fontFamily="ui-monospace, monospace">
-          Start {start.toFixed(2)}
-        </text>
+        {start > lo && start < hi && (
+          <g>
+            <line x1={0} x2={B - R} y1={y(start)} y2={y(start)} stroke="#8a90a8" strokeDasharray="4 4" strokeWidth={1} />
+            <text x={4} y={y(start) - 4} fill="#8a90a8" fontSize={10} fontFamily="ui-monospace, monospace">
+              Start {start.toFixed(2)}
+            </text>
+          </g>
+        )}
         {kerzen.map((k, i) => {
           const auf = k.c >= k.o;
           const farbe = auf ? '#22c55e' : '#f43f5e';
-          const kw = Math.max(2, w * 0.62);
+          const kw = Math.max(1.5, w * 0.62);
           return (
             <g key={k.zeit}>
-              <title>{`${uhrzeit(k.zeit, sekunden)} O ${k.o.toFixed(3)} H ${k.h.toFixed(3)} L ${k.l.toFixed(3)} C ${k.c.toFixed(3)}`}</title>
               <line x1={x(i)} x2={x(i)} y1={y(k.h)} y2={y(k.l)} stroke={farbe} strokeWidth={1.5} />
               <rect x={x(i) - kw / 2} y={Math.min(y(k.o), y(k.c))} width={kw} height={Math.max(1.5, Math.abs(y(k.o) - y(k.c)))} rx={1.5} fill={farbe} />
             </g>
           );
         })}
-        {jetzt && (
+        {letzte && rechts === 0 && (
           <g>
-            <line x1={0} x2={B - R} y1={y(jetzt.c)} y2={y(jetzt.c)} stroke="#8b5cf6" strokeWidth={1} opacity={0.6} />
-            <rect x={B - R + 1} y={y(jetzt.c) - 9} width={R - 2} height={18} rx={4} fill="#8b5cf6" />
-            <text x={B - R + 6} y={y(jetzt.c) + 4} fill="#fff" fontSize={10.5} fontWeight={700} fontFamily="ui-monospace, monospace">
-              {jetzt.c.toFixed(3)}
+            <line x1={0} x2={B - R} y1={y(letzte.c)} y2={y(letzte.c)} stroke="#8b5cf6" strokeWidth={1} opacity={0.6} />
+            <rect x={B - R + 1} y={y(letzte.c) - 9} width={R - 2} height={18} rx={4} fill="#8b5cf6" />
+            <text x={B - R + 6} y={y(letzte.c) + 4} fill="#fff" fontSize={10.5} fontWeight={700} fontFamily="ui-monospace, monospace">
+              {letzte.c.toFixed(3)}
             </text>
           </g>
         )}
+        {z && (
+          <g pointerEvents="none">
+            <line x1={x(zeiger!)} x2={x(zeiger!)} y1={O} y2={H - U} stroke="#c4b5fd" strokeDasharray="3 3" strokeWidth={1} />
+            <line x1={0} x2={B - R} y1={y(z.c)} y2={y(z.c)} stroke="#c4b5fd" strokeDasharray="3 3" strokeWidth={1} opacity={0.6} />
+          </g>
+        )}
+        {marken.map((m) => (
+          <g
+            key={m.t.id}
+            className="kw-marker"
+            onPointerEnter={() => setMarker({ t: m.t, x: m.mx, y: m.my })}
+            onPointerLeave={() => setMarker(null)}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              setMarker({ t: m.t, x: m.mx, y: m.my });
+            }}
+          >
+            <circle cx={m.mx} cy={m.my} r={8} fill="transparent" />
+            <path d={m.kauf ? `M${m.mx} ${m.my - 5} L${m.mx + 5} ${m.my + 4} L${m.mx - 5} ${m.my + 4} Z` : `M${m.mx} ${m.my + 5} L${m.mx + 5} ${m.my - 4} L${m.mx - 5} ${m.my - 4} Z`} fill={m.kauf ? '#22c55e' : '#f43f5e'} stroke="#0d1117" strokeWidth={1} />
+          </g>
+        ))}
       </svg>
-      {letzter && (
-        <div className="kw-popup" style={{ right: '13%', top: '0.6rem' }}>
-          <b>{letzter.symbol}</b> · 1× (kein Hebel)
+      {z && !marker && (
+        <div className="kw-fadenkreuz" style={{ left: `${Math.min(70, (x(zeiger!) / B) * 100 + 2)}%` }} data-testid="chart-zeiger">
+          <b>{uhrzeit(z.zeit, sekunden)}</b>
+          <br />O {f3(z.o)} · H {f3(z.h)}
+          <br />L {f3(z.l)} · C <span className={z.c >= z.o ? 'plus' : 'minus'}>{f3(z.c)}</span>
           <br />
-          <span className={letzter.sol >= 0 ? 'plus' : 'minus'}>
-            {solVz(letzter.sol)} SOL{letzter.usd ? ` (${usd(letzter.sol * letzter.usd)})` : ''} · {prozent(letzter.prozent)}
-          </span>
+          <span className={z.c >= start ? 'plus' : 'minus'}>{prozent((z.c / start - 1) * 100)} seit Start</span>
+        </div>
+      )}
+      {marker && (
+        <div className="kw-fadenkreuz" style={{ left: `${Math.min(62, (marker.x / B) * 100 + 2)}%`, top: `${Math.min(70, (marker.y / H) * 100)}%` }} data-testid="chart-marker">
+          <b className={marker.t.art === 'kauf' ? 'plus' : 'minus'}>
+            {marker.t.art === 'kauf' ? '▲ Kauf' : '▼ Verkauf'} {marker.t.symbol}
+          </b>
+          <br />
+          {uhrzeit(marker.t.zeit, true)} · {marker.t.sol.toLocaleString('de-DE', { maximumFractionDigits: 4 })} SOL
+          <br />
+          Kurs {marker.t.preis.toExponential(3)} · Gebühr {marker.t.gebuehrSol.toLocaleString('de-DE', { maximumFractionDigits: 4 })} SOL
+          {marker.t.gewinnSol != null && (
+            <>
+              <br />
+              <span className={marker.t.gewinnSol >= 0 ? 'plus' : 'minus'}>
+                Ergebnis {solVz(marker.t.gewinnSol)} SOL ({prozent(marker.t.gewinnProzent ?? 0)})
+              </span>
+            </>
+          )}
+          <br />
+          <span className="leise">{marker.t.grund}</span>
         </div>
       )}
     </div>

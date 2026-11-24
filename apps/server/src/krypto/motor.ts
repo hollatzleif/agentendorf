@@ -67,6 +67,9 @@ const MIGRATIONEN = [
    CREATE INDEX wallets_bot ON wallets (bot_id);
    CREATE TABLE rug_verlauf (mint TEXT NOT NULL, zeit INTEGER NOT NULL, json TEXT NOT NULL, PRIMARY KEY (mint, zeit));
    CREATE INDEX kurse_zeit ON kurse (zeit);`,
+  // E233: feine Equity-Proben (jeder Takt + Echtzeit-Trades), 6 h – für 5-s- bis 5-min-Kerzen auch nach einem Neustart
+  `CREATE TABLE equity_fein (bot_id TEXT NOT NULL, zeit INTEGER NOT NULL, wert REAL NOT NULL);
+   CREATE INDEX equity_fein_bot ON equity_fein (bot_id, zeit);`,
 ];
 
 export function kryptoDb(datei: string): KDB {
@@ -208,18 +211,9 @@ export class Kryptowerk {
   private stromKurs = new Map<string, { zeit: number; preis: number; vSol: number }>();
   private stromTicks = new Map<string, { zeit: number; preis: number; kauf: boolean }[]>();
   private zuletztGepflegt = 0;
-  /** E233: feine Equity-Proben je Bot (jeder Takt + Echtzeit-Trades gehaltener Tokens), letzte 6 h – für 5-s- bis 5-min-Kerzen */
-  private equityProben = new Map<string, { zeit: number; wert: number }[]>();
-
+  /** E233: feine Equity-Probe (jeder Takt + Echtzeit-Trades gehaltener Tokens) – in der DB, damit ein Neustart nichts verliert */
   private probeMerken(botId: string, kasse: number) {
-    const jetzt = this.o.uhr.jetzt();
-    const l = this.equityProben.get(botId) ?? [];
-    l.push({ zeit: jetzt, wert: this.equityWert(botId, kasse) });
-    if (l.length > 1000 && jetzt - l[0]!.zeit > 6 * 3_600_000) {
-      const ab = l.findIndex((p) => jetzt - p.zeit <= 6 * 3_600_000);
-      l.splice(0, ab);
-    }
-    this.equityProben.set(botId, l);
+    this.o.db.prepare('INSERT INTO equity_fein (bot_id, zeit, wert) VALUES (?, ?, ?)').run(botId, this.o.uhr.jetzt(), this.equityWert(botId, kasse));
   }
 
   private liveLaeuft = new Set<Auftrag>();
@@ -314,7 +308,7 @@ export class Kryptowerk {
     if (g && g.sol > 0.001) throw new KryptoFehler(409, `Im Wallet liegen noch ${g.sol.toFixed(4)} SOL – erst auszahlen.`);
     this.o.tresor?.archivieren(id);
     const tx = this.o.db.transaction(() => {
-      for (const t of ['positionen', 'trades', 'entscheidungen', 'equity']) this.o.db.prepare(`DELETE FROM ${t} WHERE bot_id = ?`).run(id);
+      for (const t of ['positionen', 'trades', 'entscheidungen', 'equity', 'equity_fein']) this.o.db.prepare(`DELETE FROM ${t} WHERE bot_id = ?`).run(id);
       this.o.db.prepare('DELETE FROM bots WHERE id = ?').run(id);
     });
     tx();
@@ -1041,6 +1035,7 @@ export class Kryptowerk {
     if (jetzt - Number(this.stand('aufgeraeumt') ?? 0) < 3_600_000) return;
     this.standSetzen('aufgeraeumt', String(jetzt));
     this.o.db.prepare('DELETE FROM kurse WHERE zeit < ?').run(jetzt - KURSE_BEHALTEN);
+    this.o.db.prepare('DELETE FROM equity_fein WHERE zeit < ?').run(jetzt - 6 * 3_600_000);
     this.o.db.prepare("DELETE FROM entscheidungen WHERE aktion IN ('block', 'hold') AND zeit < ?").run(jetzt - 7 * 86_400_000);
     this.o.db.prepare('DELETE FROM equity WHERE zeit < ? AND zeit % 3600000 != 0').run(jetzt - 7 * 86_400_000);
     const fenster = Math.max(this.fensterSek() * 1000, 30 * MINUTE);
@@ -1139,8 +1134,12 @@ export class Kryptowerk {
     return (this.o.db.prepare('SELECT id, zeit, mint, symbol, aktion, sicherheit, grund, quelle FROM entscheidungen WHERE bot_id = ? AND id < ? ORDER BY id DESC LIMIT ?').all(id, vor, anzahl) as KryptoEntscheidung[]).map((x) => ({ ...x }));
   }
 
-  private trades(id: string, anzahl: number, vor = Number.MAX_SAFE_INTEGER): KryptoTrade[] {
-    const zeilen = this.o.db.prepare('SELECT t.*, p.offen AS p_offen, p.gewinn_sol AS p_gewinn, p.einsatz_sol AS p_einsatz FROM trades t LEFT JOIN positionen p ON p.id = t.position_id WHERE t.bot_id = ? AND t.id < ? ORDER BY t.id DESC LIMIT ?').all(id, vor, anzahl) as (Record<string, number | string | null> & { art: KryptoTrade['art'] })[];
+  private trades(id: string, anzahl: number, vor = Number.MAX_SAFE_INTEGER, abZeit?: number): KryptoTrade[] {
+    const zeilen = (
+      abZeit != null
+        ? this.o.db.prepare("SELECT t.*, p.offen AS p_offen, p.gewinn_sol AS p_gewinn, p.einsatz_sol AS p_einsatz FROM trades t LEFT JOIN positionen p ON p.id = t.position_id WHERE t.bot_id = ? AND t.zeit >= ? AND t.art IN ('kauf', 'verkauf') ORDER BY t.id DESC LIMIT ?").all(id, abZeit, anzahl)
+        : this.o.db.prepare('SELECT t.*, p.offen AS p_offen, p.gewinn_sol AS p_gewinn, p.einsatz_sol AS p_einsatz FROM trades t LEFT JOIN positionen p ON p.id = t.position_id WHERE t.bot_id = ? AND t.id < ? ORDER BY t.id DESC LIMIT ?').all(id, vor, anzahl)
+    ) as (Record<string, number | string | null> & { art: KryptoTrade['art'] })[];
     return zeilen.map((t) => {
       const letzterVerkauf = t.art === 'verkauf' && t.p_offen === 0 && (this.o.db.prepare("SELECT MAX(id) AS m FROM trades WHERE position_id = ? AND art = 'verkauf'").get(t.position_id) as { m: number }).m === t.id;
       return {
@@ -1162,27 +1161,37 @@ export class Kryptowerk {
   }
 
   /**
-   * E233: Equity-Kerzen im gewünschten Takt. 5 s bis 5 min aus den feinen Proben (Speicher, letzte 6 h); fehlen die (nach
-   * einem Neustart), aus der Minuten-Equity der Datenbank. 15 min wie bisher aus der Datenbank (24 h).
+   * E233: Equity-Kerzen im gewünschten Takt über den GANZEN Zeitraum (nicht erst ab jetzt): feine Proben (DB, 6 h), davor die
+   * Minuten-Equity; Abschnitte ohne Bewegung werden als flache Kerze gefüllt, damit der Chart lückenlos von links bis jetzt reicht.
    */
   private equityKerzen(id: string, takt: KryptoKerzenTakt, jetzt: number, aktuell: number): KryptoKerze[] {
     const ms = KRYPTO_KERZEN_MS[takt];
     const anzahl = { '5s': 120, '15s': 120, '1m': 120, '5m': 72, '15m': 96 }[takt];
-    const ab = jetzt - ms * anzahl;
-    const proben = (this.equityProben.get(id) ?? []).filter((p) => p.zeit >= ab);
-    const reihe =
-      takt !== '15m' && proben.length >= 2
-        ? proben
-        : (this.o.db.prepare('SELECT zeit, wert FROM equity WHERE bot_id = ? AND zeit >= ? ORDER BY zeit').all(id, takt === '15m' ? jetzt - 86_400_000 : ab) as { zeit: number; wert: number }[]);
-    const alle = [...reihe, { zeit: jetzt, wert: aktuell }];
-    const kerzen: KryptoKerze[] = [];
-    for (const r of alle) {
+    const letzteZeit = Math.floor(jetzt / ms) * ms;
+    const ab = letzteZeit - ms * (anzahl - 1);
+    const fein = takt === '15m' ? [] : (this.o.db.prepare('SELECT zeit, wert FROM equity_fein WHERE bot_id = ? AND zeit >= ? ORDER BY zeit').all(id, ab) as { zeit: number; wert: number }[]);
+    const grob = (this.o.db.prepare('SELECT zeit, wert FROM equity WHERE bot_id = ? AND zeit >= ? ORDER BY zeit').all(id, ab) as { zeit: number; wert: number }[]).filter((r) => !fein.length || r.zeit < fein[0]!.zeit);
+    const reihe = [...grob, ...fein, { zeit: jetzt, wert: aktuell }];
+    // Wert direkt vor dem Zeitraum (Startpunkt links); ohne ihn beginnt der Chart beim ersten bekannten Wert
+    const vorher = this.o.db.prepare('SELECT wert FROM equity WHERE bot_id = ? AND zeit < ? ORDER BY zeit DESC LIMIT 1').get(id, ab) as { wert: number } | undefined;
+    const proSlot = new Map<number, { o: number; h: number; l: number; c: number }>();
+    for (const r of reihe) {
       const z = Math.floor(r.zeit / ms) * ms;
-      const k = kerzen.at(-1);
-      if (k && k.zeit === z) ((k.h = Math.max(k.h, r.wert)), (k.l = Math.min(k.l, r.wert)), (k.c = r.wert));
-      else kerzen.push({ zeit: z, o: k?.c ?? r.wert, h: Math.max(k?.c ?? r.wert, r.wert), l: Math.min(k?.c ?? r.wert, r.wert), c: r.wert });
+      const k = proSlot.get(z);
+      if (k) ((k.h = Math.max(k.h, r.wert)), (k.l = Math.min(k.l, r.wert)), (k.c = r.wert));
+      else proSlot.set(z, { o: r.wert, h: r.wert, l: r.wert, c: r.wert });
     }
-    return kerzen.slice(-anzahl);
+    const start = vorher ? ab : Math.floor(reihe[0]!.zeit / ms) * ms;
+    const kerzen: KryptoKerze[] = [];
+    let zuletzt = vorher?.wert ?? reihe[0]!.wert;
+    for (let z = Math.max(start, ab); z <= letzteZeit; z += ms) {
+      const k = proSlot.get(z);
+      // lückenlos: Eröffnung = letzter Schluss; ohne Daten im Abschnitt eine flache Kerze
+      if (k) kerzen.push({ zeit: z, o: zuletzt, h: Math.max(zuletzt, k.h), l: Math.min(zuletzt, k.l), c: k.c });
+      else kerzen.push({ zeit: z, o: zuletzt, h: zuletzt, l: zuletzt, c: zuletzt });
+      zuletzt = kerzen.at(-1)!.c;
+    }
+    return kerzen;
   }
 
   terminal(id: string, takt: KryptoKerzenTakt = '15m'): KryptoTerminal {
@@ -1239,6 +1248,7 @@ export class Kryptowerk {
       solUsd: this.solUsd,
       kerzen,
       kerzenTakt: takt,
+      chartTrades: kerzen.length ? this.trades(id, 500, undefined, kerzen[0]!.zeit) : [],
       lage: positionen.length ? 'LONG' : 'FLAT',
       positionen,
       trades: this.trades(id, 30),

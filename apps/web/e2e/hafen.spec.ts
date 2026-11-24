@@ -77,8 +77,24 @@ test('Terminal Kielwasser: Kopf, Token-Leiste, Equity-Kerzen, Agent mit Modulen,
   const echt = page.getByRole('region', { name: 'Echtzeit-Kurse' });
   await expect(echt.getByTestId('echtzeit-status')).toContainText('● live · 7 Tokens · 42 Trades/min · 12,4 MB heute');
   await expect(echt).toContainText('MOONCAT · gehalten');
-  // E233: Kerzen-Takt der Equity – 5 s bis 15 min, Anfrage mit ?takt=…, Wahl bleibt gemerkt
+  // E233: Chart – kein Feld über den Kerzen mehr (letzter Trade steht darüber), Marker für Kauf/Verkauf, Fadenkreuz, Zoom
   const eq = page.getByRole('region', { name: 'Bot-Equity' });
+  await expect(eq.locator('.kw-popup')).toHaveCount(0);
+  await expect(eq.getByTestId('letzter-trade')).toContainText('PEPEZ');
+  const chart = eq.getByRole('img', { name: /Equity:/ });
+  await expect(chart).toHaveAttribute('aria-label', /60 Kerzen, 2 Trades/); // Fehlschlag ist kein Marker
+  await eq.locator('.kw-marker').first().hover();
+  await expect(eq.getByTestId('chart-marker')).toContainText(/Verkauf PEPEZ|Kauf MOONCAT/);
+  await expect(eq.getByTestId('chart-marker')).toContainText('Gebühr');
+  const box = (await chart.boundingBox())!;
+  await page.mouse.move(box.x + box.width * 0.4, box.y + box.height * 0.5);
+  await expect(eq.getByTestId('chart-zeiger')).toContainText(/\d\d:\d\d/);
+  await expect(eq.getByTestId('chart-zeiger')).toContainText('seit Start');
+  await eq.getByRole('button', { name: 'Hineinzoomen' }).click();
+  await expect(chart).toHaveAttribute('aria-label', /40 Kerzen/);
+  await eq.getByRole('button', { name: 'Alles' }).click();
+  await expect(chart).toHaveAttribute('aria-label', /60 Kerzen/);
+  // E233: Kerzen-Takt der Equity – 5 s bis 15 min, Anfrage mit ?takt=…, Wahl bleibt gemerkt
   await expect(eq.getByRole('group', { name: 'Kerzen-Takt' }).getByRole('button')).toHaveText(['5 s', '15 s', '1 min', '5 min', '15 min']);
   await eq.getByRole('button', { name: '5 s', exact: true }).click();
   await expect(eq.getByRole('heading')).toHaveText('Bot-Equity · 5 s');

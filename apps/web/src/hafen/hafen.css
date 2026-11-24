@@ -172,3 +172,11 @@
 .kw-takte button { appearance: none; border: 0; background: none; color: inherit; opacity: 0.7; font-family: var(--kw-mono); font-size: 0.72rem; padding: 0.2rem 0.55rem; border-radius: 999px; cursor: pointer; }
 .kw-takte button.an { background: var(--kw-lila); color: #fff; opacity: 1; }
 .kw-takte button:focus-visible { outline: 2px solid var(--kw-lila); outline-offset: 1px; }
+
+/* E233: Chart – Zoom, Fadenkreuz, Marker, letzter Trade (statt Feld über den Kerzen) */
+.kw-letzter { margin: 0.2rem 0 0; font-family: var(--kw-mono); font-size: 0.72rem; opacity: 0.85; }
+.kw-zoom { position: absolute; left: 0.4rem; top: 0.2rem; display: inline-flex; gap: 2px; z-index: 1; }
+.kw-zoom button { appearance: none; border: 1px solid var(--kw-rand); background: var(--kw-tafel2); color: inherit; font-family: var(--kw-mono); font-size: 0.72rem; min-width: 1.8rem; padding: 0.15rem 0.45rem; border-radius: 6px; cursor: pointer; }
+.kw-zoom button:disabled { opacity: 0.35; cursor: default; }
+.kw-fadenkreuz { position: absolute; top: 2.2rem; background: var(--kw-tafel2); border: 1px solid var(--kw-lila); border-radius: 8px; padding: 0.3rem 0.5rem; font-family: var(--kw-mono); font-size: 0.7rem; line-height: 1.45; pointer-events: none; box-shadow: 0 6px 20px rgb(0 0 0 / 0.45); max-width: 18rem; z-index: 2; }
+.kw-marker { cursor: pointer; }

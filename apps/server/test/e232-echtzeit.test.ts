@@ -278,6 +278,18 @@ describe('Motor mit Echtzeit-Kursen (E232)', () => {
     expect(fuenf.kerzen.length).toBeGreaterThan(10);
     for (const k of fuenf.kerzen) expect(k.zeit % 5000).toBe(0);
     for (let i = 1; i < fuenf.kerzen.length; i++) expect(fuenf.kerzen[i]!.o).toBeCloseTo(fuenf.kerzen[i - 1]!.c, 12); // lückenlos
+    // Neustart (Deploy): neues Kryptowerk auf derselben Datenbank → die 5-s-Historie ist noch da, nicht erst ab jetzt
+    const db = (x.werk as unknown as { o: { db: import('../src/krypto/motor.js').KDB } }).o.db;
+    const neu = new Kryptowerk({ db, uhr: x.uhr, dex: {} as never, rug: {} as never });
+    const nachStart = neu.terminal(bot.id, '5s');
+    expect(nachStart.kerzen.length).toBeGreaterThanOrEqual(fuenf.kerzen.length);
+    expect(nachStart.kerzen[0]!.zeit).toBe(fuenf.kerzen[0]!.zeit);
+    // 5 min ohne Takt (kein Trade, nichts los) → der Chart reicht trotzdem lückenlos bis jetzt (flache Kerzen)
+    x.uhr.vor(5 * 60_000);
+    const spaeter = x.werk.terminal(bot.id, '5s').kerzen;
+    expect(spaeter.at(-1)!.zeit).toBe(Math.floor(x.uhr.jetzt() / 5000) * 5000);
+    for (let i = 1; i < spaeter.length; i++) expect(spaeter[i]!.zeit - spaeter[i - 1]!.zeit).toBe(5000);
+    expect(spaeter.length).toBeLessThanOrEqual(120);
     const minute = x.werk.terminal(bot.id, '1m');
     expect(minute.kerzen.length).toBeLessThan(fuenf.kerzen.length);
     for (const k of minute.kerzen) expect(k.zeit % 60_000).toBe(0);

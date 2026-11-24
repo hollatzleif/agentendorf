@@ -264,6 +264,8 @@ export interface KryptoTerminal {
   tokenKerzen?: KryptoTokenKerzen[];
   /** E233: Takt der Equity-Kerzen in `kerzen` */
   kerzenTakt?: KryptoKerzenTakt;
+  /** E233: Käufe/Verkäufe im Zeitraum der Kerzen (für die Marker im Chart, höchstens 500) */
+  chartTrades?: KryptoTrade[];
 }
 
 /** E233: Kerzen-Takt der Bot-Equity im Terminal */

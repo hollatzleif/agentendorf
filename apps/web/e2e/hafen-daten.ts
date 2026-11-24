@@ -33,7 +33,8 @@ export function terminal(): KryptoTerminal {
   const kerzen = Array.from({ length: 60 }, (_, i) => {
     const o = 10 + i * 0.03 + Math.sin(i / 3) * 0.25;
     const c = 10 + (i + 1) * 0.03 + Math.sin((i + 1) / 3) * 0.25;
-    return { zeit: jetzt - (60 - i) * 900_000, o, c, h: Math.max(o, c) + 0.08, l: Math.min(o, c) - 0.06 };
+    // auf 15-min-Grenzen wie vom Server (die Marker suchen ihre Kerze über die Slot-Zeit)
+    return { zeit: Math.floor(jetzt / 900_000) * 900_000 - (59 - i) * 900_000, o, c, h: Math.max(o, c) + 0.08, l: Math.min(o, c) - 0.06 };
   });
   const module = KRYPTO_MODULE.map((m, i) => ({
     ...m,
