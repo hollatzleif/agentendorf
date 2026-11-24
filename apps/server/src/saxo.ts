@@ -522,6 +522,22 @@ export class Saxo {
     return bewegungZeilen(b, 3);
   }
 
+  /** E225: Telegram /depot – Kontowert, Rendite, heute die größten Ausschläge, gestern */
+  kurzbericht(): string[] {
+    const u = this.uebersicht();
+    if (!u.eingerichtet) return [];
+    if (!u.stand) return [u.verbunden ? 'Saxo: noch kein Stand abgerufen.' : 'Saxo ist nicht verbunden (App → Börse → „Mit Saxo verbinden“).'];
+    const st = u.stand;
+    const pr = (n: number | null) => (n == null ? '–' : `${n >= 0 ? '+' : '−'}${Math.abs(n * 100).toFixed(1).replace('.', ',')} %`);
+    const z = [`<b>Saxo</b> ${st.gesamt != null ? geldText(st.gesamt, st.waehrung) : '–'} · Jahr ${pr(u.renditeJahr)} · 12 Monate ${pr(u.rendite12Monate)}${u.verbunden ? '' : ' (getrennt)'}`];
+    const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const heute = st.positionen.filter((p) => p.tagProzent != null).sort((a, b) => Math.abs(b.tagProzent!) - Math.abs(a.tagProzent!)).slice(0, 4);
+    if (heute.length) z.push(`Zuletzt bewegt: ${heute.map((p) => `${esc(p.name)} ${p.tagProzent! >= 0 ? '+' : '−'}${Math.abs(p.tagProzent!).toFixed(1).replace('.', ',')} %`).join(' · ')}`);
+    const g = this.gesternZeilen();
+    if (g.length) z.push(`Gestern: ${g[0]}`);
+    return z;
+  }
+
   /** Morgenzeitung: Saxo-Depotwert und Rendite seit Jahresbeginn */
   zeitungsZeilen(): string[] {
     const u = this.uebersicht();

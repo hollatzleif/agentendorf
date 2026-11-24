@@ -515,6 +515,7 @@ export async function dorfStarten(
       woche: wochenrueckblick,
       suche,
       noten,
+      depot: async () => [...saxo.kurzbericht(), ...(await boerse.zeitungsZeilen()).map((x) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;'))],
       statistik: (n) => statistik({ db, uhr, todos, gewohnheiten }, n),
       log: (t) => console.warn(t),
     });

@@ -178,3 +178,14 @@ describe('Saxo-Bewegungen (E222)', () => {
     expect(a?.fehler).toBeUndefined();
   });
 });
+
+describe('Telegram /depot (E225)', () => {
+  it('Kontowert, zuletzt bewegt, gestern – als Kurzbericht', async () => {
+    const x = await aufbau();
+    await zweiTage(x);
+    await vor(x, 86_400_000);
+    const z = x.d.saxo.kurzbericht();
+    expect(z[0]).toMatch(/^<b>Saxo<\/b> 14\.000,00 €/);
+    expect(z.join('\n')).toContain('Gestern: Kontowert 14.000,00 € (+1.500,00 €');
+  });
+});

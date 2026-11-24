@@ -140,6 +140,8 @@ export class TelegramBot {
       suche?: { suchen(q: string, grenze?: number): Suchtreffer[] };
       /** E113: /noten */
       noten?: { stand(): Promise<NotenStand> };
+      /** E225: /depot – Saxo und eigenes Depot kurz */
+      depot?: () => Promise<string[]>;
       /** Nacht 18./19.11.: /fokus – Pomodoro starten */
       /** E139: Lernziele dieser Woche */
       lernStand?: () => Promise<{ fach: string; zielMin: number; istMin: number }[]>;
@@ -328,6 +330,7 @@ export class TelegramBot {
     { command: 'termin', description: 'Termin in den Kalender: /termin morgen 14 Uhr Zahnarzt' },
     { command: 'woche', description: 'Deine Woche: Ziele, Termine, Fristen, Fälliges' },
     { command: 'noten', description: 'Notenschnitt und ECTS' },
+    { command: 'depot', description: 'Depot kurz: Wert, Rendite, was sich bewegt' },
     { command: 'suche', description: 'Im Vault suchen: /suche <Begriff>' },
     { command: 'statistik', description: 'Die letzten 7 Tage: Erledigtes, Fokus, Gewohnheiten' },
     { command: 'aufraeumen', description: 'Überfällige To-dos nacheinander: heute, morgen, nächste Woche, erledigt' },
@@ -626,7 +629,7 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
   private async befehl(b: string) {
     if (b === '/start' || b === '/hilfe' || b === '/help')
       return this.senden(
-        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text, Sprachnachricht, Foto oder Datei (Bildunterschrift = Auftrag; Word, Excel, PDF, Mail, ZIP … alles geht) – sie landet auf dem Schreibtisch des Bürgermeisters. Weiterschreiben (auch Dateien) setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch); antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n<b>📅 Planen</b>\n/heute – dein Tag · /morgen – der nächste Tag · /woche – die nächsten 7 Tage\n/plan [morgen] – To-dos in freie Kalenderlücken\n/verteilen – To-dos ohne Datum auf die Woche verteilen\n/fristen – Abgaben und Prüfungen (7 Tage)\n/termin &lt;wann&gt; &lt;was&gt; – Termin eintragen (mit Bestätigung)\n\n<b>✅ Erledigen</b>\n/todo [Text] – To-do-Liste bzw. neues To-do (auch „… jeden Montag“)\n/einkauf [Text] – Einkaufsliste\n/erinner &lt;wann&gt; &lt;was&gt; – Erinnerung (läutet im Kirchturm)\n/aufraeumen – Überfälliges neu einplanen · /wartet – worauf du wartest\n/projekte – Fortschritt deiner Projekte (Gruppen)\n/jetzt – was jetzt passt (mit 🍅 Los) · /fokus [Thema] – Pomodoro starten\n/gewohnheiten – heute abhaken · /ziel [Text] – Wochenziele\n\n<b>🎓 Lernen</b>\n/lernen – Lernziele der Woche, 🍅 je Fach\n/karten [Fach] – Karteikarten · /moodle &lt;Fach&gt; [Frage] – in Moodle nachsehen\n/noten – Notenschnitt und ECTS\n\n<b>📝 Festhalten &amp; Finden</b>\n/notiz &lt;Text&gt; – Tagesnotiz · /suche &lt;Begriff&gt; – im Vault suchen\n/statistik – die letzten 7 Tage\n\n<b>🏛️ Dorf</b>\n/status – was läuft · /freigaben – offene Freigaben\n/aktion [Name] – Skill starten · /neu – nächste Nachricht = neue Aufgabe\n/hilfe – diese Hilfe\n\n<i>Tipp: „todo: …“, „notiz: …“, „ziel: …“, „einkauf: …“ gehen auch ohne Schrägstrich – ein Foto mit „notiz: …“ landet samt Bild in der Tagesnotiz.</i>`,
+        `🏡 <b>Agentendorf</b>\nSchick mir eine Aufgabe als Text, Sprachnachricht, Foto oder Datei (Bildunterschrift = Auftrag; Word, Excel, PDF, Mail, ZIP … alles geht) – sie landet auf dem Schreibtisch des Bürgermeisters. Weiterschreiben (auch Dateien) setzt das Gespräch fort (bis ${GESPRAECH_MINUTEN} Minuten nach dem letzten Austausch); antwortest du auf eine bestimmte Nachricht, geht es in genau diesem Chat weiter.\n\n<b>📅 Planen</b>\n/heute – dein Tag · /morgen – der nächste Tag · /woche – die nächsten 7 Tage\n/plan [morgen] – To-dos in freie Kalenderlücken\n/verteilen – To-dos ohne Datum auf die Woche verteilen\n/fristen – Abgaben und Prüfungen (7 Tage)\n/termin &lt;wann&gt; &lt;was&gt; – Termin eintragen (mit Bestätigung)\n\n<b>✅ Erledigen</b>\n/todo [Text] – To-do-Liste bzw. neues To-do (auch „… jeden Montag“)\n/einkauf [Text] – Einkaufsliste\n/erinner &lt;wann&gt; &lt;was&gt; – Erinnerung (läutet im Kirchturm)\n/aufraeumen – Überfälliges neu einplanen · /wartet – worauf du wartest\n/projekte – Fortschritt deiner Projekte (Gruppen)\n/jetzt – was jetzt passt (mit 🍅 Los) · /fokus [Thema] – Pomodoro starten\n/gewohnheiten – heute abhaken · /ziel [Text] – Wochenziele\n\n<b>🎓 Lernen</b>\n/lernen – Lernziele der Woche, 🍅 je Fach\n/karten [Fach] – Karteikarten · /moodle &lt;Fach&gt; [Frage] – in Moodle nachsehen\n/noten – Notenschnitt und ECTS · /depot – Depot kurz\n\n<b>📝 Festhalten &amp; Finden</b>\n/notiz &lt;Text&gt; – Tagesnotiz · /suche &lt;Begriff&gt; – im Vault suchen\n/statistik – die letzten 7 Tage\n\n<b>🏛️ Dorf</b>\n/status – was läuft · /freigaben – offene Freigaben\n/aktion [Name] – Skill starten · /neu – nächste Nachricht = neue Aufgabe\n/hilfe – diese Hilfe\n\n<i>Tipp: „todo: …“, „notiz: …“, „ziel: …“, „einkauf: …“ gehen auch ohne Schrägstrich – ein Foto mit „notiz: …“ landet samt Bild in der Tagesnotiz.</i>`,
       );
     if (b === '/status') {
       const aktiv = this.o.agenten.aktiveLaeufe();
@@ -636,6 +639,10 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
         return `• ${h(c.titel)} – ${l.status === 'laeuft' ? 'läuft' : l.status === 'wartend' ? 'wartet' : 'wartet auf Freigabe'}`;
       });
       return this.senden(`📊 <b>Status</b>\n${zeilen.length ? zeilen.join('\n') : 'Gerade arbeitet niemand.'}\n\n✉️ Offene Freigaben: ${offen}`);
+    }
+    if (b === '/depot') {
+      const z = (await this.o.depot?.().catch(() => [] as string[])) ?? [];
+      return this.senden(z.length ? `📈 <b>Depot</b>\n${z.join('\n')}\n\n<a href="${this.link('/gebaeude/Boerse?reiter=analyse')}">Analyse</a>` : 'Noch kein Depot im Dorf – Saxo verbinden oder Positionen in der Börse eintragen.');
     }
     if (b === '/heute') {
       // Tagesüberblick wie in der Morgenzeitung (Wetter, Termine, Fristen) – jederzeit, ohne KI und ohne Speichern

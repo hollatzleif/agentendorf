@@ -2333,3 +2333,4 @@ Leif: In den Einstellungen soll es ganz viele Möglichkeiten geben, das Aussehen
   - **Meine Looks:** eigenes Aussehen unter einem Namen speichern, höchstens 20 (`GET/PUT /api/aussehen/looks`, Zod).
   - **Diagramm-Farben:** standard, kräftig, pastell oder einfarbig.
   - **Links unterstrichen** an oder aus.
+  - **Telegram `/depot`:** Saxo-Kontowert, Rendite seit Jahresbeginn und über 12 Monate, die zuletzt am stärksten bewegten Werte, „Gestern“ (E222), dazu das eigene Depot. Mit Link zur Analyse.
