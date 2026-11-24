@@ -52,7 +52,9 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
                           Plan-Ausführung durch den CODE, Abschluss genau einmal, Status der Schreibtisch-Aufgabe
   src/bank.ts     Etappe 7 (E68): Kontoauszüge (CSV-Erkennung, Zuordnung je Format, PDF per Skill), Kategorien (Regeln, Leif, KI),
                   Abos, Budget/Sparziele aus Bank/einstellungen.md, Warnungen; Rechnungen aus Mails → To-do (dorf.ts)
-  src/boerse.ts   Etappe 7 (E70): Depot/Watchlist (Boerse/depot.md), EODHD-Schlusskurse (≤ 19 Abrufe/Tag, ISIN → Kürzel gemerkt), EZB Euro/Dollar
+  src/boerse.ts   Etappe 7 (E70): Depot/Watchlist (Boerse/depot.md), EODHD-Schlusskurse (≤ 19 Abrufe/Tag, ISIN → Kürzel gemerkt), EZB Euro/Dollar;
+                  E223 Kursverläufe (kurshist:<Kürzel>), Saxo-Symbol → EODHD-Kürzel, /api/boerse/analyse; Rechnungen in packages/shared/src/boerse.ts,
+                  App in apps/web/src/boerse/ (Analyse, Rechner, Berater – lazy)
   src/corps.ts    Etappe 7 (E69): Corps-Termine (Hauptkalender per Stichwort), Absenderliste für den Postboten (Corpshaus/einstellungen.md)
   src/kontakte.ts Adressbuch (E186): Rathaus/kontakte.md + Absender im Posteingang + gesendete Mails (kontakt_suchen/kontakt_merken)
   src/coding-erweiterungen.ts E205: Erweiterungen für VS Code im Codehaus – /api/coding/erweiterungen* (Suche NUR in Open VSX vom Dorf aus:
@@ -294,6 +296,7 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E213 (22.11.): Handschrift kann Mathe – Formeln ($…$ oder schlicht), Rechenwege am „=“ ausgerichtet, Brüche/Wurzeln/∑∫, Markdown-Tabellen mit Handgitter (handformel.py + Hershey); „=“ wird nicht mehr zu „-“
 - [x] E214 (22.11.): Handschrift realistischer – gerade Linien wie GoodNotes (Tabellen, Bruchstriche), ruhigere Formeln, gleichmäßiger Stift, Logik-Zeichen (∧ ∨ ¬ ↔ ⊢ ⊨ ⊤ ⊥ □), Wahrheitstafeln mittig
 - [x] E215 (22.11.): Handschrift `stil: einheitlich` (Standard) – EINE Hand für Text, Formeln und Tabellen (Schreiber-Profil je Dokument, jedes Zeichen einmalig verformt, Wortgrundlinien, Unterschneiden); `stil: ki` = KI-Modell für freien Fließtext
+- [x] E223 (24.11.): Börse – Analyse (alle Zeiträume, jeder Teil ein-/ausblendbar, Kennzahlen, Aufteilung, Gewinner/Verlierer, Monats-Heatmap), Kursverläufe über EODHD (im Tageslimit, Saxo-Symbol → Kürzel), Saxo-Reihe bis 10 Jahre, Rechner (Sparplan, Entnahme, Umschichten, Kosten, Sparziel), Aktien-/ETF-Berater (4 Aktionen, Abo + Web), Beträge verbergen – Abnahme mit echtem Depot steht aus
 - [x] E222 (23.11.): Saxo-Tagesstände (letzter Stand je Tag, 120 Tage) → Bewegungen (Wert, Kurs %, Käufe/Verkäufe); depot_lesen/depot_bewegungen für alle Agenten; Aktion Boerse/Depot-Tagesbericht (Di–Sa 05:00, Abo, Web) → „📈 Saxo gestern“ ganz unten in der Morgenzeitung – Abnahme mit echtem Depot steht aus
 - [x] E221 (23.11.): Agenten pflegen Leifs Notenliste – noten_lesen/noten_eintragen/noten_entfernen für alle (Uni/noten.md über den Notendienst, „sehr gut“ … „nicht genügend“ → 1–5, mit Rückgängig)
 - [x] E220 (23.11.): To-do-Brett zugeklappt (Tags/Knöpfe erst aufgeklappt, Titel klappt auf, „✏️ Bearbeiten“), Standard nach Frist mit Abschnitten (Überfällig … Ohne Datum), Sortierung wählbar, Farbstreifen nach Dringlichkeit; Saxo-Prüfkasten mit „Kopieren“

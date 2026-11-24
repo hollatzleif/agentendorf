@@ -680,7 +680,12 @@ Schau, was es dafür im Vault gibt (Uni/faecher/…, aufgaben/, entwuerfe/). Bei
     }
     const klein = rest.toLowerCase();
     const treffer = startbar.filter((a) => a.name.toLowerCase() === klein || a.id.toLowerCase() === klein);
-    const a = treffer[0] ?? (startbar.filter((x) => x.name.toLowerCase().includes(klein)).length === 1 ? startbar.find((x) => x.name.toLowerCase().includes(klein)) : undefined);
+    // eindeutig: genauer Name → einziger Name, der so ANFÄNGT → einziger, der es enthält (E223: „check“ = Checkliste, nicht Depot-Check)
+    const einzig = (f: (x: (typeof startbar)[number]) => boolean) => {
+      const l = startbar.filter(f);
+      return l.length === 1 ? l[0] : undefined;
+    };
+    const a = treffer[0] ?? einzig((x) => x.name.toLowerCase().startsWith(klein)) ?? einzig((x) => x.name.toLowerCase().includes(klein));
     if (!a) return this.senden(`Keine eindeutige Aktion „${h(rest)}“. /aktion zeigt die Liste.`);
     const r = await this.o.agenten.aktionStarten(a.id, {}, 'klick');
     return this.senden(`▶️ Gestartet: <b>${h(a.name)}</b> (${h(a.gebaeude)})\n<a href="${this.link(`/chats/${r.chatId}`)}">Chat öffnen</a>`, {}, r.chatId);

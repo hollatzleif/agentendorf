@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { z } from 'zod';
-import type { SaxoUebersicht, SaxoPosition } from '@dorf/shared';
+import type { BoerseAnalyse, SaxoUebersicht, SaxoPosition } from '@dorf/shared';
 import type { DB } from './db.js';
 import type { Uhr } from './uhr.js';
 import type { LiveHub } from './live.js';
@@ -345,11 +345,19 @@ export class Saxo {
       const perf = this.stand<{ tag: string }>('saxo_verlauf');
       const heute = new Date(jetzt).toISOString().slice(0, 10);
       if (sofort || perf?.tag !== heute) {
-        const von = new Date(jetzt - 365 * 86_400_000).toISOString().slice(0, 10);
-        const t = z
-          .object({ Balance: z.object({ AccountValue: Reihe }).passthrough().optional().catch(undefined), TimeWeighted: z.object({ Accumulated: Reihe }).passthrough().optional().catch(undefined) })
-          .passthrough()
-          .parse(await this.lesen('/hist/v4/performance/timeseries', { ClientKey: kunde.ClientKey, FromDate: von, ToDate: heute, FieldGroups: 'Balance_AccountValue,TimeWeighted_Accumulated' }));
+        // E223: so weit zurück wie möglich (10 Jahre); lehnt Saxo das ab, wie bisher ein Jahr
+        const reihe = async (jahre: number) =>
+          z
+            .object({ Balance: z.object({ AccountValue: Reihe }).passthrough().optional().catch(undefined), TimeWeighted: z.object({ Accumulated: Reihe }).passthrough().optional().catch(undefined) })
+            .passthrough()
+            .parse(await this.lesen('/hist/v4/performance/timeseries', { ClientKey: kunde.ClientKey, FromDate: new Date(jetzt - jahre * 365 * 86_400_000).toISOString().slice(0, 10), ToDate: heute, FieldGroups: 'Balance_AccountValue,TimeWeighted_Accumulated' }));
+        let t: Awaited<ReturnType<typeof reihe>>;
+        try {
+          t = await reihe(10);
+        } catch (e) {
+          this.o.log?.(`Saxo: Performance über 10 Jahre abgelehnt (${(e as Error).message}) – nehme ein Jahr.`);
+          t = await reihe(1);
+        }
         const rendite = new Map((t.TimeWeighted?.Accumulated ?? []).map((x) => [x.Date.slice(0, 10), x.Value]));
         const verlauf = (t.Balance?.AccountValue ?? []).map((x) => ({ datum: x.Date.slice(0, 10), wert: x.Value, rendite: rendite.get(x.Date.slice(0, 10)) ?? null }));
         this.merken('saxo_verlauf', { tag: heute, verlauf });
@@ -374,7 +382,10 @@ export class Saxo {
     const letzte = verlauf.at(-1);
     const vorJahr = [...verlauf].reverse().find((x) => x.datum < `${jahr}-01-01`);
     const seitJahresbeginn = r(letzte) != null && r(vorJahr) != null ? (1 + r(letzte)!) / (1 + r(vorJahr)!) - 1 : null;
-    const zwoelf = r(letzte) != null && r(verlauf[0]) != null ? (1 + r(letzte)!) / (1 + r(verlauf[0])!) - 1 : null;
+    // E223: die Reihe kann jetzt Jahre lang sein – „12 Monate“ = gegen den letzten Wert vor einem Jahr
+    const vorEinemJahr = new Date(this.o.uhr.jetzt() - 365 * 86_400_000).toISOString().slice(0, 10);
+    const basis12 = [...verlauf].reverse().find((x) => x.datum <= vorEinemJahr) ?? verlauf[0];
+    const zwoelf = r(letzte) != null && r(basis12) != null ? (1 + r(letzte)!) / (1 + r(basis12)!) - 1 : null;
     return {
       eingerichtet: this.eingerichtet,
       verbunden: !!s,
@@ -468,6 +479,28 @@ export class Saxo {
       gesamtDelta: jetzt.gesamt != null && gesamtVorher != null ? runden(jetzt.gesamt - gesamtVorher) : null,
       positionen,
     };
+  }
+
+  /** E223: Daten für die Analyse in der App (Konto-Reihe, Tagesstände, jetzt) – null, wenn Saxo nicht eingerichtet */
+  analyse(): BoerseAnalyse['saxo'] {
+    if (!this.o.konfig) return null;
+    const stand = this.stand<{ waehrung: string; gesamt?: number; bar?: number; positionen: SaxoPosition[] }>('saxo_stand');
+    const verlauf = this.stand<{ verlauf: { datum: string; wert: number; rendite: number | null }[] }>('saxo_verlauf')?.verlauf ?? [];
+    if (!stand && !verlauf.length) return null;
+    return {
+      verbunden: !!this.sitzung,
+      waehrung: stand?.waehrung ?? 'EUR',
+      verlauf,
+      tage: this.tagesstaende().map((t) => ({ tag: t.tag, gesamt: t.gesamt, positionen: t.positionen })),
+      positionen: stand?.positionen ?? [],
+      bar: stand?.bar ?? null,
+      gesamt: stand?.gesamt ?? null,
+    };
+  }
+
+  /** Symbole der aktuellen Positionen (für Kursverläufe) */
+  symbole(): string[] {
+    return (this.stand<{ positionen: SaxoPosition[] }>('saxo_stand')?.positionen ?? []).map((p) => p.symbol).filter((s): s is string => !!s);
   }
 
   /** Bewegungen für jeden Tag mit Stand in [von, bis] (höchstens 31 Tage) */

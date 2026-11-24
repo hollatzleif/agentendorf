@@ -4,8 +4,21 @@ import type { BoerseUebersicht as Daten, BoerseWert } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { bibliothekUrl, linkKlick } from '../router';
 import { SaxoDepot } from './SaxoDepot';
+import { usePrivat } from '../boerse/teile';
 
-const euro = (n?: number) => (n == null ? '–' : n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }));
+/** E223: Beträge verbergen (z. B. in der Bahn) – gilt für die ganze Börse */
+function PrivatKnopf() {
+  const [privat, setPrivat] = usePrivat();
+  return (
+    <div className="zeile" style={{ justifyContent: 'flex-end' }}>
+      <button type="button" className={`klein${privat ? ' an' : ''}`} aria-pressed={privat} onClick={() => setPrivat(!privat)}>
+        {privat ? '🙈 Beträge verborgen' : '👁 Beträge verbergen'}
+      </button>
+    </div>
+  );
+}
+
+const euro = (n?: number) => (n == null ? '–' : localStorage.getItem('dorf-privat') === '1' ? '•••' : n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }));
 const prozent = (n?: number) => (n == null ? '' : `${n > 0 ? '+' : ''}${n.toLocaleString('de-DE', { maximumFractionDigits: 1 })} %`);
 const kurs = (w: BoerseWert) => (w.kurs == null ? 'kein Kurs' : `${w.kurs.toLocaleString('de-DE', { maximumFractionDigits: 2 })} ${w.waehrung ?? ''}`);
 
@@ -13,6 +26,7 @@ const kurs = (w: BoerseWert) => (w.kurs == null ? 'kein Kurs' : `${w.kurs.toLoca
 export function BoerseUebersicht() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['boerse'], queryFn: () => api<Daten>('/api/boerse') });
+  usePrivat(); // neu zeichnen, wenn Beträge verborgen/gezeigt werden
   const [fehler, setFehler] = useState('');
   const [laeuft, setLaeuft] = useState(false);
   const neu = () => qc.invalidateQueries({ queryKey: ['boerse'] });
@@ -41,6 +55,7 @@ export function BoerseUebersicht() {
 
   return (
     <div className="boerse">
+      <PrivatKnopf />
       <SaxoDepot />
       <h3>Eigenes Depot (Kurse von EODHD)</h3>
       {!d.eingerichtet && (

@@ -94,6 +94,7 @@ export type LiveEreignis =
   | { typ: 'todos.geaendert'; liste?: string }
   | { typ: 'bank.geaendert' }
   | { typ: 'boerse.geaendert' }
+  | { typ: 'aussehen.geaendert' }
   | { typ: 'kirchturm.geaendert' }
   | { typ: 'kalender.geaendert' }
   | { typ: 'kirchturm.klingelt'; klingel: KirchturmKlingel }
@@ -890,6 +891,32 @@ export interface SaxoUebersicht {
   fehler?: string;
 }
 
+/** E223: alles für die Analyse der Börse – Zeiträume, Positionen, Kursverläufe (die Rechnungen macht die App) */
+export interface BoerseAnalyse {
+  saxo: {
+    verbunden: boolean;
+    waehrung: string;
+    /** Kontowert je Tag (Saxo-Performance, bis zu 10 Jahre) + zeitgewichtete Rendite seit Beginn der Reihe (Anteil) */
+    verlauf: { datum: string; wert: number; rendite: number | null }[];
+    /** letzter Stand je Tag seit dem Verbinden (E222) */
+    tage: { tag: string; gesamt: number | null; positionen: SaxoPosition[] }[];
+    /** jetzt */
+    positionen: SaxoPosition[];
+    bar: number | null;
+    gesamt: number | null;
+  } | null;
+  /** eigenes Depot (Boerse/depot.md) */
+  eigen: BoerseWert[];
+  watchlist: BoerseWert[];
+  /** Schlusskurse je EODHD-Kürzel (aufsteigend), so weit geladen */
+  historien: Record<string, { waehrung: string; punkte: [string, number][]; stand: string }>;
+  /** Saxo-Symbol → EODHD-Kürzel (automatisch abgeleitet oder von Leif gesetzt) */
+  zuordnung: Record<string, { kuerzel: string; eigen: boolean }>;
+  eodhd: boolean;
+  abrufeHeute: number;
+  abrufeMax: number;
+}
+
 export interface BoerseUebersicht {
   eingerichtet: boolean;
   positionen: BoerseWert[];
@@ -1069,3 +1096,5 @@ export * from './fachname.js';
 export * from './projekte.js';
 export * from './einsichten.js';
 export * from './etappen.js';
+export * from './boerse.js';
+export * from './aussehen.js';

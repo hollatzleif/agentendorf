@@ -1,4 +1,5 @@
 import type { Boerse } from './boerse.js';
+import type { BoerseAnalyse } from '@dorf/shared';
 import type { Saxo } from './saxo.js';
 import type { Kirchturm } from './kirchturm.js';
 import { etappenPlan, fachPasst, fachZuordnen, projekteAus, terminAusText, type FachStand, type PruefungStand, type UniFach } from '@dorf/shared';
@@ -476,6 +477,37 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
   if (a.boerse) {
     const boerse = a.boerse;
     app.get('/api/boerse', async () => boerse.uebersicht());
+    // E223: Analyse – Konto-Reihe, Tagesstände, eigenes Depot, Kursverläufe (gerechnet wird in der App)
+    app.get('/api/boerse/analyse', async (): Promise<BoerseAnalyse> => {
+      const u = await boerse.uebersicht();
+      const saxo = a.saxo?.analyse() ?? null;
+      const kuerzel = await boerse.verlaufsKuerzel();
+      const historien: BoerseAnalyse['historien'] = {};
+      for (const k of kuerzel) {
+        const h = boerse.historie(k.symbol);
+        if (h?.punkte.length) historien[k.symbol] = h;
+      }
+      return {
+        saxo,
+        eigen: u.positionen,
+        watchlist: u.watchlist,
+        historien,
+        zuordnung: boerse.zuordnung(a.saxo?.symbole() ?? []),
+        eodhd: u.eingerichtet,
+        abrufeHeute: u.abrufeHeute,
+        abrufeMax: u.abrufeMax,
+      };
+    });
+    // E223: Kursverläufe laden (Leifs Klick; zählt gegen das EODHD-Tageslimit)
+    app.post('/api/boerse/historie', async (req) => {
+      const { kuerzel } = z.object({ kuerzel: z.array(z.string().max(30)).max(40).optional() }).parse(req.body ?? {});
+      return boerse.historienNachholen({ max: 19, nur: kuerzel });
+    });
+    app.put('/api/boerse/kuerzel', async (req) => {
+      const { saxo, kuerzel } = z.object({ saxo: z.string().min(1).max(40), kuerzel: z.string().max(30) }).parse(req.body);
+      boerse.zuordnungSetzen(saxo, kuerzel);
+      return { ok: true };
+    });
     app.post('/api/boerse/aktualisieren', async () => boerse.aktualisieren());
     app.post('/api/boerse/wert', async (req) => {
       const { art, neu } = z.object({ art: z.enum(['positionen', 'watchlist']), neu: z.unknown() }).parse(req.body);

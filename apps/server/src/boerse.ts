@@ -42,7 +42,32 @@ export interface BoerseKlient {
   eod(symbol: string): Promise<{ datum: string; kurs: number }[]>;
   /** ISIN → Kürzel (Code.Exchange) und Währung */
   suche(isin: string, boerse: string): Promise<{ symbol: string; waehrung: string; name?: string } | null>;
+  /** E223: Schlusskurse ab `von` (JJJJ-MM-TT), älteste zuerst – ein Abruf */
+  historie?(symbol: string, von: string): Promise<{ datum: string; kurs: number }[]>;
 }
+
+/** E223: so viel Kursgeschichte holt das Dorf beim ersten Mal (die kostenlose EODHD-Stufe liefert etwa ein Jahr) */
+export const HISTORIE_TAGE = 365 * 5;
+/** E223: höchstens so viele Kursverläufe nebenbei je Tag (nach den Tageskursen; der Rest bleibt für Leifs Klicks) */
+export const HISTORIEN_NEBENBEI = 6;
+
+/**
+ * E223: Saxo-Symbol („NESN:xswx“) → EODHD-Kürzel („NESN.SW“). Börsenkennung nach ISO 10383 (MIC) → EODHD-Endung.
+ * Unbekannte Börse → null (Leif kann das Kürzel in der Analyse selbst setzen).
+ */
+const MIC_ZU_EODHD: Record<string, string> = {
+  xetr: 'XETRA', xfra: 'F', xswx: 'SW', xvtx: 'SW', xnas: 'US', xnys: 'US', arcx: 'US', bats: 'US', xase: 'US',
+  xlon: 'LSE', xpar: 'PA', xams: 'AS', xbru: 'BR', xmil: 'MI', xmad: 'MC', xwbo: 'VI', xsto: 'ST', xcse: 'CO',
+  xhel: 'HE', xosl: 'OL', xtse: 'TO', xlis: 'LS', xdub: 'IR', xstu: 'STU', xmun: 'MU', xber: 'BE', xdus: 'DU', xham: 'HM',
+};
+export function saxoZuEodhd(saxoSymbol: string): string | null {
+  const m = /^([A-Za-z0-9.\-]{1,20}):([a-z0-9]{3,5})$/.exec(saxoSymbol.trim());
+  if (!m) return null;
+  const endung = MIC_ZU_EODHD[m[2]!.toLowerCase()];
+  return endung ? `${m[1]!.toUpperCase().replace(/\./g, '-')}.${endung}` : null;
+}
+const KUERZEL_FORM = /^[A-Z0-9.-]{1,20}\.[A-Z]{1,10}$/;
+export type Historie = { waehrung: string; punkte: [string, number][]; stand: string };
 
 /** EODHD-Klient nach der offiziellen Doku (eod: date/close; search: Code/Exchange/Currency/ISIN) */
 export function eodhdKlient(o: { url: string; schluessel: string; jetzt: () => number }): BoerseKlient {
@@ -61,6 +86,10 @@ export function eodhdKlient(o: { url: string; schluessel: string; jetzt: () => n
       const roh = z.array(z.object({ date: z.string(), close: z.coerce.number() }).passthrough()).parse(await holen(`/eod/${encodeURIComponent(symbol)}`, { order: 'd', from: von }));
       return roh.map((x) => ({ datum: x.date.slice(0, 10), kurs: x.close })).sort((a, b) => b.datum.localeCompare(a.datum));
     },
+    async historie(symbol, von) {
+      const roh = z.array(z.object({ date: z.string(), close: z.coerce.number() }).passthrough()).parse(await holen(`/eod/${encodeURIComponent(symbol)}`, { order: 'a', from: von }));
+      return roh.map((x) => ({ datum: x.date.slice(0, 10), kurs: x.close })).filter((x) => Number.isFinite(x.kurs) && x.kurs > 0).sort((a, b) => a.datum.localeCompare(b.datum));
+    },
     async suche(isin, boerse) {
       const roh = z
         .array(z.object({ Code: z.string(), Exchange: z.string(), Currency: z.string().optional(), ISIN: z.string().nullish(), Name: z.string().optional() }).passthrough())
@@ -71,9 +100,9 @@ export function eodhdKlient(o: { url: string; schluessel: string; jetzt: () => n
   };
 }
 
-/** Währung eines Kürzels nach Börsen-Endung (EODHD): .US → Dollar, .SW → Franken, sonst Euro */
+/** Währung eines Kürzels nach Börsen-Endung (EODHD): .US/.TO → Dollar, .SW → Franken, .LSE → Pfund (Pence-Kurse!), sonst Euro */
 export function waehrungVon(symbol: string) {
-  return symbol.endsWith('.US') ? 'USD' : symbol.endsWith('.SW') ? 'CHF' : 'EUR';
+  return symbol.endsWith('.US') ? 'USD' : symbol.endsWith('.SW') ? 'CHF' : symbol.endsWith('.LSE') ? 'GBP' : symbol.endsWith('.TO') ? 'CAD' : symbol.endsWith('.ST') ? 'SEK' : symbol.endsWith('.CO') ? 'DKK' : symbol.endsWith('.OL') ? 'NOK' : 'EUR';
 }
 /** Fremdwährungen, die das Dorf in Euro umrechnet (EZB-Referenzkurse) */
 export const FREMDWAEHRUNGEN = ['USD', 'CHF'] as const;
@@ -216,6 +245,8 @@ export class Boerse {
         this.o.db
           .prepare('INSERT OR REPLACE INTO boerse_kurse (symbol, kurs, vorher, datum, waehrung, abgerufen) VALUES (?, ?, ?, ?, ?, ?)')
           .run(k.symbol, kurse[0]!.kurs, kurse[1]?.kurs ?? null, kurse[0]!.datum, k.waehrung, this.o.uhr.jetzt());
+        // E223: die Tageskurse verlängern einen schon geladenen Kursverlauf (kostet nichts extra)
+        if (this.historie(k.symbol)) this.historieMischen(k.symbol, k.waehrung, kurse, true);
         abgerufen++;
       } catch (e) {
         fehler = (e as Error).message;
@@ -223,10 +254,112 @@ export class Boerse {
     }
     // noch nicht versucht (Tageslimit) – kommen morgen zuerst dran
     const offen = kandidaten.length - versucht;
+    // E223: übrige Abrufe nebenbei für fehlende/alte Kursverläufe (höchstens HISTORIEN_NEBENBEI, 3 bleiben für Leifs Klicks)
+    if (!fehler) await this.historienNachholen({ max: HISTORIEN_NEBENBEI, reserve: 3 }).catch((e) => this.o.log?.(`Börse: Kursverläufe: ${(e as Error).message}`));
     this.o.db.prepare("INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES ('boerse_letzter', ?)").run(JSON.stringify({ zeit: this.o.uhr.jetzt(), abgerufen, offen, fehler: fehler ?? null }));
     if (abgerufen || fehler) this.o.hub.senden({ typ: 'boerse.geaendert' });
     if (abgerufen) await this.alarmePruefen().catch((e) => this.o.log?.(`Börse: Kursalarme: ${(e as Error).message}`));
     return { abgerufen, offen, ...(fehler ? { fehler } : {}) };
+  }
+
+  // ---- E223: Kursverläufe -----------------------------------------------------------------------------
+
+  /** Gespeicherter Kursverlauf eines Kürzels (älteste zuerst) */
+  historie(symbol: string): Historie | null {
+    const z2 = this.o.db.prepare('SELECT wert FROM dorf_stand WHERE schluessel = ?').get(`kurshist:${symbol}`) as { wert: string } | undefined;
+    return z2 ? (JSON.parse(z2.wert) as Historie) : null;
+  }
+
+  /** `nurAnhaengen`: Tageskurse – der Stand (letzter voller Abruf) bleibt, damit ein Nachladen nicht ausfällt */
+  private historieMischen(symbol: string, waehrung: string, neu: { datum: string; kurs: number }[], nurAnhaengen = false) {
+    const alt = this.historie(symbol);
+    const m = new Map<string, number>(alt?.punkte ?? []);
+    for (const p of neu) m.set(p.datum, p.kurs);
+    const punkte = [...m.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-365 * 12) as [string, number][];
+    const h: Historie = { waehrung, punkte, stand: nurAnhaengen && alt ? alt.stand : new Date(this.o.uhr.jetzt()).toISOString().slice(0, 10) };
+    this.o.db.prepare('INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES (?, ?)').run(`kurshist:${symbol}`, JSON.stringify(h));
+    return h;
+  }
+
+  /** Saxo-Symbol → EODHD-Kürzel: Leifs eigene Zuordnung vor der automatischen */
+  zuordnung(saxoSymbole: string[]): Record<string, { kuerzel: string; eigen: boolean }> {
+    const eigen = this.eigeneZuordnung();
+    const r: Record<string, { kuerzel: string; eigen: boolean }> = {};
+    for (const s of saxoSymbole) {
+      if (eigen[s]) r[s] = { kuerzel: eigen[s]!, eigen: true };
+      else {
+        const k = saxoZuEodhd(s);
+        if (k) r[s] = { kuerzel: k, eigen: false };
+      }
+    }
+    return r;
+  }
+  private eigeneZuordnung(): Record<string, string> {
+    return JSON.parse((this.o.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'boerse_saxo_kuerzel'").get() as { wert: string } | undefined)?.wert ?? '{}');
+  }
+  /** Leif setzt das EODHD-Kürzel für ein Saxo-Symbol (leer = wieder automatisch) */
+  zuordnungSetzen(saxoSymbol: string, kuerzel: string) {
+    const k = kuerzel.trim().toUpperCase();
+    if (k && !KUERZEL_FORM.test(k)) throw new DorfFehler(400, 'Kürzel wie NESN.SW, VWCE.XETRA oder AAPL.US');
+    if (!saxoSymbol.trim() || saxoSymbol.length > 40) throw new DorfFehler(400, 'Saxo-Symbol fehlt.');
+    const m = this.eigeneZuordnung();
+    if (k) m[saxoSymbol] = k;
+    else delete m[saxoSymbol];
+    this.o.db.prepare("INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES ('boerse_saxo_kuerzel', ?)").run(JSON.stringify(m));
+    this.o.hub.senden({ typ: 'boerse.geaendert' });
+  }
+
+  /** Saxo-Positionen, deren Verlauf das Dorf mitlädt (setzt dorf.ts) */
+  saxoSymbole: () => string[] = () => [];
+
+  /** Alle Kürzel, für die ein Kursverlauf sinnvoll ist: eigenes Depot, Watchlist, Saxo-Positionen */
+  async verlaufsKuerzel(): Promise<{ symbol: string; waehrung: string }[]> {
+    const d = await this.depot();
+    const r = new Map<string, string>();
+    for (const w of [...d.positionen, ...d.watchlist]) {
+      const symbol = w.symbol ?? (this.o.db.prepare("SELECT symbol FROM boerse_zuordnung WHERE isin = ? AND boerse = ? AND symbol != ''").get(w.isin, w.boerse) as { symbol: string } | undefined)?.symbol;
+      if (symbol) r.set(symbol, waehrungVon(symbol));
+    }
+    for (const z2 of Object.values(this.zuordnung(this.saxoSymbole()))) r.set(z2.kuerzel, waehrungVon(z2.kuerzel));
+    return [...r.entries()].map(([symbol, waehrung]) => ({ symbol, waehrung }));
+  }
+
+  /**
+   * Fehlende oder über 7 Tage alte Kursverläufe laden – innerhalb des Tageslimits (reserve bleibt frei).
+   * `nur`: nur diese Kürzel (Leifs Klick). Ein Abruf je Kürzel.
+   */
+  async historienNachholen(o: { max: number; reserve?: number; nur?: string[] }): Promise<{ geholt: number; offen: number; fehler?: string }> {
+    const k = this.o.klient;
+    if (!k?.historie) return { geholt: 0, offen: 0, fehler: 'Kein Kurs-Anbieter eingerichtet (dorf boerse-schluessel).' };
+    const heute = new Date(this.o.uhr.jetzt()).toISOString().slice(0, 10);
+    const alt = new Date(this.o.uhr.jetzt() - 7 * 86_400_000).toISOString().slice(0, 10);
+    let liste = await this.verlaufsKuerzel();
+    if (o.nur) liste = o.nur.filter((s) => KUERZEL_FORM.test(s)).map((s) => ({ symbol: s, waehrung: waehrungVon(s) }));
+    const faellig = liste.filter((x) => {
+      const h = this.historie(x.symbol);
+      return !h || (o.nur ? h.stand !== heute : h.stand < alt);
+    });
+    let geholt = 0;
+    let fehler: string | undefined;
+    for (const x of faellig) {
+      if (geholt >= o.max || this.abrufeHeute().n >= ABRUFE_PRO_TAG - (o.reserve ?? 0)) break;
+      try {
+        this.abrufZaehlen();
+        const h = this.historie(x.symbol);
+        // schon vorhanden: nur das Neue nachladen
+        const von = h?.punkte.length ? h.punkte.at(-1)![0] : new Date(this.o.uhr.jetzt() - HISTORIE_TAGE * 86_400_000).toISOString().slice(0, 10);
+        const punkte = await k.historie(x.symbol, von);
+        this.historieMischen(x.symbol, x.waehrung, punkte);
+        geholt++;
+      } catch (e) {
+        fehler = `${x.symbol}: ${(e as Error).message}`;
+        if (/Tageslimit|Schlüssel/.test(fehler)) break;
+        // unbekanntes Kürzel o. ä.: leer merken, damit es nicht jeden Tag einen Abruf kostet (nach 7 Tagen neuer Versuch)
+        if (!this.historie(x.symbol)) this.historieMischen(x.symbol, x.waehrung, []);
+      }
+    }
+    if (geholt) this.o.hub.senden({ typ: 'boerse.geaendert' });
+    return { geholt, offen: faellig.length - geholt, ...(fehler ? { fehler } : {}) };
   }
 
   /** E117: Telegram u. a. – bekommt den fertigen Meldungstext */

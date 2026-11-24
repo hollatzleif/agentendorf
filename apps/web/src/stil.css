@@ -1837,3 +1837,83 @@ a.datei-karte:hover { border-color: #1f5a1d; }
 .sp-feld.aktiv { outline: 3px solid var(--dach); outline-offset: 1px; }
 .sp-vorschau { display: block; width: 100%; background: #fff; border: 2px solid var(--rand); border-radius: 8px; margin-top: 0.5rem; }
 .schriftprobe input { width: 100%; box-sizing: border-box; }
+
+/* ---- E223: Börse – Analyse, Rechner, Berater ------------------------------------------------- */
+.boerse-analyse, .boerse-rechner, .boerse-berater { display: grid; gap: 0.9rem; }
+.ba-leiste { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; justify-content: space-between; align-items: center; }
+.ba-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
+.ba-chips button.klein { margin-left: 0; }
+.ba-chips button.klein.an, .berater-schnell button.an { background: var(--gruen); color: #fff; border-color: #1f5a1d; box-shadow: 0 2px 0 #1f5a1d; }
+.ba-chips input[type='date'] { width: auto; padding: 0.2rem 0.4rem; }
+.ba-kacheln { grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); }
+.ba-kacheln .bank-kachel { display: flex; flex-direction: column; gap: 0.1rem; }
+.ba-kopf { justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
+.ba-kopf h3 { margin: 0; }
+.ba-schalter { display: inline-flex; flex-direction: row; align-items: center; gap: 0.35rem; font-size: 0.85rem; font-weight: 700; }
+.ba-raster { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: 0.9rem; }
+.tabelle-rahmen { overflow-x: auto; }
+.ba-tabelle td, .ba-tabelle th { white-space: nowrap; }
+.ba-tabelle td:nth-child(2) { white-space: normal; min-width: 10rem; }
+.ba-tabelle tr.ba-gesamt td { background: rgb(43 58 85 / 0.05); }
+.ba-tabelle tr.ba-aus td:not(:first-child) { opacity: 0.55; }
+.ba-sort { all: unset; cursor: pointer; font-weight: 800; }
+.ba-sort:focus-visible { outline: 3px solid #f2b51e; border-radius: 4px; }
+.ba-auge { display: inline-flex; align-items: center; cursor: pointer; }
+.ba-auge input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.ba-auge .diagramm-punkt { width: 1.05rem; height: 1.05rem; border: 2.5px solid; }
+.ba-auge input:focus-visible + .diagramm-punkt { outline: 3px solid #f2b51e; outline-offset: 2px; }
+.ba-gv { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+.ba-gv ol { margin: 0; padding-left: 1.2rem; display: grid; gap: 0.25rem; font-size: 0.9rem; }
+.ba-monate { border-collapse: separate; border-spacing: 2px; font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+.ba-monate th { font-weight: 800; color: var(--leise); padding: 0.15rem 0.3rem; }
+.ba-monate td { text-align: center; padding: 0.3rem 0.25rem; border-radius: 5px; min-width: 2.6rem; color: var(--text); }
+.ba-kuerzel { list-style: none; padding: 0; margin: 0.6rem 0 0; display: grid; gap: 0.45rem; }
+.ba-kuerzel li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.ba-kuerzel-form { display: inline-flex; gap: 0.3rem; }
+.ba-kuerzel-form input { width: 9rem; padding: 0.2rem 0.5rem; }
+details.karte > summary { cursor: pointer; }
+
+.diagramm { position: relative; }
+.diagramm svg { width: 100%; height: auto; display: block; touch-action: pan-y; }
+.diagramm-gitter { stroke: var(--rand); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.diagramm-null { stroke: var(--leise); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+.diagramm-achse { font-size: 11px; fill: var(--leise); font-variant-numeric: tabular-nums; }
+.diagramm-zeiger { stroke: var(--text); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+.diagramm-tip { position: absolute; top: 0.3rem; min-width: 11rem; max-width: 18rem; padding: 0.45rem 0.6rem; background: var(--karte); border: 2px solid var(--navy); border-radius: 10px; box-shadow: 0 3px 0 var(--navy); font-size: 0.8rem; pointer-events: none; display: grid; gap: 0.1rem; }
+.diagramm-punkt { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 50%; flex: none; }
+.diagramm-punkt.strich { border-radius: 2px; height: 0.25rem; }
+.diagramm-legende { list-style: none; display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; padding: 0; margin: 0.3rem 0 0; font-size: 0.82rem; }
+.diagramm-legende li { display: inline-flex; align-items: center; gap: 0.35rem; }
+
+.anteile { display: grid; gap: 0.6rem; }
+.anteile-balken { display: flex; height: 1.1rem; border-radius: 8px; overflow: hidden; gap: 2px; background: var(--flaeche, #fff); }
+.anteile-balken span { display: block; min-width: 2px; }
+.anteile-liste { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.25rem; font-size: 0.88rem; }
+.anteile-liste li { display: grid; grid-template-columns: auto 1fr auto auto; gap: 0.5rem; align-items: center; }
+.anteile-zahl { font-variant-numeric: tabular-nums; text-align: right; min-width: 3.5rem; }
+.anteile-name { min-width: 0; overflow-wrap: anywhere; }
+
+.rechner-felder { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0.6rem; margin-bottom: 0.8rem; align-items: end; }
+.rechner-feld { display: grid; gap: 0.2rem; font-size: 0.85rem; font-weight: 700; }
+.rechner-eingabe { display: flex; align-items: center; gap: 0.35rem; }
+.rechner-eingabe input { flex: 1; min-width: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.rechner-klein { width: 5rem; text-align: right; padding: 0.2rem 0.4rem; }
+.rechner-ergebnis { font-size: 1.05rem; }
+
+.berater-karten { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 0.7rem; }
+.berater-karte { display: grid; gap: 0.25rem; text-align: left; padding: 0.9rem 1rem; border-radius: 16px; min-height: 7.5rem; align-content: start; }
+.berater-karte.aktiv { background: var(--gruen-hell); border-color: #1f5a1d; box-shadow: 0 3px 0 #1f5a1d; }
+.berater-symbol { font-size: 1.7rem; line-height: 1; }
+.berater-schnell button.klein { white-space: normal; text-align: left; }
+.berater-berichte { margin: 0; padding-left: 1.1rem; display: grid; gap: 0.3rem; }
+@media (max-width: 760px) {
+  .ba-gv { grid-template-columns: 1fr; }
+  .diagramm-tip { font-size: 0.74rem; min-width: 9rem; }
+}
+
+.ba-tabelle th:nth-child(2), .ba-tabelle td:nth-child(2) { text-align: left; }
+.ba-gv ol { list-style: none; padding-left: 0; counter-reset: gv; }
+.ba-gv li { counter-increment: gv; }
+.ba-gv li:not(.ba-gv-kopf)::before { content: counter(gv) '. '; color: var(--leise); }
+.ba-gv li.ba-gv-kopf { counter-increment: none; font-weight: 900; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--leise); }
+@media (max-width: 760px) { .rechner-felder { grid-template-columns: 1fr 1fr; } }

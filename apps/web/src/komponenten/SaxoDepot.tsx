@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SaxoUebersicht } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
+import { usePrivat } from '../boerse/teile';
 
 const prozent = (n: number | null | undefined) => (n == null ? '–' : `${n >= 0 ? '+' : ''}${(n * 100).toLocaleString('de-DE', { maximumFractionDigits: 1 })} %`);
 const zahl = (n?: number, st = 2) => (n == null ? '–' : n.toLocaleString('de-DE', { maximumFractionDigits: st }));
@@ -14,6 +15,7 @@ export function SaxoDepot() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['boerse', 'saxo'], queryFn: () => api<SaxoUebersicht>('/api/boerse/saxo') });
   const [meldung, setMeldung] = useState('');
+  const [privat] = usePrivat();
   const [laeuft, setLaeuft] = useState(false);
 
   // Rückkehr von der Saxo-Anmeldung (?saxo=ok|fehler) einmal melden, dann aus der Adresse nehmen
@@ -58,7 +60,7 @@ export function SaxoDepot() {
     );
 
   const st = d.stand;
-  const geld = (n: number | null | undefined) => (n == null || !st ? '–' : n.toLocaleString('de-DE', { style: 'currency', currency: st.waehrung }));
+  const geld = (n: number | null | undefined) => (n == null || !st ? '–' : privat ? '•••' : n.toLocaleString('de-DE', { style: 'currency', currency: st.waehrung }));
   return (
     <section className="saxo" aria-label="Saxo">
       <div className="zeile bank-kopf">
@@ -128,7 +130,7 @@ export function SaxoDepot() {
               <strong className={(d.rendite12Monate ?? 0) >= 0 ? 'plus' : 'minus'}>{prozent(d.rendite12Monate)}</strong>
             </div>
           </div>
-          {d.verlauf.length > 1 && <Verlauf punkte={d.verlauf} waehrung={st.waehrung} />}
+          {d.verlauf.length > 1 && !privat && <Verlauf punkte={d.verlauf.slice(-260)} waehrung={st.waehrung} />}
           <table className="tabelle zahlen boerse-tabelle">
             <thead>
               <tr>

@@ -2255,3 +2255,39 @@ Leif hat Saxo verbunden und wollte zwei Dinge: Werkzeuge, mit denen Agenten ihm 
   - Frontmatter `tag:` (gestern), dazu `## Für die Zeitung` und `## Im Detail`.
 - Die Zeitung (06:30) übernimmt „Für die Zeitung“ (höchstens 5 Zeilen) nur, wenn `tag` gestern ist. So steht kein veraltetes „Warum“ unter frischen Zahlen.
 - Ruhige Wochenendtage (nichts gehandelt, keine Bewegung ≥ 1 €) fehlen in der Zeitung.
+
+## E223 – Börse: Analyse über alle Zeiträume, Rechner, Aktien-/ETF-Berater (24.11., Nacht)
+
+Leif (bis 8:00 ohne Rückfragen): In der Börse soll „ganz viel möglich“ sein. Das Depot soll sich über alle möglichen Zeiträume betrachten lassen, jeder Teil einzeln und ein- und ausblendbar, dazu weitere eigene Ideen. Außerdem sollen Aktien- und ETF-Berater eingebaut werden („ich weiß, Claude ist kein Anlageberater“).
+
+**Daten (Server):**
+- **Saxo-Konto:** Die Performance-Reihe (Kontowert + zeitgewichtete Rendite) holt das Dorf jetzt über 10 Jahre statt einem. Lehnt Saxo das ab, nimmt es wie bisher 1 Jahr. „12 Monate“ rechnet jetzt gegen den Wert vor einem Jahr, nicht gegen den Anfang der Reihe.
+- **Kursverläufe je Wert:** Sie kommen über EODHD `/eod/{Kürzel}?from=…`, denselben Endpunkt, den die Tageskurse schon nutzen. Gespeichert werden sie je Kürzel in `dorf_stand` (`kurshist:<Kürzel>`, höchstens 12 Jahre). Ein Abruf je Kürzel.
+  - Danach verlängern die täglichen Kursabrufe den Verlauf, ohne extra Abruf.
+  - Nach den Tageskursen lädt das Dorf nebenbei höchstens 6 fehlende Verläufe; 3 Abrufe bleiben für Leifs Klicks frei. Das Limit von 19 am Tag wird nie überschritten.
+  - Ein fehlgeschlagenes Kürzel wird leer gemerkt und erst nach 7 Tagen neu versucht, sonst kostet es jeden Tag einen Abruf.
+- **Saxo-Positionen → EODHD-Kürzel:** Saxo liefert Symbole wie `NESN:xswx` (Börsenkennung nach ISO 10383). Die Tabelle MIC → EODHD-Endung steht in `boerse.ts`, unbekannte Börsen bleiben ohne Kürzel. Leif kann das Kürzel je Position selbst setzen (Analyse → Kursverläufe & Kürzel).
+- **Ältere Werte einer Saxo-Position** = Kursverlauf × heutige Stückzahl × heutiger Umrechnungsfaktor, so auch in der App beschriftet. Ab dem Verbinden gelten die genauen Tagesstände (E222). Positionsgenaue Historie mit Käufen gibt es ohne Transaktions-Endpunkt nicht; den bindet das Dorf nicht an (nur lesen, nichts erfinden).
+- `GET /api/boerse/analyse` liefert alles in einem: Konto-Reihe, Tagesstände, Positionen, eigenes Depot, Watchlist, Kursverläufe, Zuordnung. `POST /api/boerse/historie` lädt gezielt, `PUT /api/boerse/kuerzel` setzt ein Kürzel.
+
+**Rechnungen** (`packages/shared/src/boerse.ts`, rein, getestet):
+- Zeiträume 1W, 1M, 3M, 6M, YTD, 1J, 3J, 5J, Max und eigene Daten.
+- Kennzahlen: Änderung in % und €, pro Jahr, größter Rückgang, Schwankung p. a., Hoch/Tief, bester/schlechtester Tag, Plus-Tage. Beim Konto zählt die zeitgewichtete Rendite, damit Einzahlungen nicht als Gewinn erscheinen.
+- Monatsrenditen und Jahre, Summen, Index 100.
+- Rechner: Sparplan mit Kosten, Dynamik und Inflation; Entnahme; Umschichten (Rebalancing, auf Wunsch nur kaufen); Kostenvergleich (TER); Sparziel; Konzentration (effektive Anzahl).
+
+**App:** Börse hat drei neue Reiter.
+- **Analyse:**
+  - Zeitraum-Chips, Anzeige als Wert, % oder Index 100, Kennzahlen-Kacheln.
+  - Diagramm mit Fadenkreuz und Tooltip für alle sichtbaren Reihen.
+  - Tabelle aller Teile (Saxo gesamt, jede Position, Bargeld, eigenes Depot gesamt und je Position, Watchlist), je Teil ein- und ausblendbar, sortierbar. Optional „Summe der sichtbaren“.
+  - Aufteilung nach Position, Art, Währung oder Depot, mit Klumpen-Hinweis.
+  - Gewinner und Verlierer im Zeitraum, Monats-Heatmap mit Zahlen in jeder Zelle.
+  - Zeitraum, Anzeige und Sichtbarkeit merkt sich das Gerät.
+- **Rechner:** fünf Rechner; die Eingaben merkt sich das Gerät. Umschichten nimmt die echten Positionen.
+- **Berater:** vier neue Aktionen (Vorlagen, claude-code, Stufe groß, Web + Depot-Werkzeuge, also über Leifs Abo): Aktie analysieren, ETF finden & vergleichen, Depot-Check (Ziel, Horizont, Risiko), Frag den Berater.
+  - Schnellfragen aus dem eigenen Depot, zum Beispiel die größte Position oder der Wert, der sich heute am stärksten bewegt.
+  - Die Berichte liegen in `Boerse/berater/`.
+  - Die Berater sollen klar Stellung beziehen, so wie Leif es will („keine Ausflüchte“). Sie nennen Quellen mit Datum und sagen einmal, dass sie keine zugelassene Anlageberatung sind. Handeln kann das Dorf weiterhin nicht.
+- **Beträge verbergen** (Privatsphäre, z. B. in der Bahn): ein Knopf in Depot und Analyse, gilt für die ganze Börse und wird vom Gerät gemerkt.
+- Analyse, Rechner und Berater werden erst beim Öffnen geladen (eigenes Bündel).

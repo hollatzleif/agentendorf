@@ -87,6 +87,10 @@ const PFLICHT_DATEIEN = [
   'Boerse/depot.md',
   'Boerse/aktionen/wochenbericht.md',
   'Boerse/aktionen/tagesbericht.md', // E222
+  'Boerse/aktionen/aktie-analysieren.md', // E223 Berater
+  'Boerse/aktionen/etf-vergleichen.md',
+  'Boerse/aktionen/depot-check.md',
+  'Boerse/aktionen/berater-frage.md',
   'Kirchturm/gebaeude.md',
   'Uni/aktionen/karten-erstellen.md',
   // E191 Codehaus
@@ -405,6 +409,7 @@ export async function dorfStarten(
     log: (t) => console.warn(t),
   });
   agenten.saxo = saxo; // E222: depot_* für die Agenten
+  boerse.saxoSymbole = () => saxo.symbole(); // E223: Kursverläufe auch für Saxo-Positionen
   const depotZeilen = { zeitungsZeilen: async () => [...saxo.zeitungsZeilen(), ...(await boerse.zeitungsZeilen())] };
   // Nacht 18./19.11.: Karteikarten je Fach
   const karten = new Karteikasten({ db, uhr, vault, hub });

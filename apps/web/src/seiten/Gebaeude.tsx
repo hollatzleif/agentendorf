@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Gebaeude, VaultDatei } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
@@ -31,6 +31,10 @@ import { StatistikAnsicht } from '../komponenten/StatistikAnsicht';
 import { NotenAnsicht } from '../komponenten/NotenAnsicht';
 import { NotizenAnsicht } from '../komponenten/NotizenAnsicht';
 import { MarktKalender } from '../komponenten/MarktKalender';
+// E223: Börse-Analyse, Rechner, Berater – erst beim Öffnen geladen
+const BoerseAnalyseAnsicht = lazy(() => import('../boerse/Analyse').then((m) => ({ default: m.BoerseAnalyseAnsicht })));
+const BoerseRechner = lazy(() => import('../boerse/Rechner').then((m) => ({ default: m.BoerseRechner })));
+const BoerseBerater = lazy(() => import('../boerse/Berater').then((m) => ({ default: m.BoerseBerater })));
 
 const REITER = [
   ['aktionen', 'Aktionen'],
@@ -60,7 +64,7 @@ const MARKT_VORNE = [
   ['kalender', 'Kalender'],
 ] as const;
 const BANK_VORNE = [['konto', 'Konto']] as const;
-const BOERSE_VORNE = [['depot', 'Depot']] as const;
+const BOERSE_VORNE = [['depot', 'Depot'], ['analyse', 'Analyse'], ['rechner', 'Rechner'], ['berater', 'Berater']] as const;
 const KIRCHTURM_VORNE = [['uhr', 'Uhr']] as const;
 const CODEHAUS_VORNE = [
   ['code', 'Projekte & VS Code'],
@@ -159,6 +163,13 @@ export function GebaeudeInhalt({ id, reiter, reiterWaehlen, kompakt }: { id: str
         {reiter === 'konto' && <BankUebersicht />}
         {reiter === 'termine' && <CorpsUebersicht />}
         {reiter === 'depot' && <BoerseUebersicht />}
+        {(reiter === 'analyse' || reiter === 'rechner' || reiter === 'berater') && id === 'Boerse' && (
+          <Suspense fallback={<p className="leise">Lade …</p>}>
+            {reiter === 'analyse' && <BoerseAnalyseAnsicht />}
+            {reiter === 'rechner' && <BoerseRechner />}
+            {reiter === 'berater' && <BoerseBerater />}
+          </Suspense>
+        )}
         {reiter === 'uhr' && <KirchturmUhr />}
         {reiter === 'code' && <CodehausUebersicht />}
         {reiter === 'editor' && <CodehausEditorStart />}

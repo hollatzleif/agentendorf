@@ -97,10 +97,12 @@ function QuellenAuswahl({ quelle, wert, setzen }: { quelle: AktionQuelle; wert: 
   );
 }
 
-function AktionStarten({ a }: { a: AktionInfo }) {
-  const [werte, setWerte] = useState<Record<string, string>>(() =>
-    Object.fromEntries(a.eingaben.map((e) => [e.name, e.standard ?? (e.typ === 'auswahl' ? (e.optionen?.[0] ?? '') : '')])),
-  );
+/** Formular einer Aktion; `vorgabe` füllt Felder vor (E223: Schnellfragen im Börsen-Berater) */
+export function AktionStarten({ a, vorgabe }: { a: AktionInfo; vorgabe?: Record<string, string> }) {
+  const [werte, setWerte] = useState<Record<string, string>>(() => ({
+    ...Object.fromEntries(a.eingaben.map((e) => [e.name, e.standard ?? (e.typ === 'auswahl' ? (e.optionen?.[0] ?? '') : '')])),
+    ...vorgabe,
+  }));
   const [fehler, setFehler] = useState('');
   const [laeuft, setLaeuft] = useState(false);
   const baum = useBaum();
