@@ -32,6 +32,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3-pip && 
     && pip3 install --no-cache-dir --break-system-packages --no-deps --target /pptx python-pptx==0.6.23
 # E199: reine Python-Pakete (bzw. ein fertiges Wheel für Python 3.11) mit fester Version UND Prüfsumme, ohne Abhängigkeiten
 # aus dem Netz nachzuziehen (PyYAML für genanki kommt aus apt). Debian 12 hat genanki, duckdb und aktuelles pypdf nicht.
+# E229: scikit-learn (Uni: Machine Learning, inkl. Datensätze wie load_wine) – braucht numpy ≥ 1.24.1 und scipy ≥ 1.10.0, die
+# Debian 12 mitbringt (1.24.2 / 1.10.1); joblib, threadpoolctl und narwhals sind reine Python-Pakete.
 RUN printf '%s\n' \
       'pypdf==7.1.1 --hash=sha256:04c5680d4b4cfa04ab505b09393fc949860c34a4dad6565284d11a2f5c3ce8b1' \
       'segno==1.6.6 --hash=sha256:28c7d081ed0cf935e0411293a465efd4d500704072cdb039778a2ab8736190c7' \
@@ -40,6 +42,10 @@ RUN printf '%s\n' \
       'cached-property==2.0.1 --hash=sha256:f617d70ab1100b7bcf6e42228f9ddcb78c676ffa167278d9f730d1c2fba69ccb' \
       'frozendict==2.5.1 --hash=sha256:b6e602e286b912beca1e12615f50eda6c74646b440c8cfde34221adee6c98c5e' \
       'duckdb==2.0.0 --hash=sha256:5a3601121c7cc50d0b70412995634682fafcb58a0156d5d663dfd0b3bbe30a33' \
+      'scikit-learn==1.9.1 --hash=sha256:52a0703bbc07ad27f560fa63fa68e4c54dd735bfbbf65b4dd3c225dc7547b6df' \
+      'joblib==1.6.0 --hash=sha256:3dbbf9f6e4b592a2357b854608e980fe6390d131d7a82f011a377ef2ebef7aba' \
+      'threadpoolctl==3.8.0 --hash=sha256:f1b49c82704d50f13ffae019c727b0fa4f6791a58f48f06a09c45face1be66da' \
+      'narwhals==2.29.0 --hash=sha256:1c69b3dc30240f6e848c5a673cafc86affa44184ecce721e25b7194663ad10dc' \
       > /tmp/dorfwerk.txt \
     && pip3 install --no-cache-dir --break-system-packages --no-deps --only-binary=:all: --require-hashes \
          --target /dorfwerk -r /tmp/dorfwerk.txt \

@@ -5,8 +5,9 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { ZodError } from 'zod';
 import { KryptoFehler, type Kryptowerk } from './motor.js';
+import type { Backtests } from './backtest.js';
 
-export function kryptoServer(werk: Kryptowerk, geheimnis: string): FastifyInstance {
+export function kryptoServer(werk: Kryptowerk, geheimnis: string, backtests?: Backtests): FastifyInstance {
   if (geheimnis.length < 32) throw new Error('KRYPTO_GEHEIMNIS fehlt oder ist zu kurz');
   const app = Fastify({ logger: false, bodyLimit: 64 * 1024 });
   const soll = Buffer.from(`Bearer ${geheimnis}`);
@@ -38,6 +39,25 @@ export function kryptoServer(werk: Kryptowerk, geheimnis: string): FastifyInstan
   app.get('/bots/:id/protokoll', async (req) => {
     const q = z.object({ vor: z.coerce.number().int().positive().optional(), anzahl: z.coerce.number().int().min(1).max(500).optional() }).parse(req.query);
     return werk.protokoll(Id.parse(req.params).id, q);
+  });
+  // E228: scharf schalten (Passwort/TOTP prüft das Dorf vorher), entschärfen, auszahlen (nur an die feste Adresse)
+  app.post('/bots/:id/scharf', async (req) => werk.scharfSchalten(Id.parse(req.params).id, z.object({ budgetSol: z.number().finite() }).parse(req.body)));
+  app.post('/bots/:id/entschaerfen', async (req) => werk.entschaerfen(Id.parse(req.params).id));
+  app.post('/bots/:id/auszahlen', async (req) => werk.auszahlen(Id.parse(req.params).id));
+  app.get('/backtests', async () => {
+    if (!backtests) throw new KryptoFehler(503, 'Backtest nicht verfügbar');
+    const b = backtests.bereich();
+    return { bereich: { von: b.von ? new Date(b.von).toISOString() : null, bis: b.bis ? new Date(b.bis).toISOString() : null }, jobs: backtests.liste() };
+  });
+  app.post('/backtests', async (req) => {
+    if (!backtests) throw new KryptoFehler(503, 'Backtest nicht verfügbar');
+    const b = z.object({ einstellung: z.unknown(), vonStunden: z.number().min(0.2).max(24 * 30).optional() }).parse(req.body);
+    const bis = backtests.bereich().bis ?? Date.now();
+    return backtests.starten(b.einstellung, b.vonStunden ? { von: bis - b.vonStunden * 3_600_000 } : {});
+  });
+  app.get('/backtests/:id', async (req) => {
+    if (!backtests) throw new KryptoFehler(503, 'Backtest nicht verfügbar');
+    return backtests.hole(Id.parse(req.params).id);
   });
   app.post('/notaus', async (req) => {
     werk.notausAusloesen(z.object({ grund: z.string().max(100).optional() }).parse(req.body ?? {}).grund ?? 'Not-Aus');

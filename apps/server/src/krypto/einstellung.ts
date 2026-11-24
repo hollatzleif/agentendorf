@@ -52,8 +52,10 @@ export const EinstellungSchema = z
         verzoegerungMs: zahl(300, 60_000),
         prioritaetSol: zahl(0, 0.1),
         fehlschlagProzent: zahl(0, 90),
+        portalGebuehrProzent: zahl(0, 5).default(0.5),
       })
       .strict(),
+    slippageProzent: zahl(1, 50).default(15),
   })
   .strict()
   .refine((e) => e.filter.minAlterSek < e.filter.maxAlterSek, { message: 'Mindestalter muss kleiner als Höchstalter sein' })

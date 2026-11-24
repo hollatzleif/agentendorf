@@ -71,7 +71,11 @@ export interface KryptoEinstellung {
     prioritaetSol: number;
     /** so viel % der Transaktionen schlagen fehl (Gebühr ist trotzdem weg) */
     fehlschlagProzent: number;
+    /** Gebühr des Ausführungswegs (PumpPortal Local: 0,5 %) – auch im Paper Trading, damit Paper = Live */
+    portalGebuehrProzent?: number;
   };
+  /** nur Live: erlaubte Abweichung beim Ausführen in % (an PumpPortal) */
+  slippageProzent?: number;
 }
 
 export interface KryptoKennzahlen {
@@ -89,8 +93,24 @@ export interface KryptoKennzahlen {
   maxDrawdownProzent: number;
   offen: number;
   gebuehrenSol: number;
+  /** Gebühren nach Art */
+  gebuehrenArt: { pumpSol: number; portalSol: number; netzSol: number };
+  /** gehandeltes Volumen (Käufe + Verkäufe) */
+  umsatzSol: number;
   geblockteRugs: number;
   heuteSol: number;
+}
+
+export interface KryptoWallet {
+  adresse: string;
+  /** null = ohne RPC nicht abrufbar */
+  guthabenSol: number | null;
+}
+
+export interface KryptoLive {
+  seit: string;
+  /** so viel SOL darf der Bot höchstens einsetzen (Budget beim Scharfschalten) */
+  budgetSol: number;
 }
 
 export interface KryptoBot {
@@ -102,6 +122,32 @@ export interface KryptoBot {
   kennzahlen: KryptoKennzahlen;
   /** Equity je Stunde (für die Vergleichskurve) */
   kurve: [number, number][];
+  /** eigenes, neu erzeugtes Wallet (null = Hauptschlüssel fehlt) */
+  wallet: KryptoWallet | null;
+  live: KryptoLive | null;
+  /** Bilanz des letzten Paper-Abschnitts vor dem Scharfschalten */
+  paperBilanz: KryptoKennzahlen | null;
+  /** seit wann der aktuelle Abschnitt (Paper oder Live) läuft */
+  abschnittSeit: string;
+}
+
+export interface KryptoBacktest {
+  id: string;
+  status: 'laeuft' | 'fertig' | 'fehler';
+  fortschritt: number;
+  von: string;
+  bis: string;
+  name: string;
+  erstellt: string;
+  fehler?: string;
+  /** wie viele Tokens und Kurse in den Aufzeichnungen lagen */
+  daten?: { tokens: number; kurse: number; rug: number };
+  ergebnis?: {
+    kennzahlen: KryptoKennzahlen;
+    kurve: [number, number][];
+    trades: KryptoTrade[];
+    entscheidungen: { buy: number; hold: number; block: number };
+  };
 }
 
 export interface KryptoKerze {
@@ -138,6 +184,8 @@ export interface KryptoTrade {
   slippageProzent: number;
   verzoegerungMs: number;
   grund: string;
+  /** echte Transaktion (Live) */
+  signatur?: string;
   /** nur Verkäufe: Gewinn der ganzen Position, wenn sie damit geschlossen ist */
   gewinnSol?: number;
   gewinnProzent?: number;
@@ -215,6 +263,10 @@ export interface KryptoTerminal {
 
 export interface KryptoUebersicht {
   verbunden: boolean;
+  /** Live möglich: RPC und Hauptschlüssel eingerichtet */
+  liveMoeglich?: boolean;
+  /** feste Auszahlungsadresse (am Server eingetragen) */
+  auszahlung?: string | null;
   notaus: boolean;
   datenOnline: boolean;
   beobachtet: number;
@@ -256,8 +308,12 @@ export const KRYPTO_STANDARD: KryptoEinstellung = {
     trailingProzent: 20,
     maxHaltMinuten: 120,
   },
-  simulation: { verzoegerungMs: 1500, prioritaetSol: 0.0005, fehlschlagProzent: 5 },
+  simulation: { verzoegerungMs: 1500, prioritaetSol: 0.0005, fehlschlagProzent: 5, portalGebuehrProzent: 0.5 },
+  slippageProzent: 15,
 };
+
+/** so lange muss ein Bot im Paper Trading gelaufen sein, bevor er scharf geschaltet werden darf */
+export const KRYPTO_PAPER_MINDESTENS_STUNDEN = 24;
 
 /** Die zwölf Prüfmodule im Kreis um den Kern */
 export const KRYPTO_MODULE: { schluessel: KryptoModulSchluessel; name: string; buchstabe: string }[] = [

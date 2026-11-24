@@ -80,3 +80,69 @@ test('Terminal Kielwasser: Kopf, Token-Leiste, Equity-Kerzen, Agent mit Modulen,
   }
   await page.screenshot({ path: info.outputPath('terminal.png'), fullPage: true });
 });
+
+test('E228: Backtest mit den Regeln eines Bots, scharf schalten nur mit SCHARF + Passwort, Terminal zeigt LIVE, Wallet, Umsatz und Gebühren', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'ausführlich am Desktop');
+  const { BOT_ID, uebersicht, terminal } = await import('./hafen-daten');
+  const u = uebersicht();
+  const anfragen: { pfad: string; body: unknown }[] = [];
+  let laeufe = 0;
+  await page.route('**/api/krypto**', async (r) => {
+    const url = new URL(r.request().url());
+    const body = r.request().postDataJSON();
+    anfragen.push({ pfad: url.pathname, body });
+    if (url.pathname === '/api/krypto') return r.fulfill({ json: u });
+    if (url.pathname === '/api/krypto/backtests' && r.request().method() === 'GET') return r.fulfill({ json: { bereich: { von: new Date(Date.now() - 30 * 3_600_000).toISOString(), bis: new Date().toISOString() }, jobs: [] } });
+    if (url.pathname === '/api/krypto/backtests') return r.fulfill({ json: { id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', status: 'laeuft', fortschritt: 0, von: '', bis: '', name: 'Schwarm', erstellt: '' } });
+    if (url.pathname.startsWith('/api/krypto/backtests/')) {
+      laeufe++;
+      const k = { ...u.bots[0]!.kennzahlen, gewinnSol: 0.42, gewinnProzent: 4.2, trades: 7, gewonnen: 4, verloren: 3 };
+      return r.fulfill({ json: laeufe < 2 ? { id: 'x', status: 'laeuft', fortschritt: 40, von: '', bis: '', name: 'Schwarm', erstellt: '' } : { id: 'x', status: 'fertig', fortschritt: 100, von: '', bis: '', name: 'Schwarm', erstellt: '', daten: { tokens: 812, kurse: 40210, rug: 133 }, ergebnis: { kennzahlen: k, kurve: [], trades: terminal().trades, entscheidungen: { buy: 9, hold: 120, block: 77 } } } });
+    }
+    if (url.pathname.endsWith('/scharf')) return (body as { passwort: string }).passwort === 'richtig' ? r.fulfill({ json: { ...u.bots[0], modus: 'live' } }) : r.fulfill({ status: 401, json: { fehler: 'Passwort falsch.' } });
+    if (url.pathname.endsWith('/protokoll')) return r.fulfill({ json: { trades: terminal().trades, entscheidungen: [] } });
+    if (url.pathname.endsWith('/terminal')) {
+      const t = terminal();
+      t.bot.modus = 'live';
+      t.trades[0]!.signatur = '5HTy8CU5GnhWYyH2vC1aW1wRxc74hkBtqpr6XgDRQcPF';
+      return r.fulfill({ json: t });
+    }
+    return r.fulfill({ json: { ok: true } });
+  });
+  await anmelden(page);
+  await page.goto('/gebaeude/Hafen');
+  const karte = page.getByRole('article', { name: 'Bot Schwarm' });
+  await expect(karte).toContainText('7xKXtg');
+  // Backtest
+  await karte.getByRole('button', { name: 'Backtest' }).click();
+  const bt = page.getByRole('region', { name: 'Backtest' });
+  await bt.getByRole('button', { name: '▶ Backtest starten' }).click();
+  await expect(bt).toContainText('4W/3L', { timeout: 10_000 });
+  await expect(bt).toContainText('812 Tokens');
+  expect((anfragen.find((a) => a.pfad === '/api/krypto/backtests' && a.body)!.body as { vonStunden: number }).vonStunden).toBe(24);
+  await bt.getByRole('button', { name: 'Schließen' }).click();
+  // Scharf schalten: Knopf erst mit SCHARF und Passwort; falsches Passwort → Meldung
+  await karte.getByRole('button', { name: '🎯 Scharf schalten' }).click();
+  const sd = page.getByRole('region', { name: 'Scharf schalten' });
+  await expect(sd).toContainText('echtem Geld');
+  const los = sd.getByRole('button', { name: 'Mit echtem Geld handeln' });
+  await expect(los).toBeDisabled();
+  await sd.getByLabel('Dein Passwort').fill('falsch');
+  await sd.getByLabel('Zum Bestätigen SCHARF eintippen').fill('SCHARF');
+  await los.click();
+  await expect(sd.getByRole('alert')).toContainText('Passwort falsch');
+  await sd.getByLabel('Dein Passwort').fill('richtig');
+  await los.click();
+  await expect(sd).toBeHidden();
+  expect(anfragen.filter((a) => a.pfad.endsWith('/scharf')).at(-1)!.body).toMatchObject({ budgetSol: 0.5, bestaetigung: 'SCHARF', passwort: 'richtig' });
+  // Terminal im Live-Modus
+  await page.goto(`/hafen/${BOT_ID}`);
+  const kw = page.getByLabel('Terminal Schwarm');
+  await expect(kw.getByText('LIVE', { exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'PnL' })).toContainText('Umsatz');
+  await expect(page.getByRole('region', { name: 'PnL' })).toContainText('PumpPortal');
+  await expect(page.getByRole('region', { name: 'Trades' }).getByRole('link', { name: 'Transaktion' })).toHaveAttribute('href', /solscan\.io\/tx\//);
+  const download = page.waitForEvent('download');
+  await page.getByRole('region', { name: 'Trades' }).getByRole('button', { name: '⬇ CSV' }).click();
+  expect((await download).suggestedFilename()).toBe('hafen-Schwarm-trades.csv');
+});

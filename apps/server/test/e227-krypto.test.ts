@@ -136,7 +136,8 @@ describe('Kryptowerk (Paper Trading)', () => {
     const kauf = p.trades.find((t) => t.art === 'kauf')!;
     expect(kauf.verzoegerungMs).toBeGreaterThanOrEqual(1500);
     expect(kauf.sol).toBeCloseTo(0.5);
-    expect(kauf.gebuehrSol).toBeCloseTo(0.5 * 0.0125 + 0.000005 + 0.0005, 6);
+    // Pump.fun 1,25 % + PumpPortal 0,5 % (Paper = Live) + Grundgebühr + Priority Fee
+    expect(kauf.gebuehrSol).toBeCloseTo(0.5 * 0.005 + (0.5 - 0.5 * 0.005) * 0.0125 + 0.000005 + 0.0005, 6);
     expect(kauf.slippageProzent).toBeGreaterThan(1.25);
     expect(p.bot.kennzahlen.kapitalSol).toBeLessThan(10); // schon beim Einstieg im Minus (Gebühren)
     // +60 % → Take-Profit 1 (50 %)
@@ -161,6 +162,8 @@ describe('Kryptowerk (Paper Trading)', () => {
     expect(k).toMatchObject({ trades: 1, gewonnen: 1, verloren: 0, trefferquote: 1, offen: 0 });
     expect(k.gewinnSol).toBeGreaterThan(0);
     expect(k.gebuehrenSol).toBeGreaterThan(0.01);
+    expect(k.gebuehrenArt.portalSol).toBeGreaterThan(0.002);
+    expect(k.umsatzSol).toBeGreaterThan(1);
     expect(p.pnlStunden.some((v) => v != null && v > 0)).toBe(true);
     expect(p.kerzen.length).toBeGreaterThan(0);
     expect(p.module.find((m) => m.schluessel === 'x')!.an).toBe(false);

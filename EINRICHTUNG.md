@@ -184,7 +184,20 @@ Die JKU sperrt den Zugang für die Moodle-App. Deshalb holt das Dorf nur die **T
 - **Terminal:** „Terminal öffnen“ zeigt den Bot live (Kielwasser).
 - **Prompt-Bots** brauchen den API-Schlüssel des Dorfs (`dorf api-schluessel`) und kosten höchstens 0,50 $ je Bot und Tag. Das zählt nicht gegen das Tagesbudget für Post und Zeitung.
 - **Not-Aus:** In der App gibt es den roten Knopf, in Telegram `/notaus`. Danach in der App „Not-Aus aufheben“ und jeden Bot einzeln starten.
-- **Noch nicht dabei:** X-Sentiment (bräuchte einen Grok-Schlüssel von xAI), KOL-Watch (bräuchte einen PumpPortal-Schlüssel mit Wallet, kostet je Nachricht), Backtest und Live-Trading.
+- **Backtest:** Auf der Bot-Karte „Backtest“ wählen. Er spielt die Aufzeichnungen mit genau diesen Regeln ab. Das geht nur mit Regel-Bots und erst, wenn ein paar Stunden aufgezeichnet sind.
+- **Scharf schalten (echtes Geld)**, einmalig auf dem Server einrichten:
+  1. Auf helius.dev ein kostenloses Konto anlegen und im Dashboard die Mainnet-„RPC URL“ kopieren. Dann `dorf krypto-rpc` ausführen und die URL einfügen.
+  2. `dorf krypto-auszahlung <deine Phantom-Adresse>`: Nur dorthin kann das Dorf auszahlen.
+  3. `dorf krypto-hauptschluessel`: den Schlüssel im Passwortmanager sichern. Ohne ihn sind die Bot-Wallets nach einem Serverausfall verloren.
+
+  Danach in der App:
+  1. Die Wallet-Adresse des Bots kopieren (Bot-Karte, 👛) und aus Phantom SOL schicken, mindestens Budget + 0,02.
+  2. „🎯 Scharf schalten“ wählen, ein Budget setzen, Passwort (und Code) eingeben und SCHARF tippen.
+
+  Voraussetzung: Der Bot lief mindestens 24 h im Paper Trading. Fang klein an, denn Verluste sind echt.
+- **Zurück:** „Entschärfen“ (geht ohne offene Positionen) und „Auszahlen“, dann geht das ganze Guthaben an deine feste Adresse.
+- **Wallet in Phantom übernehmen** (nur auf dem Server): erst `dorf krypto-wallets`, dann `dorf krypto-export <Adresse>`.
+- **Noch nicht dabei:** X-Sentiment (bräuchte einen Grok-Schlüssel von xAI) und KOL-Watch (bräuchte einen PumpPortal-Schlüssel mit Wallet, kostet je Nachricht).
 
 ### Programme für Mac und Windows
 

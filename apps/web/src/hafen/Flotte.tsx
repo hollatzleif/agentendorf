@@ -2,7 +2,7 @@
 // Not-Aus. Jeder neue Bot läuft im Paper Trading.
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { KRYPTO_STANDARD, type KryptoBot, type KryptoEinstellung, type KryptoUebersicht } from '@dorf/shared';
+import { KRYPTO_PAPER_MINDESTENS_STUNDEN, KRYPTO_STANDARD, type KryptoBacktest, type KryptoBot, type KryptoEinstellung, type KryptoUebersicht } from '@dorf/shared';
 import { ApiFehler, api } from '../api';
 import { linkKlick } from '../router';
 import { prozent, sol, solVz, uhrzeit } from './format';
@@ -15,6 +15,7 @@ export function HafenFlotte() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['krypto'], queryFn: () => api<KryptoUebersicht>('/api/krypto'), refetchInterval: 5000 });
   const [form, setForm] = useState<{ id?: string; e: KryptoEinstellung } | null>(null);
+  const [dialog, setDialog] = useState<{ art: 'scharf' | 'auszahlen' | 'backtest'; bot: KryptoBot } | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);
   const neu = () => qc.invalidateQueries({ queryKey: ['krypto'] });
   const tun = useMutation({
@@ -85,6 +86,10 @@ export function HafenFlotte() {
         />
       )}
 
+      {dialog?.art === 'scharf' && <ScharfDialog bot={dialog.bot} fertig={() => (setDialog(null), void neu())} />}
+      {dialog?.art === 'auszahlen' && <AuszahlenDialog bot={dialog.bot} an={u.auszahlung ?? ''} fertig={() => (setDialog(null), void neu())} />}
+      {dialog?.art === 'backtest' && <BacktestPanel bot={dialog.bot} schliessen={() => setDialog(null)} />}
+
       {u.bots.length > 0 && <Vergleich bots={u.bots} farbe={farbe} />}
 
       <div className="hafen-bots">
@@ -96,6 +101,9 @@ export function HafenFlotte() {
             notaus={u.notaus}
             bearbeiten={() => setForm({ id: b.id, e: structuredClone(b.einstellung) })}
             tun={(f) => tun.mutate(f)}
+            liveMoeglich={!!u.liveMoeglich}
+            auszahlung={u.auszahlung ?? null}
+            oeffnen={(art) => setDialog({ art, bot: b })}
           />
         ))}
         {!u.bots.length && u.verbunden && <p className="leise">Noch keine Bots. „+ Neuer Bot“ legt einen mit vorsichtigen Standardwerten an.</p>}
@@ -104,9 +112,10 @@ export function HafenFlotte() {
   );
 }
 
-function BotKarte({ b, farbe, notaus, bearbeiten, tun }: { b: KryptoBot; farbe: string; notaus: boolean; bearbeiten: () => void; tun: (f: () => Promise<unknown>) => void }) {
+function BotKarte({ b, farbe, notaus, bearbeiten, tun, liveMoeglich, auszahlung, oeffnen }: { b: KryptoBot; farbe: string; notaus: boolean; bearbeiten: () => void; tun: (f: () => Promise<unknown>) => void; liveMoeglich: boolean; auszahlung: string | null; oeffnen: (art: 'scharf' | 'auszahlen' | 'backtest') => void }) {
   const k = b.kennzahlen;
   const e = b.einstellung;
+  const live = b.modus === 'live';
   return (
     <article className="karte innen hafen-bot" aria-label={`Bot ${e.name}`} style={{ borderTop: `4px solid ${farbe}` }}>
       <div className="hafen-bot-kopf">
@@ -116,7 +125,7 @@ function BotKarte({ b, farbe, notaus, bearbeiten, tun }: { b: KryptoBot; farbe: 
         <div style={{ flex: 1, minWidth: 0 }}>
           <strong>{e.name}</strong>
           <div className="leise" style={{ fontSize: '0.8rem' }}>
-            {b.status === 'laeuft' ? '🟢 läuft' : b.status === 'pausiert' ? '⏸ pausiert' : '🛑 gestoppt'} · Paper · {e.art === 'prompt' ? 'Prompt' : 'Regeln'}
+            {b.status === 'laeuft' ? '🟢 läuft' : b.status === 'pausiert' ? '⏸ pausiert' : '🛑 gestoppt'} · {live ? <b className="hafen-live">LIVE · echtes Geld</b> : 'Paper'} · {e.art === 'prompt' ? 'Prompt' : 'Regeln'}
           </div>
         </div>
         <strong className={k.gewinnSol >= 0 ? 'plus' : 'minus'}>{prozent(k.gewinnProzent)}</strong>
@@ -151,10 +160,47 @@ function BotKarte({ b, farbe, notaus, bearbeiten, tun }: { b: KryptoBot; farbe: 
           </b>
         </div>
       </div>
+      {b.wallet && (
+        <div className="leise hafen-wallet" title="Eigenes, neu erzeugtes Wallet dieses Bots">
+          👛 <code>{b.wallet.adresse.slice(0, 6)}…{b.wallet.adresse.slice(-6)}</code>
+          <button type="button" className="klein" onClick={() => void navigator.clipboard?.writeText(b.wallet!.adresse)}>
+            Kopieren
+          </button>
+          {b.wallet.guthabenSol != null && <span> · {sol(b.wallet.guthabenSol, 4)}</span>}
+        </div>
+      )}
+      {live && b.live && <div className="leise">Scharf seit {new Date(b.live.seit).toLocaleString('de-AT')} · Budget {sol(b.live.budgetSol, 2)}</div>}
+      {!live && b.paperBilanz && <div className="leise">Letzter Live-Abschnitt vorher: {prozent(b.paperBilanz.gewinnProzent)}</div>}
       <div className="hafen-knoepfe">
         <a className="knopf klein" href={`/hafen/${b.id}`} onClick={linkKlick}>
           Terminal öffnen
         </a>
+        {!live && e.art === 'regeln' && (
+          <button type="button" className="klein" onClick={() => oeffnen('backtest')}>
+            Backtest
+          </button>
+        )}
+        {!live && liveMoeglich && b.wallet && (
+          <button type="button" className="klein" onClick={() => oeffnen('scharf')}>
+            🎯 Scharf schalten
+          </button>
+        )}
+        {live && (
+          <button
+            type="button"
+            className="klein"
+            onClick={() => {
+              if (window.confirm('Zurück ins Paper Trading? Geht nur ohne offene Positionen (vorher pausieren oder Not-Aus).')) tun(() => api(`/api/krypto/bots/${b.id}/entschaerfen`, { methode: 'POST' }));
+            }}
+          >
+            Entschärfen
+          </button>
+        )}
+        {auszahlung && b.wallet && (b.wallet.guthabenSol ?? 0) > 0 && (
+          <button type="button" className="klein" onClick={() => oeffnen('auszahlen')}>
+            Auszahlen
+          </button>
+        )}
         {b.status === 'laeuft' ? (
           <button type="button" className="klein" onClick={() => tun(() => api(`/api/krypto/bots/${b.id}/status`, { methode: 'POST', body: { status: 'pausiert' } }))}>
             Pausieren
@@ -374,6 +420,230 @@ function BotFormular({ start, id, fertig, abbrechen }: { start: KryptoEinstellun
           Abbrechen
         </button>
       </div>
+    </section>
+  );
+}
+
+function useTotpAktiv() {
+  return useQuery({ queryKey: ['ich'], queryFn: () => api<{ totpAktiv: boolean }>('/api/ich') }).data?.totpAktiv ?? false;
+}
+
+/** E228: Scharf schalten – echtes Geld. Passwort (+ Code), getipptes SCHARF, Budget. */
+function ScharfDialog({ bot, fertig }: { bot: KryptoBot; fertig: () => void }) {
+  const totp = useTotpAktiv();
+  const [budget, setBudget] = useState(0.5);
+  const [passwort, setPasswort] = useState('');
+  const [code, setCode] = useState('');
+  const [wort, setWort] = useState('');
+  const [fehler, setFehler] = useState<string | null>(null);
+  const [laeuft, setLaeuft] = useState(false);
+  const stunden = (Date.now() - Date.parse(bot.abschnittSeit)) / 3_600_000;
+  const los = async () => {
+    setLaeuft(true);
+    setFehler(null);
+    try {
+      await api(`/api/krypto/bots/${bot.id}/scharf`, { methode: 'POST', body: { budgetSol: budget, bestaetigung: wort, passwort, ...(totp ? { code } : {}) } });
+      fertig();
+    } catch (x) {
+      setFehler(x instanceof ApiFehler ? x.message : String(x));
+    } finally {
+      setLaeuft(false);
+    }
+  };
+  return (
+    <section className="karte innen hafen-formular hafen-scharf" aria-label="Scharf schalten">
+      <h3 style={{ marginTop: 0 }}>🎯 {bot.einstellung.name} scharf schalten</h3>
+      <p className="hafen-hinweis">
+        Ab jetzt handelt der Bot mit <b>echtem Geld</b> aus seinem eigenen Wallet <code>{bot.wallet?.adresse}</code>. Schick vorher SOL dorthin (z. B. aus Phantom) – mindestens Budget + 0,02 SOL für Gebühren. Die meisten neuen Coins verlieren schnell an Wert;
+        Verluste sind echt. Fang klein an.
+      </p>
+      <ul className="leise">
+        <li>{stunden >= KRYPTO_PAPER_MINDESTENS_STUNDEN ? '✓' : '✗'} mindestens {KRYPTO_PAPER_MINDESTENS_STUNDEN} h im Paper Trading (jetzt {Math.floor(stunden)} h) – Paper-Ergebnis: {prozent(bot.kennzahlen.gewinnProzent)} bei {bot.kennzahlen.trades} Trades</li>
+        <li>{bot.kennzahlen.offen === 0 ? '✓' : '✗'} keine offenen Paper-Positionen</li>
+        <li>Wallet: {bot.wallet?.guthabenSol == null ? 'Guthaben wird geprüft' : sol(bot.wallet.guthabenSol, 4)}</li>
+        <li>Grenzen im Code: Einsatz je Trade höchstens {sol(bot.einstellung.limits.einsatzProTradeSol, 2)} bzw. {bot.einstellung.limits.positionProzent} % des Budgets, Tagesverlust höchstens {sol(bot.einstellung.limits.maxTagesverlustSol, 2)}, höchstens {bot.einstellung.limits.maxOffen} offene Positionen. Kein Hebel.</li>
+      </ul>
+      <fieldset>
+        <legend>Bestätigen</legend>
+        <label>
+          Budget (SOL, 0,05–50)
+          <input type="number" step="0.05" min={0.05} max={50} value={budget} onChange={(ev) => setBudget(Number(ev.target.value))} />
+        </label>
+        <label>
+          Dein Passwort
+          <input type="password" autoComplete="current-password" value={passwort} onChange={(ev) => setPasswort(ev.target.value)} />
+        </label>
+        {totp && (
+          <label>
+            Code (Authenticator)
+            <input inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(ev) => setCode(ev.target.value)} />
+          </label>
+        )}
+        <label>
+          Zum Bestätigen SCHARF eintippen
+          <input value={wort} onChange={(ev) => setWort(ev.target.value)} />
+        </label>
+      </fieldset>
+      {fehler && (
+        <p className="hinweis" role="alert">
+          {fehler}
+        </p>
+      )}
+      <div className="hafen-knoepfe">
+        <button type="button" className="hafen-notaus" disabled={laeuft || wort !== 'SCHARF' || !passwort} onClick={() => void los()}>
+          {laeuft ? 'Prüfe …' : 'Mit echtem Geld handeln'}
+        </button>
+        <button type="button" className="klein" onClick={fertig}>
+          Abbrechen
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function AuszahlenDialog({ bot, an, fertig }: { bot: KryptoBot; an: string; fertig: () => void }) {
+  const totp = useTotpAktiv();
+  const [passwort, setPasswort] = useState('');
+  const [code, setCode] = useState('');
+  const [meldung, setMeldung] = useState<string | null>(null);
+  const los = async () => {
+    try {
+      const r = await api<{ signatur: string; betragSol: number }>(`/api/krypto/bots/${bot.id}/auszahlen`, { methode: 'POST', body: { passwort, ...(totp ? { code } : {}) } });
+      setMeldung(`Ausgezahlt: ${sol(r.betragSol, 4)} – Transaktion ${r.signatur}`);
+    } catch (x) {
+      setMeldung(x instanceof ApiFehler ? x.message : String(x));
+    }
+  };
+  return (
+    <section className="karte innen hafen-formular" aria-label="Auszahlen">
+      <h3 style={{ marginTop: 0 }}>Auszahlen: {bot.einstellung.name}</h3>
+      <p className="leise">
+        Das ganze Guthaben ({bot.wallet?.guthabenSol == null ? '?' : sol(bot.wallet.guthabenSol, 4)}) geht an deine feste Adresse <code>{an}</code>. Eine andere Adresse geht nur auf dem Server (dorf krypto-auszahlung).
+      </p>
+      <fieldset>
+        <label>
+          Dein Passwort
+          <input type="password" autoComplete="current-password" value={passwort} onChange={(ev) => setPasswort(ev.target.value)} />
+        </label>
+        {totp && (
+          <label>
+            Code (Authenticator)
+            <input inputMode="numeric" value={code} onChange={(ev) => setCode(ev.target.value)} />
+          </label>
+        )}
+      </fieldset>
+      {meldung && (
+        <p className="hinweis" role="status">
+          {meldung}
+        </p>
+      )}
+      <div className="hafen-knoepfe">
+        <button type="button" disabled={!passwort} onClick={() => void los()}>
+          Auszahlen
+        </button>
+        <button type="button" className="klein" onClick={fertig}>
+          Schließen
+        </button>
+      </div>
+    </section>
+  );
+}
+
+/** E228: Backtest mit den Einstellungen eines Regel-Bots über die Aufzeichnungen */
+function BacktestPanel({ bot, schliessen }: { bot: KryptoBot; schliessen: () => void }) {
+  const [stunden, setStunden] = useState<number | null>(24);
+  const [id, setId] = useState<string | null>(null);
+  const [fehler, setFehler] = useState<string | null>(null);
+  const liste = useQuery({ queryKey: ['krypto', 'backtests'], queryFn: () => api<{ bereich: { von: string | null; bis: string | null }; jobs: KryptoBacktest[] }>('/api/krypto/backtests') });
+  const job = useQuery({ queryKey: ['krypto', 'backtest', id], queryFn: () => api<KryptoBacktest>(`/api/krypto/backtests/${id}`), enabled: !!id, refetchInterval: (q) => (q.state.data?.status === 'laeuft' ? 1000 : false) });
+  const starten = async () => {
+    setFehler(null);
+    try {
+      const j = await api<KryptoBacktest>('/api/krypto/backtests', { methode: 'POST', body: { einstellung: bot.einstellung, ...(stunden ? { vonStunden: stunden } : {}) } });
+      setId(j.id);
+    } catch (x) {
+      setFehler(x instanceof ApiFehler ? x.message : String(x));
+    }
+  };
+  const b = liste.data?.bereich;
+  const j = job.data;
+  const k = j?.ergebnis?.kennzahlen;
+  return (
+    <section className="karte innen" aria-label="Backtest">
+      <div className="hafen-kopf">
+        <h3 style={{ margin: 0 }}>Backtest: {bot.einstellung.avatar} {bot.einstellung.name}</h3>
+        <button type="button" className="klein" onClick={schliessen}>
+          Schließen
+        </button>
+      </div>
+      <p className="leise">
+        Spielt die aufgezeichneten Pump.fun-Daten {b?.von ? `(${new Date(b.von).toLocaleString('de-AT')} bis ${new Date(b.bis!).toLocaleString('de-AT')})` : '(noch keine)'} mit genau diesen Regeln ab – gleiche Filter, gleiches Gate, gleiche Gebühren, Slippage, Verzögerung, Fehlschläge.
+        Die Aufzeichnung kennt Kurse alle paar Sekunden, nicht jeden Trade: gut zum Vergleichen von Strategien, kein Versprechen.
+      </p>
+      <div className="hafen-knoepfe">
+        {[6, 24, 72, 168, null].map((h) => (
+          <button key={String(h)} type="button" className={`klein${stunden === h ? ' an' : ''}`} onClick={() => setStunden(h)}>
+            {h == null ? 'Alles' : h < 24 ? `${h} h` : `${h / 24} T`}
+          </button>
+        ))}
+        <button type="button" onClick={() => void starten()} disabled={j?.status === 'laeuft'}>
+          {j?.status === 'laeuft' ? `Läuft … ${j.fortschritt} %` : '▶ Backtest starten'}
+        </button>
+      </div>
+      {fehler && (
+        <p className="hinweis" role="alert">
+          {fehler}
+        </p>
+      )}
+      {j?.status === 'fehler' && <p className="hinweis">{j.fehler}</p>}
+      {k && j?.ergebnis && (
+        <div style={{ display: 'grid', gap: '0.6rem', marginTop: '0.6rem' }}>
+          <div className="hafen-zahlen">
+            <div>
+              <span>Ergebnis</span>
+              <b className={k.gewinnSol >= 0 ? 'plus' : 'minus'}>
+                {solVz(k.gewinnSol, 3)} ({prozent(k.gewinnProzent)})
+              </b>
+            </div>
+            <div>
+              <span>Trades</span>
+              <b>
+                {k.trades} · {k.gewonnen}W/{k.verloren}L
+              </b>
+            </div>
+            <div>
+              <span>Max. Drawdown</span>
+              <b>{k.maxDrawdownProzent.toLocaleString('de-DE', { maximumFractionDigits: 1 })} %</b>
+            </div>
+            <div>
+              <span>Umsatz</span>
+              <b>{sol(k.umsatzSol, 2)}</b>
+            </div>
+            <div>
+              <span>Gebühren</span>
+              <b>{sol(k.gebuehrenSol, 4)}</b>
+            </div>
+            <div>
+              <span>Entscheidungen</span>
+              <b>
+                {j.ergebnis.entscheidungen.buy} Käufe · {j.ergebnis.entscheidungen.block} geblockt
+              </b>
+            </div>
+          </div>
+          <span className="leise">
+            Daten: {j.daten?.tokens} Tokens, {j.daten?.kurse} Kurse, {j.daten?.rug} RugCheck-Berichte
+          </span>
+          <ul className="hafen-trades">
+            {j.ergebnis.trades.slice(0, 30).map((t) => (
+              <li key={t.id}>
+                <span>{new Date(t.zeit).toLocaleString('de-AT', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}</span>
+                <b>{t.art === 'kauf' ? 'Kauf' : t.art === 'verkauf' ? 'Verkauf' : 'Fehlschlag'}</b> {t.symbol} {t.art !== 'fehlschlag' && sol(t.sol)} · Gebühr {sol(t.gebuehrSol, 4)}
+                {t.gewinnSol != null && <b className={t.gewinnSol >= 0 ? 'plus' : 'minus'}> {solVz(t.gewinnSol)}</b>} <span className="leise">{t.grund}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }

@@ -152,6 +152,10 @@ if not e.get("ok"):
 r = befehl("gs --version && dot -V 2>&1 && python3 -c 'import pypdf, segno, genanki, duckdb, pandas; print(pypdf.__version__, duckdb.__version__)'")
 if r["code"] != 0:
     fehler.append("Dorfwerk-Pakete fehlen:\n" + r["ausgabe"])
+# E229: scikit-learn mit mitgelieferten Datensätzen (Wine) – Random Forest mit festem random_state, ohne Internet
+r = befehl("python3 -c 'import sklearn; from sklearn.datasets import load_wine; from sklearn.model_selection import train_test_split; from sklearn.ensemble import RandomForestClassifier; X, y = load_wine(return_X_y=True); a, b, c, d = train_test_split(X, y, random_state=327); print(sklearn.__version__, RandomForestClassifier(random_state=327).fit(a, c).score(b, d))'")
+if r["code"] != 0 or "1.9.1" not in r["ausgabe"]:
+    fehler.append("scikit-learn:\n" + r["ausgabe"])
 
 # E212: Handschrift – mit Modell im Image (Download beim Bau mit Prüfsumme) muss PNG und PDF gehen, auch mit Umlauten
 if befehl("test -f /opt/handschrift/model.pt")["code"] == 0:

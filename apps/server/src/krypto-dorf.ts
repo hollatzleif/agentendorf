@@ -9,6 +9,8 @@ import { tagesbeginnLinz } from './aufwachen.js';
 import type { DB } from './db.js';
 import { DorfFehler } from './fehler.js';
 import type { Uhr } from './uhr.js';
+import { nutzerLaden, passwortVergleichen } from './auth/passwort.js';
+import { totpPruefen } from './auth/totp.js';
 
 export const KRYPTO_LLM_JE_BOT_USD = 0.5;
 
@@ -50,7 +52,32 @@ export class Hafen {
 
 const Id = z.object({ id: z.string().uuid() });
 
-export function hafenRouten(app: FastifyInstance, h: Hafen) {
+/** E228: Scharf schalten und Auszahlen nur mit Passwort (und TOTP-Code, wenn eingerichtet); 5 Fehlversuche → 15 min Sperre */
+function bestaetigerBauen(db: DB, uhr: Uhr) {
+  let fehler: number[] = [];
+  return async (body: unknown) => {
+    const b = z.object({ passwort: z.string().max(500), code: z.string().max(12).optional() }).passthrough().parse(body);
+    const jetzt = uhr.jetzt();
+    fehler = fehler.filter((t) => jetzt - t < 15 * 60_000);
+    if (fehler.length >= 5) throw new DorfFehler(429, 'Zu viele Fehlversuche – in 15 Minuten wieder.');
+    const n = nutzerLaden(db);
+    let ok = !!n && (await passwortVergleichen(n.passwort_hash, b.passwort));
+    if (ok && n!.totp_aktiv && n!.totp_geheimnis) {
+      const z2 = totpPruefen(n!.totp_geheimnis, b.code ?? '', jetzt, n!.totp_letzter_zaehler);
+      if (z2 === null) ok = false;
+      else db.prepare('UPDATE nutzer SET totp_letzter_zaehler = ? WHERE id = 1').run(z2);
+    }
+    if (!ok) {
+      fehler.push(jetzt);
+      throw new DorfFehler(401, n?.totp_aktiv ? 'Passwort oder Code falsch.' : 'Passwort falsch.');
+    }
+  };
+}
+
+export function hafenRouten(app: FastifyInstance, h: Hafen, a?: { db: DB; uhr: Uhr }) {
+  const bestaetigen = a ? bestaetigerBauen(a.db, a.uhr) : async () => {
+    throw new DorfFehler(503, 'Bestätigung nicht verfügbar');
+  };
   app.get('/api/krypto', async () => h.uebersicht());
   app.post('/api/krypto/bots', { bodyLimit: 64 * 1024 }, async (req) => h.anfrage('POST', '/bots', z.object({ einstellung: z.unknown() }).parse(req.body)));
   app.put('/api/krypto/bots/:id', { bodyLimit: 64 * 1024 }, async (req) => h.anfrage('PUT', `/bots/${Id.parse(req.params).id}`, z.object({ einstellung: z.unknown() }).parse(req.body)));
@@ -63,6 +90,20 @@ export function hafenRouten(app: FastifyInstance, h: Hafen) {
     return h.anfrage('GET', `/bots/${Id.parse(req.params).id}/protokoll${p.size ? `?${p}` : ''}`);
   });
   app.post('/api/krypto/notaus', async () => h.anfrage('POST', '/notaus', { grund: 'Not-Aus (App)' }));
+  // E228: scharf schalten – Passwort/TOTP + getippte Bestätigung; entschärfen geht immer (macht sicherer)
+  app.post('/api/krypto/bots/:id/scharf', async (req) => {
+    const b = z.object({ budgetSol: z.number().finite().min(0.05).max(50), bestaetigung: z.literal('SCHARF', { message: 'Zum Bestätigen SCHARF eintippen.' }), passwort: z.string(), code: z.string().optional() }).parse(req.body);
+    await bestaetigen(b);
+    return h.anfrage('POST', `/bots/${Id.parse(req.params).id}/scharf`, { budgetSol: b.budgetSol });
+  });
+  app.post('/api/krypto/bots/:id/entschaerfen', async (req) => h.anfrage('POST', `/bots/${Id.parse(req.params).id}/entschaerfen`, {}));
+  app.post('/api/krypto/bots/:id/auszahlen', async (req) => {
+    await bestaetigen(req.body);
+    return h.anfrage('POST', `/bots/${Id.parse(req.params).id}/auszahlen`, {});
+  });
+  app.get('/api/krypto/backtests', async () => h.anfrage('GET', '/backtests'));
+  app.post('/api/krypto/backtests', { bodyLimit: 64 * 1024 }, async (req) => h.anfrage('POST', '/backtests', z.object({ einstellung: z.unknown(), vonStunden: z.number().optional() }).parse(req.body)));
+  app.get('/api/krypto/backtests/:id', async (req) => h.anfrage('GET', `/backtests/${Id.parse(req.params).id}`));
   app.post('/api/krypto/notaus/aufheben', async () => h.anfrage('POST', '/notaus/aufheben', {}));
 }
 

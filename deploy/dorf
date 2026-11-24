@@ -113,7 +113,16 @@ geheimnisse_sicherstellen() {
     sed -i '/^KRYPTO_GEHEIMNIS=/d' "$ENV_DATEI"
     echo "KRYPTO_GEHEIMNIS=$g" >> "$ENV_DATEI"
   fi
-  printf '# Nur für das Kryptowerk (Hafen, wird von dorf deploy erzeugt)\nKRYPTO_GEHEIMNIS=%s\n' "$(grep -E '^KRYPTO_GEHEIMNIS=' "$ENV_DATEI" | cut -d= -f2)" > "$BASIS/krypto.env"
+  # krypto.env wird NIE neu geschrieben, nur ergänzt (E228): darin steht der Hauptschlüssel der Bot-Wallets
+  [ -f "$BASIS/krypto.env" ] || printf '# Nur für das Kryptowerk (Hafen). Pflegt dorf – den Hauptschlüssel NIE ändern, sonst sind die Bot-Wallets verloren.\n' > "$BASIS/krypto.env"
+  krypto_env_setzen KRYPTO_GEHEIMNIS "$(grep -E '^KRYPTO_GEHEIMNIS=' "$ENV_DATEI" | cut -d= -f2)"
+  if ! grep -qE '^KRYPTO_HAUPTSCHLUESSEL=[0-9a-f]{64}$' "$BASIS/krypto.env"; then
+    if [ -s "$BASIS/krypto/krypto.db" ] && command -v sqlite3 >/dev/null && [ "$(sqlite3 "$BASIS/krypto/krypto.db" "SELECT COUNT(*) FROM wallets" 2>/dev/null || echo 0)" != "0" ]; then
+      rot "krypto.env hat keinen Hauptschlüssel, es gibt aber schon Bot-Wallets – NICHT neu erzeugt. Wiederherstellen: dorf krypto-hauptschluessel-setzen"
+    else
+      krypto_env_setzen KRYPTO_HAUPTSCHLUESSEL "$(od -An -tx1 -N32 /dev/urandom | tr -d ' \n')"
+    fi
+  fi
   chmod 600 "$BASIS/krypto.env"
   mkdir -p "$BASIS/krypto"
   chown "${uid:-1000}:${uid:-1000}" "$BASIS/krypto.env" "$BASIS/krypto" 2>/dev/null || true
@@ -875,6 +884,59 @@ cmd_moodle_kalender() {
   gruen "Kalender verbunden. In der App: Uni → Studium → Jetzt abgleichen (sonst automatisch alle 3 Stunden)."
 }
 
+# E228: eine Zeile in krypto.env setzen (ersetzen oder anhängen), Rest bleibt
+krypto_env_setzen() {
+  local k="$1" v="$2" f="$BASIS/krypto.env" t
+  t=$(mktemp)
+  grep -v "^$k=" "$f" > "$t" 2>/dev/null || true
+  printf '%s=%s\n' "$k" "$v" >> "$t"
+  cat "$t" > "$f"
+  rm -f "$t"
+}
+
+cmd_krypto_rpc() {
+  echo "Solana-Zugang (RPC) für echte Trades im Hafen, z. B. von helius.dev: im Dashboard die vollständige"
+  echo "RPC URL für Mainnet kopieren (beginnt mit https://). Die Eingabe ist unsichtbar."
+  local url
+  read -rsp "RPC-Adresse: " url; echo
+  case "$url" in https://*) ;; *) rot "Muss mit https:// beginnen."; return 1 ;; esac
+  krypto_env_setzen KRYPTO_RPC_URL "$url"
+  compose up -d --force-recreate kryptowerk
+  gruen "RPC gespeichert. Live-Trading ist jetzt möglich (scharf schalten in der App, mit Passwort)."
+}
+
+cmd_krypto_auszahlung() {
+  local adr=${1:-}
+  [[ "$adr" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] || { echo "Aufruf: dorf krypto-auszahlung <deine Solana-Adresse, z. B. aus Phantom>"; return 1; }
+  krypto_env_setzen KRYPTO_AUSZAHLUNG "$adr"
+  compose up -d --force-recreate kryptowerk
+  gruen "Auszahlungen gehen ab jetzt NUR an $adr."
+}
+
+cmd_krypto_hauptschluessel() {
+  echo "Hauptschlüssel der Bot-Wallets – einmal im Passwortmanager sichern (nicht im Backup!):"
+  grep -E '^KRYPTO_HAUPTSCHLUESSEL=' "$BASIS/krypto.env" | cut -d= -f2
+}
+
+cmd_krypto_hauptschluessel_setzen() {
+  local k
+  if grep -qE '^KRYPTO_HAUPTSCHLUESSEL=[0-9a-f]{64}$' "$BASIS/krypto.env"; then rot "Es gibt schon einen Hauptschlüssel – nicht überschrieben."; return 1; fi
+  read -rsp "Hauptschlüssel (64 Zeichen 0-9a-f): " k; echo
+  [[ "$k" =~ ^[0-9a-f]{64}$ ]] || { rot "Ungültig."; return 1; }
+  krypto_env_setzen KRYPTO_HAUPTSCHLUESSEL "$k"
+  compose up -d --force-recreate kryptowerk
+  gruen "Hauptschlüssel gesetzt."
+}
+
+cmd_krypto_wallets() { compose exec -T kryptowerk node dist/kryptowerk.js wallets; }
+
+cmd_krypto_export() {
+  local adr=${1:-}
+  [ -n "$adr" ] || { echo "Aufruf: dorf krypto-export <Wallet-Adresse>  (Adressen: dorf krypto-wallets)"; return 1; }
+  echo "Privater Schlüssel (Base58, für Phantom → Konto hinzufügen → Privaten Schlüssel importieren). Niemandem zeigen:"
+  compose exec -T kryptowerk node dist/kryptowerk.js export "$adr"
+}
+
 cmd_syncthing_id() { compose exec -T syncthing syncthing device-id 2>/dev/null || compose exec -T syncthing syncthing --device-id; }
 
 cmd_syncthing_geraet() {
@@ -924,6 +986,11 @@ Agentendorf – Befehle auf dem Server
 
   dorf syncthing-id              Geräte-ID des Servers für Syncthing
   dorf syncthing-geraet <ID> <Name>  Gerät (Mac/PC) mit dem Vault koppeln
+  dorf krypto-rpc                Hafen: Solana-RPC (z. B. Helius) für echte Trades eintragen
+  dorf krypto-auszahlung <Adr>   Hafen: feste Auszahlungsadresse (nur dorthin darf ausgezahlt werden)
+  dorf krypto-hauptschluessel    Hafen: Hauptschlüssel der Bot-Wallets anzeigen (im Passwortmanager sichern)
+  dorf krypto-wallets            Hafen: alle Bot-Wallets (auch von gelöschten Bots)
+  dorf krypto-export <Adr>       Hafen: privaten Schlüssel eines Bot-Wallets für Phantom ausgeben
   Syncthing-Oberfläche:          ssh -L 8384:127.0.0.1:8384 <server>  → http://localhost:8384
 HILFE
 }
@@ -962,6 +1029,12 @@ case "$befehl" in
   google-kalender) cmd_google_kalender ;;
   gmail-anmelden) cmd_gmail_anmelden ;;
   syncthing-geraet) cmd_syncthing_geraet "$@" ;;
+  krypto-rpc) cmd_krypto_rpc ;;
+  krypto-auszahlung) cmd_krypto_auszahlung "$@" ;;
+  krypto-hauptschluessel) cmd_krypto_hauptschluessel ;;
+  krypto-hauptschluessel-setzen) cmd_krypto_hauptschluessel_setzen ;;
+  krypto-wallets) cmd_krypto_wallets ;;
+  krypto-export) cmd_krypto_export "$@" ;;
   hilfe|-h|--help) cmd_hilfe ;;
   *) rot "Unbekannter Befehl: $befehl"; cmd_hilfe; exit 1 ;;
 esac

@@ -7,6 +7,9 @@ import { systemUhr } from './uhr.js';
 import { Kryptowerk, kryptoDb, type LlmAntwort } from './krypto/motor.js';
 import { DexScreener, PumpPortal, RugCheck } from './krypto/quellen.js';
 import { kryptoServer } from './krypto/server.js';
+import { WalletTresor, istAdresse } from './krypto/wallet.js';
+import { LiveAusfuehrer } from './krypto/ausfuehrung.js';
+import { Backtests } from './krypto/backtest.js';
 
 const geheimnis = process.env.KRYPTO_GEHEIMNIS ?? '';
 const daten = process.env.KRYPTO_DATEN ?? '/krypto';
@@ -14,6 +17,25 @@ const dorf = process.env.DORF_INTERN_URL ?? 'http://dorf:3001';
 fs.mkdirSync(daten, { recursive: true });
 const db = kryptoDb(path.join(daten, 'krypto.db'));
 const log = (t: string) => console.warn(`[kryptowerk] ${t}`);
+// E228: Wallets (Hauptschlüssel nur in krypto.env), echte Ausführung nur mit RPC, Auszahlung nur an die feste Adresse
+const tresor = new WalletTresor(db, process.env.KRYPTO_HAUPTSCHLUESSEL);
+const rpcUrl = process.env.KRYPTO_RPC_URL?.trim();
+const auszahlung = process.env.KRYPTO_AUSZAHLUNG?.trim();
+
+// Verwaltung auf dem Server (dorf krypto-export): Schlüssel eines Wallets im Phantom-Format, dann Ende
+if (process.argv[2] === 'wallets' || process.argv[2] === 'export') {
+  if (process.argv[2] === 'wallets') for (const w of tresor.liste()) console.log(`${w.adresse}  ${w.botId}`);
+  else {
+    const adr = process.argv[3] ?? '';
+    if (!istAdresse(adr)) {
+      console.error('Aufruf: export <Wallet-Adresse>');
+      process.exit(1);
+    }
+    console.log(tresor.exportieren(adr));
+  }
+  db.close();
+  process.exit(0);
+}
 
 const Antwort = z.object({ action: z.enum(['buy', 'sell', 'hold']), token: z.string(), confidence: z.number(), reason: z.string() });
 
@@ -26,6 +48,9 @@ werk = new Kryptowerk({
   rug: new RugCheck(),
   portal,
   log,
+  tresor,
+  ...(rpcUrl && /^https:\/\//.test(rpcUrl) && tresor.bereit ? { live: LiveAusfuehrer.mitRpcUrl(tresor, rpcUrl) } : {}),
+  ...(auszahlung ? { auszahlung } : {}),
   llm: async (a): Promise<LlmAntwort> => {
     const r = await fetch(`${dorf}/intern/krypto/bewerten`, {
       method: 'POST',
@@ -38,7 +63,9 @@ werk = new Kryptowerk({
     return Antwort.parse(j);
   },
 });
-const app = kryptoServer(werk, geheimnis);
+const app = kryptoServer(werk, geheimnis, new Backtests({ db }));
+if (!tresor.bereit) log('Hauptschlüssel fehlt – Bots bekommen kein Wallet, Live ist aus (dorf deploy legt ihn an).');
+if (!rpcUrl) log('Kein RPC – Live ist aus (dorf krypto-rpc).');
 werk.starten();
 await app.listen({ host: '0.0.0.0', port: Number(process.env.PORT ?? 4300) });
 log('bereit');

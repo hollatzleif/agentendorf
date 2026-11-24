@@ -3,6 +3,7 @@
 import Database from 'better-sqlite3';
 import {
   KRYPTO_MODULE,
+  KRYPTO_PAPER_MINDESTENS_STUNDEN,
   type KryptoBot,
   type KryptoBotStatus,
   type KryptoEinstellung,
@@ -20,7 +21,9 @@ import type { Uhr } from '../uhr.js';
 import { tagIn } from '../zeit.js';
 import { type BotLage, type Signal, type TokenInfo, gate, marktAus, positionsGroesse, pruefen, punkte } from './bewertung.js';
 import { einstellungPruefen } from './einstellung.js';
-import { GRUNDGEBUEHR_SOL, kaufen, verkaufen, verkaufsWert } from './kurve.js';
+import { GRUNDGEBUEHR_SOL, gebuehrSatz, kaufen, verkaufen, verkaufsWert, ANGEBOT } from './kurve.js';
+import type { LiveAusfuehrer } from './ausfuehrung.js';
+import { istAdresse, type WalletTresor } from './wallet.js';
 import type { DexScreener, NeuerTokenT, PumpPortal, RugBericht, RugCheck, Schnappschuss } from './quellen.js';
 
 export type KDB = Database.Database;
@@ -47,6 +50,19 @@ const MIGRATIONEN = [
      kaeufe_m5 INTEGER, verkaeufe_m5 INTEGER, dex TEXT NOT NULL, pool_sol REAL, pool_token REAL, PRIMARY KEY (mint, zeit));
    CREATE TABLE rug (mint TEXT PRIMARY KEY, zeit INTEGER NOT NULL, json TEXT NOT NULL);
    CREATE TABLE stand (schluessel TEXT PRIMARY KEY, wert TEXT NOT NULL);`,
+  // E228: Gebühr des Ausführungswegs, echte Transaktionen, Abschnitte (Paper → Live), Wallets, Rug-Verlauf für den Backtest
+  `ALTER TABLE trades ADD COLUMN portal_sol REAL NOT NULL DEFAULT 0;
+   ALTER TABLE trades ADD COLUMN signatur TEXT;
+   ALTER TABLE trades ADD COLUMN live INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE positionen ADD COLUMN live INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE bots ADD COLUMN abschnitt_seit INTEGER;
+   ALTER TABLE bots ADD COLUMN live_json TEXT;
+   ALTER TABLE bots ADD COLUMN paper_bilanz_json TEXT;
+   UPDATE bots SET abschnitt_seit = erstellt;
+   CREATE TABLE wallets (adresse TEXT PRIMARY KEY, bot_id TEXT NOT NULL, geheim BLOB NOT NULL, iv BLOB NOT NULL, tag BLOB NOT NULL, erstellt INTEGER NOT NULL);
+   CREATE INDEX wallets_bot ON wallets (bot_id);
+   CREATE TABLE rug_verlauf (mint TEXT NOT NULL, zeit INTEGER NOT NULL, json TEXT NOT NULL, PRIMARY KEY (mint, zeit));
+   CREATE INDEX kurse_zeit ON kurse (zeit);`,
 ];
 
 export function kryptoDb(datei: string): KDB {
@@ -104,6 +120,8 @@ interface Auftrag {
   entschieden: number;
   ab: number;
   versuche: number;
+  /** Live: erledigt (ein Kauf wird nur EINMAL versucht, ein Verkauf bis er klappt) */
+  erledigt?: boolean;
 }
 
 interface BotZeile {
@@ -113,6 +131,9 @@ interface BotZeile {
   status: KryptoBotStatus;
   kasse_sol: number;
   erstellt: number;
+  abschnitt_seit: number | null;
+  live_json: string | null;
+  paper_bilanz_json: string | null;
 }
 
 interface PositionZeile {
@@ -167,13 +188,26 @@ export class Kryptowerk {
       llm?: (a: LlmAnfrage) => Promise<LlmAntwort>;
       zufall?: () => number;
       log?: (t: string) => void;
+      /** E228: Wallets und echte Ausführung (fehlen → nur Paper) */
+      tresor?: WalletTresor;
+      live?: LiveAusfuehrer;
+      /** feste Auszahlungsadresse (krypto.env) */
+      auszahlung?: string;
+      /** Bot muss so lange im Paper gelaufen sein (Standard 24 h) */
+      paperMindestMs?: number;
     },
   ) {}
+
+  private liveLaeuft = new Set<Auftrag>();
+  private aufgezeichnet = new Map<string, number>();
+  private guthaben = new Map<string, { sol: number; zeit: number }>();
 
   // ---- Lebenszyklus ---------------------------------------------------------------------------------
 
   /** Takt alle 2 s; die Verbindung zu PumpPortal steht nur, solange ein Bot läuft */
   starten(taktMs = 2000) {
+    // Bots von vor E228 (oder angelegt ohne Hauptschlüssel) bekommen jetzt ihr eigenes Wallet
+    if (this.o.tresor?.bereit) for (const b of this.botZeilen()) if (!this.o.tresor.adresse(b.id)) this.o.tresor.erzeugen(b.id);
     this.zeitgeber = setInterval(() => void this.takt().catch((e) => this.o.log?.(`Takt: ${(e as Error).message}`)), taktMs);
     this.zeitgeber.unref?.();
     this.verbindungPruefen();
@@ -220,7 +254,9 @@ export class Kryptowerk {
     const e = einstellungPruefen(roh);
     const jetzt = this.o.uhr.jetzt();
     const id = crypto.randomUUID();
-    this.o.db.prepare("INSERT INTO bots (id, einstellung_json, modus, status, kasse_sol, erstellt, geaendert) VALUES (?, ?, 'paper', ?, ?, ?, ?)").run(id, JSON.stringify(e), this.notaus ? 'gestoppt' : 'laeuft', e.startkapitalSol, jetzt, jetzt);
+    this.o.db.prepare("INSERT INTO bots (id, einstellung_json, modus, status, kasse_sol, erstellt, geaendert, abschnitt_seit) VALUES (?, ?, 'paper', ?, ?, ?, ?, ?)").run(id, JSON.stringify(e), this.notaus ? 'gestoppt' : 'laeuft', e.startkapitalSol, jetzt, jetzt, jetzt);
+    // jeder Bot bekommt ein EIGENES, neu erzeugtes Wallet (nur mit Hauptschlüssel)
+    this.o.tresor?.erzeugen(id);
     this.o.db.prepare('INSERT INTO equity (bot_id, zeit, wert) VALUES (?, ?, ?)').run(id, Math.floor(jetzt / MINUTE) * MINUTE, e.startkapitalSol);
     this.verbindungPruefen();
     return this.bot(id);
@@ -232,7 +268,7 @@ export class Kryptowerk {
     const alt = this.einstellung(b);
     const handel = (this.o.db.prepare('SELECT COUNT(*) AS n FROM trades WHERE bot_id = ?').get(id) as { n: number }).n;
     if (handel && e.startkapitalSol !== alt.startkapitalSol) throw new KryptoFehler(400, 'Das Startkapital lässt sich nach dem ersten Trade nicht mehr ändern (sonst stimmen die Kennzahlen nicht).');
-    const kasse = handel ? b.kasse_sol : e.startkapitalSol;
+    const kasse = handel || b.modus === 'live' ? b.kasse_sol : e.startkapitalSol;
     this.o.db.prepare('UPDATE bots SET einstellung_json = ?, kasse_sol = ?, geaendert = ? WHERE id = ?').run(JSON.stringify(e), kasse, this.o.uhr.jetzt(), id);
     if (!handel) this.o.db.prepare('UPDATE equity SET wert = ? WHERE bot_id = ?').run(kasse, id);
     return this.bot(id);
@@ -247,7 +283,11 @@ export class Kryptowerk {
   }
 
   loeschen(id: string) {
-    this.botZeile(id);
+    const b = this.botZeile(id);
+    if (b.modus === 'live') throw new KryptoFehler(409, 'Der Bot ist scharf – erst entschärfen (und auszahlen).');
+    const g = this.o.tresor && this.o.tresor.adresse(id) ? this.guthaben.get(this.o.tresor.adresse(id)!) : undefined;
+    if (g && g.sol > 0.001) throw new KryptoFehler(409, `Im Wallet liegen noch ${g.sol.toFixed(4)} SOL – erst auszahlen.`);
+    this.o.tresor?.archivieren(id);
     const tx = this.o.db.transaction(() => {
       for (const t of ['positionen', 'trades', 'entscheidungen', 'equity']) this.o.db.prepare(`DELETE FROM ${t} WHERE bot_id = ?`).run(id);
       this.o.db.prepare('DELETE FROM bots WHERE id = ?').run(id);
@@ -265,9 +305,9 @@ export class Kryptowerk {
     this.o.db.prepare("UPDATE bots SET status = 'gestoppt', geaendert = ?").run(jetzt);
     this.auftraege = this.auftraege.filter((a) => a.art === 'verkauf');
     for (const p of this.offenePositionen()) {
-      if (this.auftraege.some((a) => a.positionId === p.id)) continue;
+      if (this.aktiv().some((a) => a.positionId === p.id)) continue;
       const e = this.einstellung(this.botZeile(p.bot_id));
-      this.auftraege.push({ botId: p.bot_id, art: 'verkauf', mint: p.mint, symbol: p.symbol, name: p.name, menge: p.rest_token, positionId: p.id, grund, entschieden: jetzt, ab: jetzt + e.simulation.verzoegerungMs, versuche: 0 });
+      this.auftraege.push({ botId: p.bot_id, art: 'verkauf', mint: p.mint, symbol: p.symbol, name: p.name, menge: p.rest_token, positionId: p.id, grund, entschieden: jetzt, ab: jetzt + this.verzoegerung(p.bot_id, e), versuche: 0 });
       this.entscheidungMerken(p.bot_id, p.mint, p.symbol, 'sell', null, grund, 'code');
     }
     this.o.log?.(`Not-Aus: ${grund}`);
@@ -294,7 +334,7 @@ export class Kryptowerk {
       const gehalten = new Set(this.offenePositionen().map((p) => p.mint));
       for (const [m] of this.tokens) {
         if (this.tokens.size <= MAX_BEOBACHTET) break;
-        if (!gehalten.has(m) && !this.auftraege.some((a) => a.mint === m)) this.tokens.delete(m);
+        if (!gehalten.has(m) && !this.aktiv().some((a) => a.mint === m)) this.tokens.delete(m);
       }
     }
   }
@@ -318,6 +358,7 @@ export class Kryptowerk {
       await this.rugHolen();
       await this.bewerten();
       this.equityMerken();
+      this.guthabenAuffrischen();
       this.aufraeumen();
     } finally {
       this.taktLaeuft = false;
@@ -363,7 +404,11 @@ export class Kryptowerk {
         this.tokens.set(s.mint, b);
       }
       b.letzter = s;
-      if (b.aufzeichnen || gehalten.has(s.mint)) einfuegen.run(s.mint, s.zeit, s.preisSol, s.marktwertUsd, s.volumenUsdM5, s.kaeufeM5, s.verkaeufeM5, s.dex, s.poolSol, s.poolToken);
+      // Aufzeichnung für den Backtest: Kandidaten und Gehaltenes immer, alle anderen höchstens alle 30 s
+      const zuletzt = this.aufgezeichnet.get(s.mint) ?? 0;
+      if (b.aufzeichnen || gehalten.has(s.mint) || s.zeit - zuletzt >= 30_000) this.aufgezeichnet.set(s.mint, s.zeit);
+      else continue;
+      einfuegen.run(s.mint, s.zeit, s.preisSol, s.marktwertUsd, s.volumenUsdM5, s.kaeufeM5, s.verkaeufeM5, s.dex, s.poolSol, s.poolToken);
     }
     // Volumen je Minute (für die Balken im Terminal)
     const minute = Math.floor(jetzt / MINUTE) * MINUTE;
@@ -392,6 +437,7 @@ export class Kryptowerk {
       try {
         b.rug = await this.o.rug.bericht(b.info.mint);
         this.o.db.prepare('INSERT OR REPLACE INTO rug (mint, zeit, json) VALUES (?, ?, ?)').run(b.info.mint, b.rug.zeit, JSON.stringify(b.rug));
+        this.o.db.prepare('INSERT OR REPLACE INTO rug_verlauf (mint, zeit, json) VALUES (?, ?, ?)').run(b.info.mint, b.rug.zeit, JSON.stringify(b.rug));
       } catch (e) {
         b.rugFehler++;
         this.o.log?.(`RugCheck ${b.info.mint}: ${(e as Error).message}`);
@@ -402,11 +448,21 @@ export class Kryptowerk {
 
   private lage(botId: string, e: KryptoEinstellung, mint: string): BotLage {
     const b = this.botZeile(botId);
-    return { kasseSol: b.kasse_sol - this.reserviert(botId), offen: this.offenePositionen(botId).length + this.auftraege.filter((a) => a.botId === botId && a.art === 'kauf').length, heuteSol: this.heute(botId, e), haeltSchon: this.offenePositionen(botId).some((p) => p.mint === mint) || this.auftraege.some((a) => a.botId === botId && a.mint === mint), notaus: this.notaus };
+    return { kasseSol: b.kasse_sol - this.reserviert(botId), offen: this.offenePositionen(botId).length + this.ausstehendeKaeufe(botId).length, heuteSol: this.heute(botId, e), haeltSchon: this.offenePositionen(botId).some((p) => p.mint === mint) || this.aktiv().some((a) => a.botId === botId && a.mint === mint), notaus: this.notaus };
+  }
+
+  /** Käufe, die noch ausstehen oder gerade unterwegs sind (Live) – zählen für Budget und offene Positionen */
+  private ausstehendeKaeufe(botId: string) {
+    return this.auftraege.filter((a) => a.botId === botId && a.art === 'kauf' && (!a.erledigt || this.liveLaeuft.has(a)));
+  }
+
+  /** Aufträge, die noch nicht erledigt sind */
+  private aktiv() {
+    return this.auftraege.filter((a) => !a.erledigt);
   }
 
   private reserviert(botId: string) {
-    return this.auftraege.filter((a) => a.botId === botId && a.art === 'kauf').reduce((x, a) => x + a.menge, 0);
+    return this.ausstehendeKaeufe(botId).reduce((x, a) => x + a.menge, 0);
   }
 
   private async bewerten() {
@@ -502,7 +558,7 @@ export class Kryptowerk {
     this.modulMerken(botId, 'gate', g.erlaubt ? `frei · ${g.grund}` : g.grund, g.erlaubt ? 'gut' : 'schlecht');
     if (!g.erlaubt) return this.entscheidungMerken(botId, b.info.mint, b.info.symbol, 'hold', sicherheit, `Gate: ${g.grund} (${grund})`, quelle, signale);
     const jetzt = this.o.uhr.jetzt();
-    this.auftraege.push({ botId, art: 'kauf', mint: b.info.mint, symbol: b.info.symbol, name: b.info.name, menge: groesse, grund, entschieden: jetzt, ab: jetzt + e.simulation.verzoegerungMs, versuche: 0 });
+    this.auftraege.push({ botId, art: 'kauf', mint: b.info.mint, symbol: b.info.symbol, name: b.info.name, menge: groesse, grund, entschieden: jetzt, ab: jetzt + this.verzoegerung(botId, e), versuche: 0 });
     b.aufzeichnen = true;
     this.entscheidungMerken(botId, b.info.mint, b.info.symbol, 'buy', sicherheit, grund, quelle, signale);
   }
@@ -513,6 +569,22 @@ export class Kryptowerk {
     const jetzt = this.o.uhr.jetzt();
     const offen: Auftrag[] = [];
     for (const a of this.auftraege) {
+      if (a.erledigt) continue;
+      if (this.liveLaeuft.has(a)) {
+        offen.push(a);
+        continue;
+      }
+      if (this.istLive(a.botId) && jetzt >= a.ab) {
+        // echt: die Verzögerung ist die echte (PumpPortal → RPC → Block)
+        offen.push(a);
+        this.liveLaeuft.add(a);
+        void (a.art === 'kauf' ? this.liveKaufen(a) : this.liveVerkaufen(a))
+          .catch((e) => this.o.log?.(`Live ${a.art} ${a.symbol}: ${(e as Error).message}`))
+          .finally(() => {
+            this.liveLaeuft.delete(a);
+          });
+        continue;
+      }
       const s = this.tokens.get(a.mint)?.letzter;
       // Ausgeführt wird zum ersten Kurs NACH der Verzögerung – nie zum Kurs, den der Bot gesehen hat
       if (jetzt < a.ab || !s || s.zeit < a.ab) {
@@ -528,11 +600,180 @@ export class Kryptowerk {
         this.o.log?.(`Ausführung ${a.art} ${a.symbol}: ${(e as Error).message}`);
       }
     }
-    this.auftraege = offen;
+    this.auftraege = offen.filter((a) => !a.erledigt);
   }
 
   private netz(e: KryptoEinstellung) {
     return GRUNDGEBUEHR_SOL + e.simulation.prioritaetSol;
+  }
+
+  private portalSatz(e: KryptoEinstellung) {
+    return (e.simulation.portalGebuehrProzent ?? 0.5) / 100;
+  }
+
+  private istLive(botId: string) {
+    return (this.o.db.prepare('SELECT modus FROM bots WHERE id = ?').get(botId) as { modus: string } | undefined)?.modus === 'live';
+  }
+
+  private verzoegerung(botId: string, e: KryptoEinstellung) {
+    return this.istLive(botId) ? 0 : e.simulation.verzoegerungMs;
+  }
+
+  // ---- Live (E228): echte Trades über PumpPortal Local + RPC ------------------------------------------
+
+  private async liveKaufen(a: Auftrag) {
+    const bot = this.botZeile(a.botId);
+    const e = this.einstellung(bot);
+    const adresse = this.o.tresor?.adresse(a.botId);
+    // ein Kauf wird genau einmal versucht – egal wie er ausgeht
+    a.erledigt = true;
+    if (!this.o.live || !adresse) return this.entscheidungMerken(a.botId, a.mint, a.symbol, 'hold', null, 'Live-Kauf abgebrochen: kein Wallet/RPC', 'code');
+    if (bot.status !== 'laeuft' || this.notaus) return;
+    // echtes Guthaben prüfen (Reserve für Gebühren und Konto-Miete)
+    const guthaben = await this.o.live.guthabenSol(adresse);
+    this.guthaben.set(adresse, { sol: guthaben, zeit: Date.now() });
+    if (guthaben < a.menge + 0.01) return this.entscheidungMerken(a.botId, a.mint, a.symbol, 'hold', null, `Live-Kauf abgebrochen: Wallet hat ${guthaben.toFixed(4)} SOL`, 'code');
+    const start = this.o.uhr.jetzt();
+    const r = await this.o.live.kaufen(adresse, a.mint, a.menge, e.slippageProzent ?? 15, e.simulation.prioritaetSol);
+    const jetzt = this.o.uhr.jetzt();
+    const verz = jetzt - a.entschieden;
+    const s = this.tokens.get(a.mint)?.letzter;
+    if (r.fehler || r.tokenDelta <= 0) {
+      const kosten = Math.max(0, -r.solDelta);
+      this.o.db.prepare('UPDATE bots SET kasse_sol = kasse_sol - ? WHERE id = ?').run(kosten, a.botId);
+      this.o.db.prepare("INSERT INTO trades (bot_id, position_id, zeit, art, mint, symbol, sol, token, preis, gebuehr_sol, portal_sol, netz_sol, slippage, verzoegerung_ms, grund, signatur, live) VALUES (?, NULL, ?, 'fehlschlag', ?, ?, 0, 0, ?, 0, 0, ?, 0, ?, ?, ?, 1)").run(a.botId, jetzt, a.mint, a.symbol, s?.preisSol ?? 0, kosten, verz, `Live-Kauf: ${r.fehler ?? 'keine Token erhalten'}`.slice(0, 300), r.signatur);
+      return;
+    }
+    const ausgegeben = -r.solDelta; // inkl. aller Gebühren und Konto-Miete
+    const spot = s?.preisSol ?? ausgegeben / r.tokenDelta;
+    const pump = (a.menge - a.menge * this.portalSatz(e)) * gebuehrSatz(s?.dex === 'pumpfun' || !s ? 'kurve' : 'pool', spot * ANGEBOT);
+    const id = crypto.randomUUID();
+    this.o.db.transaction(() => {
+      this.o.db.prepare('UPDATE bots SET kasse_sol = kasse_sol - ? WHERE id = ?').run(ausgegeben, a.botId);
+      this.o.db
+        .prepare('INSERT INTO positionen (id, bot_id, mint, symbol, name, geoeffnet, token, rest_token, einsatz_sol, einstieg_preis, einstieg_spot, hoechst, live) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)')
+        .run(id, a.botId, a.mint, a.symbol, a.name, jetzt, r.tokenDelta, r.tokenDelta, ausgegeben, ausgegeben / r.tokenDelta, spot, spot);
+      this.o.db
+        .prepare("INSERT INTO trades (bot_id, position_id, zeit, art, mint, symbol, sol, token, preis, gebuehr_sol, portal_sol, netz_sol, slippage, verzoegerung_ms, grund, signatur, live) VALUES (?, ?, ?, 'kauf', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)")
+        .run(a.botId, id, jetzt, a.mint, a.symbol, ausgegeben, r.tokenDelta, ausgegeben / r.tokenDelta, pump, a.menge * this.portalSatz(e), r.netzSol, (ausgegeben / r.tokenDelta / spot - 1) * 100, jetzt - start + (start - a.entschieden), a.grund, r.signatur);
+    })();
+    // Not-Aus kam, während die Transaktion unterwegs war → sofort wieder verkaufen
+    if (this.notaus) {
+      this.auftraege.push({ botId: a.botId, art: 'verkauf', mint: a.mint, symbol: a.symbol, name: a.name, menge: r.tokenDelta, positionId: id, grund: 'Not-Aus', entschieden: jetzt, ab: jetzt, versuche: 0 });
+      this.entscheidungMerken(a.botId, a.mint, a.symbol, 'sell', null, 'Not-Aus (Kauf lief noch)', 'code');
+    }
+  }
+
+  private async liveVerkaufen(a: Auftrag) {
+    const p = this.o.db.prepare('SELECT * FROM positionen WHERE id = ?').get(a.positionId) as PositionZeile | undefined;
+    const fertig = () => {
+      a.erledigt = true;
+    };
+    if (!p || !p.offen) return fertig();
+    const e = this.einstellung(this.botZeile(a.botId));
+    const adresse = this.o.tresor?.adresse(a.botId);
+    if (!this.o.live || !adresse) return;
+    const alles = a.menge >= p.rest_token * 0.999;
+    const r = await this.o.live.verkaufen(adresse, a.mint, alles ? 'alles' : a.menge, e.slippageProzent ?? 15, e.simulation.prioritaetSol);
+    const jetzt = this.o.uhr.jetzt();
+    const verz = jetzt - a.entschieden;
+    const s = this.tokens.get(a.mint)?.letzter;
+    const verkauft = -r.tokenDelta;
+    if (r.fehler || verkauft <= 0) {
+      const kosten = Math.max(0, -r.solDelta);
+      this.o.db.prepare('UPDATE bots SET kasse_sol = kasse_sol - ? WHERE id = ?').run(kosten, a.botId);
+      this.o.db.prepare('UPDATE positionen SET erloes_sol = erloes_sol - ? WHERE id = ?').run(kosten, p.id);
+      this.o.db.prepare("INSERT INTO trades (bot_id, position_id, zeit, art, mint, symbol, sol, token, preis, gebuehr_sol, portal_sol, netz_sol, slippage, verzoegerung_ms, grund, signatur, live) VALUES (?, ?, ?, 'fehlschlag', ?, ?, 0, 0, ?, 0, 0, ?, 0, ?, ?, ?, 1)").run(a.botId, p.id, jetzt, a.mint, a.symbol, s?.preisSol ?? 0, kosten, verz, `Live-Verkauf: ${r.fehler ?? 'nichts verkauft'} – neuer Versuch`.slice(0, 300), r.signatur);
+      // neuer Versuch mit wachsender Pause (Verkäufe geben nie auf)
+      a.ab = jetzt + Math.min(60_000, 2000 * 2 ** Math.min(a.versuche, 5));
+      a.versuche++;
+      return;
+    }
+    fertig();
+    const erhalten = r.solDelta;
+    const rest = alles ? 0 : Math.max(0, p.rest_token - verkauft);
+    const zu = rest <= p.token * 1e-6;
+    const erloes = p.erloes_sol + erhalten;
+    const spot = s?.preisSol ?? erhalten / verkauft;
+    this.o.db.transaction(() => {
+      this.o.db.prepare('UPDATE bots SET kasse_sol = kasse_sol + ? WHERE id = ?').run(erhalten, a.botId);
+      this.o.db.prepare('UPDATE positionen SET rest_token = ?, erloes_sol = ?, offen = ?, geschlossen = ?, gewinn_sol = ? WHERE id = ?').run(zu ? 0 : rest, erloes, zu ? 0 : 1, zu ? jetzt : null, zu ? erloes - p.einsatz_sol : null, p.id);
+      this.o.db
+        .prepare("INSERT INTO trades (bot_id, position_id, zeit, art, mint, symbol, sol, token, preis, gebuehr_sol, portal_sol, netz_sol, slippage, verzoegerung_ms, grund, signatur, live) VALUES (?, ?, ?, 'verkauf', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)")
+        .run(a.botId, p.id, jetzt, a.mint, a.symbol, erhalten, verkauft, erhalten / verkauft, verkauft * spot * gebuehrSatz(s?.dex === 'pumpfun' || !s ? 'kurve' : 'pool', spot * ANGEBOT), verkauft * spot * this.portalSatz(e), r.netzSol, (1 - erhalten / verkauft / spot) * 100, verz, a.grund, r.signatur);
+    })();
+  }
+
+  /** Scharf schalten: nur nach Paper-Mindestzeit, ohne offene Positionen, mit Wallet-Guthaben ≥ Budget (Dorf prüft Passwort/TOTP) */
+  async scharfSchalten(id: string, o: { budgetSol: number }) {
+    const b = this.botZeile(id);
+    if (b.modus === 'live') throw new KryptoFehler(409, 'Der Bot ist schon scharf.');
+    if (this.notaus) throw new KryptoFehler(409, 'Not-Aus ist aktiv.');
+    if (!this.o.tresor?.bereit) throw new KryptoFehler(503, 'Live ist nicht eingerichtet: der Hauptschlüssel der Wallets fehlt (kommt mit dorf deploy).');
+    if (!this.o.live) throw new KryptoFehler(503, 'Live ist nicht eingerichtet: kein Solana-RPC – auf dem Server dorf krypto-rpc ausführen.');
+    const adresse = this.o.tresor.adresse(id);
+    if (!adresse) throw new KryptoFehler(409, 'Der Bot hat kein Wallet.');
+    if (!(o.budgetSol >= 0.05 && o.budgetSol <= 50)) throw new KryptoFehler(400, 'Budget zwischen 0,05 und 50 SOL.');
+    const mindest = this.o.paperMindestMs ?? KRYPTO_PAPER_MINDESTENS_STUNDEN * 3_600_000;
+    const seit = b.abschnitt_seit ?? b.erstellt;
+    if (this.o.uhr.jetzt() - seit < mindest) throw new KryptoFehler(409, `Erst ${Math.round(mindest / 3_600_000)} h im Paper Trading testen (noch ${Math.ceil((mindest - (this.o.uhr.jetzt() - seit)) / 3_600_000)} h).`);
+    if (this.offenePositionen(id).length || this.aktiv().some((a) => a.botId === id)) throw new KryptoFehler(409, 'Erst alle (Paper-)Positionen schließen – Bot pausieren und warten.');
+    const guthaben = await this.o.live.guthabenSol(adresse);
+    this.guthaben.set(adresse, { sol: guthaben, zeit: Date.now() });
+    if (guthaben < o.budgetSol + 0.02) throw new KryptoFehler(409, `Im Wallet ${adresse} liegen ${guthaben.toFixed(4)} SOL – für ${o.budgetSol} SOL Budget braucht es mindestens ${(o.budgetSol + 0.02).toFixed(2)} SOL (Reserve für Gebühren).`);
+    const jetzt = this.o.uhr.jetzt();
+    const bilanz = this.kennzahlen(id);
+    this.o.db
+      .prepare("UPDATE bots SET modus = 'live', status = 'laeuft', kasse_sol = ?, abschnitt_seit = ?, live_json = ?, paper_bilanz_json = ?, geaendert = ? WHERE id = ?")
+      .run(o.budgetSol, jetzt, JSON.stringify({ seit: new Date(jetzt).toISOString(), budgetSol: o.budgetSol }), JSON.stringify(bilanz), jetzt, id);
+    this.o.db.prepare('INSERT OR REPLACE INTO equity (bot_id, zeit, wert) VALUES (?, ?, ?)').run(id, Math.floor(jetzt / MINUTE) * MINUTE, o.budgetSol);
+    this.o.log?.(`Bot ${id} scharf geschaltet (Budget ${o.budgetSol} SOL)`);
+    this.verbindungPruefen();
+    return this.bot(id);
+  }
+
+  /** zurück ins Paper Trading (neuer Abschnitt mit dem Startkapital) – nur ohne offene Positionen */
+  entschaerfen(id: string) {
+    const b = this.botZeile(id);
+    if (b.modus !== 'live') throw new KryptoFehler(409, 'Der Bot ist nicht scharf.');
+    if (this.offenePositionen(id).length || this.aktiv().some((a) => a.botId === id)) throw new KryptoFehler(409, 'Erst alle Positionen verkaufen: Not-Aus oder pausieren und warten.');
+    const e = this.einstellung(b);
+    const jetzt = this.o.uhr.jetzt();
+    this.o.db.prepare("UPDATE bots SET modus = 'paper', status = 'pausiert', kasse_sol = ?, abschnitt_seit = ?, live_json = NULL, geaendert = ? WHERE id = ?").run(e.startkapitalSol, jetzt, jetzt, id);
+    this.o.db.prepare('INSERT OR REPLACE INTO equity (bot_id, zeit, wert) VALUES (?, ?, ?)').run(id, Math.floor(jetzt / MINUTE) * MINUTE, e.startkapitalSol);
+    return this.bot(id);
+  }
+
+  /** gesamtes Guthaben an die feste Adresse aus krypto.env – nur wenn der Bot nicht scharf handelt */
+  async auszahlen(id: string) {
+    const b = this.botZeile(id);
+    if (!this.o.live || !this.o.tresor) throw new KryptoFehler(503, 'Live ist nicht eingerichtet (RPC).');
+    if (!this.o.auszahlung || !istAdresse(this.o.auszahlung)) throw new KryptoFehler(409, 'Keine Auszahlungsadresse eingetragen (auf dem Server: dorf krypto-auszahlung <Adresse>).');
+    if (b.modus === 'live' && (b.status === 'laeuft' || this.offenePositionen(id).length)) throw new KryptoFehler(409, 'Erst entschärfen bzw. pausieren und alle Positionen verkaufen.');
+    const adresse = this.o.tresor.adresse(id);
+    if (!adresse) throw new KryptoFehler(409, 'Der Bot hat kein Wallet.');
+    const r = await this.o.live.auszahlen(adresse, this.o.auszahlung);
+    if (r.fehler) throw new KryptoFehler(502, r.fehler);
+    this.guthaben.delete(adresse);
+    this.o.log?.(`Auszahlung ${adresse} → ${this.o.auszahlung}: ${r.signatur}`);
+    return { signatur: r.signatur, betragSol: -r.solDelta, an: this.o.auszahlung };
+  }
+
+  /** Guthaben der Wallets nebenbei auffrischen (höchstens alle 60 s je Wallet) */
+  private guthabenAuffrischen() {
+    if (!this.o.live || !this.o.tresor) return;
+    const jetzt = Date.now();
+    for (const b of this.botZeilen()) {
+      const adr = this.o.tresor.adresse(b.id);
+      if (!adr) continue;
+      const g = this.guthaben.get(adr);
+      if (g && jetzt - g.zeit < 60_000) continue;
+      this.guthaben.set(adr, { sol: g?.sol ?? NaN, zeit: jetzt });
+      void this.o.live
+        .guthabenSol(adr)
+        .then((sol) => this.guthaben.set(adr, { sol, zeit: Date.now() }))
+        .catch(() => undefined);
+    }
   }
 
   private fehlgeschlagen(e: KryptoEinstellung) {
@@ -554,7 +795,7 @@ export class Kryptowerk {
       this.o.db.prepare("INSERT INTO trades (bot_id, position_id, zeit, art, mint, symbol, sol, token, preis, gebuehr_sol, netz_sol, slippage, verzoegerung_ms, grund) VALUES (?, NULL, ?, 'fehlschlag', ?, ?, 0, 0, ?, 0, ?, 0, ?, ?)").run(a.botId, jetzt, a.mint, a.symbol, s.preisSol, netz, verz, 'Kauf-Transaktion fehlgeschlagen (simuliert) – Netzgebühr bezahlt');
       return;
     }
-    const f = kaufen(markt, a.menge);
+    const f = kaufen(markt, a.menge, this.portalSatz(e));
     const id = crypto.randomUUID();
     this.o.db.transaction(() => {
       this.o.db.prepare('UPDATE bots SET kasse_sol = kasse_sol - ? WHERE id = ?').run(a.menge + netz, a.botId);
@@ -562,8 +803,8 @@ export class Kryptowerk {
         .prepare('INSERT INTO positionen (id, bot_id, mint, symbol, name, geoeffnet, token, rest_token, einsatz_sol, einstieg_preis, einstieg_spot, hoechst) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
         .run(id, a.botId, a.mint, a.symbol, a.name, jetzt, f.token, f.token, a.menge + netz, f.preis, s.preisSol, s.preisSol);
       this.o.db
-        .prepare("INSERT INTO trades (bot_id, position_id, zeit, art, mint, symbol, sol, token, preis, gebuehr_sol, netz_sol, slippage, verzoegerung_ms, grund) VALUES (?, ?, ?, 'kauf', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-        .run(a.botId, id, jetzt, a.mint, a.symbol, a.menge, f.token, f.preis, f.gebuehrSol, netz, f.slippageProzent, verz, a.grund);
+        .prepare("INSERT INTO trades (bot_id, position_id, zeit, art, mint, symbol, sol, token, preis, gebuehr_sol, portal_sol, netz_sol, slippage, verzoegerung_ms, grund) VALUES (?, ?, ?, 'kauf', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .run(a.botId, id, jetzt, a.mint, a.symbol, a.menge, f.token, f.preis, f.gebuehrSol, f.portalSol, netz, f.slippageProzent, verz, a.grund);
     })();
   }
 
@@ -584,7 +825,7 @@ export class Kryptowerk {
       this.o.db.prepare("INSERT INTO trades (bot_id, position_id, zeit, art, mint, symbol, sol, token, preis, gebuehr_sol, netz_sol, slippage, verzoegerung_ms, grund) VALUES (?, ?, ?, 'fehlschlag', ?, ?, 0, 0, ?, 0, ?, 0, ?, ?)").run(a.botId, p.id, jetzt, a.mint, a.symbol, s.preisSol, netz, verz, 'Verkauf fehlgeschlagen (simuliert) – neuer Versuch');
       return false;
     }
-    const f = verkaufen(markt, menge);
+    const f = verkaufen(markt, menge, this.portalSatz(e));
     const rest = p.rest_token - menge;
     const zu = rest <= p.token * 1e-6;
     const erloes = p.erloes_sol + f.sol - netz;
@@ -592,8 +833,8 @@ export class Kryptowerk {
       this.o.db.prepare('UPDATE bots SET kasse_sol = kasse_sol + ? WHERE id = ?').run(f.sol - netz, a.botId);
       this.o.db.prepare('UPDATE positionen SET rest_token = ?, erloes_sol = ?, offen = ?, geschlossen = ?, gewinn_sol = ? WHERE id = ?').run(zu ? 0 : rest, erloes, zu ? 0 : 1, zu ? jetzt : null, zu ? erloes - p.einsatz_sol : null, p.id);
       this.o.db
-        .prepare("INSERT INTO trades (bot_id, position_id, zeit, art, mint, symbol, sol, token, preis, gebuehr_sol, netz_sol, slippage, verzoegerung_ms, grund) VALUES (?, ?, ?, 'verkauf', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-        .run(a.botId, p.id, jetzt, a.mint, a.symbol, f.sol, menge, f.preis, f.gebuehrSol, netz, f.slippageProzent, verz, a.grund);
+        .prepare("INSERT INTO trades (bot_id, position_id, zeit, art, mint, symbol, sol, token, preis, gebuehr_sol, portal_sol, netz_sol, slippage, verzoegerung_ms, grund) VALUES (?, ?, ?, 'verkauf', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .run(a.botId, p.id, jetzt, a.mint, a.symbol, f.sol, menge, f.preis, f.gebuehrSol, f.portalSol, netz, f.slippageProzent, verz, a.grund);
     })();
     return true;
   }
@@ -602,7 +843,7 @@ export class Kryptowerk {
   private positionenPflegen() {
     const jetzt = this.o.uhr.jetzt();
     for (const p of this.offenePositionen()) {
-      if (this.auftraege.some((a) => a.positionId === p.id)) continue;
+      if (this.aktiv().some((a) => a.positionId === p.id)) continue;
       const s = this.tokens.get(p.mint)?.letzter;
       if (!s || s.zeit <= p.geoeffnet) continue;
       const bot = this.botZeile(p.bot_id);
@@ -612,7 +853,7 @@ export class Kryptowerk {
       const hoechst = Math.max(p.hoechst, kurs);
       const plus = (kurs / p.einstieg_spot - 1) * 100;
       const verkauf = (menge: number, grund: string, modul: KryptoModulSchluessel) => {
-        this.auftraege.push({ botId: p.bot_id, art: 'verkauf', mint: p.mint, symbol: p.symbol, name: p.name, menge, positionId: p.id, grund, entschieden: jetzt, ab: jetzt + e.simulation.verzoegerungMs, versuche: 0 });
+        this.auftraege.push({ botId: p.bot_id, art: 'verkauf', mint: p.mint, symbol: p.symbol, name: p.name, menge, positionId: p.id, grund, entschieden: jetzt, ab: jetzt + this.verzoegerung(p.bot_id, e), versuche: 0 });
         this.entscheidungMerken(p.bot_id, p.mint, p.symbol, 'sell', null, grund, 'code');
         this.modulMerken(p.bot_id, modul, `${p.symbol}: ${grund}`, modul === 'tp' ? 'gut' : 'schlecht');
       };
@@ -647,12 +888,22 @@ export class Kryptowerk {
 
   private equityWert(botId: string, kasse: number) {
     let wert = kasse;
+    const satz = this.portalSatz(this.einstellung(this.botZeile(botId)));
     for (const p of this.offenePositionen(botId)) {
       const s = this.tokens.get(p.mint)?.letzter;
       const m = s ? marktAus(s) : null;
-      wert += m ? verkaufsWert(m, p.rest_token) : p.einsatz_sol;
+      wert += m ? verkaufsWert(m, p.rest_token, satz) : p.einsatz_sol;
     }
     return wert;
+  }
+
+  private seit(b: BotZeile) {
+    return b.abschnitt_seit ?? b.erstellt;
+  }
+
+  private startSol(b: BotZeile) {
+    const live = b.live_json ? (JSON.parse(b.live_json) as { budgetSol: number }) : null;
+    return live?.budgetSol ?? this.einstellung(b).startkapitalSol;
   }
 
   private equityMerken() {
@@ -664,10 +915,11 @@ export class Kryptowerk {
   private heute(botId: string, e: KryptoEinstellung) {
     const jetzt = this.o.uhr.jetzt();
     const tag = tagIn(jetzt);
-    const reihe = this.o.db.prepare('SELECT zeit, wert FROM equity WHERE bot_id = ? AND zeit >= ? ORDER BY zeit').all(botId, jetzt - 26 * 3_600_000) as { zeit: number; wert: number }[];
+    const b = this.botZeile(botId);
+    const reihe = this.o.db.prepare('SELECT zeit, wert FROM equity WHERE bot_id = ? AND zeit >= ? ORDER BY zeit').all(botId, Math.max(jetzt - 26 * 3_600_000, Math.floor(this.seit(b) / MINUTE) * MINUTE)) as { zeit: number; wert: number }[];
     const ab = reihe.find((r) => tagIn(r.zeit) === tag);
     const vorher = [...reihe].reverse().find((r) => tagIn(r.zeit) !== tag);
-    const basis = vorher?.wert ?? ab?.wert ?? e.startkapitalSol;
+    const basis = vorher?.wert ?? ab?.wert ?? (b.live_json ? this.startSol(b) : e.startkapitalSol);
     return this.equityWert(botId, this.botZeile(botId).kasse_sol) - basis;
   }
 
@@ -686,10 +938,12 @@ export class Kryptowerk {
   kennzahlen(id: string): KryptoKennzahlen {
     const b = this.botZeile(id);
     const e = this.einstellung(b);
-    const zu = this.o.db.prepare('SELECT gewinn_sol FROM positionen WHERE bot_id = ? AND offen = 0').all(id) as { gewinn_sol: number }[];
+    const seit = this.seit(b);
+    const start = this.startSol(b);
+    const zu = this.o.db.prepare('SELECT gewinn_sol FROM positionen WHERE bot_id = ? AND offen = 0 AND geoeffnet >= ?').all(id, seit) as { gewinn_sol: number }[];
     const gewonnen = zu.filter((x) => x.gewinn_sol > 0).length;
     const kapital = this.equityWert(id, b.kasse_sol);
-    const reihe = (this.o.db.prepare('SELECT wert FROM equity WHERE bot_id = ? ORDER BY zeit').all(id) as { wert: number }[]).map((x) => x.wert);
+    const reihe = (this.o.db.prepare('SELECT wert FROM equity WHERE bot_id = ? AND zeit >= ? ORDER BY zeit').all(id, Math.floor(seit / MINUTE) * MINUTE) as { wert: number }[]).map((x) => x.wert);
     reihe.push(kapital);
     let hoch = -Infinity;
     let dd = 0;
@@ -697,21 +951,24 @@ export class Kryptowerk {
       hoch = Math.max(hoch, w);
       if (hoch > 0) dd = Math.max(dd, (hoch - w) / hoch);
     }
-    const gebuehren = (this.o.db.prepare('SELECT COALESCE(SUM(gebuehr_sol + netz_sol), 0) AS s FROM trades WHERE bot_id = ?').get(id) as { s: number }).s;
-    const rugs = (this.o.db.prepare("SELECT COUNT(*) AS n FROM entscheidungen WHERE bot_id = ? AND aktion = 'block' AND grund LIKE 'RUG ·%'").get(id) as { n: number }).n;
+    const g = this.o.db.prepare("SELECT COALESCE(SUM(gebuehr_sol), 0) AS pump, COALESCE(SUM(portal_sol), 0) AS portal, COALESCE(SUM(netz_sol), 0) AS netz, COALESCE(SUM(CASE WHEN art != 'fehlschlag' THEN sol ELSE 0 END), 0) AS umsatz FROM trades WHERE bot_id = ? AND zeit >= ?").get(id, seit) as { pump: number; portal: number; netz: number; umsatz: number };
+    const rugs = (this.o.db.prepare("SELECT COUNT(*) AS n FROM entscheidungen WHERE bot_id = ? AND aktion = 'block' AND grund LIKE 'RUG ·%' AND zeit >= ?").get(id, seit) as { n: number }).n;
+    void e;
     return {
       kapitalSol: kapital,
-      startSol: e.startkapitalSol,
-      faktor: kapital / e.startkapitalSol,
-      gewinnSol: kapital - e.startkapitalSol,
-      gewinnProzent: (kapital / e.startkapitalSol - 1) * 100,
+      startSol: start,
+      faktor: kapital / start,
+      gewinnSol: kapital - start,
+      gewinnProzent: (kapital / start - 1) * 100,
       trades: zu.length,
       gewonnen,
       verloren: zu.length - gewonnen,
       trefferquote: zu.length ? gewonnen / zu.length : null,
       maxDrawdownProzent: dd * 100,
       offen: this.offenePositionen(id).length,
-      gebuehrenSol: gebuehren,
+      gebuehrenSol: g.pump + g.portal + g.netz,
+      gebuehrenArt: { pumpSol: g.pump, portalSol: g.portal, netzSol: g.netz },
+      umsatzSol: g.umsatz,
       geblockteRugs: rugs,
       heuteSol: this.heute(id, e),
     };
@@ -719,15 +976,32 @@ export class Kryptowerk {
 
   bot(id: string): KryptoBot {
     const b = this.botZeile(id);
-    const kurve = (this.o.db.prepare('SELECT zeit, wert FROM equity WHERE bot_id = ? AND zeit % 3600000 = 0 ORDER BY zeit').all(id) as { zeit: number; wert: number }[]).map((x) => [x.zeit, x.wert] as [number, number]);
+    const seit = Math.floor(this.seit(b) / MINUTE) * MINUTE;
+    const kurve = (this.o.db.prepare('SELECT zeit, wert FROM equity WHERE bot_id = ? AND zeit >= ? AND (zeit % 3600000 = 0 OR zeit = ?) ORDER BY zeit').all(id, seit, seit) as { zeit: number; wert: number }[]).map((x) => [x.zeit, x.wert] as [number, number]);
     const k = this.kennzahlen(id);
     kurve.push([this.o.uhr.jetzt(), k.kapitalSol]);
-    return { id, einstellung: this.einstellung(b), modus: 'paper', status: b.status, erstellt: new Date(b.erstellt).toISOString(), kennzahlen: k, kurve };
+    const adresse = this.o.tresor?.adresse(id) ?? null;
+    const g = adresse ? this.guthaben.get(adresse) : undefined;
+    return {
+      id,
+      einstellung: this.einstellung(b),
+      modus: b.modus === 'live' ? 'live' : 'paper',
+      status: b.status,
+      erstellt: new Date(b.erstellt).toISOString(),
+      kennzahlen: k,
+      kurve,
+      wallet: adresse ? { adresse, guthabenSol: g && Number.isFinite(g.sol) ? g.sol : null } : null,
+      live: b.live_json ? (JSON.parse(b.live_json) as KryptoBot['live']) : null,
+      paperBilanz: b.paper_bilanz_json ? (JSON.parse(b.paper_bilanz_json) as KryptoKennzahlen) : null,
+      abschnittSeit: new Date(this.seit(b)).toISOString(),
+    };
   }
 
   uebersicht(): KryptoUebersicht {
     return {
       verbunden: true,
+      liveMoeglich: !!this.o.live && !!this.o.tresor?.bereit,
+      auszahlung: this.o.auszahlung && istAdresse(this.o.auszahlung) ? this.o.auszahlung : null,
       notaus: this.notaus,
       datenOnline: !!this.o.portal?.online,
       beobachtet: this.tokens.size,
@@ -763,10 +1037,11 @@ export class Kryptowerk {
         mint: t.mint as string,
         sol: t.sol as number,
         preis: t.preis as number,
-        gebuehrSol: (t.gebuehr_sol as number) + (t.netz_sol as number),
+        gebuehrSol: (t.gebuehr_sol as number) + (t.portal_sol as number) + (t.netz_sol as number),
         slippageProzent: t.slippage as number,
         verzoegerungMs: t.verzoegerung_ms as number,
         grund: t.grund as string,
+        ...(t.signatur ? { signatur: t.signatur as string } : {}),
         ...(letzterVerkauf ? { gewinnSol: t.p_gewinn as number, gewinnProzent: ((t.p_gewinn as number) / (t.p_einsatz as number)) * 100 } : {}),
       };
     });

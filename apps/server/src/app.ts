@@ -775,7 +775,7 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
   atelierRouten(app, { konfig, vault, rechenraum: () => a.agenten.rechenraum }); // E198
   schriftprobeRouten(app, { vault }); // E216
   aussehenRouten(app, { db: a.db, hub: a.hub }); // E224
-  if (a.hafen) hafenRouten(app, a.hafen); // E227
+  if (a.hafen) hafenRouten(app, a.hafen, { db: a.db, uhr: a.uhr }); // E227/E228
 
   // ---- E65: To-do-Brett (Marktplatz) ----
   // Etappe 7: alle Listen unter /api/listen/<name>; /api/todos bleibt für die To-do-Liste

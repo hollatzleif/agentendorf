@@ -74,36 +74,41 @@ export interface Fuellung {
   /** bezahlte bzw. erhaltene SOL (ohne Netzgebühr) */
   sol: number;
   token: number;
+  /** Gebühr von Pump.fun/PumpSwap */
   gebuehrSol: number;
+  /** Gebühr des Ausführungswegs (PumpPortal Local 0,5 %, laut pumpportal.fun/fees vor Slippage berechnet) */
+  portalSol: number;
   /** Durchschnittskurs (SOL je Token, nach Gebühr) */
   preis: number;
   /** Abweichung des Durchschnittskurses vom Kurs vor dem Trade, in % (positiv = schlechter) */
   slippageProzent: number;
 }
 
-/** Kauf für `sol` SOL: Gebühr geht vorab ab, der Rest läuft durch die Kurve bzw. den Pool */
-export function kaufen(m: Markt, sol: number): Fuellung {
+/** Kauf für `sol` SOL: Gebühren gehen vorab ab, der Rest läuft durch die Kurve bzw. den Pool. portalSatz z. B. 0.005 */
+export function kaufen(m: Markt, sol: number, portalSatz = 0): Fuellung {
   const vorher = preisVon(m);
   const satz = gebuehrSatz(m.art, vorher * ANGEBOT);
-  const gebuehr = sol * satz;
-  const rein = sol - gebuehr;
+  const portal = sol * portalSatz;
+  const gebuehr = (sol - portal) * satz;
+  const rein = sol - portal - gebuehr;
   const token = m.token - (m.sol * m.token) / (m.sol + rein);
   const preis = sol / token;
-  return { sol, token, gebuehrSol: gebuehr, preis, slippageProzent: (preis / vorher - 1) * 100 };
+  return { sol, token, gebuehrSol: gebuehr, portalSol: portal, preis, slippageProzent: (preis / vorher - 1) * 100 };
 }
 
-/** Verkauf von `token`: SOL aus der Kurve bzw. dem Pool, davon geht die Gebühr ab */
-export function verkaufen(m: Markt, token: number): Fuellung {
+/** Verkauf von `token`: SOL aus der Kurve bzw. dem Pool, davon gehen die Gebühren ab */
+export function verkaufen(m: Markt, token: number, portalSatz = 0): Fuellung {
   const vorher = preisVon(m);
   const satz = gebuehrSatz(m.art, vorher * ANGEBOT);
   const brutto = m.sol - (m.sol * m.token) / (m.token + token);
   const gebuehr = brutto * satz;
-  const sol = brutto - gebuehr;
+  const portal = token * vorher * portalSatz;
+  const sol = Math.max(0, brutto - gebuehr - portal);
   const preis = sol / token;
-  return { sol, token, gebuehrSol: gebuehr, preis, slippageProzent: (1 - preis / vorher) * 100 };
+  return { sol, token, gebuehrSol: gebuehr, portalSol: portal, preis, slippageProzent: (1 - preis / vorher) * 100 };
 }
 
-/** Wert einer Menge Token, wenn man sie jetzt verkaufte (inkl. Gebühr und Slippage) */
-export function verkaufsWert(m: Markt, token: number) {
-  return token > 0 ? verkaufen(m, token).sol : 0;
+/** Wert einer Menge Token, wenn man sie jetzt verkaufte (inkl. Gebühren und Slippage) */
+export function verkaufsWert(m: Markt, token: number, portalSatz = 0) {
+  return token > 0 ? verkaufen(m, token, portalSatz).sol : 0;
 }

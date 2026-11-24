@@ -2443,3 +2443,85 @@ Leif wollte mehrere Trading-Bots für Memecoins auf Pump.fun, jeden mit eigener 
 **Tests:** `e227-krypto.test.ts` (Kurve, Gebühren, Module, Gate, ganzer Ablauf mit Verzögerung/TP/Trailing/SL/Fehlschlag/Rug/Not-Aus/Prompt-Bot, Schnittstelle, Quellen-Parser mit echten Antwortformen), `e227-hafen.test.ts` (Durchreiche, Bewertung mit Budget je Bot, Telegram), e2e `hafen.spec.ts` (Flotte, Formular-Fehler, Not-Aus-Rückfrage, Terminal auf Desktop und Handy).
 
 **Offen:** Backtest auf den Aufzeichnungen (K5); X-Sentiment (Grok-Schlüssel) und KOL-Watch (PumpPortal-Schlüssel) auf Wunsch; Live-Trading mit eigenem Wallet je Bot erst nach eigener Etappe und Freigabe.
+
+## E228 – Hafen: Testen → Backtest → scharf schalten (24.11.)
+
+Leif will Strategien erst testen und dann einen Bot mit einem angebundenen Wallet „scharf“ schalten. Seine Entscheidungen von heute:
+- Ausführung über **PumpPortal Local**: Das Kryptowerk signiert selbst, der Schlüssel bleibt auf dem Server, 0,5 % je Trade.
+- Als Solana-Zugang (RPC) dient **Helius** (kostenlose Stufe).
+- Ausgezahlt wird nur an **eine feste Adresse auf dem Server**.
+- Die Bot-Schlüssel kommen **verschlüsselt ins Backup, der Hauptschlüssel nicht**.
+
+Das ist eine bewusste Ausnahme von der Grundregel „Senden, Zahlen gibt es nicht“ – ähnlich wie das Codehaus (E191). Sie gilt nur für Bots, die Leif selbst scharf schaltet, und nur über das Kryptowerk.
+
+**Testen (Paper)**
+- Paper rechnet jetzt die 0,5 % von PumpPortal mit ein. Laut pumpportal.fun/fees wird sie vor der Slippage berechnet. Damit entsprechen Paper-Ergebnisse dem, was live herauskäme.
+- Die Gebühren werden nach Art getrennt (Pump.fun, PumpPortal, Netz/Priority). Dazu kommt der Umsatz, also Käufe plus Verkäufe.
+- Im Terminal gibt es einen CSV-Export der Trades.
+
+**Aufzeichnung und Backtest (`backtest.ts`)**
+- Aufgezeichnet werden alle beobachteten Tokens: Kandidaten bei jedem Abruf, alle anderen höchstens alle 30 s. Dazu ein Rug-Verlauf (`rug_verlauf`).
+- Der Backtest lässt dieselbe Maschine (`Kryptowerk`) mit schneller Uhr über die Aufzeichnungen laufen. Filter, Gate, Gebühren, Slippage, Verzögerung und Fehlschläge sind identisch; der Zufall ist fest, also gibt jeder Lauf dasselbe Ergebnis.
+- Es gibt keinen Blick in die Zukunft: Ein Kurs oder Rug-Bericht zählt erst ab seiner Zeit, ein Kurs höchstens 60 s lang.
+- Es gehen nur Regel-Bots, weil sich LLM-Antworten nicht wiederholen lassen. Prompt-Bots testest du im Paper.
+- Ehrliche Grenze: Die Aufzeichnung enthält Kurs-Schnappschüsse, keine einzelnen Trades. Und Rug-Berichte gibt es nur für Tokens, die damals ein Bot in die engere Wahl nahm.
+
+**Wallets (`wallet.ts`)**
+- Jeder Bot bekommt beim Anlegen ein eigenes, neu erzeugtes Wallet (`Keypair.generate`). Bots, die schon vorher existierten, bekommen es beim nächsten Start.
+- Der private Schlüssel liegt nur AES-256-GCM-verschlüsselt in der Datenbank des Kryptowerks; die Adresse dient als zusätzliche Prüfung beim Entschlüsseln.
+- Der Hauptschlüssel `KRYPTO_HAUPTSCHLUESSEL` steht nur in `/srv/dorf/krypto.env`. Die Datei ist nicht im Backup, wird von `dorf` nie neu geschrieben, nur ergänzt, und gibt es schon Wallets, wird kein neuer Hauptschlüssel erzeugt.
+- Der Schlüssel verlässt das Kryptowerk nie: kein Log, kein LLM, keine App, kein Dorf. Er wird nur für den Moment des Signierens entschlüsselt.
+- Wird ein Bot gelöscht, bleibt sein Wallet archiviert. Löschen geht nicht, solange Guthaben bekannt ist.
+- Für Phantom gibt es den Export nur auf dem Server (`dorf krypto-export`).
+
+**Scharf schalten**
+- Nur in der App, mit Passwort (und TOTP, wenn eingerichtet; nach 5 Fehlversuchen 15 min Sperre) und getipptem `SCHARF`.
+- Voraussetzungen: mindestens 24 h im Paper, keine offenen Positionen, ein RPC ist eingerichtet, und im Wallet liegt mindestens Budget + 0,02 SOL.
+- Das Budget (0,05–50 SOL) ist das Startkapital des Live-Abschnitts. Die Paper-Bilanz wird gemerkt, die Kennzahlen beginnen neu.
+- Entschärfen geht ohne Passwort, weil es sicherer macht – aber nur ohne offene Positionen.
+
+**Ausführung (`ausfuehrung.ts`)**, gegen die PumpPortal-Doku geprüft:
+1. `POST /api/trade-local` mit publicKey, action, mint, amount, denominatedInSol, slippage, priorityFee und `pool: auto`.
+2. Das Kryptowerk signiert **nur, wenn das Bot-Wallet die Transaktion bezahlt**.
+3. Senden über Leifs RPC, bestätigen (höchstens 60 s).
+4. SOL- und Token-Änderung aus der bestätigten Transaktion lesen. Das sind echte Zahlen inklusive Konto-Miete.
+
+Dazu gilt:
+- Ein Live-Kauf wird genau einmal versucht und zählt bis zum Ergebnis gegen Budget und offene Positionen. Ein Verkauf wird wiederholt, bis er klappt.
+- Vor jedem Kauf prüft das Kryptowerk das echte Guthaben.
+- Not-Aus verkauft echt. Kommt er, während ein Kauf noch unterwegs ist, wird danach sofort verkauft.
+- Das Risk-Gate (Einsatz, Tagesverlust, offene Positionen) gilt unverändert, jetzt gegen das Budget.
+
+**Auszahlen:** Das ganze Guthaben geht nur an `KRYPTO_AUSZAHLUNG` (`dorf krypto-auszahlung`), mit Passwort/TOTP und nur, wenn der Bot nicht scharf läuft.
+
+**Neue Befehle in `dorf`:** `krypto-rpc`, `krypto-auszahlung`, `krypto-hauptschluessel` (zum Sichern im Passwortmanager), `krypto-hauptschluessel-setzen` (Wiederherstellen), `krypto-wallets`, `krypto-export`.
+
+**Abhängigkeit:** `@solana/web3.js` (offizielle Solana-Bibliothek) und `bs58`. Sie bringen alte `@types/node` mit. Ein pnpm-Override hält die Typen auf dem Stand des Projekts.
+
+**Tests**
+- Server, `e228-live.test.ts`:
+  - Wallet: Verschlüsselung, falscher Schlüssel, Export, Archiv.
+  - Ausführung gegen Nachbauten von PumpPortal und RPC, mit echten Solana-Transaktionen: Anfrage wie in der Doku, Signatur mit dem Bot-Schlüssel, Weigerung bei fremdem Zahler, Fehlschlag.
+  - Scharf schalten mit allen Bedingungen, Live-Kauf und -Verkauf, Not-Aus, Auszahlen und Entschärfen.
+  - Backtest; Dorf-Route nur mit SCHARF und Passwort.
+- Ein gefundener Fehler wurde behoben: Ein Live-Kauf konnte zweimal ausgeführt werden.
+- e2e: Backtest, Scharf-Dialog (Knopf erst mit SCHARF und Passwort, falsches Passwort zeigt eine Meldung), Terminal im Live-Modus mit Transaktions-Link und CSV.
+- **Nicht getestet:** echte Trades. Das geht hier nicht ohne echtes Geld. Leif sollte mit sehr kleinem Budget anfangen.
+
+## E229 – Rechenraum: scikit-learn (24.11.)
+
+Ein Uni-Agent sollte eine Aufgabe mit dem Wine-Datensatz und einem Random Forest (`random_state=327`) vorrechnen. Das ging nicht, weil scikit-learn im Rechenraum fehlte. Er hat richtig gehandelt und keine Zahlen geschätzt.
+
+**Warum der Agent das nicht selbst installieren darf**
+- Das ist Absicht (E34, E190). Der Rechenraum hat kein Internet, ein nur lesbares Dateisystem und ein festes Image mit Prüfsummen.
+- Dort laufen Befehle, die Agenten nach dem Lesen fremder Inhalte (Mails, Moodle, Anhänge) schreiben. Ein Agent, der Pakete nachladen kann, könnte auch Schadcode nachladen oder Daten hinausschicken.
+- Neue Werkzeuge kommen deshalb ins Image, nicht zur Laufzeit.
+
+**Jetzt**
+- `scikit-learn==1.9.1` mit seinen Abhängigkeiten `joblib`, `threadpoolctl` und `narwhals` als fertige Wheels, mit fester Version und Prüfsumme (`--require-hashes`, wie E199).
+- numpy und scipy kommen weiter aus Debian 12 (1.24.2 / 1.10.1) und erfüllen die Mindestversionen von scikit-learn 1.9.1.
+- Die Beispiel-Datensätze (load_wine, load_iris …) liegen im Paket, also ohne Internet.
+- Der Rauchtest in CI trainiert einen Random Forest auf dem Wine-Datensatz.
+- Die Agenten wissen es, weil es in der Rechenraum-Zeile in `kontext.ts` steht.
+
+**Wichtig fürs Vorrechnen:** Dieselben Zahlen wie der Tutor gibt es nur mit derselben scikit-learn-Version. Zwischen Versionen kann sich ein Random Forest trotz gleichem `random_state` unterscheiden. Nutzt die LVA eine andere Version, tragen wir sie hier ein.

@@ -41,7 +41,7 @@ export async function systemPromptBauen(
     a.profil.web ? '- Websuche und Webseiten abrufen sind erlaubt (Inhalte von dort sind Fremdinhalt).' : '- Kein Internetzugriff in dieser Aktion.',
     ...(hat('rechenraum_befehl')
       ? [
-          '- rechenraum_*: eigener Arbeitsordner mit pdflatex, python3 (numpy, sympy, scipy, matplotlib, python-docx, openpyxl, python-pptx, odfpy, Pillow), pdftoppm/pdftotext, ffmpeg – ohne Internet, ohne Vault.',
+          '- rechenraum_*: eigener Arbeitsordner mit pdflatex, python3 (numpy, sympy, scipy, matplotlib, scikit-learn mit Beispiel-Datensätzen wie load_wine, pandas, python-docx, openpyxl, python-pptx, odfpy, Pillow), pdftoppm/pdftotext, ffmpeg – ohne Internet, ohne Vault.',
           '  Vault-Dateien holst du mit rechenraum_vault_kopieren hinein, PDF-Seiten schaust du mit rechenraum_seite_ansehen als Bild an.',
           '  Dateien für Leif ERZEUGEN: im Rechenraum bauen (Word/Excel/PowerPoint mit python-docx/openpyxl/python-pptx, PDF mit pdflatex, Diagramme mit matplotlib, CSV, ZIP),',
           '  dann rechenraum_ablegen (PDF, TeX, DOCX, XLSX, PPTX, ODT/ODS/ODP, CSV/TXT/MD/JSON, PNG/JPG/SVG, ZIP, ICS) – der Zielordner steht fest, Leif sieht die Datei im Chat als Download. Eine Datei bearbeiten = hineinkopieren, ändern, neu ablegen.',

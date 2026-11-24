@@ -67,7 +67,10 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
                   quellen.ts (PumpPortal-WS nur newToken/migration, DexScreener ≤ 60/min, RugCheck ≤ 1/2 s – gegen echte Schnittstellen geprüft),
                   kurve.ts (Bonding Curve K = 30·1,073e9, PumpSwap-Pool, Gebühren laut pump.fun/docs/fees), bewertung.ts (12 Prüfmodule,
                   Punkte, Risk-Gate – alles Code), einstellung.ts (Zod), motor.ts (Beobachtung, Paper-Ausführung mit Verzögerung/Slippage/
-                  Fehlschlag, TP/SL/Trailing, Protokoll, Kennzahlen, Not-Aus), server.ts (Bearer KRYPTO_GEHEIMNIS). Kein Wallet, kein Live.
+                  Fehlschlag, TP/SL/Trailing, Protokoll, Kennzahlen, Not-Aus), server.ts (Bearer KRYPTO_GEHEIMNIS).
+                  E228: wallet.ts (je Bot eigenes Wallet, AES-256-GCM, Hauptschlüssel nur in krypto.env – nie im Log/LLM/Dorf),
+                  ausfuehrung.ts (PumpPortal Local trade-local → nur signieren, wenn das Bot-Wallet zahlt → Leifs RPC), backtest.ts (dieselbe
+                  Maschine über die Aufzeichnungen, nur Regel-Bots). Scharf schalten nur mit Passwort/TOTP + „SCHARF“ nach ≥ 24 h Paper.
   src/krypto-dorf.ts E227: /api/krypto/* (Durchreiche), /intern/krypto/bewerten (LLM für Prompt-Bots, nur JSON, ≤ 0,50 $ je Bot/Tag, Auslöser
                   krypto – nicht im Tagesbudget), Telegram /notaus; App: apps/web/src/hafen/ (Flotte, Terminal „Kielwasser“ /hafen/<id>)
   src/aussehen.ts E224: Aussehen der App (GET/PUT /api/aussehen, Zod, dorf_stand, Live) – Typen/Vorlagen in packages/shared/src/aussehen.ts,
@@ -305,6 +308,8 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E213 (22.11.): Handschrift kann Mathe – Formeln ($…$ oder schlicht), Rechenwege am „=“ ausgerichtet, Brüche/Wurzeln/∑∫, Markdown-Tabellen mit Handgitter (handformel.py + Hershey); „=“ wird nicht mehr zu „-“
 - [x] E214 (22.11.): Handschrift realistischer – gerade Linien wie GoodNotes (Tabellen, Bruchstriche), ruhigere Formeln, gleichmäßiger Stift, Logik-Zeichen (∧ ∨ ¬ ↔ ⊢ ⊨ ⊤ ⊥ □), Wahrheitstafeln mittig
 - [x] E215 (22.11.): Handschrift `stil: einheitlich` (Standard) – EINE Hand für Text, Formeln und Tabellen (Schreiber-Profil je Dokument, jedes Zeichen einmalig verformt, Wortgrundlinien, Unterschneiden); `stil: ki` = KI-Modell für freien Fließtext
+- [x] E229 (24.11.): Rechenraum mit scikit-learn 1.9.1 (Wheels mit Prüfsumme, Datensätze wie load_wine, Rauchtest mit Random Forest) – Image kommt mit dem Deploy
+- [x] E228 (24.11.): Hafen – Paper mit PumpPortal-Gebühr, Umsatz/Gebühren nach Art/CSV, Backtest auf den Aufzeichnungen, Wallet je Bot (verschlüsselt), scharf schalten (Passwort/TOTP, 24 h Paper, Budget), echte Trades über PumpPortal Local + Helius, Not-Aus echt, Auszahlen nur an feste Adresse, dorf krypto-* – echte Trades nie getestet (kein echtes Geld), Abnahme mit kleinem Budget
 - [x] E227 (24.11.): Hafen – Krypto-Bots für Pump.fun im Paper Trading (Kryptowerk-Container, PumpPortal/DexScreener/RugCheck, Bonding-Curve-Simulation mit Gebühren/Slippage/Verzögerung/Fehlschlägen, Regel- und Prompt-Bots mit Risk-Gate, Protokoll, Flotte mit Vergleich, Terminal „Kielwasser“, Not-Aus in App und Telegram) – kein Live-Trading; Backtest (K5) und Live (eigene Etappe) offen; Abnahme mit echten Läufen auf dem Server
 - [x] E226 (24.11.): Börse – Saxo-Positionen mit 0 € (Saxo meldet MarketValueInBaseCurrency als 0 → Stück × Kurs × Umrechnung bzw. anteilig, „≈“, alte Stände beim Lesen repariert), Hinweis für Teile ohne Linie, Analyse im schmalen Gebäude-Fenster (Container-Query, Fenster scrollte selbst → leerer Bereich)
 - [x] E225 (24.11.): Börse – Ähnlichkeit (Korrelation), Einstandslinie, Was-wäre-wenn, Mini-Verläufe, Depot-Ziel, CSV, Telegram /depot; Aussehen – 🌙/☀️-Schnellschalter, Navigation unten, Tafeln Glas/schlicht, Buchstabenabstand, Diagramm-Farben, Meine Looks (/api/aussehen/looks)

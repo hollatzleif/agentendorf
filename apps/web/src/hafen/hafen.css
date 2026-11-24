@@ -152,3 +152,10 @@
 .hafen-formular label { display: grid; gap: 0.15rem; font-size: 0.85rem; }
 .hafen-formular label.breit { grid-column: 1 / -1; }
 .hafen-hinweis { border-left: 4px solid #8b5cf6; padding: 0.4rem 0.7rem; background: color-mix(in srgb, #8b5cf6 8%, transparent); border-radius: 6px; }
+.hafen-live { color: #c81e3a; }
+.hafen-wallet { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; font-size: 0.8rem; }
+.hafen-wallet code { font-size: 0.78rem; }
+.hafen-scharf { border-color: #c81e3a !important; }
+.hafen-trades { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25rem; font-size: 0.82rem; font-variant-numeric: tabular-nums; max-height: 22rem; overflow-y: auto; }
+.hafen-trades li span:first-child { color: var(--leise); margin-right: 0.4rem; }
+.kw-pille.live { border-color: var(--kw-rot); color: #fecdd3; background: rgb(244 63 94 / 0.15); }

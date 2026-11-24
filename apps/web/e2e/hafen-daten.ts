@@ -14,13 +14,17 @@ function bot(id: string, name: string, avatar: string, faktor: number, art: 'reg
     modus: 'paper',
     status: 'laeuft',
     erstellt: new Date(jetzt - 26 * 3_600_000).toISOString(),
-    kennzahlen: { kapitalSol: kapital, startSol: 10, faktor, gewinnSol: kapital - 10, gewinnProzent: (faktor - 1) * 100, trades: 21, gewonnen: 13, verloren: 8, trefferquote: 13 / 21, maxDrawdownProzent: 18.4, offen: 1, gebuehrenSol: 0.412, geblockteRugs: 37, heuteSol: 0.61 },
+    kennzahlen: { kapitalSol: kapital, startSol: 10, faktor, gewinnSol: kapital - 10, gewinnProzent: (faktor - 1) * 100, trades: 21, gewonnen: 13, verloren: 8, trefferquote: 13 / 21, maxDrawdownProzent: 18.4, offen: 1, gebuehrenSol: 0.412, gebuehrenArt: { pumpSol: 0.25, portalSol: 0.1, netzSol: 0.062 }, umsatzSol: 20.4, geblockteRugs: 37, heuteSol: 0.61 },
     kurve: [...kurve, [jetzt, kapital]],
+    wallet: { adresse: id === BOT_ID ? '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU' : '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM', guthabenSol: 1.25 },
+    live: null,
+    paperBilanz: null,
+    abschnittSeit: new Date(jetzt - 26 * 3_600_000).toISOString(),
   };
 }
 
 export function uebersicht(): KryptoUebersicht {
-  return { verbunden: true, notaus: false, datenOnline: true, beobachtet: 214, solUsd: 70.2, bots: [bot(BOT_ID, 'Schwarm', '🦈', 1.184), bot(BOT2_ID, 'Grübler', '🐙', 0.93, 'prompt')] };
+  return { verbunden: true, liveMoeglich: true, auszahlung: 'DRpbCBMxVnDK7maPM5tGv6MvB3v1sRMC86PZ8okm21hy', notaus: false, datenOnline: true, beobachtet: 214, solUsd: 70.2, bots: [bot(BOT_ID, 'Schwarm', '🦈', 1.184), bot(BOT2_ID, 'Grübler', '🐙', 0.93, 'prompt')] };
 }
 
 export function terminal(): KryptoTerminal {

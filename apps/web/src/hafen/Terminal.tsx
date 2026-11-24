@@ -81,7 +81,7 @@ function Terminal({ t, jetzt }: { t: KryptoTerminal; jetzt: number }) {
           <div style={{ minWidth: 0 }}>
             <div className="kw-name">
               {e.name}
-              <span className="kw-pille">{b.modus === 'paper' ? 'PAPER' : 'LIVE'}</span>
+              <span className={`kw-pille${b.modus === 'live' ? ' live' : ''}`}>{b.modus === 'paper' ? 'PAPER' : 'LIVE'}</span>
             </div>
             <div className="kw-zeile">
               <span>{uhrzeit(jetzt, true)}</span>
@@ -90,6 +90,14 @@ function Terminal({ t, jetzt }: { t: KryptoTerminal; jetzt: number }) {
               <span>{e.art === 'prompt' ? 'Prompt + LLM' : 'Regeln'}</span>
               <span className={`kw-online${t.datenOnline ? '' : ' aus'}`}>{t.datenOnline ? 'online' : 'offline'}</span>
             </div>
+            {b.wallet && (
+              <div className="kw-zeile" title="Eigenes Wallet dieses Bots">
+                <span>
+                  👛 {b.wallet.adresse.slice(0, 6)}…{b.wallet.adresse.slice(-6)}
+                  {b.wallet.guthabenSol != null ? ` · ${sol(b.wallet.guthabenSol, 4)}` : ''}
+                </span>
+              </div>
+            )}
           </div>
         </div>
         <div className="kw-konto">
@@ -222,8 +230,20 @@ function Terminal({ t, jetzt }: { t: KryptoTerminal; jetzt: number }) {
               <strong className="minus">{k.maxDrawdownProzent ? `−${k.maxDrawdownProzent.toLocaleString('de-DE', { maximumFractionDigits: 1 })} %` : '0 %'}</strong>
             </div>
           </div>
+          <div className="kw-zahlen">
+            <div>
+              <span>Umsatz</span>
+              <strong>{sol(k.umsatzSol, 2)}</strong>
+            </div>
+            <div title={`Pump.fun ${sol(k.gebuehrenArt.pumpSol, 4)} · PumpPortal ${sol(k.gebuehrenArt.portalSol, 4)} · Netz/Priority ${sol(k.gebuehrenArt.netzSol, 4)}`}>
+              <span>Gebühren</span>
+              <strong>{sol(k.gebuehrenSol, 3)}</strong>
+            </div>
+          </div>
           <p className="leise mono" style={{ fontSize: '0.68rem', margin: '0.5rem 0 0' }}>
-            Gebühren bisher {sol(k.gebuehrenSol, 4)} · Paper Trading mit Pump.fun-Gebühren, Slippage, {e.simulation.verzoegerungMs} ms Verzögerung, {e.simulation.fehlschlagProzent} % Fehlschläge
+            Gebühren: Pump.fun {sol(k.gebuehrenArt.pumpSol, 4)} · PumpPortal {sol(k.gebuehrenArt.portalSol, 4)} · Netz {sol(k.gebuehrenArt.netzSol, 4)}
+            <br />
+            {b.modus === 'live' ? 'LIVE – echte Transaktionen über PumpPortal und dein RPC.' : `Paper Trading mit Pump.fun- und PumpPortal-Gebühren, Slippage, ${e.simulation.verzoegerungMs} ms Verzögerung, ${e.simulation.fehlschlagProzent} % Fehlschlägen.`}
           </p>
         </section>
       </div>
@@ -246,7 +266,12 @@ function Terminal({ t, jetzt }: { t: KryptoTerminal; jetzt: number }) {
           </ul>
         </section>
         <section className="kw-tafel" aria-label="Trades">
-          <h3>Trades</h3>
+          <div className="kw-chart-kopf">
+            <h3>Trades</h3>
+            <button type="button" className="kw-knopf" onClick={() => void csvLaden(b.id, e.name)}>
+              ⬇ CSV
+            </button>
+          </div>
           <ul className="kw-eintraege">
             {t.trades.map((x) => (
               <li key={x.id}>
@@ -262,6 +287,14 @@ function Terminal({ t, jetzt }: { t: KryptoTerminal; jetzt: number }) {
                   )}
                   <br />
                   {x.grund}
+                  {x.signatur && (
+                    <>
+                      {' · '}
+                      <a href={`https://solscan.io/tx/${x.signatur}`} target="_blank" rel="noreferrer noopener">
+                        Transaktion
+                      </a>
+                    </>
+                  )}
                 </span>
               </li>
             ))}
@@ -271,6 +304,21 @@ function Terminal({ t, jetzt }: { t: KryptoTerminal; jetzt: number }) {
       </div>
     </div>
   );
+}
+
+/** alle Trades (bis 500) als CSV – für Excel/Numbers */
+async function csvLaden(botId: string, name: string) {
+  const p = await api<{ trades: KryptoTerminal['trades'] }>(`/api/krypto/bots/${botId}/protokoll?anzahl=500`);
+  const z = (n: number | undefined | null) => (n == null ? '' : String(n).replace('.', ','));
+  const zeilen = ['Zeit;Art;Token;Mint;SOL;Preis (SOL);Gebühren (SOL);Slippage %;Verzögerung ms;Gewinn (SOL);Gewinn %;Grund;Transaktion'];
+  for (const t of [...p.trades].reverse())
+    zeilen.push([new Date(t.zeit).toLocaleString('de-AT'), t.art, t.symbol, t.mint, z(t.sol), z(t.preis), z(t.gebuehrSol), z(t.slippageProzent), z(t.verzoegerungMs), z(t.gewinnSol), z(t.gewinnProzent), `"${t.grund.replace(/"/g, '""')}"`, t.signatur ?? ''].join(';'));
+  const url = URL.createObjectURL(new Blob(['\ufeff' + zeilen.join('\n')], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `hafen-${name.replace(/[^\w-]+/g, '_')}-trades.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
 function Ohlc({ k }: { k: KryptoKerze | undefined }) {
