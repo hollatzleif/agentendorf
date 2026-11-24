@@ -870,7 +870,11 @@ cmd_syncthing_id() { compose exec -T syncthing syncthing device-id 2>/dev/null |
 cmd_syncthing_geraet() {
   local id=${1:-} name=${2:-}
   [ -n "$id" ] && [ -n "$name" ] || { echo "Aufruf: dorf syncthing-geraet <GERAETE-ID> <Name>"; return 1; }
-  local st=(compose exec -T syncthing syncthing cli)
+  # Syncthing 2: jeder cli-Aufruf braucht die GUI-Adresse und den API-Schlüssel (steht in der config.xml im Container)
+  local key
+  key=$(compose exec -T syncthing sh -c 'for f in /var/syncthing/config/config.xml /var/syncthing/config.xml; do [ -f "$f" ] && sed -n "s:.*<apikey>\([^<]*\)</apikey>.*:\1:p" "$f" && break; done' | tr -d '\r' | head -n1)
+  [ -n "$key" ] || { rot "API-Schlüssel von Syncthing nicht gefunden (config.xml)."; return 1; }
+  local st=(compose exec -T syncthing syncthing cli --gui-address=http://127.0.0.1:8384 --gui-apikey="$key")
   "${st[@]}" config folders list 2>/dev/null | grep -qx vault || "${st[@]}" config folders add --id vault --label Agentendorf --path /var/syncthing/vault
   "${st[@]}" config devices add --device-id "$id" --name "$name"
   "${st[@]}" config folders vault devices add --device-id "$id"
