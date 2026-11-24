@@ -50,6 +50,14 @@ export const DUNKEL_AUTO = ['aus', 'system', 'nachts'] as const;
 export const NAVIGATIONEN = ['oben', 'unten'] as const;
 export const BUCHSTABEN = ['eng', 'normal', 'weit'] as const;
 export const KARTEN = ['tafel', 'glas', 'schlicht'] as const;
+export const DIAGRAMME = ['standard', 'kraeftig', 'pastell', 'einfarbig'] as const;
+/** Reihenfarben für Diagramme (Börse u. a.) – „standard“ ist die geprüfte Kategorie-Palette */
+export const DIAGRAMM_FARBEN: Record<(typeof DIAGRAMME)[number], string[]> = {
+  standard: ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'],
+  kraeftig: ['#0057e7', '#ff4f00', '#00a86b', '#ffb000', '#d6007e', '#2e7d00', '#5b2bd6', '#d00000'],
+  pastell: ['#7fa7e6', '#f2a07b', '#78cfa8', '#f0c060', '#ebaac6', '#8cc58c', '#a69ae6', '#ec8c8c'],
+  einfarbig: ['#1f4e8c', '#2f6db5', '#4d8bd1', '#6fa6de', '#93bfe9', '#174070', '#3a7bc4', '#5a99d8'],
+};
 
 /** Prüfung auf dem Server: apps/server/src/aussehen.ts (Zod) – hier nur Typ und Standard */
 export interface AussehenT {
@@ -85,6 +93,8 @@ export interface AussehenT {
   buchstaben: (typeof BUCHSTABEN)[number];
   /** Tafeln: wie bisher, Glas (durchscheinend) oder schlicht */
   karten: (typeof KARTEN)[number];
+  diagramme: (typeof DIAGRAMME)[number];
+  linksUnterstrichen: 'an' | 'aus';
   /** eigenes CSS (max. 20 000 Zeichen) */
   css: string;
 }
@@ -115,6 +125,8 @@ export const AUSSEHEN_STANDARD: AussehenT = {
   navigation: 'oben',
   buchstaben: 'normal',
   karten: 'tafel',
+  diagramme: 'standard',
+  linksUnterstrichen: 'an',
   css: '',
 };
 

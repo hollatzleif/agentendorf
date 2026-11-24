@@ -4,7 +4,8 @@ import type { BoerseUebersicht as Daten, BoerseWert } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { bibliothekUrl, linkKlick } from '../router';
 import { SaxoDepot } from './SaxoDepot';
-import { usePrivat } from '../boerse/teile';
+import { Sparkline, usePrivat } from '../boerse/teile';
+import type { BoerseAnalyse } from '@dorf/shared';
 
 /** E223: Beträge verbergen (z. B. in der Bahn) – gilt für die ganze Börse */
 function PrivatKnopf() {
@@ -115,6 +116,8 @@ export function BoerseUebersicht() {
 }
 
 function Tabelle({ werte, depot, entfernen }: { werte: BoerseWert[]; depot?: boolean; entfernen: (i: number) => void }) {
+  const analyse = useQuery({ queryKey: ['boerse', 'analyse'], queryFn: () => api<BoerseAnalyse>('/api/boerse/analyse'), staleTime: 300_000 });
+  const drei = new Date(Date.now() - 92 * 86_400_000).toISOString().slice(0, 10);
   if (!werte.length) return <p className="leise">Noch leer.</p>;
   return (
     <table className="tabelle zahlen boerse-tabelle">
@@ -123,6 +126,7 @@ function Tabelle({ werte, depot, entfernen }: { werte: BoerseWert[]; depot?: boo
           <th>Wert</th>
           <th>Kurs</th>
           <th>Tag</th>
+          <th>3 Monate</th>
           {depot && <th>Wert €</th>}
           {depot && <th>Gewinn</th>}
           <th />
@@ -142,6 +146,9 @@ function Tabelle({ werte, depot, entfernen }: { werte: BoerseWert[]; depot?: boo
             </td>
             <td>{kurs(w)}</td>
             <td className={(w.veraenderungProzent ?? 0) >= 0 ? 'plus' : 'minus'}>{prozent(w.veraenderungProzent)}</td>
+            <td>
+              <Sparkline punkte={(w.symbol ? analyse.data?.historien[w.symbol]?.punkte ?? [] : []).filter(([d]) => d >= drei)} />
+            </td>
             {depot && <td>{euro(w.wertEur)}</td>}
             {depot && <td className={(w.gewinnEur ?? 0) >= 0 ? 'plus' : 'minus'}>{w.gewinnEur == null ? '–' : `${euro(w.gewinnEur)} (${prozent(w.gewinnProzent)})`}</td>}
             <td>

@@ -331,6 +331,8 @@ export function BoerseAnalyseAnsicht() {
         </div>
       )}
 
+      <DepotZiel jetzt={(a.saxo?.gesamt ?? 0) + a.eigen.reduce((x, w) => x + (w.wertEur ?? 0), 0)} geld={geld0} />
+
       <section className="karte innen ba-diagramm" aria-label="Verlauf">
         <LinienDiagramm
           reihen={reihen}
@@ -533,6 +535,78 @@ export function BoerseAnalyseAnsicht() {
         </ul>
       </details>
     </div>
+  );
+}
+
+/** 🎯 Depot-Ziel: wie weit, und wann es mit Sparrate und angenommener Rendite erreicht wäre (Gerät merkt es sich) */
+function DepotZiel({ jetzt, geld }: { jetzt: number; geld: (n: number | null | undefined, v?: boolean) => string }) {
+  const [z, setZ] = useState<{ betrag: string; bis: string; monatlich: string; rendite: string }>(() => ({ betrag: '', bis: '', monatlich: '200', rendite: '5', ...(JSON.parse(localStorage.getItem('dorf-boerse-ziel') ?? '{}') as object) }));
+  const setzen = (k: keyof typeof z, v: string) => {
+    const n = { ...z, [k]: v };
+    setZ(n);
+    localStorage.setItem('dorf-boerse-ziel', JSON.stringify(n));
+  };
+  const zahl = (t: string) => Number(t.replace(/\./g, '').replace(',', '.')) || 0;
+  const ziel = zahl(z.betrag);
+  const anteil = ziel > 0 ? Math.min(1, jetzt / ziel) : 0;
+  // Monate bis zum Ziel mit Sparrate und Rendite (höchstens 60 Jahre)
+  const r = (1 + zahl(z.rendite) / 100) ** (1 / 12) - 1;
+  let w = jetzt;
+  let m = 0;
+  while (ziel > 0 && w < ziel && m < 720) {
+    w = w * (1 + r) + zahl(z.monatlich);
+    m++;
+  }
+  const erreicht = new Date();
+  erreicht.setMonth(erreicht.getMonth() + m);
+  const bisMonate = z.bis ? Math.max(0, Math.round((Date.parse(z.bis) - Date.now()) / (30.44 * 86_400_000))) : null;
+  let noetig: number | null = null;
+  if (bisMonate && ziel > jetzt) {
+    const auf = (1 + r) ** bisMonate;
+    const rest = ziel - jetzt * auf;
+    noetig = rest <= 0 ? 0 : r ? (rest * r) / (auf - 1) : rest / bisMonate;
+  }
+  return (
+    <details className="karte innen ba-ziel" open={ziel > 0}>
+      <summary>
+        <strong>🎯 Depot-Ziel</strong>
+        {ziel > 0 && (
+          <span className="leise">
+            {' '}
+            · {Math.round(anteil * 100)} % von {geld(ziel)}
+          </span>
+        )}
+      </summary>
+      <div className="rechner-felder">
+        <label className="rechner-feld">
+          <span>Ziel (€)</span>
+          <input inputMode="decimal" value={z.betrag} onChange={(e) => setzen('betrag', e.target.value)} placeholder="z. B. 50.000" aria-label="Zielbetrag" />
+        </label>
+        <label className="rechner-feld">
+          <span>Bis (optional)</span>
+          <input type="date" value={z.bis} onChange={(e) => setzen('bis', e.target.value)} aria-label="Ziel bis" />
+        </label>
+        <label className="rechner-feld">
+          <span>Sparrate / Monat</span>
+          <input inputMode="decimal" value={z.monatlich} onChange={(e) => setzen('monatlich', e.target.value)} aria-label="Sparrate" />
+        </label>
+        <label className="rechner-feld">
+          <span>Rendite p. a. (%)</span>
+          <input inputMode="decimal" value={z.rendite} onChange={(e) => setzen('rendite', e.target.value)} aria-label="Angenommene Rendite" />
+        </label>
+      </div>
+      {ziel > 0 && (
+        <>
+          <div className="ba-ziel-balken" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(anteil * 100)} aria-label="Fortschritt zum Ziel">
+            <span style={{ width: `${anteil * 100}%` }} />
+          </div>
+          <p className="leise">
+            Jetzt {geld(jetzt)} – {jetzt >= ziel ? 'Ziel erreicht! 🎉' : m >= 720 ? 'mit diesen Annahmen nicht in 60 Jahren erreichbar.' : `mit ${geld(zahl(z.monatlich))} im Monat und ${z.rendite} % Rendite voraussichtlich ${erreicht.toLocaleDateString('de-AT', { month: 'long', year: 'numeric' })}.`}
+            {noetig != null && noetig > 0 ? ` Für ${new Date(z.bis).toLocaleDateString('de-AT', { month: 'long', year: 'numeric' })} bräuchte es ${geld(noetig)} im Monat.` : ''}
+          </p>
+        </>
+      )}
+    </details>
   );
 }
 

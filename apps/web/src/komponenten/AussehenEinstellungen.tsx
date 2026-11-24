@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ANIMATIONEN,
+  DIAGRAMME,
+  DIAGRAMM_FARBEN,
   BUCHSTABEN,
   KARTEN,
   NAVIGATIONEN,
@@ -57,6 +59,7 @@ const TEXTE: Record<string, string> = {
   fett: 'Fett', extra: 'Extra fett',
   dorf: '3D-Dorf', liste: 'Dorf als Liste', heute: '„Heute“',
   system: 'Wie das Gerät', nachts: 'Nachts (20–7 Uhr)',
+  kraeftig: 'Kräftig', pastell: 'Pastell', standard: 'Standard',
   oben: 'Oben', unten: 'Unten (Handy)', eng: 'Eng', weit: 'Weit', tafel: 'Tafel', glas: 'Glas',
 };
 const AKZENTE = ['#2f8a2b', '#2a78d6', '#6250d6', '#b5548f', '#e34948', '#eb6834', '#d97706', '#0e7490', '#1baf7a', '#111827'];
@@ -95,6 +98,16 @@ export function AussehenEinstellungen() {
   const [meldung, setMeldung] = useState('');
   const [teilen, setTeilen] = useState('');
   const [nurGeraet, setNurGeraet] = useState(() => !!geraetAussehen());
+  const looks = useQuery({ queryKey: ['aussehen', 'looks'], queryFn: () => api<{ name: string; aussehen: AussehenT }[]>('/api/aussehen/looks') });
+  const [lookName, setLookName] = useState('');
+  const looksSpeichern = async (liste: { name: string; aussehen: AussehenT }[]) => {
+    try {
+      const r = await api<{ name: string; aussehen: AussehenT }[]>('/api/aussehen/looks', { methode: 'PUT', body: liste });
+      qc.setQueryData(['aussehen', 'looks'], r);
+    } catch (e) {
+      setMeldung(`⚠️ ${e instanceof ApiFehler ? e.message : String(e)}`);
+    }
+  };
   const gespeichert = useRef<AussehenT | null>(null);
   gespeichert.current = q.data ?? null;
   const basis = (nurGeraet ? geraetAussehen() : null) ?? q.data ?? AUSSEHEN_STANDARD;
@@ -159,11 +172,11 @@ export function AussehenEinstellungen() {
     delete document.documentElement.dataset.vorschau;
     if (an) {
       geraetAussehenSetzen(q.data ?? AUSSEHEN_STANDARD);
-      setMeldung('Dieses Gerät hat jetzt sein eigenes Aussehen (Kopie des gemeinsamen).');
+      setMeldung('Eigenes Aussehen für dieses Handy/diesen PC angelegt (Kopie des gemeinsamen).');
     } else {
       geraetAussehenSetzen(null);
       if (q.data) aussehenAnwenden(q.data);
-      setMeldung('Dieses Gerät folgt wieder dem gemeinsamen Aussehen.');
+      setMeldung('Wieder das gemeinsame Aussehen.');
     }
   };
   const w = wirksam(a);
@@ -172,7 +185,7 @@ export function AussehenEinstellungen() {
   return (
     <div className="karte aussehen" id="aussehen">
       <h2>🎨 Aussehen</h2>
-      <p className="leise">Alles wirkt sofort als Vorschau. Gespeichert gilt es auf allen deinen Geräten (Handy, PC, Programm) – außer du stellst dieses Gerät extra ein.</p>
+      <p className="leise">Alles wirkt sofort als Vorschau. Gespeichert gilt es auf allen deinen Geräten (Handy, PC, Programm) – außer du stellst ein Gerät extra ein.</p>
       <label className="ba-schalter">
         <input type="checkbox" checked={nurGeraet} onChange={(e) => geraetUmschalten(e.target.checked)} /> Nur auf diesem Gerät anders einstellen (z. B. das Handy dunkel, den PC hell)
       </label>
@@ -196,6 +209,41 @@ export function AussehenEinstellungen() {
           })}
         </div>
         <p className="leise">Eine Vorlage setzt Farben und Stil zurück; Schriftgröße, Startseite und eigenes CSS bleiben.</p>
+      </section>
+
+      <section aria-label="Meine Looks">
+        <h3>Meine Looks</h3>
+        <div className="ba-chips">
+          {(looks.data ?? []).map((l) => (
+            <span key={l.name} className="aussehen-look">
+              <button type="button" className="klein" onClick={() => aendern({ ...AUSSEHEN_STANDARD, ...l.aussehen })} title="Anwenden (dann Speichern)">
+                {l.name}
+              </button>
+              <button type="button" className="klein" aria-label={`Look ${l.name} löschen`} onClick={() => void looksSpeichern((looks.data ?? []).filter((x) => x.name !== l.name))}>
+                ×
+              </button>
+            </span>
+          ))}
+          {!looks.data?.length && <span className="leise">Noch keine – stell dir etwas zusammen und speichere es hier unter einem Namen.</span>}
+        </div>
+        <form
+          className="zeile"
+          style={{ gap: '0.4rem', marginTop: '0.5rem', flexWrap: 'wrap' }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            const n = lookName.trim();
+            if (!n) return;
+            void looksSpeichern([...(looks.data ?? []).filter((x) => x.name !== n), { name: n, aussehen: a }].slice(-20)).then(() => {
+              setLookName('');
+              setMeldung(`Look „${n}“ gespeichert.`);
+            });
+          }}
+        >
+          <input value={lookName} onChange={(e) => setLookName(e.target.value)} placeholder="Name, z. B. Abends am Handy" maxLength={40} aria-label="Name des Looks" style={{ flex: '1 1 12rem' }} />
+          <button type="submit" className="klein" disabled={!lookName.trim()}>
+            Aktuellen Look speichern
+          </button>
+        </form>
       </section>
 
       <section aria-label="Farben">
@@ -301,6 +349,15 @@ export function AussehenEinstellungen() {
           )}
           <Wahl text="Navigation" werte={NAVIGATIONEN} wert={w.navigation} setzen={(x) => aendern({ navigation: x })} hilfe="Am Handy: Leiste unten – mit dem Daumen erreichbar" />
           <Wahl text="Seitenbreite" werte={BREITEN} wert={w.breite} setzen={(x) => aendern({ breite: x })} />
+          <div className="aussehen-feld">
+            <Wahl text="Diagramm-Farben" werte={DIAGRAMME} wert={a.diagramme} setzen={(x) => aendern({ diagramme: x })} />
+            <span className="aussehen-diagramm" aria-hidden="true">
+              {DIAGRAMM_FARBEN[a.diagramme].map((f) => (
+                <span key={f} style={{ background: f }} />
+              ))}
+            </span>
+          </div>
+          <Wahl text="Links unterstrichen" werte={['an', 'aus'] as const} wert={a.linksUnterstrichen} setzen={(x) => aendern({ linksUnterstrichen: x })} />
           <Wahl text="Tabellen" werte={TABELLEN} wert={w.tabellen} setzen={(x) => aendern({ tabellen: x })} />
           <Wahl text="Kopfleiste" werte={['mitlaufend', 'fest'] as const} wert={w.kopfleiste} setzen={(x) => aendern({ kopfleiste: x })} />
           <Wahl text="Bewegung" werte={ANIMATIONEN} wert={w.animationen} setzen={(x) => aendern({ animationen: x })} />

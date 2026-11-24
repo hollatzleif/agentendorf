@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { BUCHSTABEN, KARTEN, NAVIGATIONEN, DUNKEL_AUTO, ANIMATIONEN, AUSSEHEN_STANDARD, BREITEN, DICHTEN, FARB_ROLLEN, FOKUS_RINGE, HINTERGRUENDE, KNOEPFE, RAHMEN, SCHATTEN, SCHRIFTEN, STARTSEITEN, TABELLEN, TITEL_GEWICHTE, VORLAGEN, type AussehenT } from '@dorf/shared';
+import { DIAGRAMME, BUCHSTABEN, KARTEN, NAVIGATIONEN, DUNKEL_AUTO, ANIMATIONEN, AUSSEHEN_STANDARD, BREITEN, DICHTEN, FARB_ROLLEN, FOKUS_RINGE, HINTERGRUENDE, KNOEPFE, RAHMEN, SCHATTEN, SCHRIFTEN, STARTSEITEN, TABELLEN, TITEL_GEWICHTE, VORLAGEN, type AussehenT } from '@dorf/shared';
 import type { DB } from './db.js';
 import type { LiveHub } from './live.js';
 import { DorfFehler } from './fehler.js';
@@ -39,6 +39,8 @@ export const AussehenSchema = z
     navigation: z.enum(NAVIGATIONEN),
     buchstaben: z.enum(BUCHSTABEN),
     karten: z.enum(KARTEN),
+    diagramme: z.enum(DIAGRAMME),
+    linksUnterstrichen: z.enum(['an', 'aus']),
     css: z
       .string()
       .max(20_000)
@@ -60,6 +62,21 @@ export function aussehenRouten(app: FastifyInstance, a: { db: DB; hub: LiveHub }
     const r = AussehenSchema.safeParse({ ...AUSSEHEN_STANDARD, ...(req.body as object) });
     if (!r.success) throw new DorfFehler(400, `Aussehen ungültig: ${r.error.issues[0]?.path.join('.')}: ${r.error.issues[0]?.message ?? ''}`);
     a.db.prepare("INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES ('aussehen', ?)").run(JSON.stringify(r.data));
+    a.hub.senden({ typ: 'aussehen.geaendert' });
+    return r.data;
+  });
+  // „Meine Looks“: eigene Aussehen unter einem Namen (höchstens 20)
+  const Looks = z.array(z.object({ name: z.string().trim().min(1).max(40), aussehen: AussehenSchema }).strict()).max(20);
+  app.get('/api/aussehen/looks', async () => {
+    const z2 = a.db.prepare("SELECT wert FROM dorf_stand WHERE schluessel = 'aussehen_looks'").get() as { wert: string } | undefined;
+    const r = Looks.safeParse(z2 ? JSON.parse(z2.wert) : []);
+    return r.success ? r.data : [];
+  });
+  app.put('/api/aussehen/looks', { bodyLimit: 512 * 1024 }, async (req) => {
+    const roh = Array.isArray(req.body) ? (req.body as { name?: unknown; aussehen?: object }[]).map((l) => ({ name: l.name, aussehen: { ...AUSSEHEN_STANDARD, ...l.aussehen } })) : req.body;
+    const r = Looks.safeParse(roh);
+    if (!r.success) throw new DorfFehler(400, `Looks ungültig: ${r.error.issues[0]?.path.join('.')}: ${r.error.issues[0]?.message ?? ''}`);
+    a.db.prepare("INSERT OR REPLACE INTO dorf_stand (schluessel, wert) VALUES ('aussehen_looks', ?)").run(JSON.stringify(r.data));
     a.hub.senden({ typ: 'aussehen.geaendert' });
     return r.data;
   });

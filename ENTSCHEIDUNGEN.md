@@ -2327,3 +2327,9 @@ Leif: In den Einstellungen soll es ganz viele Möglichkeiten geben, das Aussehen
 - **Schnellschalter 🌙/☀️** in der Kopfleiste, nur für dieses Gerät. Er überstimmt Vorlage und „automatisch dunkel“, bis man in den Einstellungen „Wieder automatisch“ wählt.
 - **Navigation unten** am Handy (Daumen), **Buchstabenabstand** (eng, normal, weit), **Tafeln** als Tafel, Glas (durchscheinend, unscharfer Hintergrund) oder schlicht.
 - Der Code-Editor im Codehaus folgt ohne eigene Wahl dem Aussehen (hell oder dunkel).
+- **Später in der Nacht dazugekommen:**
+  - **Mini-Verläufe** (3 Monate) je Position in Depot und Watchlist.
+  - **🎯 Depot-Ziel** in der Analyse: Fortschrittsbalken über Saxo und eigenes Depot. Dazu, wann das Ziel mit Sparrate und Rendite voraussichtlich erreicht ist, und welche Rate für ein Wunschdatum nötig wäre. Das Gerät merkt es sich.
+  - **Meine Looks:** eigenes Aussehen unter einem Namen speichern, höchstens 20 (`GET/PUT /api/aussehen/looks`, Zod).
+  - **Diagramm-Farben:** standard, kräftig, pastell oder einfarbig.
+  - **Links unterstrichen** an oder aus.

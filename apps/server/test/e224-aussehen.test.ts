@@ -24,6 +24,13 @@ describe('Aussehen (E224)', () => {
       const x = await d.app.inject({ method: 'PUT', url: '/api/aussehen', headers: h, payload: schlecht });
       expect(x.statusCode, JSON.stringify(schlecht)).toBe(400);
     }
+    // Meine Looks
+    expect((await d.app.inject({ url: '/api/aussehen/looks', headers: h })).json()).toEqual([]);
+    const l = await d.app.inject({ method: 'PUT', url: '/api/aussehen/looks', headers: h, payload: [{ name: 'Abends', aussehen: { vorlage: 'mitternacht' } }] });
+    expect(l.statusCode).toBe(200);
+    expect(l.json()[0]).toMatchObject({ name: 'Abends', aussehen: { vorlage: 'mitternacht', groesse: 16 } });
+    expect((await d.app.inject({ method: 'PUT', url: '/api/aussehen/looks', headers: h, payload: [{ name: '', aussehen: {} }] })).statusCode).toBe(400);
+    expect((await d.app.inject({ method: 'PUT', url: '/api/aussehen/looks', headers: h, payload: Array.from({ length: 21 }, (_, i) => ({ name: `L${i}`, aussehen: {} })) })).statusCode).toBe(400);
     // ohne Sitzung nichts
     expect((await d.app.inject({ url: '/api/aussehen' })).statusCode).toBe(401);
   });

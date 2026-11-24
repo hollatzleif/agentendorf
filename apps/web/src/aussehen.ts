@@ -163,6 +163,8 @@ export function aussehenAnwenden(rohEingabe: AussehenT) {
   d.navigation = a.navigation;
   d.buchstaben = a.buchstaben;
   d.karten = a.karten;
+  d.diagramme = a.diagramme;
+  d.links = a.linksUnterstrichen;
   d.ecken = a.ecken === AUSSEHEN_STANDARD.ecken ? 'standard' : 'eigen';
   // eigenes CSS
   let stil = document.getElementById('dorf-eigenes-css') as HTMLStyleElement | null;

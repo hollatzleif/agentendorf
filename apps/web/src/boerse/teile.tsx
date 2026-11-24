@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Punkt } from '@dorf/shared';
+import { DIAGRAMM_FARBEN, type Punkt } from '@dorf/shared';
 
-/** E223: Farben je Reihe – feste Reihenfolge (geprüfte Kategorie-Palette), nie nach Rang */
-export const FARBEN = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
+/** E223: Farben je Reihe – feste Reihenfolge (geprüfte Kategorie-Palette), nie nach Rang; E225: wählbar unter Aussehen → Diagramme */
+export const FARBEN = new Proxy([] as string[], {
+  get(_z, k) {
+    const p = DIAGRAMM_FARBEN[(document.documentElement.dataset.diagramme as keyof typeof DIAGRAMM_FARBEN) || 'standard'] ?? DIAGRAMM_FARBEN.standard;
+    return (p as unknown as Record<string | symbol, unknown>)[k];
+  },
+});
 
 /** Privatsphäre: Beträge verbergen (Gerät merkt es sich; auch in Einstellungen → Aussehen) */
 export function usePrivat(): [boolean, (x: boolean) => void] {
@@ -193,5 +198,22 @@ export function AnteilBalken({ teile, format }: { teile: { name: string; wert: n
         ))}
       </ul>
     </div>
+  );
+}
+
+/** Mini-Verlauf (z. B. 3 Monate) – Farbe nach Richtung, mit Text für Screenreader */
+export function Sparkline({ punkte, breite = 90, hoehe = 26 }: { punkte: Punkt[]; breite?: number; hoehe?: number }) {
+  if (punkte.length < 3) return null;
+  const w = punkte.map(([, v]) => v);
+  const min = Math.min(...w);
+  const max = Math.max(...w);
+  const sp = max - min || 1;
+  const d = punkte.map(([, v], i) => `${i ? 'L' : 'M'}${((i / (punkte.length - 1)) * breite).toFixed(1)},${(hoehe - 2 - ((v - min) / sp) * (hoehe - 4)).toFixed(1)}`).join(' ');
+  const plus = w.at(-1)! >= w[0]!;
+  const pr = (w.at(-1)! / w[0]! - 1) * 100;
+  return (
+    <svg className="sparkline" width={breite} height={hoehe} viewBox={`0 0 ${breite} ${hoehe}`} role="img" aria-label={`Verlauf: ${pr >= 0 ? '+' : ''}${pr.toFixed(1)} %`}>
+      <path d={d} fill="none" stroke={plus ? 'var(--gruen)' : 'var(--rot)'} strokeWidth={1.8} strokeLinejoin="round" />
+    </svg>
   );
 }

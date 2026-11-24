@@ -39,6 +39,11 @@ test('Börse-Analyse: Zeitraum, Teile ein- und ausblenden, Kennzahlen, Aufteilun
   await page.getByLabel('Aufteilen nach').selectOption('waehrung');
   await expect(page.getByRole('region', { name: 'Aufteilung' })).toContainText('USD');
   await expect(page.getByRole('region', { name: 'Monatsrenditen' }).locator('tbody tr').first()).toContainText(String(new Date().getFullYear()));
+  // Depot-Ziel: Fortschritt aus Saxo + eigenem Depot
+  await page.locator('.ba-ziel summary').click();
+  await page.getByLabel('Zielbetrag').fill('46000');
+  await expect(page.getByRole('progressbar', { name: 'Fortschritt zum Ziel' })).toHaveAttribute('aria-valuenow', /^\d+$/);
+  await expect(page.locator('.ba-ziel')).toContainText('voraussichtlich');
   // ähnlich laufende Werte, einzeln ansehen (Einstandslinie), CSV
   await expect(page.getByRole('region', { name: 'Wie ähnlich laufen deine Werte' })).toContainText('Apple');
   await page.getByRole('region', { name: 'Teile des Depots' }).getByRole('button', { name: 'Apple Inc.' }).click();

@@ -22,7 +22,7 @@ test('Aussehen: Vorlage, Vorschau, Verwerfen, Speichern, eigene Farbe und Stile'
     await page.getByRole('group', { name: 'Abstände' }).getByRole('button', { name: 'Kompakt' }).click();
     await page.getByRole('slider', { name: 'Größe' }).fill('18');
     await expect(html).toHaveAttribute('data-knoepfe', 'pille');
-    await page.getByRole('button', { name: 'Speichern' }).click();
+    await page.getByRole('button', { name: 'Speichern', exact: true }).click();
     await expect(page.getByText('Gespeichert – gilt jetzt auf allen Geräten.')).toBeVisible();
     await page.goto('/gebaeude/Marktplatz');
     await expect(html).toHaveAttribute('data-dunkel', 'ja');
@@ -31,10 +31,15 @@ test('Aussehen: Vorlage, Vorschau, Verwerfen, Speichern, eigene Farbe und Stile'
     // nach Neuladen sofort da (aus dem Gerät, bevor der Server antwortet)
     await page.reload();
     await expect(html).toHaveAttribute('data-knoepfe', 'pille');
+    // Meine Looks: speichern und wieder anwenden
+    await page.goto('/einstellungen');
+    await page.getByLabel('Name des Looks').fill('Nachtschicht');
+    await page.getByRole('button', { name: 'Aktuellen Look speichern' }).click();
+    await expect(page.getByRole('region', { name: 'Meine Looks' }).getByRole('button', { name: 'Nachtschicht', exact: true })).toBeVisible();
     // eigene Akzentfarbe
     await page.goto('/einstellungen');
     await page.getByRole('button', { name: 'Akzent #e34948' }).click();
-    await page.getByRole('button', { name: 'Speichern' }).click();
+    await page.getByRole('button', { name: 'Speichern', exact: true }).click();
     await expect.poll(() => html.evaluate((e) => e.style.getPropertyValue('--gruen'))).toBe('#e34948');
     // Schnellschalter in der Kopfleiste: dieses Gerät, überstimmt die Einstellung
     await page.getByRole('button', { name: 'Hell schalten' }).click();
@@ -46,6 +51,7 @@ test('Aussehen: Vorlage, Vorschau, Verwerfen, Speichern, eigene Farbe und Stile'
     await expect(html).toHaveAttribute('data-dunkel', 'ja');
   } finally {
     await page.request.put('/api/aussehen', { headers: { origin: 'http://127.0.0.1:3999' }, data: {} });
+    await page.request.put('/api/aussehen/looks', { headers: { origin: 'http://127.0.0.1:3999' }, data: [] });
     await page.evaluate(() => localStorage.removeItem('dorf-aussehen'));
   }
 });

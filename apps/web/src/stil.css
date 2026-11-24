@@ -2055,3 +2055,14 @@ details.karte > summary { cursor: pointer; }
   :root[data-navigation='unten'] main { padding-bottom: 5rem; }
   :root[data-navigation='unten'] .kopf .marke span { display: none; }
 }
+
+.sparkline { display: block; }
+
+.ba-ziel-balken { height: 0.9rem; border-radius: 99px; background: var(--flaeche-2); overflow: hidden; border: 1px solid var(--rand); }
+.ba-ziel-balken span { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--akzent-hell), var(--gruen)); }
+
+.aussehen-look { display: inline-flex; gap: 0.15rem; }
+
+:root[data-links='aus'] a { text-decoration: none; }
+.aussehen-diagramm { display: flex; gap: 3px; }
+.aussehen-diagramm span { width: 1.3rem; height: 0.55rem; border-radius: 3px; }

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SaxoUebersicht } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
-import { usePrivat } from '../boerse/teile';
+import { Sparkline, usePrivat } from '../boerse/teile';
+import type { BoerseAnalyse } from '@dorf/shared';
 
 const prozent = (n: number | null | undefined) => (n == null ? '–' : `${n >= 0 ? '+' : ''}${(n * 100).toLocaleString('de-DE', { maximumFractionDigits: 1 })} %`);
 const zahl = (n?: number, st = 2) => (n == null ? '–' : n.toLocaleString('de-DE', { maximumFractionDigits: st }));
@@ -16,6 +17,13 @@ export function SaxoDepot() {
   const q = useQuery({ queryKey: ['boerse', 'saxo'], queryFn: () => api<SaxoUebersicht>('/api/boerse/saxo') });
   const [meldung, setMeldung] = useState('');
   const [privat] = usePrivat();
+  // E225: Mini-Verläufe (3 Monate) je Position aus den Kursverläufen der Analyse
+  const analyse = useQuery({ queryKey: ['boerse', 'analyse'], queryFn: () => api<BoerseAnalyse>('/api/boerse/analyse'), staleTime: 300_000 });
+  const drei = new Date(Date.now() - 92 * 86_400_000).toISOString().slice(0, 10);
+  const verlaufVon = (symbol?: string) => {
+    const k = symbol ? analyse.data?.zuordnung[symbol]?.kuerzel : undefined;
+    return (k ? analyse.data?.historien[k]?.punkte ?? [] : []).filter(([d]) => d >= drei);
+  };
   const [laeuft, setLaeuft] = useState(false);
 
   // Rückkehr von der Saxo-Anmeldung (?saxo=ok|fehler) einmal melden, dann aus der Adresse nehmen
@@ -139,6 +147,7 @@ export function SaxoDepot() {
                 <th>Tag</th>
                 <th>Wert</th>
                 <th>Gewinn</th>
+                <th>3 Monate</th>
               </tr>
             </thead>
             <tbody>
@@ -159,6 +168,9 @@ export function SaxoDepot() {
                   <td className={(p.tagProzent ?? 0) >= 0 ? 'plus' : 'minus'}>{p.tagProzent == null ? '' : `${p.tagProzent > 0 ? '+' : ''}${zahl(p.tagProzent, 1)} %`}</td>
                   <td>{geld(p.wert)}</td>
                   <td className={(p.gewinn ?? 0) >= 0 ? 'plus' : 'minus'}>{geld(p.gewinn)}</td>
+                  <td>
+                    <Sparkline punkte={verlaufVon(p.symbol)} />
+                  </td>
                 </tr>
               ))}
               {st.bar != null && (
@@ -169,6 +181,7 @@ export function SaxoDepot() {
                   <td />
                   <td />
                   <td>{geld(st.bar)}</td>
+                  <td />
                   <td />
                 </tr>
               )}
