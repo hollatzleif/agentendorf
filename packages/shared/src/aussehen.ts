@@ -46,6 +46,7 @@ export const TABELLEN = ['schlicht', 'zebra', 'gitter'] as const;
 export const TITEL_GEWICHTE = ['normal', 'fett', 'extra'] as const;
 export const FOKUS_RINGE = ['gelb', 'akzent', 'dick'] as const;
 export const STARTSEITEN = ['dorf', 'liste', 'heute'] as const;
+export const DUNKEL_AUTO = ['aus', 'system', 'nachts'] as const;
 
 /** Prüfung auf dem Server: apps/server/src/aussehen.ts (Zod) – hier nur Typ und Standard */
 export interface AussehenT {
@@ -73,6 +74,9 @@ export interface AussehenT {
   symbole: 'an' | 'aus';
   fokusRing: (typeof FOKUS_RINGE)[number];
   startseite: (typeof STARTSEITEN)[number];
+  /** automatisch dunkel: nach dem System (Handy/PC im Dunkelmodus) oder nachts (20–7 Uhr) – dann gilt dunkelVorlage */
+  dunkelAuto: (typeof DUNKEL_AUTO)[number];
+  dunkelVorlage: Vorlage;
   /** eigenes CSS (max. 20 000 Zeichen) */
   css: string;
 }
@@ -98,6 +102,8 @@ export const AUSSEHEN_STANDARD: AussehenT = {
   symbole: 'an',
   fokusRing: 'gelb',
   startseite: 'dorf',
+  dunkelAuto: 'aus',
+  dunkelVorlage: 'nacht',
   css: '',
 };
 

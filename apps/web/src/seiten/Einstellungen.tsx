@@ -6,6 +6,7 @@ import { istProgramm } from '../programm/desktop';
 import { api, ApiFehler } from '../api';
 import { bibliothekUrl, linkKlick } from '../router';
 import { updateInstallieren, updateSuchen } from '../aktualisierung';
+import { AussehenEinstellungen } from '../komponenten/AussehenEinstellungen';
 
 const fehlertext = (e: unknown) => (e instanceof ApiFehler ? e.message : String(e));
 const zeit = (iso: string) => new Date(iso).toLocaleString('de-AT', { dateStyle: 'short', timeStyle: 'short' });
@@ -26,6 +27,7 @@ export function Einstellungen() {
       <p className="leise">
         Neu hier oder neu sortieren? <a href="/anleitung" onClick={linkKlick}>So nutzt du das Dorf</a>
       </p>
+      <AussehenEinstellungen />
       <Anschluesse />
       <Konflikte />
       <Sitzungen />

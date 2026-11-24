@@ -12,6 +12,7 @@ async function anmelden(page: Page) {
 }
 
 test('Börse-Analyse: Zeitraum, Teile ein- und ausblenden, Kennzahlen, Aufteilung, Monate, Beträge verbergen', async ({ page }) => {
+  test.slow(); // 3 Jahre Tageswerte für 7 Reihen – am Handy in der CI langsam
   await anmelden(page);
   await page.goto('/gebaeude/Boerse?reiter=analyse');
   const kacheln = page.getByLabel('Kennzahlen: Saxo-Konto gesamt');

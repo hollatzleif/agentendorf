@@ -4,8 +4,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { App } from './App';
 import './stil.css';
 import { aktualisierungStarten } from './aktualisierung';
+import { aussehenAusSpeicher } from './aussehen';
 
 aktualisierungStarten();
+aussehenAusSpeicher(); // E224: gemerktes Aussehen sofort, vor dem ersten Zeichnen
 
 // Nach einem Deploy fehlen alte Seiten-Dateien: einmal neu laden (nicht in Schleife – Merker für 1 min)
 window.addEventListener('vite:preloadError', (e) => {

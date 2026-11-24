@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react';
+import { useAussehen } from './aussehen';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { FreigabeInfo, Ich, Konflikt } from '@dorf/shared';
 import { api } from './api';
@@ -38,6 +39,7 @@ export function App() {
   const ich = useQuery({ queryKey: ['ich'], queryFn: () => api<Ich>('/api/ich'), retry: false, staleTime: 60_000 });
   const angemeldet = ich.isSuccess;
   useLiveVerbindung(qc, angemeldet);
+  useAussehen(angemeldet); // E224
 
   useEffect(() => {
     const ab = () => {

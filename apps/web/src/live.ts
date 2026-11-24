@@ -68,6 +68,9 @@ export function useLiveVerbindung(qc: QueryClient, aktiv: boolean) {
           case 'kirchturm.klingelt':
             void qc.invalidateQueries({ queryKey: ['kirchturm'] });
             break;
+          case 'aussehen.geaendert':
+            void qc.invalidateQueries({ queryKey: ['aussehen'] });
+            break;
           case 'boerse.geaendert':
             void qc.invalidateQueries({ queryKey: ['boerse'] });
             break;

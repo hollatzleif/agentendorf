@@ -2291,3 +2291,26 @@ Leif (bis 8:00 ohne Rückfragen): In der Börse soll „ganz viel möglich“ se
   - Die Berater sollen klar Stellung beziehen, so wie Leif es will („keine Ausflüchte“). Sie nennen Quellen mit Datum und sagen einmal, dass sie keine zugelassene Anlageberatung sind. Handeln kann das Dorf weiterhin nicht.
 - **Beträge verbergen** (Privatsphäre, z. B. in der Bahn): ein Knopf in Depot und Analyse, gilt für die ganze Börse und wird vom Gerät gemerkt.
 - Analyse, Rechner und Berater werden erst beim Öffnen geladen (eigenes Bündel).
+
+## E224 – Aussehen: Farben, Schriften, Größen, Stile und Anzeigearten einstellbar (24.11., Nacht)
+
+Leif: In den Einstellungen soll es ganz viele Möglichkeiten geben, das Aussehen von so ziemlich allem anzupassen: Farben, Stile, Größen, Schriftarten, Anzeigearten.
+
+**Grundlage: alles läuft über Variablen.**
+- `stil.css` hatte rund 400 fest eingetragene Farben. Die häufigen sind jetzt CSS-Variablen, umgestellt per Skript je Eigenschaft: Hintergrund-Weiß → `--flaeche`, Schrift-Weiß auf Farbe bleibt.
+- Die übrigen hellen Tönungen laufen über `color-mix(… var(--hell-anteil), var(--flaeche))`. Im hellen Look ist der Anteil 100 %, also genau wie bisher; im Dunkelmodus 13 %, dadurch werden sie zu dunklen Tönungen. Dasselbe gilt für Rahmen und dunkle Schriftfarben.
+- Der Spiel-Look ohne eigene Farben setzt keine einzige Variable: Er sieht genau aus wie vorher.
+
+**Einstellungen → 🎨 Aussehen** (Live-Vorschau, Speichern oder Verwerfen):
+- **11 Vorlagen:** Spiel (wie bisher), Schlicht, Nacht, Mitternacht, Pastell, Wald, Ozean, Abendrot, Papier, Terminal, Hoher Kontrast. Eine Vorlage setzt Farben und passenden Stil, zum Beispiel Terminal = Schreibmaschinenschrift ohne Schatten.
+- **Farben:** 13 Rollen einzeln (Akzent, Hintergrund, Tafeln, Felder, Text, leiser Text, Rahmen, Linien, Plus, Minus, Warnung, Kopfleiste …) plus Akzent-Schnellwahl. Abgeleitete Töne (hell, dunkel, Schrift auf Akzent mit genug Kontrast) rechnet die App.
+- **Schrift:** 7 Schriftarten nur aus Systemschriften, nichts wird nachgeladen; eigene Schrift für Überschriften; Größe 12–24 px (alles in rem wächst mit); Zeilenabstand; Stärke der Überschriften.
+- **Form & Stil:** Ecken 0–28 px; Schatten (Spiel, weich, flach, keine); Rahmen (dick, dünn, keine); Knöpfe (Spiel, flach, Umriss, Pille); Hintergrund (Verlauf, einfarbig, Punkte, Karo, Linien); Abstände (kompakt, normal, luftig).
+- **Anzeige:** Startseite (3D-Dorf, Liste, „Heute“); Seitenbreite; Tabellen (schlicht, Zebra, Gitter); Kopfleiste läuft mit oder bleibt oben; Bewegung (an, reduziert, aus); Fokus-Rahmen; **automatisch dunkel** (wie das Gerät oder nachts 20–7 Uhr) mit wählbarer dunkler Vorlage.
+- **Eigenes CSS** für alles Übrige, höchstens 20 000 Zeichen. Der Server lehnt `@import` und `url(…)` ab, damit die App nichts von außen nachlädt. Es ist Leifs eigene App, gesetzt nur über seine Sitzung, und kein Agent hat dafür ein Werkzeug.
+- **Teilen & sichern:** als Text kopieren und einfügen, alles zurücksetzen.
+- **Nur dieses Gerät:** zum Beispiel das Handy dunkel und den PC hell. Das liegt dann im Gerät und geht dem gemeinsamen Aussehen vor.
+
+**Speicher:** `GET/PUT /api/aussehen` (`dorf_stand` 'aussehen', Zod in `apps/server/src/aussehen.ts`, Live-Ereignis `aussehen.geaendert`). Die App merkt sich den letzten Stand im Gerät und wendet ihn in `main.tsx` vor dem ersten Zeichnen an, damit beim Laden nichts aufblitzt. Die Typen und Vorlagen stehen in `packages/shared/src/aussehen.ts`.
+
+**Dazu in der Börse:** Ein Klick auf den Namen eines Teils zeigt nur diesen Teil (Diagramm und Kennzahlen). „⬇ CSV“ lädt die Tabelle für den gewählten Zeitraum herunter, mit Semikolon und deutschem Komma für Excel.

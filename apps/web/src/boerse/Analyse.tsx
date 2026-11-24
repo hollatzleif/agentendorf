@@ -116,6 +116,10 @@ export function BoerseAnalyseAnsicht() {
   const [laeuft, setLaeuft] = useState(false);
   const a = q.data;
   const teile = useMemo(() => (a ? teileBauen(a) : []), [a]);
+  const von = zeitraum === 'eigen' ? eigenVon || null : zeitraumVon(zeitraum, heute());
+  const bis = zeitraum === 'eigen' ? eigenBis || null : null;
+  // Kennzahlen aller Teile nur neu rechnen, wenn sich Daten oder Zeitraum ändern (nicht bei jedem Klick)
+  const kz = useMemo(() => new Map<string, Kennzahlen | null>(teile.map((t) => [t.schluessel, kennzahlen(schneiden(t.reihe, von, bis), t.rendite ? schneiden(t.rendite, von, bis) : undefined)])), [teile, von, bis]);
   if (q.isLoading) return <p className="leise">Lade …</p>;
   if (q.error) return <p className="fehler">{(q.error as Error).message}</p>;
   if (!a || !teile.length)
@@ -140,6 +144,12 @@ export function BoerseAnalyseAnsicht() {
     setSichtbarRoh(n);
     localStorage.setItem('dorf-boerse-sichtbar', JSON.stringify(n));
   };
+  /** nur diesen Teil zeigen – Kennzahlen und Diagramm gelten dann ihm */
+  const einzeln = (k: string) => {
+    setSichtbarRoh([k]);
+    localStorage.setItem('dorf-boerse-sichtbar', JSON.stringify([k]));
+    document.querySelector('.ba-kacheln')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
   const zeitraumWaehlen = (z: Zeitraum | 'eigen') => {
     setZeitraum(z);
     if (z !== 'eigen') localStorage.setItem('dorf-boerse-zeitraum', z);
@@ -152,12 +162,8 @@ export function BoerseAnalyseAnsicht() {
   const waehrung = a.saxo?.waehrung ?? 'EUR';
   const geld = geldFormat(privat, waehrung);
   const geld0 = geldFormat(privat, waehrung, 0);
-  const von = zeitraum === 'eigen' ? eigenVon || null : zeitraumVon(zeitraum, heute());
-  const bis = zeitraum === 'eigen' ? eigenBis || null : null;
-
   // Reihen im Zeitraum
   const imZeitraum = (t: Teil) => schneiden(t.reihe, von, bis);
-  const kz = new Map<string, Kennzahlen | null>(teile.map((t) => [t.schluessel, kennzahlen(imZeitraum(t), t.rendite ? schneiden(t.rendite, von, bis) : undefined)]));
   const sichtbare = teile.filter((t) => sichtbar.has(t.schluessel));
   const nurKurs = sichtbare.some((t) => t.nurKurs);
   const anzeigeJetzt: Anzeige = nurKurs && anzeige === 'wert' ? 'index' : anzeige;
@@ -342,6 +348,9 @@ export function BoerseAnalyseAnsicht() {
             <label className="ba-schalter">
               <input type="checkbox" checked={summeZeigen} onChange={(e) => setSummeZeigen(e.target.checked)} /> Summe der sichtbaren
             </label>
+            <button type="button" className="klein" title="Tabelle für den gewählten Zeitraum als CSV (Excel, Numbers)" onClick={() => csvLaden(teile, kz, zeitraum === 'eigen' ? `${von ?? 'anfang'}_${bis ?? 'heute'}` : zeitraum)}>
+              ⬇ CSV
+            </button>
           </span>
         </div>
         <div className="tabelle-rahmen">
@@ -378,10 +387,10 @@ export function BoerseAnalyseAnsicht() {
               {teile
                 .filter((t) => t.gesamt)
                 .map((t) => (
-                  <ZeileTeil key={t.schluessel} t={t} k={kz.get(t.schluessel) ?? null} an={sichtbar.has(t.schluessel)} farbe={farbeVon(t.schluessel)} umschalten={umschalten} geld={geld} summe={summeJetzt} />
+                  <ZeileTeil key={t.schluessel} t={t} k={kz.get(t.schluessel) ?? null} an={sichtbar.has(t.schluessel)} farbe={farbeVon(t.schluessel)} umschalten={umschalten} einzeln={einzeln} geld={geld} summe={summeJetzt} />
                 ))}
               {tabelle.map(({ t, k: kk }) => (
-                <ZeileTeil key={t.schluessel} t={t} k={kk} an={sichtbar.has(t.schluessel)} farbe={farbeVon(t.schluessel)} umschalten={umschalten} geld={geld} summe={summeJetzt} />
+                <ZeileTeil key={t.schluessel} t={t} k={kk} an={sichtbar.has(t.schluessel)} farbe={farbeVon(t.schluessel)} umschalten={umschalten} einzeln={einzeln} geld={geld} summe={summeJetzt} />
               ))}
             </tbody>
           </table>
@@ -522,7 +531,23 @@ function zelle(r: number) {
   return r >= 0 ? `rgba(31, 138, 43, ${0.12 + s * 0.5})` : `rgba(210, 53, 42, ${0.12 + s * 0.5})`;
 }
 
-function ZeileTeil({ t, k, an, farbe, umschalten, geld, summe }: { t: Teil; k: Kennzahlen | null; an: boolean; farbe: string; umschalten: (k: string) => void; geld: (n: number | null | undefined, v?: boolean) => string; summe: number }) {
+/** Tabelle als CSV (Semikolon, deutsches Komma – öffnet so in Excel) */
+function csvLaden(teile: Teil[], kz: Map<string, Kennzahlen | null>, name: string) {
+  const z = (n: number | null | undefined, f = 2) => (n == null || !Number.isFinite(n) ? '' : n.toFixed(f).replace('.', ','));
+  const zeilen = [['Teil', 'Depot', 'Art', 'Währung', 'Wert jetzt', 'Start', 'Ende', 'Änderung', 'Änderung %', 'pro Jahr %', 'Max. Rückgang %', 'Schwankung p. a. %', 'Von', 'Bis'].join(';')];
+  for (const t of teile) {
+    const k = kz.get(t.schluessel);
+    zeilen.push([`"${t.name.replace(/"/g, '""')}"`, t.depot, t.art, t.waehrung, z(t.wert), z(k?.start), z(k?.ende), z(k?.differenz), z(k?.prozent != null ? k.prozent * 100 : null), z(k?.proJahr != null ? k.proJahr * 100 : null), z(k?.maxRueckgang ? k.maxRueckgang.anteil * 100 : null), z(k?.volatilitaet != null ? k.volatilitaet * 100 : null), k?.von ?? '', k?.bis ?? ''].join(';'));
+  }
+  const url = URL.createObjectURL(new Blob(['\ufeff' + zeilen.join('\n')], { type: 'text/csv;charset=utf-8' }));
+  const l = document.createElement('a');
+  l.href = url;
+  l.download = `boerse-analyse-${name}.csv`;
+  l.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+function ZeileTeil({ t, k, an, farbe, umschalten, einzeln, geld, summe }: { t: Teil; k: Kennzahlen | null; an: boolean; farbe: string; umschalten: (k: string) => void; einzeln: (k: string) => void; geld: (n: number | null | undefined, v?: boolean) => string; summe: number }) {
   return (
     <tr className={`${t.gesamt ? 'ba-gesamt' : ''}${an ? '' : ' ba-aus'}`}>
       <td>
@@ -532,7 +557,9 @@ function ZeileTeil({ t, k, an, farbe, umschalten, geld, summe }: { t: Teil; k: K
         </label>
       </td>
       <td>
-        <strong>{t.name}</strong>
+        <button type="button" className="ba-sort" title="Nur diesen Teil ansehen" onClick={() => einzeln(t.schluessel)}>
+          {t.name}
+        </button>
         <div className="leise">
           {t.depot}
           {t.art && t.art !== 'Konto' ? ` · ${t.art}` : ''} · {t.waehrung}

@@ -63,6 +63,8 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
   src/atelier.ts  E198 Atelier: /api/atelier/* – öffnen (HEIC/TIFF/SVG nur über den Rechenraum), speichern (nur PNG/JPG/WebP/.atelier,
                   Anfangsbytes geprüft, VaultDienst mit basisVersion → Konfliktkopie), ki (Hintergrund/Hochskalieren im Rechenraum),
                   generieren/fuellen (Cloudflare Workers AI, nur mit CLOUDFLARE_* – der einzige Weg nach draußen, nur auf Leifs Klick)
+  src/aussehen.ts E224: Aussehen der App (GET/PUT /api/aussehen, Zod, dorf_stand, Live) – Typen/Vorlagen in packages/shared/src/aussehen.ts,
+                  Anwenden in apps/web/src/aussehen.ts (CSS-Variablen + data-Attribute an <html>; stil.css: keine festen Farben mehr, color-mix für Tönungen)
   src/schriftprobe.ts E216: Leifs Schriftprobe (Atelier/schriftprobe.json, GET/PUT /api/atelier/schriftprobe, Zod-Grenzen) – handschrift_schreiben
                   schreibt damit in seiner Hand (Standard, wenn vorhanden; stil eigene/einheitlich/ki); Seite /schriftprobe (seiten/Schriftprobe.tsx)
   src/coding.ts   E191 Codehaus: Zugang zu VS Code auf code.<domain> (Einmal-Karte → Cookie dorf_coding, nur Hash, an die Sitzung
@@ -296,6 +298,7 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E213 (22.11.): Handschrift kann Mathe – Formeln ($…$ oder schlicht), Rechenwege am „=“ ausgerichtet, Brüche/Wurzeln/∑∫, Markdown-Tabellen mit Handgitter (handformel.py + Hershey); „=“ wird nicht mehr zu „-“
 - [x] E214 (22.11.): Handschrift realistischer – gerade Linien wie GoodNotes (Tabellen, Bruchstriche), ruhigere Formeln, gleichmäßiger Stift, Logik-Zeichen (∧ ∨ ¬ ↔ ⊢ ⊨ ⊤ ⊥ □), Wahrheitstafeln mittig
 - [x] E215 (22.11.): Handschrift `stil: einheitlich` (Standard) – EINE Hand für Text, Formeln und Tabellen (Schreiber-Profil je Dokument, jedes Zeichen einmalig verformt, Wortgrundlinien, Unterschneiden); `stil: ki` = KI-Modell für freien Fließtext
+- [x] E224 (24.11.): Aussehen – Einstellungen → 🎨 Aussehen: 11 Vorlagen (auch dunkel), 13 Farbrollen, 7 Schriften, Größe/Zeilenabstand, Ecken, Schatten, Rahmen, Knöpfe, Hintergrund, Abstände, Startseite, Breite, Tabellen, Bewegung, automatisch dunkel, eigenes CSS, nur dieses Gerät; stil.css über Variablen (Spiel-Look unverändert)
 - [x] E223 (24.11.): Börse – Analyse (alle Zeiträume, jeder Teil ein-/ausblendbar, Kennzahlen, Aufteilung, Gewinner/Verlierer, Monats-Heatmap), Kursverläufe über EODHD (im Tageslimit, Saxo-Symbol → Kürzel), Saxo-Reihe bis 10 Jahre, Rechner (Sparplan, Entnahme, Umschichten, Kosten, Sparziel), Aktien-/ETF-Berater (4 Aktionen, Abo + Web), Beträge verbergen – Abnahme mit echtem Depot steht aus
 - [x] E222 (23.11.): Saxo-Tagesstände (letzter Stand je Tag, 120 Tage) → Bewegungen (Wert, Kurs %, Käufe/Verkäufe); depot_lesen/depot_bewegungen für alle Agenten; Aktion Boerse/Depot-Tagesbericht (Di–Sa 05:00, Abo, Web) → „📈 Saxo gestern“ ganz unten in der Morgenzeitung – Abnahme mit echtem Depot steht aus
 - [x] E221 (23.11.): Agenten pflegen Leifs Notenliste – noten_lesen/noten_eintragen/noten_entfernen für alle (Uni/noten.md über den Notendienst, „sehr gut“ … „nicht genügend“ → 1–5, mit Rückgängig)
