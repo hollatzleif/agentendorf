@@ -2518,10 +2518,33 @@ Ein Uni-Agent sollte eine Aufgabe mit dem Wine-Datensatz und einem Random Forest
 - Neue Werkzeuge kommen deshalb ins Image, nicht zur Laufzeit.
 
 **Jetzt**
-- `scikit-learn==1.9.1` mit seinen Abhängigkeiten `joblib`, `threadpoolctl` und `narwhals` als fertige Wheels, mit fester Version und Prüfsumme (`--require-hashes`, wie E199).
+- `scikit-learn==1.9.1` mit seinen Abhängigkeiten `joblib`, `cloudpickle` (joblib 1.6 bringt es nicht mehr mit – der erste CI-Rauchtest fiel daran, E228/E229 wurde darum erst mit E230 ausgeliefert), `threadpoolctl` und `narwhals` als fertige Wheels, mit fester Version und Prüfsumme (`--require-hashes`, wie E199).
 - numpy und scipy kommen weiter aus Debian 12 (1.24.2 / 1.10.1) und erfüllen die Mindestversionen von scikit-learn 1.9.1.
 - Die Beispiel-Datensätze (load_wine, load_iris …) liegen im Paket, also ohne Internet.
 - Der Rauchtest in CI trainiert einen Random Forest auf dem Wine-Datensatz.
 - Die Agenten wissen es, weil es in der Rechenraum-Zeile in `kontext.ts` steht.
 
 **Wichtig fürs Vorrechnen:** Dieselben Zahlen wie der Tutor gibt es nur mit derselben scikit-learn-Version. Zwischen Versionen kann sich ein Random Forest trotz gleichem `random_state` unterscheiden. Nutzt die LVA eine andere Version, tragen wir sie hier ein.
+
+## E230 – Paketwerk: Leif installiert Python-Pakete für den Rechenraum selbst (24.11.)
+
+Leif wollte, dass fehlende Pakete nicht jedes Mal einen Deploy brauchen („bau ins Dorf ein Terminal ein, über das ich manuell Sachen installieren kann, und erklär den Agenten, was das ist“). Gewählt: **eigenes Paketwerk** statt einer Shell im Rechenraum selbst.
+
+**So ist es gebaut**
+- Container `paketwerk`: **dasselbe Image** wie der Rechenraum (gleiches Python, gleiche Systempakete), Runner im Modus `RECHENRAUM_MODUS=paketwerk`. In diesem Modus gibt es NUR die Konsole (`/konsole/start|stand|abbrechen|pakete`) – kein `/befehl`, kein `/werkzeug`, kein Vault, keine Arbeitsordner.
+- Eigenes Netz `paketnetz` mit Internet (PyPI); es erreicht nur das Dorf. Schreiben kann der Container nur in `/pakete` (= `/srv/dorf/rechenraum-pakete`) und `/tmp`. Der Rechenraum bleibt **ohne Internet** und hängt `/pakete` **nur lesend** ein.
+- Installiert wird mit `pip install --user` (`PYTHONUSERBASE=/pakete`, `PIP_USER=1`, `PIP_BREAK_SYSTEM_PACKAGES=1`). Der Rechenraum setzt `PYTHONUSERBASE` für Befehle und Werkzeuge, hängt `/pakete/bin` hinten an den `PATH` – die Pakete aus dem Image haben also Vorrang bei Programmen, bei Python-Modulen steht der User-Site vor den Debian-Paketen (so kann Leif eine andere Version eines Pakets bewusst installieren, z. B. die scikit-learn-Version der LVA).
+- Ein Befehl zur Zeit (409 sonst), Ausgabe fortlaufend (Puffer 256 KB), Abbrechen, Zeitgrenze 15 min, Befehl ≤ 4000 Zeichen.
+- Dorf: `/api/paketwerk*` (Sitzung + Origin über den allgemeinen Schutz, E203), App-Seite `/paketwerk` (Einstellungen → 🧪 Paketwerk) mit Konsole, Verlauf, Paketliste und „Entfernen“.
+
+**Warum kein Agenten-Werkzeug**
+- Begründung wie E229: Agenten lesen Fremdes (Mails, Moodle, Anhänge). Ein Agent, der Pakete aus dem Internet holt, könnte Schadcode in den Rechenraum bringen, in dem später alle Agenten rechnen.
+- Darum schlagen Agenten nur vor: Befehl mit fester Version plus Link `/paketwerk?befehl=…`. Der Link setzt den Befehl nur in die Zeile, ausführen tut Leif selbst.
+
+**Grenzen (ehrlich)**
+- Nur Python-Pakete mit fertigen Wheels oder reinem Python. Pakete, die beim Bauen einen Compiler oder Systembibliotheken brauchen, oder `apt`-Pakete gehen nicht – die gehören weiter ins Image (Dockerfile, mit Prüfsumme).
+- Was Leif installiert, ist nicht mit Prüfsumme festgelegt. Das ist seine bewusste Entscheidung pro Paket.
+- `/srv/dorf/rechenraum-pakete` ist NICHT im Backup (kann groß werden, ist jederzeit neu installierbar). Nach einer Wiederherstellung die Befehle aus dem Verlauf im Paketwerk erneut ausführen.
+- Ein Paket kann im Rechenraum nichts nach draußen schicken (kein Netz dort).
+
+**Tests:** `apps/rechenraum/test/test_paketwerk.py` (Konsole, Ausgabe stückweise, einer zur Zeit, Abbrechen, Zeitgrenze, Paketliste, Rechenraum importiert aus `/pakete`, keine Konsole im Rechenraum und kein Rechenraum im Paketwerk), `apps/server/test/e230-paketwerk.test.ts` (Routen vor dem echten Runner: 401/403 auch kodiert, 409, Abbrechen, nicht eingerichtet/nicht erreichbar, kein Agenten-Werkzeug), `apps/web/e2e/paketwerk.spec.ts`, CI-Rauchtest: `pip install six==1.17.0` im Paketwerk, danach importiert ein Rechenraum ohne Netz das Paket nur lesend.

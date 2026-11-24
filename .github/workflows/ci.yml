@@ -254,6 +254,33 @@ jobs:
           # read-only-Container: Skript über stdin statt docker cp
           docker exec -i rr python3 - < apps/rechenraum/test/rauchtest.py
           docker logs rr
+      - name: Rauchtest Paketwerk (E230 – pip --user im Paketwerk, Rechenraum findet das Paket nur lesend)
+        if: steps.rechenraum.outputs.hat != 'ja'
+        run: |
+          BILD="agentendorf-rechenraum:${{ steps.rechenraum.outputs.kennung }}"
+          G=ci-geheimnis-ci-geheimnis-ci-geheimnis-12
+          mkdir -p "$RUNNER_TEMP/pakete" && sudo chown 1000:1000 "$RUNNER_TEMP/pakete"
+          docker run -d --name pw --read-only -u 1000:1000 --mount type=tmpfs,destination=/tmp,tmpfs-mode=1777 \
+            -v "$RUNNER_TEMP/pakete:/pakete" -e RECHENRAUM_MODUS=paketwerk -e RECHENRAUM_PAKETE=/pakete -e RECHENRAUM_GEHEIMNIS=$G "$BILD"
+          for i in $(seq 1 30); do docker exec pw python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4100/gesundheit')" && break; sleep 1; done
+          docker exec -i pw python3 - <<'PY'
+          import json, time, urllib.request
+          def post(weg, d):
+              r = urllib.request.Request("http://127.0.0.1:4100" + weg, data=json.dumps(d).encode(), method="POST",
+                  headers={"content-type": "application/json", "x-rechenraum-geheimnis": "ci-geheimnis-ci-geheimnis-ci-geheimnis-12"})
+              return json.loads(urllib.request.urlopen(r, timeout=120).read())
+          jid = post("/konsole/start", {"befehl": "pip install six==1.17.0"})["id"]
+          ab = 0
+          for _ in range(600):
+              s = post("/konsole/stand", {"id": jid, "ab": ab}); ab = s["bis"]; print(s["ausgabe"], end="")
+              if s["fertig"]: break
+              time.sleep(0.5)
+          assert s["code"] == 0, s
+          assert {"name": "six", "version": "1.17.0"} in post("/konsole/pakete", {})["pakete"]
+          PY
+          docker rm -f pw
+          docker run --rm --network none --read-only -u 1000:1000 -v "$RUNNER_TEMP/pakete:/pakete:ro" -e PYTHONUSERBASE=/pakete \
+            --entrypoint python3 "$BILD" -c "import six; assert six.__version__ == '1.17.0'; print('Rechenraum findet six', six.__version__)"
       - name: Browser-Image bauen und rauchtesten (nur wenn der Server es nicht hat; Fehler blockieren den Deploy nicht)
         id: browserbau
         if: steps.rechenraum.outputs.browser_hat != 'ja'

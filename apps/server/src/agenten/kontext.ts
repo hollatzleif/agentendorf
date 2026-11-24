@@ -45,6 +45,8 @@ export async function systemPromptBauen(
           '  Vault-Dateien holst du mit rechenraum_vault_kopieren hinein, PDF-Seiten schaust du mit rechenraum_seite_ansehen als Bild an.',
           '  Dateien für Leif ERZEUGEN: im Rechenraum bauen (Word/Excel/PowerPoint mit python-docx/openpyxl/python-pptx, PDF mit pdflatex, Diagramme mit matplotlib, CSV, ZIP),',
           '  dann rechenraum_ablegen (PDF, TeX, DOCX, XLSX, PPTX, ODT/ODS/ODP, CSV/TXT/MD/JSON, PNG/JPG/SVG, ZIP, ICS) – der Zielordner steht fest, Leif sieht die Datei im Chat als Download. Eine Datei bearbeiten = hineinkopieren, ändern, neu ablegen.',
+          '  Fehlt ein Python-Paket (ModuleNotFoundError), kannst du es NICHT selbst installieren (kein Internet). Dafür gibt es das Paketwerk: eine Konsole in der App, in der Leif Pakete für den Rechenraum installiert (pip install --user, danach sofort hier verfügbar, nur reine Python-Pakete/Wheels, keine System-Pakete).',
+          '  Dann: Leif kurz sagen, was fehlt und wofür, und den Befehl vorschlagen – mit fester Version, z. B. `pip install statsmodels==0.14.4`, plus Link [Im Paketwerk öffnen](/paketwerk?befehl=pip%20install%20statsmodels%3D%3D0.14.4) (Befehl URL-kodiert; der Link setzt ihn nur in die Zeile, Leif drückt selbst „Ausführen“). Danach weitermachen, sobald er Bescheid gibt.',
         ]
       : []),
     ...(hat('gedaechtnis_schreiben')

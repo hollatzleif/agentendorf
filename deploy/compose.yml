@@ -52,7 +52,7 @@ services:
     security_opt:
       - no-new-privileges:true
     mem_limit: 768m
-    networks: [default, rechennetz, browsernetz, codingnetz, kryptonetz]
+    networks: [default, rechennetz, browsernetz, codingnetz, kryptonetz, paketnetz]
     # kein Port nach außen – nur Caddy spricht mit dem Dorf (3000); die Werkstatt ruft Werkzeuge über 3001 auf
 
   werkstatt:
@@ -88,10 +88,13 @@ services:
     env_file: /srv/dorf/rechenraum.env
     environment:
       TZ: Europe/Vienna
+      # E230: Leifs Zusatzpakete aus dem Paketwerk – hier NUR lesbar
+      RECHENRAUM_PAKETE: /pakete
     user: "1000:1000"
     read_only: true
     networks: [rechennetz]
     volumes:
+      - /srv/dorf/rechenraum-pakete:/pakete:ro
       - type: tmpfs
         target: /tmp
         tmpfs: { mode: 01777, size: 268435456 }
@@ -139,6 +142,32 @@ services:
     mem_limit: 1g
     cpus: 1.0
     pids_limit: 512
+
+  paketwerk:
+    # E230: Konsole, mit der Leif Python-Pakete für den Rechenraum installiert (pip --user in /srv/dorf/rechenraum-pakete).
+    # Gleiches Image wie der Rechenraum (gleiches Python, gleiche Systempakete). Internet ja, Vault nein; schreiben nur in
+    # /pakete und /tmp. Befehle kommen nur von Leifs Klick in der App (Dorf → Runner mit Geheimnis) – Agenten schlagen nur vor.
+    image: agentendorf-rechenraum:${RECHENRAUM_VERSION:-fehlt}
+    restart: unless-stopped
+    env_file: /srv/dorf/rechenraum.env
+    environment:
+      TZ: Europe/Vienna
+      RECHENRAUM_MODUS: paketwerk
+      RECHENRAUM_PAKETE: /pakete
+    user: "1000:1000"
+    read_only: true
+    networks: [paketnetz]
+    volumes:
+      - /srv/dorf/rechenraum-pakete:/pakete
+      - type: tmpfs
+        target: /tmp
+        tmpfs: { mode: 01777, size: 1073741824 }
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1280m
+    cpus: 1.0
+    pids_limit: 256
 
   kryptowerk:
     # E227 Hafen: Krypto-Bots im Paper Trading. Gleiches Image wie das Dorf, eigener Prozess und eigene Datenbank.
@@ -237,6 +266,8 @@ networks:
   codingnetz: {}
   # E227: Dorf ↔ Kryptowerk; mit Internet (PumpPortal, DexScreener, RugCheck), sonst niemand
   kryptonetz: {}
+  # E230: Dorf ↔ Paketwerk; mit Internet (PyPI)
+  paketnetz: {}
 
 volumes:
   caddy-daten:

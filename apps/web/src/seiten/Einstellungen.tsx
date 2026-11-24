@@ -27,6 +27,11 @@ export function Einstellungen() {
       <p className="leise">
         Neu hier oder neu sortieren? <a href="/anleitung" onClick={linkKlick}>So nutzt du das Dorf</a>
       </p>
+      <p className="leise">
+        <a href="/paketwerk" onClick={linkKlick}>
+          🧪 Paketwerk (Pakete für den Rechenraum)
+        </a>
+      </p>
       <AussehenEinstellungen />
       <Anschluesse />
       <Konflikte />

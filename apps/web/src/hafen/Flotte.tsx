@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { KRYPTO_PAPER_MINDESTENS_STUNDEN, KRYPTO_STANDARD, type KryptoBacktest, type KryptoBot, type KryptoEinstellung, type KryptoUebersicht } from '@dorf/shared';
 import { ApiFehler, api } from '../api';
-import { linkKlick } from '../router';
+import { bibliothekUrl, linkKlick } from '../router';
 import { prozent, sol, solVz, uhrzeit } from './format';
 import './hafen.css';
 
@@ -38,6 +38,9 @@ export function HafenFlotte() {
           </span>
         </div>
         <div className="hafen-knoepfe">
+          <a className="knopf klein" href={bibliothekUrl('Hafen/00_Anleitung.html')} onClick={linkKlick}>
+            📖 Anleitung
+          </a>
           <button type="button" onClick={() => setForm({ e: structuredClone(KRYPTO_STANDARD) })} disabled={!u.verbunden}>
             + Neuer Bot
           </button>

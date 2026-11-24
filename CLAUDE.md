@@ -73,6 +73,9 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
                   Maschine über die Aufzeichnungen, nur Regel-Bots). Scharf schalten nur mit Passwort/TOTP + „SCHARF“ nach ≥ 24 h Paper.
   src/krypto-dorf.ts E227: /api/krypto/* (Durchreiche), /intern/krypto/bewerten (LLM für Prompt-Bots, nur JSON, ≤ 0,50 $ je Bot/Tag, Auslöser
                   krypto – nicht im Tagesbudget), Telegram /notaus; App: apps/web/src/hafen/ (Flotte, Terminal „Kielwasser“ /hafen/<id>)
+  src/paketwerk.ts E230: /api/paketwerk* → Runner im Container paketwerk (gleiches Image wie der Rechenraum, RECHENRAUM_MODUS=paketwerk,
+                  NUR /konsole/*, Internet über paketnetz, schreibt nur /pakete = /srv/dorf/rechenraum-pakete, pip --user); Rechenraum hängt
+                  /pakete nur lesend ein (PYTHONUSERBASE). Nur Leifs Klick (App /paketwerk) – Agenten schlagen Befehle vor (Link /paketwerk?befehl=…)
   src/aussehen.ts E224: Aussehen der App (GET/PUT /api/aussehen, Zod, dorf_stand, Live) – Typen/Vorlagen in packages/shared/src/aussehen.ts,
                   Anwenden in apps/web/src/aussehen.ts (CSS-Variablen + data-Attribute an <html>; stil.css: keine festen Farben mehr, color-mix für Tönungen)
   src/schriftprobe.ts E216: Leifs Schriftprobe (Atelier/schriftprobe.json, GET/PUT /api/atelier/schriftprobe, Zod-Grenzen) – handschrift_schreiben
@@ -308,6 +311,7 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E213 (22.11.): Handschrift kann Mathe – Formeln ($…$ oder schlicht), Rechenwege am „=“ ausgerichtet, Brüche/Wurzeln/∑∫, Markdown-Tabellen mit Handgitter (handformel.py + Hershey); „=“ wird nicht mehr zu „-“
 - [x] E214 (22.11.): Handschrift realistischer – gerade Linien wie GoodNotes (Tabellen, Bruchstriche), ruhigere Formeln, gleichmäßiger Stift, Logik-Zeichen (∧ ∨ ¬ ↔ ⊢ ⊨ ⊤ ⊥ □), Wahrheitstafeln mittig
 - [x] E215 (22.11.): Handschrift `stil: einheitlich` (Standard) – EINE Hand für Text, Formeln und Tabellen (Schreiber-Profil je Dokument, jedes Zeichen einmalig verformt, Wortgrundlinien, Unterschneiden); `stil: ki` = KI-Modell für freien Fließtext
+- [x] E230 (24.11.): Paketwerk – Konsole in der App (Einstellungen → 🧪 Paketwerk), mit der Leif Python-Pakete für den Rechenraum installiert (pip --user, eigener Container mit Internet, Rechenraum liest nur); Agenten schlagen Befehle mit Link vor – Container kommt mit dem Deploy
 - [x] E229 (24.11.): Rechenraum mit scikit-learn 1.9.1 (Wheels mit Prüfsumme, Datensätze wie load_wine, Rauchtest mit Random Forest) – Image kommt mit dem Deploy
 - [x] E228 (24.11.): Hafen – Paper mit PumpPortal-Gebühr, Umsatz/Gebühren nach Art/CSV, Backtest auf den Aufzeichnungen, Wallet je Bot (verschlüsselt), scharf schalten (Passwort/TOTP, 24 h Paper, Budget), echte Trades über PumpPortal Local + Helius, Not-Aus echt, Auszahlen nur an feste Adresse, dorf krypto-* – echte Trades nie getestet (kein echtes Geld), Abnahme mit kleinem Budget
 - [x] E227 (24.11.): Hafen – Krypto-Bots für Pump.fun im Paper Trading (Kryptowerk-Container, PumpPortal/DexScreener/RugCheck, Bonding-Curve-Simulation mit Gebühren/Slippage/Verzögerung/Fehlschlägen, Regel- und Prompt-Bots mit Risk-Gate, Protokoll, Flotte mit Vergleich, Terminal „Kielwasser“, Not-Aus in App und Telegram) – kein Live-Trading; Backtest (K5) und Live (eigene Etappe) offen; Abnahme mit echten Läufen auf dem Server

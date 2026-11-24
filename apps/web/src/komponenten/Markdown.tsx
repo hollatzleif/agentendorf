@@ -59,7 +59,7 @@ export function Markdown({ inhalt, pfad }: { inhalt: string; pfad: string }) {
               );
             if (href.startsWith('#')) return <a href={href}>{children}</a>;
             // Links innerhalb der App (z. B. vom Bürgermeister: /chats/…)
-            if (/^\/(chats|gebaeude|bibliothek|einstellungen)(\/|\?|$)/.test(href))
+            if (/^\/(chats|gebaeude|bibliothek|einstellungen|paketwerk)(\/|\?|$)/.test(href))
               return (
                 <a href={href} onClick={linkKlick}>
                   {children}

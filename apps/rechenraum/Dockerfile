@@ -33,7 +33,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3-pip && 
 # E199: reine Python-Pakete (bzw. ein fertiges Wheel für Python 3.11) mit fester Version UND Prüfsumme, ohne Abhängigkeiten
 # aus dem Netz nachzuziehen (PyYAML für genanki kommt aus apt). Debian 12 hat genanki, duckdb und aktuelles pypdf nicht.
 # E229: scikit-learn (Uni: Machine Learning, inkl. Datensätze wie load_wine) – braucht numpy ≥ 1.24.1 und scipy ≥ 1.10.0, die
-# Debian 12 mitbringt (1.24.2 / 1.10.1); joblib, threadpoolctl und narwhals sind reine Python-Pakete.
+# Debian 12 mitbringt (1.24.2 / 1.10.1); joblib (+ cloudpickle, seit joblib 1.6 nicht mehr eingebaut), threadpoolctl und narwhals sind reine Python-Pakete.
 RUN printf '%s\n' \
       'pypdf==7.1.1 --hash=sha256:04c5680d4b4cfa04ab505b09393fc949860c34a4dad6565284d11a2f5c3ce8b1' \
       'segno==1.6.6 --hash=sha256:28c7d081ed0cf935e0411293a465efd4d500704072cdb039778a2ab8736190c7' \
@@ -46,6 +46,7 @@ RUN printf '%s\n' \
       'joblib==1.6.0 --hash=sha256:3dbbf9f6e4b592a2357b854608e980fe6390d131d7a82f011a377ef2ebef7aba' \
       'threadpoolctl==3.8.0 --hash=sha256:f1b49c82704d50f13ffae019c727b0fa4f6791a58f48f06a09c45face1be66da' \
       'narwhals==2.29.0 --hash=sha256:1c69b3dc30240f6e848c5a673cafc86affa44184ecce721e25b7194663ad10dc' \
+      'cloudpickle==3.1.3 --hash=sha256:1654f4f18e416447210a63c5c25a135d65a292156aa5fa519dfa4baf7726dddb' \
       > /tmp/dorfwerk.txt \
     && pip3 install --no-cache-dir --break-system-packages --no-deps --only-binary=:all: --require-hashes \
          --target /dorfwerk -r /tmp/dorfwerk.txt \
@@ -95,6 +96,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       python3-docx python3-openpyxl python3-xlsxwriter python3-lxml python3-odf \
       tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng \
       graphviz ghostscript python3-pandas python3-yaml \
+      python3-pip \
     && rm -rf /var/lib/apt/lists/* /usr/share/doc/* /usr/share/man/*
 COPY --from=whisper /whisper-cli /usr/local/bin/whisper-cli
 COPY --from=whisper /ggml-base-q5_1.bin /opt/whisper/ggml-base-q5_1.bin

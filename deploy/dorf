@@ -42,7 +42,7 @@ gesund_pruefen() { # dienst port pfad
   if [ "$1" = coding ]; then
     # prüft Runner UND VS Code
     compose exec -T coding /app/gesund.sh 2>/dev/null
-  elif [ "$1" = rechenraum ]; then
+  elif [ "$1" = rechenraum ] || [ "$1" = paketwerk ]; then
     compose exec -T "$1" python3 -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:$2$3',timeout=3).status==200 else 1)" 2>/dev/null
   else
     compose exec -T "$1" node -e "fetch('http://127.0.0.1:$2$3').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" 2>/dev/null
@@ -51,10 +51,11 @@ gesund_pruefen() { # dienst port pfad
 
 gesund_warten() {
   local eintrag dienst port pfad ok
-  for eintrag in dorf:3000:/api/gesundheit werkstatt:4000:/gesundheit rechenraum:4100:/gesundheit browser:4200:/gesundheit coding:4000:/gesundheit; do
+  for eintrag in dorf:3000:/api/gesundheit werkstatt:4000:/gesundheit rechenraum:4100:/gesundheit paketwerk:4100:/gesundheit browser:4200:/gesundheit coding:4000:/gesundheit; do
     IFS=: read -r dienst port pfad <<< "$eintrag"
     # ältere Versionen (vor Etappe 3) haben keinen Rechenraum, Versionen ohne Browser-Image keinen Browser
     [ "$dienst" != rechenraum ] || [ -f "$AKTUELL/RECHENRAUM_VERSION" ] || continue
+    [ "$dienst" != paketwerk ] || { [ -f "$AKTUELL/RECHENRAUM_VERSION" ] && grep -q '^  paketwerk:' "$AKTUELL/deploy/compose.yml" 2>/dev/null; } || continue
     [ "$dienst" != browser ] || [ -f "$AKTUELL/BROWSER_VERSION" ] || continue
     [ "$dienst" != coding ] || { [ -f "$AKTUELL/CODING_VERSION" ] && coding_an; } || continue
     ok=nein
@@ -65,6 +66,12 @@ gesund_warten() {
       fi
       sleep 2
     done
+    if [ "$ok" != ja ] && [ "$dienst" = paketwerk ]; then
+      # E230: Zusatz – Warnung, kein Rollback (der Rechenraum läuft auch ohne)
+      rot "Warnung: Paketwerk meldet sich nicht gesund – das Dorf läuft trotzdem weiter."
+      compose logs --tail 30 paketwerk || true
+      continue
+    fi
     if [ "$ok" != ja ] && [ "$dienst" = browser ]; then
       # Der Moodle-Browser ist eine Zusatzfunktion: Warnung, aber kein Rollback des ganzen Dorfs
       rot "Warnung: Moodle-Browser meldet sich nicht gesund – das Dorf läuft trotzdem weiter."
@@ -105,6 +112,9 @@ geheimnisse_sicherstellen() {
   fi
   printf '# Nur für den Rechenraum-Container (wird von dorf deploy erzeugt)\nRECHENRAUM_GEHEIMNIS=%s\n' "$(grep -E '^RECHENRAUM_GEHEIMNIS=' "$ENV_DATEI" | cut -d= -f2)" > "$BASIS/rechenraum.env"
   chmod 600 "$BASIS/rechenraum.env"
+  # E230: Paketordner des Rechenraums (Paketwerk schreibt, Rechenraum liest; beide laufen als 1000)
+  mkdir -p "$BASIS/rechenraum-pakete"
+  chown 1000:1000 "$BASIS/rechenraum-pakete" 2>/dev/null || true
   [ -n "$uid" ] && chown "$uid:$uid" "$BASIS/rechenraum.env" 2>/dev/null || true
   mkdir -p "$BASIS/claude"
   # E227 Hafen: Kryptowerk – eigenes Geheimnis, eigene Datei, eigener Datenordner (bekommt sonst NICHTS aus .env)
@@ -421,7 +431,7 @@ cmd_backup() {
   # Codehaus: Projekte und Einstellungen ja (auch was noch nicht auf GitHub liegt) – ohne alles, was sich neu holen lässt
   for z in "$BASIS/syncthing/config" "$BASIS/werkstatt.env" "$BASIS/coding.env" "$BASIS/coding" "$BASIS/krypto"; do [ -e "$z" ] && ziele+=("$z"); done
   restic backup --tag taeglich --host agentendorf ${DORF_BACKUP_ZEIT:+--time "$DORF_BACKUP_ZEIT"} \
-    --exclude "$BASIS/syncthing/index-*" \
+    --exclude "$BASIS/syncthing/index-*" --exclude "$BASIS/rechenraum-pakete" \
     --exclude "$BASIS/coding/.tmp" --exclude "$BASIS/coding/.heim/.cache" --exclude "$BASIS/coding/.heim/.npm" \
     --exclude "$BASIS/coding/.heim/.npm-global" --exclude "$BASIS/coding/.heim/.openvscode-server/extensions" \
     --exclude "$BASIS/coding/**/node_modules" --exclude "$BASIS/coding/**/.venv" --exclude "$BASIS/coding/**/__pycache__" \

@@ -41,6 +41,7 @@ const Schema = z.object({
   TELEGRAM_API_URL: z.string().default('https://api.telegram.org'),
   RECHENRAUM_URL: z.string().default('http://rechenraum:4100'),
   RECHENRAUM_GEHEIMNIS: z.string().optional(),
+  PAKETWERK_URL: z.string().default('http://paketwerk:4100'),
   // E198 Atelier: „Bild generieren“ über Cloudflare Workers AI (optional, Gratiskontingent) – nur in .env (dorf bilder-einrichten)
   CLOUDFLARE_ACCOUNT_ID: z.string().optional(),
   CLOUDFLARE_API_TOKEN: z.string().optional(),
@@ -121,6 +122,8 @@ export interface Konfig {
   cloudflare?: { accountId: string; token: string; url: string };
   rechenraumUrl: string;
   rechenraumGeheimnis?: string;
+  /** E230: Paketwerk (gleiches Image wie der Rechenraum, gleiches Geheimnis, mit Internet) */
+  paketwerkUrl: string;
   kryptoUrl: string;
   kryptoGeheimnis?: string;
   browserUrl: string;
@@ -180,6 +183,7 @@ export function konfigLaden(env: NodeJS.ProcessEnv = process.env): Konfig {
         : undefined,
     rechenraumUrl: e.RECHENRAUM_URL,
     rechenraumGeheimnis: e.RECHENRAUM_GEHEIMNIS || undefined,
+    paketwerkUrl: e.PAKETWERK_URL,
     kryptoUrl: e.KRYPTO_URL.replace(/\/$/, ''),
     kryptoGeheimnis: e.KRYPTO_GEHEIMNIS && e.KRYPTO_GEHEIMNIS.length >= 32 ? e.KRYPTO_GEHEIMNIS : undefined,
     browserUrl: e.BROWSER_URL,

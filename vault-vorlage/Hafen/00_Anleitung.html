@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hafen – Anleitung</title>
+<style>
+  :root {
+    --lila: #8b5cf6; --lila-weich: #8b5cf61f; --gruen: #16a34a; --rot: #dc2626; --gelb: #d97706;
+    --grund: #f7f6fb; --karte: #ffffff; --text: #1f1d2b; --leise: #605b74; --linie: #e4e1ee; --code: #f0edf8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --grund: #0e0d15; --karte: #17151f; --text: #ebe9f4; --leise: #a19bb7; --linie: #2a2738; --code: #221f2e;
+      --gruen: #4ade80; --rot: #f87171; --gelb: #fbbf24; --lila-weich: #8b5cf62b; }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--grund); color: var(--text);
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .seite { max-width: 900px; margin: 0 auto; padding: 2rem 1.2rem 4rem; }
+  header.kopf { border-radius: 18px; padding: 2rem 1.6rem; color: #fff;
+    background: radial-gradient(circle at 85% 20%, #a78bfa 0, transparent 45%), linear-gradient(135deg, #4c1d95, #7c3aed 55%, #8b5cf6); }
+  header.kopf h1 { margin: 0 0 .3rem; font-size: clamp(1.7rem, 5vw, 2.4rem); line-height: 1.15; }
+  header.kopf p { margin: 0; opacity: .92; max-width: 40rem; }
+  .marken { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: 1rem; }
+  .marke { background: #ffffff26; border: 1px solid #ffffff40; border-radius: 99px; padding: .15rem .7rem; font-size: .85rem; }
+  h2 { margin: 2.6rem 0 .8rem; font-size: 1.45rem; scroll-margin-top: 1rem; display: flex; gap: .55rem; align-items: center; }
+  h2 .nr { flex: none; display: inline-grid; place-items: center; width: 2rem; height: 2rem; border-radius: 10px;
+    background: var(--lila); color: #fff; font-size: 1rem; }
+  h3 { margin: 1.6rem 0 .5rem; font-size: 1.1rem; }
+  p, li { max-width: 46rem; }
+  a { color: var(--lila); }
+  code, kbd { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .9em;
+    background: var(--code); padding: .1rem .35rem; border-radius: 6px; overflow-wrap: anywhere; }
+  pre { max-width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--code); border: 1px solid var(--linie); border-radius: 10px; padding: .8rem 1rem; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  .karte { background: var(--karte); border: 1px solid var(--linie); border-radius: 14px; padding: 1rem 1.2rem; margin: 1rem 0; }
+  nav.inhalt ol { margin: .3rem 0 0; padding-left: 1.3rem; columns: 2 16rem; column-gap: 2rem; }
+  nav.inhalt li { break-inside: avoid; margin: .15rem 0; }
+  nav.inhalt a { text-decoration: none; }
+  nav.inhalt a:hover { text-decoration: underline; }
+  .schritte { list-style: none; padding: 0; margin: 1rem 0; display: grid; gap: .7rem; counter-reset: s; }
+  .schritte > li { counter-increment: s; position: relative; background: var(--karte); border: 1px solid var(--linie);
+    border-radius: 14px; padding: .9rem 1rem .9rem 3.4rem; max-width: none; min-width: 0; }
+  .schritte > li::before { content: counter(s); position: absolute; left: 1rem; top: .9rem; width: 1.7rem; height: 1.7rem;
+    border-radius: 50%; background: var(--lila-weich); color: var(--lila); font-weight: 700; display: grid; place-items: center; font-size: .9rem; }
+  .schritte b:first-child { display: block; }
+  .kasten { border-radius: 12px; padding: .8rem 1rem .8rem 1rem; margin: 1rem 0; border: 1px solid; border-left-width: 5px; }
+  .kasten p { margin: .3rem 0; }
+  .kasten strong:first-child { display: block; }
+  .warn { border-color: var(--rot); background: color-mix(in srgb, var(--rot) 9%, transparent); }
+  .tipp { border-color: var(--lila); background: var(--lila-weich); }
+  .achtung { border-color: var(--gelb); background: color-mix(in srgb, var(--gelb) 10%, transparent); }
+  .tabelle { overflow-x: auto; margin: 1rem 0; border: 1px solid var(--linie); border-radius: 12px; background: var(--karte); }
+  table { border-collapse: collapse; width: 100%; font-size: .93rem; }
+  th, td { text-align: left; vertical-align: top; padding: .55rem .75rem; border-bottom: 1px solid var(--linie); }
+  tr:last-child td { border-bottom: 0; }
+  th { background: var(--code); font-weight: 600; white-space: nowrap; }
+  td:first-child { font-weight: 600; min-width: 9rem; }
+  .gitter { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: .7rem; margin: 1rem 0; }
+  .gitter .karte { margin: 0; }
+  .gitter h4 { margin: 0 0 .3rem; font-size: 1rem; }
+  .gitter p { margin: 0; font-size: .93rem; color: var(--leise); }
+  .modul { display: flex; gap: .6rem; align-items: flex-start; }
+  .bu { flex: none; width: 1.8rem; height: 1.8rem; border-radius: 50%; border: 2px solid var(--lila); color: var(--lila);
+    display: grid; place-items: center; font: 700 .85rem ui-monospace, monospace; }
+  .bu.aus { border-color: var(--leise); color: var(--leise); opacity: .7; }
+  .gruen { color: var(--gruen); font-weight: 600; } .rot { color: var(--rot); font-weight: 600; }
+  .leise { color: var(--leise); }
+  svg.pipeline { width: 100%; height: auto; display: block; }
+  svg .bx { fill: var(--karte); stroke: var(--lila); stroke-width: 1.5; }
+  svg .bx.g { stroke: var(--rot); } svg .bx.e { stroke: var(--gruen); }
+  svg text { fill: var(--text); font: 600 13px system-ui, sans-serif; }
+  svg text.k { font-weight: 400; font-size: 11px; fill: var(--leise); }
+  svg .pf { stroke: var(--lila); stroke-width: 1.6; fill: none; }
+  svg .spitze { fill: var(--lila); }
+  details { background: var(--karte); border: 1px solid var(--linie); border-radius: 12px; padding: .7rem 1rem; margin: .5rem 0; }
+  details summary { cursor: pointer; font-weight: 600; }
+  details[open] summary { margin-bottom: .4rem; }
+  .vergleich { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; }
+  @media (max-width: 640px) {
+    .seite { padding: 1rem .8rem 3rem; }
+    header.kopf { padding: 1.4rem 1.1rem; }
+    .vergleich { grid-template-columns: 1fr; }
+    .schritte > li { padding-left: 3rem; }
+    .pipe { overflow-x: auto; }
+    svg.pipeline { min-width: 720px; }
+  }
+  footer { margin-top: 3rem; color: var(--leise); font-size: .85rem; border-top: 1px solid var(--linie); padding-top: 1rem; }
+</style>
+</head>
+<body>
+<div class="seite">
+
+<header class="kopf">
+  <h1>⚓ Der Hafen</h1>
+  <p>So legst du Krypto-Bots für Pump.fun an, testest sie ohne Risiko, schaltest sie mit echtem Geld scharf und holst das Geld wieder heraus.</p>
+  <div class="marken"><span class="marke">Paper Trading ist Standard</span><span class="marke">kein Hebel</span><span class="marke">Grenzen im Code</span><span class="marke">ein Wallet je Bot</span></div>
+</header>
+
+<div class="kasten warn">
+  <strong>Vorweg, ehrlich</strong>
+  <p>Memecoins auf Pump.fun sind extrem riskant. Die meisten neuen Tokens fallen auf (fast) null, viele sind Betrug. Gute Ergebnisse im Paper Trading oder Backtest sind <b>kein Versprechen</b> für echtes Geld. Setz scharf nur ein, was du komplett verlieren kannst.</p>
+</div>
+
+<nav class="karte inhalt" aria-label="Inhalt">
+  <strong>Inhalt</strong>
+  <ol>
+    <li><a href="#was">Was der Hafen ist</a></li>
+    <li><a href="#anlegen">Einen Bot anlegen</a></li>
+    <li><a href="#testen">Testen: Paper &amp; Backtest</a></li>
+    <li><a href="#scharf">Scharf schalten (echtes Geld)</a></li>
+    <li><a href="#auscashen">Auscashen</a></li>
+    <li><a href="#notaus">Not-Aus</a></li>
+    <li><a href="#sicherheit">Sicherheit &amp; Risiken</a></li>
+    <li><a href="#faq">Wenn etwas nicht klappt</a></li>
+  </ol>
+</nav>
+
+<!-- 1 -->
+<h2 id="was"><span class="nr">1</span>Was der Hafen ist</h2>
+<p>Der Hafen ist ein Gebäude im Dorf mit einer <b>Flotte</b> von Bots. Jeder Bot hat eine eigene Strategie, ein eigenes Kapital und ein eigenes Wallet. So kannst du Strategien nebeneinander laufen lassen und vergleichen.</p>
+<p>Die Arbeit macht das <b>Kryptowerk</b>, ein eigener Container auf dem Server. Er hat Internet, aber keinen Zugriff auf deinen Vault und keine anderen Dorf-Geheimnisse. Die App spricht nie direkt mit ihm, sondern immer über das Dorf.</p>
+
+<h3>Woher die Daten kommen</h3>
+<div class="gitter">
+  <div class="karte"><h4>PumpPortal</h4><p>meldet jeden neuen Token auf Pump.fun und jeden Wechsel auf PumpSwap. Kostenlos, eine Verbindung.</p></div>
+  <div class="karte"><h4>DexScreener</h4><p>liefert Kurse, Volumen, Käufe/Verkäufe und Marktwert, für Kandidaten und gehaltene Tokens.</p></div>
+  <div class="karte"><h4>RugCheck</h4><p>bewertet das Risiko eines Tokens (Score, Warnungen, Halter, Bundles). Nur für Tokens, die den Vorfilter bestehen.</p></div>
+</div>
+
+<h3>Der Weg einer Entscheidung</h3>
+<div class="karte pipe">
+<svg class="pipeline" viewBox="0 0 860 150" role="img" aria-label="Daten, Filter, Bewertung, Risk-Gate, Ausführung, Position, Protokoll">
+  <defs><marker id="pfeil" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="spitze" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+  <g>
+    <rect class="bx" x="5" y="20" width="105" height="56" rx="10"/><text x="57" y="45" text-anchor="middle">Daten</text><text class="k" x="57" y="63" text-anchor="middle">neue Tokens</text>
+    <rect class="bx" x="128" y="20" width="105" height="56" rx="10"/><text x="180" y="45" text-anchor="middle">Filter</text><text class="k" x="180" y="63" text-anchor="middle">harte Regeln</text>
+    <rect class="bx" x="251" y="20" width="105" height="56" rx="10"/><text x="303" y="45" text-anchor="middle">Bewertung</text><text class="k" x="303" y="63" text-anchor="middle">Punkte / Prompt</text>
+    <rect class="bx g" x="374" y="20" width="105" height="56" rx="10"/><text x="426" y="45" text-anchor="middle">Risk-Gate</text><text class="k" x="426" y="63" text-anchor="middle">Limits im Code</text>
+    <rect class="bx" x="497" y="20" width="105" height="56" rx="10"/><text x="549" y="45" text-anchor="middle">Ausführung</text><text class="k" x="549" y="63" text-anchor="middle">Paper / Live</text>
+    <rect class="bx e" x="620" y="20" width="105" height="56" rx="10"/><text x="672" y="45" text-anchor="middle">Position</text><text class="k" x="672" y="63" text-anchor="middle">TP · SL · Trail</text>
+    <rect class="bx" x="743" y="20" width="110" height="56" rx="10"/><text x="798" y="45" text-anchor="middle">Protokoll</text><text class="k" x="798" y="63" text-anchor="middle">jede Begründung</text>
+    <path class="pf" d="M110,48 H126" marker-end="url(#pfeil)"/><path class="pf" d="M233,48 H249" marker-end="url(#pfeil)"/>
+    <path class="pf" d="M356,48 H372" marker-end="url(#pfeil)"/><path class="pf" d="M479,48 H495" marker-end="url(#pfeil)"/>
+    <path class="pf" d="M602,48 H618" marker-end="url(#pfeil)"/><path class="pf" d="M725,48 H741" marker-end="url(#pfeil)"/>
+    <text class="k" x="180" y="105" text-anchor="middle">fällt durch → Sperre</text>
+    <text class="k" x="303" y="105" text-anchor="middle">zu wenig → halten</text>
+    <text class="k" x="426" y="105" text-anchor="middle">Grenze erreicht → nein</text>
+    <text class="k" x="672" y="105" text-anchor="middle">Verkauf nach Regeln</text>
+    <text class="k" x="10" y="138">Das LLM (nur bei Prompt-Bots) schlägt in „Bewertung“ vor – entscheiden tun Filter und Risk-Gate.</text>
+  </g>
+</svg>
+</div>
+
+<h3>Die zwölf Module</h3>
+<p>Im Terminal kreisen zwölf Prüfmodule um den Kern. Sie sind alle Code, kein KI-Raten. Sechs davon vergeben Punkte (zusammen höchstens 100), der Rest steuert Größe, Ausstieg und Grenzen.</p>
+<div class="gitter">
+  <div class="karte modul"><span class="bu">R</span><div><b>Rug-Filter</b> <span class="leise">· bis 15 P.</span><br><span class="leise">RugCheck-Score und „danger“-Warnungen. Zu hoch → gesperrt.</span></div></div>
+  <div class="karte modul"><span class="bu">D</span><div><b>Dev-Check</b> <span class="leise">· bis 10 P.</span><br><span class="leise">Wie viel hält der Entwickler? Hat er schon mal gerugged?</span></div></div>
+  <div class="karte modul"><span class="bu">B</span><div><b>Bundle-Scan</b> <span class="leise">· bis 5 P.</span><br><span class="leise">Gebündelte Käufe beim Start (oft ein Zeichen für Abzocke).</span></div></div>
+  <div class="karte modul"><span class="bu">H</span><div><b>Holder-Map</b> <span class="leise">· bis 10 P.</span><br><span class="leise">Größter Halter und Top 10. Zu konzentriert → weniger Punkte oder Sperre.</span></div></div>
+  <div class="karte modul"><span class="bu">V</span><div><b>Volume-Flow</b> <span class="leise">· bis 30 P.</span><br><span class="leise">Volumen der letzten 5 Minuten und Verhältnis Käufe zu Verkäufen.</span></div></div>
+  <div class="karte modul"><span class="bu">S</span><div><b>Sniper</b> <span class="leise">· bis 30 P.</span><br><span class="leise">Einstiegsfenster: Alter, Marktwert, Liquidität, Schwung.</span></div></div>
+  <div class="karte modul"><span class="bu">P</span><div><b>Positionsgröße</b><br><span class="leise">Der kleinere Wert aus „Einsatz je Trade“ und „% des Kapitals“.</span></div></div>
+  <div class="karte modul"><span class="bu">T</span><div><b>Take-Profit</b><br><span class="leise">Gewinnstufen, an denen ein Teil verkauft wird.</span></div></div>
+  <div class="karte modul"><span class="bu">L</span><div><b>Stop-Loss</b><br><span class="leise">Verlustgrenze, Trailing Stop und maximale Haltedauer.</span></div></div>
+  <div class="karte modul"><span class="bu">G</span><div><b>Risk-Gate</b><br><span class="leise">Not-Aus, Tagesverlust, offene Positionen, genug Kapital.</span></div></div>
+  <div class="karte modul"><span class="bu aus">K</span><div><b>KOL-Watch</b> <span class="leise">· aus</span><br><span class="leise">Bräuchte den kostenpflichtigen Trade-Strom von PumpPortal (Schlüssel + Wallet).</span></div></div>
+  <div class="karte modul"><span class="bu aus">X</span><div><b>X-Sentiment</b> <span class="leise">· aus</span><br><span class="leise">Bräuchte einen Grok-Schlüssel von xAI. Kommt nur auf deinen Wunsch.</span></div></div>
+</div>
+
+<!-- 2 -->
+<h2 id="anlegen"><span class="nr">2</span>Einen Bot anlegen</h2>
+<ol class="schritte">
+  <li><b>Hafen öffnen</b>Im Dorf aufs Hafen-Gebäude tippen → Reiter <b>Flotte</b>.</li>
+  <li><b>„+ Neuer Bot“</b>Das Formular ist mit vorsichtigen Standardwerten gefüllt. Du kannst es so lassen und erst mal zuschauen.</li>
+  <li><b>„Bot anlegen (Paper)“</b>Der Bot läuft sofort im Paper Trading und bekommt dabei schon sein eigenes Wallet (leer, unbenutzt).</li>
+</ol>
+
+<h3>Die Felder im Formular</h3>
+<div class="tabelle"><table>
+  <thead><tr><th>Feld</th><th>Was es tut</th></tr></thead>
+  <tbody>
+    <tr><td>Name, Avatar</td><td>Nur zum Erkennen in Flotte und Vergleichskurve.</td></tr>
+    <tr><td>Startkapital (SOL, simuliert)</td><td>Spielgeld für Paper. Wird nach dem ersten Trade fest, damit die Kennzahlen stimmen. Im Live-Betrieb gilt stattdessen das Budget.</td></tr>
+    <tr><td>Strategie: Regeln</td><td>Der Bot kauft, wenn ein Token alle Filter besteht und mindestens <b>„Kaufen ab Punkten“</b> erreicht (Standard 60 von 100). Billig, schnell, wiederholbar – und backtestbar.</td></tr>
+    <tr><td>Strategie: Prompt</td><td>Du beschreibst die Strategie in eigenen Worten. Das LLM schaut sich jeden Kandidaten an und antwortet mit Kaufen/Halten und einer Sicherheit. Gekauft wird nur ab <b>„Kauf ab Sicherheit“</b> (Standard 0,65) – und nur, wenn Filter und Risk-Gate zustimmen.</td></tr>
+    <tr><td>LLM-Bewertungen je Tag</td><td>Höchstzahl Aufrufe (Standard 150). Dazu gilt hart: höchstens 0,50 $ je Bot und Tag.</td></tr>
+  </tbody>
+</table></div>
+
+<h3>Filter (harte Regeln)</h3>
+<p>Wer hier durchfällt, wird nie gekauft – egal wie viele Punkte oder was das LLM meint.</p>
+<div class="tabelle"><table>
+  <thead><tr><th>Filter</th><th>Standard</th><th>Bedeutung</th></tr></thead>
+  <tbody>
+    <tr><td>RugCheck-Score höchstens</td><td>40</td><td>Höher = riskanter. Über dem Wert gesperrt.</td></tr>
+    <tr><td>„danger“-Warnungen sperren</td><td>ja</td><td>Jede RugCheck-Warnung der Stufe „danger“ sperrt.</td></tr>
+    <tr><td>Volumen 5 min mindestens</td><td>3 000 $</td><td>Handel in den letzten 5 Minuten.</td></tr>
+    <tr><td>Käufe 5 min mindestens</td><td>15</td><td>Anzahl Käufe in 5 Minuten.</td></tr>
+    <tr><td>Käufe ÷ Verkäufe</td><td>1,2</td><td>Käufer müssen überwiegen.</td></tr>
+    <tr><td>Alter min./max.</td><td>60 s – 1 800 s</td><td>Nicht in der allerersten Minute, nicht älter als 30 Minuten.</td></tr>
+    <tr><td>Marktwert min./max.</td><td>5 000 – 150 000 $</td><td>Größenfenster des Tokens.</td></tr>
+    <tr><td>Entwickler hält höchstens</td><td>10 %</td><td>Mehr → er könnte den Kurs abräumen.</td></tr>
+    <tr><td>Größter Halter höchstens</td><td>20 %</td><td>Schutz vor Klumpen.</td></tr>
+    <tr><td>Liquidität mindestens</td><td>5 SOL</td><td>Damit du überhaupt wieder herauskommst.</td></tr>
+  </tbody>
+</table></div>
+
+<h3>Risikolimits (setzt der Code durch)</h3>
+<div class="tabelle"><table>
+  <thead><tr><th>Limit</th><th>Standard</th><th>Bedeutung</th></tr></thead>
+  <tbody>
+    <tr><td>Einsatz je Trade</td><td>0,5 SOL</td><td>Obergrenze pro Kauf.</td></tr>
+    <tr><td>Positionsgröße</td><td>5 %</td><td>Anteil am aktuellen Kapital. Es gilt der kleinere der beiden Werte.</td></tr>
+    <tr><td>Tagesverlust höchstens</td><td>2 SOL</td><td>Gezählt ab Mitternacht (Wiener Zeit). Danach kauft der Bot an dem Tag nichts mehr.</td></tr>
+    <tr><td>Offene Positionen</td><td>3</td><td>Mehr gleichzeitig gibt es nicht.</td></tr>
+  </tbody>
+</table></div>
+
+<h3>Ausstieg</h3>
+<div class="tabelle"><table>
+  <thead><tr><th>Regel</th><th>Standard</th><th>Bedeutung</th></tr></thead>
+  <tbody>
+    <tr><td>Take-Profit-Stufen</td><td>+50 % → 50 % verkaufen<br>+150 % → 50 % verkaufen</td><td>Bei jeder Stufe wird ein Teil des Rests verkauft. Stufen kannst du hinzufügen und entfernen.</td></tr>
+    <tr><td>Stop-Loss</td><td>25 %</td><td>Verkauf, wenn der Wert so weit unter dem Einstieg liegt.</td></tr>
+    <tr><td>Trailing Stop</td><td>20 %</td><td>Verkauf, wenn der Kurs so weit vom bisherigen Hoch fällt. 0 = aus.</td></tr>
+    <tr><td>Haltedauer höchstens</td><td>120 min</td><td>Danach wird verkauft, egal wie es steht.</td></tr>
+  </tbody>
+</table></div>
+
+<h3>Simulation (realistisch, nicht schönen)</h3>
+<div class="tabelle"><table>
+  <thead><tr><th>Wert</th><th>Standard</th><th>Bedeutung</th></tr></thead>
+  <tbody>
+    <tr><td>Verzögerung</td><td>1 500 ms (mind. 300)</td><td>Ausgeführt wird zum ersten Kurs <i>nach</i> der Verzögerung, nie zum Kurs, den der Bot gesehen hat.</td></tr>
+    <tr><td>Priority Fee</td><td>0,0005 SOL</td><td>Zusätzliche Netzgebühr je Transaktion, damit sie schnell durchgeht. Gilt auch live.</td></tr>
+    <tr><td>Fehlschläge</td><td>5 %</td><td>So viele Transaktionen scheitern. Die Netzgebühr ist trotzdem weg.</td></tr>
+    <tr><td>PumpPortal-Gebühr</td><td>0,5 % (fest)</td><td>Steht nicht im Formular, wird aber immer eingerechnet – so wie live.</td></tr>
+  </tbody>
+</table></div>
+
+<h3>Zwei Beispiele zum Ausprobieren</h3>
+<p class="leise">Das sind Startpunkte zum Vergleichen, keine Empfehlung und keine Gewinnaussage. Lass beide nebeneinander im Paper laufen und schau, was passiert.</p>
+<div class="vergleich">
+  <div class="karte">
+    <h4 style="margin-top:0">🐢 Vorsichtig</h4>
+    <ul>
+      <li>RugCheck höchstens 30, „danger“ sperren</li>
+      <li>Volumen ≥ 5 000 $, Käufe ÷ Verkäufe ≥ 1,5</li>
+      <li>Alter 120–1 800 s, Entwickler ≤ 5 %</li>
+      <li>Kaufen ab 70 Punkten</li>
+      <li>Einsatz 0,1 SOL, 3 %, Tagesverlust 0,5 SOL, 2 offen</li>
+      <li>Stop-Loss 20 %, Trailing 15 %, Haltedauer 60 min</li>
+    </ul>
+  </div>
+  <div class="karte">
+    <h4 style="margin-top:0">🦈 Aggressiv</h4>
+    <ul>
+      <li>RugCheck höchstens 50, „danger“ sperren</li>
+      <li>Volumen ≥ 2 000 $, Käufe ÷ Verkäufe ≥ 1,1</li>
+      <li>Alter 60–900 s, Entwickler ≤ 10 %</li>
+      <li>Kaufen ab 55 Punkten</li>
+      <li>Einsatz 0,5 SOL, 8 %, Tagesverlust 2 SOL, 5 offen</li>
+      <li>Stop-Loss 35 %, Trailing 25 %, TP +100 %/+300 %</li>
+    </ul>
+  </div>
+</div>
+<div class="kasten tipp"><strong>Tipp</strong><p>Ändere zwischen zwei Bots nur eine oder zwei Sachen. Sonst weißt du am Ende nicht, woran es lag.</p></div>
+
+<!-- 3 -->
+<h2 id="testen"><span class="nr">3</span>Testen: Paper &amp; Backtest</h2>
+
+<h3>Paper Trading</h3>
+<p>Jeder Bot startet hier. Die Daten sind echt und live, nur die Trades sind simuliert. Die Simulation rechnet so, wie es live auch kosten würde:</p>
+<div class="gitter">
+  <div class="karte"><h4>Gebühren</h4><p>1,25 % Pump.fun auf der Bonding Curve (nach dem Wechsel auf PumpSwap gestaffelt nach Marktwert) + 0,5 % PumpPortal + Netz- und Priority-Gebühr.</p></div>
+  <div class="karte"><h4>Slippage</h4><p>ergibt sich aus der Bonding Curve bzw. dem echten Pool: Je größer dein Kauf im Verhältnis, desto schlechter der Kurs.</p></div>
+  <div class="karte"><h4>Verzögerung &amp; Fehlschläge</h4><p>Du kaufst nie zum gesehenen Kurs, und ein Teil der Transaktionen scheitert mit Gebühr.</p></div>
+</div>
+<p>Kurz: Paper ist so gebaut, dass es die Live-Ökonomie abbildet. Was es nicht abbilden kann: dass echte Märkte auf deine eigenen Käufe reagieren, und Ausfälle, die es so noch nicht gab.</p>
+
+<h3>Das Terminal „Kielwasser“ lesen</h3>
+<p>Auf der Bot-Karte <b>„Terminal öffnen“</b>. Von oben nach unten:</p>
+<div class="tabelle"><table>
+  <tbody>
+    <tr><td>Kopfzeile</td><td>Bot, Modus (Paper oder <b>LIVE</b>), Uhr, grüner Punkt = Daten kommen an, Wallet-Adresse.</td></tr>
+    <tr><td>Token-Pillen</td><td>Tokens, die der Bot gerade beobachtet, mit Veränderung in % – <span class="gruen">grün</span> hoch, <span class="rot">rot</span> runter. Hervorgehoben = gehalten.</td></tr>
+    <tr><td>Stunden-Leiste</td><td>Gewinn oder Verlust je Stunde der letzten 24 h.</td></tr>
+    <tr><td>Kerzen</td><td>Das Kapital des Bots in 15-Minuten-Kerzen, mit Startlinie und einer Karte zum letzten Trade („1× – kein Hebel“).</td></tr>
+    <tr><td>Agent-Kreis</td><td>Die zwölf Module um den Kern. Sie leuchten nur, wenn sie wirklich gerade etwas melden; jedes zeigt seine letzte Zeile.</td></tr>
+    <tr><td>Volumen · X · PnL</td><td>Top-Volumen, Käufe/Verkäufe pro Minute, X-Feed (aus, siehe oben), Gewinn/Verlust.</td></tr>
+    <tr><td>Entscheidungen</td><td>Jede Entscheidung mit Grund: <b>buy</b>, <b>hold</b> (zu wenig Punkte) oder <b>block</b> (Filter/Rug).</td></tr>
+    <tr><td>Trades</td><td>Kauf, Verkauf, Fehlschlag – mit Gebühr, Slippage, echter Verzögerung und Grund. Live mit Link auf Solscan. <b>CSV</b> lädt alle Trades herunter.</td></tr>
+  </tbody>
+</table></div>
+
+<h3>Vergleichskurve</h3>
+<p>Oben in der Flotte liegen alle Bots auf einer Achse, jeder startet bei <b>100</b>. 118 heißt +18 %, 93 heißt −7 %. So siehst du auf einen Blick, welche Strategie besser hält.</p>
+
+<h3>Backtest</h3>
+<p>Auf der Bot-Karte <b>„Backtest“</b>. Er lässt <b>dieselbe Maschine</b> mit genau den Einstellungen des Bots über die Aufzeichnungen der letzten Tage laufen – in Sekunden statt Tagen. Filter, Risk-Gate, Gebühren, Slippage, Verzögerung und Fehlschläge sind gleich; jeder Lauf mit denselben Einstellungen gibt dasselbe Ergebnis.</p>
+<div class="kasten achtung">
+  <strong>Grenzen des Backtests</strong>
+  <p>Nur für <b>Regel-Bots</b> – LLM-Antworten lassen sich nicht wiederholen, Prompt-Bots testest du im Paper.</p>
+  <p>Er braucht Aufzeichnungen: Erst nach ein paar Stunden Laufzeit gibt es genug. Historische Pump.fun-Daten gibt es nicht frei, das Dorf zeichnet selbst auf (Kurse 14 Tage).</p>
+  <p>Die Aufzeichnung hat Kurs-Schnappschüsse, keine einzelnen Trades. Und RugCheck-Berichte gibt es nur für Tokens, die damals ein Bot in die engere Wahl nahm. Lockerere Filter sehen im Backtest also weniger Kandidaten, als sie live sehen würden.</p>
+</div>
+
+<h3>Die Kennzahlen</h3>
+<div class="tabelle"><table>
+  <tbody>
+    <tr><td>Kapital, Gewinn</td><td>Aktueller Wert inklusive offener Positionen, Gewinn in SOL und % seit Start.</td></tr>
+    <tr><td>Trades, Trefferquote</td><td>Abgeschlossene Trades und wie viele davon im Plus. Eine hohe Quote heißt nichts, wenn die Verluste größer sind als die Gewinne.</td></tr>
+    <tr><td>Max. Drawdown</td><td>Größter Absturz vom Hoch. Sagt dir, wie viel Nerven die Strategie kostet.</td></tr>
+    <tr><td>Umsatz, Gebühren</td><td>Käufe + Verkäufe; Gebühren getrennt nach Pump.fun, PumpPortal und Netz. Viele kleine Trades fressen oft den ganzen Gewinn.</td></tr>
+    <tr><td>Offen · Rugs</td><td>Offene Positionen und wie viele Rugs die Filter geblockt haben.</td></tr>
+  </tbody>
+</table></div>
+
+<!-- 4 -->
+<h2 id="scharf"><span class="nr">4</span>Scharf schalten (echtes Geld)</h2>
+
+<h3>Einmalig auf dem Server</h3>
+<ol class="schritte">
+  <li><b>Solana-Zugang (RPC)</b>Auf helius.dev ein kostenloses Konto anlegen und im Dashboard die Mainnet-„RPC URL“ kopieren. Dann auf dem Server:
+    <pre><code>dorf krypto-rpc</code></pre>und die URL einfügen.</li>
+  <li><b>Auszahlungsadresse festlegen</b>Deine eigene Phantom-Adresse. Nur dorthin kann das Dorf je auszahlen.
+    <pre><code>dorf krypto-auszahlung &lt;deine Phantom-Adresse&gt;</code></pre></li>
+  <li><b>Hauptschlüssel sichern</b>
+    <pre><code>dorf krypto-hauptschluessel</code></pre>Den angezeigten Schlüssel in deinen Passwortmanager. Er ist <b>nicht</b> im Backup – ohne ihn sind die Bot-Wallets nach einem Serverausfall verloren.</li>
+</ol>
+
+<h3>Dann in der App, je Bot</h3>
+<ol class="schritte">
+  <li><b>Wallet-Adresse kopieren</b>Auf der Bot-Karte steht das Wallet (👛) mit Guthaben.</li>
+  <li><b>SOL schicken</b>Aus Phantom an diese Adresse, mindestens <b>Budget + 0,02 SOL</b>. Die 0,02 sind Puffer für Netzgebühren und Konto-Miete.</li>
+  <li><b>„🎯 Scharf schalten“</b>Budget eingeben (0,05–50 SOL), Passwort (und Code, wenn du TOTP nutzt), dann <kbd>SCHARF</kbd> tippen. Erst dann wird der Knopf aktiv.</li>
+</ol>
+<div class="kasten achtung">
+  <strong>Voraussetzungen – sonst lehnt das Dorf ab</strong>
+  <p>Der Bot lief mindestens <b>24 Stunden</b> im Paper · er hat <b>keine offenen Positionen</b> · der RPC ist eingerichtet · im Wallet liegt mindestens Budget + 0,02 SOL. Nach 5 falschen Passwörtern ist 15 Minuten Pause.</p>
+</div>
+
+<h3>Was live anders ist</h3>
+<ul>
+  <li><b>Echte Transaktionen.</b> Das Kryptowerk holt die Transaktion bei PumpPortal (Local-Modus), signiert sie selbst auf dem Server – <b>aber nur, wenn das Bot-Wallet sie bezahlt</b> – und schickt sie über deinen Helius-Zugang ins Netz. Der Schlüssel verlässt das Kryptowerk nie.</li>
+  <li><b>Echte Zahlen.</b> Was der Trade gekostet und gebracht hat, liest das Kryptowerk aus der bestätigten Transaktion – inklusive Konto-Miete.</li>
+  <li><b>Budget statt Startkapital.</b> Alle Grenzen gelten jetzt gegen das Budget. Die Paper-Bilanz wird gemerkt, die Kennzahlen beginnen neu.</li>
+  <li><b>Guthabenprüfung</b> vor jedem Kauf. Ein Kauf wird genau einmal versucht; ein Verkauf so lange wiederholt, bis er klappt.</li>
+  <li>Im Terminal steht <b>LIVE · echtes Geld</b>, jeder Trade hat einen Solscan-Link.</li>
+</ul>
+<div class="kasten warn"><strong>Fang klein an</strong><p>Echte Trades konnten beim Bauen nicht ausprobiert werden – nur gegen Nachbauten. Starte mit einem sehr kleinen Budget (z. B. 0,1–0,2 SOL) und schau dir die ersten Trades auf Solscan an, bevor du mehr einsetzt.</p></div>
+
+<!-- 5 -->
+<h2 id="auscashen"><span class="nr">5</span>Auscashen</h2>
+<ol class="schritte">
+  <li><b>Positionen schließen</b>Bot <b>pausieren</b> und warten, bis er nach seinen Regeln alles verkauft hat – oder <b>Not-Aus</b>, das verkauft sofort.</li>
+  <li><b>„Entschärfen“</b>Zurück ins Paper. Geht nur ohne offene Positionen; braucht kein Passwort, weil es sicherer macht.</li>
+  <li><b>„Auszahlen“</b>Mit Passwort (und Code). Das ganze Guthaben geht an deine feste Adresse aus <code>dorf krypto-auszahlung</code> – woandershin geht es nicht. Nur möglich, wenn der Bot nicht scharf läuft.</li>
+  <li><b>In Phantom nachsehen</b>Von dort tauschst du SOL über eine Börse in Euro, wie du es sonst auch machst.</li>
+</ol>
+
+<h3>Alternative: Wallet direkt in Phantom übernehmen</h3>
+<p>Nur auf dem Server, nie in der App:</p>
+<pre><code>dorf krypto-wallets</code></pre>
+<pre><code>dorf krypto-export &lt;Adresse&gt;</code></pre>
+<p>Der erste Befehl listet alle Wallets, der zweite zeigt den privaten Schlüssel eines Wallets. In Phantom: „Konto hinzufügen“ → „Privaten Schlüssel importieren“. Danach den Schlüssel nirgends sonst liegen lassen.</p>
+
+<h3>Und wenn ich einen Bot lösche?</h3>
+<p>Sein Wallet wird <b>archiviert</b>, nicht gelöscht – und solange noch Guthaben bekannt ist, lässt sich der Bot gar nicht löschen. Archivierte Wallets siehst du mit <code>dorf krypto-wallets</code> und kannst sie exportieren. Verloren ist nichts, solange du den Hauptschlüssel gesichert hast.</p>
+
+<!-- 6 -->
+<h2 id="notaus"><span class="nr">6</span>Not-Aus</h2>
+<div class="gitter">
+  <div class="karte"><h4>🛑 In der App</h4><p>Roter Knopf in der Flotte, mit Rückfrage.</p></div>
+  <div class="karte"><h4>📱 In Telegram</h4><p><code>/notaus</code> an deinen Dorf-Bot.</p></div>
+</div>
+<p><b>Was passiert:</b> Alle Bots stoppen sofort. Offene Positionen werden verkauft – im Paper simuliert, bei scharfen Bots <b>echt</b>. Läuft gerade ein Kauf, wird direkt danach verkauft. Neue Bots starten, solange Not-Aus gilt, gestoppt.</p>
+<p><b>Danach:</b> „Not-Aus aufheben“. Die Bots bleiben pausiert – du startest jeden einzeln mit „Starten“. Scharfe Bots bleiben scharf, bis du sie entschärfst.</p>
+
+<!-- 7 -->
+<h2 id="sicherheit"><span class="nr">7</span>Sicherheit &amp; Risiken</h2>
+<div class="gitter">
+  <div class="karte"><h4>🔐 Schlüssel</h4><p>Jeder Bot hat ein eigenes, neu erzeugtes Wallet – nie dein Haupt-Wallet. Private Schlüssel liegen nur verschlüsselt (AES-256-GCM) im Kryptowerk. Kein Log, kein LLM, keine App sieht sie.</p></div>
+  <div class="karte"><h4>🗝️ Hauptschlüssel</h4><p>Ist absichtlich nicht im Backup. Ohne ihn sind die verschlüsselten Bot-Wallets nach einem Serververlust wertlos. Also: Passwortmanager. Wiederherstellen geht mit <code>dorf krypto-hauptschluessel-setzen</code>.</p></div>
+  <div class="karte"><h4>🧠 Das LLM</h4><p>Schlägt nur vor. Kaufen darf nur, was Filter, Mindestsicherheit und Risk-Gate passiert. Grenzen setzt immer der Code, nie die KI.</p></div>
+  <div class="karte"><h4>📉 Der Markt</h4><p>Die meisten Memecoins gehen auf null. Rugs, Bots und Insider sind schneller als du. Paper und Backtest sind Hinweise, keine Garantie.</p></div>
+  <div class="karte"><h4>🐣 Klein anfangen</h4><p>Erst lange Paper, dann kleines Budget, dann schauen. Kein Hebel – der Hafen kann gar keinen.</p></div>
+  <div class="karte"><h4>🧾 Steuern</h4><p>Gewinne aus Krypto können steuerpflichtig sein. Die CSV der Trades hilft beim Nachweis. Das hier ist keine Steuerberatung – im Zweifel jemanden fragen, der sich auskennt.</p></div>
+</div>
+
+<!-- 8 -->
+<h2 id="faq"><span class="nr">8</span>Wenn etwas nicht klappt</h2>
+<details><summary>Der Bot kauft nie etwas</summary>
+  <p>Das ist bei den vorsichtigen Standardwerten normal – oft besteht stundenlang kein Token alle Filter. Schau im Terminal unter <b>Entscheidungen</b>: Steht dort meist <b>block</b> (RugCheck, Dev, Halter), sind die Filter streng; steht <b>hold</b> mit „… Punkte &lt; 60“, liegt es an der Punktgrenze. Lockere eine Sache und vergleiche mit einem zweiten Bot. „warte auf RugCheck“ heißt: Bericht kommt noch.</p></details>
+<details><summary>„Live ist nicht eingerichtet“ / kein Knopf „Scharf schalten“</summary>
+  <p>Auf dem Server fehlt der Solana-Zugang. <code>dorf krypto-rpc</code> ausführen und die Helius-URL einfügen.</p></details>
+<details><summary>„Wallet hat zu wenig SOL“</summary>
+  <p>Im Bot-Wallet muss mindestens Budget + 0,02 SOL liegen. Mehr schicken oder ein kleineres Budget wählen. Das Guthaben auf der Karte aktualisiert sich nach kurzer Zeit.</p></details>
+<details><summary>„Erst 24 h Paper“</summary>
+  <p>Ein Bot muss mindestens 24 Stunden im Paper gelaufen sein, bevor er scharf darf. Das ist Absicht – lass ihn laufen und schau dir die Kennzahlen an.</p></details>
+<details><summary>„Erst Positionen schließen“</summary>
+  <p>Scharf schalten und Entschärfen gehen nur ohne offene Positionen. Bot pausieren und warten, bis er verkauft hat – oder Not-Aus.</p></details>
+<details><summary>„Keine Auszahlungsadresse“ / kein Knopf „Auszahlen“</summary>
+  <p>Auf dem Server fehlt die feste Adresse: <code>dorf krypto-auszahlung &lt;deine Phantom-Adresse&gt;</code>. Der Knopf erscheint außerdem nur, wenn im Wallet Guthaben ist.</p></details>
+<details><summary>„Kryptowerk nicht erreichbar“</summary>
+  <p>Der Container läuft nicht. Auf dem Server <code>dorf status</code> prüfen.</p></details>
+<details><summary>Ein Prompt-Bot macht plötzlich nichts mehr</summary>
+  <p>Wahrscheinlich ist sein Tageslimit erreicht (0,50 $ bzw. die Höchstzahl an Bewertungen). Am nächsten Tag geht es weiter. Prompt-Bots brauchen außerdem den API-Schlüssel des Dorfs.</p></details>
+
+<footer>Hafen-Anleitung · Stand 24.11.2026 · Agentendorf. Diese Seite lädt nichts aus dem Netz.</footer>
+</div>
+</body>
+</html>

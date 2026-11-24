@@ -102,6 +102,7 @@ const PFLICHT_DATEIEN = [
   'Codehaus/aktionen/pr-pruefen.md',
   // E227 Hafen
   'Hafen/gebaeude.md',
+  'Hafen/00_Anleitung.html', // E228: Anleitung zum Hafen
   // E198 Atelier
   'Atelier/gebaeude.md',
   'Atelier/aktionen/bild-bearbeiten.md',

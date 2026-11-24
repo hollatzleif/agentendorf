@@ -2087,3 +2087,18 @@ details.karte > summary { cursor: pointer; }
 .ba-roh code { display: block; white-space: pre; font-size: 0.75rem; overflow-x: auto; padding: 0.4rem; background: var(--flaeche-2); border-radius: 8px; }
 .ba-roh summary { cursor: pointer; font-weight: 700; font-size: 0.85rem; }
 .ba-fehler { font-size: 0.8rem; flex-basis: 100%; }
+
+/* E230: Paketwerk */
+.pw { display: grid; gap: 0.7rem; min-width: 0; }
+.pw h1 { margin-bottom: 0; }
+.pw-konsole { background: #0d1117; color: #e6edf3; border-radius: 12px; padding: 0.6rem; display: grid; gap: 0.4rem; min-width: 0; }
+.pw-ausgabe { margin: 0; max-height: 22rem; min-height: 8rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 0.8rem/1.4 ui-monospace, 'SF Mono', Menlo, Consolas, monospace; color: #e6edf3; background: transparent; }
+.pw-zeile { display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
+.pw-prompt { font-family: ui-monospace, Menlo, Consolas, monospace; color: #7ee787; }
+.pw-eingabe { flex: 1; min-width: 0; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.85rem; background: #161b22 !important; color: #e6edf3 !important; border: 1px solid #30363d !important; border-radius: 8px; padding: 0.35rem 0.5rem; }
+.pw-status { font: 0.72rem ui-monospace, Menlo, Consolas, monospace; color: #8b949e; }
+.pw-vorschlag { margin: 0; font-size: 0.8rem; color: #f2cc60; }
+.pw-knoepfe { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.pw-pakete { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.3rem; }
+.pw-pakete li { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; min-width: 0; }
+.pw-pakete code { overflow-wrap: anywhere; color: var(--text); }

@@ -59,6 +59,7 @@ import { CODING_OFFEN, codingRouten } from './coding.js';
 import { codingEditorRouten } from './coding-editor.js';
 import { codingErweiterungenRouten } from './coding-erweiterungen.js';
 import { atelierRouten } from './atelier.js';
+import { paketwerkRouten } from './paketwerk.js';
 import { schriftprobeRouten } from './schriftprobe.js';
 import type { AgentenDienst } from './agenten/dienst.js';
 import { agentenRouten } from './agenten/routen.js';
@@ -775,6 +776,7 @@ export async function appBauen(a: Abhaengigkeiten): Promise<FastifyInstance> {
   atelierRouten(app, { konfig, vault, rechenraum: () => a.agenten.rechenraum }); // E198
   schriftprobeRouten(app, { vault }); // E216
   aussehenRouten(app, { db: a.db, hub: a.hub }); // E224
+  paketwerkRouten(app, { konfig }); // E230
   if (a.hafen) hafenRouten(app, a.hafen, { db: a.db, uhr: a.uhr }); // E227/E228
 
   // ---- E65: To-do-Brett (Marktplatz) ----

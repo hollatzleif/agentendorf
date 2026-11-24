@@ -17,6 +17,7 @@ import hmac
 import json
 import os
 import re
+import secrets
 import shutil
 import signal
 import subprocess
@@ -29,6 +30,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 ARBEIT = os.path.realpath(os.environ.get("ARBEIT_DIR", "/arbeit"))
 GEHEIMNIS = os.environ.get("RECHENRAUM_GEHEIMNIS", "")
 PORT = int(os.environ.get("PORT", "4100"))
+# E230: Paketwerk – Python-Pakete, die Leif selbst installiert (pip --user nach PYTHONUSERBASE). Im Rechenraum nur lesbar,
+# im Paketwerk-Modus (eigener Container mit Internet) beschreibbar. System-Pakete aus dem Image bleiben unangetastet.
+PAKETE = os.environ.get("RECHENRAUM_PAKETE", "")
+MODUS = os.environ.get("RECHENRAUM_MODUS", "rechenraum")
+KONSOLE_ZEIT = int(os.environ.get("KONSOLE_ZEIT_S", "900"))
+KONSOLE_PUFFER = 256 * 1024
 ZEITLIMIT = int(os.environ.get("ZEITLIMIT_S", "120"))
 MAX_AUSGABE = 20_000
 MAX_DATEI = 50 * 1024 * 1024
@@ -80,6 +87,99 @@ def kuerzen(t):
     return f"[… {len(t) - MAX_AUSGABE} Zeichen vorne abgeschnitten]\n" + t[-MAX_AUSGABE:]
 
 
+def pakete_einbinden(umgebung):
+    """E230: Leifs Zusatzpakete aus dem Paketwerk sichtbar machen (Python-User-Site + Programme hinten im PATH)"""
+    if PAKETE and os.path.isdir(PAKETE):
+        umgebung["PYTHONUSERBASE"] = PAKETE
+        umgebung["PATH"] = umgebung["PATH"] + ":" + os.path.join(PAKETE, "bin")
+
+
+# ---- E230: Paketwerk-Konsole (nur im Modus paketwerk) ------------------------------------------------------------
+
+class Konsole:
+    """Ein Befehl zur Zeit (bash), Ausgabe fortlaufend abrufbar. Schreiben kann er nur in PAKETE und /tmp."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.job = None
+
+    def umgebung(self):
+        heim = "/tmp/heim"
+        os.makedirs(heim, exist_ok=True)
+        return {
+            "PATH": os.path.join(PAKETE, "bin") + ":/usr/local/bin:/usr/bin:/bin",
+            "HOME": heim, "TMPDIR": "/tmp", "LANG": "C.UTF-8", "TERM": "dumb",
+            "PYTHONUSERBASE": PAKETE, "PIP_USER": "1", "PIP_BREAK_SYSTEM_PACKAGES": "1",
+            "PIP_CACHE_DIR": "/tmp/pip-cache", "PIP_DISABLE_PIP_VERSION_CHECK": "1", "PIP_PROGRESS_BAR": "off",
+            "PYTHONDONTWRITEBYTECODE": "1",
+        }
+
+    def starten(self, cmd):
+        if not isinstance(cmd, str) or not cmd.strip() or len(cmd) > 4000:
+            raise Fehler(400, "Befehl fehlt oder ist zu lang.")
+        with self.lock:
+            if self.job and self.job["code"] is None:
+                raise Fehler(409, "Es läuft schon ein Befehl – warten oder abbrechen.")
+            p = subprocess.Popen(["bash", "-c", cmd], cwd=PAKETE, env=self.umgebung(), stdin=subprocess.DEVNULL,
+                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True)
+            job = {"id": secrets.token_hex(8), "befehl": cmd, "start": time.time(), "ausgabe": bytearray(), "weg": 0,
+                   "code": None, "p": p}
+            self.job = job
+        threading.Thread(target=self._lesen, args=(job,), daemon=True).start()
+        threading.Thread(target=self._wache, args=(job,), daemon=True).start()
+        return {"id": job["id"]}
+
+    def _lesen(self, job):
+        for zeile in iter(job["p"].stdout.readline, b""):
+            with self.lock:
+                job["ausgabe"] += zeile
+                if len(job["ausgabe"]) > KONSOLE_PUFFER:
+                    zuviel = len(job["ausgabe"]) - KONSOLE_PUFFER
+                    del job["ausgabe"][:zuviel]
+                    job["weg"] += zuviel
+        code = job["p"].wait()
+        with self.lock:
+            job["code"] = code
+
+    def _wache(self, job):
+        try:
+            job["p"].wait(timeout=KONSOLE_ZEIT)
+        except subprocess.TimeoutExpired:
+            os.killpg(job["p"].pid, signal.SIGKILL)
+            with self.lock:
+                job["ausgabe"] += f"\n[nach {KONSOLE_ZEIT} s abgebrochen]\n".encode()
+
+    def stand(self, jid, ab):
+        with self.lock:
+            j = self.job
+            if not j or j["id"] != jid:
+                raise Fehler(404, "Befehl unbekannt.")
+            ab = max(int(ab or 0), j["weg"])
+            neu = bytes(j["ausgabe"][ab - j["weg"]:])
+            return {"ausgabe": neu.decode("utf-8", "replace"), "bis": j["weg"] + len(j["ausgabe"]), "fertig": j["code"] is not None,
+                    "code": j["code"], "sekunden": round(time.time() - j["start"], 1)}
+
+    def abbrechen(self, jid):
+        with self.lock:
+            j = self.job
+            if not j or j["id"] != jid or j["code"] is not None:
+                return {"ok": False}
+            os.killpg(j["p"].pid, signal.SIGTERM)
+        return {"ok": True}
+
+    def liste(self):
+        r = subprocess.run([sys.executable, "-m", "pip", "list", "--user", "--format", "json"], env=self.umgebung(),
+                           capture_output=True, timeout=60, cwd=PAKETE)
+        try:
+            pakete = json.loads(r.stdout.decode() or "[]")
+        except ValueError:
+            pakete = []
+        return {"pakete": [{"name": x.get("name"), "version": x.get("version")} for x in pakete if isinstance(x, dict)]}
+
+
+KONSOLE = Konsole()
+
+
 def befehl(raum_dir, cmd, zeitlimit):
     if not isinstance(cmd, str) or not cmd.strip() or len(cmd) > 4000:
         raise Fehler(400, "Befehl fehlt oder ist zu lang.")
@@ -93,6 +193,7 @@ def befehl(raum_dir, cmd, zeitlimit):
         "TEXMFVAR": os.path.join(raum_dir, ".texmf-var"),
         "PYTHONDONTWRITEBYTECODE": "1",
     }
+    pakete_einbinden(umgebung)
     start = time.time()
     p = subprocess.Popen(
         ["bash", "-c", cmd], cwd=raum_dir, env=umgebung, stdin=subprocess.DEVNULL,
@@ -1544,6 +1645,7 @@ def werkzeug(raum_dir, auftrag):
     }
     if os.environ.get("PYTHONPATH"):  # nur Tests außerhalb des Images (Pakete in einem eigenen Ordner)
         umgebung["PYTHONPATH"] = os.environ["PYTHONPATH"]
+    pakete_einbinden(umgebung)
     if os.environ.get("HANDSCHRIFT_MODELL"):  # E212: im Image /opt/handschrift; Tests geben ein kleines Modell vor
         umgebung["HANDSCHRIFT_MODELL"] = os.environ["HANDSCHRIFT_MODELL"]
     if not WERKZEUG_GLEICHZEITIG.acquire(timeout=60):
@@ -1984,6 +2086,16 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(b, dict):
                 raise Fehler(400, "JSON-Objekt erwartet.")
             weg = self.path
+            if MODUS == "paketwerk":  # E230: hier gibt es nur die Konsole
+                if weg == "/konsole/start":
+                    return self.antwort(200, KONSOLE.starten(b.get("befehl")))
+                if weg == "/konsole/stand":
+                    return self.antwort(200, KONSOLE.stand(b.get("id"), b.get("ab")))
+                if weg == "/konsole/abbrechen":
+                    return self.antwort(200, KONSOLE.abbrechen(b.get("id")))
+                if weg == "/konsole/pakete":
+                    return self.antwort(200, KONSOLE.liste())
+                raise Fehler(404, "Nicht gefunden (Paketwerk).")
             if weg == "/aufraeumen":
                 p = raum_pfad(b.get("raum"), anlegen=False)
                 shutil.rmtree(p, ignore_errors=True)
@@ -2038,6 +2150,11 @@ def main():
         return bild_kind(sys.argv[2], sys.argv[3], sys.argv[4])
     if not GEHEIMNIS:
         raise SystemExit("RECHENRAUM_GEHEIMNIS fehlt.")
+    if MODUS == "paketwerk":  # E230
+        if not PAKETE or not os.access(PAKETE, os.W_OK):
+            raise SystemExit(f"Paketordner {PAKETE or '(fehlt)'} ist nicht beschreibbar.")
+        ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+        return
     os.makedirs(ARBEIT, exist_ok=True)
     if not os.access(ARBEIT, os.W_OK):
         raise SystemExit(f"{ARBEIT} ist nicht beschreibbar.")

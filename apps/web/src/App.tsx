@@ -30,6 +30,7 @@ const CodeEditorSeite = lazy(() => import('./codeeditor/CodeEditor'));
 const VsCodeSeite = lazy(() => import('./seiten/VsCodeSeite'));
 // E198: der Bildeditor (und sein Stylesheet) wird nur auf dieser Seite geladen
 const KielwasserSeite = lazy(() => import('./hafen/Terminal').then((m) => ({ default: m.KielwasserSeite })));
+const PaketwerkSeite = lazy(() => import('./seiten/Paketwerk').then((m) => ({ default: m.PaketwerkSeite })));
 const AtelierSeite = lazy(() => import('./atelier/Atelier').then((m) => ({ default: m.AtelierSeite })));
 // E216: Schriftprobe – Leifs Hand für handschrift_schreiben
 const Schriftprobe = lazy(() => import('./seiten/Schriftprobe').then((m) => ({ default: m.Schriftprobe })));
@@ -113,6 +114,7 @@ function Rahmen() {
   else if (pfad === '/codehaus/vscode') seite = <VsCodeSeite />;
   else if (pfad === '/bibliothek') seite = <Bibliothek />;
   else if (pfad === '/einstellungen') seite = <Einstellungen />;
+  else if (pfad === '/paketwerk') seite = <PaketwerkSeite />;
   else if (pfad.startsWith('/chats/')) seite = <ChatSeite key={pfad} id={decodeURIComponent(pfad.slice('/chats/'.length))} />;
   else seite = <p className="karte">Diese Seite gibt es nicht.</p>;
 
@@ -132,7 +134,7 @@ function Rahmen() {
           {nav('/', 'Dorf', pfad === '/' || pfad.startsWith('/gebaeude') || pfad.startsWith('/chats') || pfad.startsWith('/codehaus') || pfad === '/atelier' || pfad === '/schriftprobe' || pfad.startsWith('/hafen/'))}
           {nav('/heute', 'Heute', pfad === '/heute')}
           {nav('/bibliothek', 'Bibliothek', pfad === '/bibliothek')}
-          {nav('/einstellungen', 'Einstellungen', pfad === '/einstellungen')}
+          {nav('/einstellungen', 'Einstellungen', pfad === '/einstellungen' || pfad === '/paketwerk')}
         </nav>
         <div className="status">
           <DunkelSchalter />

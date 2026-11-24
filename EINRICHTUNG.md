@@ -430,6 +430,20 @@ Das Atelier ist ohne Einrichtung da: Dorf → **Atelier** → **Bildeditor öffn
 
   Frei sind 10 000 „Neuronen“ pro Tag (rund 90 Bilder in 1024 × 1024); danach lehnt Cloudflare bis 00:00 UTC ab – es entstehen keine Kosten, solange du keinen Bezahlplan abschließt. Dabei verlässt der Beschreibungstext das Dorf, beim Füllen auch der gewählte Bildausschnitt. Agenten können keine Bilder generieren.
 
+## 14. Paketwerk: Python-Pakete für den Rechenraum selbst installieren
+
+Fehlt einem Agenten im Rechenraum ein Python-Paket, schreibt er dir den Befehl mit Link „Im Paketwerk öffnen“. Einrichten musst du nichts: das Paketwerk kommt mit dem Deploy (eigener Container, gleiches Image wie der Rechenraum).
+
+1. App → Einstellungen → **🧪 Paketwerk** (oder der Link des Agenten).
+2. Befehl prüfen, z. B. `pip install statsmodels==0.14.4`, dann **Ausführen**. Die Ausgabe läuft live mit.
+3. Fertig – der Rechenraum findet das Paket sofort (ohne Neustart). Dem Agenten im Chat Bescheid geben.
+
+Gut zu wissen:
+- Immer mit fester Version installieren (`paket==1.2.3`), dann rechnen Agenten reproduzierbar.
+- Entfernen: in der Paketliste „Entfernen“ (oder `pip uninstall -y paket`).
+- Geht nur für Python-Pakete mit fertigen Wheels. Braucht etwas einen Compiler oder ein System-Paket (`apt`), sag Bescheid – das kommt dann ins Rechenraum-Image.
+- Der Paketordner `/srv/dorf/rechenraum-pakete` ist nicht im Backup; nach einer Wiederherstellung die Befehle einfach noch einmal ausführen.
+
 ## Alltag
 
 ```bash
