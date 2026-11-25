@@ -1,0 +1,780 @@
+/* E240: Apple-Oberfläche – Bereich C „Gebäude & Wissen“ (Gebäude-Seite, Bibliothek, Chat, Dorfplatz-Liste, Anleitung,
+   Aktionen, Pläne, Freigaben, Anhänge, Uni, Karteikarten, Noten, Prüfungen, Post, Bank, Corps, Atelier, Codehaus).
+   Jede Regel beginnt mit html[data-design='apple'] – das Dorf-Design bleibt unberührt. Nur Werte aus tokens.css. */
+
+/* ---------- Bausteine (apple/wissen-teile.tsx) ---------- */
+html[data-design='apple'] .a-unsichtbar { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+html[data-design='apple'] .a-chevron { flex: none; vertical-align: -0.08em; }
+html[data-design='apple'] .a-ring { position: relative; display: inline-grid; place-items: center; flex: none; }
+html[data-design='apple'] .a-ring svg { display: block; }
+html[data-design='apple'] .a-ring-wert { transition: stroke-dasharray 700ms var(--a-feder-ruhig); }
+html[data-design='apple'] .a-ring-innen { position: absolute; font: 600 0.75rem/1 var(--a-schrift-rund); font-variant-numeric: tabular-nums; color: var(--a-text); }
+
+/* Inhalt im gemeinsamen Sheet (apple/Sheet.tsx) */
+html[data-design='apple'] .a-blatt-inhalt > .karte { background: none; border: 0; box-shadow: none; padding: 0; margin: 0; max-width: none; border-radius: 0; }
+html[data-design='apple'] .a-blatt-inhalt > form > h3:first-child { display: none; }
+html[data-design='apple'] .a-blatt-inhalt .formspalte { max-width: none; gap: 14px; }
+@keyframes a-wissen-scrim { from { opacity: 0; } }
+@keyframes a-wissen-von-unten { from { transform: translateY(100%); } }
+@keyframes a-wissen-mitte { from { opacity: 0; transform: translateY(18px) scale(0.96); } }
+@keyframes a-wissen-von-rechts { from { opacity: 0.4; transform: translateX(40px); } }
+@keyframes a-wissen-blase { from { opacity: 0; transform: translateY(6px) scale(0.97); } }
+@keyframes a-wissen-ueberblenden { from { opacity: 0; } }
+@keyframes a-wissen-puls { 50% { opacity: 0.35; } }
+
+/* ---------- Zurück wie in iOS (Gebäude, Chat) ---------- */
+html[data-design='apple'] .gebaeude-seite > .zurueck,
+html[data-design='apple'] .chat > .zurueck {
+  display: inline-flex; align-items: center; gap: 3px; min-height: 44px; margin: -4px 0 0 -6px; padding: 0 8px 0 4px;
+  color: var(--a-blau); font: var(--a-body); text-decoration: none; border-radius: var(--a-r-s);
+}
+html[data-design='apple'] .gebaeude-seite > .zurueck .a-chevron,
+html[data-design='apple'] .chat > .zurueck .a-chevron { width: 0.95em; height: 1.2em; }
+html[data-design='apple'] .gebaeude-seite > .zurueck:active,
+html[data-design='apple'] .chat > .zurueck:active { opacity: 0.4; }
+
+/* ---------- Gebäude: Large Title, Segmented Control (Desktop: Seitenleiste), Inhalt ---------- */
+html[data-design='apple'] .geb-titel { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 2px 0 16px; color: var(--a-text); }
+html[data-design='apple'] h1.geb-titel { font: var(--a-large-title); letter-spacing: var(--a-tracking-gross); }
+html[data-design='apple'] h2.geb-titel { font: var(--a-title2); letter-spacing: var(--a-tracking-gross); margin: 0 0 12px; }
+html[data-design='apple'] .geb-symbol {
+  display: inline-grid; place-items: center; flex: none; width: 48px; height: 48px; border-radius: 11px; font-size: 28px; line-height: 1;
+  background: linear-gradient(180deg, var(--a-flaeche), var(--a-flaeche2)); box-shadow: var(--a-schatten-1), inset 0 0 0 0.5px var(--a-trenner-fein);
+}
+html[data-design='apple'] h2.geb-titel .geb-symbol { width: 36px; height: 36px; border-radius: 9px; font-size: 21px; }
+html[data-design='apple'] .geb-titel .abzeichen { font: var(--a-caption); font-weight: 500; letter-spacing: 0; }
+
+html[data-design='apple'] .geb-reiter {
+  display: flex; flex-wrap: nowrap; gap: 2px; width: fit-content; max-width: 100%; margin: 0 0 18px; padding: 2px;
+  background: var(--a-fuellung); border-radius: 9px; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain;
+}
+html[data-design='apple'] .geb-reiter::-webkit-scrollbar { display: none; }
+html[data-design='apple'] .geb-reiter button {
+  flex: none; min-height: 32px; padding: 5px 14px; border: 0; border-radius: 7px; background: transparent; box-shadow: none;
+  color: var(--a-text); font: 500 0.8125rem/1.2 var(--a-schrift); letter-spacing: var(--a-tracking-text); white-space: nowrap; cursor: pointer;
+  transition: background-color var(--a-dauer-kurz) var(--a-feder-ruhig), box-shadow var(--a-dauer-kurz) var(--a-feder-ruhig), transform 100ms ease-out;
+}
+html[data-design='apple'] .geb-reiter button:hover:not(.aktiv) { background: var(--a-fuellung); }
+html[data-design='apple'] .geb-reiter button:active { transform: scale(0.97); }
+html[data-design='apple'] .geb-reiter button.aktiv { background: var(--a-flaeche); font-weight: 600; box-shadow: 0 3px 8px rgb(0 0 0 / 0.12), 0 1px 1px rgb(0 0 0 / 0.04); }
+html[data-design='apple'][data-dunkel='ja'] .geb-reiter button.aktiv { background: color-mix(in srgb, var(--a-grau) 62%, var(--a-flaeche)); }
+html[data-design='apple'] .geb-reiter button:focus-visible { outline: 2px solid var(--a-blau); outline-offset: -2px; }
+
+@media (min-width: 1000px) {
+  html[data-design='apple'] .gebaeude-seite { display: grid; grid-template-columns: 200px minmax(0, 1fr); column-gap: 24px; align-items: start; }
+  html[data-design='apple'] .gebaeude-seite > * { grid-column: 1 / -1; }
+  html[data-design='apple'] .gebaeude-seite > .zurueck { justify-self: start; }
+  html[data-design='apple'] .gebaeude-seite > .geb-reiter {
+    grid-column: 1; position: sticky; top: 5rem; flex-direction: column; width: auto; gap: 1px; padding: 6px; overflow: visible;
+    background: var(--a-flaeche); border-radius: var(--a-r-m); box-shadow: var(--a-schatten-1);
+  }
+  html[data-design='apple'] .gebaeude-seite > .geb-reiter button::before { display: none; }
+  html[data-design='apple'] .gebaeude-seite > .geb-reiter button { flex: none; justify-content: flex-start; min-height: 38px; padding: 8px 12px; text-align: left; font: var(--a-subhead); border-radius: 8px; }
+  html[data-design='apple'] .gebaeude-seite > .geb-reiter button.aktiv,
+  html[data-design='apple'][data-dunkel='ja'] .gebaeude-seite > .geb-reiter button.aktiv { background: var(--a-blau); color: white; font-weight: 600; box-shadow: none; }
+  html[data-design='apple'] .gebaeude-seite > .geb-inhalt { grid-column: 2; }
+}
+
+/* Inhalt liegt direkt auf dem gruppierten Hintergrund – die Teile darin sind die Karten/Gruppen */
+html[data-design='apple'] .geb-inhalt.karte { background: none; border: 0; border-radius: 0; box-shadow: none; padding: 0; margin: 0 0 24px; color: var(--a-text); min-width: 0; }
+html[data-design='apple'] .geb-inhalt h2 { font: var(--a-title3); letter-spacing: var(--a-tracking-text); margin: 28px 0 10px; }
+html[data-design='apple'] .geb-inhalt h3 { font: var(--a-title3); letter-spacing: var(--a-tracking-text); margin: 26px 0 10px; }
+html[data-design='apple'] .geb-inhalt > :first-child,
+html[data-design='apple'] .geb-inhalt > * > h2:first-child,
+html[data-design='apple'] .geb-inhalt > * > h3:first-child { margin-top: 0; }
+html[data-design='apple'] .geb-inhalt h4 { font: var(--a-headline); margin: 4px 0 8px; }
+html[data-design='apple'] .geb-inhalt > p:not(.leise):not(.fehler) { font: var(--a-body); }
+
+/* Übersicht: Arbeitsanweisung als Karte, „Gebäude einstellen“ als Zelle */
+html[data-design='apple'] .geb-uebersicht > .markdown { background: var(--a-flaeche); border-radius: var(--a-r-l); padding: 18px 20px; box-shadow: var(--a-schatten-1); font: var(--a-body); line-height: 1.5; }
+html[data-design='apple'] .gebaeude-einstellen { margin-top: 14px; background: var(--a-flaeche); border-radius: var(--a-r-m); overflow: hidden; }
+html[data-design='apple'] .gebaeude-einstellen > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; min-height: 44px; padding: 0 16px; font: var(--a-body); color: var(--a-blau); cursor: pointer; }
+html[data-design='apple'] .gebaeude-einstellen > summary::-webkit-details-marker { display: none; }
+html[data-design='apple'] .gebaeude-einstellen > summary::before,
+html[data-design='apple'] .bank > details > summary::before { display: none; }
+html[data-design='apple'] .gebaeude-einstellen > summary::after { content: ''; width: 7px; height: 7px; border-right: 2px solid var(--a-text3); border-bottom: 2px solid var(--a-text3); transform: rotate(-45deg); transition: transform var(--a-dauer) var(--a-feder); }
+html[data-design='apple'] .gebaeude-einstellen[open] > summary::after { transform: rotate(45deg); }
+html[data-design='apple'] .gebaeude-einstellen > form { max-width: none; padding: 4px 16px 16px; border-top: 0.5px solid var(--a-trenner); padding-top: 14px; }
+html[data-design='apple'] .geb-dateien > .baum { background: var(--a-flaeche); border-radius: var(--a-r-m); padding: 6px; }
+
+/* ---------- Gruppierte Listen (inset grouped) ---------- */
+html[data-design='apple'] .chatliste { list-style: none; margin: 8px 0 16px; padding: 0; background: var(--a-flaeche); border-radius: var(--a-r-m); overflow: hidden; }
+html[data-design='apple'] .chatliste > li { position: relative; min-height: 44px; padding: 11px 16px; border: 0; font: var(--a-body); line-height: 1.35; color: var(--a-text); }
+html[data-design='apple'] .chatliste > li + li::before,
+html[data-design='apple'] .ordnerliste > li + li::before,
+html[data-design='apple'] .treffer > li + li::before,
+html[data-design='apple'] .mailliste > li + li::before,
+html[data-design='apple'] .fristen tbody tr + tr::before,
+html[data-design='apple'] .aktion-knopf + .aktion-knopf::before,
+html[data-design='apple'] .atelier-stand > li + li::before {
+  content: ''; position: absolute; top: 0; left: 16px; right: 0; height: 1px; background: var(--a-trenner); transform: scaleY(0.5); transform-origin: top; pointer-events: none;
+}
+html[data-design='apple'] .chatliste > li > .leise { font: var(--a-footnote); color: var(--a-text2); margin-top: 2px; }
+html[data-design='apple'] .chatliste a { color: var(--a-blau); text-decoration: none; }
+html[data-design='apple'] .chatliste strong { font-weight: 600; }
+
+/* Chat-Übersicht wie in Nachrichten: ganze Zeile tippbar, Chevron rechts */
+html[data-design='apple'] .chat-uebersicht > input[type='search'] { margin-bottom: 4px; }
+html[data-design='apple'] .chatliste.chats > li { padding-right: 36px; }
+html[data-design='apple'] .chatliste.chats > li > a { color: var(--a-text); font: var(--a-headline); }
+html[data-design='apple'] .chatliste.chats > li > a::before { content: ''; position: absolute; inset: 0; }
+html[data-design='apple'] .chatliste.chats > li::after {
+  content: ''; position: absolute; right: 18px; top: 50%; width: 7px; height: 7px; margin-top: -4px;
+  border-right: 2px solid var(--a-text3); border-bottom: 2px solid var(--a-text3); transform: rotate(-45deg); pointer-events: none;
+}
+html[data-design='apple'] .chatliste.chats > li:has(> a:active) { background: var(--a-fuellung); }
+html[data-design='apple'] .chatliste.chats > li:has(> a:focus-visible) { outline: 2px solid var(--a-blau); outline-offset: -3px; border-radius: var(--a-r-m); }
+html[data-design='apple'] .chatliste.chats > li > a:focus-visible { outline: none; }
+
+/* ---------- Chat (Nachrichten) ---------- */
+html[data-design='apple'] .chat { max-width: 780px; margin: 0 auto; }
+html[data-design='apple'] .chat > h1 { justify-content: center; text-align: center; margin: 0 0 2px; font: var(--a-title2); letter-spacing: var(--a-tracking-gross); color: var(--a-text); }
+html[data-design='apple'] .chat > p.leise { margin: 0 0 2px; text-align: center; font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .chat > p.leise a { color: var(--a-blau); text-decoration: none; }
+html[data-design='apple'] .chat.eingebettet > p.leise:first-child { text-align: left; font: var(--a-headline); }
+html[data-design='apple'] .chat.ziehen { outline: 2px dashed var(--a-blau); outline-offset: 6px; border-radius: var(--a-r-l); }
+
+html[data-design='apple'] .nachrichten { gap: 6px; margin: 14px 0 10px; padding: 14px 12px; background: var(--a-flaeche); border-radius: var(--a-r-l); }
+html[data-design='apple'] .chat.eingebettet .nachrichten { padding: 10px 8px; }
+html[data-design='apple'] .nachricht {
+  align-self: flex-start; max-width: min(84%, 620px); min-width: 0; padding: 8px 13px; border: 0; border-radius: 18px; box-shadow: none;
+  background: var(--a-fuellung); color: var(--a-text); font: var(--a-body); overflow-wrap: anywhere;
+  animation: a-wissen-blase var(--a-dauer) var(--a-feder) both;
+}
+html[data-design='apple'] .nachricht.agent { border-bottom-left-radius: 6px; }
+html[data-design='apple'] .nachricht > .markdown > :first-child,
+html[data-design='apple'] .nachricht > :first-child { margin-top: 0; }
+html[data-design='apple'] .nachricht > .markdown > :last-child { margin-bottom: 0; }
+html[data-design='apple'] .nachricht .markdown p { margin: 0.35em 0; }
+html[data-design='apple'] .nachricht .markdown h1, html[data-design='apple'] .nachricht .markdown h2, html[data-design='apple'] .nachricht .markdown h3 { font: var(--a-headline); margin: 0.6em 0 0.25em; }
+html[data-design='apple'] .nachricht .markdown pre { background: var(--a-flaeche); border-radius: var(--a-r-s); padding: 8px 10px; font: 400 0.8125rem/1.45 var(--a-schrift-mono); }
+html[data-design='apple'] .nachricht .markdown table { display: block; overflow-x: auto; }
+html[data-design='apple'] .nachricht .markdown th, html[data-design='apple'] .nachricht .markdown td { border: 0; border-bottom: 0.5px solid var(--a-trenner); padding: 4px 8px; }
+html[data-design='apple'] .nachricht .zeit { margin-top: 3px; text-align: right; font: var(--a-caption2); color: var(--a-text2); }
+
+html[data-design='apple'] .nachricht.nutzer { align-self: flex-end; max-width: min(80%, 560px); background: var(--a-blau); color: white; border-bottom-right-radius: 6px; box-shadow: none; }
+html[data-design='apple'] .nachricht.nutzer .nutzertext { font: var(--a-body); }
+html[data-design='apple'] .nachricht.nutzer .zeit,
+html[data-design='apple'] .nachricht.nutzer .leise { color: rgb(255 255 255 / 0.75); }
+html[data-design='apple'] .nachricht.nutzer a { color: inherit; text-decoration: underline; }
+html[data-design='apple'] .nachricht.nutzer pre { background: rgb(0 0 0 / 0.16); color: white; border-radius: var(--a-r-s); padding: 8px; font: 400 0.75rem/1.4 var(--a-schrift-mono); white-space: pre-wrap; }
+html[data-design='apple'] .nachricht.nutzer .anhang-inhalt > summary { color: rgb(255 255 255 / 0.85); font: var(--a-footnote); cursor: pointer; }
+html[data-design='apple'] .nachricht.nutzer.wartend { background: color-mix(in srgb, var(--a-blau) 42%, var(--a-flaeche)); opacity: 1; border: 0; }
+html[data-design='apple'] .nachricht.nutzer.wartend > .leise { display: flex; align-items: center; gap: 6px; font: var(--a-footnote); color: white; }
+html[data-design='apple'] .nachricht.nutzer.wartend button.klein {
+  display: inline-grid; place-items: center; width: 26px; height: 26px; min-height: 26px; margin-left: auto; padding: 0; border: 0; border-radius: 50%;
+  background: rgb(255 255 255 / 0.25); color: white; box-shadow: none;
+}
+
+html[data-design='apple'] .nachricht.werkzeug { align-self: stretch; max-width: 100%; padding: 0 2px; background: none; animation: none; font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .nachricht.werkzeug > summary,
+html[data-design='apple'] .protokoll-teil > summary,
+html[data-design='apple'] .anhang-inhalt > summary {
+  list-style: none; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; margin-left: -4px; border-radius: var(--a-r-voll);
+  font: var(--a-footnote); font-weight: 500; color: var(--a-text2); cursor: pointer;
+}
+html[data-design='apple'] .nachricht.werkzeug > summary::-webkit-details-marker,
+html[data-design='apple'] .protokoll-teil > summary::-webkit-details-marker,
+html[data-design='apple'] .anhang-inhalt > summary::-webkit-details-marker { display: none; }
+html[data-design='apple'] .nachricht.werkzeug > summary:hover { background: var(--a-fuellung); }
+html[data-design='apple'] .nachricht.werkzeug pre {
+  margin: 6px 0 4px; padding: 10px 12px; max-height: 50vh; overflow: auto; border-radius: var(--a-r-m);
+  background: var(--a-flaeche2); color: var(--a-text); font: 400 0.75rem/1.45 var(--a-schrift-mono);
+}
+html[data-design='apple'] .protokoll-teil { margin-top: 6px; padding-top: 4px; border-top: 0.5px solid var(--a-trenner); }
+html[data-design='apple'] .protokoll-teil > summary { margin-left: -10px; }
+html[data-design='apple'] .protokoll-teil > .markdown { font: var(--a-subhead); color: var(--a-text2); }
+
+html[data-design='apple'] .nachricht.hinweis { align-self: center; max-width: 92%; padding: 2px 8px; background: none; text-align: center; font: var(--a-footnote); color: var(--a-text2); animation-name: a-wissen-ueberblenden; }
+html[data-design='apple'] .nachricht.hinweis .hinweis { background: none; border: 0; padding: 0; margin: 0; color: inherit; }
+html[data-design='apple'] .nachricht.hinweis .zeit { text-align: center; }
+html[data-design='apple'] .nachricht.erzeugt { padding: 0; background: none; }
+html[data-design='apple'] .lauf-kopf { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font: var(--a-caption); color: var(--a-text2); }
+html[data-design='apple'] .nachricht.laufend .lauf-kopf::before { content: ''; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--a-orange); animation: a-wissen-puls 1.4s ease-in-out infinite; }
+
+html[data-design='apple'] .laeufe { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; margin: 2px 0 8px; }
+html[data-design='apple'] .laeufe .lauf-chip { margin: 0; }
+
+/* Eingabeleiste im Glas: [+] [Feld] [↑] */
+html[data-design='apple'] .chat-eingabe {
+  position: sticky; bottom: calc(var(--a-unten, 0px) + max(10px, env(safe-area-inset-bottom))); z-index: 5;
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: end; gap: 8px;
+  margin: 8px 0 12px; padding: 6px; border: 0.5px solid var(--a-glas-rand); border-radius: 25px;
+  background: var(--a-glas); -webkit-backdrop-filter: var(--a-glas-blur); backdrop-filter: var(--a-glas-blur); box-shadow: var(--a-glas-schatten);
+}
+html[data-design='apple'] .chat.eingebettet .chat-eingabe { position: sticky; }
+html[data-design='apple'] .chat-eingabe > .werkzeuge { display: contents; }
+html[data-design='apple'] .chat-eingabe textarea {
+  grid-column: 2; grid-row: 1; width: 100%; min-height: 38px; max-height: 40vh; margin: 0; padding: 8px 14px; resize: none; field-sizing: content;
+  border: 0.5px solid var(--a-trenner); border-radius: 19px; background: var(--a-flaeche); box-shadow: none; color: var(--a-text); font: var(--a-body);
+}
+html[data-design='apple'] .chat-eingabe textarea::placeholder { color: var(--a-text3); }
+html[data-design='apple'] .chat-eingabe textarea:focus { outline: none; border-color: color-mix(in srgb, var(--a-blau) 55%, var(--a-trenner)); }
+html[data-design='apple'] .chat-eingabe .anhang-knopf,
+html[data-design='apple'] .chat-eingabe .chat-senden {
+  grid-row: 1; display: grid; place-items: center; width: 38px; height: 38px; min-height: 38px; min-width: 38px; padding: 0;
+  border: 0; border-radius: 50%; box-shadow: none; font-size: 19px; cursor: pointer; transition: transform 100ms ease-out, background-color var(--a-dauer-kurz);
+}
+html[data-design='apple'] .chat-eingabe .anhang-knopf { grid-column: 1; background: var(--a-fuellung); color: var(--a-text2); }
+html[data-design='apple'] .chat-eingabe .chat-senden { grid-column: 3; background: var(--a-blau); color: white; }
+html[data-design='apple'] .chat-eingabe .chat-senden:disabled { background: var(--a-fuellung2); color: var(--a-text3); opacity: 1; }
+html[data-design='apple'] .chat-eingabe .anhang-knopf:active,
+html[data-design='apple'] .chat-eingabe .chat-senden:not(:disabled):active { transform: scale(0.92); }
+html[data-design='apple'] .chat-eingabe .anhang-knopf:focus-visible,
+html[data-design='apple'] .chat-eingabe .chat-senden:focus-visible { outline: 2px solid var(--a-blau); outline-offset: 2px; }
+html[data-design='apple'] .chat-eingabe .datei-karten.gewaehlt { grid-column: 1 / -1; margin: 2px 4px; }
+html[data-design='apple'] .chat-eingabe .chat-abbrechen {
+  grid-column: 1 / -1; justify-self: center; min-height: 32px; padding: 4px 14px; border: 0; border-radius: var(--a-r-voll); box-shadow: none;
+  background: color-mix(in srgb, var(--a-rot) 14%, transparent); color: color-mix(in srgb, var(--a-rot) 80%, var(--a-text)); font: var(--a-footnote); font-weight: 600;
+}
+html[data-design='apple'] .chat-eingabe .chat-tipp { grid-column: 1 / -1; text-align: center; font: var(--a-caption2); color: var(--a-text2); padding-bottom: 2px; }
+html[data-design='apple'] .chat-eingabe > .fehler { grid-column: 1 / -1; margin: 0 8px 4px; font: var(--a-footnote); }
+@media (max-width: 700px) {
+  html[data-design='apple'] .chat-eingabe .chat-tipp { display: none; }
+  html[data-design='apple'] .chat > h1 { font: var(--a-headline); font-size: 1.1875rem; }
+  html[data-design='apple'] .nachrichten { padding: 12px 8px; }
+  html[data-design='apple'] .nachricht { max-width: 88%; }
+}
+
+/* ---------- Anhänge: Chips/Vorschaukarten ---------- */
+html[data-design='apple'] .datei-karten { gap: 6px; margin: 6px 0 0; }
+html[data-design='apple'] .datei-karten-titel { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .datei-karte {
+  gap: 8px; padding: 5px 10px 5px 5px; border: 0; border-radius: var(--a-r-m); background: var(--a-flaeche); color: var(--a-text);
+  box-shadow: var(--a-schatten-1), inset 0 0 0 0.5px var(--a-trenner-fein); font: var(--a-subhead); text-decoration: none;
+  transition: transform 100ms ease-out;
+}
+html[data-design='apple'] a.datei-karte:hover { border: 0; background: var(--a-flaeche); }
+html[data-design='apple'] a.datei-karte:active { transform: scale(0.97); }
+html[data-design='apple'] a.datei-karte:focus-visible { outline: 2px solid var(--a-blau); outline-offset: 2px; }
+html[data-design='apple'] .datei-karte img,
+html[data-design='apple'] .datei-karte .datei-symbol { width: 36px; height: 36px; border-radius: 8px; object-fit: cover; flex: none; }
+html[data-design='apple'] .datei-karte .datei-symbol { display: grid; place-items: center; font-size: 19px; background: color-mix(in srgb, var(--a-blau) 13%, transparent); color: var(--a-blau); }
+html[data-design='apple'] .datei-karte .datei-name { font-weight: 500; }
+html[data-design='apple'] .datei-karte .datei-groesse { font: var(--a-caption); color: var(--a-text2); }
+html[data-design='apple'] .datei-karte button.klein { display: grid; place-items: center; width: 24px; height: 24px; min-height: 24px; padding: 0; border: 0; border-radius: 50%; background: var(--a-fuellung); color: var(--a-text2); box-shadow: none; font-size: 12px; }
+html[data-design='apple'] .nachricht.nutzer .datei-karte { background: rgb(255 255 255 / 0.18); color: white; box-shadow: none; }
+html[data-design='apple'] .nachricht.nutzer .datei-karte .datei-groesse { color: rgb(255 255 255 / 0.75); }
+html[data-design='apple'] .nachricht.nutzer .datei-karte .datei-symbol { background: rgb(255 255 255 / 0.22); color: white; }
+
+/* Seitenleiste mit Datei (Chat): Desktop schwebende Tafel rechts, Handy Vollbild-Sheet */
+html[data-design='apple'] .datei-seitenleiste {
+  top: 10px; right: 10px; bottom: 10px; width: min(46vw, 720px); overflow: hidden; border: 0; border-radius: var(--a-r-l);
+  background: var(--a-flaeche); color: var(--a-text); box-shadow: var(--a-schatten-3); animation: a-wissen-von-rechts var(--a-dauer) var(--a-feder) both;
+}
+html[data-design='apple'] .datei-seitenleiste-kopf {
+  gap: 4px; padding: 8px 8px 8px 12px; border-bottom: 0.5px solid var(--a-trenner);
+  background: var(--a-glas-dicht); -webkit-backdrop-filter: var(--a-glas-blur); backdrop-filter: var(--a-glas-blur);
+}
+html[data-design='apple'] .datei-seitenleiste-kopf .datei-symbol { display: grid; place-items: center; flex: none; width: 30px; height: 30px; border-radius: 7px; background: color-mix(in srgb, var(--a-blau) 13%, transparent); color: var(--a-blau); font-size: 17px; }
+html[data-design='apple'] .datei-seitenleiste-kopf .datei-name { font: var(--a-headline); margin-left: 4px; }
+html[data-design='apple'] .datei-seitenleiste-kopf > .leise { font: var(--a-caption); color: var(--a-text2); white-space: nowrap; }
+html[data-design='apple'] .datei-seitenleiste-kopf .knopf.klein,
+html[data-design='apple'] .datei-seitenleiste-kopf button.klein {
+  display: inline-grid; place-items: center; flex: none; width: 34px; height: 34px; min-height: 34px; padding: 0; border: 0; border-radius: 50%;
+  background: var(--a-fuellung); color: var(--a-blau); box-shadow: none; font-size: 16px; text-decoration: none;
+}
+html[data-design='apple'] .datei-seitenleiste-kopf button.klein { color: var(--a-text2); }
+html[data-design='apple'] .datei-seitenleiste-inhalt { padding: 16px; }
+html[data-design='apple'] .datei-seitenleiste-inhalt > .karte { background: none; border: 0; box-shadow: none; padding: 0; margin: 0; }
+html[data-design='apple'] .chat.mit-seitenleiste { margin-left: 0; margin-right: calc(min(46vw, 720px) + 20px); }
+@media (max-width: 800px) {
+  html[data-design='apple'] .datei-seitenleiste { inset: 0; width: 100vw; border-radius: 0; animation-name: a-wissen-von-unten; padding-top: env(safe-area-inset-top); }
+  html[data-design='apple'] .chat.mit-seitenleiste { margin-right: auto; margin-left: auto; }
+}
+
+/* ---------- Bibliothek (Dateien-App) ---------- */
+html[data-design='apple'] .bibliothek { grid-template-columns: 280px minmax(0, 1fr); gap: 20px; }
+html[data-design='apple'] .bibliothek.ziehen .inhalt { outline: 2px dashed var(--a-blau); outline-offset: 6px; border-radius: var(--a-r-l); }
+html[data-design='apple'] .bibliothek > .seitenleiste { padding: 10px 8px; border: 0; border-radius: var(--a-r-l); background: var(--a-flaeche); box-shadow: var(--a-schatten-1); scrollbar-width: thin; }
+html[data-design='apple'] .bibliothek > .seitenleiste > form { padding: 0 2px; }
+html[data-design='apple'] .bib-werkzeuge { display: flex; gap: 6px; margin: 8px 2px 10px; }
+html[data-design='apple'] .bib-werkzeuge button {
+  flex: 1; min-height: 32px; padding: 4px 6px; border: 0; border-radius: var(--a-r-s); box-shadow: none;
+  background: color-mix(in srgb, var(--a-blau) 12%, transparent); color: var(--a-blau); font: var(--a-footnote); font-weight: 600; white-space: nowrap;
+}
+html[data-design='apple'] .bib-werkzeuge button:active { transform: scale(0.97); }
+html[data-design='apple'] .baum-zeile {
+  display: flex; align-items: center; justify-content: flex-start; gap: 6px; width: 100%; min-height: 32px; padding-top: 4px; padding-bottom: 4px; padding-right: 8px;
+  border: 0; border-radius: 7px; background: transparent; box-shadow: none; color: var(--a-text); font: var(--a-subhead); text-align: left; cursor: pointer;
+}
+html[data-design='apple'] .baum-zeile.ordner { font-weight: 400; }
+html[data-design='apple'] .baum-zeile:hover { background: var(--a-fuellung); }
+html[data-design='apple'] .baum-zeile:active { transform: none; box-shadow: none; background: var(--a-fuellung2); }
+html[data-design='apple'] .baum-zeile.gewaehlt { background: color-mix(in srgb, var(--a-blau) 16%, transparent); color: var(--a-text); font-weight: 600; }
+html[data-design='apple'] .baum-zeile:focus-visible { outline: 2px solid var(--a-blau); outline-offset: -2px; }
+html[data-design='apple'] .baum-symbol { display: inline-grid; place-items: center; flex: none; width: 14px; color: var(--a-text3); transition: transform var(--a-dauer) var(--a-feder); }
+html[data-design='apple'] .baum-symbol.offen { transform: rotate(90deg); }
+html[data-design='apple'] .baum-zeile.gewaehlt .baum-symbol { color: var(--a-text3); }
+html[data-design='apple'] .baum-ikon { display: inline-grid; place-items: center; flex: none; color: var(--a-text2); font-size: 17px; }
+html[data-design='apple'] .baum-zeile.ordner .baum-ikon { color: var(--a-blau); }
+html[data-design='apple'] .baum-zeile.ordner .baum-ikon .a-symbol { fill: color-mix(in srgb, var(--a-blau) 20%, transparent); }
+html[data-design='apple'] .baum-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+html[data-design='apple'] .pfadleiste { gap: 8px; min-height: 44px; margin-bottom: 12px; }
+html[data-design='apple'] .brotkrumen { display: flex; align-items: center; flex-wrap: wrap; gap: 0 2px; min-width: 0; font: var(--a-subhead); color: var(--a-text2); word-break: normal; }
+html[data-design='apple'] .brotkrumen > span { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }
+html[data-design='apple'] .brotkrumen a { padding: 4px 6px; border-radius: 6px; color: var(--a-blau); text-decoration: none; overflow-wrap: anywhere; }
+html[data-design='apple'] .brotkrumen a:hover { background: var(--a-fuellung); }
+html[data-design='apple'] .brotkrumen > span:last-child > a { color: var(--a-text); font-weight: 600; }
+html[data-design='apple'] .brotkrumen .a-chevron { color: var(--a-text3); width: 0.7em; }
+html[data-design='apple'] .pfadleiste .werkzeuge { gap: 6px; margin: 0 0 0 auto; }
+html[data-design='apple'] .pfadleiste .werkzeuge button,
+html[data-design='apple'] .pfadleiste .werkzeuge .knopf,
+html[data-design='apple'] .pfadleiste > .nur-mobil {
+  min-height: 32px; padding: 4px 12px; border: 0; border-radius: var(--a-r-voll); box-shadow: none;
+  background: color-mix(in srgb, var(--a-blau) 12%, transparent); color: var(--a-blau); font: var(--a-footnote); font-weight: 600; text-decoration: none;
+}
+html[data-design='apple'] .pfadleiste > .nur-mobil { gap: 6px; align-items: center; }
+html[data-design='apple'] .pfadleiste .werkzeuge button.gefahr { background: color-mix(in srgb, var(--a-rot) 12%, transparent); color: color-mix(in srgb, var(--a-rot) 85%, var(--a-text)); }
+html[data-design='apple'] .bibliothek .meldung { display: inline-block; margin: 0 0 12px; padding: 8px 14px; border-radius: var(--a-r-voll); background: var(--a-flaeche); box-shadow: var(--a-schatten-2); font: var(--a-subhead); color: var(--a-text); }
+html[data-design='apple'] .bibliothek .ablage { margin-top: 18px; text-align: center; font: var(--a-caption); color: var(--a-text2); }
+
+html[data-design='apple'] .bibliothek .inhalt > .karte:not(.textansicht):not(.umgewandelt) { background: none; border: 0; box-shadow: none; padding: 0; margin: 0; }
+html[data-design='apple'] .bibliothek .inhalt > .karte > h2 { font: var(--a-title1); letter-spacing: var(--a-tracking-gross); color: var(--a-text); margin: 4px 0 14px; overflow-wrap: anywhere; }
+html[data-design='apple'] .bibliothek .inhalt > .karte > h2 .leise { font: var(--a-subhead); color: var(--a-blau); letter-spacing: 0; text-decoration: none; }
+html[data-design='apple'] .ordnerliste,
+html[data-design='apple'] .treffer { margin: 0; padding: 0; background: var(--a-flaeche); border-radius: var(--a-r-m); overflow: hidden; }
+html[data-design='apple'] .ordnerliste > li { position: relative; display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 6px 14px 6px 12px; border: 0; }
+html[data-design='apple'] .ordnerliste > li + li::before { left: 56px; }
+html[data-design='apple'] .ordnerliste > li > a { flex: 1; display: flex; align-items: center; gap: 12px; min-width: 0; color: var(--a-text); font: var(--a-body); text-decoration: none; }
+html[data-design='apple'] .ordnerliste > li > a::after { content: ''; position: absolute; inset: 0; }
+html[data-design='apple'] .ordnerliste > li:has(> a:active) { background: var(--a-fuellung); }
+html[data-design='apple'] .ordnerliste > li > a:focus-visible { outline: none; }
+html[data-design='apple'] .ordnerliste > li:has(> a:focus-visible) { outline: 2px solid var(--a-blau); outline-offset: -3px; }
+html[data-design='apple'] .ordner-ikon { display: grid; place-items: center; flex: none; width: 32px; height: 32px; font-size: 27px; color: var(--a-text2); }
+html[data-design='apple'] .ordnerliste > li.ordner .ordner-ikon { color: var(--a-blau); }
+html[data-design='apple'] .ordnerliste > li.ordner .ordner-ikon .a-symbol { fill: color-mix(in srgb, var(--a-blau) 20%, transparent); stroke-width: 1.5; }
+html[data-design='apple'] .ordner-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html[data-design='apple'] .ordnerliste > li > .leise { flex: none; font: var(--a-footnote); color: var(--a-text2); white-space: nowrap; }
+html[data-design='apple'] .ordnerliste > li > .a-chevron { color: var(--a-text3); }
+@media (max-width: 640px) { html[data-design='apple'] .ordnerliste > li > .leise { display: none; } }
+html[data-design='apple'] .treffer > li { position: relative; padding: 11px 16px; border: 0; font: var(--a-subhead); color: var(--a-text2); }
+html[data-design='apple'] .treffer > li > a { font: var(--a-headline); color: var(--a-blau); text-decoration: none; }
+html[data-design='apple'] .treffer > li > .leise { font: var(--a-caption); color: var(--a-text2); }
+html[data-design='apple'] .treffer mark { background: color-mix(in srgb, var(--a-gelb) 45%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
+html[data-design='apple'] .bibliothek .textansicht,
+html[data-design='apple'] .bibliothek .umgewandelt { background: var(--a-flaeche); border: 0; border-radius: var(--a-r-l); box-shadow: var(--a-schatten-1); padding: 16px 20px 20px; color: var(--a-text); font: var(--a-body); line-height: 1.5; }
+html[data-design='apple'] .bibliothek .textansicht > .werkzeuge { margin: 0 0 10px; gap: 8px; }
+html[data-design='apple'] .bibliothek .inhalt > p > .knopf { display: inline-flex; align-items: center; gap: 6px; }
+html[data-design='apple'] .bibliothek .bild { max-width: 100%; border-radius: var(--a-r-m); box-shadow: var(--a-schatten-1); }
+@media (max-width: 860px) {
+  html[data-design='apple'] .bibliothek { grid-template-columns: 1fr; }
+  html[data-design='apple'] .bibliothek > .seitenleiste.offen { animation: a-wissen-blase var(--a-dauer) var(--a-feder) both; }
+}
+
+/* ---------- Dorfplatz als Liste ---------- */
+html[data-design='apple'] .dorfliste > .kopfzeile { align-items: center; margin-bottom: 14px; }
+html[data-design='apple'] .dorfliste > .kopfzeile h1 { margin: 0; font: var(--a-large-title); letter-spacing: var(--a-tracking-gross); }
+html[data-design='apple'] .gebaeude-raster { grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 12px; margin-bottom: 18px; }
+html[data-design='apple'] .gebaeude-karte {
+  display: grid; grid-template-columns: 52px minmax(0, 1fr); grid-auto-rows: auto; column-gap: 14px; row-gap: 2px; align-content: start;
+  padding: 14px; border: 0; border-radius: var(--a-r-l); background: var(--a-flaeche); box-shadow: var(--a-schatten-1);
+  color: var(--a-text); text-decoration: none; transition: transform 160ms var(--a-feder-ruhig), box-shadow var(--a-dauer) var(--a-feder-ruhig);
+}
+html[data-design='apple'] .gebaeude-karte:hover { transform: none; box-shadow: var(--a-schatten-2); }
+html[data-design='apple'] .gebaeude-karte:active { transform: scale(0.98); }
+html[data-design='apple'] .gebaeude-karte:focus-visible { outline: 2px solid var(--a-blau); outline-offset: 2px; }
+html[data-design='apple'] .gebaeude-karte .symbol {
+  grid-row: 1 / span 3; display: grid; place-items: center; width: 52px; height: 52px; border-radius: 12px; font-size: 30px; line-height: 1;
+  background: linear-gradient(180deg, var(--a-flaeche2), var(--a-fuellung)); box-shadow: inset 0 0 0 0.5px var(--a-trenner-fein);
+}
+html[data-design='apple'] .gebaeude-karte .name { font: var(--a-headline); letter-spacing: var(--a-tracking-text); align-self: end; }
+html[data-design='apple'] .gebaeude-karte .beschreibung { font: var(--a-footnote); color: var(--a-text2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+html[data-design='apple'] .gebaeude-karte .karten-status { grid-column: 2; gap: 4px; margin-top: 6px; }
+html[data-design='apple'] .gebaeude-karte .karten-status:empty { display: none; }
+html[data-design='apple'] .gebaeude-karte .abzeichen { margin: 0; display: inline-flex; align-items: center; gap: 4px; }
+html[data-design='apple'] .gebaeude-karte.geschlossen { opacity: 0.55; filter: saturate(0.4); }
+html[data-design='apple'] .gebaeude-karte.kaputt { box-shadow: inset 0 0 0 1.5px var(--a-rot); }
+
+/* ---------- Aktionen (Liste) + Formulare ---------- */
+html[data-design='apple'] .aktionen > p.leise { font: var(--a-footnote); color: var(--a-text2); margin: 0 4px 10px; }
+html[data-design='apple'] .aktions-knoepfe { display: flex; flex-direction: column; gap: 0; background: var(--a-flaeche); border-radius: var(--a-r-m); overflow: hidden; }
+html[data-design='apple'] .aktion-knopf {
+  position: relative; display: grid; justify-content: stretch; justify-items: start; grid-template-columns: 30px minmax(0, 1fr) auto; grid-auto-flow: row; column-gap: 12px; row-gap: 1px; align-items: center;
+  width: 100%; min-height: 56px; margin: 0; padding: 9px 16px 9px 14px; border: 0; border-radius: 0; background: transparent; box-shadow: none;
+  color: var(--a-text); text-align: left; cursor: pointer; transform: none; transition: background-color var(--a-dauer-kurz) ease-out;
+}
+html[data-design='apple'] .aktion-knopf + .aktion-knopf::before { left: 56px; }
+html[data-design='apple'] .aktion-knopf:hover { background: color-mix(in srgb, var(--a-fuellung) 50%, transparent); }
+html[data-design='apple'] .aktion-knopf:active { background: var(--a-fuellung2); transform: none; box-shadow: none; }
+html[data-design='apple'] .aktion-knopf.aktiv { background: color-mix(in srgb, var(--a-blau) 10%, transparent); border: 0; box-shadow: none; }
+html[data-design='apple'] .aktion-knopf:focus-visible { outline: 2px solid var(--a-blau); outline-offset: -3px; }
+html[data-design='apple'] .aktion-knopf > .aktion-ikon { grid-column: 1; grid-row: 1 / span 3; }
+html[data-design='apple'] .aktion-knopf > strong { grid-column: 2; font: var(--a-body); letter-spacing: var(--a-tracking-text); color: var(--a-text); }
+html[data-design='apple'] .aktion-knopf > .leise { grid-column: 2; font: var(--a-footnote); font-weight: 400; color: var(--a-text2); }
+html[data-design='apple'] .aktion-knopf > .a-chevron { grid-column: 3; grid-row: 1 / span 3; color: var(--a-text3); }
+html[data-design='apple'] .aktion-knopf.kaputt > strong { color: var(--a-rot); }
+html[data-design='apple'] .aktion-knopf.neu { border-style: none; }
+html[data-design='apple'] .aktion-knopf.neu > strong { color: var(--a-blau); }
+html[data-design='apple'] .aktion-ikon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 7px; background: var(--a-blau); color: white; font-size: 17px; }
+html[data-design='apple'] .aktion-knopf:nth-child(5n + 2) .aktion-ikon { background: var(--a-indigo); }
+html[data-design='apple'] .aktion-knopf:nth-child(5n + 3) .aktion-ikon { background: var(--a-orange); }
+html[data-design='apple'] .aktion-knopf:nth-child(5n + 4) .aktion-ikon { background: var(--a-tuerkis); }
+html[data-design='apple'] .aktion-knopf:nth-child(5n + 5) .aktion-ikon { background: var(--a-pink); }
+html[data-design='apple'] .aktion-knopf .aktion-ikon.kaputt { background: var(--a-rot); }
+html[data-design='apple'] .aktion-knopf .aktion-ikon.neu { background: var(--a-gruen); }
+
+/* Formulare in Sheets/Karten (Aktion starten, Neue Aktion, Neues Gebäude, Spalten zuordnen) */
+html[data-design='apple'] .a-blatt-inhalt label,
+html[data-design='apple'] .neue-aktion label,
+html[data-design='apple'] .neues-gebaeude label { font: var(--a-footnote); font-weight: 500; color: var(--a-text2); gap: 6px; }
+html[data-design='apple'] .a-blatt-inhalt label.zeile-label,
+html[data-design='apple'] .neue-aktion label.zeile-label { flex-direction: row; align-items: center; gap: 10px; min-height: 40px; font: var(--a-body); color: var(--a-text); }
+html[data-design='apple'] .a-blatt-inhalt fieldset { margin: 0; padding: 6px 14px 10px; border: 0; border-radius: var(--a-r-m); background: var(--a-flaeche); }
+html[data-design='apple'] .a-blatt-inhalt legend { float: left; width: 100%; padding: 8px 0 4px; font: var(--a-footnote); font-weight: 500; color: var(--a-text2); }
+html[data-design='apple'] .a-blatt-inhalt fieldset > label.zeile-label + label.zeile-label { border-top: 0.5px solid var(--a-trenner-fein); }
+html[data-design='apple'] .a-blatt-inhalt .eingabe-zeile { gap: 6px; flex-wrap: wrap; }
+html[data-design='apple'] .a-blatt-inhalt form > p.leise { font: var(--a-footnote); color: var(--a-text2); margin: 0; }
+html[data-design='apple'] .a-blatt-inhalt form button[type='submit'] { min-height: 50px; border-radius: var(--a-r-m); font: var(--a-headline); }
+html[data-design='apple'] .a-blatt-inhalt .rohtext { max-height: 40vh; overflow: auto; padding: 10px 12px; border-radius: var(--a-r-m); background: var(--a-flaeche); font: 400 0.75rem/1.45 var(--a-schrift-mono); }
+html[data-design='apple'] .neues-gebaeude.karte { background: var(--a-flaeche); border: 0; border-radius: var(--a-r-l); box-shadow: var(--a-schatten-2); padding: 16px; max-width: 520px; }
+
+/* ---------- Freigaben & Pläne ---------- */
+html[data-design='apple'] .freigaben > h3:first-child { margin-top: 0; }
+html[data-design='apple'] .freigaben > p.leise { font: var(--a-footnote); color: var(--a-text2); margin: -4px 4px 8px; }
+html[data-design='apple'] .freigabe.karte,
+html[data-design='apple'] .plan-karte.karte {
+  margin: 0 0 12px; padding: 14px 16px 16px; border: 0; border-radius: var(--a-r-l); background: var(--a-flaeche); box-shadow: var(--a-schatten-1); color: var(--a-text);
+}
+html[data-design='apple'] .freigabe > .leise:first-child,
+html[data-design='apple'] .plan-karte > .leise:first-child { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .freigabe > .leise:first-child a,
+html[data-design='apple'] .plan-karte > .leise:first-child a { color: var(--a-blau); text-decoration: none; }
+html[data-design='apple'] .freigabe h4,
+html[data-design='apple'] .plan-karte h4 { font: var(--a-headline); margin: 4px 0 8px; overflow-wrap: anywhere; }
+html[data-design='apple'] .freigabe > p { font: var(--a-subhead); }
+html[data-design='apple'] .freigabe details { margin: 8px 0; }
+html[data-design='apple'] .freigabe details > summary,
+html[data-design='apple'] .freigaben-erledigt > summary { font: var(--a-subhead); font-weight: 500; color: var(--a-blau); cursor: pointer; }
+html[data-design='apple'] .freigabe .rohtext { max-height: 40vh; overflow: auto; padding: 10px 12px; border-radius: var(--a-r-m); background: var(--a-flaeche2); font: 400 0.75rem/1.45 var(--a-schrift-mono); }
+html[data-design='apple'] .freigabe .grund { margin: 12px 0 0; font: var(--a-footnote); font-weight: 500; color: var(--a-text2); gap: 6px; }
+html[data-design='apple'] .freigabe > .werkzeuge { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0 0; }
+html[data-design='apple'] .freigabe .freigabe-ja,
+html[data-design='apple'] .freigabe .freigabe-nein {
+  min-height: 46px; border: 0; border-radius: var(--a-r-m); box-shadow: none; font: var(--a-headline); cursor: pointer; transition: transform 100ms ease-out;
+}
+html[data-design='apple'] .freigabe .freigabe-ja { background: color-mix(in srgb, var(--a-gruen) 18%, transparent); color: color-mix(in srgb, var(--a-gruen) 62%, var(--a-text)); }
+html[data-design='apple'] .freigabe .freigabe-nein { background: color-mix(in srgb, var(--a-rot) 14%, transparent); color: color-mix(in srgb, var(--a-rot) 78%, var(--a-text)); }
+html[data-design='apple'] .freigabe .freigabe-ja:not(:disabled):active,
+html[data-design='apple'] .freigabe .freigabe-nein:not(:disabled):active { transform: scale(0.97); }
+html[data-design='apple'] .freigabe .freigabe-ja:focus-visible,
+html[data-design='apple'] .freigabe .freigabe-nein:focus-visible { outline: 2px solid var(--a-blau); outline-offset: 2px; }
+html[data-design='apple'] .chatliste.getan button.rueckgaengig {
+  min-height: 30px; margin-left: 6px; padding: 3px 12px; border: 0; border-radius: var(--a-r-voll); box-shadow: none;
+  background: color-mix(in srgb, var(--a-blau) 12%, transparent); color: var(--a-blau); font: var(--a-footnote); font-weight: 600;
+}
+html[data-design='apple'] .freigaben-erledigt { margin-top: 18px; }
+html[data-design='apple'] .freigaben-erledigt > .chatliste > li { font: var(--a-subhead); }
+
+html[data-design='apple'] .plan-tabelle { width: 100%; margin: 6px 0 8px; border-collapse: separate; border-spacing: 0; border-radius: var(--a-r-m); overflow: hidden; background: var(--a-flaeche2); font: var(--a-subhead); }
+html[data-design='apple'] .plan-tabelle th { padding: 8px 10px; border: 0; border-bottom: 0.5px solid var(--a-trenner); font: var(--a-caption); font-weight: 500; text-transform: uppercase; letter-spacing: 0.02em; color: var(--a-text2); text-align: left; }
+html[data-design='apple'] .plan-tabelle td { padding: 9px 10px; border: 0; border-bottom: 0.5px solid var(--a-trenner-fein); vertical-align: top; }
+html[data-design='apple'] .plan-tabelle tr:last-child td { border-bottom: 0; }
+html[data-design='apple'] .plan-tabelle td:first-child { color: var(--a-text2); font-variant-numeric: tabular-nums; width: 1.5rem; }
+@media (max-width: 640px) {
+  html[data-design='apple'] .plan-tabelle,
+  html[data-design='apple'] .plan-tabelle tbody { display: block; }
+  html[data-design='apple'] .plan-tabelle thead { display: none; }
+  html[data-design='apple'] .plan-tabelle tr { display: grid; grid-template-columns: 1.6rem minmax(0, 1fr); padding: 9px 12px; border-bottom: 0.5px solid var(--a-trenner-fein); }
+  html[data-design='apple'] .plan-tabelle tr:last-child { border-bottom: 0; }
+  html[data-design='apple'] .plan-tabelle td { padding: 0; border: 0; }
+  html[data-design='apple'] .plan-tabelle td:nth-child(2) { font-weight: 600; }
+  html[data-design='apple'] .plan-tabelle td:nth-child(n + 3) { grid-column: 2; font: var(--a-footnote); color: var(--a-text2); }
+}
+
+/* ---------- Uni: Fristen (Liste), Fächer (Karten mit Ring), Karteikarten, Noten, Prüfungen ---------- */
+html[data-design='apple'] .uni > h2 { font: var(--a-title3); margin: 28px 0 10px; }
+html[data-design='apple'] .uni > h2:first-child { margin-top: 0; }
+html[data-design='apple'] .uni > p:not(.fehler) { font: var(--a-footnote); color: var(--a-text2); margin: 6px 4px 10px; }
+html[data-design='apple'] .uni > p:not(.leise):not(.fehler) { font: var(--a-subhead); color: var(--a-text); }
+html[data-design='apple'] .uni > p a { color: var(--a-blau); text-decoration: none; }
+html[data-design='apple'] table.fristen,
+html[data-design='apple'] table.fristen tbody { display: block; }
+html[data-design='apple'] table.fristen { margin: 0 0 8px; background: var(--a-flaeche); border-radius: var(--a-r-m); overflow: hidden; }
+html[data-design='apple'] table.fristen thead { display: none; }
+html[data-design='apple'] table.fristen tr {
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'was status' 'wann status' 'fach status';
+  column-gap: 12px; padding: 10px 16px; align-items: center;
+}
+html[data-design='apple'] table.fristen td { display: block; padding: 0; border: 0; }
+html[data-design='apple'] table.fristen td:nth-child(1) { grid-area: wann; font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] table.fristen td:nth-child(1) > .leise { display: inline; font: inherit; }
+html[data-design='apple'] table.fristen td:nth-child(1) > .leise::before { content: ' · '; }
+html[data-design='apple'] table.fristen td:nth-child(2) { grid-area: was; font: var(--a-body); }
+html[data-design='apple'] table.fristen td:nth-child(2) a { color: var(--a-text); text-decoration: none; }
+html[data-design='apple'] table.fristen td:nth-child(2) a[target] { color: var(--a-blau); }
+html[data-design='apple'] table.fristen td:nth-child(2) .abzeichen { margin-right: 4px; }
+html[data-design='apple'] table.fristen td:nth-child(3) { grid-area: fach; font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] table.fristen td:nth-child(4) { grid-area: status; }
+html[data-design='apple'] table.fristen tr.dringend td:first-child { color: var(--a-rot); font-weight: 600; }
+html[data-design='apple'] table.fristen tr.laeuft td:first-child { color: color-mix(in srgb, var(--a-gruen) 70%, var(--a-text)); font-weight: 600; }
+html[data-design='apple'] table.fristen tr.erledigt { opacity: 0.5; }
+html[data-design='apple'] .uni .haken { gap: 8px; font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .uni form.zeile { gap: 8px; margin: 10px 0; }
+html[data-design='apple'] .uni > details { margin: 6px 0; font: var(--a-subhead); }
+
+html[data-design='apple'] .fach-karten { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin: 8px 0 12px; }
+html[data-design='apple'] .fach-karte.karte {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; align-content: start; margin: 0; padding: 16px;
+  border: 0; border-radius: var(--a-r-l); background: var(--a-flaeche); box-shadow: var(--a-schatten-1); color: var(--a-text);
+}
+html[data-design='apple'] .fach-karte > * { grid-column: 1 / -1; }
+html[data-design='apple'] .fach-karte > .a-ring { grid-column: 2; grid-row: 1 / span 2; align-self: start; }
+html[data-design='apple'] .fach-karte > h3,
+html[data-design='apple'] .fach-karte > .fach-frist,
+html[data-design='apple'] .fach-karte > h3 + p.leise { grid-column: 1; }
+html[data-design='apple'] .fach-karte h3 { margin: 0 0 6px; font: var(--a-headline); letter-spacing: var(--a-tracking-text); }
+html[data-design='apple'] .fach-karte h3 a { color: var(--a-text); text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+html[data-design='apple'] .fach-karte h3 .a-symbol { color: var(--a-blau); }
+html[data-design='apple'] .fach-karte .fach-frist { margin: 0 0 10px; font: var(--a-subhead); }
+html[data-design='apple'] .fach-karte .fach-frist .leise { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .fach-karte .fach-frist.dringend { color: var(--a-rot); }
+html[data-design='apple'] .fach-karte > p.leise { font: var(--a-footnote); color: var(--a-text2); margin: 0 0 10px; }
+html[data-design='apple'] .fach-zahlen { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin: 0 0 10px; font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .fach-zahlen > span,
+html[data-design='apple'] .fach-zahlen > a { display: inline-flex; align-items: center; gap: 4px; }
+html[data-design='apple'] .fach-zahlen a { color: var(--a-blau); text-decoration: none; }
+html[data-design='apple'] .fach-karte .fach-lernziel-balken { display: none; }
+html[data-design='apple'] .fach-karte .fach-lernziel { margin: 0 0 10px; }
+html[data-design='apple'] .fach-karte .fach-lernziel .leise { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .fach-karte .fach-lernziel.erreicht .leise { color: color-mix(in srgb, var(--a-gruen) 65%, var(--a-text)); }
+html[data-design='apple'] .fach-karte > .zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 2px; padding-top: 12px; border-top: 0.5px solid var(--a-trenner-fein); }
+html[data-design='apple'] .fach-karte > .zeile button.klein,
+html[data-design='apple'] .fach-karte > .zeile button:not(.haupt) {
+  min-height: 32px; padding: 4px 12px; border: 0; border-radius: var(--a-r-voll); box-shadow: none;
+  background: color-mix(in srgb, var(--a-blau) 12%, transparent); color: var(--a-blau); font: var(--a-footnote); font-weight: 600;
+}
+html[data-design='apple'] .fach-karte > .zeile button.haupt { min-height: 32px; padding: 4px 16px; border-radius: var(--a-r-voll); font: var(--a-subhead); font-weight: 600; }
+html[data-design='apple'] .fach-karte > .zeile > a { font: var(--a-footnote); color: var(--a-blau); text-decoration: none; }
+html[data-design='apple'] .fach-karte .fach-ziel-form { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
+html[data-design='apple'] .fach-karte .fach-ziel-form input { width: 5.5rem; }
+html[data-design='apple'] .karten .fach-zahlen { flex-direction: column; align-items: flex-start; gap: 2px; }
+html[data-design='apple'] .karten .fach-zahlen strong { font: 700 2rem/1.1 var(--a-schrift-rund); color: var(--a-text); font-variant-numeric: tabular-nums; }
+
+html[data-design='apple'] .karten-lernen > .zeile { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+html[data-design='apple'] .karten-lernen > .zeile > strong { font: var(--a-headline); display: inline-flex; align-items: center; gap: 6px; }
+html[data-design='apple'] .karten-lernen > .zeile > .leise { font: var(--a-footnote); color: var(--a-text2); margin-left: auto; font-variant-numeric: tabular-nums; }
+html[data-design='apple'] .karten-lernen .karten-zurueck {
+  display: inline-flex; align-items: center; gap: 2px; min-height: 44px; margin-left: -6px; padding: 0 8px 0 4px; border: 0; background: none; box-shadow: none;
+  color: var(--a-blau); font: var(--a-body); cursor: pointer;
+}
+html[data-design='apple'] .karten-lernen .karten-zurueck:active { opacity: 0.4; transform: none; }
+html[data-design='apple'] .karteikarte-wende { max-width: 640px; margin: 10px auto 0; perspective: 1600px; animation: a-wissen-mitte var(--a-dauer) var(--a-feder) both; }
+html[data-design='apple'] .karteikarte-innen { display: grid; transform-style: preserve-3d; transition: transform 700ms var(--a-feder); }
+html[data-design='apple'] .karteikarte-wende.gewendet .karteikarte-innen { transform: rotateY(180deg); }
+html[data-design='apple'] .karteikarte-seite {
+  grid-area: 1 / 1; display: flex; flex-direction: column; gap: 14px; min-height: 320px; padding: 26px 24px 20px;
+  border-radius: var(--a-r-xl); background: var(--a-flaeche); box-shadow: var(--a-schatten-2); color: var(--a-text);
+  -webkit-backface-visibility: hidden; backface-visibility: hidden;
+}
+html[data-design='apple'] .karteikarte-seite.hinten { transform: rotateY(180deg); }
+html[data-design='apple'] .karteikarte-seite > .abzeichen { align-self: flex-start; }
+html[data-design='apple'] .karteikarte-seite .karten-frage { flex: 1; display: grid; place-items: center; text-align: center; font: var(--a-title2); letter-spacing: var(--a-tracking-gross); }
+html[data-design='apple'] .karteikarte-seite .karten-frage.klein { flex: none; font: var(--a-subhead); letter-spacing: 0; color: var(--a-text2); padding-bottom: 12px; border-bottom: 0.5px solid var(--a-trenner); }
+html[data-design='apple'] .karteikarte-seite .karten-antwort { flex: 1; display: grid; place-items: center; text-align: center; font: var(--a-title3); }
+html[data-design='apple'] .karteikarte-seite .markdown,
+html[data-design='apple'] .karteikarte-seite .markdown :is(p, li) { font: inherit; letter-spacing: inherit; }
+html[data-design='apple'] .karteikarte-seite .markdown > :first-child { margin-top: 0; }
+html[data-design='apple'] .karteikarte-seite .markdown > :last-child { margin-bottom: 0; }
+html[data-design='apple'] .karteikarte-seite > button.haupt { align-self: center; min-width: 220px; min-height: 50px; border-radius: var(--a-r-m); font: var(--a-headline); }
+html[data-design='apple'] .karteikarte-seite > button.haupt .leise { color: inherit; opacity: 0.7; font: var(--a-footnote); }
+html[data-design='apple'] .karteikarte-seite .karten-knoepfe { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 0; }
+html[data-design='apple'] .karteikarte-seite .karten-knoepfe button {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-height: 54px; padding: 6px 4px;
+  border: 0; border-radius: var(--a-r-m); box-shadow: none; font: var(--a-headline); cursor: pointer; transition: transform 100ms ease-out;
+}
+html[data-design='apple'] .karteikarte-seite .karten-knoepfe button .leise { font: var(--a-caption2); color: inherit; opacity: 0.7; }
+html[data-design='apple'] .karteikarte-seite .karten-knoepfe button:active { transform: scale(0.96); }
+html[data-design='apple'] .karteikarte-seite .karten-nochmal { background: color-mix(in srgb, var(--a-rot) 14%, transparent); color: color-mix(in srgb, var(--a-rot) 80%, var(--a-text)); }
+html[data-design='apple'] .karteikarte-seite .karten-schwer { background: color-mix(in srgb, var(--a-orange) 16%, transparent); color: color-mix(in srgb, var(--a-orange) 60%, var(--a-text)); }
+html[data-design='apple'] .karteikarte-seite .karten-gut { background: color-mix(in srgb, var(--a-blau) 13%, transparent); color: color-mix(in srgb, var(--a-blau) 85%, var(--a-text)); }
+html[data-design='apple'] .karteikarte-seite .karten-leicht { background: color-mix(in srgb, var(--a-gruen) 17%, transparent); color: color-mix(in srgb, var(--a-gruen) 60%, var(--a-text)); }
+html[data-design='apple'] .karten-ende.karte { max-width: 640px; margin: 10px auto; padding: 32px 24px; border: 0; border-radius: var(--a-r-xl); background: var(--a-flaeche); box-shadow: var(--a-schatten-1); text-align: center; font: var(--a-title3); }
+@media (max-width: 520px) {
+  html[data-design='apple'] .karteikarte-seite { min-height: 280px; padding: 22px 16px 16px; }
+  html[data-design='apple'] .karteikarte-seite .karten-knoepfe { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+html[data-design='apple'] .noten { gap: 14px; }
+html[data-design='apple'] .noten .statistik-kacheln { gap: 12px; }
+html[data-design='apple'] .noten .statistik-kachel { padding: 14px 16px; border: 0; border-radius: var(--a-r-l); background: var(--a-flaeche); box-shadow: var(--a-schatten-1); }
+html[data-design='apple'] .noten .statistik-kachel-titel { font: var(--a-footnote); font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--a-text2); }
+html[data-design='apple'] .noten .statistik-kachel-wert { font: 700 2rem/1.1 var(--a-schrift-rund); letter-spacing: var(--a-tracking-gross); color: var(--a-text); }
+html[data-design='apple'] .noten .statistik-kachel-unter { font: var(--a-caption); color: var(--a-text2); }
+html[data-design='apple'] .noten .wochenziele-balken { height: 6px; border: 0; border-radius: var(--a-r-voll); background: var(--a-fuellung); overflow: hidden; }
+html[data-design='apple'] .noten .wochenziele-balken > span { display: block; height: 100%; border-radius: inherit; background: var(--a-blau); transition: width 600ms var(--a-feder-ruhig); }
+html[data-design='apple'] .noten .statistik-tabelle { background: var(--a-flaeche); border-radius: var(--a-r-m); }
+html[data-design='apple'] .noten .statistik-tabelle th { padding: 10px 12px 6px; border-bottom: 0.5px solid var(--a-trenner); font: var(--a-caption); font-weight: 500; text-transform: uppercase; letter-spacing: 0.02em; color: var(--a-text2); }
+html[data-design='apple'] .noten .statistik-tabelle td { padding: 8px 12px; border-bottom: 0.5px solid var(--a-trenner-fein); font: var(--a-subhead); }
+html[data-design='apple'] .noten .statistik-tabelle tbody tr:last-child td { border-bottom: 0; }
+html[data-design='apple'] .noten-fach { font-weight: 600; }
+html[data-design='apple'] .noten-weg button.klein { display: inline-grid; place-items: center; width: 30px; height: 30px; min-height: 30px; padding: 0; border: 0; border-radius: 50%; background: var(--a-fuellung); color: var(--a-text2); box-shadow: none; }
+html[data-design='apple'] .noten-neu { display: flex; gap: 8px; align-items: center; }
+html[data-design='apple'] .noten-neu button.haupt { width: 38px; min-width: 38px; height: 38px; min-height: 38px; padding: 0; border-radius: 50%; font: 600 1.25rem/1 var(--a-schrift); }
+@media (max-width: 760px) {
+  html[data-design='apple'] .noten .statistik-tabelle tbody tr { position: relative; border-bottom: 0.5px solid var(--a-trenner-fein); }
+  html[data-design='apple'] .noten .statistik-tabelle td { border: 0; }
+}
+
+html[data-design='apple'] .pruefungen { gap: 12px; }
+html[data-design='apple'] .pruefung.karte { margin: 0; padding: 16px; border: 0; border-radius: var(--a-r-l); background: var(--a-flaeche); box-shadow: var(--a-schatten-1); color: var(--a-text); }
+html[data-design='apple'] .pruefung-kopf { gap: 14px; }
+html[data-design='apple'] .pruefung-tage { min-width: 60px; height: 60px; padding: 4px; border: 0; border-radius: 16px; background: color-mix(in srgb, var(--a-blau) 12%, transparent); color: var(--a-blau); }
+html[data-design='apple'] .pruefung-tage strong { font: 700 1.6rem/1 var(--a-schrift-rund); font-variant-numeric: tabular-nums; }
+html[data-design='apple'] .pruefung-tage span { font: var(--a-caption2); font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+html[data-design='apple'] .pruefung.bald .pruefung-tage { border: 0; background: color-mix(in srgb, var(--a-rot) 13%, transparent); color: color-mix(in srgb, var(--a-rot) 85%, var(--a-text)); }
+html[data-design='apple'] .pruefung-kopf h3 { margin: 0; font: var(--a-headline); display: flex; align-items: center; gap: 6px; }
+html[data-design='apple'] .pruefung-kopf p { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .pruefung-stand { margin: 12px 0; gap: 0; border-radius: var(--a-r-m); background: var(--a-flaeche2); overflow: hidden; }
+html[data-design='apple'] .pruefung-stand > li { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-height: 40px; padding: 8px 12px; font: var(--a-subhead); }
+html[data-design='apple'] .pruefung-stand > li + li { border-top: 0.5px solid var(--a-trenner-fein); }
+html[data-design='apple'] .pruefung-stand > li > .leise { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .pruefung > .zeile { gap: 8px; flex-wrap: wrap; }
+html[data-design='apple'] .pruefung > .zeile button.klein:not(.haupt) { border: 0; box-shadow: none; border-radius: var(--a-r-voll); background: color-mix(in srgb, var(--a-blau) 12%, transparent); color: var(--a-blau); font: var(--a-footnote); font-weight: 600; min-height: 32px; padding: 4px 12px; }
+html[data-design='apple'] .pruefung > .zeile button.haupt { border-radius: var(--a-r-voll); min-height: 32px; padding: 4px 14px; font: var(--a-footnote); font-weight: 600; }
+html[data-design='apple'] .pruefung > .zeile > a { font: var(--a-footnote); color: var(--a-blau); text-decoration: none; }
+
+/* ---------- Post (Mail-Liste) ---------- */
+html[data-design='apple'] .post > .zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 10px; }
+html[data-design='apple'] .post > .zeile > .leise { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .mailliste { background: var(--a-flaeche); border-radius: var(--a-r-m); overflow: hidden; }
+html[data-design='apple'] .mailliste > li { position: relative; gap: 2px; padding: 11px 16px 11px 30px; border: 0; }
+html[data-design='apple'] .mailliste > li + li::before { left: 30px; }
+html[data-design='apple'] .mailliste > li.wichtig::after { content: ''; position: absolute; left: 11px; top: 17px; width: 10px; height: 10px; border-radius: 50%; background: var(--a-blau); }
+html[data-design='apple'] .mailliste > li > div:nth-child(2) { order: -1; display: flex; flex-direction: column; gap: 1px; }
+html[data-design='apple'] .mailliste > li > div:nth-child(2) strong,
+html[data-design='apple'] .mailliste li.wichtig strong { font: var(--a-headline); color: var(--a-text); }
+html[data-design='apple'] .mailliste > li > div:nth-child(2) .leise { font: var(--a-subhead); color: var(--a-text2); }
+html[data-design='apple'] .mailliste > li > .kopf { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font: var(--a-caption); color: var(--a-text2); }
+html[data-design='apple'] .mailliste > li > .kopf > .leise { font: inherit; }
+html[data-design='apple'] .mailliste > li > div:nth-child(3):not(.zeile) { font: var(--a-subhead); color: var(--a-text2); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+html[data-design='apple'] .mailliste > li > .zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 4px; font: var(--a-footnote); }
+html[data-design='apple'] .mailliste > li > .zeile a { color: var(--a-blau); text-decoration: none; }
+html[data-design='apple'] .mailliste .als-todo {
+  min-height: 28px; padding: 2px 10px; border: 0; border-radius: var(--a-r-voll); box-shadow: none;
+  background: color-mix(in srgb, var(--a-blau) 12%, transparent); color: var(--a-blau); font: var(--a-footnote); font-weight: 600;
+}
+html[data-design='apple'] .mailliste .plus { color: color-mix(in srgb, var(--a-gruen) 65%, var(--a-text)); display: inline-flex; align-items: center; gap: 4px; }
+
+/* ---------- Bank (Wallet-Übersicht) ---------- */
+html[data-design='apple'] .bank-kopf { gap: 10px; margin-bottom: 14px; }
+html[data-design='apple'] .bank-wallet { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: 'rest rest' 'ein aus'; gap: 12px; margin-bottom: 18px; }
+html[data-design='apple'] .bank-kachel { gap: 4px; padding: 14px 16px; border: 0; border-radius: var(--a-r-l); background: var(--a-flaeche); box-shadow: var(--a-schatten-1); }
+html[data-design='apple'] .bank-wallet > .bank-kachel:nth-child(1) { grid-area: ein; }
+html[data-design='apple'] .bank-wallet > .bank-kachel:nth-child(2) { grid-area: aus; }
+html[data-design='apple'] .bank-wallet > .bank-kachel:nth-child(3) {
+  grid-area: rest; min-height: 128px; justify-content: flex-end; padding: 18px 20px; border-radius: var(--a-r-xl);
+  background: linear-gradient(135deg, var(--a-indigo), var(--a-blau)); color: white; box-shadow: var(--a-schatten-2);
+}
+html[data-design='apple'] .bank-kachel > .leise { font: var(--a-footnote); font-weight: 500; color: var(--a-text2); }
+html[data-design='apple'] .bank-wallet > .bank-kachel:nth-child(3) > .leise { color: rgb(255 255 255 / 0.8); }
+html[data-design='apple'] .bank-kachel strong { font: 700 1.375rem/1.15 var(--a-schrift-rund); letter-spacing: var(--a-tracking-gross); font-variant-numeric: tabular-nums; color: var(--a-text); }
+html[data-design='apple'] .bank-kachel strong.plus { color: color-mix(in srgb, var(--a-gruen) 65%, var(--a-text)); }
+html[data-design='apple'] .bank-wallet > .bank-kachel:nth-child(3) strong,
+html[data-design='apple'] .bank-wallet > .bank-kachel:nth-child(3) strong.plus,
+html[data-design='apple'] .bank-wallet > .bank-kachel:nth-child(3) strong.minus { font-size: 2.125rem; color: white; }
+html[data-design='apple'] .bank h3 { font: var(--a-title3); margin: 26px 0 10px; }
+html[data-design='apple'] .bank > p.leise { font: var(--a-footnote); color: var(--a-text2); margin: 4px 4px 10px; }
+html[data-design='apple'] .bank > p.leise a { color: var(--a-blau); text-decoration: none; }
+html[data-design='apple'] .bank-balken { gap: 0; margin: 0 0 8px; padding: 4px 16px; background: var(--a-flaeche); border-radius: var(--a-r-m); }
+html[data-design='apple'] .bank-balken > li { gap: 12px; padding: 10px 0; font: var(--a-subhead); }
+html[data-design='apple'] .bank-balken > li + li { border-top: 0.5px solid var(--a-trenner-fein); }
+html[data-design='apple'] .bank-kategorie { font-weight: 500; }
+html[data-design='apple'] .bank-leiste { height: 8px; border: 0; border-radius: var(--a-r-voll); background: var(--a-fuellung); }
+html[data-design='apple'] .bank-leiste > span { background: var(--a-blau); border-radius: inherit; transition: width 600ms var(--a-feder-ruhig); }
+html[data-design='apple'] .bank-leiste > span.gut { background: var(--a-gruen); }
+html[data-design='apple'] .bank-leiste > span.knapp { background: var(--a-orange); }
+html[data-design='apple'] .bank-leiste > span.voll { background: var(--a-rot); }
+html[data-design='apple'] .bank-betrag { font-variant-numeric: tabular-nums; }
+html[data-design='apple'] .bank-betrag .leise { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .bank .plus { color: color-mix(in srgb, var(--a-gruen) 65%, var(--a-text)); }
+html[data-design='apple'] .bank .minus { color: var(--a-rot); }
+html[data-design='apple'] .bank > details { margin: 12px 0; background: var(--a-flaeche); border-radius: var(--a-r-m); overflow: hidden; }
+html[data-design='apple'] .bank > details > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; min-height: 44px; padding: 0 16px; font: var(--a-body); color: var(--a-text); cursor: pointer; }
+html[data-design='apple'] .bank > details > summary::-webkit-details-marker { display: none; }
+html[data-design='apple'] .bank > details > summary::after { content: ''; width: 7px; height: 7px; border-right: 2px solid var(--a-text3); border-bottom: 2px solid var(--a-text3); transform: rotate(-45deg); transition: transform var(--a-dauer) var(--a-feder); }
+html[data-design='apple'] .bank > details[open] > summary::after { transform: rotate(45deg); }
+html[data-design='apple'] .bank > details > .chatliste,
+html[data-design='apple'] .bank > details > .tabelle { margin: 0; border-radius: 0; border-top: 0.5px solid var(--a-trenner); }
+html[data-design='apple'] .bank > details > p.leise { margin: 8px 16px 12px; font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .bank-buchungen { margin: 0; font: var(--a-subhead); }
+html[data-design='apple'] .bank-buchungen th { padding: 8px 12px; border: 0; border-bottom: 0.5px solid var(--a-trenner); font: var(--a-caption); font-weight: 500; text-transform: uppercase; letter-spacing: 0.02em; color: var(--a-text2); }
+html[data-design='apple'] .bank-buchungen td { padding: 8px 12px; border: 0; border-bottom: 0.5px solid var(--a-trenner-fein); vertical-align: top; }
+html[data-design='apple'] .bank-buchungen td .leise { font: var(--a-caption); color: var(--a-text2); }
+@media (max-width: 760px) {
+  html[data-design='apple'] .bank-kachel strong { font-size: 1.125rem; }
+  html[data-design='apple'] .bank-wallet > .bank-kachel:nth-child(3) strong { font-size: 1.75rem; }
+  html[data-design='apple'] .bank-balken > li { grid-template-columns: 6.5rem minmax(0, 1fr) auto; }
+  html[data-design='apple'] .bank > details { overflow-x: auto; }
+}
+
+/* ---------- Corpshaus, Atelier, Codehaus (Übersichten) ---------- */
+html[data-design='apple'] .codehaus > p:not(.leise):not(.fehler):not(.karte) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font: var(--a-subhead); }
+html[data-design='apple'] .codehaus > p > .leise,
+html[data-design='apple'] .codehaus > p.leise { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .codehaus > p a:not(.knopf) { color: var(--a-blau); text-decoration: none; }
+html[data-design='apple'] .codehaus > .karte,
+html[data-design='apple'] .geb-inhalt > p.karte { padding: 14px 16px; border: 0; border-radius: var(--a-r-m); background: color-mix(in srgb, var(--a-orange) 12%, var(--a-flaeche)); box-shadow: none; font: var(--a-subhead); color: var(--a-text); }
+html[data-design='apple'] .projekte-liste > li > strong { font: var(--a-headline); }
+html[data-design='apple'] .projekte-liste > li > .leise { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+html[data-design='apple'] .projekte-liste > li > .leise button.klein {
+  min-height: 26px; padding: 2px 10px; border: 0; border-radius: var(--a-r-voll); box-shadow: none;
+  background: color-mix(in srgb, var(--a-blau) 12%, transparent); color: var(--a-blau); font: var(--a-caption); font-weight: 600;
+}
+
+html[data-design='apple'] .atelier-start { margin: 0 0 8px; }
+html[data-design='apple'] .atelier-start .knopf,
+html[data-design='apple'] .geb-bilder > p > .knopf { display: inline-flex; align-items: center; gap: 8px; }
+html[data-design='apple'] .geb-bilder > p.leise { font: var(--a-footnote); color: var(--a-text2); margin: 4px 4px 12px; }
+html[data-design='apple'] .geb-bilder > p:not(.leise) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+html[data-design='apple'] .geb-bilder > p > .leise { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .atelier-stand { margin: 8px 0 12px; padding: 0; list-style: none; background: var(--a-flaeche); border-radius: var(--a-r-m); overflow: hidden; }
+html[data-design='apple'] .atelier-stand > li { position: relative; padding: 11px 16px; font: var(--a-subhead); color: var(--a-text); }
+html[data-design='apple'] .atelier-bilder { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+html[data-design='apple'] .atelier-bilder a {
+  gap: 2px; padding: 6px 6px 8px; border: 0; border-radius: var(--a-r-m); background: var(--a-flaeche); box-shadow: var(--a-schatten-1);
+  color: var(--a-text); transition: transform 100ms ease-out, box-shadow var(--a-dauer) var(--a-feder-ruhig);
+}
+html[data-design='apple'] .atelier-bilder a:hover { border: 0; box-shadow: var(--a-schatten-2); }
+html[data-design='apple'] .atelier-bilder a:active { transform: scale(0.97); }
+html[data-design='apple'] .atelier-bilder a:focus-visible { outline: 2px solid var(--a-blau); outline-offset: 2px; }
+html[data-design='apple'] .atelier-bilder img,
+html[data-design='apple'] .atelier-bilder .datei-symbol {
+  height: 7rem; border-radius: 8px; color: var(--a-text2);
+  background: repeating-conic-gradient(var(--a-flaeche) 0 25%, var(--a-flaeche2) 0 50%) 0 0 / 14px 14px;
+}
+html[data-design='apple'] .atelier-bilder strong { padding: 4px 2px 0; font: var(--a-footnote); font-weight: 600; }
+html[data-design='apple'] .atelier-bilder .leise { padding: 0 2px; font: var(--a-caption); color: var(--a-text2); }
+
+/* ---------- Anleitung (Lesetext) ---------- */
+html[data-design='apple'] .anleitung.karte {
+  max-width: var(--a-lesebreite); margin: 0 auto 24px; padding: 28px 32px 32px; border: 0; border-radius: var(--a-r-xl);
+  background: var(--a-flaeche); box-shadow: var(--a-schatten-1); color: var(--a-text); font: var(--a-body); line-height: 1.55;
+}
+html[data-design='apple'] .anleitung h1 { font: var(--a-large-title); letter-spacing: var(--a-tracking-gross); margin: 0 0 6px; }
+html[data-design='apple'] .anleitung > p.leise { font: var(--a-subhead); color: var(--a-text2); margin: 0 0 8px; }
+html[data-design='apple'] .anleitung h2 { display: flex; align-items: center; gap: 10px; margin: 30px 0 8px; font: var(--a-title3); letter-spacing: var(--a-tracking-text); }
+html[data-design='apple'] .anleitung h2 .a-symbol { width: 28px; height: 28px; padding: 5px; border-radius: 8px; background: color-mix(in srgb, var(--a-blau) 12%, transparent); color: var(--a-blau); }
+html[data-design='apple'] .anleitung ol,
+html[data-design='apple'] .anleitung ul { padding-left: 1.3em; }
+html[data-design='apple'] .anleitung li { margin: 6px 0; }
+html[data-design='apple'] .anleitung li::marker { color: var(--a-text2); }
+html[data-design='apple'] .anleitung b { font-weight: 600; }
+html[data-design='apple'] .anleitung a { color: var(--a-blau); text-decoration: none; }
+html[data-design='apple'] .anleitung a:hover { text-decoration: underline; }
+@media (max-width: 600px) { html[data-design='apple'] .anleitung.karte { padding: 20px 18px 24px; border-radius: var(--a-r-l); } }
+
+/* ---------- Weniger Bewegung: Überblenden statt Gleiten/Drehen ---------- */
+@media (prefers-reduced-motion: reduce) {
+  html[data-design='apple'] .datei-seitenleiste,
+  html[data-design='apple'] .nachricht,
+  html[data-design='apple'] .karteikarte-wende { animation-name: a-wissen-ueberblenden; animation-duration: 180ms; }
+  html[data-design='apple'] .nachricht.laufend .lauf-kopf::before { animation: none; }
+  html[data-design='apple'] .karteikarte-innen { transition: none; }
+  html[data-design='apple'] .karteikarte-wende.gewendet .karteikarte-innen { transform: none; }
+  html[data-design='apple'] .karteikarte-seite.hinten { transform: none; animation: a-wissen-ueberblenden 200ms ease both; }
+  html[data-design='apple'] .karteikarte-wende.gewendet .karteikarte-seite.vorne { visibility: hidden; }
+  html[data-design='apple'] .baum-symbol,
+  html[data-design='apple'] .a-ring-wert { transition: none; }
+}

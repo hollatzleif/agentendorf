@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { Anschluss, GewohnheitStand, NotenStand, TodoInfo, WochenzieleStand } from '@dorf/shared';
 import { api } from '../api';
 import { linkKlick } from '../router';
+import { Ikon } from '../apple/Ikon';
 
 /**
  * Erste Schritte (Nacht 18./19.11.): die neuen Bausteine einmal ausprobieren. Jeder Punkt hakt sich von selbst ab,
@@ -35,7 +36,7 @@ export function ErsteSchritte() {
     <section className="karte heute-karte erste-schritte" aria-label="Erste Schritte">
       <div className="heute-karte-kopf">
         <h2>
-          🚀 Erste Schritte <span className="wochenziele-stand">{schritte.length - offen}/{schritte.length}</span>
+          <Ikon e="🚀" /> Erste Schritte <span className="wochenziele-stand">{schritte.length - offen}/{schritte.length}</span>
         </h2>
         <button
           type="button"
@@ -54,7 +55,9 @@ export function ErsteSchritte() {
       <ul className="erste-schritte-liste">
         {schritte.map(([fertig, symbol, text, ziel]) => (
           <li key={text} className={fertig ? 'fertig' : ''}>
-            <span aria-hidden>{fertig ? '✅' : symbol}</span>{' '}
+            <span aria-hidden>
+              <Ikon e={fertig ? '✅' : symbol} />
+            </span>{' '}
             {fertig ? (
               <span>{text}</span>
             ) : ziel.startsWith('#') ? (

@@ -4,6 +4,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import type { TerminalEingabe, TerminalMeldung } from '@dorf/shared';
 import type { Thema } from './monaco';
+import { istApple, useDesign } from '../apple/design';
 
 /**
  * Terminal im Editor (E197): xterm.js (MIT) ↔ WebSocket zum Dorf (/api/coding/terminal, Sitzung + Herkunft wie /api/live)
@@ -17,6 +18,19 @@ const FARBEN: Record<Thema, NonNullable<ConstructorParameters<typeof Terminal>[0
   },
   dunkel: { background: '#1b2538', foreground: '#e8edf5', cursor: '#f2b51e', cursorAccent: '#1b2538', selectionBackground: '#3d5a8a' },
 };
+/** E240: Apple-Oberfläche – Farben wie das Editor-Thema apple-hell/-dunkel (an Terminal.app/Xcode angelehnt, eigene Werte) */
+const APPLE_FARBEN: typeof FARBEN = {
+  hell: {
+    background: '#ffffff', foreground: '#1d1d1f', cursor: '#007aff', cursorAccent: '#ffffff', selectionBackground: '#b3d6ff',
+    black: '#1d1d1f', red: '#c4261d', green: '#248a3d', yellow: '#9a6a00', blue: '#0a5fc4', magenta: '#a2328f', cyan: '#1b7f8a', white: '#8e8e93',
+    brightBlack: '#6c6c72', brightRed: '#e0392f', brightGreen: '#2fa14a', brightYellow: '#b07a00', brightBlue: '#007aff', brightMagenta: '#b84aa6', brightCyan: '#2a95a1', brightWhite: '#3a3a3c',
+  },
+  dunkel: {
+    background: '#1e1e22', foreground: '#dedee3', cursor: '#0a84ff', cursorAccent: '#1e1e22', selectionBackground: '#3f5a86',
+    black: '#3a3a40', red: '#ff6a5f', green: '#5fd17a', yellow: '#e4c96b', blue: '#5aa8ff', magenta: '#f562a5', cyan: '#62d4fb', white: '#dedee3',
+    brightBlack: '#7d8994', brightRed: '#ff8a80', brightGreen: '#7ee095', brightYellow: '#f2d98a', brightBlue: '#82bdff', brightMagenta: '#ff86bd', brightCyan: '#8ee2ff', brightWhite: '#ffffff',
+  },
+};
 
 export function TerminalFeld({ projekt, thema, sichtbar }: { projekt: string; thema: Thema; sichtbar: boolean }) {
   const kasten = useRef<HTMLDivElement>(null);
@@ -25,10 +39,11 @@ export function TerminalFeld({ projekt, thema, sichtbar }: { projekt: string; th
   const [zustand, setZustand] = useState<'verbinde' | 'bereit' | 'beendet'>('verbinde');
   const [fehler, setFehler] = useState('');
   const [runde, setRunde] = useState(0);
+  const farben = useDesign() === 'apple' ? APPLE_FARBEN : FARBEN;
 
   useEffect(() => {
     const el = kasten.current!;
-    const t = new Terminal({ fontSize: 13, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace', cursorBlink: true, scrollback: 5000, theme: FARBEN[thema], allowProposedApi: false });
+    const t = new Terminal({ fontSize: 13, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace', cursorBlink: true, scrollback: 5000, theme: (istApple() ? APPLE_FARBEN : FARBEN)[thema], allowProposedApi: false });
     const fit = new FitAddon();
     t.loadAddon(fit);
     t.open(el);
@@ -93,8 +108,8 @@ export function TerminalFeld({ projekt, thema, sichtbar }: { projekt: string; th
   }, [projekt, runde]);
 
   useEffect(() => {
-    if (term.current) term.current.options.theme = FARBEN[thema];
-  }, [thema]);
+    if (term.current) term.current.options.theme = farben[thema];
+  }, [thema, farben]);
 
   useEffect(() => {
     if (!sichtbar) return;

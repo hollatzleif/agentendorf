@@ -7,6 +7,9 @@ import { navigieren } from '../router';
 import { alleDateien, useBaum } from '../vaultHilfen';
 import { stufeText } from '../texte';
 import { NeueAktion } from './NeueAktion';
+import { useDesign } from '../apple/design';
+import { Symbol } from '../apple/Ikon';
+import { Blatt, Chevron, Em } from '../apple/wissen-teile';
 
 /** Aktionen eines Gebäudes als Knöpfe; ein Klick öffnet das Eingabeformular. */
 export function Aktionen({ gebaeude }: { gebaeude: string }) {
@@ -15,6 +18,7 @@ export function Aktionen({ gebaeude }: { gebaeude: string }) {
   const { suche } = useOrt();
   const [offen, setOffen] = useState<string | null>(() => suche.get('aktion'));
   const [neu, setNeu] = useState(false);
+  const apple = useDesign() === 'apple';
   if (q.isPending) return <p className="leise">Lade Aktionen …</p>;
   if (q.isError) return <p className="fehler">{q.error.message}</p>;
   const neuKnopf = (
@@ -25,11 +29,16 @@ export function Aktionen({ gebaeude }: { gebaeude: string }) {
         setOffen(null);
       }}
     >
+      {apple && (
+        <span className="aktion-ikon neu" aria-hidden>
+          <Symbol name="plus" />
+        </span>
+      )}
       <strong>+ Neue Aktion</strong>
       <span className="leise">eigener Skill</span>
     </button>
   );
-  const formular = neu && (
+  const neueAktion = neu && (
     <NeueAktion
       gebaeude={gebaeude}
       fertig={(id) => {
@@ -38,6 +47,15 @@ export function Aktionen({ gebaeude }: { gebaeude: string }) {
       }}
     />
   );
+  // Apple: Formulare als Sheet über der Liste (gleiche Komponenten, gleiche Handler)
+  const formular =
+    neueAktion && apple ? (
+      <Blatt titel="Neue Aktion" schliessen={() => setNeu(false)}>
+        {neueAktion}
+      </Blatt>
+    ) : (
+      neueAktion
+    );
   if (!q.data.length)
     return (
       <div className="aktionen">
@@ -61,17 +79,31 @@ export function Aktionen({ gebaeude }: { gebaeude: string }) {
             }}
             title={a.fehler ?? a.beschreibung}
           >
+            {apple && (
+              <span className={`aktion-ikon${a.fehler ? ' kaputt' : ''}`} aria-hidden>
+                <Symbol name={a.fehler ? 'warnung' : a.zeitplan ? 'uhr' : 'blitz'} />
+              </span>
+            )}
             <strong>{a.name}</strong>
             <span className="leise">
               {a.fehler ? 'fehlerhaft' : `${a.motor} · ${stufeText(a.stufe)}${a.werkzeuge.includes('web') ? ' · Web' : ''}${a.fremdinhalte ? ' · Fremdinhalte' : ''}`}
             </span>
-            {a.zeitplan && !a.fehler && <span className="leise">⏰ {a.zeitplan}{a.zeitplanJe ? ` · je ${a.zeitplanJe}` : ''}</span>}
+            {a.zeitplan && !a.fehler && <span className="leise"><Em e="⏰" /> {a.zeitplan}{a.zeitplanJe ? ` · je ${a.zeitplanJe}` : ''}</span>}
+            {apple && <Chevron />}
           </button>
         ))}
         {neuKnopf}
       </div>
       {formular}
-      {offen && q.data.some((x) => x.id === offen) && <AktionStarten key={offen} a={q.data.find((x) => x.id === offen)!} />}
+      {offen &&
+        q.data.some((x) => x.id === offen) &&
+        (apple ? (
+          <Blatt titel={q.data.find((x) => x.id === offen)!.name} schliessen={() => setOffen(null)}>
+            <AktionStarten key={offen} a={q.data.find((x) => x.id === offen)!} />
+          </Blatt>
+        ) : (
+          <AktionStarten key={offen} a={q.data.find((x) => x.id === offen)!} />
+        ))}
     </div>
   );
 }
@@ -171,11 +203,11 @@ export function AktionStarten({ a, vorgabe }: { a: AktionInfo; vorgabe?: Record<
       </p>
       {a.zeitplan && (
         <p className="leise">
-          ⏰ Läuft von selbst: {a.zeitplan}{a.zeitplanJe ? ` – einmal für jede Auswahl von „${a.zeitplanJe}“` : ''}
+          <Em e="⏰" /> Läuft von selbst: {a.zeitplan}{a.zeitplanJe ? ` – einmal für jede Auswahl von „${a.zeitplanJe}“` : ''}
           {a.naechsterLauf ? ` – nächstes Mal ${new Date(a.naechsterLauf).toLocaleString('de-AT', { timeZone: 'Europe/Vienna', weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}
         </p>
       )}
-      {a.ablage && <p className="leise">📄 Ergebnis landet in {a.ablage} (die vorige Fassung kommt ins Archiv)</p>}
+      {a.ablage && <p className="leise"><Em e="📄" /> Ergebnis landet in {a.ablage} (die vorige Fassung kommt ins Archiv)</p>}
       {fehler && <p className="fehler">{fehler}</p>}
       <button type="submit" className="haupt" disabled={laeuft}>
         {laeuft ? 'Starte …' : 'Starten'}

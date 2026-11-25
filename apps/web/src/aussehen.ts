@@ -130,7 +130,9 @@ export function aussehenAnwenden(rohEingabe: AussehenT) {
   const dunkelWunsch = schnell === 'an' ? true : schnell === 'aus' ? false : jetztDunkel(voll) || vorlageDunkel;
   // dunkel gewünscht, Vorlage hell → die dunkle Vorlage (eigene Farben gelten dann nicht); hell gewünscht, Vorlage dunkel → Spiel-Look
   const roh = dunkelWunsch && !vorlageDunkel ? { ...voll, vorlage: voll.dunkelVorlage, farben: {} } : !dunkelWunsch && vorlageDunkel ? { ...voll, vorlage: 'spiel' as const, farben: {} } : voll;
-  const a = wirksam(roh);
+  // E240: in der Apple-Oberfläche gelten die Stil-Optionen des Dorf-Designs nicht – nur hell/dunkel, Größe, Bewegung und Startseite
+  const apple = voll.design === 'apple';
+  const a = apple ? { ...AUSSEHEN_STANDARD, vorlage: roh.vorlage, groesse: roh.groesse, animationen: roh.animationen, startseite: roh.startseite, design: 'apple' as const } : wirksam(roh);
   const html = document.documentElement;
   for (const k of gesetzt) html.style.removeProperty(k);
   gesetzt = [];
@@ -139,7 +141,7 @@ export function aussehenAnwenden(rohEingabe: AussehenT) {
     gesetzt.push(k);
   };
   // Spiel-Look ohne eigene Farben = genau die Werte aus stil.css (nichts überschreiben)
-  if (a.vorlage !== 'spiel' || Object.keys(a.farben).length) for (const [k, v] of Object.entries(variablen(a))) setzen(k, v);
+  if (!apple && (a.vorlage !== 'spiel' || Object.keys(a.farben).length)) for (const [k, v] of Object.entries(variablen(a))) setzen(k, v);
   const f = farbenVon(a);
   setzen('--groesse', `${a.groesse}px`);
   html.style.lineHeight = String(a.zeilenhoehe);
@@ -166,9 +168,11 @@ export function aussehenAnwenden(rohEingabe: AussehenT) {
   d.diagramme = a.diagramme;
   d.links = a.linksUnterstrichen;
   d.ecken = a.ecken === AUSSEHEN_STANDARD.ecken ? 'standard' : 'eigen';
+  // E240: zweite Oberfläche (Apple) – alle Regeln in apple/*.css hängen an html[data-design="apple"]
+  d.design = a.design === 'apple' ? 'apple' : 'dorf';
   // eigenes CSS
   let stil = document.getElementById('dorf-eigenes-css') as HTMLStyleElement | null;
-  if (a.css.trim()) {
+  if (a.css.trim() && !apple) {
     if (!stil) {
       stil = document.createElement('style');
       stil.id = 'dorf-eigenes-css';
@@ -177,7 +181,7 @@ export function aussehenAnwenden(rohEingabe: AussehenT) {
     stil.textContent = a.css;
   } else stil?.remove();
   // Farbe der Browserleiste (Handy)
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', f.kopf);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', apple ? (d.dunkel === 'ja' ? '#000000' : '#f2f2f7') : f.kopf);
 }
 
 /** gespeichertes Aussehen sofort anwenden (main.tsx, vor dem ersten Zeichnen) */

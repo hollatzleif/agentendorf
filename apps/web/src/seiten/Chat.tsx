@@ -8,6 +8,8 @@ import { Markdown } from '../komponenten/Markdown';
 import { laufStatusText, stufeText } from '../texte';
 import { AnhangWahl, DateiKarten, DateiOeffnenKontext, dateienAus, dateienHinzufuegen, nachrichtTeilen } from '../komponenten/Anhaenge';
 import { DateiSeitenleiste } from '../komponenten/DateiSeitenleiste';
+import { useDesign } from '../apple/design';
+import { Chevron, Em, PfeilHoch, Unsichtbar } from '../apple/wissen-teile';
 
 /** `eingebettet` (E197): als Seitenleiste im Editor – ohne Rücksprung und Kopfzeilen */
 export function ChatSeite({ id, eingebettet }: { id: string; eingebettet?: boolean }) {
@@ -24,6 +26,7 @@ export function ChatSeite({ id, eingebettet }: { id: string; eingebettet?: boole
   const unten = useRef<HTMLDivElement>(null);
   const aktiv = chat.data?.laeufe.find((l) => ['wartend', 'laeuft', 'wartet_freigabe'].includes(l.status));
   const live = useLiveText(aktiv?.status === 'laeuft' ? aktiv.id : undefined);
+  const apple = useDesign() === 'apple';
 
   useEffect(() => {
     unten.current?.scrollIntoView({ block: 'end' });
@@ -96,7 +99,7 @@ export function ChatSeite({ id, eingebettet }: { id: string; eingebettet?: boole
       ) : (
         <>
           <a href={`/gebaeude/${encodeURIComponent(c.gebaeude)}?reiter=chats`} onClick={linkKlick} className="zurueck">
-            ← {c.gebaeude}
+            {apple ? <Chevron richtung="links" /> : '←'} {c.gebaeude}
           </a>
           <h1>{c.titel}</h1>
         </>
@@ -110,7 +113,7 @@ export function ChatSeite({ id, eingebettet }: { id: string; eingebettet?: boole
           {c.planId ? ' (aus einem Plan)' : ''}
         </p>
       )}
-      <p className="leise">
+      <p className="leise chat-info">
         {c.motor} · {c.modell} ({stufeText(c.stufe)})
         {c.spiegelPfad && (
           <>
@@ -155,7 +158,7 @@ export function ChatSeite({ id, eingebettet }: { id: string; eingebettet?: boole
         {(c.wartend ?? []).map((w) => (
           <div key={`w${w.id}`} className="nachricht nutzer wartend">
             <div className="leise">
-              ⏳ wartet – kommt nach dem aktuellen Schritt dran{' '}
+              <Em e="⏳" /> wartet – kommt nach dem aktuellen Schritt dran{' '}
               <button
                 type="button"
                 className="klein"
@@ -167,7 +170,7 @@ export function ChatSeite({ id, eingebettet }: { id: string; eingebettet?: boole
                     .catch((e: Error) => setFehler(e.message))
                 }
               >
-                ✕
+                <Em e="✕" />
               </button>
             </div>
             <p className="nutzertext">{w.text}</p>
@@ -204,16 +207,27 @@ export function ChatSeite({ id, eingebettet }: { id: string; eingebettet?: boole
           }}
         />
         <div className="werkzeuge">
-          <button type="submit" className="haupt" disabled={laedt || (!text.trim() && !dateien.length)}>
-            {laedt ? 'Lade hoch …' : aktiv ? 'Dazuschreiben' : 'Senden'}
+          <button type="submit" className="haupt chat-senden" disabled={laedt || (!text.trim() && !dateien.length)}>
+            {apple ? (
+              <>
+                <PfeilHoch />
+                <Unsichtbar>{laedt ? 'Lade hoch …' : aktiv ? 'Dazuschreiben' : 'Senden'}</Unsichtbar>
+              </>
+            ) : laedt ? (
+              'Lade hoch …'
+            ) : aktiv ? (
+              'Dazuschreiben'
+            ) : (
+              'Senden'
+            )}
           </button>
           <AnhangWahl dateien={dateien} setDateien={setDateien} setFehler={setFehler} />
           {aktiv && (
-            <button type="button" className="gefahr" onClick={() => api(`/api/laeufe/${aktiv.id}/abbrechen`, { body: {} }).catch((e: Error) => setFehler(e.message))}>
+            <button type="button" className="gefahr chat-abbrechen" onClick={() => api(`/api/laeufe/${aktiv.id}/abbrechen`, { body: {} }).catch((e: Error) => setFehler(e.message))}>
               Abbrechen
             </button>
           )}
-          <span className="leise">Strg/Cmd + Enter sendet · Dateien hineinziehen oder einfügen (je bis 25 MB)</span>
+          <span className="leise chat-tipp">Strg/Cmd + Enter sendet · Dateien hineinziehen oder einfügen (je bis 25 MB)</span>
         </div>
         {fehler && <p className="fehler">{fehler}</p>}
       </form>
@@ -234,7 +248,9 @@ function Nachricht({ n, anhaenge }: { n: ChatNachricht; anhaenge?: DateiKarte[] 
   if (n.rolle === 'werkzeug')
     return (
       <details className="nachricht werkzeug">
-        <summary>🔧 Werkzeuge</summary>
+        <summary>
+          <Em e="🔧" /> Werkzeuge
+        </summary>
         <pre>{n.text}</pre>
       </details>
     );

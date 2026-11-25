@@ -6,6 +6,8 @@ import { linkKlick, navigieren } from '../router';
 import { dauerText, useKirchturm } from '../komponenten/KirchturmUhr';
 import { FokusParkplatz } from '../komponenten/FokusParkplatz';
 import { FokusRauschen } from '../komponenten/FokusRauschen';
+import { E, Ring } from '../apple/tag';
+import { useDesign } from '../apple/design';
 
 /**
  * Fokus-Vollbild (/fokus): nur die Zeit, das Thema und die nötigen Knöpfe – sonst nichts. Der Pomodoro läuft im
@@ -15,6 +17,7 @@ const PHASE: Record<string, string> = { arbeit: '🍅 Fokus', kurz: '☕ Kurze P
 
 export function FokusVollbild() {
   const qc = useQueryClient();
+  const apple = useDesign() === 'apple';
   const q = useKirchturm();
   const [, neu] = useState(0);
   const [fehler, setFehler] = useState('');
@@ -64,15 +67,25 @@ export function FokusVollbild() {
   return (
     <section className={`fokus-vollbild phase-${p?.phase ?? 'aus'}`} aria-label="Fokus">
       <a href="/heute" onClick={linkKlick} className="fokus-zurueck">
-        ← Heute
+        <E e="←" /> Heute
       </a>
       {q.isError && <p className="fehler">{q.error.message}</p>}
       {p && (
         <>
-          <div className="fokus-phase">{PHASE[p.phase]}</div>
-          <div className="fokus-zeit" role="timer" aria-live="off">
-            {dauerText(Math.max(0, rest))}
-          </div>
+          <div className="fokus-phase">{apple ? (PHASE[p.phase] ?? '').replace(/^\S+ /, '') : PHASE[p.phase]}</div>
+          {apple ? (
+            // E240: Timer-Ring wie in der Uhr-App – Zeit in der Mitte
+            <div className="fokus-ring-a">
+              <Ring anteil={p.phase === 'aus' ? 0 : 1 - rest / ((p.phase === 'kurz' ? p.einstellungen.kurzMin : p.phase === 'lang' ? p.einstellungen.langMin : p.einstellungen.arbeitMin) * 60_000)} groesse={320} dicke={12} />
+              <div className="fokus-zeit" role="timer" aria-live="off">
+                {dauerText(Math.max(0, rest))}
+              </div>
+            </div>
+          ) : (
+            <div className="fokus-zeit" role="timer" aria-live="off">
+              {dauerText(Math.max(0, rest))}
+            </div>
+          )}
           {p.einstellungen.thema && <div className="fokus-thema">{p.einstellungen.thema}</div>}
           {p.phase !== 'aus' && (
             <div className="fokus-runden" aria-label={`Runde ${Math.min(p.erledigt + 1, p.einstellungen.runden)} von ${p.einstellungen.runden}`}>
@@ -84,27 +97,27 @@ export function FokusVollbild() {
           <div className="fokus-knoepfe">
             {p.phase === 'aus' && (
               <button type="button" className="haupt" onClick={() => void befehl({ befehl: 'pomodoro', aktion: 'start' })}>
-                🍅 Fokus starten
+                <E e="🍅" /> Fokus starten
               </button>
             )}
             {p.phase !== 'aus' && laeuft && (
               <button type="button" onClick={() => void befehl({ befehl: 'pomodoro', aktion: 'pause' })}>
-                ⏸ Pause
+                <E e="⏸" /> Pause
               </button>
             )}
             {p.phase !== 'aus' && !laeuft && (
               <button type="button" className="haupt" onClick={() => void befehl({ befehl: 'pomodoro', aktion: p.status === 'pause' ? 'weiter' : 'start' })}>
-                ▶ Weiter
+                <E e="▶" /> Weiter
               </button>
             )}
             {p.phase !== 'aus' && (
               <button type="button" onClick={() => void befehl({ befehl: 'pomodoro', aktion: 'stopp' })}>
-                ⏹ Stopp
+                <E e="⏹" /> Stopp
               </button>
             )}
             {p.einstellungen.todoPfad && p.phase !== 'aus' && (
               <button type="button" onClick={() => void erledigt()}>
-                ✓ To-do erledigt
+                <E e="✓" /> To-do erledigt
               </button>
             )}
           </div>

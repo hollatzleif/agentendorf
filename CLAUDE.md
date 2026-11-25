@@ -136,6 +136,10 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
   src/dorfplan.ts Etappe 5: Layout des Dorfs (DB, Version, 409 bei Konflikt, neue Gebäude automatisch platzieren) + Status (Rauch/Baustelle/Brief/Frist/Figuren)
   src/cli.ts      Verwaltung (passwort, totp-aus, sitzungen-beenden, db-sichern, vault-ergaenzen)
 apps/web        React + Vite, eigener Mini-Router (src/router.ts), TanStack Query, PWA (vite-plugin-pwa)
+  src/apple/      E240 zweite Oberfläche „Apple“ (html[data-design=apple], Einstellungen → Aussehen → Oberfläche): tokens.css (--a-* hell/dunkel),
+                  basis.css (allgemeine Bausteine, :where(…) – ersetzt nur gleich spezifische stil.css-Regeln), seiten-tag/-wissen/finanzen/werkzeuge.css
+                  je Bereich, Schale.tsx (Handy Tab-Leiste + „Mehr“-Sheet, Desktop Seitenleiste, Glas-Kopfleiste), Sheet.tsx, design.ts (useDesign),
+                  Ikon.tsx/symbole.tsx (eigene Symbole statt SF Symbols; <Ikon e="📅"/> = Emoji im Dorf, Symbol in Apple; IkonText). stil.css bleibt Dorf.
   src/dorf/       Etappe 5: 3D-Dorf (three.js, nur hier nachgeladen; E52–E55)
     szene.ts        DorfSzene: Kamera (OrbitControls), Licht/Schatten, Klicks, Statusanzeigen, Autos, Bau-Hilfen, Testhilfen (window.__dorf)
     modelle.ts      alle Gebäude-/Deko-Modelle aus Grundformen; FELD = 1,25, Grundstück = 4×4 Felder
@@ -318,6 +322,7 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E213 (22.11.): Handschrift kann Mathe – Formeln ($…$ oder schlicht), Rechenwege am „=“ ausgerichtet, Brüche/Wurzeln/∑∫, Markdown-Tabellen mit Handgitter (handformel.py + Hershey); „=“ wird nicht mehr zu „-“
 - [x] E214 (22.11.): Handschrift realistischer – gerade Linien wie GoodNotes (Tabellen, Bruchstriche), ruhigere Formeln, gleichmäßiger Stift, Logik-Zeichen (∧ ∨ ¬ ↔ ⊢ ⊨ ⊤ ⊥ □), Wahrheitstafeln mittig
 - [x] E215 (22.11.): Handschrift `stil: einheitlich` (Standard) – EINE Hand für Text, Formeln und Tabellen (Schreiber-Profil je Dokument, jedes Zeichen einmalig verformt, Wortgrundlinien, Unterschneiden); `stil: ki` = KI-Modell für freien Fließtext
+- [x] E240 (25.11.): Zweite Oberfläche „Apple Design“ – Einstellungen → Aussehen → Oberfläche Dorf | Apple (sofort, gemeinsam oder je Gerät); ganze App außer der 3D-Szene im Stil von iOS/macOS (Tab-Leiste/Seitenleiste, Glas nur für Bedienelemente, Inset Grouped, Sheets, eigene Symbole, Systemschrift), Dorf-Design unverändert – Abnahme am iPhone/Mac steht aus
 - [x] E239 (25.11.): Muster-Kielwasser `/hafen/muster` – Training im Terminal-Stil: Modelle mit Entscheidung, Verlauf über die Trainings, Lernkurve, Merkmale, RL-Zeitraffer mit Markern, Konsole (`GET /muster/verlauf`, Lernkurve/Kapitalkurve ab dem nächsten Training; Charts in `hafen/chart.tsx`)
 - [x] E238 (25.11.): Trainings-Konsole des Muster-Modells (was/warum je Modell, RL-Beispiel-Trades mit Q-Werten; live, `/muster/konsole`, `hafen_muster {konsole: true}`, App „🖥️ Konsole“) + Bots der Agenten in eigenem Abschnitt der Flotte mit Abzeichen
 - [x] E237 (25.11.): Kursvorhersage 5 s–5 min mit asymmetrischem Fehler (verpasster Fall 3×) + 🚀/💥-Alarm für RL-Bots und Bots mit musterGewicht > 0; Backtest spielt die Aufzeichnung zeitgenau ab (= Paper), Kurse 10 s/5 Tage; Euro neben jedem SOL-Wert; Agenten 10 Bots + RL, Flotte 20

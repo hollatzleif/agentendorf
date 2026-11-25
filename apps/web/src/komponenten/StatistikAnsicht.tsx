@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { Statistik } from "@dorf/shared";
 import { guteTage } from "@dorf/shared";
 import { api } from "../api";
+import { IkonText } from "../apple/tag";
 
 /**
  * Statistik (E93): Kennzahlen oben, darunter je Kennzahl ein eigenes Balkendiagramm (kleine Vielfache statt zwei
@@ -218,7 +219,9 @@ function Balken({
   return (
     <figure className="statistik-diagramm" aria-label={titel}>
       <figcaption>
-        <span>{titel}</span>
+        <span>
+          <IkonText text={titel} />
+        </span>
         <span className="statistik-hover" aria-live="polite">
           {h
             ? `${tagKurz(h.tag, { weekday: "short", day: "numeric", month: "numeric" })}: ${text(h)}`
@@ -354,7 +357,9 @@ function Tageszeit({ werte, beste }: { werte: number[]; beste: { von: number; bi
   return (
     <figure className="statistik-diagramm" aria-label={titel}>
       <figcaption>
-        <span>{titel}</span>
+        <span>
+          <IkonText text={titel} />
+        </span>
         <span className="statistik-hover" aria-live="polite">
           {hover != null ? `${hover}–${hover + 1} Uhr: ${stunden(werte[hover]!)}` : beste ? `am konzentriertesten: ${beste.von}–${beste.bis} Uhr` : 'noch zu wenig Fokus für eine Aussage'}
         </span>

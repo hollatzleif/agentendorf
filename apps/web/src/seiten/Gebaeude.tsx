@@ -31,6 +31,8 @@ import { StatistikAnsicht } from '../komponenten/StatistikAnsicht';
 import { NotenAnsicht } from '../komponenten/NotenAnsicht';
 import { NotizenAnsicht } from '../komponenten/NotizenAnsicht';
 import { MarktKalender } from '../komponenten/MarktKalender';
+import { useDesign } from '../apple/design';
+import { Chevron, Em } from '../apple/wissen-teile';
 // E223: Börse-Analyse, Rechner, Berater – erst beim Öffnen geladen
 const BoerseAnalyseAnsicht = lazy(() => import('../boerse/Analyse').then((m) => ({ default: m.BoerseAnalyseAnsicht })));
 const BoerseRechner = lazy(() => import('../boerse/Rechner').then((m) => ({ default: m.BoerseRechner })));
@@ -102,10 +104,11 @@ export function standardReiter(id: string) {
 export function GebaeudeSeite({ id }: { id: string }) {
   const { suche } = useOrt();
   const reiter = suche.get('reiter') ?? standardReiter(id);
+  const apple = useDesign() === 'apple';
   return (
-    <section>
+    <section className="gebaeude-seite">
       <a href="/" onClick={linkKlick} className="zurueck">
-        ← Dorf
+        {apple ? <Chevron richtung="links" /> : '←'} Dorf
       </a>
       <GebaeudeInhalt id={id} reiter={reiter} reiterWaehlen={(k) => navigieren(`/gebaeude/${encodeURIComponent(id)}?reiter=${k}`, true)} />
     </section>
@@ -129,23 +132,23 @@ export function GebaeudeInhalt({ id, reiter, reiterWaehlen, kompakt }: { id: str
   return (
     <>
       {kompakt ? (
-        <h2>
-          {g.symbol} {g.name} {g.status === 'geschlossen' && <span className="abzeichen">noch nicht eröffnet</span>}
+        <h2 className="geb-titel">
+          <span className="geb-symbol">{g.symbol}</span> {g.name} {g.status === 'geschlossen' && <span className="abzeichen">noch nicht eröffnet</span>}
         </h2>
       ) : (
-        <h1>
-          {g.symbol} {g.name} {g.status === 'geschlossen' && <span className="abzeichen">noch nicht eröffnet</span>}
+        <h1 className="geb-titel">
+          <span className="geb-symbol">{g.symbol}</span> {g.name} {g.status === 'geschlossen' && <span className="abzeichen">noch nicht eröffnet</span>}
         </h1>
       )}
       {g.fehler && <p className="fehler">{g.fehler}</p>}
-      <div className="reiter">
+      <div className="reiter geb-reiter">
         {alle.map(([k, t]) => (
           <button key={k} className={reiter === k ? 'aktiv' : ''} onClick={() => reiterWaehlen(k)}>
             {t}
           </button>
         ))}
       </div>
-      <div className="karte">
+      <div className={`karte geb-inhalt geb-${reiter}`}>
         {reiter === 'aktionen' && (g.status === 'geschlossen' ? <Eroeffnen id={id} /> : <Aktionen gebaeude={id} />)}
         {reiter === 'chats' && <ChatListe gebaeude={id} />}
         {reiter === 'uebersicht' && (
@@ -215,7 +218,7 @@ function Eroeffnen({ id }: { id: string }) {
           void api(`/api/gebaeude/${encodeURIComponent(id)}`, { methode: 'PATCH', body: { status: 'offen' } }).catch((e) => setFehler(e instanceof ApiFehler ? e.message : String(e)))
         }
       >
-        🎉 Gebäude eröffnen
+        <Em e="🎉" /> Gebäude eröffnen
       </button>
       {fehler && <p className="fehler">{fehler}</p>}
     </div>

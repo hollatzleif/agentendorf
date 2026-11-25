@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiFehler } from '../api';
 import { linkKlick } from '../router';
+import { Zeichen } from '../apple/werkzeug-symbole';
 
 /**
  * E216 – Schriftprobe: Leif schreibt jedes Zeichen ein paar Mal mit Stift/Finger/Maus. Gespeichert als echte Striche
@@ -244,7 +245,9 @@ export function Schriftprobe() {
   return (
     <div className="schriftprobe">
       <section className="karte">
-        <h1>✍️ Schriftprobe</h1>
+        <h1>
+          <Zeichen e="✍️" /> Schriftprobe
+        </h1>
         <p>
           Schreib jedes Zeichen so, wie du es sonst auch schreibst – nicht schöner. Am besten mit Stift auf dem Tablet. Grundlinie ist die
           durchgezogene Linie, Großbuchstaben reichen bis zur oberen gestrichelten, Kleinbuchstaben bis zur unteren. Mehrere Varianten je
@@ -283,16 +286,16 @@ export function Schriftprobe() {
         />
         <div className="knopfreihe">
           <button type="button" onClick={() => setStriche((s) => s.slice(0, -1))} disabled={!striche.length}>
-            ↶ Strich zurück
+            <Zeichen e="↶" /> Strich zurück
           </button>
           <button type="button" onClick={() => setStriche([])} disabled={!striche.length}>
             Neu
           </button>
           <button type="button" className="haupt" onClick={uebernehmen} disabled={!striche.length} data-testid="sp-uebernehmen">
-            Übernehmen ⏎
+            Übernehmen <Zeichen e="⏎" />
           </button>
           <button type="button" onClick={() => waehlen(naechstes(zeichen, aktuell))}>
-            Überspringen →
+            Überspringen <Zeichen e="→" />
           </button>
         </div>
         {status && (
@@ -306,7 +309,7 @@ export function Schriftprobe() {
               <span key={i} className="sp-variante">
                 <Mini variante={v} />
                 <button type="button" aria-label={`Variante ${i + 1} löschen`} onClick={() => varianteLoeschen(aktuell, i)}>
-                  ×
+                  <Zeichen e="×" />
                 </button>
               </span>
             ))}

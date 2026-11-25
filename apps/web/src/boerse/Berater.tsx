@@ -4,6 +4,7 @@ import type { AktionInfo, BoerseAnalyse, VaultEintrag } from '@dorf/shared';
 import { api } from '../api';
 import { bibliothekUrl, linkKlick } from '../router';
 import { AktionStarten } from '../komponenten/Aktionen';
+import { Em } from '../hafen/zeichen';
 
 const BERATER = [
   { id: 'Boerse/aktie-analysieren', symbol: '🔍', titel: 'Aktie analysieren', text: 'Geschäft, Zahlen, Bewertung, Chancen und Risiken – mit klarer Einschätzung' },
@@ -45,7 +46,7 @@ export function BoerseBerater() {
           return (
             <button key={b.id} type="button" className={`berater-karte${offen?.id === b.id ? ' aktiv' : ''}`} disabled={!da} onClick={() => setOffen(offen?.id === b.id ? null : { id: b.id, n: Date.now() })}>
               <span className="berater-symbol" aria-hidden="true">
-                {b.symbol}
+                <Em e={b.symbol} />
               </span>
               <strong>{b.titel}</strong>
               <span className="leise">{da ? b.text : 'Aktion fehlt im Vault (kommt beim nächsten Start)'}</span>

@@ -18,6 +18,8 @@ import {
   type Zeitraum,
 } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
+import { useDesign } from '../apple/design';
+import { Em, EmText } from '../hafen/zeichen';
 import { AnteilBalken, FARBEN, LinienDiagramm, datumKurz, geldFormat, prozentText, usePrivat, type Reihe } from './teile';
 
 const heute = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
@@ -110,6 +112,7 @@ export function BoerseAnalyseAnsicht() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['boerse', 'analyse'], queryFn: () => api<BoerseAnalyse>('/api/boerse/analyse') });
   const [privat, setPrivat] = usePrivat();
+  const apple = useDesign() === 'apple';
   const [zeitraum, setZeitraum] = useState<Zeitraum | 'eigen'>(() => (localStorage.getItem('dorf-boerse-zeitraum') as Zeitraum | null) ?? '1J');
   const [eigenVon, setEigenVon] = useState('');
   const [eigenBis, setEigenBis] = useState('');
@@ -285,7 +288,7 @@ export function BoerseAnalyseAnsicht() {
             </button>
           ))}
           <button type="button" className={`klein${privat ? ' an' : ''}`} aria-pressed={privat} title="Beträge verbergen" onClick={() => setPrivat(!privat)}>
-            {privat ? '🙈 Beträge aus' : '👁 Beträge'}
+            <EmText t={privat ? '🙈 Beträge aus' : '👁 Beträge'} />
           </button>
         </div>
       </div>
@@ -381,7 +384,7 @@ export function BoerseAnalyseAnsicht() {
               <input type="checkbox" checked={summeZeigen} onChange={(e) => setSummeZeigen(e.target.checked)} /> Summe der sichtbaren
             </label>
             <button type="button" className="klein" title="Tabelle für den gewählten Zeitraum als CSV (Excel, Numbers)" onClick={() => csvLaden(teile, kz, zeitraum === 'eigen' ? `${von ?? 'anfang'}_${bis ?? 'heute'}` : zeitraum)}>
-              ⬇ CSV
+              <Em e="⬇" /> CSV
             </button>
           </span>
         </div>
@@ -507,7 +510,7 @@ export function BoerseAnalyseAnsicht() {
                     {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
                       const r = monate[j]![m];
                       return (
-                        <td key={m} style={r == null ? undefined : { background: zelle(r) }} title={r == null ? '' : `${m}/${j}: ${prozentText(r)}`}>
+                        <td key={m} style={r == null ? undefined : { background: zelle(r, apple) }} title={r == null ? '' : `${m}/${j}: ${prozentText(r)}`}>
                           {r == null ? '' : prozentText(r, 1).replace(' %', '')}
                         </td>
                       );
@@ -592,7 +595,9 @@ function DepotZiel({ jetzt, geld }: { jetzt: number; geld: (n: number | null | u
   return (
     <details className="karte innen ba-ziel" open={ziel > 0}>
       <summary>
-        <strong>🎯 Depot-Ziel</strong>
+        <strong>
+          <EmText t="🎯 Depot-Ziel" />
+        </strong>
         {ziel > 0 && (
           <span className="leise">
             {' '}
@@ -635,6 +640,7 @@ function DepotZiel({ jetzt, geld }: { jetzt: number; geld: (n: number | null | u
 
 /** Wie ähnlich laufen die Werte? Korrelation der Tagesrenditen im gewählten Zeitraum (höchstens 8 Werte) */
 function Aehnlichkeit({ teile, von, bis, farbeVon }: { teile: Teil[]; von: string | null; bis: string | null; farbeVon: (k: string) => string }) {
+  const apple = useDesign() === 'apple';
   const liste = teile.slice(0, 8);
   const matrix = useMemo(() => liste.map((a) => liste.map((b) => (a === b ? 1 : korrelation(schneiden(a.reihe, von, bis), schneiden(b.reihe, von, bis))))), [liste, von, bis]);
   if (liste.length < 2) return null;
@@ -667,7 +673,7 @@ function Aehnlichkeit({ teile, von, bis, farbeVon }: { teile: Teil[]; von: strin
                 {liste.map((b, j) => {
                   const r = matrix[i]![j];
                   return (
-                    <td key={b.schluessel} style={r == null || i === j ? undefined : { background: `rgba(42, 120, 214, ${Math.max(0, r) * 0.6})` }} title={r == null ? 'zu wenig gemeinsame Tage' : `${a.name} ↔ ${b.name}: ${r.toFixed(2)}`}>
+                    <td key={b.schluessel} style={r == null || i === j ? undefined : { background: apple ? `color-mix(in srgb, var(--a-blau) ${Math.round(Math.max(0, r) * 60)}%, transparent)` : `rgba(42, 120, 214, ${Math.max(0, r) * 0.6})` }} title={r == null ? 'zu wenig gemeinsame Tage' : `${a.name} ↔ ${b.name}: ${r.toFixed(2)}`}>
                       {i === j ? '·' : r == null ? '–' : r.toFixed(2).replace('.', ',')}
                     </td>
                   );
@@ -682,8 +688,10 @@ function Aehnlichkeit({ teile, von, bis, farbeVon }: { teile: Teil[]; von: strin
 }
 
 /** Rot/Grün mit Stärke nach Betrag (±10 % = voll) – die Zahl steht immer daneben */
-function zelle(r: number) {
+function zelle(r: number, apple = false) {
   const s = Math.min(1, Math.abs(r) / 0.1);
+  // E240: Apple – Systemgrün/-rot, getönt
+  if (apple) return `color-mix(in srgb, var(${r >= 0 ? '--a-gruen' : '--a-rot'}) ${Math.round((0.12 + s * 0.5) * 100)}%, transparent)`;
   return r >= 0 ? `rgba(31, 138, 43, ${0.12 + s * 0.5})` : `rgba(210, 53, 42, ${0.12 + s * 0.5})`;
 }
 

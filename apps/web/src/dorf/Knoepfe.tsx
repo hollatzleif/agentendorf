@@ -1,5 +1,7 @@
 import type { DorfGebaeudeStatus, Gebaeude } from '@dorf/shared';
 import { reiterFuer } from '../seiten/Gebaeude';
+import { Zeichen } from '../apple/werkzeug-symbole';
+import { useDesign } from '../apple/design';
 
 /** Symbol und Farbe je Reiter – runde Spielknöpfe (eigene Gestaltung) */
 const KNOPF: Record<string, { symbol: string; farbe: string; titel?: string }> = {
@@ -16,6 +18,18 @@ const KNOPF: Record<string, { symbol: string; farbe: string; titel?: string }> =
   agenten: { symbol: '⚙️', farbe: 'grau', titel: 'Agenten' },
   studium: { symbol: '🎓', farbe: 'lila' },
   eingang: { symbol: '📬', farbe: 'gelb' },
+};
+
+/** E240: Apple-Oberfläche – Symbol und Systemfarbe je Reiter (auch für Reiter ohne eigenen Spielknopf, die sonst „•“ zeigen) */
+const APPLE_KNOPF: Record<string, [string, string]> = {
+  uebersicht: ['ℹ️', 'blau'], aktionen: ['⚡', 'gelb'], chats: ['💬', 'tuerkis'], dateien: ['📁', 'blau'], schreibtisch: ['🗂️', 'gruen'],
+  morgenzeitung: ['📰', 'grau'], woche: ['📅', 'rot'], statistik: ['📊', 'lila'], notizen: ['📝', 'gelb'], plaene: ['📋', 'lila'],
+  freigaben: ['✉️', 'rot'], 'alle-chats': ['🗨️', 'tuerkis'], verbrauch: ['📈', 'grau'], agenten: ['⚙️', 'grau'],
+  studium: ['🎓', 'lila'], pruefungen: ['⏳', 'rot'], karten: ['⧉', 'orange'], noten: ['⭐', 'gelb'], eingang: ['📬', 'blau'],
+  todo: ['✅', 'blau'], wochenplan: ['📆', 'rot'], projekte: ['🗂️', 'orange'], kalender: ['📅', 'rot'], konto: ['🏦', 'gruen'],
+  depot: ['📈', 'gruen'], analyse: ['📊', 'lila'], rechner: ['🎛️', 'grau'], berater: ['🧠', 'lila'], uhr: ['⏰', 'orange'],
+  code: ['💻', 'grau'], editor: ['📝', 'blau'], vscode: ['🖥️', 'blau'], bilder: ['🖼️', 'orange'], flotte: ['⚓', 'blau'],
+  termine: ['📅', 'rot'], aemter: ['👤', 'braun'], corpspost: ['✉️', 'blau'], einkauf: ['🛒', 'gruen'], wunsch: ['❤️', 'rot'],
 };
 
 /** Schnellknöpfe: die meistgenutzten Aktionen direkt am Gebäude (öffnen die Aktion schon ausgewählt) */
@@ -49,6 +63,7 @@ export function GebaeudeKnoepfe({
   bauen: () => void;
   schliessen: () => void;
 }) {
+  const apple = useDesign() === 'apple';
   const reiter = reiterFuer(g.id).filter(([k]) => !(g.status === 'geschlossen' && k === 'aktionen'));
   const zeile: string[] = [];
   if (g.status === 'geschlossen') zeile.push('noch nicht eröffnet');
@@ -66,18 +81,20 @@ export function GebaeudeKnoepfe({
         </span>
         <span className="spiel-zeile">{zeile.join(' · ')}</span>
         <button className="spiel-zu" onClick={schliessen} aria-label="Auswahl aufheben">
-          ×
+          <Zeichen e="×" />
         </button>
       </div>
       <div className="spiel-knoepfe">
         {reiter.map(([k, t], i) => {
-          const kn = KNOPF[k] ?? { symbol: '•', farbe: 'grau' };
+          const dorfKnopf = KNOPF[k] ?? { symbol: '•', farbe: 'grau' };
+          const a = apple ? APPLE_KNOPF[k] : undefined;
+          const kn = a ? { ...dorfKnopf, symbol: a[0], farbe: a[1] } : dorfKnopf;
           const n = abzeichen(k);
           return (
-            <button key={k} className={`spiel-knopf ${kn.farbe}`} style={{ animationDelay: `${i * 35}ms` }} onClick={() => oeffnen(k)} aria-label={kn.titel ?? t}>
+            <button key={k} className={`spiel-knopf ${kn.farbe}`} data-reiter={k} style={{ animationDelay: `${i * 35}ms` }} onClick={() => oeffnen(k)} aria-label={kn.titel ?? t}>
               <span className="spiel-kreis">
                 <span className="spiel-symbol" aria-hidden>
-                  {kn.symbol}
+                  <Zeichen e={kn.symbol} />
                 </span>
                 {n > 0 && <span className="spiel-abzeichen">{n}</span>}
               </span>
@@ -96,7 +113,7 @@ export function GebaeudeKnoepfe({
             >
               <span className="spiel-kreis">
                 <span className="spiel-symbol" aria-hidden>
-                  {x.symbol}
+                  <Zeichen e={x.symbol} />
                 </span>
               </span>
               <span className="spiel-text">{x.titel}</span>
@@ -105,7 +122,7 @@ export function GebaeudeKnoepfe({
         <button className="spiel-knopf orange" style={{ animationDelay: `${reiter.length * 35}ms` }} onClick={bauen} aria-label="Versetzen">
           <span className="spiel-kreis">
             <span className="spiel-symbol" aria-hidden>
-              🔨
+              <Zeichen e="🔨" />
             </span>
           </span>
           <span className="spiel-text">Versetzen</span>

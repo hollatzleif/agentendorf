@@ -5,6 +5,7 @@ import { WochenzieleKarte } from '../komponenten/WochenzieleKarte';
 import { WochenPlan } from '../komponenten/WochenPlan';
 import { GewohnheitenKarte } from '../komponenten/GewohnheitenKarte';
 import { Projekte } from '../komponenten/Projekte';
+import { E } from '../apple/tag';
 
 /**
  * E129: Wochenplanung (/planen) – das 10-Minuten-Ritual am Sonntag (oder Montag früh) auf einer Seite:
@@ -46,7 +47,9 @@ export function WochePlanen() {
       <a href="/heute" onClick={linkKlick}>
         ← Heute
       </a>
-      <h1>🗓️ Woche planen</h1>
+      <h1>
+        <E e="🗓️" /> Woche planen
+      </h1>
       <p className="leise">
         10 Minuten, vier Schritte – {sonntag ? 'heute für die kommende Woche' : 'für diese Woche'}.{' '}
         <strong>
@@ -76,7 +79,9 @@ export function WochePlanen() {
           {k === 'ziele' && (
             // E165: Ziele entstehen oft aus Projekten – was ruht, fällt hier auf
             <details className="planen-projekte">
-              <summary>📁 Deine Projekte ansehen</summary>
+              <summary>
+          <E e="📁" /> Deine Projekte ansehen
+        </summary>
               <Projekte />
             </details>
           )}

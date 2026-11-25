@@ -4,6 +4,7 @@ import type { Projekt } from '@dorf/shared';
 import { minutenText } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { navigieren } from '../router';
+import { E } from '../apple/tag';
 
 /**
  * E161: Projekte – To-dos mit derselben Gruppe als Projekt gesehen: Fortschritt, nächster Schritt (mit 🍅),
@@ -47,7 +48,9 @@ export function Projekte() {
         return (
           <article key={p.name} className={`karte projekt${p.offen === 0 ? ' fertig' : ''}`} aria-label={`Projekt ${p.name}`}>
             <div className="projekt-kopf">
-              <h3>📁 {p.name}</h3>
+              <h3>
+                <E e="📁" /> {p.name}
+              </h3>
               <span className="leise">
                 {p.erledigt}/{p.gesamt} erledigt{p.dieseWoche ? ` · +${p.dieseWoche} diese Woche` : ''}
                 {p.fokusMin ? ` · 🍅 ${minutenText(p.fokusMin)}` : ''}
@@ -68,12 +71,12 @@ export function Projekte() {
             {p.naechster ? (
               <div className="projekt-naechster">
                 <span>
-                  👉 <strong>{p.naechster.titel}</strong>
+                  <E e="👉" /> <strong>{p.naechster.titel}</strong>
                   {p.naechster.schritt && <span className="leise"> · nächster Schritt: {p.naechster.schritt}</span>}
                   {p.naechster.faellig && <span className="leise"> · fällig {p.naechster.faellig}</span>}
                 </span>
                 <button type="button" className="klein haupt" onClick={() => void los(p)} aria-label={`Fokus starten: ${p.naechster.titel}`}>
-                  🍅 Los
+                  <E e="🍅" /> Los
                 </button>
               </div>
             ) : (

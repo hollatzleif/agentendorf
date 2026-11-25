@@ -1,10 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { DIAGRAMM_FARBEN, type Punkt } from '@dorf/shared';
+import { useDesign } from '../apple/design';
+
+/** E240: Reihenfolge der Reihen-Farben in der Apple-Oberfläche (Systemfarben; Grün/Rot bleiben für Plus/Minus) */
+const FARBEN_APPLE = ['var(--a-blau)', 'var(--a-orange)', 'var(--a-mint)', 'var(--a-lila)', 'var(--a-pink)', 'var(--a-gelb)', 'var(--a-indigo)', 'var(--a-cyan)'];
 
 /** E223: Farben je Reihe – feste Reihenfolge (geprüfte Kategorie-Palette), nie nach Rang; E225: wählbar unter Aussehen → Diagramme */
 export const FARBEN = new Proxy([] as string[], {
   get(_z, k) {
-    const p = DIAGRAMM_FARBEN[(document.documentElement.dataset.diagramme as keyof typeof DIAGRAMM_FARBEN) || 'standard'] ?? DIAGRAMM_FARBEN.standard;
+    const p =
+      document.documentElement.dataset.design === 'apple'
+        ? FARBEN_APPLE
+        : (DIAGRAMM_FARBEN[(document.documentElement.dataset.diagramme as keyof typeof DIAGRAMM_FARBEN) || 'standard'] ?? DIAGRAMM_FARBEN.standard);
     return (p as unknown as Record<string | symbol, unknown>)[k];
   },
 });
@@ -54,6 +61,8 @@ export function LinienDiagramm({ reihen, format, hoehe = 280, nullLinie, referen
   // Breite = echte Breite des Rahmens (Schrift bleibt lesbar, am Handy wie am PC)
   const [B, setB] = useState(820);
   const rahmen = useRef<HTMLDivElement>(null);
+  const apple = useDesign() === 'apple';
+  const verlaufId = `dgv${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
   useEffect(() => {
     const el = rahmen.current;
     if (!el) return;
@@ -137,15 +146,27 @@ export function LinienDiagramm({ reihen, format, hoehe = 280, nullLinie, referen
             </text>
           </g>
         )}
+        {/* E240: Apple – eine Linie bekommt eine Verlaufsfläche darunter (Aktien-Stil) */}
+        {apple && reihen.length === 1 && reihen[0]!.punkte.length > 1 && (
+          <g aria-hidden>
+            <defs>
+              <linearGradient id={verlaufId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={reihen[0]!.farbe} stopOpacity={0.26} />
+                <stop offset="100%" stopColor={reihen[0]!.farbe} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <path className="diagramm-flaeche" d={`${pfad(reihen[0]!.punkte)} L${x(reihen[0]!.punkte.at(-1)![0]).toFixed(1)},${(H - U).toFixed(1)} L${x(reihen[0]!.punkte[0]![0]).toFixed(1)},${(H - U).toFixed(1)} Z`} fill={`url(#${verlaufId})`} stroke="none" />
+          </g>
+        )}
         {reihen.map((r) => (
-          <path key={r.schluessel} d={pfad(r.punkte)} fill="none" stroke={r.farbe} strokeWidth={2} strokeDasharray={r.strich ? '6 4' : undefined} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+          <path key={r.schluessel} d={pfad(r.punkte)} fill="none" stroke={r.farbe} strokeWidth={apple ? 1.75 : 2} strokeDasharray={r.strich ? '6 4' : undefined} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
         ))}
         {tagUnter && (
           <g>
             <line x1={x(tagUnter)} x2={x(tagUnter)} y1={O} y2={H - U} className="diagramm-zeiger" />
             {reihen.map((r) => {
               const v = wertAm(r, tagUnter);
-              return v == null ? null : <circle key={r.schluessel} cx={x(tagUnter)} cy={y(v)} r={4.5} fill={r.farbe} stroke="var(--flaeche, #fff)" strokeWidth={2} />;
+              return v == null ? null : <circle key={r.schluessel} cx={x(tagUnter)} cy={y(v)} r={4.5} fill={r.farbe} stroke={apple ? 'var(--a-flaeche)' : 'var(--flaeche, #fff)'} strokeWidth={2} />;
             })}
           </g>
         )}
@@ -213,7 +234,7 @@ export function Sparkline({ punkte, breite = 90, hoehe = 26 }: { punkte: Punkt[]
   const pr = (w.at(-1)! / w[0]! - 1) * 100;
   return (
     <svg className="sparkline" width={breite} height={hoehe} viewBox={`0 0 ${breite} ${hoehe}`} role="img" aria-label={`Verlauf: ${pr >= 0 ? '+' : ''}${pr.toFixed(1)} %`}>
-      <path d={d} fill="none" stroke={plus ? 'var(--gruen)' : 'var(--rot)'} strokeWidth={1.8} strokeLinejoin="round" />
+      <path d={d} fill="none" stroke={plus ? 'var(--gruen)' : 'var(--rot)'} strokeWidth={1.8} strokeLinejoin="round" className={plus ? 'sparkline-plus' : 'sparkline-minus'} />
     </svg>
   );
 }

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { GewohnheitStand } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
+import { E } from '../apple/tag';
 
 /**
  * Gewohnheiten (Nacht 18./19.11.): heute fällige zum Abhaken, Serie (🔥) und die letzten 7 Tage als Punkte.
@@ -45,7 +46,7 @@ export function GewohnheitenKarte() {
     <section className="karte heute-karte heute-gewohnheiten" aria-label="Gewohnheiten">
       <div className="heute-karte-kopf">
         <h2>
-          🔁 Gewohnheiten
+          <E e="🔁" /> Gewohnheiten
           {heute.length > 0 && <span className="wochenziele-stand"> {fertig}/{heute.length}</span>}
         </h2>
         <button type="button" className="klein" onClick={() => setBearbeiten(!bearbeiten)} aria-expanded={bearbeiten}>
@@ -103,7 +104,7 @@ export function GewohnheitenKarte() {
               </span>
               {g.serie > 0 && (
                 <span className="gewohnheit-serie" title={g.serieEinheit === 'wochen' ? `${g.serie} Wochen in Folge geschafft` : `${g.serie} fällige Tage in Folge`}>
-                  🔥 {g.serie}
+                  <E e="🔥" /> {g.serie}
                   {g.serieEinheit === 'wochen' ? ' W' : ''}
                 </span>
               )}

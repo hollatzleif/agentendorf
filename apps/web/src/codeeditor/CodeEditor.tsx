@@ -4,7 +4,9 @@ import type { CodingUebersicht } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { linkKlick, navigieren, useOrt } from '../router';
 import { groesseText } from '../komponenten/Anhaenge';
-import { monaco, modellUri, THEMA, type Thema } from './monaco';
+import { monaco, modellUri, themaName, type Thema } from './monaco';
+import { istApple, useDesign } from '../apple/design';
+import { Zeichen } from '../apple/werkzeug-symbole';
 import { editorApi, nameVon, schnellFiltern } from './schnittstelle';
 import { AgentLeiste, BaumLeiste, FrageFenster, GitLeiste, SuchLeiste, type FrageOpt, type Werk } from './Leisten';
 import { TerminalFeld } from './TerminalFeld';
@@ -112,6 +114,7 @@ function Werkbank({ projekt }: { projekt: string }) {
   /** Handy: genau ein Bereich sichtbar */
   const [bereich, setBereich] = useState<'seite' | 'editor' | 'terminal'>('seite');
   // E224: ohne eigene Wahl folgt der Editor dem Aussehen der App (dunkel/hell)
+  const apple = useDesign() === 'apple';
   const [thema, setThema] = useState<Thema>(() => { const g = localStorage.getItem('dorf-editor-thema'); return g === 'dunkel' || g === 'hell' ? g : document.documentElement.dataset.dunkel === 'ja' ? 'dunkel' : 'hell'; });
   const [frage, setFrage] = useState<{ opt: FrageOpt; antwort: (w: string | null) => void } | null>(null);
   const [meldung, setMeldung] = useState<{ text: string; fehler: boolean } | null>(null);
@@ -144,7 +147,7 @@ function Werkbank({ projekt }: { projekt: string }) {
   useEffect(() => {
     const schmal = window.matchMedia('(max-width: 800px)').matches;
     const gemeinsam = {
-      theme: THEMA[thema],
+      theme: themaName(thema, istApple()),
       automaticLayout: true,
       fontSize: schmal ? 13 : 14,
       // klassisches Eingabefeld statt EditContext: die Tastenkürzel der App erkennen es als Texteingabe
@@ -187,9 +190,9 @@ function Werkbank({ projekt }: { projekt: string }) {
   }, []);
 
   useEffect(() => {
-    monaco.editor.setTheme(THEMA[thema]);
+    monaco.editor.setTheme(themaName(thema, apple));
     localStorage.setItem('dorf-editor-thema', thema);
-  }, [thema]);
+  }, [thema, apple]);
 
   const schmutzSetzen = useCallback((pfad: string, an: boolean) => {
     setSchmutzig((s) => {
@@ -491,7 +494,9 @@ function Werkbank({ projekt }: { projekt: string }) {
   };
   const seitenKnopf = (s: Seite, symbol: string, titel: string) => (
     <button type="button" className={`ce-akt${seite === s && bereich === 'seite' ? ' aktiv' : ''}${seite === s ? ' gewaehlt' : ''}`} title={titel} aria-label={titel} aria-pressed={seite === s} onClick={() => seiteWaehlen(s)}>
-      <span aria-hidden>{symbol}</span>
+      <span aria-hidden>
+        <Zeichen e={symbol} />
+      </span>
       <small>{titel}</small>
     </button>
   );
@@ -500,21 +505,21 @@ function Werkbank({ projekt }: { projekt: string }) {
     <div className={`codeeditor ${thema} b-${bereich}${seite ? '' : ' ohne-seite'}${terminalOffen ? ' mit-terminal' : ''}`} data-testid="codeeditor">
       <div className="ce-kopf">
         <a href="/gebaeude/Codehaus" onClick={linkKlick} className="zurueck" title="Zurück zum Codehaus">
-          ← <span className="ce-breit">Codehaus</span>
+          <Zeichen e="←" /> <span className="ce-breit">Codehaus</span>
         </a>
         <a href={editorUrl()} onClick={linkKlick} className="ce-projekt" title="Anderes Projekt öffnen">
-          💻 {projekt}
+          <Zeichen e="💻" /> {projekt}
         </a>
         <button type="button" className="klein ce-schnell-knopf" onClick={() => setSchnell(true)} title="Datei öffnen (Strg+P)" aria-label="Datei öffnen (Strg+P)">
-          🔎 <span className="ce-breit">Datei öffnen … </span>
+          <Zeichen e="🔎" /> <span className="ce-breit">Datei öffnen … </span>
           <kbd className="ce-breit">Strg+P</kbd>
         </button>
         <span className="ce-kopf-rechts">
           <button type="button" className="klein" onClick={() => void speichern()} disabled={!aktiverReiter || aktiverReiter.art === 'hinweis' || !schmutzig.has(aktiverReiter.pfad)} title="Speichern (Strg+S)" data-testid="speichern">
-            💾 <span className="ce-breit">Speichern</span>
+            <Zeichen e="💾" /> <span className="ce-breit">Speichern</span>
           </button>
           <button type="button" className="klein" onClick={() => setThema((t) => (t === 'hell' ? 'dunkel' : 'hell'))} title={thema === 'hell' ? 'Dunkles Thema' : 'Helles Thema'} aria-label="Thema umschalten" data-testid="thema">
-            {thema === 'hell' ? '🌙' : '☀️'}
+            <Zeichen e={thema === 'hell' ? '🌙' : '☀️'} />
           </button>
         </span>
       </div>
@@ -526,7 +531,9 @@ function Werkbank({ projekt }: { projekt: string }) {
           {seitenKnopf('git', '🌿', 'Git')}
           {seitenKnopf('agent', '🤖', 'Agent')}
           <button type="button" className={`ce-akt nur-handy${bereich === 'editor' ? ' aktiv' : ''}`} onClick={() => setBereich('editor')} aria-label="Editor">
-            <span aria-hidden>📝</span>
+            <span aria-hidden>
+              <Zeichen e="📝" />
+            </span>
             <small>Editor</small>
           </button>
           <button
@@ -543,7 +550,9 @@ function Werkbank({ projekt }: { projekt: string }) {
               } else terminalUmschalten();
             }}
           >
-            <span aria-hidden>⌨️</span>
+            <span aria-hidden>
+              <Zeichen e="⌨️" />
+            </span>
             <small>Terminal</small>
           </button>
         </nav>
@@ -576,7 +585,7 @@ function Werkbank({ projekt }: { projekt: string }) {
                     )}
                   </button>
                   <button type="button" className="ce-tab-zu" aria-label={`${nameVon(r.pfad)} schließen`} title="Schließen" onClick={() => void schliessen(r.id)}>
-                    ✕
+                    <Zeichen e="✕" />
                   </button>
                 </div>
               ))}
@@ -604,7 +613,7 @@ function Werkbank({ projekt }: { projekt: string }) {
                 <div className="ce-leer">
                   <p>{aktiverReiter.hinweis}</p>
                   <a className="knopf" href={editorApi.rohUrl(projekt, aktiverReiter.pfad)} download={nameVon(aktiverReiter.pfad)}>
-                    ⬇ Herunterladen
+                    <Zeichen e="⬇" /> Herunterladen
                   </a>
                 </div>
               )}
@@ -632,16 +641,16 @@ function Werkbank({ projekt }: { projekt: string }) {
                       {i + 1}: bash
                     </button>
                     <button type="button" className="ce-tab-zu" aria-label={`Terminal ${i + 1} schließen`} onClick={() => terminalZu(n)}>
-                      ✕
+                      <Zeichen e="✕" />
                     </button>
                   </span>
                 ))}
                 <button type="button" className="klein ce-symbol" onClick={terminalNeu} disabled={terminals.length >= 8} title="Weiteres Terminal" aria-label="Weiteres Terminal">
-                  ＋
+                  <Zeichen e="＋" />
                 </button>
                 <span className="ce-kopf-rechts">
                   <button type="button" className="klein ce-symbol ce-nur-breit" onClick={() => setTerminalOffen(false)} title="Terminal ausblenden (läuft weiter)" aria-label="Terminal ausblenden">
-                    ▾
+                    <Zeichen e="▾" />
                   </button>
                 </span>
               </div>

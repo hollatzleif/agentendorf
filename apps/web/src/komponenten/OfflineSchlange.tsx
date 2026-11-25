@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { offlineSchlange, offlineSenden } from '../api';
+import { Ikon } from '../apple/Ikon';
 
 /** Zeigt, was offline gemerkt wurde, und sendet es, sobald die Verbindung zurück ist (online-Ereignis + alle 30 s). */
 export function OfflineSchlange() {
@@ -27,7 +28,7 @@ export function OfflineSchlange() {
   if (!n) return null;
   return (
     <div className="offline-schlange" role="status">
-      📶 {n} {n === 1 ? 'Eintrag wartet' : 'Einträge warten'} auf Verbindung
+      <Ikon e="📶" /> {n} {n === 1 ? 'Eintrag wartet' : 'Einträge warten'} auf Verbindung
       <button type="button" className="klein" onClick={() => void offlineSenden().then((x) => (x ? qc.invalidateQueries() : undefined))}>
         Jetzt senden
       </button>

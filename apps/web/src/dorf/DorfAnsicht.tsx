@@ -12,6 +12,7 @@ import { GebaeudeKnoepfe } from './Knoepfe';
 import { useLiveEreignis, useLiveText } from '../live';
 import { DorfTicker } from './Ticker';
 import { Neuigkeiten } from './Neuigkeiten';
+import { Zeichen } from '../apple/werkzeug-symbole';
 
 const KAMERA_SCHLUESSEL = 'dorf-kamera';
 const ZEITUNG_GELESEN = 'dorf-zeitung-gelesen';
@@ -334,7 +335,7 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
               setAgentenOffen(false);
               setBlueteOffen(false);
             }} aria-expanded={wetterOffen} aria-label={`Wetter in ${status.data.wetter.ort ?? 'Konstanz'}: ${WETTER_TEXT[status.data.wetter.art].text}, ${Math.round(status.data.wetter.temperatur)} Grad`}>
-            {WETTER_TEXT[status.data.wetter.art].symbol} {Math.round(status.data.wetter.temperatur)}°
+            <Zeichen e={WETTER_TEXT[status.data.wetter.art].symbol} /> {Math.round(status.data.wetter.temperatur)}°
           </button>
         )}
         {!bauen && bluete && (
@@ -353,12 +354,13 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
             {bluete.fahne && <span aria-hidden>🚩</span>}
           </button>
         )}
-        {!bauen && knopf('Heute – dein Tag', '📋', () => navigieren('/heute'))}
+        {!bauen && knopf('Heute – dein Tag', <Zeichen e="📋" />, () => navigieren('/heute'))}
         {!bauen &&
           knopf(
             zeitungNeu ? 'Morgenzeitung (neue Ausgabe)' : 'Morgenzeitung',
             <>
-              📰{zeitungNeu && <span className="dorf-punkt" aria-hidden="true" />}
+              <Zeichen e="📰" />
+              {zeitungNeu && <span className="dorf-punkt" aria-hidden="true" />}
             </>,
             () => navigieren('/?g=Rathaus&reiter=morgenzeitung'),
           )}
@@ -366,7 +368,9 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
           knopf(
             'Agenten',
             <>
-              <span aria-hidden>🤖</span>
+              <span aria-hidden>
+                <Zeichen e="🤖" />
+              </span>
               <span className="knopf-text"> Agenten</span>
               {(status.data?.figuren.length ?? 0) > 0 && <span className="dorf-zahl">{status.data!.figuren.length}</span>}
             </>,
@@ -381,7 +385,9 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
           knopf(
             'Als Liste anzeigen',
             <>
-              <span aria-hidden>☰</span>
+              <span aria-hidden>
+                <Zeichen e="☰" />
+              </span>
               <span className="knopf-text"> Liste</span>
             </>,
             zurListe,
@@ -390,10 +396,14 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
         {knopf(
           bauen ? 'Bau-Modus beenden' : 'Bauen',
           bauen ? (
-            '✓ Fertig'
+            <>
+              <Zeichen e="✓" /> Fertig
+            </>
           ) : (
             <>
-              <span aria-hidden>🔨</span>
+              <span aria-hidden>
+                <Zeichen e="🔨" />
+              </span>
               <span className="knopf-text"> Bauen</span>
             </>
           ),
@@ -456,24 +466,31 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
       )}
       {!bauen && !panelOffen && <Neuigkeiten />}
       <div className="dorf-werkzeuge unten-rechts">
-        {knopf('Nach links drehen', '⟲', () => szene.current?.drehen(-1))}
-        {knopf('Nach rechts drehen', '⟳', () => szene.current?.drehen(1))}
-        {knopf('Hineinzoomen', '+', () => szene.current?.zoomen(0.8), 'nur-desktop')}
-        {knopf('Herauszoomen', '−', () => szene.current?.zoomen(1.25), 'nur-desktop')}
-        {knopf('Zum Rathaus', '⌂', () => szene.current?.zentrieren())}
+        {knopf('Nach links drehen', <Zeichen e="⟲" />, () => szene.current?.drehen(-1))}
+        {knopf('Nach rechts drehen', <Zeichen e="⟳" />, () => szene.current?.drehen(1))}
+        {knopf('Hineinzoomen', <Zeichen e="+" />, () => szene.current?.zoomen(0.8), 'nur-desktop')}
+        {knopf('Herauszoomen', <Zeichen e="−" />, () => szene.current?.zoomen(1.25), 'nur-desktop')}
+        {knopf('Zum Rathaus', <Zeichen e="⌂" />, () => szene.current?.zentrieren())}
       </div>
 
       {figurDaten || figur === 'buergermeister' ? (
         <div className="dorf-karte figur-karte" role="dialog" aria-label="Figur">
           <button className="schliessen" onClick={() => setFigur(null)} aria-label="Schließen">
-            ×
+            <Zeichen e="×" />
           </button>
-          {figur === 'buergermeister' && <h3>🎩 Bürgermeister</h3>}
+          {figur === 'buergermeister' && (
+            <h3>
+              <Zeichen e="🎩" /> Bürgermeister
+            </h3>
+          )}
           {figurDaten ? (
             <>
               {figur !== 'buergermeister' && (
                 <h3>
-                  {figurDaten.motor === 'api' ? '🔵' : '🟠'} {figurDaten.ausloeser === 'buergermeister' ? 'Helfer des Bürgermeisters' : 'Agent'} in {gName(figurDaten.gebaeude)}
+                  <span className={`figur-motor ${figurDaten.motor === 'api' ? 'api' : 'abo'}`}>
+                    <Zeichen e={figurDaten.motor === 'api' ? '🔵' : '🟠'} />
+                  </span>{' '}
+                  {figurDaten.ausloeser === 'buergermeister' ? 'Helfer des Bürgermeisters' : 'Agent'} in {gName(figurDaten.gebaeude)}
                 </h3>
               )}
               <p className="figur-titel">{figurDaten.titel}</p>
@@ -509,7 +526,7 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
       ) : figur ? (
         <div className="dorf-karte figur-karte">
           <button className="schliessen" onClick={() => setFigur(null)} aria-label="Schließen">
-            ×
+            <Zeichen e="×" />
           </button>
           <p>Dieser Agent ist gerade fertig geworden.</p>
         </div>
@@ -534,10 +551,10 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
         <aside className="dorf-panel" aria-label={`Gebäude ${gName(gewaehlt)}`}>
           <div className="dorf-panel-kopf">
             <a className="knopf klein" href={`/gebaeude/${encodeURIComponent(gewaehlt)}${reiter ? `?reiter=${reiter}` : ''}`} onClick={linkKlick}>
-              Ganze Seite ↗
+              Ganze Seite <Zeichen e="↗" />
             </a>
             <button className="schliessen" onClick={() => navigieren('/')} aria-label="Menü schließen">
-              ×
+              <Zeichen e="×" />
             </button>
           </div>
           <div className="dorf-panel-inhalt">
@@ -551,14 +568,14 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
           <div className="bau-gruppe">
             {(
               [
-                [{ art: 'auswahl' }, '👆 Auswählen'],
-                [{ art: 'strasse' }, '🛣️ Straße'],
-                [{ art: 'wasser' }, '💧 Wasser'],
-                [{ art: 'abreissen' }, '🧹 Abreißen'],
-              ] as [Werkzeug, string][]
-            ).map(([w, t]) => (
+                [{ art: 'auswahl' }, '👆', 'Auswählen'],
+                [{ art: 'strasse' }, '🛣️', 'Straße'],
+                [{ art: 'wasser' }, '💧', 'Wasser'],
+                [{ art: 'abreissen' }, '🧹', 'Abreißen'],
+              ] as [Werkzeug, string, string][]
+            ).map(([w, z, t]) => (
               <button key={w.art} className={werkzeug.art === w.art ? 'aktiv' : ''} onClick={() => werkzeugWaehlen(w)}>
-                {t}
+                <Zeichen e={z} /> {t}
               </button>
             ))}
           </div>
@@ -578,8 +595,20 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
           {auswahl && (
             <div className="bau-gruppe">
               <span className="bau-auswahl">{auswahl.art === 'gebaeude' ? gName(auswahl.id) : DEKO_NAMEN[layout?.deko[auswahl.index]?.art ?? 'baum']}</span>
-              <button onClick={() => steuerung.current?.drehen()}>⟳ Drehen</button>
-              <button onClick={() => steuerung.current?.entfernen()}>{auswahl.art === 'gebaeude' ? '📦 Ins Lager' : '🗑️ Entfernen'}</button>
+              <button onClick={() => steuerung.current?.drehen()}>
+                <Zeichen e="⟳" /> Drehen
+              </button>
+              <button onClick={() => steuerung.current?.entfernen()}>
+                {auswahl.art === 'gebaeude' ? (
+                  <>
+                    <Zeichen e="📦" /> Ins Lager
+                  </>
+                ) : (
+                  <>
+                    <Zeichen e="🗑️" /> Entfernen
+                  </>
+                )}
+              </button>
             </div>
           )}
           {lager.length > 0 && (
@@ -587,7 +616,7 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
               <span className="leise">Lager:</span>
               {lager.map((id) => (
                 <button key={id} className={werkzeug.art === 'platzieren' && werkzeug.id === id ? 'aktiv' : ''} onClick={() => werkzeugWaehlen({ art: 'platzieren', id })}>
-                  📦 {gName(id)}
+                  <Zeichen e="📦" /> {gName(id)}
                 </button>
               ))}
             </div>
@@ -597,7 +626,7 @@ export default function DorfAnsicht({ zurListe }: { zurListe: () => void }) {
           </div>
           <div className="bau-gruppe">
             <button onClick={rueckgaengig} disabled={!rueck.length}>
-              ↶ Rückgängig
+              <Zeichen e="↶" /> Rückgängig
             </button>
             <span className="leise bau-stand">{speichert ? 'speichert …' : 'gespeichert'}</span>
           </div>
@@ -783,9 +812,10 @@ function AgentenKarte({
   return (
     <div className="dorf-karte dorf-agentenkarte" role="dialog" aria-label="Laufende Agenten">
       <button className="schliessen" onClick={schliessen} aria-label="Schließen">
-        ×
+        <Zeichen e="×" />
       </button>
-      <h3>🤖 Agenten {figuren.length > 0 && <span className="leise">({figuren.length})</span>}</h3>
+      <h3>
+        <Zeichen e="🤖" /> Agenten {figuren.length > 0 && <span className="leise">({figuren.length})</span>}</h3>
       {figuren.length === 0 ? (
         <p className="leise">Gerade arbeitet niemand.</p>
       ) : (
@@ -793,7 +823,9 @@ function AgentenKarte({
           {figuren.map((f) => (
             <li key={f.laufId}>
               <div className="agent-kopf">
-                <span aria-hidden>{f.buergermeister ? '🎩' : f.ausloeser === 'buergermeister' ? '🧭' : f.motor === 'api' ? '🔵' : '🟠'}</span>
+                <span aria-hidden className={`figur-motor ${f.buergermeister || f.ausloeser === 'buergermeister' ? '' : f.motor === 'api' ? 'api' : 'abo'}`}>
+                  <Zeichen e={f.buergermeister ? '🎩' : f.ausloeser === 'buergermeister' ? '🧭' : f.motor === 'api' ? '🔵' : '🟠'} />
+                </span>
                 <strong>{f.buergermeister ? 'Bürgermeister' : f.ausloeser === 'buergermeister' ? `Helfer · ${name(f.gebaeude)}` : name(f.gebaeude)}</strong>
                 <span className="leise">
                   {STATUS_TEXT[f.status] ?? f.status} · {dauer(f.start ?? f.erstellt)}
@@ -817,7 +849,7 @@ function AgentenKarte({
           <ul className="agenten-zuletzt">
             {zuletzt.slice(0, 5).map((e) => (
               <li key={e.laufId}>
-                {ENDE_SYMBOL[e.status]} {e.buergermeister ? 'Bürgermeister' : name(e.gebaeude)}: {e.titel}{' '}
+                <Zeichen e={ENDE_SYMBOL[e.status]} /> {e.buergermeister ? 'Bürgermeister' : name(e.gebaeude)}: {e.titel}{' '}
                 <span className="leise">{uhrzeit.format(new Date(e.ende))}</span>
               </li>
             ))}

@@ -1,0 +1,1578 @@
+/* E240 – Apple-Oberfläche, Bereich B „Tagesgeschäft“: Heute, To-do-Brett, Kalender, Gewohnheiten, Wochenziele, Projekte,
+   Fokus/Kirchturm, Wochenplan, Statistik, Morgenzeitung/Rückblick, Schreibtisch, Tag abschließen, Woche planen.
+   Vorbilder: Heute = „Heute“-Ansichten von Kalender/Erinnerungen/Fitness (Large Title, Karten, Ringe); To-dos = Erinnerungen
+   (runde Abhak-Kreise mit Feder, Abschnitte, Detail als Sheet); Kalender = iOS-Kalender (Raster, rote Jetzt-Linie, getönte
+   Blöcke); Gewohnheiten = Fitness-Streaks; Fokus/Kirchturm = Uhr-App (Ring, große Monospace-Ziffern); Statistik = Health.
+   Regel: jede Regel beginnt mit html[data-design='apple'] – das Dorf-Design bleibt unberührt. Nur --a-Variablen. */
+
+/* ======================================================================================================
+   0. Gemeinsame Bausteine dieses Bereichs
+   ====================================================================================================== */
+
+/* Ring (apple/tag.tsx) – Spur leise, Wert in der Farbe des Elternteils */
+html[data-design='apple'] .a-ring { display: block; flex: none; }
+html[data-design='apple'] .a-ring-spur { stroke: var(--a-fuellung); }
+html[data-design='apple'] .a-ring-wert { stroke: currentColor; transition: stroke-dashoffset 600ms var(--a-feder-ruhig); }
+
+/* Abhak-Kreis wie in Erinnerungen: rund, leer = Ring, abgehakt = gefüllt mit Haken; Feder beim Abhaken */
+html[data-design='apple'] :is(.heute-todo, .todo-haken, .gewohnheit-haken, .wochenziele, .fokus-schritte, .todo-schritte, .todo-vorschlag, .planen-haken, .lernzeit-wahl, .plan-liste, .bm-todos, .heute-neu-heute) input[type='checkbox'] {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--a-text3);
+  background: transparent center / 14px 14px no-repeat;
+  box-shadow: none;
+  cursor: pointer;
+  accent-color: var(--a-blau);
+  transition: border-color var(--a-dauer-kurz), background-color var(--a-dauer-kurz);
+}
+html[data-design='apple'] :is(.heute-todo, .todo-haken, .gewohnheit-haken, .wochenziele, .fokus-schritte, .todo-schritte, .todo-vorschlag, .planen-haken, .lernzeit-wahl, .plan-liste, .bm-todos) input[type='checkbox']:checked {
+  border-color: var(--a-haken, var(--a-blau));
+  background-color: var(--a-haken, var(--a-blau));
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5.5 12.5l4.2 4.2L18.5 7.5' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  animation: a-abhaken var(--a-dauer) var(--a-feder);
+}
+html[data-design='apple'] :is(.heute-todo, .todo-haken, .gewohnheit-haken, .wochenziele, .fokus-schritte, .todo-schritte, .todo-vorschlag, .planen-haken, .lernzeit-wahl, .plan-liste, .bm-todos) input[type='checkbox']:active { transform: scale(0.88); }
+html[data-design='apple'] :is(.heute-todo, .todo-haken, .gewohnheit-haken, .wochenziele, .fokus-schritte, .todo-schritte, .todo-vorschlag, .planen-haken, .lernzeit-wahl, .plan-liste, .bm-todos) input[type='checkbox']:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--a-blau) 55%, transparent);
+  outline-offset: 2px;
+}
+@keyframes a-abhaken {
+  from { transform: scale(0.55); }
+  to { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-design='apple'] :is(.heute-todo, .todo-haken, .gewohnheit-haken, .wochenziele, .fokus-schritte, .todo-schritte, .todo-vorschlag, .planen-haken, .lernzeit-wahl, .plan-liste, .bm-todos) input[type='checkbox']:checked { animation: none; }
+}
+
+/* Karten dieses Bereichs: Fläche über dem Grund, ohne Rahmen, ruhiger Schatten */
+html[data-design='apple'] :is(.heute-karte, .heute-kopf, .stimmung-zeile, .planen-schritt, .projekt, .statistik-diagramm, .statistik-kachel, .kirchturm-teil, .lernzeit, .tagesleiste-bahn, .heute-hinweis, .heute-jetztdran, .heute-naechstes) {
+  font-family: var(--a-schrift);
+}
+html[data-design='apple'] .heute .karte,
+html[data-design='apple'] .heute-karte,
+html[data-design='apple'] .planen-schritt,
+html[data-design='apple'] .projekt.karte,
+html[data-design='apple'] .kirchturm-teil.karte {
+  background: var(--a-flaeche);
+  border: none;
+  border-radius: var(--a-r-l);
+  box-shadow: var(--a-schatten-1);
+  color: var(--a-text);
+}
+
+/* kleine Knöpfe in Kartenköpfen: randlos in Tint-Farbe (wie „Bearbeiten“ in iOS) */
+html[data-design='apple'] .heute-karte-kopf button.klein,
+html[data-design='apple'] .heute-mehr,
+html[data-design='apple'] .wplan-kopf button.klein {
+  font: var(--a-subhead);
+  font-weight: 400;
+  color: var(--a-blau);
+  background: none;
+  border: none;
+  box-shadow: none;
+  text-shadow: none;
+  padding: 0.25rem 0.35rem;
+  min-height: 44px;
+  border-radius: var(--a-r-s);
+  text-decoration: none;
+  letter-spacing: var(--a-tracking-text);
+}
+html[data-design='apple'] .heute-mehr:hover { text-decoration: none; opacity: 0.75; }
+html[data-design='apple'] .heute-karte-kopf button.klein:active,
+html[data-design='apple'] .heute-mehr:active { opacity: 0.5; transform: none; }
+
+/* ======================================================================================================
+   1. Heute (/heute)
+   ====================================================================================================== */
+
+html[data-design='apple'] .heute[aria-label='Mein Tag'] { max-width: 1080px; gap: 20px; color: var(--a-text); font-family: var(--a-schrift); }
+
+/* Kopf = Large Title mit Datum darüber (wie „Heute“ in Kalender/Fitness) – keine Karte */
+html[data-design='apple'] .heute .heute-kopf {
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 8px 4px 0;
+}
+html[data-design='apple'] .heute-datum {
+  font: var(--a-footnote);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--a-rot);
+}
+html[data-design='apple'] .heute-gruss {
+  font: var(--a-large-title);
+  letter-spacing: var(--a-tracking-gross);
+  color: var(--a-text);
+  margin: 2px 0 0;
+}
+html[data-design='apple'] .heute-kopf-zeile { align-items: flex-end; }
+
+/* Wetter: kompakt wie das Widget, rechts neben dem Titel */
+html[data-design='apple'] .heute-wetter {
+  background: var(--a-flaeche);
+  border: none;
+  border-radius: var(--a-r-m);
+  box-shadow: var(--a-schatten-1);
+  padding: 8px 14px 8px 10px;
+  gap: 10px;
+}
+html[data-design='apple'] .heute-wetter-symbol { font-size: 1.6rem; color: var(--a-orange); display: inline-flex; }
+html[data-design='apple'] .heute-wetter-symbol .a-symbol { width: 28px; height: 28px; }
+html[data-design='apple'] .heute-wetter strong { font: var(--a-title3); font-weight: 600; font-variant-numeric: tabular-nums; }
+html[data-design='apple'] .heute-wetter > div > span { font: var(--a-subhead); color: var(--a-text2); }
+html[data-design='apple'] .heute-wetter-klein { font: var(--a-caption); color: var(--a-text2); }
+
+/* „Jetzt dran“ + „Als Nächstes“: zwei Karten nebeneinander */
+html[data-design='apple'] .heute-jetzt-zeile { margin-top: 16px; gap: 12px; }
+html[data-design='apple'] .heute-jetztdran,
+html[data-design='apple'] .heute-naechstes {
+  background: var(--a-flaeche);
+  border: none;
+  border-radius: var(--a-r-l);
+  box-shadow: var(--a-schatten-1);
+  padding: 14px 16px;
+  margin: 0;
+  color: var(--a-text);
+}
+html[data-design='apple'] .heute-jetztdran-marke,
+html[data-design='apple'] .heute-naechstes-marke {
+  font: var(--a-footnote);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+html[data-design='apple'] .heute-jetztdran-marke { color: var(--a-orange); flex-basis: 100%; }
+html[data-design='apple'] .heute-naechstes-marke { color: var(--a-rot); }
+html[data-design='apple'] .heute-jetztdran-text strong { font: var(--a-headline); }
+html[data-design='apple'] .heute-jetztdran-schritt { font: var(--a-subhead); color: var(--a-text2); }
+html[data-design='apple'] .heute-jetztdran .leise { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .heute-naechstes a { color: var(--a-text); font: var(--a-body); }
+html[data-design='apple'] .heute-naechstes strong { font-weight: 600; }
+html[data-design='apple'] .heute-naechstes a span { color: var(--a-text2); }
+html[data-design='apple'] :is(.heute-jetztdran, .heute-fokus-knoepfe, .fokus-knoepfe, .pomodoro .zeile, .projekt-naechster) button {
+  border: none;
+  box-shadow: none;
+  text-shadow: none;
+  font-family: var(--a-schrift);
+  font-weight: 600;
+  color: var(--a-blau);
+  background: color-mix(in srgb, var(--a-blau) 12%, transparent);
+  transition: transform var(--a-dauer-kurz) var(--a-feder), opacity var(--a-dauer-kurz);
+}
+html[data-design='apple'] :is(.heute-jetztdran, .heute-fokus-knoepfe, .fokus-knoepfe, .pomodoro .zeile, .projekt-naechster) button:active { transform: scale(0.96); box-shadow: none; }
+html[data-design='apple'] :is(.heute-jetztdran, .projekt-naechster) button.haupt { background: var(--a-blau); color: #fff; }
+html[data-design='apple'] .heute-jetztdran button.haupt { border-radius: var(--a-r-voll); min-height: 44px; padding: 0 20px; display: inline-flex; align-items: center; gap: 6px; }
+
+/* Kennzahlen als Kapseln (getönt) */
+html[data-design='apple'] .heute-zahlen { gap: 8px; margin-top: 14px; }
+html[data-design='apple'] .heute-zahl {
+  font: var(--a-footnote);
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  min-height: 32px;
+  border: none;
+  border-radius: var(--a-r-voll);
+  background: var(--a-flaeche);
+  color: var(--a-text);
+  box-shadow: var(--a-schatten-1);
+  text-decoration: none;
+}
+html[data-design='apple'] .heute-zahl .a-symbol { color: var(--a-blau); }
+html[data-design='apple'] .heute-zahl.rot { background: color-mix(in srgb, var(--a-rot) 14%, var(--a-flaeche)); color: var(--a-rot); }
+html[data-design='apple'] .heute-zahl.rot .a-symbol { color: var(--a-rot); }
+html[data-design='apple'] .heute-zahl.gruen { background: color-mix(in srgb, var(--a-gruen) 16%, var(--a-flaeche)); color: color-mix(in srgb, var(--a-gruen) 70%, var(--a-text)); }
+html[data-design='apple'] .heute-zahl.gruen .a-symbol { color: var(--a-gruen); }
+html[data-design='apple'] a.heute-zahl:active { transform: scale(0.97); }
+html[data-design='apple'] .heute-planen {
+  margin-left: auto;
+  font: var(--a-subhead);
+  font-weight: 600;
+  color: var(--a-blau);
+  background: color-mix(in srgb, var(--a-blau) 14%, transparent);
+  border: none;
+  box-shadow: none;
+  text-shadow: none;
+  border-radius: var(--a-r-voll);
+  padding: 6px 14px;
+  min-height: 32px;
+}
+
+/* Hinweise (Freigaben, Zeitung, Wochenplanung, Abschluss, Projekt): Zeilen wie in Einstellungen – Symbol im farbigen Quadrat */
+html[data-design='apple'] .heute-band,
+html[data-design='apple'] .heute-hinweise { gap: 12px; }
+html[data-design='apple'] .heute-hinweis,
+html[data-design='apple'] .planen-hinweis.heute-karte {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--a-flaeche);
+  border: none;
+  border-radius: var(--a-r-l);
+  box-shadow: var(--a-schatten-1);
+  padding: 12px 16px;
+  color: var(--a-text);
+  font: var(--a-subhead);
+  text-decoration: none;
+  transition: transform var(--a-dauer-kurz) var(--a-feder-ruhig);
+}
+html[data-design='apple'] .planen-hinweis.heute-karte { display: block; }
+html[data-design='apple'] .planen-hinweis.heute-karte .a-symbol { color: var(--a-indigo); margin-right: 4px; }
+html[data-design='apple'] .planen-hinweis[href='/abschluss'] { background: var(--a-flaeche); color: var(--a-text); }
+html[data-design='apple'] .planen-hinweis[href='/abschluss'] strong { font-weight: 600; }
+html[data-design='apple'] .heute-hinweis:active,
+html[data-design='apple'] .planen-hinweis.heute-karte:active { transform: scale(0.98); box-shadow: var(--a-schatten-1); }
+html[data-design='apple'] .heute-hinweis.freigabe { background: var(--a-flaeche); box-shadow: var(--a-schatten-1); }
+html[data-design='apple'] .heute-hinweis-symbol {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  font-size: 1.2rem;
+  color: #fff;
+  background: var(--a-orange);
+}
+html[data-design='apple'] .heute-hinweis.zeitung .heute-hinweis-symbol { background: var(--a-rot); }
+html[data-design='apple'] .heute-hinweis-symbol .a-symbol { width: 20px; height: 20px; }
+html[data-design='apple'] .heute-hinweis strong { font: var(--a-headline); }
+html[data-design='apple'] .heute-hinweis-text { font: var(--a-footnote); color: var(--a-text2); }
+
+/* Spalten */
+html[data-design='apple'] .heute-spalten,
+html[data-design='apple'] .heute-spalte { gap: 20px; }
+
+/* Kartenkopf: Titel 3 mit farbigem Symbol, „Alle →“ rechts in Tint */
+html[data-design='apple'] .heute-karte { padding: 16px 16px 12px; }
+html[data-design='apple'] .heute-karte-kopf { margin-bottom: 8px; min-height: 32px; }
+html[data-design='apple'][data-design] .heute-karte-kopf h2 {
+  font: var(--a-title3);
+  letter-spacing: var(--a-tracking-text);
+  color: var(--a-text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+html[data-design='apple'][data-design] .heute-karte-kopf h2 .a-symbol { color: var(--a-blau); width: 22px; height: 22px; }
+html[data-design='apple'][data-design] .heute-termine-karte .heute-karte-kopf h2 .a-symbol { color: var(--a-rot); }
+html[data-design='apple'][data-design] .heute-fokus .heute-karte-kopf h2 .a-symbol { color: var(--a-orange); }
+html[data-design='apple'][data-design] .heute-gewohnheiten .heute-karte-kopf h2 .a-symbol { color: var(--a-gruen); }
+html[data-design='apple'][data-design] .heute-wochenziele .heute-karte-kopf h2 .a-symbol { color: var(--a-pink); }
+html[data-design='apple'][data-design] .morgen-karte .heute-karte-kopf h2 .a-symbol { color: var(--a-indigo); }
+html[data-design='apple'] .wochenziele-stand {
+  font: var(--a-footnote);
+  font-weight: 600;
+  color: var(--a-text2);
+  background: var(--a-fuellung);
+  border-radius: var(--a-r-voll);
+  padding: 1px 8px;
+  margin-left: 2px;
+}
+
+/* Abschnitts-Überschriften in Listen: Footnote in Großbuchstaben (iOS) */
+html[data-design='apple'] .heute-gruppe { margin-top: 14px; }
+html[data-design='apple'] .heute-gruppe-titel {
+  font: var(--a-footnote);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  color: var(--a-text2);
+  margin: 0 0 4px;
+}
+html[data-design='apple'] .heute-gruppe.rot .heute-gruppe-titel { color: var(--a-rot); }
+html[data-design='apple'] .heute-gruppe.wartend .heute-gruppe-titel { color: var(--a-text2); }
+html[data-design='apple'] .heute-gruppe-zahl,
+html[data-design='apple'] .heute-gruppe.rot .heute-gruppe-zahl,
+html[data-design='apple'] .heute-gruppe.wartend .heute-gruppe-zahl { background: none; color: inherit; padding: 0; font-size: inherit; }
+html[data-design='apple'] .heute-gruppe.spaeter,
+html[data-design='apple'] .heute-gruppe.spaeter + .heute-gruppe.spaeter { margin-top: 18px; padding-top: 0; border-top: none; }
+
+/* Neues To-do: Feld wie die „Neue Erinnerung“-Zeile */
+html[data-design='apple'] .heute-neu { gap: 8px; align-items: center; }
+html[data-design='apple'] .heute-neu > input {
+  font: var(--a-body);
+  min-height: 44px;
+  padding: 0 14px;
+  border: none;
+  border-radius: var(--a-r-m);
+  background: var(--a-fuellung);
+  color: var(--a-text);
+  box-shadow: none;
+}
+html[data-design='apple'] .heute-neu > input::placeholder { color: var(--a-text2); }
+html[data-design='apple'] .heute-neu > input:focus { outline: 3px solid color-mix(in srgb, var(--a-blau) 45%, transparent); outline-offset: 0; }
+html[data-design='apple'] .heute-neu button,
+html[data-design='apple'] .heute-neu button.haupt {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+  font: 400 1.6rem/1 var(--a-schrift);
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--a-blau);
+  border: none;
+  box-shadow: none;
+  text-shadow: none;
+}
+html[data-design='apple'] .heute-neu button:active { transform: scale(0.92); }
+html[data-design='apple'] .heute-neu-heute,
+html[data-design='apple'] .heute-neu-heute.an {
+  min-height: 32px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--a-r-voll);
+  font: var(--a-footnote);
+  font-weight: 600;
+  background: var(--a-fuellung);
+  color: var(--a-text2);
+}
+html[data-design='apple'] .heute-neu-heute.an { background: color-mix(in srgb, var(--a-blau) 16%, transparent); color: var(--a-blau); }
+html[data-design='apple'] .heute-neu-heute:has(input:focus-visible) { outline: 3px solid color-mix(in srgb, var(--a-blau) 55%, transparent); }
+html[data-design='apple'] .todo-text-hinweis { font: var(--a-footnote); color: var(--a-text2); margin: 6px 4px; }
+
+/* Zeitbudget */
+html[data-design='apple'] .heute-budget,
+html[data-design='apple'] .heute-budget.warnung {
+  font: var(--a-footnote);
+  color: var(--a-text2);
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 8px 2px 0;
+  margin: 0;
+}
+html[data-design='apple'] .heute-budget b { color: var(--a-text); font-weight: 600; }
+html[data-design='apple'] .heute-budget.warnung { color: var(--a-orange); font-weight: 500; }
+
+/* To-do-Zeilen wie Erinnerungen: keine Kästchen, feine eingerückte Trenner */
+html[data-design='apple'] .heute-todos,
+html[data-design='apple'] .heute-termine { gap: 0; }
+html[data-design='apple'] .heute-todo,
+html[data-design='apple'] .heute-gruppe.rot .heute-todo,
+html[data-design='apple'] .heute-gruppe.spaeter .heute-todo {
+  position: relative;
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 0 0 0 0;
+  gap: 2px 8px;
+  min-height: 44px;
+}
+html[data-design='apple'] .heute-todo::after {
+  content: '';
+  position: absolute;
+  left: 34px;
+  right: 0;
+  bottom: 0;
+  height: 0.5px;
+  background: var(--a-trenner);
+  transform: scaleY(1);
+}
+html[data-design='apple'] .heute-todo:last-child::after { display: none; }
+html[data-design='apple'] .heute-todo label,
+html[data-design='apple'] .heute-gruppe.spaeter .heute-todo label {
+  gap: 12px;
+  padding: 10px 0;
+  min-height: 44px;
+  font: var(--a-body);
+}
+html[data-design='apple'] .heute-todo-titel,
+html[data-design='apple'] .heute-gruppe.spaeter .heute-todo-titel { font-weight: 400; color: var(--a-text); letter-spacing: var(--a-tracking-text); }
+html[data-design='apple'] .heute-gruppe.wartend .heute-todo-titel { color: var(--a-text2); }
+html[data-design='apple'] .heute-todo.fertig { opacity: 1; }
+html[data-design='apple'] .heute-todo.fertig .heute-todo-titel { text-decoration: none; color: var(--a-text2); transition: color var(--a-dauer); }
+html[data-design='apple'] .heute-gruppe.rot .heute-todo { --a-haken: var(--a-rot); }
+html[data-design='apple'] .heute-todo-datum {
+  font: var(--a-footnote);
+  font-weight: 400;
+  color: var(--a-text2);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+html[data-design='apple'] .heute-todo-datum.rot { color: var(--a-rot); }
+html[data-design='apple'] .heute-todo-datum[title^='wartet'],
+html[data-design='apple'] .heute-todo-datum[title^='wartet – heute nachfassen'] {
+  border: none;
+  border-radius: var(--a-r-voll);
+  background: var(--a-fuellung);
+  color: var(--a-text2);
+  padding: 2px 8px;
+}
+html[data-design='apple'] .heute-todo-datum[title^='wartet – heute nachfassen'] { background: color-mix(in srgb, var(--a-orange) 16%, transparent); color: var(--a-orange); }
+html[data-design='apple'] .heute-schritt:has(.heute-schritt-text) { padding: 0 0 10px 34px; margin-top: -6px; }
+html[data-design='apple'] .heute-schritt-text { font-weight: 400; }
+html[data-design='apple'] .heute-verschieben { gap: 6px; }
+html[data-design='apple'] .heute-verschieben button.klein {
+  font: var(--a-footnote);
+  font-weight: 600;
+  color: var(--a-blau);
+  background: color-mix(in srgb, var(--a-blau) 12%, transparent);
+  border: none;
+  box-shadow: none;
+  text-shadow: none;
+  border-radius: var(--a-r-voll);
+  padding: 4px 10px;
+  min-height: 30px;
+  margin: 0;
+}
+html[data-design='apple'] .heute-verschieben button.klein:active { transform: scale(0.95); }
+html[data-design='apple'] .heute-leer { font: var(--a-subhead); color: var(--a-text2); }
+
+/* Stern = „markiert“ (Erinnerungen: Fähnchen) – orange, sonst leise */
+html[data-design='apple'] button.stern,
+html[data-design='apple'] .heute button.stern {
+  color: var(--a-text3);
+  background: none;
+  border: none;
+  box-shadow: none;
+  text-shadow: none;
+  font-size: 1.15rem;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  transition: transform var(--a-dauer-kurz) var(--a-feder), color var(--a-dauer-kurz);
+}
+html[data-design='apple'] button.stern.an { color: var(--a-orange); }
+html[data-design='apple'] button.stern:hover { color: var(--a-orange); transform: none; }
+html[data-design='apple'] button.stern:active { transform: scale(0.85); }
+
+/* Termine wie im iOS-Kalender: Zeitspalte, farbiger Strich, getönter Block */
+html[data-design='apple'] .heute-termine { gap: 6px; }
+html[data-design='apple'] .heute-termin {
+  position: relative;
+  grid-template-columns: 4.2rem minmax(0, 1fr);
+  gap: 10px;
+  padding: 8px 12px 8px 14px;
+  min-height: 48px;
+  border: none;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--farbe, var(--a-blau)) 13%, var(--a-flaeche));
+  box-shadow: none;
+  color: var(--a-text);
+  font: var(--a-subhead);
+}
+html[data-design='apple'] .heute-termin::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 7px;
+  bottom: 7px;
+  width: 4px;
+  border-radius: 2px;
+  background: var(--farbe, var(--a-blau));
+}
+html[data-design='apple'] .heute-termin:hover { background: color-mix(in srgb, var(--farbe, var(--a-blau)) 20%, var(--a-flaeche)); }
+html[data-design='apple'] .heute-termin:active { transform: scale(0.99); }
+html[data-design='apple'] .heute-termin.laeuft { border: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--farbe, var(--a-blau)) 60%, transparent); }
+html[data-design='apple'] .heute-termin.vorbei { opacity: 0.45; }
+html[data-design='apple'] .heute-termin-zeit { font: var(--a-subhead); font-weight: 600; font-variant-numeric: tabular-nums; }
+html[data-design='apple'] .heute-termin-bis { font: var(--a-caption); color: var(--a-text2); }
+html[data-design='apple'] .heute-termin-titel { font-weight: 600; }
+html[data-design='apple'] .heute-termin-ort { font: var(--a-caption); color: var(--a-text2); }
+html[data-design='apple'] .heute-jetzt {
+  font: var(--a-caption2);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: var(--a-rot);
+  color: #fff;
+  border-radius: var(--a-r-voll);
+  padding: 1px 6px;
+}
+
+/* Tagesleiste: feine Spur mit getönten Blöcken und roter Jetzt-Linie (Kalender) */
+html[data-design='apple'] .tagesleiste { margin: 2px 0 12px; }
+html[data-design='apple'] .tagesleiste-bahn {
+  height: 22px;
+  border: none;
+  border-radius: 6px;
+  background: var(--a-fuellung);
+  box-shadow: none;
+}
+html[data-design='apple'] .tagesleiste-frei { margin: 3px 1px; border: none; border-radius: 4px; background: color-mix(in srgb, var(--a-gruen) 22%, transparent); }
+html[data-design='apple'] .tagesleiste-block { opacity: 0.9; box-shadow: none; background: var(--farbe, var(--a-blau)); }
+html[data-design='apple'] .tagesleiste-vorbei { background: color-mix(in srgb, var(--a-flaeche) 55%, transparent); }
+html[data-design='apple'] .tagesleiste-jetzt { width: 2px; margin-left: -1px; background: var(--a-rot); box-shadow: none; }
+html[data-design='apple'] .tagesleiste-stunden { font: var(--a-caption2); color: var(--a-text2); font-variant-numeric: tabular-nums; }
+
+/* Fokus-Karte (Uhr-App): Ring in Orange, Zeit in großen dünnen Ziffern */
+html[data-design='apple'] .heute-fokus { --a-fokus: var(--a-orange); }
+html[data-design='apple'] .heute-fokus.phase-kurz,
+html[data-design='apple'] .heute-fokus.phase-lang { --a-fokus: var(--a-gruen); }
+html[data-design='apple'] .heute-fokus-ring-a { color: var(--a-fokus); }
+html[data-design='apple'] .heute-fokus-text { font: var(--a-subhead); color: var(--a-text2); }
+html[data-design='apple'] .heute-fokus-zeit {
+  font: 300 2.4rem/1.05 var(--a-schrift);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--a-text);
+}
+html[data-design='apple'] .heute-fokus-lauf .leise { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .heute-fokus-knoepfe { gap: 8px; }
+html[data-design='apple'] .heute-fokus-knoepfe button { border-radius: var(--a-r-voll); min-height: 44px; padding: 0 18px; display: inline-flex; align-items: center; gap: 6px; }
+html[data-design='apple'] .heute-fokus-knoepfe button.haupt { background: var(--a-fokus); color: #fff; }
+html[data-design='apple'] .heute-fokus-ziel { gap: 6px; margin: 2px 0 12px; }
+html[data-design='apple'] .heute-fokus-ziel-balken { height: 6px; border-radius: 3px; background: var(--a-fuellung); }
+html[data-design='apple'] .heute-fokus-ziel-balken span,
+html[data-design='apple'] .heute-fokus-ziel.erreicht .heute-fokus-ziel-balken span { background: var(--a-fokus); border-radius: 3px; transition: width 600ms var(--a-feder-ruhig); }
+html[data-design='apple'] .heute-fokus-ziel.erreicht .heute-fokus-ziel-balken span { background: var(--a-gruen); }
+html[data-design='apple'] .heute-fokus-ziel .leise { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .heute-uhren { border-top: 0.5px solid var(--a-trenner); margin-top: 12px; padding-top: 4px; gap: 0; font: var(--a-subhead); }
+html[data-design='apple'] .heute-uhren li { min-height: 40px; align-items: center; border-bottom: 0.5px solid var(--a-trenner-fein); }
+html[data-design='apple'] .heute-uhren li:last-child { border-bottom: none; }
+html[data-design='apple'] .heute-uhren li > span { display: inline-flex; align-items: center; gap: 6px; color: var(--a-text2); }
+html[data-design='apple'] .heute-uhren strong { font: 300 1.25rem/1 var(--a-schrift); font-variant-numeric: tabular-nums; color: var(--a-orange); }
+html[data-design='apple'] .heute-fokus-links { gap: 2px; }
+
+/* Morgen im Blick */
+html[data-design='apple'] .heute .morgen-karte { background: var(--a-flaeche); }
+html[data-design='apple'] .morgen-karte p { font: var(--a-subhead); color: var(--a-text2); }
+html[data-design='apple'] .morgen-liste { padding-left: 0; list-style: none; margin-top: 6px; }
+html[data-design='apple'] .morgen-liste li { font: var(--a-body); padding: 10px 0; border-bottom: 0.5px solid var(--a-trenner); }
+html[data-design='apple'] .morgen-liste li:last-child { border-bottom: none; }
+html[data-design='apple'] .warnung-text { color: var(--a-orange); font-weight: 500; }
+
+/* Fuß */
+html[data-design='apple'] .heute-fuss { padding: 0 4px 12px; }
+html[data-design='apple'] .heute-start { font: var(--a-footnote); color: var(--a-text2); gap: 8px; min-height: 44px; }
+
+/* ======================================================================================================
+   2. Gewohnheiten (Fitness-Streaks) und Wochenziele
+   ====================================================================================================== */
+
+html[data-design='apple'] .gewohnheiten { gap: 0; }
+html[data-design='apple'] .gewohnheit,
+html[data-design='apple'] .gewohnheit.erledigt {
+  position: relative;
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 4px 0;
+  min-height: 48px;
+  gap: 4px 10px;
+  --a-haken: var(--a-gruen);
+}
+html[data-design='apple'] .gewohnheit::after { content: ''; position: absolute; left: 34px; right: 0; bottom: 0; height: 0.5px; background: var(--a-trenner); }
+html[data-design='apple'] .gewohnheit:last-child::after { display: none; }
+html[data-design='apple'] .gewohnheit-haken { gap: 12px; font: var(--a-body); font-weight: 400; }
+html[data-design='apple'] .gewohnheit-symbol { font-size: 1.1rem; }
+html[data-design='apple'] .gewohnheit.erledigt .gewohnheit-name { text-decoration: none; color: var(--a-text2); }
+html[data-design='apple'] .gewohnheit-name .leise { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .gewohnheit-woche { gap: 5px; }
+html[data-design='apple'] .gewohnheit-woche .punkt {
+  width: 10px;
+  height: 10px;
+  border: none;
+  border-radius: 50%;
+  background: var(--a-fuellung2);
+}
+html[data-design='apple'] .gewohnheit-woche .punkt.an { background: var(--a-gruen); border: none; }
+html[data-design='apple'] .gewohnheit-woche .punkt.frei { width: 4px; height: 4px; margin: 0 3px; background: var(--a-text3); }
+html[data-design='apple'] .gewohnheit-woche .punkt:last-child { outline: 1.5px solid var(--a-text3); outline-offset: 2px; }
+html[data-design='apple'] .gewohnheit-woche .punkt.frei:last-child { outline: none; }
+html[data-design='apple'] .gewohnheit-serie {
+  font: var(--a-footnote);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--a-orange);
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
+html[data-design='apple'] .gewohnheit > button.klein { min-width: 44px; min-height: 44px; }
+html[data-design='apple'] .gewohnheit-neu { gap: 8px; }
+
+html[data-design='apple'] .wochenziele-balken {
+  height: 6px;
+  border: none;
+  border-radius: 3px;
+  background: var(--a-fuellung);
+  margin: 2px 0 8px;
+}
+html[data-design='apple'] .wochenziele-balken span { background: var(--a-pink); border-radius: 3px; transition: width 600ms var(--a-feder-ruhig); }
+html[data-design='apple'] .wochenziele { gap: 0; }
+html[data-design='apple'] .wochenziele li { position: relative; min-height: 44px; align-items: center; --a-haken: var(--a-pink); }
+html[data-design='apple'] .wochenziele li::after { content: ''; position: absolute; left: 34px; right: 0; bottom: 0; height: 0.5px; background: var(--a-trenner); }
+html[data-design='apple'] .wochenziele li:last-child::after { display: none; }
+html[data-design='apple'] .wochenziele label { gap: 12px; font: var(--a-body); font-weight: 400; padding: 10px 0; align-items: center; }
+html[data-design='apple'] .wochenziele li.erledigt span { text-decoration: none; color: var(--a-text2); }
+html[data-design='apple'] .wochenziele-neu { margin-top: 8px; }
+html[data-design='apple'] .wochenziele-naechste { border-top: 0.5px solid var(--a-trenner); margin-top: 12px; padding-top: 12px; }
+html[data-design='apple'][data-design] .wochenziele-naechste h3 { font: var(--a-headline); display: flex; gap: 6px; align-items: center; }
+
+/* Stimmung: fünf Gesichter als Segment-Reihe */
+html[data-design='apple'] .stimmung-zeile {
+  background: var(--a-flaeche);
+  border: none;
+  border-radius: var(--a-r-l);
+  box-shadow: var(--a-schatten-1);
+  padding: 12px 16px;
+  gap: 6px;
+}
+html[data-design='apple'] .stimmung-frage { font: var(--a-headline); display: inline-flex; align-items: center; gap: 6px; }
+html[data-design='apple'] .stimmung-frage .a-symbol { color: var(--a-indigo); }
+html[data-design='apple'] .stimmung-knopf {
+  min-width: 44px;
+  min-height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: var(--a-fuellung);
+  box-shadow: none;
+  font-size: 1.35rem;
+  transition: transform var(--a-dauer-kurz) var(--a-feder), background-color var(--a-dauer-kurz);
+}
+html[data-design='apple'] .stimmung-knopf:active { transform: scale(0.9); }
+html[data-design='apple'] .stimmung-knopf.an { background: color-mix(in srgb, var(--a-blau) 22%, transparent); box-shadow: 0 0 0 2px var(--a-blau); }
+
+/* ======================================================================================================
+   3. To-do-Brett (Erinnerungen)
+   ====================================================================================================== */
+
+html[data-design='apple'] .todo-brett { font-family: var(--a-schrift); color: var(--a-text); }
+html[data-design='apple'] .todo-neu { gap: 8px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
+html[data-design='apple'] .todo-neu > input:not([type='date']) { flex: 1 1 12rem; }
+html[data-design='apple'] .todo-neu button,
+html[data-design='apple'] .todo-neu button.haupt {
+  width: 44px; min-width: 44px; height: 44px; padding: 0; border-radius: 50%;
+  font: 400 1.6rem/1 var(--a-schrift); color: #fff; background: var(--a-blau); border: none; box-shadow: none; text-shadow: none;
+}
+
+/* Filter: Suche + Kapseln (wie Filter-Chips in Erinnerungen/Mail) */
+html[data-design='apple'] .todo-filter { gap: 8px; margin: 4px 0 12px; }
+html[data-design='apple'] .todo-filter .klein,
+html[data-design='apple'] .todo-filter button.klein {
+  margin: 0;
+  font: var(--a-footnote);
+  font-weight: 600;
+  min-height: 32px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--a-r-voll);
+  background: var(--a-fuellung);
+  color: var(--a-text);
+  box-shadow: none;
+  text-shadow: none;
+}
+html[data-design='apple'] .todo-filter .klein.an { background: var(--a-blau); color: #fff; }
+html[data-design='apple'] .todo-filter-zahl { font: var(--a-footnote); color: var(--a-text2); }
+
+/* Abschnitte: Überschrift Title 3 in Abschnittsfarbe (wie geplante Liste in Erinnerungen), Liste inset grouped */
+html[data-design='apple'] .todo-abschnitt { --a-farbe: var(--a-text2); }
+html[data-design='apple'] .todo-abschnitt.frist-ueber, html[data-design='apple'] .todo.frist-ueber { --a-farbe: var(--a-rot); }
+html[data-design='apple'] .todo-abschnitt.frist-heute, html[data-design='apple'] .todo.frist-heute { --a-farbe: var(--a-orange); }
+html[data-design='apple'] .todo-abschnitt.frist-morgen, html[data-design='apple'] .todo.frist-morgen { --a-farbe: var(--a-gelb); }
+html[data-design='apple'] .todo-abschnitt.frist-woche, html[data-design='apple'] .todo.frist-woche { --a-farbe: var(--a-blau); }
+html[data-design='apple'] .todo-abschnitt.frist-spaeter, html[data-design='apple'] .todo.frist-spaeter { --a-farbe: var(--a-indigo); }
+html[data-design='apple'] .todo-abschnitt.frist-ohne, html[data-design='apple'] .todo.frist-ohne { --a-farbe: var(--a-grau); }
+html[data-design='apple'][data-design] .todo-abschnitt-kopf,
+html[data-design='apple'][data-design] .todo-abschnitt.frist-ueber .todo-abschnitt-kopf,
+html[data-design='apple'][data-design] .todo-abschnitt.frist-heute .todo-abschnitt-kopf {
+  font: var(--a-title3);
+  letter-spacing: var(--a-tracking-text);
+  text-transform: none;
+  color: var(--a-farbe);
+  margin: 22px 4px 8px;
+  gap: 8px;
+}
+html[data-design='apple'][data-design] .todo-abschnitt:first-of-type .todo-abschnitt-kopf { margin-top: 6px; }
+html[data-design='apple'][data-design] .todo-abschnitt-kopf::before,
+html[data-design='apple'][data-design] .todo-abschnitt-kopf::after { display: none; }
+html[data-design='apple'] .todo-abschnitt-zahl {
+  font: var(--a-headline);
+  color: var(--a-text2);
+  background: none;
+  border: none;
+  padding: 0;
+  margin-left: auto;
+}
+
+html[data-design='apple'] .todo-liste {
+  gap: 0;
+  background: var(--a-flaeche);
+  border-radius: var(--a-r-m);
+  box-shadow: var(--a-schatten-1);
+  overflow: hidden;
+  margin: 0 0 8px;
+}
+html[data-design='apple'] .todo-liste:empty { display: none; }
+html[data-design='apple'] .todo,
+html[data-design='apple'] .todo.auf,
+html[data-design='apple'] .todo.fertig {
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0 12px 0 14px;
+  overflow: visible;
+  transition: background-color var(--a-dauer-kurz);
+  --a-haken: var(--a-farbe, var(--a-blau));
+}
+html[data-design='apple'] .todo::before { display: none; }
+html[data-design='apple'] .todo::after { content: ''; position: absolute; left: 48px; right: 0; bottom: 0; height: 0.5px; background: var(--a-trenner); }
+html[data-design='apple'] .todo:last-child::after { display: none; }
+html[data-design='apple'] .todo:hover { transform: none; box-shadow: none; }
+html[data-design='apple'] .todo.auf { background: color-mix(in srgb, var(--a-fuellung) 45%, transparent); }
+html[data-design='apple'] .todo.fertig { opacity: 1; }
+html[data-design='apple'] .todo.fertig .todo-titel-text { text-decoration: none; color: var(--a-text2); }
+html[data-design='apple'] .todo-kopf { min-height: 48px; gap: 10px; }
+html[data-design='apple'] .todo-haken input[type='checkbox'] { border-color: color-mix(in srgb, var(--a-farbe, var(--a-text3)) 70%, var(--a-text3)); }
+html[data-design='apple'] .todo-titel { gap: 8px; padding: 12px 0; min-height: 44px; box-sizing: border-box; }
+html[data-design='apple'] .todo-titel:focus-visible { outline: 3px solid color-mix(in srgb, var(--a-blau) 55%, transparent); border-radius: 6px; }
+html[data-design='apple'] .todo-titel-text { font: var(--a-body); font-weight: 400; color: var(--a-text); letter-spacing: var(--a-tracking-text); }
+html[data-design='apple'] .todo-frist,
+html[data-design='apple'] .frist-ueber .todo-frist,
+html[data-design='apple'] .frist-heute .todo-frist,
+html[data-design='apple'] .frist-morgen .todo-frist,
+html[data-design='apple'] .frist-woche .todo-frist {
+  font: var(--a-footnote);
+  font-weight: 400;
+  background: none;
+  padding: 0;
+  color: var(--a-text2);
+}
+html[data-design='apple'] .frist-ueber .todo-frist { color: var(--a-rot); }
+html[data-design='apple'] .todo-pfeil { color: var(--a-text3); font-size: 1.4rem; font-weight: 400; transition: transform var(--a-dauer) var(--a-feder); }
+html[data-design='apple'] .todo.auf .todo-pfeil { color: var(--a-text2); }
+html[data-design='apple'] .todo-fortschritt { height: 3px; margin: -6px 0 8px 34px; background: var(--a-fuellung); border-radius: 2px; }
+html[data-design='apple'] .todo-fortschritt span { background: var(--a-farbe, var(--a-blau)); border-radius: 2px; }
+html[data-design='apple'] .todo-details {
+  border-top: none;
+  padding: 0 0 12px 34px;
+  margin: 0;
+  gap: 10px;
+  animation: a-todo-auf var(--a-dauer) var(--a-feder);
+}
+@keyframes a-todo-auf { from { opacity: 0; transform: translateY(-6px); } }
+@media (prefers-reduced-motion: reduce) { html[data-design='apple'] .todo-details { animation: none; } }
+html[data-design='apple'] .todo-meta { gap: 6px; }
+html[data-design='apple'] .todo-meta .abzeichen,
+html[data-design='apple'] .todo-meta .abzeichen.wartet {
+  font: var(--a-caption);
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border: none;
+  border-radius: var(--a-r-voll);
+  background: var(--a-fuellung);
+  color: var(--a-text2);
+}
+html[data-design='apple'] .todo-meta .abzeichen.warnung { background: color-mix(in srgb, var(--a-rot) 14%, transparent); color: var(--a-rot); }
+html[data-design='apple'] .todo-knoepfe { gap: 6px; }
+html[data-design='apple'] .todo-knoepfe button.klein,
+html[data-design='apple'] .todo-knoepfe button.klein[aria-expanded='true'] {
+  font: var(--a-footnote);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  min-height: 32px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--a-r-voll);
+  color: var(--a-blau);
+  background: color-mix(in srgb, var(--a-blau) 12%, transparent);
+  box-shadow: none;
+  text-shadow: none;
+}
+html[data-design='apple'] .todo-knoepfe button.klein[aria-expanded='true'] { background: var(--a-blau); color: #fff; }
+html[data-design='apple'] .todo-knoepfe button.klein:active { transform: scale(0.95); }
+html[data-design='apple'] .todo-knoepfe a { font: var(--a-footnote); color: var(--a-blau); font-weight: 400; }
+
+/* Teilschritte */
+html[data-design='apple'] .todo-schritte {
+  background: var(--a-flaeche2);
+  border: none;
+  border-radius: var(--a-r-m);
+  padding: 6px 12px;
+}
+html[data-design='apple'] .todo-schritte-balken { height: 3px; border-radius: 2px; background: var(--a-fuellung); border: none; }
+html[data-design='apple'] .todo-schritte-balken span { background: var(--a-gruen); border-radius: 2px; }
+html[data-design='apple'] .todo-schritte ul { gap: 0; }
+html[data-design='apple'] .todo-schritte li { min-height: 44px; border-bottom: 0.5px solid var(--a-trenner-fein); --a-haken: var(--a-gruen); }
+html[data-design='apple'] .todo-schritte li label { gap: 10px; font: var(--a-subhead); }
+html[data-design='apple'] .todo-schritte li.fertig span { color: var(--a-text2); text-decoration: none; }
+html[data-design='apple'] .todo-schritte .leise-knopf,
+html[data-design='apple'] .todo-schritte .leise-knopf:hover {
+  color: var(--a-text3);
+  background: none;
+  border: none;
+  box-shadow: none;
+  min-width: 44px;
+  min-height: 44px;
+}
+html[data-design='apple'] .todo-schritte .leise-knopf:hover,
+html[data-design='apple'] .todo-schritte .leise-knopf:focus-visible { color: var(--a-rot); background: none; }
+html[data-design='apple'] .todo-schritt-neu { gap: 6px; padding: 6px 0; }
+html[data-design='apple'] .todo-schritt-neu button.klein {
+  border: none; box-shadow: none; text-shadow: none; border-radius: var(--a-r-voll); min-height: 36px;
+  background: color-mix(in srgb, var(--a-blau) 12%, transparent); color: var(--a-blau); font: var(--a-footnote); font-weight: 600;
+}
+html[data-design='apple'] .todo-vorschlag { gap: 0; }
+html[data-design='apple'] .todo-vorschlag label { gap: 10px; min-height: 44px; font: var(--a-subhead); }
+html[data-design='apple'] .todo-etappen { border: none; background: var(--a-flaeche2); border-radius: var(--a-r-m); padding: 10px 12px; font: var(--a-subhead); }
+
+/* Bearbeiten als Sheet: von unten (Handy), mittig (Desktop); Scrim dahinter schließt */
+html[data-design='apple'] .todo.bearbeiten { position: static; padding: 0; }
+html[data-design='apple'] .todo.bearbeiten::after { display: none; }
+html[data-design='apple'] .todo.bearbeiten .a-sheet-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 950;
+  background: var(--a-scrim);
+  animation: a-scrim-ein var(--a-dauer) ease-out;
+}
+html[data-design='apple'] .todo.bearbeiten > form {
+  position: fixed;
+  z-index: 951;
+  left: 50%;
+  top: 50%;
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(86vh, 760px);
+  overflow: auto;
+  transform: translate(-50%, -50%);
+  padding: 28px 20px 20px;
+  gap: 10px;
+  background: var(--a-grund);
+  border-radius: var(--a-r-xl);
+  box-shadow: var(--a-schatten-3);
+  animation: a-sheet-mitte var(--a-dauer) var(--a-feder);
+  overscroll-behavior: contain;
+}
+html[data-design='apple'] .todo.bearbeiten > form::before {
+  content: 'Bearbeiten';
+  font: var(--a-headline);
+  text-align: center;
+  margin: -12px 0 6px;
+  color: var(--a-text);
+}
+html[data-design='apple'] .todo.bearbeiten > form > :is(input, select, textarea),
+html[data-design='apple'] .todo.bearbeiten .todo-erinnerung {
+  background: var(--a-flaeche);
+  border: none;
+  border-radius: var(--a-r-m);
+  min-height: 44px;
+  font: var(--a-body);
+  color: var(--a-text);
+  box-shadow: none;
+}
+html[data-design='apple'] .todo.bearbeiten > form > :is(input, select) { padding: 0 14px; }
+html[data-design='apple'] .todo.bearbeiten > form > textarea { padding: 12px 14px; }
+html[data-design='apple'] .todo.bearbeiten .todo-erinnerung { padding: 0 6px 0 14px; display: flex; align-items: center; gap: 8px; font-weight: 400; }
+html[data-design='apple'] .todo.bearbeiten .todo-erinnerung input { background: none; border: none; box-shadow: none; min-height: 44px; color: var(--a-blau); text-align: right; }
+html[data-design='apple'] .todo.bearbeiten .zeile { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+html[data-design='apple'] .todo.bearbeiten .zeile button { flex: 1 1 8rem; min-height: 48px; border-radius: var(--a-r-m); }
+@keyframes a-scrim-ein { from { opacity: 0; } }
+@keyframes a-sheet-mitte { from { opacity: 0; transform: translate(-50%, -46%) scale(0.96); } }
+@keyframes a-sheet-unten { from { transform: translateY(100%); } }
+@media (max-width: 700px) {
+  html[data-design='apple'] .todo.bearbeiten > form {
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: 0;
+    width: auto;
+    max-height: 88vh;
+    transform: none;
+    border-radius: var(--a-r-xl) var(--a-r-xl) 0 0;
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+    animation: a-sheet-unten var(--a-dauer) var(--a-feder);
+  }
+  /* Griff oben am Sheet */
+  html[data-design='apple'] .todo.bearbeiten > form::before { margin-top: -18px; padding-top: 14px; background: linear-gradient(var(--a-text3), var(--a-text3)) top center / 36px 5px no-repeat; border-radius: 3px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-design='apple'] .todo.bearbeiten > form,
+  html[data-design='apple'] .todo.bearbeiten .a-sheet-scrim { animation-duration: 1ms; }
+}
+
+/* Liste des Bürgermeisters (gleiche Erinnerungen-Zeilen, ohne Aufklappen) */
+html[data-design='apple'][data-design] .bm-todos h3 { font: var(--a-title3); display: flex; align-items: center; gap: 8px; }
+html[data-design='apple'][data-design] .bm-todos h3 .a-symbol { color: var(--a-indigo); }
+html[data-design='apple'] .bm-todos .todo { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; }
+html[data-design='apple'] .bm-todos .todo-titel { font: var(--a-body); font-weight: 400; padding: 0; min-height: 0; color: var(--a-text); text-decoration: none; }
+html[data-design='apple'] .bm-todos .todo-meta { font: var(--a-caption); color: var(--a-text2); gap: 4px 10px; }
+html[data-design='apple'] .bm-todos .todo-meta a { color: var(--a-blau); font-weight: 400; }
+html[data-design='apple'] .bm-todos .todo-meta button.klein { background: none; border: none; box-shadow: none; color: var(--a-rot); min-width: 32px; min-height: 32px; padding: 0; }
+html[data-design='apple'] .bm-rundgang summary { font: var(--a-subhead); color: var(--a-blau); min-height: 44px; display: flex; align-items: center; gap: 6px; }
+
+/* ======================================================================================================
+   4. Kalender (Marktplatz) – iOS-Kalender
+   ====================================================================================================== */
+
+html[data-design='apple'] .markt-kalender { font-family: var(--a-schrift); color: var(--a-text); }
+html[data-design='apple'][data-design] .kalender-titel { font: var(--a-title2); letter-spacing: var(--a-tracking-gross); color: var(--a-text); }
+html[data-design='apple'] .kalender-kopf { gap: 10px; margin-bottom: 10px; }
+html[data-design='apple'] .kalender-kopf .zeile { gap: 8px; align-items: center; }
+
+/* Ansicht als Segmented Control */
+html[data-design='apple'] .markt-kalender .reiter.klein {
+  display: inline-flex;
+  gap: 0;
+  padding: 2px;
+  border: none;
+  border-radius: 9px;
+  background: var(--a-fuellung);
+  box-shadow: none;
+}
+html[data-design='apple'] .markt-kalender .reiter.klein button {
+  font: var(--a-footnote);
+  font-weight: 500;
+  min-height: 30px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  box-shadow: none;
+  text-shadow: none;
+  color: var(--a-text);
+  margin: 0;
+  transition: background-color var(--a-dauer-kurz), box-shadow var(--a-dauer-kurz);
+}
+html[data-design='apple'] .markt-kalender .reiter.klein button.aktiv {
+  background: var(--a-flaeche);
+  font-weight: 600;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
+}
+html[data-design='apple'][data-dunkel='ja'] .markt-kalender .reiter.klein button.aktiv { background: var(--a-fuellung2); }
+
+html[data-design='apple'] .kalender-auswahl { gap: 6px 14px; font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .kalender-schalter .punkt { width: 10px; height: 10px; border-radius: 50%; }
+html[data-design='apple'] .kalender-schalter input { accent-color: var(--a-blau); }
+
+/* Monat */
+html[data-design='apple'] .kalender-monat,
+html[data-design='apple'] .kalender-raster {
+  border: none;
+  border-radius: var(--a-r-m);
+  background: var(--a-flaeche);
+  box-shadow: var(--a-schatten-1);
+}
+html[data-design='apple'] .kalender-wt { background: none; font: var(--a-caption); font-weight: 600; color: var(--a-text2); text-transform: uppercase; padding: 8px 4px 6px; }
+html[data-design='apple'] .kalender-tag { border-top: 0.5px solid var(--a-trenner-fein); border-left: none; padding: 4px 3px; gap: 2px; }
+html[data-design='apple'] .kalender-tag.anderer { background: none; color: var(--a-text3); }
+html[data-design='apple'] .kalender-tag .tag-nr {
+  font: var(--a-subhead);
+  font-variant-numeric: tabular-nums;
+  align-self: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 4px;
+  border-radius: 50%;
+  color: inherit;
+  background: none;
+  border: none;
+  box-shadow: none;
+}
+html[data-design='apple'] .kalender-tag.heute .tag-nr,
+html[data-design='apple'] .raster-tag.heute strong { background: var(--a-rot); color: #fff; border-radius: var(--a-r-voll); font-weight: 600; }
+html[data-design='apple'] .kalender-tag.ziel { outline: 2px dashed var(--a-blau); }
+html[data-design='apple'] .termin {
+  font: var(--a-caption);
+  font-weight: 500;
+  border: none;
+  border-left: 3px solid var(--farbe, var(--a-blau));
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--farbe, var(--a-blau)) 16%, var(--a-flaeche));
+  color: var(--a-text);
+  box-shadow: none;
+  text-shadow: none;
+  padding: 2px 5px;
+  min-height: 0;
+}
+html[data-design='apple'] .termin.ganztags { background: var(--farbe, var(--a-blau)); color: #fff; border-left: none; }
+html[data-design='apple'] .termin:active { transform: none; filter: brightness(0.95); }
+html[data-design='apple'] .termin-zeit { color: var(--a-text2); opacity: 1; }
+html[data-design='apple'] .kalender-tag .mehr { font: var(--a-caption2); color: var(--a-text2); background: none; border: none; box-shadow: none; }
+
+/* Woche/Tag-Raster */
+html[data-design='apple'] .raster-kopf { border-bottom: 0.5px solid var(--a-trenner); }
+html[data-design='apple'] .raster-tag { font: var(--a-footnote); color: var(--a-text2); background: none; border: none; box-shadow: none; text-shadow: none; padding: 8px 2px; }
+html[data-design='apple'] .raster-tag strong { font: var(--a-title3); color: var(--a-text); padding: 0 6px; }
+html[data-design='apple'] .raster-ganztags { border-left: 0.5px solid var(--a-trenner-fein); }
+html[data-design='apple'] .klein-text { font: var(--a-caption2); color: var(--a-text2); }
+html[data-design='apple'] .raster-stunden div { font: var(--a-caption2); color: var(--a-text2); border-top: none; font-variant-numeric: tabular-nums; transform: translateY(-0.55em); }
+html[data-design='apple'] .raster-spalte {
+  border-left: 0.5px solid var(--a-trenner-fein);
+  background-image: repeating-linear-gradient(to bottom, var(--a-trenner-fein) 0 0.5px, transparent 0.5px 44px);
+}
+html[data-design='apple'] .raster-spalte.heute { background-color: color-mix(in srgb, var(--a-rot) 4%, transparent); }
+html[data-design='apple'] .raster-termin .termin {
+  border-left-width: 3px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--farbe, var(--a-blau)) 22%, var(--a-flaeche));
+  padding: 3px 5px;
+}
+html[data-design='apple'] .raster-termin.gezogen { filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.22)); opacity: 0.95; }
+html[data-design='apple'] .raster-griff:hover { background: var(--a-fuellung2); }
+html[data-design='apple'] .zug-zeit { background: var(--a-text); color: var(--a-flaeche); font: var(--a-caption2); border-radius: var(--a-r-voll); padding: 2px 6px; }
+/* Jetzt-Linie: rot mit Punkt am linken Ende */
+html[data-design='apple'] .jetzt-linie { height: 2px; background: var(--a-rot); z-index: 3; }
+html[data-design='apple'] .jetzt-linie::before { content: ''; position: absolute; left: -5px; top: -4px; width: 10px; height: 10px; border-radius: 50%; background: var(--a-rot); }
+
+/* Liste */
+html[data-design='apple'][data-design] .kalender-liste h4 { font: var(--a-footnote); font-weight: 600; text-transform: uppercase; color: var(--a-text2); margin: 18px 4px 6px; }
+html[data-design='apple'][data-design] .kalender-liste h4.heute { color: var(--a-rot); }
+html[data-design='apple'] .kalender-liste section { background: none; margin: 0; }
+html[data-design='apple'] .liste-termin { background: var(--a-flaeche); padding: 8px 12px; gap: 10px; min-height: 44px; border-bottom: 0.5px solid var(--a-trenner-fein); }
+html[data-design='apple'] .liste-termin:first-of-type { border-radius: var(--a-r-m) var(--a-r-m) 0 0; }
+html[data-design='apple'] .liste-termin:last-child { border-radius: 0 0 var(--a-r-m) var(--a-r-m); border-bottom: none; }
+html[data-design='apple'] .liste-termin:only-of-type { border-radius: var(--a-r-m); }
+html[data-design='apple'] .liste-zeit { font: var(--a-footnote); color: var(--a-text2); font-variant-numeric: tabular-nums; }
+html[data-design='apple'] .liste-termin .termin { font: var(--a-subhead); }
+html[data-design='apple'] .farbwahl .farbe { width: 28px; height: 28px; border: none; box-shadow: none; }
+html[data-design='apple'] .farbwahl .farbe.gewaehlt { box-shadow: 0 0 0 2px var(--a-flaeche), 0 0 0 4px var(--a-text); transform: none; }
+html[data-design='apple'] .termin-form .termin-titel { font: var(--a-title3); }
+
+/* ======================================================================================================
+   5. Kirchturm (Uhr-App) und Fokus-Vollbild
+   ====================================================================================================== */
+
+html[data-design='apple'] .kirchturm { font-family: var(--a-schrift); }
+html[data-design='apple'] .kirchturm-kopf { gap: 16px; }
+html[data-design='apple'] .zifferblatt { filter: none; }
+html[data-design='apple'] .kirchturm-zeit,
+html[data-design='apple'] .stoppuhr-zeit {
+  font: 200 3rem/1 var(--a-schrift);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--a-text);
+}
+html[data-design='apple'] .kirchturm-raster { gap: 16px; }
+html[data-design='apple'] .kirchturm-teil { padding: 16px; }
+html[data-design='apple'][data-design] .kirchturm-teil h3 { font: var(--a-title3); display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
+html[data-design='apple'][data-design] .kirchturm-teil h3 .a-symbol { color: var(--a-orange); }
+html[data-design='apple'] .kirchturm-liste { gap: 0; }
+html[data-design='apple'] .kirchturm-liste li { min-height: 56px; padding: 6px 0; border-bottom: 0.5px solid var(--a-trenner); }
+html[data-design='apple'] .kirchturm-liste li:last-child { border-bottom: none; }
+html[data-design='apple'] .timer-zeit,
+html[data-design='apple'] .wecker-zeit {
+  font: 300 2rem/1.05 var(--a-schrift);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--a-text);
+}
+html[data-design='apple'] .timer.status-laeuft .timer-zeit { color: var(--a-orange); }
+html[data-design='apple'] .timer.status-fertig .timer-zeit { color: var(--a-rot); }
+html[data-design='apple'] .wecker.aus .wecker-zeit { color: var(--a-text2); }
+html[data-design='apple'] .wecker.aus { opacity: 1; }
+html[data-design='apple'] .timer-name { font: var(--a-subhead); color: var(--a-text2); }
+html[data-design='apple'] .wochentage label { border: none; background: var(--a-fuellung); border-radius: var(--a-r-voll); font: var(--a-footnote); min-height: 32px; padding: 0 10px; }
+html[data-design='apple'] .wochentage label.an { background: var(--a-orange); color: #fff; }
+html[data-design='apple'] .kirchturm-vorlagen .vorlage { border-radius: var(--a-r-voll); }
+
+/* Pomodoro: Ring in Orange wie der Timer der Uhr-App */
+html[data-design='apple'] .pomodoro { --a-fokus: var(--a-orange); }
+html[data-design='apple'] .pomodoro.phase-kurz,
+html[data-design='apple'] .pomodoro.phase-lang { --a-fokus: var(--a-gruen); }
+html[data-design='apple'] .pomodoro-anzeige { gap: 18px; }
+html[data-design='apple'] .pomodoro-ring,
+html[data-design='apple'] .phase-kurz .pomodoro-ring,
+html[data-design='apple'] .phase-lang .pomodoro-ring {
+  width: 132px;
+  height: 132px;
+  background: conic-gradient(var(--a-fokus) calc(var(--anteil) * 360deg), var(--a-fuellung) 0);
+}
+html[data-design='apple'] .pomodoro-zeit {
+  width: 114px;
+  height: 114px;
+  background: var(--a-flaeche);
+  font: 300 1.75rem/1 var(--a-schrift);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+html[data-design='apple'] .pomodoro-punkte span { border: 1.5px solid var(--a-fokus); width: 8px; height: 8px; }
+html[data-design='apple'] .pomodoro-punkte span.voll { background: var(--a-fokus); }
+html[data-design='apple'] .pomodoro .zeile button { border-radius: var(--a-r-voll); min-height: 44px; }
+html[data-design='apple'] .pomodoro .zeile button.haupt { background: var(--a-fokus); color: #fff; }
+html[data-design='apple'] .kirchturm-klingel {
+  background: var(--a-glas);
+  -webkit-backdrop-filter: var(--a-glas-blur);
+  backdrop-filter: var(--a-glas-blur);
+  border: 0.5px solid var(--a-glas-rand);
+  border-radius: var(--a-r-l);
+  box-shadow: var(--a-glas-schatten);
+  padding: 12px 16px;
+  color: var(--a-text);
+}
+html[data-design='apple'] .fokus-zahlen { gap: 24px; }
+html[data-design='apple'] .fokus-zahlen strong { font: var(--a-title2); font-variant-numeric: tabular-nums; }
+html[data-design='apple'] .fokus-saeule { background: var(--a-orange); border-radius: 4px 4px 1px 1px; width: 56%; }
+html[data-design='apple'] .fokus-tag { font: var(--a-caption2); color: var(--a-text2); }
+html[data-design='apple'] .fokus-themen li { font: var(--a-subhead); padding: 8px 0; border-bottom: 0.5px solid var(--a-trenner-fein); }
+
+/* Fokus-Vollbild: schwarz/weiß wie die Uhr-App, Ring + große dünne Ziffern */
+html[data-design='apple'] .fokus-vollbild,
+html[data-design='apple'] .fokus-vollbild.phase-kurz,
+html[data-design='apple'] .fokus-vollbild.phase-lang {
+  --a-fokus: var(--a-orange);
+  background: var(--a-flaeche);
+  border: none;
+  border-radius: var(--a-r-xl);
+  box-shadow: var(--a-schatten-1);
+  color: var(--a-text);
+  font-family: var(--a-schrift);
+  gap: 14px;
+}
+html[data-design='apple'] .fokus-vollbild.phase-kurz,
+html[data-design='apple'] .fokus-vollbild.phase-lang { --a-fokus: var(--a-gruen); }
+html[data-design='apple'] .fokus-zurueck { font: var(--a-body); color: var(--a-blau); display: inline-flex; align-items: center; gap: 2px; min-height: 44px; }
+html[data-design='apple'] .fokus-phase { font: var(--a-headline); color: var(--a-fokus); }
+html[data-design='apple'] .fokus-ring-a { position: relative; display: grid; place-items: center; width: min(320px, 78vw); aspect-ratio: 1; color: var(--a-fokus); }
+html[data-design='apple'] .fokus-ring-a .a-ring { position: absolute; inset: 0; width: 100%; height: 100%; }
+html[data-design='apple'] .fokus-zeit {
+  font: 200 clamp(3.4rem, 15vw, 5.2rem)/1 var(--a-schrift);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  color: var(--a-text);
+}
+html[data-design='apple'] .fokus-thema { font: var(--a-title3); color: var(--a-text); }
+html[data-design='apple'] .fokus-runden { gap: 8px; }
+html[data-design='apple'] .fokus-runden span { width: 8px; height: 8px; border: none; background: var(--a-fuellung2); }
+html[data-design='apple'] .fokus-runden span.an { background: var(--a-fokus); border: none; }
+html[data-design='apple'] .fokus-knoepfe { gap: 12px; }
+html[data-design='apple'] .fokus-knoepfe button {
+  min-height: 52px;
+  padding: 0 22px;
+  border-radius: var(--a-r-voll);
+  font: var(--a-headline);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+html[data-design='apple'] .fokus-knoepfe button.haupt { background: var(--a-fokus); color: #fff; }
+html[data-design='apple'] .fokus-hinweis { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .fokus-schritte li { border-bottom: 0.5px solid var(--a-trenner-fein); --a-haken: var(--a-fokus); }
+html[data-design='apple'] .fokus-schritte li label { min-height: 44px; gap: 12px; font: var(--a-body); font-weight: 400; }
+html[data-design='apple'] .fokus-schritte li.fertig span { text-decoration: none; opacity: 1; color: var(--a-text2); }
+html[data-design='apple'] .fokus-schritt-neu input,
+html[data-design='apple'] .fokus-parkplatz input,
+html[data-design='apple'] .fokus-parkplatz input:hover,
+html[data-design='apple'] .fokus-parkplatz input:focus {
+  font: var(--a-body);
+  min-height: 44px;
+  border: none;
+  border-radius: var(--a-r-m);
+  background: var(--a-fuellung);
+  color: var(--a-text);
+  box-shadow: none;
+  padding: 0 14px;
+}
+html[data-design='apple'] .fokus-parkplatz li { background: var(--a-flaeche2); border-radius: var(--a-r-m); color: var(--a-text); font: var(--a-subhead); min-height: 44px; }
+html[data-design='apple'] .fokus-parkplatz li > .leise { color: var(--a-gruen); font: var(--a-footnote); font-weight: 600; }
+html[data-design='apple'] .fokus-parkplatz > button.klein { color: var(--a-blau); text-decoration: none; font: var(--a-footnote); }
+html[data-design='apple'] .fokus-rauschen button.klein {
+  border: none; box-shadow: none; text-shadow: none; border-radius: var(--a-r-voll); min-height: 36px; padding: 0 14px;
+  background: var(--a-fuellung); color: var(--a-text); font: var(--a-footnote); font-weight: 600; display: inline-flex; align-items: center; gap: 6px;
+}
+html[data-design='apple'] .fokus-rauschen button.an { background: var(--a-fokus, var(--a-orange)); color: #fff; }
+html[data-design='apple'] .fokus-rauschen input[type='range'] { accent-color: var(--a-blau); }
+
+/* ======================================================================================================
+   6. Wochenplan, Woche planen, Tag abschließen, Projekte, Lernzeit, Tag planen
+   ====================================================================================================== */
+
+html[data-design='apple'] .wplan-kopf { gap: 8px; }
+html[data-design='apple'] .wplan-kopf strong { font: var(--a-headline); }
+html[data-design='apple'] .wplan-kopf button.klein { font-size: 1.2rem; min-width: 44px; }
+html[data-design='apple'] .wplan-ziele { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .wplan-tipp { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .wplan-spalten { gap: 8px; }
+html[data-design='apple'] .wplan-spalte,
+html[data-design='apple'] .wplan-spalte.vorbei,
+html[data-design='apple'] .wplan-spalte.eingang {
+  background: var(--a-flaeche);
+  border: none;
+  border-radius: var(--a-r-m);
+  box-shadow: var(--a-schatten-1);
+  padding: 8px;
+}
+html[data-design='apple'] .wplan-spalte.eingang { background: var(--a-flaeche2); }
+html[data-design='apple'] .wplan-spalte.ueber { box-shadow: 0 0 0 2px var(--a-blau); background: color-mix(in srgb, var(--a-blau) 8%, var(--a-flaeche)); }
+html[data-design='apple'] .wplan-spalte.vorbei { opacity: 0.6; }
+html[data-design='apple'][data-design] .wplan-spalte h3 { font: var(--a-footnote); font-weight: 600; text-transform: uppercase; color: var(--a-text2); }
+html[data-design='apple'][data-design] .wplan-spalte h3 .abzeichen { border: none; background: var(--a-fuellung); color: var(--a-text2); font: var(--a-caption2); border-radius: var(--a-r-voll); padding: 1px 6px; }
+html[data-design='apple'] .wplan-spalte.heute { border: none; box-shadow: 0 0 0 1.5px var(--a-rot), var(--a-schatten-1); background: var(--a-flaeche); }
+html[data-design='apple'][data-design] .wplan-spalte.heute h3 { background: none; color: var(--a-rot); text-shadow: none; margin: 0; padding: 0; border-radius: 0; }
+html[data-design='apple'] .wplan-karte {
+  border: none;
+  border-left: 3px solid var(--a-blau);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--a-blau) 9%, var(--a-flaeche));
+  box-shadow: none;
+  padding: 6px 8px;
+  font: var(--a-footnote);
+  color: var(--a-text);
+  transition: transform var(--a-dauer-kurz) var(--a-feder), box-shadow var(--a-dauer-kurz);
+}
+html[data-design='apple'] .wplan-karte:hover { box-shadow: var(--a-schatten-2); border-color: var(--a-blau); }
+html[data-design='apple'] .wplan-karte:active { transform: scale(0.97); }
+html[data-design='apple'] .wplan-karte.wichtig { border-left-color: var(--a-orange); background: color-mix(in srgb, var(--a-orange) 12%, var(--a-flaeche)); box-shadow: none; }
+html[data-design='apple'] .wplan-karte.ueberfaellig { border-left: 3px solid var(--a-rot); }
+html[data-design='apple'] .wplan-titel { font-weight: 600; }
+html[data-design='apple'] .wplan-meta { font: var(--a-caption2); color: var(--a-text2); }
+html[data-design='apple'] .wplan-meta .warnung { color: var(--a-rot); }
+html[data-design='apple'] .wplan-wahl { border: none; background: var(--a-fuellung); color: var(--a-text); border-radius: 6px; font: var(--a-caption); }
+html[data-design='apple'] .wplan-last { height: 4px; border-radius: 2px; background: var(--a-fuellung); }
+html[data-design='apple'] .wplan-last-termine { background: var(--a-rot); }
+html[data-design='apple'] .wplan-last-todos { background: var(--a-blau); }
+html[data-design='apple'] .wplan-last.voll .wplan-last-todos { background: var(--a-orange); }
+html[data-design='apple'] .wplan-legende i.zu-voll { background: var(--a-orange); }
+html[data-design='apple'] .wplan-summe { font: var(--a-caption2); color: var(--a-text2); }
+html[data-design='apple'] .wplan-summe.voll { color: var(--a-orange); }
+html[data-design='apple'] .wplan-ganztags { font: var(--a-caption2); color: var(--a-text2); }
+html[data-design='apple'] .wplan-vorschlag { border: none; border-radius: var(--a-r-m); background: color-mix(in srgb, var(--a-indigo) 10%, var(--a-flaeche)); padding: 12px 14px; font: var(--a-subhead); }
+html[data-design='apple'] .wplan-verteilen { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Woche planen / Tag abschließen: Large Title, Schritte als Kapseln, Schritte als Karten */
+html[data-design='apple'] .planen { gap: 16px; font-family: var(--a-schrift); color: var(--a-text); }
+html[data-design='apple'][data-design] .planen h1 { font: var(--a-large-title); letter-spacing: var(--a-tracking-gross); }
+html[data-design='apple'][data-design] .planen h1 .a-symbol { color: var(--a-indigo); }
+html[data-design='apple'] .planen > p { font: var(--a-subhead); color: var(--a-text2); }
+html[data-design='apple'] .planen-schritte { gap: 8px; }
+html[data-design='apple'] .planen-schritte a,
+html[data-design='apple'] .abschluss .planen-schritte a {
+  font: var(--a-footnote);
+  font-weight: 600;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--a-r-voll);
+  background: var(--a-flaeche);
+  color: var(--a-blau);
+  box-shadow: var(--a-schatten-1);
+}
+html[data-design='apple'] .planen-schritte a.fertig,
+html[data-design='apple'] .abschluss .planen-schritte a.fertig { background: color-mix(in srgb, var(--a-gruen) 16%, var(--a-flaeche)); color: color-mix(in srgb, var(--a-gruen) 70%, var(--a-text)); }
+html[data-design='apple'] .planen-schritt,
+html[data-design='apple'] .planen-schritt.fertig,
+html[data-design='apple'] .abschluss .planen-schritt,
+html[data-design='apple'] .abschluss .planen-schritt.fertig { padding: 16px; background: var(--a-flaeche); border: none; }
+html[data-design='apple'][data-design] .planen-kopf h2 { font: var(--a-title3); }
+html[data-design='apple'][data-design] .abschluss .planen-schritt.fertig .planen-kopf h2 { color: var(--a-text); }
+html[data-design='apple'] .planen-haken { font: var(--a-subhead); color: var(--a-text2); gap: 8px; min-height: 44px; --a-haken: var(--a-gruen); }
+html[data-design='apple'] .planen-projekte summary { font: var(--a-subhead); color: var(--a-blau); min-height: 44px; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+/* Abschluss: Kopf ohne Abendhimmel-Tafel – ruhiger Large Title */
+html[data-design='apple'] .abschluss::before { border: none; box-shadow: none; background: none; }
+html[data-design='apple'] .abschluss > a:first-child { color: var(--a-blau); font: var(--a-body); margin-inline: 4px; }
+html[data-design='apple'][data-design] .abschluss > h1,
+html[data-design='apple'] .abschluss > h1 + p,
+html[data-design='apple'] .abschluss > .planen-schritte { margin-inline: 4px; }
+html[data-design='apple'] .abschluss > h1 + p { color: var(--a-text2); font: var(--a-subhead); }
+html[data-design='apple'] .abschluss-liste { border-top: none; }
+html[data-design='apple'] .abschluss-liste > li { border-bottom: 0.5px solid var(--a-trenner); padding: 10px 0; font: var(--a-body); }
+html[data-design='apple'] .abschluss-zeile > span:first-of-type { font-weight: 400; }
+html[data-design='apple'] .abschluss-zeile > .leise { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .abschluss-zeile .zeile button.klein {
+  font: var(--a-footnote); font-weight: 600; border: none; box-shadow: none; text-shadow: none; border-radius: var(--a-r-voll);
+  background: color-mix(in srgb, var(--a-blau) 12%, transparent); color: var(--a-blau); min-height: 32px; padding: 0 10px;
+}
+html[data-design='apple'] .abschluss .rot { color: var(--a-rot); font: var(--a-footnote); }
+html[data-design='apple'] .abschluss .stimmung-zeile { background: var(--a-flaeche2); box-shadow: none; }
+html[data-design='apple'] .abschluss-kopf textarea { border: none; border-radius: var(--a-r-m); background: var(--a-fuellung); color: var(--a-text); font: var(--a-body); padding: 12px 14px; }
+
+/* Projekte: Karte mit Fortschrittsbalken wie in Fitness/Erinnerungen-Listen */
+html[data-design='apple'] .projekte { gap: 16px; }
+html[data-design='apple'] .projekt { padding: 0 0 16px; gap: 10px; }
+html[data-design='apple'] .projekt > * { margin: 0 16px; }
+html[data-design='apple'] .projekt > .projekt-kopf,
+html[data-design='apple'] .projekt.fertig > .projekt-kopf {
+  margin: 0;
+  padding: 16px 16px 0;
+  background: none;
+  border: none;
+  align-items: baseline;
+}
+html[data-design='apple'][data-design] .projekt-kopf h3 { font: var(--a-title3); display: flex; align-items: center; gap: 8px; }
+html[data-design='apple'][data-design] .projekt-kopf h3 .a-symbol { color: var(--a-blau); }
+html[data-design='apple'] .projekt-kopf .leise { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .projekt-balken {
+  height: 8px;
+  border: none;
+  border-radius: 4px;
+  background: var(--a-fuellung);
+  box-shadow: none;
+}
+html[data-design='apple'] .projekt-balken span,
+html[data-design='apple'] .projekt-balken span:not([style*='width: 100%']):not([style*='width: 0%']) {
+  background: var(--a-blau);
+  border: none;
+  border-radius: 4px;
+  box-shadow: none;
+  transition: width 600ms var(--a-feder-ruhig);
+}
+html[data-design='apple'] .projekt.fertig .projekt-balken span { background: var(--a-gruen); }
+html[data-design='apple'] .projekt-balken::after { display: none; }
+html[data-design='apple'] .projekt > .warnung-text { border: none; border-radius: var(--a-r-m); background: color-mix(in srgb, var(--a-orange) 12%, var(--a-flaeche)); color: var(--a-text); font: var(--a-footnote); padding: 8px 12px; }
+html[data-design='apple'] .projekt > p.leise { font: var(--a-footnote); color: var(--a-text2); font-weight: 400; }
+html[data-design='apple'] .projekt-naechster {
+  border: none;
+  border-radius: var(--a-r-m);
+  background: var(--a-flaeche2);
+  padding: 10px 10px 10px 14px;
+  font: var(--a-subhead);
+}
+html[data-design='apple'] .projekt-naechster .a-symbol { color: var(--a-orange); }
+html[data-design='apple'] .projekt-naechster > button { border-radius: var(--a-r-voll); min-height: 36px; padding: 0 14px; display: inline-flex; align-items: center; gap: 4px; }
+html[data-design='apple'] .projekt.fertig { background: var(--a-flaeche); }
+html[data-design='apple'] .projekte-leer { text-align: center; }
+
+/* Lernzeit + Tag planen: Listen mit Kreisen; Modus als Segmented Control */
+html[data-design='apple'] .lernzeit { background: var(--a-flaeche2); border: none; box-shadow: none; border-radius: var(--a-r-m); padding: 12px 14px; }
+html[data-design='apple'] .lernzeit strong .a-symbol { color: var(--a-rot); }
+html[data-design='apple'] .lernzeit-modus { display: inline-flex; gap: 0; padding: 2px; border-radius: 9px; background: var(--a-fuellung); }
+html[data-design='apple'] .lernzeit-modus button.klein {
+  margin: 0; border: none; box-shadow: none; text-shadow: none; background: none; border-radius: 7px;
+  font: var(--a-footnote); font-weight: 500; min-height: 30px; padding: 0 12px; color: var(--a-text);
+}
+html[data-design='apple'] .lernzeit-modus button.an { background: var(--a-flaeche); color: var(--a-text); font-weight: 600; box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12); }
+html[data-design='apple'] .lernzeit-liste li { border-bottom: 0.5px solid var(--a-trenner); min-height: 44px; font-weight: 400; font: var(--a-subhead); }
+html[data-design='apple'] .lernzeit-wahl { gap: 12px; }
+html[data-design='apple'] .plan-liste { gap: 0; }
+html[data-design='apple'] .plan-liste li { border-bottom: 0.5px solid var(--a-trenner); }
+html[data-design='apple'] .plan-liste label { min-height: 44px; gap: 12px; align-items: center; font: var(--a-body); }
+html[data-design='apple'] .plan-zeit { font: var(--a-subhead); color: var(--a-text2); font-variant-numeric: tabular-nums; }
+
+/* ======================================================================================================
+   7. Statistik (Health/Bildschirmzeit), Morgenzeitung/Rückblick (News), Notizen, Verbrauch, Schreibtisch
+   ====================================================================================================== */
+
+html[data-design='apple'] .statistik { gap: 16px; font-family: var(--a-schrift); }
+/* Zeitraum als Segmented Control */
+html[data-design='apple'] .statistik-filter { gap: 0; padding: 2px; border-radius: 9px; background: var(--a-fuellung); width: fit-content; max-width: 100%; flex-wrap: wrap; }
+html[data-design='apple'] .statistik-filter button.klein {
+  margin: 0; border: none; box-shadow: none; text-shadow: none; background: none; border-radius: 7px;
+  font: var(--a-footnote); font-weight: 500; min-height: 30px; padding: 0 14px; color: var(--a-text);
+}
+html[data-design='apple'] .statistik-filter button.an { background: var(--a-flaeche); color: var(--a-text); font-weight: 600; box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12); }
+html[data-design='apple'][data-dunkel='ja'] :is(.statistik-filter, .lernzeit-modus) button.an { background: var(--a-fuellung2); }
+html[data-design='apple'] .statistik .statistik-kacheln { gap: 12px; }
+html[data-design='apple'] .statistik-kachel {
+  background: var(--a-flaeche);
+  border: none;
+  border-radius: var(--a-r-l);
+  box-shadow: var(--a-schatten-1);
+  padding: 14px 16px;
+  gap: 2px;
+}
+html[data-design='apple'] .statistik-kachel-titel { font: var(--a-footnote); font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--a-text2); }
+html[data-design='apple'] .statistik-kachel:nth-child(1) .statistik-kachel-titel { color: var(--a-blau); }
+html[data-design='apple'] .statistik-kachel:nth-child(2) .statistik-kachel-titel { color: var(--a-orange); }
+html[data-design='apple'] .statistik-kachel:nth-child(3) .statistik-kachel-titel { color: var(--a-gruen); }
+html[data-design='apple'] .statistik-kachel:nth-child(4) .statistik-kachel-titel { color: var(--a-indigo); }
+html[data-design='apple'] .statistik-kachel-wert { font: var(--a-title1); font-weight: 700; letter-spacing: var(--a-tracking-gross); font-variant-numeric: tabular-nums; color: var(--a-text); }
+html[data-design='apple'] .statistik-kachel-unter { font: var(--a-caption); color: var(--a-text2); }
+html[data-design='apple'] .statistik-diagramm {
+  background: var(--a-flaeche);
+  border: none;
+  border-radius: var(--a-r-l);
+  box-shadow: var(--a-schatten-1);
+  padding: 14px 16px 8px;
+}
+html[data-design='apple'] .statistik-diagramm figcaption { font: var(--a-headline); color: var(--a-text); }
+html[data-design='apple'] .statistik-diagramm figcaption .a-symbol { color: var(--a-blau); margin-right: 2px; }
+html[data-design='apple'] .statistik-hover { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .statistik-balken { fill: var(--a-blau); }
+html[data-design='apple'] .statistik-balken.an { fill: color-mix(in srgb, var(--a-blau) 70%, var(--a-text)); }
+html[data-design='apple'] .statistik-balken.beste { fill: var(--a-orange); }
+html[data-design='apple'] .statistik-leer { fill: var(--a-fuellung2); }
+html[data-design='apple'] .statistik-gitter { stroke: var(--a-trenner-fein); stroke-dasharray: 2 3; }
+html[data-design='apple'] .statistik-achse { stroke: var(--a-trenner); }
+html[data-design='apple'] .statistik-x { font: var(--a-caption2); color: var(--a-text2); }
+html[data-design='apple'] .statistik-tabelle table { font: var(--a-subhead); }
+html[data-design='apple'] .statistik-tabelle th { font: var(--a-caption); font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--a-text2); border-bottom: 0.5px solid var(--a-trenner); }
+html[data-design='apple'] .statistik-tabelle td { border-bottom: 0.5px solid var(--a-trenner-fein); }
+html[data-design='apple'] .statistik-einsichten {
+  border: none;
+  border-radius: var(--a-r-l);
+  background: var(--a-flaeche);
+  box-shadow: var(--a-schatten-1);
+  padding: 14px 16px;
+}
+html[data-design='apple'][data-design] .statistik-einsichten h3 { font: var(--a-headline); }
+html[data-design='apple'] .statistik-einsichten li { font: var(--a-subhead); font-weight: 400; }
+html[data-design='apple'] .statistik-einsichten li::before { background: var(--a-gelb); box-shadow: none; width: 8px; height: 8px; top: 0.5em; }
+html[data-design='apple'] .statistik-einsichten > p.leise { border-top: 0.5px solid var(--a-trenner); font: var(--a-footnote); color: var(--a-text2); }
+
+/* Morgenzeitung + Wochenrückblick: Lesestil wie News – Lesebreite, große Überschriften, ruhiger Text */
+html[data-design='apple'] .morgenzeitung { max-width: var(--a-lesebreite); font-family: var(--a-schrift); color: var(--a-text); }
+html[data-design='apple'] .morgenzeitung > .zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 16px; }
+html[data-design='apple'] .morgenzeitung > .zeile .leise { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'][data-design] .morgenzeitung h1 { font: 800 2rem/1.15 var(--a-schrift); letter-spacing: var(--a-tracking-gross); margin: 8px 0 12px; }
+html[data-design='apple'][data-design] .morgenzeitung h2 {
+  font: var(--a-title2);
+  letter-spacing: var(--a-tracking-gross);
+  margin: 28px 0 8px;
+  padding-top: 16px;
+  border-top: 0.5px solid var(--a-trenner);
+}
+html[data-design='apple'][data-design] .morgenzeitung h3 { font: var(--a-headline); margin: 18px 0 6px; }
+html[data-design='apple'] .morgenzeitung :is(p, li) { font: 400 1.0625rem/1.55 var(--a-schrift); letter-spacing: var(--a-tracking-text); }
+html[data-design='apple'] .morgenzeitung h1 + p,
+html[data-design='apple'] .morgenzeitung > div > p:first-of-type { font: 400 1.1875rem/1.5 var(--a-schrift); color: var(--a-text2); }
+html[data-design='apple'] .morgenzeitung details { margin-top: 24px; }
+html[data-design='apple'] .morgenzeitung summary { font: var(--a-subhead); color: var(--a-blau); min-height: 44px; display: flex; align-items: center; cursor: pointer; }
+html[data-design='apple'] .morgenzeitung .ordnerliste { list-style: none; padding: 0; margin: 0; background: var(--a-flaeche); border-radius: var(--a-r-m); overflow: hidden; }
+html[data-design='apple'] .morgenzeitung .ordnerliste li { border-bottom: 0.5px solid var(--a-trenner); }
+html[data-design='apple'] .morgenzeitung .ordnerliste li:last-child { border-bottom: none; }
+html[data-design='apple'] .morgenzeitung .ordnerliste a { display: flex; align-items: center; min-height: 44px; padding: 0 16px; color: var(--a-text); font: var(--a-body); text-decoration: none; }
+
+/* Notizen: Tage als Abschnitte, Zeilen mit Uhrzeit */
+html[data-design='apple'] .notizen { gap: 8px; font-family: var(--a-schrift); }
+html[data-design='apple'][data-design] .notizen-tag h3 { font: var(--a-footnote); font-weight: 400; text-transform: uppercase; color: var(--a-text2); margin: 16px 4px 6px; }
+html[data-design='apple'] .notizen-tag ul { gap: 0; background: var(--a-flaeche); border-radius: var(--a-r-m); box-shadow: var(--a-schatten-1); overflow: hidden; }
+html[data-design='apple'] .notizen-tag li { padding: 11px 14px; min-height: 44px; border-bottom: 0.5px solid var(--a-trenner); font: var(--a-body); }
+html[data-design='apple'] .notizen-tag li:last-child { border-bottom: none; }
+html[data-design='apple'] .notizen-zeit { font: var(--a-footnote); font-weight: 500; color: var(--a-text2); }
+html[data-design='apple'] .notizen-todo { font: var(--a-footnote); color: var(--a-gruen); }
+html[data-design='apple'] .notizen-tag li button.klein { border: none; box-shadow: none; text-shadow: none; background: none; color: var(--a-blau); font: var(--a-footnote); }
+
+/* Verbrauch: Tabellen wie Einstellungen → Akku (ruhig, Zahlen rechtsbündig) */
+html[data-design='apple'] .verbrauch { font-family: var(--a-schrift); }
+html[data-design='apple'][data-design] .verbrauch h3 { font: var(--a-footnote); text-transform: uppercase; color: var(--a-text2); font-weight: 400; margin: 20px 4px 6px; }
+html[data-design='apple'] .verbrauch > p.leise { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .verbrauch .tabelle {
+  background: var(--a-flaeche);
+  border: none;
+  border-radius: var(--a-r-m);
+  box-shadow: var(--a-schatten-1);
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  font: var(--a-subhead);
+  font-variant-numeric: tabular-nums;
+}
+html[data-design='apple'] .verbrauch .tabelle :is(th, td) { padding: 10px 12px; border: none; border-bottom: 0.5px solid var(--a-trenner-fein); background: none; }
+html[data-design='apple'] .verbrauch .tabelle th { font: var(--a-caption); font-weight: 600; color: var(--a-text2); }
+html[data-design='apple'] .verbrauch .tabelle tr:last-child td { border-bottom: none; }
+
+/* Schreibtisch des Bürgermeisters: Eingabe als Karte, Aufgaben als Inset-Grouped-Liste */
+html[data-design='apple'] .schreibtisch { font-family: var(--a-schrift); color: var(--a-text); }
+html[data-design='apple'] .schreibtisch > .aufwachen {
+  font: var(--a-footnote);
+  color: var(--a-text2);
+  background: var(--a-flaeche);
+  border-radius: var(--a-r-m);
+  padding: 12px 14px;
+  box-shadow: var(--a-schatten-1);
+}
+html[data-design='apple'] .schreibtisch > .aufwachen button.klein {
+  border: none; box-shadow: none; text-shadow: none; border-radius: var(--a-r-voll); min-height: 32px; padding: 0 12px; margin-left: 4px;
+  background: color-mix(in srgb, var(--a-blau) 12%, transparent); color: var(--a-blau); font: var(--a-footnote); font-weight: 600;
+}
+html[data-design='apple'] .schreibtisch > form.formspalte { background: var(--a-flaeche); border-radius: var(--a-r-l); padding: 16px; box-shadow: var(--a-schatten-1); margin-top: 16px; gap: 10px; }
+html[data-design='apple'] .schreibtisch > form textarea { border: none; border-radius: var(--a-r-m); background: var(--a-fuellung); color: var(--a-text); font: var(--a-body); padding: 12px 14px; }
+html[data-design='apple'] .schreibtisch > form label { font: var(--a-headline); }
+html[data-design='apple'] .schreibtisch > form .werkzeuge { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+html[data-design='apple'] .schreibtisch > form .werkzeuge > .leise { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'][data-design] .schreibtisch > h3 { font: var(--a-title3); margin: 24px 4px 8px; }
+html[data-design='apple'] :is(.schreibtisch > .chatliste, .bm-todos .todo-liste) {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+  background: var(--a-flaeche);
+  border-radius: var(--a-r-m);
+  box-shadow: var(--a-schatten-1);
+  overflow: hidden;
+}
+html[data-design='apple'] .schreibtisch > .chatliste li { padding: 11px 16px; border-bottom: 0.5px solid var(--a-trenner); font: var(--a-body); }
+html[data-design='apple'] .schreibtisch > .chatliste li:last-child { border-bottom: none; }
+html[data-design='apple'] .schreibtisch > .chatliste li > a { color: var(--a-text); font-weight: 500; text-decoration: none; }
+html[data-design='apple'] .schreibtisch > .chatliste .leise { font: var(--a-footnote); color: var(--a-text2); margin-top: 2px; }
+html[data-design='apple'] .schreibtisch > .chatliste .leise a { color: var(--a-blau); font-weight: 400; }
+html[data-design='apple'] :is(.schreibtisch, .bm-todos) .lauf-chip {
+  font: var(--a-caption);
+  font-weight: 600;
+  border: none;
+  border-radius: var(--a-r-voll);
+  padding: 2px 8px;
+  margin: 0;
+  background: var(--a-fuellung);
+  color: var(--a-text2);
+}
+html[data-design='apple'] :is(.schreibtisch, .bm-todos) .lauf-chip:is(.sd-erledigt, .sd-beantwortet) { background: color-mix(in srgb, var(--a-gruen) 16%, transparent); color: color-mix(in srgb, var(--a-gruen) 70%, var(--a-text)); }
+html[data-design='apple'] :is(.schreibtisch, .bm-todos) .lauf-chip:is(.sd-in_arbeit, .sd-helfer_laufen, .sd-neu) { background: color-mix(in srgb, var(--a-blau) 14%, transparent); color: var(--a-blau); }
+html[data-design='apple'] :is(.schreibtisch, .bm-todos) .lauf-chip.sd-plan_wartet { background: var(--a-orange); color: #fff; }
+html[data-design='apple'] :is(.schreibtisch, .bm-todos) .lauf-chip:is(.sd-fehler, .sd-abgelehnt) { background: color-mix(in srgb, var(--a-rot) 14%, transparent); color: var(--a-rot); }
+html[data-design='apple'] .schreibtisch > .chatliste li button.klein {
+  border: none; box-shadow: none; text-shadow: none; background: none; color: var(--a-blau); font: var(--a-footnote); font-weight: 600; min-height: 32px;
+}
+
+/* ======================================================================================================
+   8. Handy
+   ====================================================================================================== */
+@media (max-width: 760px) {
+  html[data-design='apple'] .heute[aria-label='Mein Tag'] { gap: 16px; }
+  html[data-design='apple'] .heute-gruss { font: var(--a-title1); letter-spacing: var(--a-tracking-gross); }
+  html[data-design='apple'] .heute-wetter { width: 100%; }
+  html[data-design='apple'] .heute .karte,
+  html[data-design='apple'] .heute-karte { padding: 14px 14px 10px; }
+  html[data-design='apple'] .heute-spalten,
+  html[data-design='apple'] .heute-hinweise,
+  html[data-design='apple'] .heute-spalte { gap: 16px; }
+  html[data-design='apple'] .heute-termin { grid-template-columns: 3.9rem minmax(0, 1fr); }
+  html[data-design='apple'] .heute-fokus-knoepfe button { min-height: 48px; }
+  html[data-design='apple'] .statistik .statistik-kacheln { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html[data-design='apple'] .wplan-spalte { padding: 10px 12px; }
+  html[data-design='apple'][data-design] .wplan-spalte.heute h3 { margin: 0; padding: 0; }
+  html[data-design='apple'][data-design] .morgenzeitung h1 { font: var(--a-title1); }
+  html[data-design='apple'] .todo { padding: 0 8px 0 12px; }
+  html[data-design='apple'] .todo::after { left: 44px; }
+}
+
+/* Wochenplan am Handy: Karten nie breiter als die Spalte */
+html[data-design='apple'] .wplan-spalte ul { min-width: 0; grid-template-columns: minmax(0, 1fr); }
+html[data-design='apple'] .wplan-spalte > * { min-width: 0; max-width: 100%; }
+html[data-design='apple'] .wplan-meta { flex-wrap: wrap; }
+@media (max-width: 760px) {
+  /* (auch im Dorf-Design läuft die Heute-Spalte hier über – in Apple untereinander statt umbrechender Zeile) */
+  html[data-design='apple'] .wplan-spalte { flex-direction: column; align-items: stretch; flex-wrap: nowrap; }
+  html[data-design='apple'] .wplan-spalte > * { flex: none; width: 100%; order: 0; }
+}
+
+/* Abschnittsköpfe im Brett einheitlich (stärker als allgemeine Überschriften-Regeln) */
+html[data-design='apple'][data-design] .todo-brett .todo-abschnitt > .todo-abschnitt-kopf { margin: 24px 4px 8px; }
+html[data-design='apple'][data-design] .todo-brett .todo-abschnitt:first-of-type > .todo-abschnitt-kopf { margin-top: 8px; }
+html[data-design='apple'] .planen > *, html[data-design='apple'] .planen-schritt > * { min-width: 0; }
+
+/* Turmuhr wie das Zifferblatt der Uhr-App: helle Fläche, schwarze Zeiger, oranger Sekundenzeiger */
+html[data-design='apple'] .zifferblatt circle:first-of-type { fill: var(--a-flaeche); stroke: var(--a-trenner); stroke-width: 1.5px; }
+html[data-design='apple'] .zifferblatt line { stroke: var(--a-text); }
+html[data-design='apple'] .zifferblatt line:last-of-type { stroke: var(--a-orange); }
+html[data-design='apple'] .zifferblatt circle:last-of-type { fill: var(--a-orange); stroke: none; }
+html[data-design='apple'] .zifferblatt { filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.12)); }
+
+/* Glocke/Einstellungen im Kirchturm: Schalterzeilen waagrecht */
+html[data-design='apple'][data-design] .kirchturm-teil > label { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px 10px; font: var(--a-subhead); margin: 8px 0; }
+html[data-design='apple'][data-design] .kirchturm-teil > label input[type='number'] { width: 5em; flex: none; }
+html[data-design='apple'] .kirchturm-teil > .zeile { display: flex; flex-wrap: wrap; gap: 8px; }
+html[data-design='apple'][data-design] .statistik-diagramm figcaption svg.a-symbol { width: 1.1em; height: 1.1em; display: inline-block; overflow: visible; vertical-align: -0.18em; margin-right: 4px; }
+html[data-design='apple'][data-design] .todo.bearbeiten .todo-erinnerung input { flex: 1 1 0; min-width: 0; width: auto; padding: 0 8px 0 0; }
+html[data-design='apple'][data-design] .heute-todo label { flex: 1 1 8rem; }
+html[data-design='apple'] .heute-spalte .stimmung-frage { flex-basis: 100%; margin-bottom: 4px; }
+html[data-design='apple'] .heute-spalte .stimmung-zeile { justify-content: space-between; }

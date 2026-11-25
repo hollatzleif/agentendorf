@@ -9,6 +9,7 @@ import * as filter from './filter';
 import { Dokument, MAX_KANTE, alsBlob, bildLaden, ctxVon, groessePruefen, leinwand } from './kern';
 import { ANPASSUNGEN, AnpassungFenster, EbenenFenster, Fenster, Menue, VerlaufFenster, type MenuePunkt } from './teile';
 import './atelier.css';
+import { Zeichen } from '../apple/werkzeug-symbole';
 
 /**
  * E198 – Atelier: Bildbearbeitung in der App (Ebenen, Pinsel, Auswahl, Transformieren, Anpassungen, Filter, Text, Formen).
@@ -705,7 +706,7 @@ export function AtelierSeite() {
         ] as const
       ).map(([m, z, t]) => (
         <button key={m} type="button" className={o.auswahlModus === m ? 'aktiv' : ''} title={t} aria-label={t} aria-pressed={o.auswahlModus === m} onClick={() => optSetzen({ auswahlModus: m })}>
-          {z}
+          <Zeichen e={z} />
         </button>
       ))}
     </span>
@@ -730,7 +731,7 @@ export function AtelierSeite() {
         ⇵
       </button>
       <button type="button" className="haupt" onClick={() => b.transformAnwenden()}>
-        ✓ Anwenden
+        <Zeichen e="✓" /> Anwenden
       </button>
       <button type="button" onClick={() => b.transformAbbrechen()}>
         ✕ Abbrechen
@@ -777,7 +778,7 @@ export function AtelierSeite() {
           {b.schnitt.b} × {b.schnitt.h} px
         </span>
         <button type="button" className="haupt" onClick={() => versuch(() => b.schnittAnwenden())}>
-          ✓ Zuschneiden
+          <Zeichen e="✓" /> Zuschneiden
         </button>
         <button type="button" onClick={() => b.schnittAbbrechen()}>
           ✕ Abbrechen
@@ -839,7 +840,7 @@ export function AtelierSeite() {
     <div className="atelier" data-testid="atelier" data-werkzeug={w} onPointerDown={(e) => menue && !(e.target as HTMLElement).closest('.at-menue-gruppe') && setMenue(null)}>
       <div className="at-kopf">
         <a href="/gebaeude/Atelier" onClick={linkKlick} className="at-zurueck" title="Zurück ins Atelier">
-          ←
+          <Zeichen e="←" />
         </a>
         <nav className="at-menues" aria-label="Menü">
           {menues.map(([titel, punkte]) => (
@@ -852,16 +853,16 @@ export function AtelierSeite() {
         </span>
         <span className="at-gruppe">
           <button type="button" aria-label="Rückgängig" title="Rückgängig (Strg+Z)" disabled={!doc?.kannRueckgaengig} onClick={() => doc?.rueckgaengig()}>
-            ↶
+            <Zeichen e="↶" />
           </button>
           <button type="button" aria-label="Wiederholen" title="Wiederholen (Strg+Umschalt+Z)" disabled={!doc?.kannWiederholen} onClick={() => doc?.wiederholen()}>
-            ↷
+            <Zeichen e="↷" />
           </button>
           <button type="button" className="haupt" onClick={speichern} title="Speichern (Strg+S)">
             Speichern
           </button>
           <button type="button" className="at-nur-schmal" aria-label="Ebenen, Farbe, Verlauf" aria-pressed={seiteOffen} onClick={() => setSeiteOffen(!seiteOffen)}>
-            ☰
+            <Zeichen e="☰" />
           </button>
         </span>
       </div>
@@ -872,7 +873,7 @@ export function AtelierSeite() {
         <div className="at-werkzeuge" role="toolbar" aria-label="Werkzeuge">
           {WERKZEUGE.map(([id, zeichen, titel, taste]) => (
             <button key={id} type="button" className={w === id ? 'aktiv' : ''} aria-pressed={w === id} aria-label={titel} title={`${titel} (${taste})`} data-werkzeug={id} onClick={() => werkzeug(id)}>
-              {zeichen}
+              <Zeichen e={zeichen} />
             </button>
           ))}
           <span className="at-farben" title="Vordergrund- und Hintergrundfarbe (X tauscht, D setzt Schwarz/Weiß)">
@@ -930,10 +931,10 @@ export function AtelierSeite() {
                 </div>
                 <div className="at-zeile">
                   <button type="button" onClick={() => optSetzen({ vordergrund: o.hintergrund, hintergrund: o.vordergrund })} title="Farben tauschen (X)">
-                    ⇄ Tauschen
+                    <Zeichen e="⇄" /> Tauschen
                   </button>
                   <button type="button" onClick={() => optSetzen({ vordergrund: '#000000', hintergrund: '#ffffff' })} title="Schwarz/Weiß (D)">
-                    ◐ Standard
+                    <Zeichen e="◐" /> Standard
                   </button>
                 </div>
               </section>
@@ -945,13 +946,13 @@ export function AtelierSeite() {
       </div>
       <div className="at-status">
         <button type="button" aria-label="Verkleinern" onClick={() => b?.zoomen(0.8)}>
-          −
+          <Zeichen e="−" />
         </button>
         <button type="button" onClick={() => b?.einpassen()} title="Einpassen (Strg+0)" data-testid="at-zoom">
           {Math.round((b?.zoom ?? 1) * 100)} %
         </button>
         <button type="button" aria-label="Vergrößern" onClick={() => b?.zoomen(1.25)}>
-          ＋
+          <Zeichen e="＋" />
         </button>
         <span data-testid="at-groesse">
           {doc?.breite} × {doc?.hoehe} px

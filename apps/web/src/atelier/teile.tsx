@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { MISCHMODI, ctxVon, type Dokument, type Ebene, type Mischmodus } from './kern';
 import * as filter from './filter';
+import { Zeichen } from '../apple/werkzeug-symbole';
 
 /** E198 Atelier: kleine Bausteine der Oberfläche – Menü, Fenster, Ebenen-/Verlaufs-Fenster, Regler der Anpassungen */
 
@@ -65,7 +66,7 @@ export function Fenster({ titel, zu, children, schmal, seitlich }: { titel: stri
         <header>
           <strong>{titel}</strong>
           <button type="button" onClick={zu} aria-label="Schließen">
-            ✕
+            <Zeichen e="✕" />
           </button>
         </header>
         {children}
@@ -128,7 +129,7 @@ export function EbenenFenster({ doc, hinweis }: { doc: Dokument; hinweis: (t: st
         {[...doc.ebenen].reverse().map((e) => (
           <li key={e.id} className={e.id === doc.aktivId ? 'aktiv' : ''} data-ebene={e.name}>
             <button type="button" className="at-auge" aria-label={e.sichtbar ? `${e.name} ausblenden` : `${e.name} einblenden`} aria-pressed={e.sichtbar} onClick={() => doc.ebeneSetzen(e.id, { sichtbar: !e.sichtbar }, e.sichtbar ? 'Ebene ausblenden' : 'Ebene einblenden')}>
-              {e.sichtbar ? '👁' : '·'}
+              <Zeichen e={e.sichtbar ? '👁' : '·'} />
             </button>
             <button
               type="button"
@@ -151,22 +152,22 @@ export function EbenenFenster({ doc, hinweis }: { doc: Dokument; hinweis: (t: st
       </ul>
       <div className="at-zeile at-knoepfe">
         <button type="button" title="Neue Ebene (Strg+Umschalt+N)" aria-label="Neue Ebene" onClick={() => doc.neueEbene()}>
-          ＋
+          <Zeichen e="＋" />
         </button>
         <button type="button" title="Ebene duplizieren (Strg+J)" aria-label="Ebene duplizieren" onClick={() => doc.ebeneDuplizieren()}>
-          ⧉
+          <Zeichen e="⧉" />
         </button>
         <button type="button" title="Nach oben" aria-label="Ebene nach oben" onClick={() => doc.ebeneVerschieben(a.id, 1)}>
-          ↑
+          <Zeichen e="↑" />
         </button>
         <button type="button" title="Nach unten" aria-label="Ebene nach unten" onClick={() => doc.ebeneVerschieben(a.id, -1)}>
-          ↓
+          <Zeichen e="↓" />
         </button>
         <button type="button" title="Mit darunterliegender vereinen (Strg+E)" aria-label="Nach unten vereinen" onClick={() => versuch(() => doc.nachUntenVereinen())}>
-          ⤓
+          <Zeichen e="⤓" />
         </button>
         <button type="button" title="Ebene löschen" aria-label="Ebene löschen" onClick={() => versuch(() => doc.ebeneLoeschen())}>
-          🗑
+          <Zeichen e="🗑" />
         </button>
       </div>
     </section>

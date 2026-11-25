@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { erweiterungEntfernbar, type ErweiterungErgebnis, type ErweiterungTreffer, type ErweiterungenStand, type ErweiterungenSuche } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
+import { Zeichen } from '../apple/werkzeug-symbole';
 
 /**
  * Erweiterungen für VS Code im Codehaus (E205): in Open VSX suchen, installieren, entfernen, VSIX hochladen.
@@ -92,7 +93,7 @@ export function Erweiterungen({ beiAenderung }: { beiAenderung?: () => void }) {
   return (
     <div className="erweiterungen" data-testid="erweiterungen">
       <p className="erw-warnung" role="note">
-        ⚠️ Erweiterungen laufen mit vollem Zugriff im Codehaus (Shell, Internet, Vault) – installiere nur, was du für vertrauenswürdig hältst.
+        <Zeichen e="⚠️" /> Erweiterungen laufen mit vollem Zugriff im Codehaus (Shell, Internet, Vault) – installiere nur, was du für vertrauenswürdig hältst.
       </p>
       <p className="leise">
         Sie wirken im VS Code (Reiter „VS Code“), nicht im schlanken Editor der App. Quelle ist{' '}

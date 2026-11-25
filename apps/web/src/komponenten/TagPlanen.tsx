@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiFehler } from '../api';
+import { E } from '../apple/tag';
 
 type Block = { titel: string; todoPfad: string; start: string; ende: string; grund: string };
 const uhr = (iso: string) => new Date(iso).toLocaleTimeString('de-AT', { timeZone: 'Europe/Vienna', hour: '2-digit', minute: '2-digit' });
@@ -42,7 +43,9 @@ export function TagPlanen({ schliessen }: { schliessen: () => void }) {
     <div className="fenster-hintergrund" onClick={schliessen}>
       <div className="fenster karte" role="dialog" aria-label="Tag planen" onClick={(e) => e.stopPropagation()}>
         <div className="zeile">
-          <h3 style={{ margin: 0 }}>🧭 Tag planen</h3>
+          <h3 style={{ margin: 0 }}>
+          <E e="🧭" /> Tag planen
+        </h3>
           <input type="date" value={tag} onChange={(e) => setTag(e.target.value)} aria-label="Tag" />
         </div>
         <p className="leise">Die dringendsten To-dos in deine freien Lücken (8–20 Uhr, mit Puffer zu Terminen). Abhaken, was du willst – dann eintragen.</p>

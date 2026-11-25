@@ -6,6 +6,7 @@ import { bibliothekUrl, linkKlick } from '../router';
 import { SaxoDepot } from './SaxoDepot';
 import { Sparkline, usePrivat } from '../boerse/teile';
 import type { BoerseAnalyse } from '@dorf/shared';
+import { EmText } from '../hafen/zeichen';
 
 /** E223: Beträge verbergen (z. B. in der Bahn) – gilt für die ganze Börse */
 function PrivatKnopf() {
@@ -13,7 +14,7 @@ function PrivatKnopf() {
   return (
     <div className="zeile" style={{ justifyContent: 'flex-end' }}>
       <button type="button" className={`klein${privat ? ' an' : ''}`} aria-pressed={privat} onClick={() => setPrivat(!privat)}>
-        {privat ? '🙈 Beträge verborgen' : '👁 Beträge verbergen'}
+        <EmText t={privat ? '🙈 Beträge verborgen' : '👁 Beträge verbergen'} />
       </button>
     </div>
   );

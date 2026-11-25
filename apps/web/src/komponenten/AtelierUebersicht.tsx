@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { AtelierStand } from '@dorf/shared';
 import { api, rohUrl } from '../api';
 import { linkKlick } from '../router';
+import { Em } from '../apple/wissen-teile';
 import { alleDateien, endung, finden, ordnerVon, useBaum } from '../vaultHilfen';
 
 /** E198 – Atelier: Einstieg in den Bildeditor und die Bilder des Gebäudes (Editor selbst: /atelier, wird erst dort geladen) */
@@ -24,9 +25,9 @@ export function AtelierUebersicht() {
   const probeZeichen = Object.keys(probe.data?.anzahl ?? {}).length;
   return (
     <>
-      <p>
+      <p className="atelier-start">
         <a className="knopf haupt" href="/atelier" onClick={linkKlick} data-testid="atelier-oeffnen">
-          🎨 Bildeditor öffnen
+          <Em e="🎨" /> Bildeditor öffnen
         </a>
       </p>
       <p className="leise">
@@ -35,14 +36,14 @@ export function AtelierUebersicht() {
       <h2>Deine Handschrift</h2>
       <p>
         <a className="knopf" href="/schriftprobe" onClick={linkKlick} data-testid="schriftprobe-oeffnen">
-          ✍️ Schriftprobe {probeZeichen ? 'weiterschreiben' : 'schreiben'}
+          <Em e="✍️" /> Schriftprobe {probeZeichen ? 'weiterschreiben' : 'schreiben'}
         </a>{' '}
         <span className="leise" data-testid="schriftprobe-stand">
           {probeZeichen ? `${probeZeichen} Zeichen in deiner Hand – „In Handschrift schreiben“ nimmt sie von selbst.` : 'Noch keine Probe – bis dahin schreibt das Dorf mit einer erfundenen Hand.'}
         </span>
       </p>
       {s && (
-        <ul className="leise" data-testid="atelier-stand">
+        <ul className="leise atelier-stand" data-testid="atelier-stand">
           <li>Hintergrund entfernen: {s.hintergrund ? 'bereit (rechnet der Rechenraum, ohne Internet)' : s.rechenraum ? 'Modell fehlt noch – kommt mit dem nächsten Deploy' : 'Rechenraum nicht erreichbar'}</li>
           <li>Hochskalieren: {s.hochskalieren ? 'bereit (bis etwa 1024 × 1024)' : s.rechenraum ? 'Modell fehlt noch – kommt mit dem nächsten Deploy' : 'Rechenraum nicht erreichbar'}</li>
           <li>
@@ -62,7 +63,7 @@ export function AtelierUebersicht() {
           {bilder.map((p) => (
             <li key={p}>
               <a href={`/atelier?pfad=${encodeURIComponent(p)}`} onClick={linkKlick} title={`${p} im Editor öffnen`}>
-                {VORSCHAU.has(endung(p)) ? <img src={rohUrl(p)} alt="" loading="lazy" /> : <span className="datei-symbol">{endung(p) === 'atelier' ? '🗂️' : '🖼️'}</span>}
+                {VORSCHAU.has(endung(p)) ? <img src={rohUrl(p)} alt="" loading="lazy" /> : <span className="datei-symbol"><Em e={endung(p) === 'atelier' ? '🗂️' : '🖼️'} /></span>}
                 <strong>{p.slice(p.lastIndexOf('/') + 1)}</strong>
                 <span className="leise">{ordnerVon(p).replace(/^Atelier\/?/, '') || 'Atelier'}</span>
               </a>

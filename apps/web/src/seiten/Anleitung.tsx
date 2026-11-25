@@ -1,4 +1,5 @@
 import { linkKlick } from '../router';
+import { Em } from '../apple/wissen-teile';
 
 /**
  * „So nutzt du das Dorf“ (Nacht 18./19.11.): der Tages- und Wochenrhythmus mit den Bausteinen der App –
@@ -16,7 +17,9 @@ export function Anleitung() {
       <h1>So nutzt du das Dorf</h1>
       <p className="leise">Ein Vorschlag für den Rhythmus – nimm, was dir hilft. Alles geht auch per Telegram (/hilfe).</p>
 
-      <h2>☀️ Morgens (5 Minuten)</h2>
+      <h2>
+        <Em e="☀️" /> Morgens (5 Minuten)
+      </h2>
       <ol>
         <li>
           <b>Morgenzeitung</b> lesen (Telegram, 06:30): Termine, Fristen, ⭐ Wichtiges, Wochenziele, Gewohnheiten.
@@ -32,7 +35,9 @@ export function Anleitung() {
         </li>
       </ol>
 
-      <h2>🍅 Tagsüber</h2>
+      <h2>
+        <Em e="🍅" /> Tagsüber
+      </h2>
       <ul>
         <li>
           Nicht lange überlegen: <b>👉 Jetzt dran</b> auf „Heute“ (Telegram: <b>/jetzt</b> oder „👉 Was zuerst?“ unter der Morgenzeitung) zeigt, was in die Zeit bis zum nächsten Termin passt – „🍅 Los“.
@@ -69,7 +74,9 @@ export function Anleitung() {
         </li>
       </ul>
 
-      <h2>🌙 Abends (2 Minuten)</h2>
+      <h2>
+        <Em e="🌙" /> Abends (2 Minuten)
+      </h2>
       <ol>
         <li>
           <b>Tagesabschluss</b> (Telegram, 21:00): Erledigtes, Fokus, was morgen fällig ist. Früher fertig? <b>/morgen</b> zeigt den nächsten Tag jederzeit – samt Warnung, wenn sich Termine überschneiden.
@@ -85,7 +92,9 @@ export function Anleitung() {
         Lieber am PC? <L href="/abschluss">Tag abschließen</L> macht das Gleiche auf einer Seite – plus Liegengebliebenes neu verteilen und den Kopf in die Tagesnotiz leeren (ab 19 Uhr auf „Heute“ verlinkt).
       </p>
 
-      <h2>🗓️ Sonntags (10 Minuten)</h2>
+      <h2>
+        <Em e="🗓️" /> Sonntags (10 Minuten)
+      </h2>
       <p>
         Alles auf einer Seite: <L href="/planen">Woche planen</L> führt durch die vier Schritte.
       </p>
@@ -107,7 +116,9 @@ export function Anleitung() {
         </li>
       </ol>
 
-      <h2>🎓 Im Semester</h2>
+      <h2>
+        <Em e="🎓" /> Im Semester
+      </h2>
       <ul>
         <li>
           Je Fach ein <b>Lernziel pro Woche</b> (🎯 auf der Fach-Karte) – <b>/lernen</b> in Telegram startet den Pomodoro dafür. Vor Prüfungen: <L href="/gebaeude/Uni?reiter=pruefungen">Prüfungs-Cockpit</L>.
@@ -121,7 +132,9 @@ export function Anleitung() {
         <li>„Karteikarten erstellen“ macht aus deinen Folien abfragbare Karten.</li>
       </ul>
 
-      <h2>🔌 Was fehlt noch?</h2>
+      <h2>
+        <Em e="🔌" /> Was fehlt noch?
+      </h2>
       <p>
         Unter <L href="/einstellungen#anschluesse">Einstellungen → Anschlüsse</L> siehst du, was verbunden ist – und den Befehl für den Server, falls nicht (z. B. Google-Kalender für Tag planen und Lernplan).
       </p>

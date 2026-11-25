@@ -5,6 +5,7 @@ import { api, ApiFehler } from '../api';
 import { VsCodeKnopf, vscodeLink, vscodeSeiteLink } from '../komponenten/CodehausUebersicht';
 import { Erweiterungen } from '../komponenten/Erweiterungen';
 import { linkKlick, navigieren, useOrt } from '../router';
+import { Zeichen } from '../apple/werkzeug-symbole';
 
 /**
  * VS Code als Seite der Dorf-App (E205): das echte VS Code des Codehauses (openvscode-server auf code.<Dorf-Adresse>)
@@ -79,9 +80,11 @@ export default function VsCodeSeite() {
     <div className={`vscode-seite${panel ? ' mit-panel' : ''}`} data-testid="vscode-seite">
       <div className="vs-kopf">
         <a href="/gebaeude/Codehaus" onClick={linkKlick} className="zurueck" title="Zurück zum Codehaus">
-          ← <span className="vs-breit">Codehaus</span>
+          <Zeichen e="←" /> <span className="vs-breit">Codehaus</span>
         </a>
-        <strong className="vs-breit">🖥️ VS Code</strong>
+        <strong className="vs-breit">
+          <Zeichen e="🖥️" /> VS Code
+        </strong>
         {d && d.projekte.length > 0 && (
           <select value={projekt} onChange={(e) => navigieren(vscodeSeiteLink(e.target.value || undefined))} aria-label="Projektordner" title="Projektordner in VS Code öffnen">
             <option value="">alle Projekte (/arbeit)</option>
@@ -94,10 +97,10 @@ export default function VsCodeSeite() {
         )}
         <span className="vs-kopf-rechts">
           <button type="button" className={`klein${geaendert ? ' vs-hinweis' : ''}`} onClick={() => void laden()} disabled={!bereit} title="VS Code neu laden (z. B. nach dem Installieren einer Erweiterung)" data-testid="vscode-neu-laden">
-            ↻ <span className="vs-breit">Neu laden</span>
+            <Zeichen e="↻" /> <span className="vs-breit">Neu laden</span>
           </button>
           <button type="button" className={`klein${panel ? ' aktiv' : ''}`} aria-pressed={panel} onClick={() => setPanel((p) => !p)} data-testid="erweiterungen-knopf">
-            🧩 <span className="vs-breit">Erweiterungen</span>
+            <Zeichen e="🧩" /> <span className="vs-breit">Erweiterungen</span>
           </button>
           {d?.eingerichtet && <VsCodeKnopf projekt={projekt || undefined} klein text="↗ in neuem Tab" testid="vscode-neuer-tab" />}
         </span>
@@ -140,9 +143,11 @@ export default function VsCodeSeite() {
         {panel && (
           <aside className="vs-panel" aria-label="Erweiterungen">
             <div className="vs-panel-kopf">
-              <strong>🧩 Erweiterungen</strong>
+              <strong>
+                <Zeichen e="🧩" /> Erweiterungen
+              </strong>
               <button type="button" className="klein" onClick={() => setPanel(false)} aria-label="Erweiterungen schließen">
-                ✕
+                <Zeichen e="✕" />
               </button>
             </div>
             <Erweiterungen beiAenderung={() => setGeaendert(true)} />

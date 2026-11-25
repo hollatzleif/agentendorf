@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PostUebersicht } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
+import { Em } from '../apple/wissen-teile';
 
 const KATEGORIEN = ['Uni', 'Corps', 'Finanzen', 'Persönlich', 'Termine', 'Newsletter', 'Werbung', 'Sonstiges'];
 const zeit = new Intl.DateTimeFormat('de-AT', { timeZone: 'Europe/Vienna', weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -72,7 +73,7 @@ export function PostEingang({ fest }: { fest?: string } = {}) {
           {mails.map((m) => (
             <li key={m.id} className={m.wichtig ? 'wichtig' : ''}>
               <div className="kopf">
-                <span className="leise">{zeit.format(new Date(m.datum))}</span> {m.wichtig && '⭐'}{' '}
+                <span className="leise">{zeit.format(new Date(m.datum))}</span> {m.wichtig && <Em e="⭐" />}{' '}
                 <span className="abzeichen">{m.kategorie ?? 'wartet'}</span> {m.antwortNoetig && <span className="abzeichen brief">Antwort nötig</span>}{' '}
                 {m.frist && <span className="abzeichen">Frist {m.frist}</span>}
               </div>
@@ -97,12 +98,12 @@ export function PostEingang({ fest }: { fest?: string } = {}) {
 /** Mail → To-do (Nacht 18./19.11.): landet auf dem Marktplatz, mit Link zurück zur Mail */
 function AlsTodo({ id, betreff }: { id: string; betreff: string }) {
   const [stand, setStand] = useState<'' | 'laeuft' | 'ok' | string>('');
-  if (stand === 'ok') return <span className="plus">✅ auf dem To-do-Brett</span>;
+  if (stand === 'ok') return <span className="plus"><Em e="✅" /> auf dem To-do-Brett</span>;
   return (
     <>
       <button
         type="button"
-        className="klein"
+        className="klein als-todo"
         disabled={stand === 'laeuft'}
         aria-label={`Als To-do: ${betreff}`}
         onClick={async () => {

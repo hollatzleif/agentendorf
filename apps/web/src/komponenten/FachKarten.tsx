@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { FachStand, KartenFach } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { bibliothekUrl, linkKlick, navigieren } from '../router';
+import { useDesign } from '../apple/design';
+import { Em, Ring } from '../apple/wissen-teile';
 
 const bis = (iso: string) => {
   const tage = Math.ceil((Date.parse(iso) - Date.now()) / 86_400_000);
@@ -20,6 +22,7 @@ export function FachKarten() {
   const qc = useQueryClient();
   const [zielFach, setZielFach] = useState<string | null>(null);
   const [zielStunden, setZielStunden] = useState('');
+  const apple = useDesign() === 'apple';
   if (!q.data?.length) return null;
   // E137: Lernziel je Fach pro Woche (Uni/lernziele.md)
   const zielSpeichern = async (fach: string) => {
@@ -48,14 +51,19 @@ export function FachKarten() {
           const n = f.naechsteFrist ? bis(f.naechsteFrist.frist) : null;
           return (
             <section key={f.name} className="karte innen fach-karte" aria-label={`Fach ${f.titel}`}>
+              {apple && f.lernzielMin ? (
+                <Ring anteil={(f.fokusWoche ?? 0) / f.lernzielMin} groesse={46} staerke={5} farbe={(f.fokusWoche ?? 0) >= f.lernzielMin ? 'var(--a-gruen)' : 'var(--a-orange)'}>
+                  {Math.min(100, Math.round(((f.fokusWoche ?? 0) / f.lernzielMin) * 100))}
+                </Ring>
+              ) : null}
               <h3>
                 <a href={bibliothekUrl(f.ordner)} onClick={linkKlick}>
-                  📁 {f.titel}
+                  <Em e="📁" /> {f.titel}
                 </a>
               </h3>
               {f.naechsteFrist && n ? (
                 <p className={n.tage <= 2 ? 'fach-frist dringend' : 'fach-frist'}>
-                  {f.naechsteFrist.art === 'test' ? '📝' : '⏰'} {f.naechsteFrist.titel}
+                  <Em e={f.naechsteFrist.art === 'test' ? '📝' : '⏰'} /> {f.naechsteFrist.titel}
                   <br />
                   <span className="leise">
                     {n.wann} · {n.tage <= 0 ? 'heute' : n.tage === 1 ? 'morgen' : `in ${n.tage} Tagen`}
@@ -65,13 +73,13 @@ export function FachKarten() {
                 <p className="leise">Keine offene Frist.</p>
               )}
               <div className="fach-zahlen">
-                <span title="Offene Übungsblätter in aufgaben/">📄 {f.offeneAbgaben} offen</span>
-                <span title="Pomodoro-Fokuszeit der letzten 7 Tage">🍅 {stunden(f.fokus7Tage)}</span>
+                <span title="Offene Übungsblätter in aufgaben/"><Em e="📄" /> {f.offeneAbgaben} offen</span>
+                <span title="Pomodoro-Fokuszeit der letzten 7 Tage"><Em e="🍅" /> {stunden(f.fokus7Tage)}</span>
                 {(() => {
                   const k = karten.data?.find((x) => x.fach === f.name);
                   return k ? (
                     <a href={`/gebaeude/Uni?reiter=karten&fach=${encodeURIComponent(f.name)}`} onClick={linkKlick} title="Karteikarten, die heute dran sind">
-                      🃏 {k.faellig} dran
+                      <Em e="🃏" /> {k.faellig} dran
                     </a>
                   ) : null;
                 })()}
@@ -82,7 +90,7 @@ export function FachKarten() {
                     <span style={{ width: `${Math.min(1, (f.fokusWoche ?? 0) / f.lernzielMin) * 100}%` }} />
                   </div>
                   <span className="leise">
-                    🎯 {stunden(f.fokusWoche ?? 0)} von {stunden(f.lernzielMin)} diese Woche
+                    <Em e="🎯" /> {stunden(f.fokusWoche ?? 0)} von {stunden(f.lernzielMin)} diese Woche
                   </span>
                 </div>
               ) : null}
@@ -112,13 +120,13 @@ export function FachKarten() {
                   }}
                   aria-label={`Lernziel: ${f.titel}`}
                 >
-                  🎯
+                  <Em e="🎯" />
                 </button>
                 <button type="button" className="klein" onClick={() => void fokus(f)} aria-label={`Fokus starten: ${f.titel}`}>
-                  🍅 Fokus
+                  <Em e="🍅" /> Fokus
                 </button>
                 <button type="button" className="klein" onClick={() => navigieren(`/gebaeude/Uni?reiter=aktionen&aktion=${encodeURIComponent('Uni/lernen')}`)}>
-                  📚 Lernen
+                  <Em e="📚" /> Lernen
                 </button>
                 {f.moodleUrl && (
                   <a href={f.moodleUrl} target="_blank" rel="noopener noreferrer" className="leise">

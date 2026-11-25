@@ -4,6 +4,7 @@ import type { BuergermeisterTodo, RundgangStand } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { bibliothekUrl, linkKlick } from '../router';
 import { zeitKurz } from '../texte';
+import { E } from '../apple/tag';
 
 const GEWICHT = { klein: '·', mittel: '··', gross: '···' } as const;
 
@@ -30,7 +31,9 @@ export function BuergermeisterTodos() {
 
   return (
     <section className="bm-todos" aria-label="Eigene To-dos des Bürgermeisters">
-      <h3>📋 Eigene To-dos des Bürgermeisters</h3>
+      <h3>
+        <E e="📋" /> Eigene To-dos des Bürgermeisters
+      </h3>
       <p className="leise">
         Was aus deinen Aufträgen noch offen ist, hält er hier nach und arbeitet es beim Aufwachen zuerst ab. Die Einträge liegen in{' '}
         <a href={bibliothekUrl('Rathaus/buergermeister-todos')} onClick={linkKlick}>
@@ -80,7 +83,7 @@ export function BuergermeisterTodos() {
                 {t.quelle && t.quelle !== 'Bürgermeister' && <span>von: {t.quelle}</span>}
                 {t.erstellt && <span>{zeitKurz(t.erstellt)}</span>}
                 <button className="klein" title="In den Papierkorb" onClick={() => void tun(api('/api/buergermeister/todos/loeschen', { body: { pfad: t.pfad } }))}>
-                  🗑
+                  <E e="🗑" />
                 </button>
               </div>
             </div>

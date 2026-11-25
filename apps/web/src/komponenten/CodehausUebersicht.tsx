@@ -7,6 +7,7 @@ import { linkKlick } from '../router';
 import { zeitKurz } from '../texte';
 import { ChatListe } from './ChatListe';
 import { Erweiterungen } from './Erweiterungen';
+import { Em } from '../apple/wissen-teile';
 
 /** Adresse, die VS Code über das Dorf öffnet (Einmal-Karte → eigener Ursprung des Code-Hosts), optional gleich im Projektordner */
 export const vscodeLink = (projekt?: string) => `/api/coding/oeffnen${projekt ? `?projekt=${encodeURIComponent(projekt)}` : ''}`;
@@ -49,7 +50,7 @@ export function VsCodeKnopf({ projekt, klein, text, testid }: { projekt?: string
   return (
     <>
       <button type="button" className={klein ? 'klein' : undefined} onClick={() => void oeffnen()} disabled={laeuft} data-testid={testid ?? (projekt ? undefined : 'vscode-oeffnen')}>
-        {text ?? (klein ? 'in VS Code öffnen' : '💻 VS Code öffnen')}
+        {text ?? (klein ? 'in VS Code öffnen' : <><Em e="💻" /> VS Code öffnen</>)}
       </button>
       {fehler && <span className="fehler"> {fehler}</span>}
     </>
@@ -90,7 +91,7 @@ export function CodehausUebersicht() {
           {d.erreichbar ? 'Noch keine Projekte. Hol eins mit der Aktion „Repository holen“ oder klone es im VS-Code-Terminal nach /arbeit/<name>.' : 'Projektliste nicht verfügbar.'}
         </p>
       ) : (
-        <ul className="chatliste" data-testid="projekte">
+        <ul className="chatliste projekte-liste" data-testid="projekte">
           {d.projekte.map((p) => (
             <li key={p.name}>
               <strong>{p.name}</strong> {p.git && <span className="abzeichen">git</span>}
@@ -142,7 +143,7 @@ export function CodehausEditorStart() {
     <div className="codehaus">
       <p>
         <a className="knopf" href={editorLink()} onClick={linkKlick} data-testid="editor-oeffnen">
-          📝 Editor öffnen
+          <Em e="📝" /> Editor öffnen
         </a>{' '}
         <span className="leise">Programmieren direkt im Dorf – Editor, Dateien, Terminal, Git und der Coding-Agent daneben. Geht auch am Handy.</span>
       </p>
@@ -182,7 +183,7 @@ export function CodehausVsCodeStart() {
           {d.einbettbar && (
             <>
               <a className="knopf" href={vscodeSeiteLink()} onClick={linkKlick} data-testid="vscode-seite-oeffnen">
-                🖥️ VS Code in der App öffnen
+                <Em e="🖥️" /> VS Code in der App öffnen
               </a>{' '}
             </>
           )}

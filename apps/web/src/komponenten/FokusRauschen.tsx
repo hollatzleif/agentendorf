@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { E } from '../apple/tag';
 
 /**
  * E155: Rauschen im Fokus – braunes (oder rosa) Rauschen, im Browser erzeugt (Web Audio, keine Datei, kein Netz).
@@ -90,7 +91,7 @@ export function FokusRauschen() {
           setAn(!an);
         }}
       >
-        {an ? '🔇 Rauschen aus' : '🔊 Rauschen'}
+        <E e={an ? '🔇' : '🔊'} /> {an ? 'Rauschen aus' : 'Rauschen'}
       </button>
       {an && (
         <>

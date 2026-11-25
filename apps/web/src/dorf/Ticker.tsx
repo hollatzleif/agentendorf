@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { DorfStatus } from '@dorf/shared';
+import { Zeichen } from '../apple/werkzeug-symbole';
 
 export interface TickerEintrag {
   id: number;
@@ -83,7 +84,10 @@ export function DorfTicker({
       {eintraege.map((e) => (
         <li key={e.id}>
           <button onClick={() => zeigen(e.ziel)}>
-            <span aria-hidden>{e.symbol}</span> {e.text}
+            <span aria-hidden className="ticker-symbol">
+              <Zeichen e={e.symbol} />
+            </span>{' '}
+            <span className="ticker-text">{e.text}</span>
           </button>
         </li>
       ))}

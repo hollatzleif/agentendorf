@@ -1,7 +1,8 @@
 // E239: gemeinsame Chart-Bausteine im Kielwasser-Stil (Bot-Terminal und Muster-Kielwasser) – SVG ohne Bibliothek.
 // Linien mit Fadenkreuz-Tooltip (Werte in Textfarbe, Farbe nur am Punkt), Hilfslinie, Legende ab zwei Linien,
 // Kauf-/Verkaufs-Marker (▲/▼ wie im Terminal) mit eigenem Tooltip; die Breite folgt dem Platz (Schrift bleibt am Handy lesbar).
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useDesign } from '../apple/design';
 
 /** Farben der kw-Tafeln für Chart-Elemente (Raster, Achsen) */
 export const KW_RASTER = '#1c2236';
@@ -15,6 +16,98 @@ export const KW_MONO = 'ui-monospace, monospace';
  * blau, orange, türkis, gelb, magenta, grün, violett, rot.
  */
 export const SERIEN_FARBEN = ['#338ced', '#e76624', '#00a888', '#d28e05', '#e24d8b', '#0aac23', '#9887ef', '#eb6263'] as const;
+
+/** E240: Serienfarben der Apple-Oberfläche (Systemfarben, gleiche Reihenfolge; Grün/Rot bleiben für Gewinn/Verlust frei) */
+export const SERIEN_FARBEN_APPLE = ['var(--a-blau)', 'var(--a-orange)', 'var(--a-mint)', 'var(--a-gelb)', 'var(--a-pink)', 'var(--a-indigo)', 'var(--a-lila)', 'var(--a-cyan)'] as const;
+
+/** E240: Chart-Farben und Strichstärken je Oberfläche – im Dorf-Design genau die bisherigen Werte */
+export interface KwFarben {
+  apple: boolean;
+  raster: string;
+  achse: string;
+  gruen: string;
+  rot: string;
+  /** Rand um Punkte/Marker (Hintergrund der Tafel) */
+  kontur: string;
+  /** Fadenkreuz-Linien */
+  zeiger: string;
+  /** Linie + Schild des aktuellen Werts */
+  preis: string;
+  preisText: string;
+  /** Hintergrund hinter Beschriftungen im Chart */
+  tafel: string;
+  /** Vorhersage ohne Richtung */
+  neutral: string;
+  /** feine Trennlinie (z. B. „jetzt“ in der Vorhersage) */
+  trenn: string;
+  /** Verbindungen der Prüfmodule (ruhend) */
+  modulLinie: string;
+  /** Linienstärke (normal, gewählt) */
+  strich: number;
+  strichGewaehlt: number;
+  /** Serienfarbe der Oberfläche (Dorf-Farbe → Apple-Systemfarbe) */
+  serie: (farbe: string) => string;
+}
+
+const DORF_FARBEN: KwFarben = {
+  apple: false,
+  raster: KW_RASTER,
+  achse: KW_ACHSE,
+  gruen: KW_GRUEN,
+  rot: KW_ROT,
+  kontur: '#0d1117',
+  zeiger: '#c4b5fd',
+  preis: '#8b5cf6',
+  preisText: '#fff',
+  tafel: '#10131f',
+  neutral: '#a78bfa',
+  trenn: '#6b7280',
+  modulLinie: '#232a40',
+  strich: 2,
+  strichGewaehlt: 3,
+  serie: (f) => f,
+};
+const APPLE_FARBEN: KwFarben = {
+  apple: true,
+  raster: 'var(--a-trenner-fein)',
+  achse: 'var(--a-text2)',
+  gruen: 'var(--a-gruen)',
+  rot: 'var(--a-rot)',
+  kontur: 'var(--a-flaeche)',
+  zeiger: 'var(--a-text3)',
+  preis: 'var(--a-blau)',
+  preisText: 'white',
+  tafel: 'var(--a-flaeche)',
+  neutral: 'var(--a-indigo)',
+  trenn: 'var(--a-text3)',
+  modulLinie: 'var(--a-trenner)',
+  strich: 1.75,
+  strichGewaehlt: 2.5,
+  serie: (f) => {
+    const i = (SERIEN_FARBEN as readonly string[]).indexOf(f);
+    return i < 0 ? f : SERIEN_FARBEN_APPLE[i]!;
+  },
+};
+
+/** Chart-Farben der aktuellen Oberfläche */
+export function useKwFarben(): KwFarben {
+  return useDesign() === 'apple' ? APPLE_FARBEN : DORF_FARBEN;
+}
+
+/**
+ * E240: Kauf-/Verkaufs-Marker – Dorf: Dreieck (▲/▼) wie bisher; Apple: kleine Kapsel mit Pfeil (Aktien-Stil).
+ * (x, y) ist die Mitte.
+ */
+export function MarkerForm({ x, y, kauf, farbe, f }: { x: number; y: number; kauf: boolean; farbe: string; f: KwFarben }) {
+  if (!f.apple) return <path d={markerPfad(x, y, kauf)} fill={farbe} stroke={f.kontur} strokeWidth={1} />;
+  const pfeil = kauf ? `M${x - 2.6} ${y + 1.2} L${x} ${y - 1.6} L${x + 2.6} ${y + 1.2}` : `M${x - 2.6} ${y - 1.2} L${x} ${y + 1.6} L${x + 2.6} ${y - 1.2}`;
+  return (
+    <g className="kw-marker-kapsel">
+      <rect x={x - 7} y={y - 5} width={14} height={10} rx={5} fill={farbe} stroke={f.kontur} strokeWidth={1.5} />
+      <path d={pfeil} fill="none" stroke={f.preisText} strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round" />
+    </g>
+  );
+}
 
 /** Pfad eines Kauf- (▲) bzw. Verkaufs-Markers (▼) um (x, y) */
 export function markerPfad(x: number, y: number, kauf: boolean) {
@@ -103,6 +196,8 @@ export function LinienChart({
   zusatz?: (x: number, werte: { serie: ChartSerie; y: number }[]) => ReactNode;
 }) {
   const [huelle, B] = useBreite<HTMLDivElement>();
+  const f = useKwFarben();
+  const verlaufId = `kwv${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
   const H = hoehe;
   const R = 58; // Skala rechts
   const L = 6;
@@ -195,41 +290,53 @@ export function LinienChart({
       >
         {skala.map((v) => (
           <g key={v}>
-            <line x1={L} x2={B - R} y1={py(v)} y2={py(v)} stroke={KW_RASTER} strokeWidth={1} />
-            <text x={B - R + 6} y={py(v) + 4} fill={KW_ACHSE} fontSize={10.5} fontFamily={KW_MONO}>
+            <line x1={L} x2={B - R} y1={py(v)} y2={py(v)} stroke={f.raster} strokeWidth={1} />
+            <text x={B - R + 6} y={py(v) + 4} fill={f.achse} fontSize={10.5} fontFamily={KW_MONO}>
               {yText(v)}
             </text>
           </g>
         ))}
         {xSkala.map((x, i) => (
-          <text key={i} x={px(x)} y={H - 6} fill={KW_ACHSE} fontSize={10.5} fontFamily={KW_MONO} textAnchor={i === 0 ? 'start' : i === xSkala.length - 1 ? 'end' : 'middle'}>
+          <text key={i} x={px(x)} y={H - 6} fill={f.achse} fontSize={10.5} fontFamily={KW_MONO} textAnchor={i === 0 ? 'start' : i === xSkala.length - 1 ? 'end' : 'middle'}>
             {xText(x)}
           </text>
         ))}
         {hilfslinie && hilfslinie.y > lo && hilfslinie.y < hi && (
           <g data-testid="chart-hilfslinie">
-            <line x1={L} x2={B - R} y1={py(hilfslinie.y)} y2={py(hilfslinie.y)} stroke={KW_ACHSE} strokeDasharray="4 4" strokeWidth={1} />
-            <rect x={B - R - 8 - hilfslinie.text.length * 6.4} y={py(hilfslinie.y) - 16} width={hilfslinie.text.length * 6.4 + 6} height={14} rx={3} fill="#10131f" opacity={0.85} />
-            <text x={B - R - 5} y={py(hilfslinie.y) - 5} fill={KW_ACHSE} fontSize={10.5} fontFamily={KW_MONO} textAnchor="end">
+            <line x1={L} x2={B - R} y1={py(hilfslinie.y)} y2={py(hilfslinie.y)} stroke={f.achse} strokeDasharray={f.apple ? '2 3' : '4 4'} strokeWidth={1} />
+            <rect x={B - R - 8 - hilfslinie.text.length * 6.4} y={py(hilfslinie.y) - 16} width={hilfslinie.text.length * 6.4 + 6} height={14} rx={f.apple ? 7 : 3} fill={f.tafel} opacity={0.85} />
+            <text x={B - R - 5} y={py(hilfslinie.y) - 5} fill={f.achse} fontSize={10.5} fontFamily={KW_MONO} textAnchor="end">
               {hilfslinie.text}
             </text>
           </g>
         )}
+        {/* E240: Apple – eine Linie bekommt eine Verlaufsfläche darunter (Aktien-Stil) */}
+        {f.apple && serien.length === 1 && serien[0]!.punkte.length > 1 && (
+          <g aria-hidden>
+            <defs>
+              <linearGradient id={verlaufId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={f.serie(serien[0]!.farbe)} stopOpacity={0.28} />
+                <stop offset="100%" stopColor={f.serie(serien[0]!.farbe)} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <path className="kw-flaeche" d={`${pfad(serien[0]!)} V${H - U} H${px([...serien[0]!.punkte].sort((a, b) => a.x - b.x)[0]!.x)} Z`} fill={`url(#${verlaufId})`} stroke="none" />
+          </g>
+        )}
         {serien.map((s) => (
           <g key={s.id} data-serie={s.id}>
-            <path d={pfad(s)} fill="none" stroke={s.farbe} strokeWidth={gewaehlt === s.id ? 3 : 2} strokeDasharray={s.gestrichelt ? '6 4' : undefined} strokeLinejoin="round" opacity={gewaehlt && gewaehlt !== s.id ? 0.55 : 1} />
+            <path d={pfad(s)} fill="none" stroke={f.serie(s.farbe)} strokeWidth={gewaehlt === s.id ? f.strichGewaehlt : f.strich} strokeDasharray={s.gestrichelt ? '6 4' : undefined} strokeLinejoin="round" strokeLinecap={f.apple ? 'round' : undefined} opacity={gewaehlt && gewaehlt !== s.id ? 0.55 : 1} />
             {s.punkte
               .filter((p) => p.voll !== undefined)
               .map((p) => (
-                <circle key={p.x} cx={px(p.x)} cy={py(p.y)} r={4} fill={p.voll ? s.farbe : '#10131f'} stroke={s.farbe} strokeWidth={2} data-voll={p.voll ? '1' : '0'} />
+                <circle key={p.x} cx={px(p.x)} cy={py(p.y)} r={f.apple ? 3.5 : 4} fill={p.voll ? f.serie(s.farbe) : f.apple ? f.tafel : '#10131f'} stroke={f.serie(s.farbe)} strokeWidth={f.apple ? 1.75 : 2} data-voll={p.voll ? '1' : '0'} />
               ))}
           </g>
         ))}
         {zeiger != null && (
           <g pointerEvents="none">
-            <line x1={px(zeiger)} x2={px(zeiger)} y1={O} y2={H - U} stroke="#c4b5fd" strokeDasharray="3 3" strokeWidth={1} />
+            <line x1={px(zeiger)} x2={px(zeiger)} y1={O} y2={H - U} stroke={f.zeiger} strokeDasharray={f.apple ? undefined : '3 3'} strokeWidth={1} />
             {zw.map((w) => (
-              <circle key={w.serie.id} cx={px(zeiger)} cy={py(w.y)} r={4.5} fill={w.serie.farbe} stroke="#0d1117" strokeWidth={2} />
+              <circle key={w.serie.id} cx={px(zeiger)} cy={py(w.y)} r={4.5} fill={f.serie(w.serie.farbe)} stroke={f.kontur} strokeWidth={2} />
             ))}
           </g>
         )}
@@ -246,7 +353,7 @@ export function LinienChart({
             }}
           >
             <circle cx={px(m.x)} cy={py(m.y) + (m.kauf ? 11 : -11)} r={9} fill="transparent" />
-            <path d={markerPfad(px(m.x), py(m.y) + (m.kauf ? 11 : -11), m.kauf)} fill={m.farbe ?? (m.kauf ? KW_GRUEN : KW_ROT)} stroke="#0d1117" strokeWidth={1} />
+            <MarkerForm x={px(m.x)} y={py(m.y) + (m.kauf ? 11 : -11)} kauf={m.kauf} farbe={m.farbe ?? (m.kauf ? f.gruen : f.rot)} f={f} />
           </g>
         ))}
       </svg>
@@ -257,7 +364,7 @@ export function LinienChart({
             .sort((a, b) => b.y - a.y)
             .map((w) => (
               <div key={w.serie.id} className="kw-tip-zeile">
-                <i style={{ background: w.serie.farbe }} aria-hidden />
+                <i style={{ background: f.serie(w.serie.farbe) }} aria-hidden />
                 {w.serie.name}: <b>{yText(w.y)}</b>
               </div>
             ))}
@@ -273,7 +380,7 @@ export function LinienChart({
         <div className="kw-legende" aria-label="Legende">
           {serien.map((s) => (
             <button key={s.id} type="button" className={gewaehlt === s.id ? 'an' : ''} onClick={onSerie ? () => onSerie(s.id) : undefined} disabled={!onSerie} aria-pressed={onSerie ? gewaehlt === s.id : undefined}>
-              <i className={s.gestrichelt ? 'gestrichelt' : ''} style={{ ['--farbe' as string]: s.farbe }} aria-hidden />
+              <i className={s.gestrichelt ? 'gestrichelt' : ''} style={{ ['--farbe' as string]: f.serie(s.farbe) }} aria-hidden />
               {s.name}
             </button>
           ))}

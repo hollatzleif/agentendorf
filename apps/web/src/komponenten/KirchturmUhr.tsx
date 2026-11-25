@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { FokusStatistik, KirchturmTimer, KirchturmWecker, KirchturmZustand, PomodoroEinstellungen, TodoInfo } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { glocke, glockeStopp, istProgramm } from '../programm/desktop';
+import { E } from '../apple/tag';
 
 const TAGE = [
   [1, 'Mo'],
@@ -185,7 +186,9 @@ function Pomodoro({ z, jetzt, befehl }: { z: KirchturmZustand; jetzt: number; be
   const name = { aus: 'Bereit', arbeit: 'Arbeiten', kurz: 'Kurze Pause', lang: 'Lange Pause' }[p.phase];
   return (
     <section className={`karte innen kirchturm-teil pomodoro phase-${p.phase}`} aria-label="Pomodoro">
-      <h3>🍅 Pomodoro</h3>
+      <h3>
+        <E e="🍅" /> Pomodoro
+      </h3>
       <div className="pomodoro-anzeige">
         <div className="pomodoro-ring" style={{ ['--anteil' as string]: `${p.phase === 'aus' ? 0 : Math.min(1, 1 - rest / gesamt)}` }}>
           <span className="pomodoro-zeit">{dauerText(p.phase === 'aus' ? e.arbeitMin * 60_000 : rest)}</span>
@@ -230,7 +233,7 @@ function Pomodoro({ z, jetzt, befehl }: { z: KirchturmZustand; jetzt: number; be
           </>
         )}
         <button type="button" className="klein" onClick={() => setEinstellen((x) => !x)} aria-expanded={einstellen}>
-          ⚙ Einstellen
+          <E e="⚙" /> Einstellen
         </button>
       </div>
       {einstellen && <PomodoroEinstellen e={e} speichern={(n) => void befehl({ befehl: 'pomodoro_einstellen', einstellungen: n }).then(() => setEinstellen(false))} />}
@@ -313,7 +316,9 @@ export function Fokus() {
   const max = Math.max(25, ...s.tage.map((t) => t.min));
   return (
     <section className="karte innen kirchturm-teil fokus" aria-label="Fokus">
-      <h3>📊 Fokus</h3>
+      <h3>
+        <E e="📊" /> Fokus
+      </h3>
       <div className="fokus-zahlen">
         <div>
           <strong>{stunden(s.heuteMin)}</strong>
@@ -360,7 +365,9 @@ function Timer({ z, jetzt, befehl }: { z: KirchturmZustand; jetzt: number; befeh
   const dauer = (Number(min.replace(',', '.')) || 0) * 60_000 + (Number(sek) || 0) * 1000;
   return (
     <section className="karte innen kirchturm-teil" aria-label="Timer">
-      <h3>⏳ Timer</h3>
+      <h3>
+        <E e="⏳" /> Timer
+      </h3>
       {z.timer.length > 0 && (
         <ul className="kirchturm-liste">
           {z.timer.map((t) => (
@@ -454,7 +461,9 @@ function Wecker({ z, befehl }: { z: KirchturmZustand; befehl: Befehl }) {
   const [bearbeiten, setBearbeiten] = useState<KirchturmWecker | 'neu' | null>(null);
   return (
     <section className="karte innen kirchturm-teil" aria-label="Wecker">
-      <h3>⏰ Wecker</h3>
+      <h3>
+        <E e="⏰" /> Wecker
+      </h3>
       {!z.wecker.length && <p className="leise">Noch kein Wecker.</p>}
       <ul className="kirchturm-liste">
         {z.wecker.map((w) => (
@@ -550,7 +559,9 @@ function Stoppuhr({ z, jetzt, befehl }: { z: KirchturmZustand; jetzt: number; be
   const a = (aktion: string) => void befehl({ befehl: 'stoppuhr', aktion });
   return (
     <section className="karte innen kirchturm-teil" aria-label="Stoppuhr">
-      <h3>⏱ Stoppuhr</h3>
+      <h3>
+        <E e="⏱" /> Stoppuhr
+      </h3>
       <div className="stoppuhr-zeit">{stoppText(gesamt)}</div>
       <div className="zeile">
         {s.start ? (
@@ -595,7 +606,9 @@ function Toene({ z, befehl }: { z: KirchturmZustand; befehl: Befehl }) {
   const programm = istProgramm();
   return (
     <section className="karte innen kirchturm-teil" aria-label="Glocke">
-      <h3>🔔 Glocke</h3>
+      <h3>
+        <E e="🔔" /> Glocke
+      </h3>
       <p className="leise">Die Glocke ist der einzige Ton im Dorf. Sie läutet nur im Desktop-Programm, auch wenn sein Fenster versteckt ist.</p>
       <label className="zeile">
         <input type="checkbox" checked={t.mitteilungen} onChange={(e) => void befehl({ befehl: 'toene', mitteilungen: e.target.checked, weckerWiederholen: t.weckerWiederholen })} /> Ein

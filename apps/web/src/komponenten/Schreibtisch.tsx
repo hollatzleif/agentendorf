@@ -99,7 +99,7 @@ export function Schreibtisch() {
   };
 
   return (
-    <div>
+    <div className="schreibtisch">
       <AufwachZeile />
       <form
         className="formspalte breit"

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ANIMATIONEN,
+  DESIGNS,
   DIAGRAMME,
   DIAGRAMM_FARBEN,
   BUCHSTABEN,
@@ -26,10 +27,13 @@ import {
   VORLAGE_FARBEN,
   VORLAGEN,
   type AussehenT,
+  type Design,
   type FarbRolle,
   type Vorlage,
 } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
+import { useDesign } from '../apple/design';
+import { Ikon } from '../apple/Ikon';
 import { aussehenAnwenden, aussehenMerken, farbenVon, geraetAussehen, geraetAussehenSetzen, SCHRIFT_STAPEL, schnellDunkelZuruecksetzen, wirksam } from '../aussehen';
 
 const VORLAGE_TEXT: Record<Vorlage, string> = {
@@ -79,6 +83,27 @@ function Wahl<T extends string>({ text, werte, wert, setzen, hilfe }: { text: st
     </div>
   );
 }
+/** E240: Oberfläche – Dorf oder Apple (im Dorf-Design als Knopfreihe wie die anderen Optionen, in Apple als Segmented Control) */
+const DESIGN_TEXT: Record<Design, string> = { dorf: 'Dorf', apple: 'Apple' };
+function OberflaecheWahl({ wert, setzen }: { wert: Design; setzen: (d: Design) => void }) {
+  const apple = useDesign() === 'apple';
+  return (
+    <div className={apple ? 'a-design-wahl' : 'aussehen-feld'} role="group" aria-label="Oberfläche">
+      <span>Oberfläche</span>
+      <span className={apple ? 'a-segmente' : 'ba-chips'}>
+        {DESIGNS.map((d) => (
+          <button key={d} type="button" className={apple ? undefined : `klein${wert === d ? ' an' : ''}`} aria-pressed={wert === d} onClick={() => setzen(d)}>
+            {DESIGN_TEXT[d]}
+          </button>
+        ))}
+      </span>
+      <span className="leise" style={{ fontWeight: 500 }}>
+        {apple ? 'Die ganze App im Stil von iOS und macOS – nur das 3D-Dorf bleibt, wie es ist. Hell und dunkel gelten weiter.' : '„Apple“ stellt die ganze App (außer dem 3D-Dorf) auf den Stil von iOS und macOS um.'}
+      </span>
+    </div>
+  );
+}
+
 function Regler({ text, wert, min, max, schritt, einheit, setzen }: { text: string; wert: number; min: number; max: number; schritt: number; einheit: string; setzen: (n: number) => void }) {
   return (
     <label className="aussehen-feld">
@@ -181,11 +206,106 @@ export function AussehenEinstellungen() {
   };
   const w = wirksam(a);
   const f = farbenVon(a);
+  const apple = useDesign() === 'apple';
+  /** E240: die Oberfläche gilt sofort und wird gleich gespeichert (wie ein Schalter in den iOS-Einstellungen) */
+  const designSetzen = async (d: Design) => {
+    const neu = { ...basis, design: d };
+    setMeldung('');
+    if (entwurf) setEntwurf({ ...entwurf, design: d });
+    if (nurGeraet) {
+      geraetAussehenSetzen(neu);
+      if (!entwurf) aussehenAnwenden(neu);
+      else aussehenAnwenden({ ...entwurf, design: d });
+      return;
+    }
+    if (entwurf) aussehenAnwenden({ ...entwurf, design: d });
+    else aussehenAnwenden(neu);
+    try {
+      const r = await api<AussehenT>('/api/aussehen', { methode: 'PUT', body: neu });
+      aussehenMerken(r);
+      qc.setQueryData(['aussehen'], r);
+    } catch (e) {
+      setMeldung(`⚠️ ${e instanceof ApiFehler ? e.message : String(e)}`);
+    }
+  };
+  /** E240: Erscheinungsbild in Apple: Hell, Dunkel oder automatisch (setzt Vorlage/automatisch dunkel – gilt auch im Dorf-Design) */
+  const vorlageDunkel = !!VORLAGE_FARBEN[a.vorlage].dunkel;
+  const erscheinung = a.dunkelAuto !== 'aus' ? 'auto' : vorlageDunkel ? 'dunkel' : 'hell';
+  const hellVorlage = vorlageDunkel ? ('spiel' as const) : a.vorlage;
+  const erscheinungSetzen = (x: 'hell' | 'dunkel' | 'auto') => {
+    schnellDunkelZuruecksetzen();
+    if (x === 'hell') aendern({ vorlage: hellVorlage, dunkelAuto: 'aus' });
+    else if (x === 'dunkel') aendern({ vorlage: a.dunkelVorlage, dunkelAuto: 'aus' });
+    else aendern({ vorlage: hellVorlage, dunkelAuto: a.dunkelAuto === 'aus' ? 'system' : a.dunkelAuto });
+  };
+
+  if (apple)
+    return (
+      <div className="karte aussehen" id="aussehen">
+        <h2>
+          <Ikon e="🎨" /> Aussehen
+        </h2>
+        <OberflaecheWahl wert={a.design ?? 'dorf'} setzen={(d) => void designSetzen(d)} />
+        <label className="ba-schalter">
+          <input type="checkbox" role="switch" checked={nurGeraet} onChange={(e) => geraetUmschalten(e.target.checked)} /> Nur auf diesem Gerät anders einstellen
+        </label>
+        <section aria-label="Erscheinungsbild" className="a-design-wahl">
+          <h3>Erscheinungsbild</h3>
+          <span className="a-segmente" role="group" aria-label="Erscheinungsbild">
+            {(['hell', 'dunkel', 'auto'] as const).map((x) => (
+              <button key={x} type="button" aria-pressed={erscheinung === x} onClick={() => erscheinungSetzen(x)}>
+                {x === 'hell' ? 'Hell' : x === 'dunkel' ? 'Dunkel' : 'Automatisch'}
+              </button>
+            ))}
+          </span>
+          {erscheinung === 'auto' && (
+            <Wahl text="Automatisch dunkel" werte={DUNKEL_AUTO.filter((x) => x !== 'aus')} wert={a.dunkelAuto} setzen={(x) => aendern({ dunkelAuto: x })} hilfe="Wann die App dunkel wird" />
+          )}
+          {localStorage.getItem('dorf-dunkel-jetzt') && (
+            <p className="hinweis">
+              Der Schnellschalter oben gilt gerade auf diesem Gerät.{' '}
+              <button
+                type="button"
+                className="klein"
+                onClick={() => {
+                  schnellDunkelZuruecksetzen();
+                  setMeldung('Schnellschalter aus – wieder nach Einstellung.');
+                }}
+              >
+                Wieder automatisch
+              </button>
+            </p>
+          )}
+        </section>
+        <section aria-label="Anzeige" className="aussehen-gruppe">
+          <Regler text="Textgröße" wert={a.groesse} min={12} max={24} schritt={1} einheit=" px" setzen={(n) => aendern({ groesse: n })} />
+          <Wahl text="Startseite" werte={STARTSEITEN} wert={a.startseite} setzen={(x) => aendern({ startseite: x })} />
+          <Wahl text="Bewegung" werte={ANIMATIONEN} wert={a.animationen} setzen={(x) => aendern({ animationen: x })} hilfe="Reduziert oder aus – zusätzlich zur Einstellung „Bewegung reduzieren“ des Geräts" />
+        </section>
+        <p className="leise">Vorlagen, Farben, Schrift, Form &amp; Stil, Meine Looks und eigenes CSS gelten nur im Dorf-Design – dort bleiben sie gespeichert.</p>
+        {(geaendert || meldung) && (
+          <div className="aussehen-leiste" role="status">
+            {geaendert && (
+              <>
+                <button type="button" className="haupt" onClick={() => void speichern()}>
+                  Speichern
+                </button>
+                <button type="button" onClick={verwerfen}>
+                  Verwerfen
+                </button>
+              </>
+            )}
+            {meldung && <span>{meldung}</span>}
+          </div>
+        )}
+      </div>
+    );
 
   return (
     <div className="karte aussehen" id="aussehen">
       <h2>🎨 Aussehen</h2>
       <p className="leise">Alles wirkt sofort als Vorschau. Gespeichert gilt es auf allen deinen Geräten (Handy, PC, Programm) – außer du stellst ein Gerät extra ein.</p>
+      <OberflaecheWahl wert={a.design ?? 'dorf'} setzen={(d) => void designSetzen(d)} />
       <label className="ba-schalter">
         <input type="checkbox" checked={nurGeraet} onChange={(e) => geraetUmschalten(e.target.checked)} /> Nur auf diesem Gerät anders einstellen (z. B. das Handy dunkel, den PC hell)
       </label>
@@ -196,7 +316,7 @@ export function AussehenEinstellungen() {
           {VORLAGEN.map((v) => {
             const p = VORLAGE_FARBEN[v];
             return (
-              <button key={v} type="button" className={`aussehen-vorlage${a.vorlage === v ? ' aktiv' : ''}`} aria-pressed={a.vorlage === v} onClick={() => aendern({ ...AUSSEHEN_STANDARD, vorlage: v, css: a.css, startseite: a.startseite, groesse: a.groesse, dunkelAuto: a.dunkelAuto, dunkelVorlage: a.dunkelVorlage })}>
+              <button key={v} type="button" className={`aussehen-vorlage${a.vorlage === v ? ' aktiv' : ''}`} aria-pressed={a.vorlage === v} onClick={() => aendern({ ...AUSSEHEN_STANDARD, vorlage: v, design: a.design, css: a.css, startseite: a.startseite, groesse: a.groesse, dunkelAuto: a.dunkelAuto, dunkelVorlage: a.dunkelVorlage })}>
                 <span className="aussehen-muster" aria-hidden="true">
                   <span style={{ background: p.kopf }} />
                   <span style={{ background: p.grund }} />

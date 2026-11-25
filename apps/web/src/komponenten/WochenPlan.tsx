@@ -4,6 +4,7 @@ import type { KalenderAntwort, KalenderTermin, TodoInfo, WochenzieleStand } from
 import { api, ApiFehler } from '../api';
 import { ort, tagPlus } from './MarktKalender';
 import { belegtMs, istFristBlock, minutenText, wocheVerteilen } from '@dorf/shared';
+import { E } from '../apple/tag';
 
 /**
  * E121: Wochenplan – die To-dos der Woche als Spalten Mo–So, links der Eingang (ohne Datum, Überfälliges).
@@ -192,7 +193,7 @@ export function WochenPlan({ startVersatz = 0 }: { startVersatz?: number } = {})
             setVorschlag(v.map((x) => ({ ...x, an: true })));
           }}
         >
-          ✨ Woche verteilen
+          <E e="✨" /> Woche verteilen
         </button>
       )}
       {vorschlag && (
@@ -236,7 +237,7 @@ export function WochenPlan({ startVersatz = 0 }: { startVersatz?: number } = {})
       {todos.isError && <p className="fehler">To-dos nicht erreichbar: {todos.error.message}</p>}
       <div className="wplan-spalten">
         <div className={`wplan-spalte eingang${ueber === '' ? ' ueber' : ''}`} {...zone('')} aria-label="Ohne Datum">
-          <h3>📥 Ohne Datum{versatz >= 0 ? ' & Überfälliges' : ''}</h3>
+          <h3><E e="📥" /> Ohne Datum{versatz >= 0 ? ' & Überfälliges' : ''}</h3>
           <ul>{eingang.map(karte)}</ul>
           {todos.data && !eingang.length && <p className="leise">Leer – alles eingeplant.</p>}
         </div>

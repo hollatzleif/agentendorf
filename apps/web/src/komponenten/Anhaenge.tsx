@@ -1,6 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useRef } from 'react';
 import { MAX_ANHANG_BYTES, type DateiKarte } from '@dorf/shared';
 import { rohUrl } from '../api';
+import { useDesign } from '../apple/design';
+import { Symbol } from '../apple/Ikon';
+import { Em, Unsichtbar } from '../apple/wissen-teile';
 
 /** E190: Anhänge in Chat und Schreibtisch – Auswahl (Knopf, Ziehen/Ablegen, Einfügen) und Kärtchen. */
 
@@ -51,7 +54,7 @@ export function DateiKarten({ karten, titel }: { karten: DateiKarte[]; titel?: s
             oeffnen(k);
           }}
         >
-          {BILD.test(k.name) && !/\.svg$/i.test(k.name) ? <img src={rohUrl(k.pfad)} alt="" loading="lazy" /> : <span className="datei-symbol">{dateiSymbol(k.name)}</span>}
+          {BILD.test(k.name) && !/\.svg$/i.test(k.name) ? <img src={rohUrl(k.pfad)} alt="" loading="lazy" /> : <span className="datei-symbol"><Em e={dateiSymbol(k.name)} /></span>}
           <span className="datei-name">{k.name}</span>
           {k.groesse !== undefined && <span className="leise datei-groesse">{groesseText(k.groesse)}</span>}
         </a>
@@ -69,11 +72,11 @@ function Gewaehlt({ dateien, entfernen }: { dateien: File[]; entfernen: (i: numb
     <div className="datei-karten gewaehlt">
       {dateien.map((d, i) => (
         <span key={`${d.name}-${i}`} className="datei-karte">
-          {urls[i] ? <img src={urls[i]} alt="" /> : <span className="datei-symbol">{dateiSymbol(d.name)}</span>}
+          {urls[i] ? <img src={urls[i]} alt="" /> : <span className="datei-symbol"><Em e={dateiSymbol(d.name)} /></span>}
           <span className="datei-name">{d.name}</span>
           <span className="leise datei-groesse">{groesseText(d.size)}</span>
           <button type="button" className="klein" aria-label={`${d.name} entfernen`} title="Nicht mitschicken" onClick={() => entfernen(i)}>
-            ✕
+            <Em e="✕" />
           </button>
         </span>
       ))}
@@ -87,6 +90,7 @@ function Gewaehlt({ dateien, entfernen }: { dateien: File[]; entfernen: (i: numb
  */
 export function AnhangWahl({ dateien, setDateien, setFehler }: { dateien: File[]; setDateien: (f: File[]) => void; setFehler: (t: string) => void }) {
   const eingabe = useRef<HTMLInputElement>(null);
+  const apple = useDesign() === 'apple';
   return (
     <>
       <input
@@ -101,8 +105,15 @@ export function AnhangWahl({ dateien, setDateien, setFehler }: { dateien: File[]
           e.target.value = '';
         }}
       />
-      <button type="button" onClick={() => eingabe.current?.click()} title="Dateien anhängen (auch Ziehen/Ablegen oder Einfügen)">
-        📎 Datei
+      <button type="button" className="anhang-knopf" onClick={() => eingabe.current?.click()} title="Dateien anhängen (auch Ziehen/Ablegen oder Einfügen)">
+        {apple ? (
+          <>
+            <Symbol name="plus" />
+            <Unsichtbar>Datei</Unsichtbar>
+          </>
+        ) : (
+          '📎 Datei'
+        )}
       </button>
       <Gewaehlt dateien={dateien} entfernen={(i) => setDateien(dateien.filter((_, j) => j !== i))} />
     </>

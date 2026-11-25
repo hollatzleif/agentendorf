@@ -7,6 +7,8 @@ import { TodoTextHinweis } from './TodoTextHinweis';
 import { bibliothekUrl, linkKlick, navigieren } from '../router';
 import { LernzeitPlaner } from './LernzeitPlaner';
 import { Stern } from '../seiten/Heute';
+import { E } from '../apple/tag';
+import { useDesign } from '../apple/design';
 
 const heute = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Vienna' });
 const datumText = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('de-AT', { weekday: 'short', day: '2-digit', month: '2-digit' });
@@ -283,6 +285,7 @@ type Ausfuehren = (f: () => Promise<unknown>) => Promise<'ok' | 'offline' | 'feh
 
 function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehren; basis: string }) {
   const [bearbeiten, setBearbeiten] = useState(false);
+  const apple = useDesign() === 'apple';
   const [titel, setTitel] = useState(t.titel);
   const [faellig, setFaellig] = useState(t.faellig ?? '');
   const [notiz, setNotiz] = useState(t.notiz ?? '');
@@ -324,8 +327,12 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehr
   if (bearbeiten)
     return (
       <li className="todo bearbeiten">
+        {/* E240: in der Apple-Oberfläche ist „Bearbeiten“ ein Sheet – Tipp daneben schließt wie „Abbrechen“ */}
+        {apple && <div className="a-sheet-scrim" aria-hidden onClick={() => setBearbeiten(false)} />}
         <form
           className="formspalte"
+          aria-label={apple ? `${t.titel} bearbeiten` : undefined}
+          onKeyDown={apple ? (e) => e.key === 'Escape' && setBearbeiten(false) : undefined}
           onSubmit={(e) => {
             e.preventDefault();
             void aendern({ titel, faellig, notiz, gruppe, ...(wiederholen !== (t.wiederholen ?? '') ? { wiederholen } : {}), ...(erinnerung !== (t.erinnerung ?? '') ? { erinnerung: erinnerung.slice(0, 16) } : {}), ...(dauer !== (t.dauer ? String(t.dauer) : '') ? { dauer: Number(dauer) || 0 } : {}), ...(wartet.trim() !== (t.wartet ?? '') ? { wartet: wartet.trim() } : {}), ...(energie !== (t.energie ?? '') ? { energie } : {}) }).then(() => setBearbeiten(false));
@@ -339,7 +346,7 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehr
             <input value={wartet} onChange={(e) => setWartet(e.target.value)} maxLength={80} placeholder="⏳ Wartet auf … (Person, Antwort) – Datum = nachfassen" aria-label="Wartet auf" />
           )}
           <label className="todo-erinnerung">
-            🔔 Erinnerung
+            <E e="🔔" /> Erinnerung
             <input type="datetime-local" value={erinnerung} onChange={(e) => setErinnerung(e.target.value)} aria-label="Erinnerung" />
           </label>
           <select value={dauer} onChange={(e) => setDauer(e.target.value)} aria-label="Geschätzte Dauer">
@@ -418,34 +425,34 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehr
         <span className="todo-meta">
           {t.energie && !t.erledigt && (
             <span className="abzeichen" title={t.energie === 'hoch' ? 'braucht Konzentration – „Jetzt dran“ schlägt es in deiner besten Zeit vor' : 'geht nebenbei – gut für abends und kurze Lücken'}>
-              {t.energie === 'hoch' ? '🧠 Konzentration' : '🪶 nebenbei'}
+              <E e={t.energie === 'hoch' ? '🧠' : '🪶'} /> {t.energie === 'hoch' ? 'Konzentration' : 'nebenbei'}
             </span>
           )}
           {t.wartet && !t.erledigt && (
             <span className="abzeichen wartet" title={t.faellig ? `Wartet – am ${datumText(t.faellig)} nachfassen` : 'Wartet – ohne Nachfass-Tag'}>
-              ⏳ {t.wartet}
+              <E e="⏳" /> {t.wartet}
             </span>
           )}
-          {t.faellig && <span className={`abzeichen${ueberfaellig ? ' warnung' : ''}`}>{t.wartet ? '↩ nachfassen ' : '📅 '}{datumText(t.faellig)}</span>}
+          {t.faellig && <span className={`abzeichen${ueberfaellig ? ' warnung' : ''}`}>{t.wartet ? '↩ nachfassen ' : <><E e="📅" /> </>}{datumText(t.faellig)}</span>}
           {t.erinnerung && !t.erledigt && (
             <span className="abzeichen" title="Läutet im Kirchturm und schickt eine Telegram-Nachricht">
-              🔔 {erinnerungText(t.erinnerung)}
+              <E e="🔔" /> {erinnerungText(t.erinnerung)}
             </span>
           )}
           {t.dauer && !t.erledigt && (
             <span className="abzeichen" title="Geschätzte Dauer">
-              ⏱ {t.dauer >= 60 ? `${Math.floor(t.dauer / 60)} h${t.dauer % 60 ? ` ${t.dauer % 60}` : ''}` : `${t.dauer} min`}
+              <E e="⏱" /> {t.dauer >= 60 ? `${Math.floor(t.dauer / 60)} h${t.dauer % 60 ? ` ${t.dauer % 60}` : ''}` : `${t.dauer} min`}
             </span>
           )}
           {t.fokusMin ? (
             // E122: tatsächliche Fokuszeit – rot, wenn schon mehr als geschätzt
             <span className={`abzeichen${t.dauer && t.fokusMin > t.dauer ? ' warnung' : ''}`} title={t.dauer ? `Fokus bisher: ${t.fokusMin} von ${t.dauer} min geschätzt` : `Fokus bisher: ${t.fokusMin} min`}>
-              🍅 {t.fokusMin} min
+              <E e="🍅" /> {t.fokusMin} min
             </span>
           ) : null}
           {t.wiederholen && (
             <span className="abzeichen" title={`Wiederkehrend: ${t.wiederholen} – beim Abhaken kommt das nächste`}>
-              🔁 {t.wiederholen}
+              <E e="🔁" /> {t.wiederholen}
             </span>
           )}
           {(t.verschoben ?? 0) >= 3 && !t.erledigt && <span className="abzeichen">↻ {t.verschoben}× verschoben</span>}
@@ -453,14 +460,14 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehr
           {t.gebaeude && <span className="abzeichen">{t.gebaeude}</span>}
           {t.fremd && (
             <span className="abzeichen" title="Aus Mails oder Moodle – Agenten mit Internet sehen diesen Eintrag nicht">
-              ✉️ aus Mail
+              <E e="✉️" /> aus Mail
             </span>
           )}
           {vonAgent && <span className="abzeichen" title={t.quelle}>🤖 {t.quelle}</span>}
         </span>
         <span className="todo-knoepfe">
           <button type="button" className="klein" onClick={() => setBearbeiten(true)}>
-            ✏️ Bearbeiten
+            <E e="✏️" /> Bearbeiten
           </button>
           {(sch.length > 0 || (!t.erledigt && basis === '/api/todos')) && (
             <button
@@ -471,7 +478,7 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehr
               title={sch.length ? 'Teilschritte' : 'In Teilschritte zerlegen'}
               onClick={() => setSchritteOffen((x) => !x)}
             >
-              ☑ {sch.length ? `Schritte ${sch.filter((x) => x.erledigt).length}/${sch.length}` : 'Schritte'}
+              <E e="☑" /> {sch.length ? `Schritte ${sch.filter((x) => x.erledigt).length}/${sch.length}` : 'Schritte'}
             </button>
           )}
           {basis === '/api/todos' && !t.erledigt && (
@@ -482,18 +489,18 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehr
               aria-label={`Fokus: ${t.titel}`}
               onClick={() => void ausfuehren(() => api('/api/kirchturm', { body: { befehl: 'pomodoro_fuer', titel: t.titel, ...(t.gruppe ? { gruppe: t.gruppe } : {}), pfad: t.pfad } }))}
             >
-              🍅 Fokus
+              <E e="🍅" /> Fokus
             </button>
           )}
           {basis === '/api/todos' && !t.erledigt && t.faellig && t.faellig >= heute() && (
             <button type="button" className="klein" title="Freie Zeit im Kalender bis zur Frist finden" aria-label={`Lernzeit: ${t.titel}`} aria-expanded={planen} onClick={() => setPlanen((x) => !x)}>
-              📅 Zeit finden
+              <E e="📅" /> Zeit finden
             </button>
           )}
           {basis === '/api/todos' && !t.erledigt && !t.wiederholen && !/ – Etappe \d+\/\d+$/.test(t.titel) && ((t.dauer ?? 0) >= 120 || (!t.dauer && (t.gebaeude === 'Uni' || /^(Abgabe|Prüfung):/.test(t.titel)))) && etappenPlan(t, heute()).length > 0 && (
             // E170: großes To-do mit Frist → Etappen auf die Tage davor
             <button type="button" className="klein" title="In Etappen auf die Tage bis zur Frist verteilen" aria-label={`Etappen: ${t.titel}`} aria-expanded={etappen} onClick={() => setEtappen((x) => !x)}>
-              🪜 Etappen
+              <E e="🪜" /> Etappen
             </button>
           )}
           {basis.endsWith('/wunsch') && !t.erledigt && (
@@ -508,7 +515,7 @@ function TodoZeile({ t, ausfuehren, basis }: { t: TodoInfo; ausfuehren: Ausfuehr
                 })
               }
             >
-              🔎 Preise
+              <E e="🔎" /> Preise
             </button>
           )}
           {t.notiz && (

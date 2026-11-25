@@ -3,13 +3,14 @@ import type { PlanInfo, PlanInhalt } from '@dorf/shared';
 import { api } from '../api';
 import { bibliothekUrl, linkKlick } from '../router';
 import { laufStatusText, stufeText, zeitKurz } from '../texte';
+import { Em } from '../apple/wissen-teile';
 
 const PLAN_STATUS: Record<PlanInfo['status'], string> = { wartet: 'wartet auf dich', abgelehnt: 'abgelehnt', laeuft: 'Helfer arbeiten', fertig: 'fertig' };
 
 /** Teilaufgaben eines Plans als Tabelle (auch in Freigaben verwendet) */
 export function PlanTabelle({ p }: { p: PlanInhalt }) {
   return (
-    <table className="tabelle">
+    <table className="tabelle plan-tabelle">
       <thead>
         <tr>
           <th>#</th>
@@ -45,9 +46,9 @@ export function Plaene() {
   if (q.isPending) return <p className="leise">Lade …</p>;
   if (!q.data?.length) return <p className="leise">Noch keine Pläne. Der Bürgermeister macht einen, wenn eine Aufgabe mehrere Helfer braucht – bestätigen musst du nur, wenn du selbst einen Plan sehen wolltest.</p>;
   return (
-    <div>
+    <div className="plaene">
       {q.data.map((p) => (
-        <div key={p.planId} className="karte innen">
+        <div key={p.planId} className="karte innen plan-karte">
           <div className="leise">
             {zeitKurz(p.erstellt)} · <span className={`lauf-chip plan-${p.status}`}>{PLAN_STATUS[p.status]}</span> ·{' '}
             <a href={`/chats/${p.chatId}`} onClick={linkKlick}>
@@ -72,7 +73,7 @@ export function Plaene() {
             <ul className="chatliste">
               {p.uebersprungen.map((u) => (
                 <li key={u.nr}>
-                  {u.nr}. ⏭️ nicht gestartet – {u.grund}
+                  {u.nr}. <Em e="⏭️" /> nicht gestartet – {u.grund}
                 </li>
               ))}
             </ul>

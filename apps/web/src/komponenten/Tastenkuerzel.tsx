@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { navigieren } from '../router';
+import { Ikon } from '../apple/Ikon';
 
 /**
  * E138: Tastenkürzel am PC – nur, wenn nicht gerade in ein Feld getippt wird und ohne Strg/Alt/⌘
@@ -92,7 +93,9 @@ export function Tastenkuerzel() {
   return (
     <div className="fenster-hintergrund" onClick={() => setHilfe(false)}>
       <div className="karte tasten-hilfe" role="dialog" aria-label="Tastenkürzel" onClick={(e) => e.stopPropagation()}>
-        <h2>⌨️ Tastenkürzel</h2>
+        <h2>
+          <Ikon e="⌨️" /> Tastenkürzel
+        </h2>
         <dl>
           <dt>
             <kbd>n</kbd>

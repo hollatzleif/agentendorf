@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiFehler, api } from '../api';
 import { useOrt } from '../router';
+import { EmText } from '../hafen/zeichen';
 
 interface PaketwerkStand {
   eingerichtet: boolean;
@@ -138,7 +139,9 @@ export function PaketwerkSeite() {
   const d = q.data;
   return (
     <section className="pw">
-      <h1>🧪 Paketwerk – Pakete für den Rechenraum</h1>
+      <h1>
+        <EmText t="🧪 Paketwerk – Pakete für den Rechenraum" />
+      </h1>
       <p>
         Hier installierst du Python-Pakete für den Rechenraum. pip läuft als <code>--user</code> in einen eigenen Paketordner; der Rechenraum sieht die Pakete sofort, aber nur lesend. Installiert wird nur, was du hier selbst ausführst – Agenten
         schlagen Befehle nur vor.

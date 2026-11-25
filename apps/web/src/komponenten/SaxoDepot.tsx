@@ -4,6 +4,7 @@ import type { SaxoUebersicht } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { Sparkline, usePrivat } from '../boerse/teile';
 import type { BoerseAnalyse } from '@dorf/shared';
+import { useDesign } from '../apple/design';
 
 const prozent = (n: number | null | undefined) => (n == null ? '–' : `${n >= 0 ? '+' : ''}${(n * 100).toLocaleString('de-DE', { maximumFractionDigits: 1 })} %`);
 const zahl = (n?: number, st = 2) => (n == null ? '–' : n.toLocaleString('de-DE', { maximumFractionDigits: st }));
@@ -202,10 +203,24 @@ function Verlauf({ punkte, waehrung }: { punkte: { datum: string; wert: number }
   const spanne = max - min || 1;
   const pfad = punkte.map((p, i) => `${i ? 'L' : 'M'}${((i / (punkte.length - 1)) * B).toFixed(1)},${(H - 8 - ((p.wert - min) / spanne) * (H - 16)).toFixed(1)}`).join(' ');
   const geld = (n: number) => n.toLocaleString('de-DE', { style: 'currency', currency: waehrung, maximumFractionDigits: 0 });
+  // E240: Apple – Linie in Grün/Rot nach Richtung, darunter eine Verlaufsfläche (Aktien-Stil)
+  const apple = useDesign() === 'apple';
+  const richtung = punkte.at(-1)!.wert >= punkte[0]!.wert ? 'plus' : 'minus';
   return (
-    <figure className="saxo-verlauf">
+    <figure className="saxo-verlauf" data-richtung={apple ? richtung : undefined}>
       <svg viewBox={`0 0 ${B} ${H}`} role="img" aria-label={`Kontowert von ${geld(punkte[0]!.wert)} auf ${geld(punkte.at(-1)!.wert)}`} preserveAspectRatio="none">
-        <path d={pfad} fill="none" stroke="currentColor" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+        {apple && (
+          <>
+            <defs>
+              <linearGradient id="saxo-verlauf-flaeche" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="currentColor" stopOpacity={0.24} />
+                <stop offset="100%" stopColor="currentColor" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <path d={`${pfad} L${B},${H} L0,${H} Z`} fill="url(#saxo-verlauf-flaeche)" stroke="none" />
+          </>
+        )}
+        <path d={pfad} fill="none" stroke="currentColor" strokeWidth={apple ? 1.75 : 2} vectorEffect="non-scaling-stroke" />
       </svg>
       <figcaption className="leise">
         {punkte[0]!.datum}: {geld(punkte[0]!.wert)} → {punkte.at(-1)!.datum}: {geld(punkte.at(-1)!.wert)} · tief {geld(min)} · hoch {geld(max)}

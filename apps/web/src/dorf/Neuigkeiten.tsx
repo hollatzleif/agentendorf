@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { navigieren } from '../router';
+import { Zeichen } from '../apple/werkzeug-symbole';
 
 /** Bei jeder neuen Ausgabe den Schlüssel ändern – dann erscheint die Karte einmal pro Gerät */
 const AUSGABE = '2026-11-19w';
@@ -100,15 +101,20 @@ export function Neuigkeiten() {
   return (
     <section className="dorf-neuigkeiten" aria-label="Neu im Dorf">
       <div className="dorf-neuigkeiten-kopf">
-        <strong>✨ Neu im Dorf</strong>
+        <strong>
+          <Zeichen e="✨" /> Neu im Dorf
+        </strong>
         <button className="spiel-zu" onClick={schliessen} aria-label="Neuigkeiten schließen">
-          ×
+          <Zeichen e="×" />
         </button>
       </div>
       <ul>
         {gezeigt.map(([s, t]) => (
           <li key={t}>
-            <span aria-hidden>{s}</span> {t}
+            <span aria-hidden className="neu-symbol">
+              <Zeichen e={s} />
+            </span>{' '}
+            <span className="neu-text">{t}</span>
           </li>
         ))}
       </ul>

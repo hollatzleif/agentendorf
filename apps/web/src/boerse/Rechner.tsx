@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { entnahme, kostenEffekt, rebalancing, sparplan, verdopplungJahre, wasWaereWenn, type BoerseAnalyse, type Punkt } from '@dorf/shared';
 import { api } from '../api';
+import { EmText } from '../hafen/zeichen';
 import { LinienDiagramm, datumKurz, geldFormat, prozentText, usePrivat } from './teile';
 
 /** Zahl aus einem deutschen Eingabefeld („1.234,5“ oder „1234.5“) */
@@ -63,7 +64,7 @@ export function BoerseRechner() {
               localStorage.setItem('dorf-rechner', k);
             }}
           >
-            {t}
+            <EmText t={t} />
           </button>
         ))}
       </div>

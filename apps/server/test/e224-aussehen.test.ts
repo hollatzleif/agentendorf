@@ -34,4 +34,23 @@ describe('Aussehen (E224)', () => {
     // ohne Sitzung nichts
     expect((await d.app.inject({ url: '/api/aussehen' })).statusCode).toBe(401);
   });
+  it('E240: Oberfläche „design“ – dorf/apple angenommen, Unbekanntes abgelehnt, fehlt = dorf', async () => {
+    const d = await testDorf();
+    const h = await kopf(d);
+    expect((await d.app.inject({ url: '/api/aussehen', headers: h })).json()).toMatchObject({ design: 'dorf' });
+    const r = await d.app.inject({ method: 'PUT', url: '/api/aussehen', headers: h, payload: { design: 'apple', vorlage: 'nacht' } });
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toMatchObject({ design: 'apple', vorlage: 'nacht' });
+    expect((await d.app.inject({ url: '/api/aussehen', headers: h })).json()).toMatchObject({ design: 'apple' });
+    for (const schlecht of [{ design: 'material' }, { design: 1 }, { design: '' }]) {
+      const x = await d.app.inject({ method: 'PUT', url: '/api/aussehen', headers: h, payload: schlecht });
+      expect(x.statusCode, JSON.stringify(schlecht)).toBe(400);
+    }
+    // ohne design (älterer Client) → Dorf
+    const alt = await d.app.inject({ method: 'PUT', url: '/api/aussehen', headers: h, payload: { vorlage: 'spiel' } });
+    expect(alt.json()).toMatchObject({ design: 'dorf' });
+    // Meine Looks merken die Oberfläche mit
+    const l = await d.app.inject({ method: 'PUT', url: '/api/aussehen/looks', headers: h, payload: [{ name: 'Apfel', aussehen: { design: 'apple' } }] });
+    expect(l.json()[0]).toMatchObject({ aussehen: { design: 'apple' } });
+  });
 });

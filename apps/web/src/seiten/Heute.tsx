@@ -13,6 +13,8 @@ import { GewohnheitenKarte } from '../komponenten/GewohnheitenKarte';
 import { WochenzieleKarte } from '../komponenten/WochenzieleKarte';
 import { StimmungZeile } from '../komponenten/StimmungZeile';
 import { ErsteSchritte } from '../komponenten/ErsteSchritte';
+import { E, Ring } from '../apple/tag';
+import { useDesign } from '../apple/design';
 
 /**
  * „Mein Tag“ (E77): der eine Blick am Morgen und zwischendurch – Termine heute/morgen, fällige To-dos zum Abhaken,
@@ -166,7 +168,7 @@ export function Heute() {
           {wetter && (
             <div className="heute-wetter" aria-label={`Wetter in ${wetter.ort ?? 'Konstanz'}`}>
               <span className="heute-wetter-symbol" aria-hidden>
-                {WETTER_TEXT[wetter.art].symbol}
+                <E e={WETTER_TEXT[wetter.art].symbol} />
               </span>
               <div>
                 <strong>{Math.round(wetter.temperatur)}°</strong> <span>{WETTER_TEXT[wetter.art].text}</span>
@@ -201,7 +203,7 @@ export function Heute() {
                   <strong>{erstesTodo.titel}</strong> <span>{erstesTodo.faellig! < heute ? '– ist überfällig' : '– heute fällig'}</span>
                 </span>
               ) : (
-                <span>Nichts Dringendes. Zeit für das, was dir wichtig ist. 🌿</span>
+                <span>Nichts Dringendes. Zeit für das, was dir wichtig ist. <E e="🌿" /></span>
               )}
             </div>
           )}
@@ -210,31 +212,31 @@ export function Heute() {
         <div className="heute-zahlen">
           {kalender.data && (
             <span className="heute-zahl">
-              📅 {termineHeute.length === 0 ? 'keine Termine' : `${termineHeute.length} Termin${termineHeute.length === 1 ? '' : 'e'}`}
+              <E e="📅" /> {termineHeute.length === 0 ? 'keine Termine' : `${termineHeute.length} Termin${termineHeute.length === 1 ? '' : 'e'}`}
             </span>
           )}
-          {ueberfaellig.length > 0 && <span className="heute-zahl rot">⚠️ {ueberfaellig.length} überfällig</span>}
-          {todos.data && <span className="heute-zahl">☑️ {faelligHeute.length} heute fällig</span>}
-          {erledigtHeute > 0 && <span className="heute-zahl gruen">✓ {erledigtHeute} erledigt</span>}
-          {(fokus.data?.heuteMin ?? 0) > 0 && <span className="heute-zahl">🍅 {fokus.data!.heuteMin} min Fokus</span>}
+          {ueberfaellig.length > 0 && <span className="heute-zahl rot"><E e="⚠️" /> {ueberfaellig.length} überfällig</span>}
+          {todos.data && <span className="heute-zahl"><E e="☑️" /> {faelligHeute.length} heute fällig</span>}
+          {erledigtHeute > 0 && <span className="heute-zahl gruen"><E e="✓" /> {erledigtHeute} erledigt</span>}
+          {(fokus.data?.heuteMin ?? 0) > 0 && <span className="heute-zahl"><E e="🍅" /> {fokus.data!.heuteMin} min Fokus</span>}
           {naechstePruefung && (
             <a href="/gebaeude/Uni?reiter=pruefungen" onClick={linkKlick} className={`heute-zahl${naechstePruefung.tage <= 3 ? ' rot' : ''}`} title={`Prüfung am ${naechstePruefung.faellig} – Prüfungs-Cockpit öffnen`}>
-              📝 {naechstePruefung.name} {naechstePruefung.tage === 0 ? 'heute' : naechstePruefung.tage === 1 ? 'morgen' : `in ${naechstePruefung.tage} Tagen`}
+              <E e="📝" /> {naechstePruefung.name} {naechstePruefung.tage === 0 ? 'heute' : naechstePruefung.tage === 1 ? 'morgen' : `in ${naechstePruefung.tage} Tagen`}
             </a>
           )}
           {antworten > 0 && (
             <a className="heute-zahl" href="/gebaeude/Post" onClick={linkKlick} title="Mails der letzten 3 Tage, die eine Antwort brauchen">
-              ✉️ {antworten} {antworten === 1 ? 'Mail wartet' : 'Mails warten'} auf Antwort
+              <E e="✉️" /> {antworten} {antworten === 1 ? 'Mail wartet' : 'Mails warten'} auf Antwort
             </a>
           )}
           {kartenDran > 0 && (
             <a className="heute-zahl" href="/gebaeude/Uni?reiter=karten" onClick={linkKlick}>
-              🃏 {kartenDran} Karten dran
+              <E e="🃏" /> {kartenDran} Karten dran
             </a>
           )}
           {kalender.data?.modus === 'google' && (
             <button type="button" className="klein heute-planen" onClick={() => setPlanen(true)}>
-              🧭 Tag planen
+              <E e="🧭" /> Tag planen
             </button>
           )}
         </div>
@@ -253,7 +255,7 @@ export function Heute() {
           {nf > 0 && (
             <a href="/gebaeude/Rathaus?reiter=freigaben" onClick={linkKlick} className="heute-hinweis freigabe">
               <span className="heute-hinweis-symbol" aria-hidden>
-                ✉️
+                <E e="✉️" />
               </span>
               <span>
                 <strong>
@@ -266,7 +268,7 @@ export function Heute() {
           {zeitungHeute && (
             <a href="/gebaeude/Rathaus?reiter=morgenzeitung" onClick={linkKlick} className="heute-hinweis zeitung">
               <span className="heute-hinweis-symbol" aria-hidden>
-                📰
+                <E e="📰" />
               </span>
               <span>
                 <strong>Morgenzeitung von heute</strong>
@@ -281,7 +283,9 @@ export function Heute() {
         <div className="heute-spalte heute-spalte-haupt">
           <section className="karte heute-karte heute-todos-karte" aria-label="To-dos">
             <div className="heute-karte-kopf">
-              <h2>☑️ To-dos</h2>
+              <h2>
+                <E e="☑️" /> To-dos
+              </h2>
               <a href={TODO_URL} onClick={linkKlick} className="heute-mehr">
                 Alle{offenAlle.length ? ` (${offenAlle.length})` : ''} →
               </a>
@@ -316,7 +320,9 @@ export function Heute() {
         <div className="heute-spalte heute-spalte-neben">
           <section className="karte heute-karte heute-termine-karte" aria-label="Termine">
             <div className="heute-karte-kopf">
-              <h2>📅 Termine</h2>
+              <h2>
+                <E e="📅" /> Termine
+              </h2>
               <a href={KALENDER_URL} onClick={linkKlick} className="heute-mehr">
                 Kalender →
               </a>
@@ -514,12 +520,12 @@ function TodoZeile({ t, heute }: { t: TodoInfo; heute: string }) {
       ) : null}
       {t.energie && (
         <span className="heute-todo-datum" title={t.energie === 'hoch' ? 'braucht Konzentration' : 'geht nebenbei'}>
-          {t.energie === 'hoch' ? '🧠' : '🪶'}
+          <E e={t.energie === 'hoch' ? '🧠' : '🪶'} />
         </span>
       )}
       {t.wartet && (
         <span className="heute-todo-datum" title={t.faellig ? `wartet – ${t.faellig <= heute ? 'heute nachfassen' : `nachfassen am ${t.faellig}`}` : 'wartet – ohne Nachfass-Tag'}>
-          ⏳ {t.faellig && t.faellig <= heute ? 'nachfassen: ' : ''}
+          <E e="⏳" /> {t.faellig && t.faellig <= heute ? 'nachfassen: ' : ''}
           {t.wartet}
         </span>
       )}
@@ -538,24 +544,24 @@ function TodoZeile({ t, heute }: { t: TodoInfo; heute: string }) {
       {t.gebaeude && <span className="heute-todo-datum">{t.gebaeude}</span>}
       {t.erinnerung && t.erinnerung.slice(0, 10) === heute && (
         <span className="heute-todo-datum" title="Erinnerung – der Kirchturm läutet">
-          🔔 {t.erinnerung.slice(11, 16)}
+          <E e="🔔" /> {t.erinnerung.slice(11, 16)}
         </span>
       )}
       {t.wiederholen && (
         <span className="heute-todo-datum" title={`wiederkehrend: ${t.wiederholen}`} aria-label={`wiederkehrend: ${t.wiederholen}`}>
-          🔁
+          <E e="🔁" />
         </span>
       )}
       {t.dauer && (
         <span className="heute-todo-datum" title={t.fokusMin ? `Fokus bisher ${t.fokusMin} von ${t.dauer} min` : 'geschätzte Dauer'}>
-          ⏱ {t.fokusMin ? `${minutenText(t.fokusMin)} / ` : ''}
+          <E e="⏱" /> {t.fokusMin ? `${minutenText(t.fokusMin)} / ` : ''}
           {minutenText(t.dauer)}
         </span>
       )}
       {t.schritte && t.schritte.length > 0 && (
         // E119: der nächste offene Schritt – die eine Sache, mit der man anfängt
         <span className="heute-todo-datum heute-schritt" title={t.schritte.find((x) => !x.erledigt)?.text ?? 'alle Schritte erledigt'}>
-          ☑ {t.schritte.filter((x) => x.erledigt).length}/{t.schritte.length}
+          <E e="☑" /> {t.schritte.filter((x) => x.erledigt).length}/{t.schritte.length}
           {t.schritte.some((x) => !x.erledigt) && <span className="heute-schritt-text"> · {t.schritte.find((x) => !x.erledigt)!.text}</span>}
         </span>
       )}
@@ -568,6 +574,7 @@ function TodoZeile({ t, heute }: { t: TodoInfo; heute: string }) {
 
 function Fokus({ k, laedt, fehler: ladeFehler, jetzt, heuteMin }: { k: (KirchturmZustand & { versatz: number }) | undefined; laedt: boolean; fehler: string; jetzt: number; heuteMin: number }) {
   const qc = useQueryClient();
+  const apple = useDesign() === 'apple';
   const [fehler, setFehler] = useState('');
   const befehl = async (b: Record<string, unknown>) => {
     setFehler('');
@@ -598,10 +605,12 @@ function Fokus({ k, laedt, fehler: ladeFehler, jetzt, heuteMin }: { k: (Kirchtur
   return (
     <section className={`karte heute-karte heute-fokus${p && p.phase !== 'aus' ? ` phase-${p.phase}` : ''}`} aria-label="Fokus">
       <div className="heute-karte-kopf">
-        <h2>🍅 Fokus</h2>
+        <h2>
+          <E e="🍅" /> Fokus
+        </h2>
         <span className="heute-fokus-links">
           <a href="/fokus" onClick={linkKlick} className="heute-mehr" title="Nur die Uhr – ohne Ablenkung">
-            ⛶ Vollbild
+            <E e="⛶" /> Vollbild
           </a>{' '}
           <a href={KIRCHTURM_URL} onClick={linkKlick} className="heute-mehr">
             Kirchturm →
@@ -630,7 +639,11 @@ function Fokus({ k, laedt, fehler: ladeFehler, jetzt, heuteMin }: { k: (Kirchtur
             </p>
           ) : (
             <div className="heute-fokus-lauf">
-              <div className="heute-fokus-ring" style={{ ['--anteil' as string]: `${Math.min(1, Math.max(0, 1 - rest / gesamt))}` }} aria-hidden />
+              {apple ? (
+                <Ring anteil={1 - rest / gesamt} groesse={52} dicke={6} className="heute-fokus-ring-a" />
+              ) : (
+                <div className="heute-fokus-ring" style={{ ['--anteil' as string]: `${Math.min(1, Math.max(0, 1 - rest / gesamt))}` }} aria-hidden />
+              )}
               <div>
                 <div className="heute-fokus-zeit" data-testid="heute-fokus-rest">
                   {dauerText(rest)}
@@ -646,27 +659,27 @@ function Fokus({ k, laedt, fehler: ladeFehler, jetzt, heuteMin }: { k: (Kirchtur
           <div className="heute-fokus-knoepfe">
             {p.status === 'aus' && (
               <button type="button" className="haupt" onClick={() => void befehl({ befehl: 'pomodoro', aktion: 'start' })}>
-                🍅 Fokus starten
+                <E e="🍅" /> Fokus starten
               </button>
             )}
             {p.status === 'wartet' && (
               <button type="button" className="haupt" onClick={() => void befehl({ befehl: 'pomodoro', aktion: 'start' })}>
-                ▶ {p.phase === 'arbeit' ? 'Weiterarbeiten' : 'Pause starten'}
+                <E e="▶" /> {p.phase === 'arbeit' ? 'Weiterarbeiten' : 'Pause starten'}
               </button>
             )}
             {p.status === 'laeuft' && (
               <button type="button" onClick={() => void befehl({ befehl: 'pomodoro', aktion: 'pause' })}>
-                ⏸ Pause
+                <E e="⏸" /> Pause
               </button>
             )}
             {p.status === 'pause' && (
               <button type="button" className="haupt" onClick={() => void befehl({ befehl: 'pomodoro', aktion: 'weiter' })}>
-                ▶ Weiter
+                <E e="▶" /> Weiter
               </button>
             )}
             {p.phase !== 'aus' && (
               <button type="button" onClick={() => void befehl({ befehl: 'pomodoro', aktion: 'stopp' })}>
-                ⏹ Stopp
+                <E e="⏹" /> Stopp
               </button>
             )}
           </div>
@@ -676,7 +689,9 @@ function Fokus({ k, laedt, fehler: ladeFehler, jetzt, heuteMin }: { k: (Kirchtur
         <ul className="heute-uhren">
           {timer.map((t) => (
             <li key={t.id}>
-              <span>⏲️ {t.name || 'Timer'}</span>
+              <span>
+                <E e="⏲️" /> {t.name || 'Timer'}
+              </span>
               <strong>
                 {dauerText(t.status === 'laeuft' && t.ende ? Date.parse(t.ende) - serverJetzt : (t.restMs ?? 0))}
                 {t.status === 'pause' ? ' (Pause)' : ''}
@@ -685,7 +700,9 @@ function Fokus({ k, laedt, fehler: ladeFehler, jetzt, heuteMin }: { k: (Kirchtur
           ))}
           {wecker && (
             <li>
-              <span>⏰ Nächster Wecker{wecker.name ? ` · ${wecker.name}` : ''}</span>
+              <span>
+                <E e="⏰" /> Nächster Wecker{wecker.name ? ` · ${wecker.name}` : ''}
+              </span>
               <strong>{weckerText(wecker.naechster!)}</strong>
             </li>
           )}
@@ -753,7 +770,9 @@ function JetztDran({ d }: { d: NonNullable<ReturnType<typeof jetztDran>> }) {
   const lueckeText = d.luecke === Infinity ? '' : d.bis ? `${minutenText(d.luecke)} bis ${d.bis.titel}` : `${minutenText(d.luecke)} bis 22 Uhr`;
   return (
     <div className="heute-jetztdran" role="region" aria-label="Jetzt dran">
-      <span className="heute-jetztdran-marke">👉 Jetzt dran</span>
+      <span className="heute-jetztdran-marke">
+        <E e="👉" /> Jetzt dran
+      </span>
       <div className="heute-jetztdran-text">
         <strong>{d.todo.titel}</strong>
         {d.schritt && <span className="heute-jetztdran-schritt">nächster Schritt: {d.schritt}</span>}
@@ -767,7 +786,7 @@ function JetztDran({ d }: { d: NonNullable<ReturnType<typeof jetztDran>> }) {
         </span>
       </div>
       <button type="button" className="haupt" onClick={() => void los()} aria-label={`Fokus starten: ${d.todo.titel}`}>
-        🍅 Los
+        <E e="🍅" /> Los
       </button>
       {fehler && <p className="fehler">{fehler}</p>}
     </div>
@@ -791,7 +810,7 @@ function PlanenHinweis() {
   if (fertig >= 4) return null;
   return (
     <a href="/planen" onClick={linkKlick} className="karte heute-karte planen-hinweis">
-      🗓️ <strong>Zeit für die Wochenplanung</strong> – 10 Minuten, vier Schritte{fertig ? ` (${fertig}/4)` : ''} →
+      <E e="🗓️" /> <strong>Zeit für die Wochenplanung</strong> – 10 Minuten, vier Schritte{fertig ? ` (${fertig}/4)` : ''} →
     </a>
   );
 }
@@ -806,7 +825,7 @@ function ProjektHinweis() {
   if (!p) return null;
   return (
     <a href="/gebaeude/Marktplatz?reiter=projekte" onClick={linkKlick} className="karte heute-karte planen-hinweis projekt-hinweis">
-      📁 <strong>{p.name}</strong> – {p.hinterher > 0 ? `${p.hinterher} ${p.hinterher === 1 ? 'Schritt' : 'Schritte'} hinterher` : `ruht seit ${p.ruhtTage} Tagen`}
+      <E e="📁" /> <strong>{p.name}</strong> – {p.hinterher > 0 ? `${p.hinterher} ${p.hinterher === 1 ? 'Schritt' : 'Schritte'} hinterher` : `ruht seit ${p.ruhtTage} Tagen`}
       {p.naechster ? ` · 👉 ${p.naechster.titel}` : ''} →
     </a>
   );
@@ -824,7 +843,7 @@ function AbschlussHinweis() {
   if (fertig >= 4) return null;
   return (
     <a href="/abschluss" onClick={linkKlick} className="karte heute-karte planen-hinweis">
-      🌙 <strong>Tag abschließen</strong> – 5 Minuten, dann ist Feierabend{fertig ? ` (${fertig}/4)` : ''} →
+      <E e="🌙" /> <strong>Tag abschließen</strong> – 5 Minuten, dann ist Feierabend{fertig ? ` (${fertig}/4)` : ''} →
     </a>
   );
 }
@@ -849,7 +868,9 @@ export function MorgenKarte({ todos, termine, morgen }: { todos: TodoInfo[]; ter
   return (
     <section className="karte heute-karte morgen-karte" aria-label="Morgen im Blick">
       <div className="heute-karte-kopf">
-        <h2>🌅 Morgen</h2>
+        <h2>
+          <E e="🌅" /> Morgen
+        </h2>
         <a href="/gebaeude/Marktplatz?reiter=wochenplan" onClick={linkKlick} className="heute-mehr">
           Wochenplan →
         </a>

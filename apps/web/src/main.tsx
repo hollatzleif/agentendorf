@@ -3,6 +3,12 @@ import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { App } from './App';
 import './stil.css';
+import './apple/tokens.css';
+import './apple/basis.css';
+import './apple/seiten-tag.css';
+import './apple/seiten-wissen.css';
+import './apple/finanzen.css';
+import './apple/werkzeuge.css';
 import { aktualisierungStarten } from './aktualisierung';
 import { aussehenAusSpeicher } from './aussehen';
 

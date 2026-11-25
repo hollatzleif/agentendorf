@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api, ApiFehler, offlineGemerkt } from '../api';
 import { todoAusText } from '@dorf/shared';
 import { istProgramm, schnellSchliessen } from './desktop';
+import { Ikon, IkonText } from '../apple/Ikon';
 
 type Ziel = 'buergermeister' | 'todo';
 
@@ -69,10 +70,10 @@ export function Schnelleingabe() {
       >
         <div className="schnell-ziele" role="radiogroup" aria-label="Wohin?">
           <button type="button" role="radio" aria-checked={ziel === 'buergermeister'} className={ziel === 'buergermeister' ? 'aktiv' : ''} onClick={() => waehlen('buergermeister')}>
-            🎩 Bürgermeister
+            <Ikon e="🎩" /> Bürgermeister
           </button>
           <button type="button" role="radio" aria-checked={ziel === 'todo'} className={ziel === 'todo' ? 'aktiv' : ''} onClick={() => waehlen('todo')}>
-            🧺 To-do
+            <Ikon e="🧺" /> To-do
           </button>
         </div>
         <textarea
@@ -91,7 +92,7 @@ export function Schnelleingabe() {
           maxLength={20_000}
         />
         <div className="schnell-fuss">
-          <span className="leise">{meldung || 'Enter schickt ab · Umschalt+Enter neue Zeile · Esc schließt'}</span>
+          <span className="leise">{meldung ? <IkonText text={meldung} /> : 'Enter schickt ab · Umschalt+Enter neue Zeile · Esc schließt'}</span>
           <button type="submit" className="haupt" disabled={laeuft || !text.trim()}>
             Abschicken
           </button>

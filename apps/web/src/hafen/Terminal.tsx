@@ -6,7 +6,8 @@ import { KRYPTO_BOT_VON, KRYPTO_KERZEN_MS, KRYPTO_KERZEN_TAKTE, KRYPTO_VERLAUF_S
 import { api } from '../api';
 import { linkKlick } from '../router';
 import { Eur, EuroKurs, KURS_QUELLE, eurJeSolAus, eurText, eurZusatz, kursText, useEurJeSol } from './euro';
-import { KW_GRUEN, KW_ROT, markerPfad } from './chart';
+import { MarkerForm, useKwFarben } from './chart';
+import { Em } from './zeichen';
 import { farbeAus, prozent, sol, solVz, stundeWien, uhrzeit, usdKurz } from './format';
 import './hafen.css';
 
@@ -24,6 +25,21 @@ const MODUL_FARBE: Record<string, string> = {
   tp: '#4ade80',
   sl: '#fb7185',
   gate: '#c4b5fd',
+};
+/** E240: dieselben Module in der Apple-Oberfläche (Systemfarben) */
+const MODUL_FARBE_APPLE: Record<string, string> = {
+  rug: 'var(--a-rot)',
+  dev: 'var(--a-orange)',
+  bundle: 'var(--a-gelb)',
+  kol: 'var(--a-mint)',
+  x: 'var(--a-grau)',
+  holder: 'var(--a-tuerkis)',
+  volumen: 'var(--a-gruen)',
+  sniper: 'var(--a-cyan)',
+  groesse: 'var(--a-indigo)',
+  tp: 'var(--a-gruen)',
+  sl: 'var(--a-pink)',
+  gate: 'var(--a-lila)',
 };
 
 function useJetzt(ms = 1000) {
@@ -64,7 +80,7 @@ export function KielwasserSeite({ botId }: { botId: string }) {
           <h2>Kielwasser</h2>
           <p className="minus">{(q.error as Error).message}</p>
           <a href="/gebaeude/Hafen" onClick={linkKlick}>
-            ← zurück zum Hafen
+            <Em e="←" /> zurück zum Hafen
           </a>
         </div>
       </div>
@@ -138,8 +154,8 @@ function Terminal({ t, jetzt, takt, taktWaehlen }: { t: KryptoTerminal; jetzt: n
             <b className={k.faktor >= 1 ? 'plus' : 'minus'}>{k.faktor.toLocaleString('de-DE', { maximumFractionDigits: 3 })}×</b> · {k.trades} Trades · {k.gewonnen}W/{k.verloren}L
           </span>
           <div className="kw-zeile" style={{ justifyContent: 'flex-end', marginTop: '0.35rem' }}>
-            <a href="/gebaeude/Hafen" onClick={linkKlick}>
-              ← Hafen
+            <a href="/gebaeude/Hafen" onClick={linkKlick} className="kw-zurueck">
+              <Em e="←" /> Hafen
             </a>
           </div>
         </div>
@@ -365,7 +381,7 @@ function Terminal({ t, jetzt, takt, taktWaehlen }: { t: KryptoTerminal; jetzt: n
           <div className="kw-chart-kopf">
             <h3>Trades</h3>
             <button type="button" className="kw-knopf" onClick={() => void csvLaden(b.id, e.name)}>
-              ⬇ CSV
+              <Em e="⬇" /> CSV
             </button>
           </div>
           <ul className="kw-eintraege">
@@ -453,6 +469,7 @@ function Ohlc({ k }: { k: KryptoKerze | undefined }) {
  */
 function EquityKerzen({ kerzen: alle, start, sekunden = false, ms, trades }: { kerzen: KryptoKerze[]; start: number; sekunden?: boolean; ms: number; trades: KryptoTrade[] }) {
   const eurJeSol = useEurJeSol();
+  const f = useKwFarben();
   const B = 640;
   const H = 420;
   const R = 62; // Preisskala rechts
@@ -578,44 +595,44 @@ function EquityKerzen({ kerzen: alle, start, sekunden = false, ms, trades }: { k
       >
         {skala.map((v) => (
           <g key={v}>
-            <line x1={0} x2={B - R} y1={y(v)} y2={y(v)} stroke="#1c2236" strokeWidth={1} />
-            <text x={B - R + 6} y={y(v) + 4} fill="#8a90a8" fontSize={10} fontFamily="ui-monospace, monospace">
+            <line x1={0} x2={B - R} y1={y(v)} y2={y(v)} stroke={f.raster} strokeWidth={1} />
+            <text x={B - R + 6} y={y(v) + 4} fill={f.achse} fontSize={10} fontFamily="ui-monospace, monospace">
               {v.toFixed(3)}
             </text>
           </g>
         ))}
         {start > lo && start < hi && (
           <g>
-            <line x1={0} x2={B - R} y1={y(start)} y2={y(start)} stroke="#8a90a8" strokeDasharray="4 4" strokeWidth={1} />
-            <text x={4} y={y(start) - 4} fill="#8a90a8" fontSize={10} fontFamily="ui-monospace, monospace">
+            <line x1={0} x2={B - R} y1={y(start)} y2={y(start)} stroke={f.achse} strokeDasharray={f.apple ? '2 3' : '4 4'} strokeWidth={1} />
+            <text x={4} y={y(start) - 4} fill={f.achse} fontSize={10} fontFamily="ui-monospace, monospace">
               Start {start.toFixed(2)}
             </text>
           </g>
         )}
         {kerzen.map((k, i) => {
           const auf = k.c >= k.o;
-          const farbe = auf ? '#22c55e' : '#f43f5e';
+          const farbe = auf ? f.gruen : f.rot;
           const kw = Math.max(1.5, w * 0.62);
           return (
             <g key={k.zeit}>
-              <line x1={x(i)} x2={x(i)} y1={y(k.h)} y2={y(k.l)} stroke={farbe} strokeWidth={1.5} />
+              <line x1={x(i)} x2={x(i)} y1={y(k.h)} y2={y(k.l)} stroke={farbe} strokeWidth={f.apple ? 1 : 1.5} />
               <rect x={x(i) - kw / 2} y={Math.min(y(k.o), y(k.c))} width={kw} height={Math.max(1.5, Math.abs(y(k.o) - y(k.c)))} rx={1.5} fill={farbe} />
             </g>
           );
         })}
         {letzte && rechts === 0 && (
           <g>
-            <line x1={0} x2={B - R} y1={y(letzte.c)} y2={y(letzte.c)} stroke="#8b5cf6" strokeWidth={1} opacity={0.6} />
-            <rect x={B - R + 1} y={y(letzte.c) - 9} width={R - 2} height={18} rx={4} fill="#8b5cf6" />
-            <text x={B - R + 6} y={y(letzte.c) + 4} fill="#fff" fontSize={10.5} fontWeight={700} fontFamily="ui-monospace, monospace">
+            <line x1={0} x2={B - R} y1={y(letzte.c)} y2={y(letzte.c)} stroke={f.preis} strokeWidth={1} opacity={0.6} strokeDasharray={f.apple ? '2 3' : undefined} />
+            <rect x={B - R + 1} y={y(letzte.c) - 9} width={R - 2} height={18} rx={f.apple ? 9 : 4} fill={f.preis} />
+            <text x={B - R + 6} y={y(letzte.c) + 4} fill={f.preisText} fontSize={10.5} fontWeight={700} fontFamily="ui-monospace, monospace">
               {letzte.c.toFixed(3)}
             </text>
           </g>
         )}
         {z && (
           <g pointerEvents="none">
-            <line x1={x(zeiger!)} x2={x(zeiger!)} y1={O} y2={H - U} stroke="#c4b5fd" strokeDasharray="3 3" strokeWidth={1} />
-            <line x1={0} x2={B - R} y1={y(z.c)} y2={y(z.c)} stroke="#c4b5fd" strokeDasharray="3 3" strokeWidth={1} opacity={0.6} />
+            <line x1={x(zeiger!)} x2={x(zeiger!)} y1={O} y2={H - U} stroke={f.zeiger} strokeDasharray={f.apple ? undefined : '3 3'} strokeWidth={1} />
+            <line x1={0} x2={B - R} y1={y(z.c)} y2={y(z.c)} stroke={f.zeiger} strokeDasharray="3 3" strokeWidth={1} opacity={0.6} />
           </g>
         )}
         {marken.map((m) => (
@@ -630,7 +647,7 @@ function EquityKerzen({ kerzen: alle, start, sekunden = false, ms, trades }: { k
             }}
           >
             <circle cx={m.mx} cy={m.my} r={8} fill="transparent" />
-            <path d={markerPfad(m.mx, m.my, m.kauf)} fill={m.kauf ? KW_GRUEN : KW_ROT} stroke="#0d1117" strokeWidth={1} />
+            <MarkerForm x={m.mx} y={m.my} kauf={m.kauf} farbe={m.kauf ? f.gruen : f.rot} f={f} />
           </g>
         ))}
       </svg>
@@ -652,7 +669,7 @@ function EquityKerzen({ kerzen: alle, start, sekunden = false, ms, trades }: { k
       {marker && (
         <div className="kw-fadenkreuz" style={{ left: `${Math.min(62, (marker.x / B) * 100 + 2)}%`, top: `${Math.min(70, (marker.y / H) * 100)}%` }} data-testid="chart-marker">
           <b className={marker.t.art === 'kauf' ? 'plus' : 'minus'}>
-            {marker.t.art === 'kauf' ? '▲ Kauf' : '▼ Verkauf'} {marker.t.symbol}
+            {marker.t.art === 'kauf' ? (f.apple ? 'Kauf' : '▲ Kauf') : f.apple ? 'Verkauf' : '▼ Verkauf'} {marker.t.symbol}
           </b>
           <br />
           {uhrzeit(marker.t.zeit, true)} · {marker.t.sol.toLocaleString('de-DE', { maximumFractionDigits: 4 })} SOL
@@ -690,7 +707,9 @@ function Echtzeit({ t }: { t: KryptoTerminal }) {
   return (
     <section className="kw-tafel" aria-label="Echtzeit-Kurse">
       <div className="kw-chart-kopf">
-        <h3>⚡ Echtzeit-Kurse · 5 s</h3>
+        <h3>
+          <Em e="⚡" /> Echtzeit-Kurse · 5 s
+        </h3>
         <span className="leise mono" style={{ fontSize: '0.74rem' }} data-testid="echtzeit-status">
           {zeile}
         </span>
@@ -736,7 +755,7 @@ function AlarmAbzeichen({ alarm }: { alarm: 'anstieg' | 'absturz' }) {
       data-testid="muster-alarm"
       title={alarm === 'anstieg' ? 'Kursvorhersage/Pump-Erkenner: starker Anstieg in den nächsten 2 min erwartet' : 'Kursvorhersage/Absturz-Erkenner: Absturz in den nächsten 2 min erwartet'}
     >
-      {alarm === 'anstieg' ? '🚀 ALARM' : '💥 ALARM'}
+      <Em e={alarm === 'anstieg' ? '🚀' : '💥'} /> ALARM
     </span>
   );
 }
@@ -748,7 +767,9 @@ function MusterRat({ t }: { t: KryptoTerminal }) {
   return (
     <section className="kw-tafel" aria-label="Muster-Rat">
       <div className="kw-chart-kopf">
-        <h3>🧠 Muster-Rat</h3>
+        <h3>
+          <Em e="🧠" /> Muster-Rat
+        </h3>
         <span className="leise mono" style={{ fontSize: '0.72rem' }}>
           {t.bot.einstellung.art === 'rl' ? 'handelt danach (RL, nur Paper) · Alarme wirken' : gewicht > 0 ? `zählt bis ${gewicht} Punkte · 💥 ≥ 70 % → raus · Alarme wirken` : 'nur Anzeige'}
         </span>
@@ -781,10 +802,12 @@ function MusterRat({ t }: { t: KryptoTerminal }) {
                 </div>
                 {(x.pump != null || x.absturz != null || hoch != null || tief != null) && (
                   <div className="kw-signale" data-testid="muster-signale">
-                    {x.pump != null && <span title="🚀 Pump: +50 % in 2 min, bevor −20 %">🚀 {pz(x.pump)}</span>}
+                    {x.pump != null && <span title="🚀 Pump: +50 % in 2 min, bevor −20 %">
+                        <Em e="🚀" /> {pz(x.pump)}
+                      </span>}
                     {x.absturz != null && (
                       <span className={x.absturz >= 0.35 ? 'gefahr' : undefined} title="💥 Absturz: −30 % in 2 min, bevor +20 %">
-                        💥 {pz(x.absturz)}
+                        <Em e="💥" /> {pz(x.absturz)}
                       </span>
                     )}
                     {(hoch != null || tief != null) && (
@@ -798,7 +821,7 @@ function MusterRat({ t }: { t: KryptoTerminal }) {
                 )}
                 {verlaufText(x.verlauf) && (
                   <div className="kw-verlauf mono" data-testid="muster-verlauf" title="Kursvorhersage (nur aktive Horizonte) – bewusst vorsichtig: ein verpasster Absturz zählt 3×">
-                    📈 {verlaufText(x.verlauf)}
+                    <Em e="📈" /> {verlaufText(x.verlauf)}
                   </div>
                 )}
                 {p != null && (
@@ -820,6 +843,7 @@ function MusterRat({ t }: { t: KryptoTerminal }) {
 }
 
 function TokenKerzen({ k }: { k: KryptoTokenKerzen }) {
+  const f = useKwFarben();
   const B = 320;
   const H = 140;
   const letzte = k.kerzen.at(-1)!;
@@ -843,7 +867,7 @@ function TokenKerzen({ k }: { k: KryptoTokenKerzen }) {
   const xStart = xJetzt + w / 2; // eigener x-Bereich der Vorhersage: ab dem Ende der letzten Kerze bis zur letzten Prognosezeit
   const xP = (zeit: number) => xStart + ((zeit - letzte.zeit) / Math.max(1, tEnde - letzte.zeit)) * (B - 4 - xStart);
   const pLetzt = prognose.at(-1)?.c;
-  const pFarbe = pLetzt == null ? '#a78bfa' : pLetzt >= letzt ? '#22c55e' : '#f43f5e';
+  const pFarbe = pLetzt == null ? f.neutral : pLetzt >= letzt ? f.gruen : f.rot;
   return (
     <div className={`kw-token-kerzen${k.alarm ? ` alarm-${k.alarm}` : ''}`}>
       <div className="zeile">
@@ -859,7 +883,7 @@ function TokenKerzen({ k }: { k: KryptoTokenKerzen }) {
       </div>
       <svg viewBox={`0 0 ${B} ${H}`} role="img" aria-label={`${k.symbol}: ${k.kerzen.length} Kerzen, ${prozent(pz, 1)}${mitPrognose ? `, Vorhersage ${prozent((pLetzt! / letzt - 1) * 100, 1)}` : ''}`}>
         {k.kerzen.map((c, i) => {
-          const farbe = c.c >= c.o ? '#22c55e' : '#f43f5e';
+          const farbe = c.c >= c.o ? f.gruen : f.rot;
           const kw = Math.max(1.5, w * 0.62);
           return (
             <g key={c.zeit}>
@@ -870,7 +894,7 @@ function TokenKerzen({ k }: { k: KryptoTokenKerzen }) {
         })}
         {mitPrognose && (
           <g data-testid="prognose">
-            <line x1={xStart} x2={xStart} y1={2} y2={H - 2} stroke="#6b7280" strokeWidth={0.5} strokeDasharray="1 2" />
+            <line x1={xStart} x2={xStart} y1={2} y2={H - 2} stroke={f.trenn} strokeWidth={0.5} strokeDasharray="1 2" />
             <polyline
               points={[`${xJetzt},${y(letzt)}`, ...prognose.map((p) => `${xP(p.zeit)},${y(p.c)}`)].join(' ')}
               fill="none"
@@ -891,6 +915,8 @@ function TokenKerzen({ k }: { k: KryptoTokenKerzen }) {
 }
 
 function Agent({ t, jetzt }: { t: KryptoTerminal; jetzt: number }) {
+  const f = useKwFarben();
+  const farben = f.apple ? MODUL_FARBE_APPLE : MODUL_FARBE;
   const online = t.module.filter((m) => m.an).length;
   const lage = useMemo(
     () =>
@@ -913,9 +939,9 @@ function Agent({ t, jetzt }: { t: KryptoTerminal; jetzt: number }) {
         <svg viewBox="0 0 100 100" aria-hidden>
           {lage.map(({ m, x, y }) => (
             <g key={m.schluessel}>
-              <line x1={x} y1={y} x2={50} y2={50} stroke={aktiv(m) ? MODUL_FARBE[m.schluessel] : '#232a40'} strokeWidth={aktiv(m) ? 0.5 : 0.3} strokeDasharray={m.an ? undefined : '1 1'} />
+              <line x1={x} y1={y} x2={50} y2={50} stroke={aktiv(m) ? farben[m.schluessel] : f.modulLinie} strokeWidth={aktiv(m) ? 0.5 : 0.3} strokeDasharray={m.an ? undefined : '1 1'} />
               {aktiv(m) && (
-                <circle r={1} fill={MODUL_FARBE[m.schluessel]}>
+                <circle r={1} fill={farben[m.schluessel]}>
                   <animateMotion dur="1.2s" repeatCount="indefinite" path={`M${x},${y} L50,50`} />
                 </circle>
               )}
@@ -931,7 +957,7 @@ function Agent({ t, jetzt }: { t: KryptoTerminal; jetzt: number }) {
         {lage.map(({ m, x, y }) => (
           <div key={m.schluessel} className={`kw-modul${m.an ? '' : ' aus'}${aktiv(m) ? ` leuchtet ${m.ton}` : ''}`} style={{ left: `${x}%`, top: `${y}%` }} title={`${m.name}: ${m.zeile}`}>
             <div className="kw-modul-kopf">
-              <i style={{ background: MODUL_FARBE[m.schluessel] }}>{m.buchstabe}</i>
+              <i style={{ background: farben[m.schluessel] }}>{m.buchstabe}</i>
               {m.name}
             </div>
             <p>{m.zeile}</p>

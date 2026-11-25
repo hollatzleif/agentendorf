@@ -14,6 +14,8 @@ import { Befehlspalette } from './komponenten/Befehlspalette';
 import { OfflineSchlange } from './komponenten/OfflineSchlange';
 import { SeitenFehler } from './komponenten/SeitenFehler';
 import { Tastenkuerzel } from './komponenten/Tastenkuerzel';
+import { useDesign } from './apple/design';
+import { AppleSchale } from './apple/Schale';
 
 // Seiten erst laden, wenn man sie öffnet – der Start (Dorf) bleibt klein
 const GebaeudeSeite = lazy(() => import('./seiten/Gebaeude').then((m) => ({ default: m.GebaeudeSeite })));
@@ -80,6 +82,7 @@ function Rahmen() {
     if (pfad === '/' && !location.search && localStorage.getItem('dorf-start') === 'heute') navigieren('/heute', true);
   }, [pfad]);
   const live = useLiveZustand();
+  const design = useDesign();
   const konflikte = useQuery({ queryKey: ['konflikte'], queryFn: () => api<Konflikt[]>('/api/vault/konflikte') });
   const n = konflikte.data?.length ?? 0;
   const freigaben = useQuery({ queryKey: ['freigaben', 'offen'], queryFn: () => api<FreigabeInfo[]>('/api/freigaben?status=offen') });
@@ -120,6 +123,19 @@ function Rahmen() {
   else if (pfad === '/paketwerk') seite = <PaketwerkSeite />;
   else if (pfad.startsWith('/chats/')) seite = <ChatSeite key={pfad} id={decodeURIComponent(pfad.slice('/chats/'.length))} />;
   else seite = <p className="karte">Diese Seite gibt es nicht.</p>;
+
+  // E240: Apple-Oberfläche – gleiche Seiten, andere Schale (Tab-Leiste/Seitenleiste statt Kopfleiste)
+  if (design === 'apple')
+    return (
+      <AppleSchale pfad={pfad} freigaben={nf} konflikte={n} live={live}>
+        <OfflineSchlange />
+        <main>
+          <SeitenFehler schluessel={pfad}>
+            <Suspense fallback={<p className="leise a-laden-seite"><span className="a-spinner" /> Lade …</p>}>{seite}</Suspense>
+          </SeitenFehler>
+        </main>
+      </AppleSchale>
+    );
 
   const nav = (href: string, text: string, aktiv: boolean) => (
     <a href={href} onClick={linkKlick} className={aktiv ? 'aktiv' : ''}>

@@ -5,6 +5,7 @@ import { minutenText } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { linkKlick, navigieren } from '../router';
 import { LernzeitPlaner } from './LernzeitPlaner';
+import { Em } from '../apple/wissen-teile';
 
 /**
  * E140: Prüfungs-Cockpit – je anstehende Prüfung alles, was zur Vorbereitung zählt: Countdown, Schritte des Uni-To-dos,
@@ -41,7 +42,9 @@ export function PruefungsCockpit() {
                 {p.tage > 0 && <span>{p.tage === 1 ? 'Tag' : 'Tage'}</span>}
               </div>
               <div>
-                <h3>📝 {p.titel}</h3>
+                <h3>
+                  <Em e="📝" /> {p.titel}
+                </h3>
                 <p className="leise">
                   {p.fach} · {wann}
                 </p>
@@ -50,27 +53,27 @@ export function PruefungsCockpit() {
             <ul className="pruefung-stand">
               {p.todo && (
                 <li>
-                  ☑ Schritte {p.todo.schritteFertig}/{p.todo.schritte}
+                  <Em e="☑" /> Schritte {p.todo.schritteFertig}/{p.todo.schritte}
                   {p.todo.naechster && <span className="leise"> · als Nächstes: {p.todo.naechster}</span>}
                 </li>
               )}
               <li>
-                🍅 {minutenText(p.fokus14Tage)} gelernt (14 Tage){ziel14 ? <span className="leise"> · Ziel {minutenText(ziel14)}</span> : null}
+                <Em e="🍅" /> {minutenText(p.fokus14Tage)} gelernt (14 Tage){ziel14 ? <span className="leise"> · Ziel {minutenText(ziel14)}</span> : null}
               </li>
               {p.karten && (
                 <li>
-                  🃏 {p.karten.gelernt}/{p.karten.gesamt} Karten sitzen{p.karten.faellig ? <span className="leise"> · {p.karten.faellig} heute dran</span> : null}
+                  <Em e="🃏" /> {p.karten.gelernt}/{p.karten.gesamt} Karten sitzen{p.karten.faellig ? <span className="leise"> · {p.karten.faellig} heute dran</span> : null}
                 </li>
               )}
             </ul>
             <div className="zeile">
               {!p.ohneFach && (
                 <button type="button" className="haupt klein" onClick={() => void lernen(p)} aria-label={`Lernen starten: ${p.fach}`}>
-                  🍅 Lernen
+                  <Em e="🍅" /> Lernen
                 </button>
               )}
               <button type="button" className="klein" onClick={() => setPlanen(planen === p.id ? null : p.id)}>
-                📅 Lernplan
+                <Em e="📅" /> Lernplan
               </button>
               {p.karten && (
                 <a href={`/gebaeude/Uni?reiter=karten&fach=${encodeURIComponent(p.karten.fach)}`} onClick={linkKlick} className="leise">

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Zeichen } from '../apple/werkzeug-symbole';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ChatDetail, EditorEintrag, EditorGitAntwort, EditorGitStatus, EditorTreffer } from '@dorf/shared';
 import { api } from '../api';
@@ -162,7 +163,7 @@ export function BaumLeiste({ w }: { w: Werk }) {
   };
   const knopf = (symbol: string, titel: string, klick: () => void, aus = false) => (
     <button type="button" className="klein ce-symbol" title={titel} aria-label={titel} onClick={klick} disabled={aus}>
-      {symbol}
+      <Zeichen e={symbol} />
     </button>
   );
   return (
@@ -177,7 +178,7 @@ export function BaumLeiste({ w }: { w: Werk }) {
           {knopf('🗑', 'Löschen', () => void loeschen(), !markiert)}
           {markiert?.art === 'datei' ? (
             <a className="knopf klein ce-symbol" title="Herunterladen" aria-label="Herunterladen" href={editorApi.rohUrl(w.projekt, markiert.pfad)} download={nameVon(markiert.pfad)}>
-              ⬇
+              <Zeichen e="⬇" />
             </a>
           ) : (
             knopf('⬇', 'Herunterladen', () => undefined, true)
@@ -241,7 +242,10 @@ function Ordner({ w, pfad, tiefe, offen, markiert, klick }: { w: Werk; pfad: str
               title={e.art === 'datei' ? `${p} · ${groesseText(e.groesse)}` : p}
               onClick={() => klick(p, e.art)}
             >
-              <span aria-hidden>{e.art === 'ordner' ? (auf ? '📂' : '📁') : SYMBOL[e.art]}</span> {e.name}
+              <span aria-hidden className="ce-baum-symbol">
+                <Zeichen e={e.art === 'ordner' ? (auf ? '📂' : '📁') : SYMBOL[e.art]} />
+              </span>{' '}
+              {e.name}
             </button>
             {auf && <Ordner w={w} pfad={p} tiefe={tiefe + 1} offen={offen} markiert={markiert} klick={klick} />}
           </div>
@@ -403,7 +407,7 @@ export function GitLeiste({ w }: { w: Werk }) {
         <strong>Git</strong>
         <span className="ce-knoepfe">
           <button type="button" className="klein ce-symbol" title="Status neu laden" aria-label="Status neu laden" onClick={neuLaden}>
-            ↻
+            <Zeichen e="↻" />
           </button>
         </span>
       </div>
@@ -434,10 +438,10 @@ export function GitLeiste({ w }: { w: Werk }) {
       </p>
       <div className="ce-knoepfe ce-git-knoepfe">
         <button type="button" className="klein" onClick={() => void tun('pull', 'pull', {}, true)} disabled={!!laeuft}>
-          {laeuft === 'pull' ? '…' : '⬇ Pull'}
+          {laeuft === 'pull' ? '…' : <><Zeichen e="⬇" /> Pull</>}
         </button>
         <button type="button" className="klein" onClick={() => void tun('push', 'push')} disabled={!!laeuft}>
-          {laeuft === 'push' ? '…' : '⬆ Push'}
+          {laeuft === 'push' ? '…' : <><Zeichen e="⬆" /> Push</>}
         </button>
         <button type="button" className="klein" onClick={() => void tun('fetch', 'holen')} disabled={!!laeuft}>
           Fetch
@@ -459,16 +463,16 @@ export function GitLeiste({ w }: { w: Werk }) {
                 <span className="ce-knoepfe">
                   {vor ? (
                     <button type="button" className="klein ce-symbol" title="Vormerkung zurücknehmen" aria-label={`${d.pfad}: Vormerkung zurücknehmen`} onClick={() => void tun(`reset ${d.pfad}`, 'zuruecknehmen', { pfad: d.pfad })}>
-                      −
+                      <Zeichen e="−" />
                     </button>
                   ) : (
                     <button type="button" className="klein ce-symbol" title="Für den Commit vormerken" aria-label={`${d.pfad}: vormerken`} onClick={() => void tun(`add ${d.pfad}`, 'vormerken', { pfad: d.pfad })}>
-                      ＋
+                      <Zeichen e="＋" />
                     </button>
                   )}
                   {d.x !== '?' && (
                     <button type="button" className="klein ce-symbol" title="Änderungen verwerfen" aria-label={`${d.pfad}: Änderungen verwerfen`} onClick={() => void verwerfen(d.pfad)}>
-                      ↶
+                      <Zeichen e="↶" />
                     </button>
                   )}
                 </span>

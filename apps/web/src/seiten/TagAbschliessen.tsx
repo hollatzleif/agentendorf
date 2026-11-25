@@ -8,6 +8,7 @@ import { ort, tagPlus } from '../komponenten/MarktKalender';
 import { StimmungZeile } from '../komponenten/StimmungZeile';
 import { GewohnheitenKarte } from '../komponenten/GewohnheitenKarte';
 import { MorgenKarte, Stern } from './Heute';
+import { E } from '../apple/tag';
 
 /**
  * E146: Tag abschließen (/abschluss) – das 5-Minuten-Ritual am Abend, Gegenstück zu „Woche planen“:
@@ -59,7 +60,9 @@ export function TagAbschliessen() {
       <a href="/heute" onClick={linkKlick}>
         ← Heute
       </a>
-      <h1>🌙 Tag abschließen</h1>
+      <h1>
+        <E e="🌙" /> Tag abschließen
+      </h1>
       <p className="leise">
         5 Minuten, vier Schritte – dann ist Feierabend.{' '}
         <strong>

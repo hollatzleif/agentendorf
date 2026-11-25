@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { NotenStand } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
+import { Em } from '../apple/wissen-teile';
 
 /**
  * Noten & ECTS (E98): Kennzahlen (Schnitt, ECTS bestanden, Fortschritt zum Ziel) und eine Tabelle zum Pflegen.
@@ -127,7 +128,7 @@ export function NotenAnsicht() {
                     </td>
                     <td role="cell" className="noten-weg">
                       <button type="button" className="klein" aria-label={`${f.fach} entfernen`} onClick={() => void aufruf(() => api<NotenStand>(`/api/uni/noten?fach=${encodeURIComponent(f.fach)}`, { methode: 'DELETE' }))}>
-                        ✕
+                        <Em e="✕" />
                       </button>
                     </td>
                   </tr>

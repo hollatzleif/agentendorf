@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { WochenzieleStand } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
+import { E } from '../apple/tag';
 
 /**
  * Wochenziele (E91): wenige Ziele für diese Kalenderwoche – Obsidian-Checkliste in Rathaus/wochenziele/JJJJ-KWnn.md.
@@ -35,7 +36,7 @@ export function WochenzieleKarte() {
     <section className="karte heute-karte heute-wochenziele" aria-label="Wochenziele">
       <div className="heute-karte-kopf">
         <h2>
-          🎯 Wochenziele{s ? ` · KW ${kw}` : ''}
+          <E e="🎯" /> Wochenziele{s ? ` · KW ${kw}` : ''}
           {s && s.ziele.length > 0 && <span className="wochenziele-stand"> {fertig}/{s.ziele.length}</span>}
         </h2>
         {s && s.ziele.length > 0 && (
@@ -111,7 +112,7 @@ function NaechsteWoche({ s, aufruf }: { s: WochenzieleStand; aufruf: (f: () => P
   const [text, setText] = useState('');
   return (
     <div className="wochenziele-naechste">
-      <h3>📆 Nächste Woche · KW {Number(s.naechste.woche.slice(-2))}</h3>
+      <h3><E e="📆" /> Nächste Woche · KW {Number(s.naechste.woche.slice(-2))}</h3>
       {s.naechste.ziele.length > 0 && (
         <ul className="wochenziele">
           {s.naechste.ziele.map((z, i) => (

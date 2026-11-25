@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { BankDatei, BankMonat, TodoInfo } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { bibliothekUrl, linkKlick } from '../router';
+import { Em } from '../apple/wissen-teile';
 
 const euro = (n: number) => n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
 const monatName = (m: string) => new Date(`${m}-15T12:00:00`).toLocaleDateString('de-AT', { month: 'long', year: 'numeric' });
@@ -50,7 +51,7 @@ export function BankUebersicht() {
           </select>
         )}
         <button type="button" className="haupt" onClick={() => datei.current?.click()}>
-          📄 Kontoauszug hochladen
+          <Em e="📄" /> Kontoauszug hochladen
         </button>
         <input ref={datei} type="file" accept=".csv,.txt,.pdf" multiple hidden onChange={(e) => e.target.files && void hochladen(e.target.files)} />
       </div>
@@ -66,7 +67,7 @@ export function BankUebersicht() {
 
       {d && d.monate.length > 0 && (
         <>
-          <div className="bank-kacheln">
+          <div className="bank-kacheln bank-wallet">
             <div className="bank-kachel">
               <span className="leise">Einnahmen</span>
               <strong className="plus">{euro(d.einnahmen)}</strong>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, ApiFehler } from '../api';
+import { Em } from '../apple/wissen-teile';
 
 /** Etappe 7: neues Gebäude anlegen – Ordner + gebaeude.md; das Dorf sucht ihm einen Platz */
 export function NeuesGebaeude({ fertig }: { fertig?: (id: string) => void }) {
@@ -13,12 +14,12 @@ export function NeuesGebaeude({ fertig }: { fertig?: (id: string) => void }) {
   if (!offen)
     return (
       <button type="button" onClick={() => setOffen(true)}>
-        🏗️ Neues Gebäude
+        <Em e="🏗️" /> Neues Gebäude
       </button>
     );
   return (
     <form
-      className="karte innen formspalte"
+      className="karte innen formspalte neues-gebaeude"
       aria-label="Neues Gebäude"
       onSubmit={async (e) => {
         e.preventDefault();

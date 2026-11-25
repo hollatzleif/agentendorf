@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiFehler } from '../api';
+import { E } from '../apple/tag';
 
 const wann = (iso: string) => new Date(iso).toLocaleString('de-AT', { timeZone: 'Europe/Vienna', weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 const uhr = (iso: string) => new Date(iso).toLocaleTimeString('de-AT', { timeZone: 'Europe/Vienna', hour: '2-digit', minute: '2-digit' });
@@ -14,7 +15,9 @@ export function LernzeitPlaner({ titel, bis, schliessen, fristTag }: { titel: st
   return (
     <div className="lernzeit karte innen" role="group" aria-label={`Lernzeit für ${titel}`}>
       <div className="zeile">
-        <strong>📅 Lernzeit</strong>
+        <strong>
+          <E e="📅" /> Lernzeit
+        </strong>
         {fristTag && (
           <span className="lernzeit-modus" role="group" aria-label="Art">
             <button type="button" className={`klein${modus === 'einzeln' ? ' an' : ''}`} aria-pressed={modus === 'einzeln'} onClick={() => setModus('einzeln')}>

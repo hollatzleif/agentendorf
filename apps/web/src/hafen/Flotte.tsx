@@ -7,10 +7,14 @@ import { ApiFehler, api } from '../api';
 import { bibliothekUrl, linkKlick } from '../router';
 import { Eur, EuroKurs, KURS_QUELLE, eurJeSolAus, kursText, solEurText, useEurJeSol } from './euro';
 import { prozent, sol, solVz, uhrzeit } from './format';
+import { useDesign } from '../apple/design';
+import { Em, EmText } from './zeichen';
 import './hafen.css';
 
 /** feste Farbreihenfolge je Bot (nach Anlage), nie zyklisch nach Rang */
 const FARBEN = ['#7c3aed', '#0ea5e9', '#f59e0b', '#10b981', '#ef4444', '#64748b', '#d946ef', '#84cc16'];
+/** E240: dieselbe Reihenfolge in der Apple-Oberfläche (Systemfarben; Grün/Rot bleiben für Gewinn/Verlust) */
+const FARBEN_APPLE = ['var(--a-indigo)', 'var(--a-cyan)', 'var(--a-orange)', 'var(--a-mint)', 'var(--a-pink)', 'var(--a-grau)', 'var(--a-lila)', 'var(--a-gelb)'];
 
 /** E238: Agenten-Bots im Vergleich zeigen (Standard an, je Gerät) */
 const AGENTEN_IM_VERGLEICH = 'dorf.hafen.agentenImVergleich';
@@ -25,6 +29,7 @@ export function HafenFlotte() {
     }
   });
   const q = useQuery({ queryKey: ['krypto'], queryFn: () => api<KryptoUebersicht>('/api/krypto'), refetchInterval: 5000 });
+  const apple = useDesign() === 'apple';
   const [form, setForm] = useState<{ id?: string; e: KryptoEinstellung } | null>(null);
   const [dialog, setDialog] = useState<{ art: 'scharf' | 'auszahlen' | 'backtest'; bot: KryptoBot } | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);
@@ -36,7 +41,7 @@ export function HafenFlotte() {
   });
   const u = q.data;
   if (!u) return <p className="leise">Lade den Hafen …</p>;
-  const farbe = (id: string) => FARBEN[u.bots.findIndex((b) => b.id === id) % FARBEN.length]!;
+  const farbe = (id: string) => (apple ? FARBEN_APPLE : FARBEN)[u.bots.findIndex((b) => b.id === id) % FARBEN.length]!;
   const eurJeSol = eurJeSolAus(u.solUsd, u.usdJeEur);
   // E238: Bots der Agenten (Hafenmeister, Muster-Meister, andere) getrennt von Leifs eigenen
   const vonJe = new Map((u.agentenBots ?? []).map((x) => [x.id, x.von] as const));
@@ -63,9 +68,24 @@ export function HafenFlotte() {
       <div className="hafen" style={{ display: 'grid', gap: '0.8rem' }}>
         <div className="karte innen hafen-kopf">
           <div>
-            <h3 style={{ margin: 0 }}>⚓ Flotte</h3>
+            <h3 style={{ margin: 0 }}>
+              <Em e="⚓" /> Flotte
+            </h3>
             <span className="leise">
-              {u.verbunden ? (u.datenOnline ? `🟢 Pump.fun live · ${u.beobachtet} Tokens im Blick` : '⚪ wartet auf Daten (verbindet, sobald ein Bot läuft)') : '🔴 Kryptowerk nicht erreichbar'}
+              {apple ? (
+                <>
+                  <span className={`hafen-ampel ${u.verbunden ? (u.datenOnline ? 'an' : 'wartet') : 'aus'}`} aria-hidden />
+                  {u.verbunden ? (u.datenOnline ? `Pump.fun live · ${u.beobachtet} Tokens im Blick` : 'wartet auf Daten (verbindet, sobald ein Bot läuft)') : 'Kryptowerk nicht erreichbar'}
+                </>
+              ) : u.verbunden ? (
+                u.datenOnline ? (
+                  `🟢 Pump.fun live · ${u.beobachtet} Tokens im Blick`
+                ) : (
+                  '⚪ wartet auf Daten (verbindet, sobald ein Bot läuft)'
+                )
+              ) : (
+                '🔴 Kryptowerk nicht erreichbar'
+              )}
             </span>
             {eurJeSol != null && (
               <span className="leise hafen-kurs" title={KURS_QUELLE} data-testid="hafen-kurs">
@@ -76,7 +96,7 @@ export function HafenFlotte() {
           </div>
           <div className="hafen-knoepfe">
             <a className="knopf klein" href={bibliothekUrl('Hafen/00_Anleitung.html')} onClick={linkKlick}>
-              📖 Anleitung
+              <Em e="📖" /> Anleitung
             </a>
             <button type="button" onClick={() => setForm({ e: structuredClone(KRYPTO_STANDARD) })} disabled={!u.verbunden}>
               + Neuer Bot
@@ -94,7 +114,7 @@ export function HafenFlotte() {
                   if (window.confirm('Not-Aus: alle Bots sofort stoppen und offene Positionen (simuliert) verkaufen?')) tun.mutate(() => api('/api/krypto/notaus', { methode: 'POST' }));
                 }}
               >
-                🛑 Not-Aus
+                <EmText t="🛑 Not-Aus" />
               </button>
             )}
           </div>
@@ -161,7 +181,9 @@ export function HafenFlotte() {
         </section>
         {u.verbunden && (
           <section aria-label="Bots der Agenten" data-testid="agenten-bots" style={{ display: 'grid', gap: '0.5rem' }}>
-            <h3 style={{ margin: 0 }}>⚓ Bots der Agenten ({agenten.length})</h3>
+            <h3 style={{ margin: 0 }}>
+              <Em e="⚓" /> Bots der Agenten ({agenten.length})
+            </h3>
             <div className="hafen-bots">
               {agenten.map(karte)}
               {!agenten.length && <p className="leise">Der Hafenmeister legt seine Bots täglich um 06:05 an.</p>}
@@ -178,7 +200,7 @@ function BotKarte({ b, farbe, notaus, bearbeiten, tun, liveMoeglich, auszahlung,
   const e = b.einstellung;
   const live = b.modus === 'live';
   return (
-    <article className="karte innen hafen-bot" aria-label={`Bot ${e.name}`} style={{ borderTop: `4px solid ${farbe}` }}>
+    <article className="karte innen hafen-bot" aria-label={`Bot ${e.name}`} style={{ borderTop: `4px solid ${farbe}`, ['--bot-farbe' as string]: farbe }}>
       <div className="hafen-bot-kopf">
         <span className="avatar" aria-hidden>
           {e.avatar}
@@ -191,7 +213,10 @@ function BotKarte({ b, farbe, notaus, bearbeiten, tun, liveMoeglich, auszahlung,
             </span>
           )}
           <div className="leise" style={{ fontSize: '0.8rem' }}>
-            {b.status === 'laeuft' ? '🟢 läuft' : b.status === 'pausiert' ? '⏸ pausiert' : '🛑 gestoppt'} · {live ? <b className="hafen-live">LIVE · echtes Geld</b> : 'Paper'} · {e.art === 'prompt' ? 'Prompt' : e.art === 'rl' ? '🧠 RL' : 'Regeln'}
+            <span className={`hafen-bot-status ${b.status}`}>
+              <EmText t={b.status === 'laeuft' ? '🟢 läuft' : b.status === 'pausiert' ? '⏸ pausiert' : '🛑 gestoppt'} />
+            </span>{' '}
+            · {live ? <b className="hafen-live">LIVE · echtes Geld</b> : 'Paper'} · {e.art === 'prompt' ? 'Prompt' : e.art === 'rl' ? <EmText t="🧠 RL" /> : 'Regeln'}
           </div>
         </div>
         <strong className={k.gewinnSol >= 0 ? 'plus' : 'minus'}>{prozent(k.gewinnProzent)}</strong>
@@ -234,7 +259,7 @@ function BotKarte({ b, farbe, notaus, bearbeiten, tun, liveMoeglich, auszahlung,
       </div>
       {b.wallet && (
         <div className="leise hafen-wallet" title="Eigenes, neu erzeugtes Wallet dieses Bots">
-          👛 <code>{b.wallet.adresse.slice(0, 6)}…{b.wallet.adresse.slice(-6)}</code>
+          <Em e="👛" /> <code>{b.wallet.adresse.slice(0, 6)}…{b.wallet.adresse.slice(-6)}</code>
           <button type="button" className="klein" onClick={() => void navigator.clipboard?.writeText(b.wallet!.adresse)}>
             Kopieren
           </button>
@@ -265,7 +290,7 @@ function BotKarte({ b, farbe, notaus, bearbeiten, tun, liveMoeglich, auszahlung,
         )}
         {!live && liveMoeglich && b.wallet && e.art !== 'rl' && (
           <button type="button" className="klein" onClick={() => oeffnen('scharf')}>
-            🎯 Scharf schalten
+            <EmText t="🎯 Scharf schalten" />
           </button>
         )}
         {live && (
@@ -355,7 +380,7 @@ function Vergleich({ bots, farbe, agenten }: { bots: KryptoBot[]; farbe: (id: st
             {b.einstellung.avatar} {b.einstellung.name}
             {agenten?.has(b.id) && (
               <small title={`Agenten-Bot (${KRYPTO_BOT_VON[agenten.get(b.id)!]})`} aria-label="Agenten-Bot" data-testid="legende-agent">
-                ⚓
+                <Em e="⚓" />
               </small>
             )}{' '}
             <b className={b.kennzahlen.gewinnSol >= 0 ? 'plus' : 'minus'} title={solEurText(b.kennzahlen.gewinnSol, eurJeSol, { vorzeichen: true })}>
@@ -617,10 +642,12 @@ function MusterTafel() {
   return (
     <section className="karte innen hafen-muster" aria-label="Muster-Modell" data-testid="muster-tafel">
       <div className="hafen-kopf">
-        <h3 style={{ margin: 0 }}>🧠 Muster-Modell</h3>
+        <h3 style={{ margin: 0 }}>
+          <Em e="🧠" /> Muster-Modell
+        </h3>
         <span className="hafen-knoepfe">
           <a className="knopf klein" href="/hafen/muster" onClick={linkKlick} data-testid="muster-konsole-knopf" title="Muster-Kielwasser: Modelle, Verlauf, Lernkurven, RL-Zeitraffer und die Konsole – was das Training gemacht hat und warum">
-            🖥️ Konsole
+            <Em e="🖥️" /> Konsole
           </a>
           <button type="button" className="klein" disabled={!m || m.training.laeuft || trainieren.isPending} onClick={() => trainieren.mutate()}>
             {m?.training.laeuft ? 'Trainiert …' : 'Jetzt trainieren'}
@@ -655,7 +682,7 @@ function MusterTafel() {
             )}
           {' '}
             <a href={bibliothekUrl('Hafen/00_Muster-Modell.html')} onClick={linkKlick} data-testid="muster-erklaerung">
-              📖 So funktioniert's
+              <Em e="📖" /> So funktioniert's
             </a>
           </p>
           {m.modell ? (
@@ -760,7 +787,9 @@ function Kursvorhersage({ modelle }: { modelle: KryptoMusterModellInfo[] }) {
   const horizont = (s: string) => (KRYPTO_MUSTER_MODELLE.find((x) => x.schluessel === s)?.name ?? s).replace(/^📈 Kurs in /, '').replace(/ \(%\)$/, '');
   return (
     <div className="hafen-kursvorhersage" data-testid="kursvorhersage">
-      <h4>📈 Kursvorhersage</h4>
+      <h4>
+        <Em e="📈" /> Kursvorhersage
+      </h4>
       <p className="leise">Kursänderung in den nächsten Sekunden/Minuten – verpasster Absturz zählt 3× – die Vorhersage ist bewusst vorsichtig.</p>
       <div className="hafen-tabelle-huelle">
         <table className="hafen-modelle">
@@ -873,7 +902,9 @@ function ScharfDialog({ bot, fertig }: { bot: KryptoBot; fertig: () => void }) {
   };
   return (
     <section className="karte innen hafen-formular hafen-scharf" aria-label="Scharf schalten">
-      <h3 style={{ marginTop: 0 }}>🎯 {bot.einstellung.name} scharf schalten</h3>
+      <h3 style={{ marginTop: 0 }}>
+        <Em e="🎯" /> {bot.einstellung.name} scharf schalten
+      </h3>
       <p className="hafen-hinweis">
         Ab jetzt handelt der Bot mit <b>echtem Geld</b> aus seinem eigenen Wallet <code>{bot.wallet?.adresse}</code>. Schick vorher SOL dorthin (z. B. aus Phantom) – mindestens Budget + 0,02 SOL für Gebühren. Die meisten neuen Coins verlieren schnell an Wert;
         Verluste sind echt. Fang klein an.
@@ -1017,7 +1048,7 @@ function BacktestPanel({ bot, schliessen }: { bot: KryptoBot; schliessen: () => 
           </button>
         ))}
         <button type="button" onClick={() => void starten()} disabled={j?.status === 'laeuft'}>
-          {j?.status === 'laeuft' ? `Läuft … ${j.fortschritt} %` : '▶ Backtest starten'}
+          {j?.status === 'laeuft' ? `Läuft … ${j.fortschritt} %` : <EmText t="▶ Backtest starten" />}
         </button>
       </div>
       {fehler && (

@@ -5,6 +5,7 @@ import type { DorfStatus, Gebaeude } from '@dorf/shared';
 import { api } from '../api';
 import { linkKlick } from '../router';
 import { webglMoeglich } from '../dorf/gl';
+import { Em } from '../apple/wissen-teile';
 
 // three.js wird nur geladen, wenn das Dorf wirklich gezeigt wird
 const DorfAnsicht = lazy(() => import('../dorf/DorfAnsicht'));
@@ -48,12 +49,12 @@ export function DorfListe({ zumDorf, hinweis }: { zumDorf: (() => void) | null; 
   if (g.isPending) return <p>Lade Gebäude …</p>;
   if (g.isError) return <p className="fehler">{g.error.message}</p>;
   return (
-    <section>
+    <section className="dorfliste">
       <div className="zeile kopfzeile">
         <h1>Dorfplatz</h1>
         {zumDorf && (
           <button onClick={zumDorf} className="haupt">
-            🏘️ Zum Dorf
+            <Em e="🏘️" /> Zum Dorf
           </button>
         )}
       </div>
@@ -69,10 +70,10 @@ export function DorfListe({ zumDorf, hinweis }: { zumDorf: (() => void) | null; 
               <span className="beschreibung">{x.fehler ?? (x.status === 'geschlossen' ? 'Noch nicht eröffnet' : x.beschreibung)}</span>
               <span className="karten-status">
                 {x.aktionen > 0 && <span className="abzeichen">{x.aktionen} Aktionen</span>}
-                {figuren > 0 && <span className="abzeichen gut" title="Agenten arbeiten">💨 {figuren}</span>}
-                {st?.freigaben ? <span className="abzeichen warnung" title="Freigabe wartet">✉️ {st.freigaben}</span> : null}
-                {st?.aufgaben ? <span className="abzeichen" title="Offene Aufgaben">🚧 {st.aufgaben}</span> : null}
-                {st?.frist && <span className="abzeichen warnung" title={st.frist.titel}>⏰ Frist</span>}
+                {figuren > 0 && <span className="abzeichen gut" title="Agenten arbeiten"><Em e="💨" /> {figuren}</span>}
+                {st?.freigaben ? <span className="abzeichen warnung" title="Freigabe wartet"><Em e="✉️" /> {st.freigaben}</span> : null}
+                {st?.aufgaben ? <span className="abzeichen" title="Offene Aufgaben"><Em e="🚧" /> {st.aufgaben}</span> : null}
+                {st?.frist && <span className="abzeichen warnung" title={st.frist.titel}><Em e="⏰" /> Frist</span>}
               </span>
             </a>
           );

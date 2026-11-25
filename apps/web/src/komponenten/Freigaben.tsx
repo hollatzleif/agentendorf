@@ -5,6 +5,7 @@ import { PlanTabelle } from './Plaene';
 import { api, ApiFehler } from '../api';
 import { bibliothekUrl, linkKlick } from '../router';
 import { zeitKurz } from '../texte';
+import { Em } from '../apple/wissen-teile';
 
 const ARTEN: Record<string, string> = {
   datei_loeschen: 'Datei löschen',
@@ -25,7 +26,7 @@ export function Freigaben() {
   // E185: was die Agenten ohne Rückfrage getan haben – mit „Rückgängig“ (Schlüssel beginnt mit „freigaben“ → Live-Aktualisierung)
   const getan = useQuery({ queryKey: ['freigaben', 'getan'], queryFn: () => api<RueckgaengigInfo[]>('/api/rueckgaengig') });
   return (
-    <div>
+    <div className="freigaben">
       <h3>Wartet auf dich</h3>
       {offen.data?.length === 0 && <p className="leise">Nichts offen. 👍</p>}
       {offen.data?.map((f) => <FreigabeKarte key={f.id} f={f} />)}
@@ -40,7 +41,7 @@ export function Freigaben() {
           </ul>
         </>
       )}
-      <details>
+      <details className="freigaben-erledigt">
         <summary>Erledigt ({erledigt.data?.length ?? 0})</summary>
         <ul className="chatliste">
           {erledigt.data?.map((f) => (
@@ -86,14 +87,14 @@ function GetanZeile({ g }: { g: RueckgaengigInfo }) {
       </span>{' '}
       {g.status === 'offen' ? (
         <>
-          <button disabled={laeuft} onClick={zurueck}>
+          <button className="rueckgaengig" disabled={laeuft} onClick={zurueck}>
             ↩️ Rückgängig
           </button>
-          {g.ergebnis && <span className="leise"> ⚠️ letzter Versuch ging nicht – {g.ergebnis}</span>}
+          {g.ergebnis && <span className="leise"> <Em e="⚠️" /> letzter Versuch ging nicht – {g.ergebnis}</span>}
         </>
       ) : (
         <span className="leise">
-          {g.status === 'zurueckgenommen' ? '↩️ zurückgenommen' : '⚠️ ging nicht'}
+          {g.status === 'zurueckgenommen' ? '↩️ zurückgenommen' : <><Em e="⚠️" /> ging nicht</>}
           {g.ergebnis ? ` – ${g.ergebnis}` : ''}
         </span>
       )}
@@ -163,10 +164,10 @@ function FreigabeKarte({ f }: { f: FreigabeInfo }) {
         <input value={grund} onChange={(e) => setGrund(e.target.value)} maxLength={2000} placeholder="z. B. „zu teuer“, „erst nach der Prüfung“, „lieber nur Mathe 3“" />
       </label>
       <div className="werkzeuge">
-        <button className="haupt" disabled={laeuft} onClick={() => entscheiden(true)}>
+        <button className="haupt freigabe-ja" disabled={laeuft} onClick={() => entscheiden(true)}>
           Ja, ausführen
         </button>
-        <button className="gefahr" disabled={laeuft} onClick={() => entscheiden(false)}>
+        <button className="gefahr freigabe-nein" disabled={laeuft} onClick={() => entscheiden(false)}>
           Ablehnen
         </button>
       </div>

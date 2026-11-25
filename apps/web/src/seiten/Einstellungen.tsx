@@ -4,9 +4,12 @@ import QRCode from 'qrcode';
 import type { Anschluss, GeraetInfo, GeraetKopplung, Ich, Konflikt, ProgrammeInfo, SitzungInfo } from '@dorf/shared';
 import { istProgramm } from '../programm/desktop';
 import { api, ApiFehler } from '../api';
-import { bibliothekUrl, linkKlick } from '../router';
+import { bibliothekUrl, linkKlick, navigieren, useOrt } from '../router';
 import { updateInstallieren, updateSuchen } from '../aktualisierung';
 import { AussehenEinstellungen } from '../komponenten/AussehenEinstellungen';
+import { useDesign } from '../apple/design';
+import { Ikon, IkonText, Symbol } from '../apple/Ikon';
+import type { SymbolName } from '../apple/symbole';
 
 const fehlertext = (e: unknown) => (e instanceof ApiFehler ? e.message : String(e));
 const zeit = (iso: string) => new Date(iso).toLocaleString('de-AT', { dateStyle: 'short', timeStyle: 'short' });
@@ -14,6 +17,20 @@ const zeit = (iso: string) => new Date(iso).toLocaleString('de-AT', { dateStyle:
 const zeitText = (iso: string) => new Date(iso).toLocaleString('de-AT', { timeZone: 'Europe/Vienna', day: 'numeric', month: 'numeric', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 export function Einstellungen() {
+  // E240: in der Apple-Oberfläche als Liste wie die Einstellungen-App (gleiche Bausteine)
+  if (useDesign() === 'apple') return <AppleEinstellungen />;
+  return <DorfEinstellungen />;
+}
+
+function abmelden(qc: ReturnType<typeof useQueryClient>) {
+  return async () => {
+    await api('/api/abmeldung', { body: {} });
+    qc.clear();
+    location.href = '/';
+  };
+}
+
+function DorfEinstellungen() {
   const qc = useQueryClient();
   const ich = useQuery({ queryKey: ['ich'], queryFn: () => api<Ich>('/api/ich') });
 
@@ -29,7 +46,7 @@ export function Einstellungen() {
       </p>
       <p className="leise">
         <a href="/paketwerk" onClick={linkKlick}>
-          🧪 Paketwerk (Pakete für den Rechenraum)
+          <Ikon e="🧪" /> Paketwerk (Pakete für den Rechenraum)
         </a>
       </p>
       <AussehenEinstellungen />
@@ -42,20 +59,150 @@ export function Einstellungen() {
       <Programme />
       <div className="karte">
         <h2>Abmelden</h2>
-        <button
-          onClick={async () => {
-            await api('/api/abmeldung', { body: {} });
-            qc.clear();
-            location.href = '/';
-          }}
-        >
-          Auf diesem Gerät abmelden
-        </button>
+        <button onClick={abmelden(qc)}>Auf diesem Gerät abmelden</button>
         {/* E179: Stand des Dorfs (Server) und dieser Seite – unterscheiden sie sich, hängt eine alte Fassung im Zwischenspeicher */}
         <p className="leise">
           Dorf-Stand {ich.data?.version} · diese Seite gebaut am {zeitText(__BAU_ZEIT__)}
         </p>
         <UpdateKnopf />
+      </div>
+    </section>
+  );
+}
+
+/** E240: Bereiche der Einstellungen in der Apple-Oberfläche (Liste → Bereich; am breiten Bildschirm nebeneinander) */
+type Bereich = { id: string; titel: string; symbol: SymbolName; farbe: string; inhalt: () => React.ReactNode };
+
+function AppleEinstellungen() {
+  const qc = useQueryClient();
+  const { suche } = useOrt();
+  const ich = useQuery({ queryKey: ['ich'], queryFn: () => api<Ich>('/api/ich') });
+  const an = useQuery({ queryKey: ['anschluesse'], queryFn: () => api<Anschluss[]>('/api/anschluesse') });
+  const ko = useQuery({ queryKey: ['konflikte'], queryFn: () => api<Konflikt[]>('/api/vault/konflikte') });
+  const [breit, setBreit] = useState(() => window.matchMedia?.('(min-width: 1100px)').matches ?? false);
+  useEffect(() => {
+    const m = window.matchMedia?.('(min-width: 1100px)');
+    const f = () => setBreit(m.matches);
+    m?.addEventListener?.('change', f);
+    // alte Sprungmarken (#konflikte, #anschluesse, #aussehen …) führen in den Bereich
+    if (location.hash) navigieren(`/einstellungen?bereich=${encodeURIComponent(location.hash.slice(1))}`, true);
+    return () => m?.removeEventListener?.('change', f);
+  }, []);
+  const offen = an.data?.filter((a) => !a.ok).length ?? 0;
+  const bereiche: (Bereich & { wert?: string })[][] = [
+    [
+      { id: 'aussehen', titel: 'Aussehen', symbol: 'pinsel', farbe: 'blau', inhalt: () => <AussehenEinstellungen /> },
+      { id: 'anschluesse', titel: 'Anschlüsse', symbol: 'stecker', farbe: 'gruen', inhalt: () => <Anschluesse />, wert: an.data ? (offen ? `${offen} offen` : 'alle') : undefined },
+      { id: 'konflikte', titel: 'Konflikte', symbol: 'warnung', farbe: 'orange', inhalt: () => <Konflikte />, wert: ko.data ? String(ko.data.length) : undefined },
+    ],
+    [
+      { id: 'sitzungen', titel: 'Angemeldete Geräte', symbol: 'personen', farbe: 'indigo', inhalt: () => <Sitzungen /> },
+      { id: 'geraete', titel: 'Cardputer & Geräte', symbol: 'handy', farbe: 'tuerkis', inhalt: () => <Geraete /> },
+      { id: 'zweitfaktor', titel: 'Zweiter Faktor', symbol: 'schild', farbe: 'gruen', inhalt: () => <Zweitfaktor aktiv={!!ich.data?.totpAktiv} />, wert: ich.data ? (ich.data.totpAktiv ? 'Aktiv' : 'Aus') : undefined },
+      { id: 'passwort', titel: 'Passwort', symbol: 'schloss', farbe: 'grau', inhalt: () => <PasswortAendern /> },
+    ],
+    [
+      { id: 'programme', titel: 'Programme für Mac und Windows', symbol: 'laptop', farbe: 'blau', inhalt: () => <Programme /> },
+      {
+        id: 'ueber',
+        titel: 'Über das Dorf',
+        symbol: 'info',
+        farbe: 'grau',
+        inhalt: () => (
+          <div className="karte">
+            <p className="leise">
+              Dorf-Stand {ich.data?.version} · diese Seite gebaut am {zeitText(__BAU_ZEIT__)}
+            </p>
+            <UpdateKnopf />
+          </div>
+        ),
+      },
+    ],
+  ];
+  const alle = bereiche.flat();
+  const gewaehlt = alle.find((b) => b.id === suche.get('bereich')) ?? (breit ? alle[0] : undefined);
+  const zelle = (b: Bereich & { wert?: string }) => (
+    <a
+      key={b.id}
+      href={`/einstellungen?bereich=${b.id}`}
+      onClick={(e) => {
+        e.preventDefault();
+        navigieren(`/einstellungen?bereich=${b.id}`, breit);
+      }}
+      className={`a-zelle${breit && gewaehlt?.id === b.id ? ' gewaehlt' : ''}`}
+      aria-current={gewaehlt?.id === b.id ? 'page' : undefined}
+    >
+      <span className={`a-zelle-symbol a-farbe-${b.farbe}`}>
+        <Symbol name={b.symbol} />
+      </span>
+      <span className="a-zelle-text">{b.titel}</span>
+      {b.wert && <span className="a-zelle-wert">{b.wert}</span>}
+      <Symbol name="pfeil_rechts" groesse="0.95rem" />
+    </a>
+  );
+  const liste = (
+    <div className="a-einstellungen-liste">
+      <section className="a-abschnitt">
+        <div className="a-gruppe">
+          <div className="a-profil">
+            <img src="/favicon.svg" alt="" width={56} height={56} />
+            <div>
+              <strong>Agentendorf</strong>
+              <span className="leise">Leifs Dorf · {location.host}</span>
+            </div>
+          </div>
+        </div>
+      </section>
+      {bereiche.map((g, i) => (
+        <section key={i} className="a-abschnitt">
+          <div className="a-gruppe">{g.map(zelle)}</div>
+        </section>
+      ))}
+      <section className="a-abschnitt">
+        <div className="a-gruppe">
+          <a href="/paketwerk" onClick={linkKlick} className="a-zelle">
+            <span className="a-zelle-symbol a-farbe-braun">
+              <Symbol name="paket" />
+            </span>
+            <span className="a-zelle-text">
+              Paketwerk <small>Pakete für den Rechenraum</small>
+            </span>
+            <Symbol name="pfeil_rechts" groesse="0.95rem" />
+          </a>
+          <a href="/anleitung" onClick={linkKlick} className="a-zelle">
+            <span className="a-zelle-symbol a-farbe-tuerkis">
+              <Symbol name="kompass" />
+            </span>
+            <span className="a-zelle-text">So nutzt du das Dorf</span>
+            <Symbol name="pfeil_rechts" groesse="0.95rem" />
+          </a>
+        </div>
+      </section>
+      <section className="a-abschnitt">
+        <div className="a-gruppe">
+          <button type="button" className="a-zelle rot" onClick={abmelden(qc)}>
+            Auf diesem Gerät abmelden
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+  return (
+    <section className="einstellungen a-einstellungen">
+      {(!gewaehlt || breit) && <h1>Einstellungen</h1>}
+      <div className="a-einstellungen-raster">
+        {(!gewaehlt || breit) && liste}
+        {gewaehlt && (
+          <section className="a-einstellungen-bereich" aria-label={gewaehlt.titel}>
+            {!breit && (
+              <button type="button" className="a-zurueck" onClick={() => (history.length > 1 ? history.back() : navigieren('/einstellungen'))}>
+                <Symbol name="pfeil_links" /> Einstellungen
+              </button>
+            )}
+            {breit ? <h2>{gewaehlt.titel}</h2> : <h1>{gewaehlt.titel}</h1>}
+            {gewaehlt.inhalt()}
+          </section>
+        )}
       </div>
     </section>
   );
@@ -73,7 +220,7 @@ function UpdateKnopf() {
   return (
     <p className="formzeile" role="status">
       <button type="button" onClick={() => void suchen()} disabled={stand === 'sucht' || stand === 'neu'}>
-        🔄 Nach Update suchen
+        <Ikon e="🔄" /> Nach Update suchen
       </button>
       <span className="leise">
         {stand === 'sucht' && 'Frage das Dorf …'}
@@ -101,10 +248,12 @@ function Anschluesse() {
         {q.data?.map((a) => (
           <li key={a.name} className={a.ok ? 'ok' : a.teilweise ? 'teilweise' : 'fehlt'}>
             <span className="anschluss-symbol" aria-hidden>
-              {a.symbol}
+              <Ikon e={a.symbol} />
             </span>
             <div className="anschluss-text">
-              <strong>{a.name}</strong> <span className="anschluss-stand">{a.ok ? '✓ verbunden' : a.teilweise ? '◐ teilweise' : '✗ fehlt'}</span>
+              <strong>{a.name}</strong> <span className="anschluss-stand">
+                <IkonText text={a.ok ? '✓ verbunden' : a.teilweise ? '◐ teilweise' : '✗ fehlt'} />
+              </span>
               <div className="leise">{a.wofuer}</div>
               {!a.ok && (
                 <div className="anschluss-befehl">
@@ -116,7 +265,7 @@ function Anschluesse() {
                     onClick={() => void navigator.clipboard?.writeText(a.befehl).then(() => setKopiert(a.befehl))}
                     aria-label={`Befehl kopieren: ${a.befehl}`}
                   >
-                    {kopiert === a.befehl ? '✓ kopiert' : 'kopieren'}
+                    {kopiert === a.befehl ? <IkonText text="✓ kopiert" /> : 'kopieren'}
                   </button>
                 </div>
               )}
@@ -146,12 +295,12 @@ function Programme() {
           <div className="programme-knoepfe">
             {p.data.mac && (
               <a className="knopf haupt-link" href={p.data.mac.url} download>
-                🍎 Mac (Apple Silicon)
+                <Ikon e="🍎" /> Mac (Apple Silicon)
               </a>
             )}
             {p.data.windows && (
               <a className="knopf haupt-link" href={p.data.windows.url} download>
-                🪟 Windows
+                <Ikon e="🪟" /> Windows
               </a>
             )}
           </div>
@@ -179,7 +328,7 @@ function Konflikte() {
   return (
     <div className="karte" id="konflikte">
       <h2>Konflikte zwischen Geräten</h2>
-      {k.data?.length === 0 && <p className="leise">Keine Konflikte. 👍</p>}
+      {k.data?.length === 0 && <p className="leise">Keine Konflikte. <Ikon e="👍" /></p>}
       {k.data && k.data.length > 0 && (
         <>
           <p>
@@ -303,7 +452,9 @@ function Geraete() {
       {kopplung && !gekoppelt && rest === 0 && <p className="leise">Der Code ist abgelaufen – hol dir einen neuen.</p>}
       {gekoppelt && (
         <p>
-          <span className="abzeichen gut">Gekoppelt ✓</span> Der Cardputer ist jetzt mit dem Dorf verbunden.
+          <span className="abzeichen gut">
+            <IkonText text="Gekoppelt ✓" />
+          </span> Der Cardputer ist jetzt mit dem Dorf verbunden.
         </p>
       )}
       {g.data && g.data.length > 0 && (

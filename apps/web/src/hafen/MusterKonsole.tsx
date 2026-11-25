@@ -4,6 +4,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { KRYPTO_MUSTER_MODELLE, type KryptoKonsoleZeile, type KryptoMusterKonsole } from '@dorf/shared';
 import { ApiFehler, api } from '../api';
+import { Em } from './zeichen';
 
 type Filter = 'alle' | 'entscheidung' | 'warnung';
 const NACHLADEN_MS = 1500;
@@ -108,7 +109,9 @@ export function MusterKonsole({ version: wahl }: { version: number | null }) {
   return (
     <section className="kw-tafel muster-konsole" aria-label="Trainings-Konsole" data-testid="muster-konsole">
       <div className="kw-chart-kopf">
-        <h3>🖥️ Konsole{kopf?.version != null ? ` · v${kopf.version}` : ''}</h3>
+        <h3>
+          <Em e="🖥️" /> Konsole{kopf?.version != null ? ` · v${kopf.version}` : ''}
+        </h3>
         <span className="leise mono mk-kopf" data-testid="konsole-kopf">
           {kopf ? (kopf.version == null ? 'noch kein Training' : `${kopf.laeuft ? '● läuft – lädt live nach · ' : ''}${sichtbar.length} von ${kopf.gesamt} Zeilen`) : ''}
         </span>
@@ -139,7 +142,7 @@ export function MusterKonsole({ version: wahl }: { version: number | null }) {
           </select>
         </label>
         <button type="button" className="kw-knopf" onClick={() => void kopieren()} disabled={!sichtbar.length} data-testid="konsole-kopieren">
-          📋 Kopieren
+          <Em e="📋" /> Kopieren
         </button>
         {kopiert && (
           <span className="leise mono" role="status" style={{ fontSize: '0.74rem' }}>

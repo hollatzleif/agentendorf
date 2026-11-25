@@ -19,6 +19,7 @@ import { linkKlick } from '../router';
 import { LinienChart, SERIEN_FARBEN, type ChartMarke, type ChartSerie } from './chart';
 import { Eur, EuroKurs, KURS_QUELLE, eurJeSolAus, eurText, kursText, useEurJeSol } from './euro';
 import { MusterKonsole } from './MusterKonsole';
+import { Em } from './zeichen';
 import { prozent, solVz, uhrzeit } from './format';
 import './hafen.css';
 
@@ -101,7 +102,7 @@ export function MusterKielwasserSeite() {
           <h2>Muster-Kielwasser</h2>
           <p className="minus">{(status.error as Error).message}</p>
           <a href="/gebaeude/Hafen" onClick={linkKlick}>
-            ← zurück zum Hafen
+            <Em e="←" /> zurück zum Hafen
           </a>
         </div>
       </div>
@@ -139,7 +140,7 @@ function Kopf({ m, v, wahl, setWahl, trainieren, startet, hinweis, hinweisWeg }:
     <header className="kw-tafel kw-kopf">
       <div className="kw-wer">
         <div className="kw-avatar" aria-hidden>
-          🧠
+          <Em e="🧠" />
         </div>
         <div style={{ minWidth: 0 }}>
           <div className="kw-name">
@@ -198,7 +199,8 @@ function Kopf({ m, v, wahl, setWahl, trainieren, startet, hinweis, hinweisWeg }:
           ) : t.fehler ? (
             <span className="minus">⚠ fehlgeschlagen: {t.fehler}</span>
           ) : (
-            <span className="plus">✓ fertig{t.letzter ? ` · ${datum(t.letzter)}` : ''}</span>
+            <span className="plus">
+              <Em e="✓" /> fertig{t.letzter ? ` · ${datum(t.letzter)}` : ''}</span>
           )}
         </div>
         <div className="kw-zeile" style={{ justifyContent: 'flex-end', marginTop: '0.35rem' }}>
@@ -208,8 +210,8 @@ function Kopf({ m, v, wahl, setWahl, trainieren, startet, hinweis, hinweisWeg }:
           <button type="button" className="kw-knopf" disabled={!t || t.laeuft || startet} onClick={trainieren} data-testid="muster-trainieren">
             {t?.laeuft ? 'Trainiert …' : 'Jetzt trainieren'}
           </button>
-          <a href="/gebaeude/Hafen" onClick={linkKlick}>
-            ← Flotte
+          <a href="/gebaeude/Hafen" onClick={linkKlick} className="kw-zurueck">
+            <Em e="←" /> Flotte
           </a>
         </div>
         {hinweis && (

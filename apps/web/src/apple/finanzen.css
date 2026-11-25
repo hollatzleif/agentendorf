@@ -1,0 +1,372 @@
+/* E240: Apple-Oberfläche – Bereich finanzen (Hafen mit Terminal „Kielwasser“ und Muster-Kielwasser, Börse, Paketwerk).
+   Jede Regel beginnt mit html[data-design='apple']. Vorbilder: Aktien (feine Linien, Verlaufsfläche, Grün/Rot nur für
+   Veränderung, Zeitraum als Segmented Control, Fadenkreuz als Glas-Kapsel, große Zahl mit tabellarischen Ziffern),
+   Wallet (Bot-Karten), Health/Bildschirmzeit (Balken), Konsole (Monospace-Liste), Terminal (Paketwerk).
+   Diese Datei liegt in main.tsx; die Regeln schlagen hafen.css (lazy) über die höhere Spezifität. */
+
+/* ───────────── Kielwasser: Grundwerte ───────────── */
+html[data-design='apple'] .kw {
+  --kw-grund: var(--a-grund);
+  --kw-tafel: var(--a-flaeche);
+  --kw-tafel2: var(--a-flaeche2);
+  --kw-rand: var(--a-trenner-fein);
+  --kw-text: var(--a-text);
+  --kw-leise: var(--a-text2);
+  --kw-lila: var(--a-blau);
+  --kw-lila-hell: var(--a-blau);
+  --kw-gruen: var(--a-gruen);
+  --kw-rot: var(--a-rot);
+  /* Zahlen in der Systemschrift mit tabellarischen Ziffern (Aktien); Monospace nur in Konsole/Protokoll */
+  --kw-mono: var(--a-schrift);
+  --a-segment-an: var(--a-flaeche);
+  background: var(--a-grund);
+  color: var(--a-text);
+  font: var(--a-body);
+  letter-spacing: var(--a-tracking-text);
+  font-variant-numeric: tabular-nums;
+  padding: 1rem;
+  gap: 1rem;
+  -webkit-font-smoothing: antialiased;
+}
+html[data-design='apple'][data-dunkel='ja'] .kw { --a-segment-an: color-mix(in srgb, var(--a-grau) 52%, var(--a-flaeche)); }
+html[data-design='apple'] .kw .mono,
+html[data-design='apple'] .kw .kw-mono { font-family: var(--a-schrift); font-variant-numeric: tabular-nums; }
+html[data-design='apple'] .kw svg text { font-family: var(--a-schrift); font-variant-numeric: tabular-nums; }
+html[data-design='apple'] .kw .plus { color: var(--a-gruen); }
+html[data-design='apple'] .kw .minus { color: var(--a-rot); }
+html[data-design='apple'] .kw .leise { color: var(--a-text2); }
+html[data-design='apple'] .kw a { color: var(--a-blau); text-decoration: none; }
+html[data-design='apple'] .kw a:hover { text-decoration: underline; }
+html[data-design='apple'] .kw :focus-visible { outline: 3px solid color-mix(in srgb, var(--a-blau) 70%, transparent) !important; outline-offset: 2px; border-radius: 8px; }
+
+/* Tafeln = Karten (ohne Rahmen, sanfter Schatten) */
+html[data-design='apple'] .kw-tafel { background: var(--a-flaeche); border: 0; border-radius: var(--a-r-l); padding: 1rem 1.1rem; box-shadow: var(--a-schatten-1); }
+html[data-design='apple'] .kw h2 { font: var(--a-title2); letter-spacing: var(--a-tracking-gross); }
+html[data-design='apple'] .kw h3 { font: var(--a-headline); letter-spacing: var(--a-tracking-text); text-transform: none; color: var(--a-text); display: inline-flex; align-items: center; gap: 0.35rem; }
+html[data-design='apple'] .kw h3 .a-symbol { color: var(--a-blau); }
+
+/* Knöpfe: getönt (sekundär), Not-Aus gefüllt rot; Druck-Feedback sofort */
+html[data-design='apple'] .kw button.kw-knopf { font: 600 0.9375rem/1.2 var(--a-schrift); padding: 0.45rem 0.95rem; min-height: 2.1rem; display: inline-flex; align-items: center; gap: 0.3rem; border: 0; border-radius: var(--a-r-voll); background: color-mix(in srgb, var(--a-blau) 15%, transparent); color: var(--a-blau); transition: transform var(--a-dauer-kurz) var(--a-feder-ruhig), background var(--a-dauer-kurz); }
+html[data-design='apple'] .kw button.kw-knopf:hover { border-color: transparent; background: color-mix(in srgb, var(--a-blau) 22%, transparent); }
+html[data-design='apple'] .kw button.kw-notaus { background: var(--a-rot); color: white; }
+html[data-design='apple'] .kw button:active:not(:disabled) { transform: scale(0.97); transition-duration: 60ms; }
+html[data-design='apple'] .kw-zurueck { display: inline-flex; align-items: center; gap: 0.15rem; font: var(--a-body); }
+
+/* Kopf: Name als Titel, Konto als große Zahl */
+html[data-design='apple'] .kw-avatar { width: 3rem; height: 3rem; border-radius: 14px; border: 0; background: var(--a-fuellung); font-size: 1.6rem; color: var(--a-blau); }
+html[data-design='apple'] .kw-name { font: var(--a-title2); letter-spacing: var(--a-tracking-gross); gap: 0.45rem; flex-wrap: wrap; }
+html[data-design='apple'] .kw-zeile { font: var(--a-footnote); color: var(--a-text2); gap: 0.25rem 0.75rem; }
+html[data-design='apple'] .kw-pille { font: 600 0.6875rem/1.4 var(--a-schrift); letter-spacing: 0.04em; padding: 0.1rem 0.5rem; border: 0; border-radius: var(--a-r-voll); background: color-mix(in srgb, var(--a-blau) 15%, transparent); color: var(--a-blau); }
+html[data-design='apple'] .kw-pille.live { background: color-mix(in srgb, var(--a-rot) 16%, transparent); color: var(--a-rot); }
+html[data-design='apple'] .kw-pille.kw-von { background: var(--a-fuellung); color: var(--a-text); }
+html[data-design='apple'] .kw-online { font: var(--a-footnote); color: var(--a-gruen); }
+html[data-design='apple'] .kw-online::before { box-shadow: none; width: 0.45rem; height: 0.45rem; }
+html[data-design='apple'] .kw-online.aus { color: var(--a-text2); }
+html[data-design='apple'] .kw-konto strong { font: var(--a-large-title); letter-spacing: var(--a-tracking-gross); font-variant-numeric: tabular-nums; }
+html[data-design='apple'] .kw-konto span { font: var(--a-subhead); color: var(--a-text2); }
+html[data-design='apple'] .kw-konto span b { font-weight: 600; }
+
+/* Token-Leiste (Kapseln) und Stunden (Balken wie Bildschirmzeit) */
+html[data-design='apple'] .kw-token { border: 0; background: var(--a-fuellung); font: var(--a-subhead); padding: 0.35rem 0.75rem; min-height: 2rem; }
+html[data-design='apple'] .kw-token.aktiv { background: color-mix(in srgb, var(--a-blau) 14%, transparent); box-shadow: inset 0 0 0 1.5px var(--a-blau); }
+html[data-design='apple'] .kw-token b { font-weight: 600; }
+html[data-design='apple'] .kw-pillen { scrollbar-width: none; }
+html[data-design='apple'] .kw-stunden { gap: 4px; margin-top: 0.75rem; }
+html[data-design='apple'] .kw-stunden div { font: var(--a-caption2); border: 0; border-radius: 6px; background: var(--a-fuellung); color: var(--a-text2); padding: 0.3rem 0; }
+html[data-design='apple'] .kw-stunden div.plus { background: color-mix(in srgb, var(--a-gruen) 26%, transparent); color: var(--a-text); }
+html[data-design='apple'] .kw-stunden div.minus { background: color-mix(in srgb, var(--a-rot) 24%, transparent); color: var(--a-text); }
+html[data-design='apple'] .kw-stunden div.jetzt { box-shadow: inset 0 0 0 2px var(--a-blau); color: var(--a-blau); font-weight: 700; }
+
+/* Chart-Kopf: Segmented Control für den Takt, Kapsel für die Lage */
+html[data-design='apple'] .kw-ohlc { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .kw-ohlc b { color: var(--a-text); font-weight: 600; }
+html[data-design='apple'] .kw-lage { font: 600 0.75rem/1.4 var(--a-schrift); border: 0; border-radius: var(--a-r-voll); padding: 0.15rem 0.6rem; background: var(--a-fuellung); color: var(--a-text2); }
+html[data-design='apple'] .kw-lage.long { background: color-mix(in srgb, var(--a-gruen) 18%, transparent); color: var(--a-gruen); }
+html[data-design='apple'] .kw-letzter { font: var(--a-footnote); opacity: 1; color: var(--a-text2); }
+html[data-design='apple'] .kw-takte { border: 0; border-radius: 9px; padding: 2px; gap: 0; background: var(--a-fuellung); max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+html[data-design='apple'] .kw-takte button { font: 500 0.8125rem/1.2 var(--a-schrift); color: var(--a-text); opacity: 1; padding: 0.3rem 0.75rem; min-height: 1.75rem; border-radius: 7px; white-space: nowrap; transition: background var(--a-dauer-kurz) var(--a-feder-ruhig), box-shadow var(--a-dauer-kurz); }
+html[data-design='apple'] .kw-takte button.an { background: var(--a-segment-an); color: var(--a-text); font-weight: 600; box-shadow: 0 1px 3px rgb(0 0 0 / 0.12), 0 0 0 0.5px rgb(0 0 0 / 0.04); }
+
+/* Zoom als Glas-Kapseln über dem Chart, Fadenkreuz-Tooltip als Glas-Kapsel */
+html[data-design='apple'] .kw-zoom { left: 0.5rem; top: 0.4rem; gap: 4px; }
+html[data-design='apple'] .kw-zoom button { font: 600 0.8125rem/1 var(--a-schrift); min-width: 2rem; min-height: 1.75rem; padding: 0.3rem 0.6rem; border: 0.5px solid var(--a-glas-rand); border-radius: var(--a-r-voll); background: var(--a-glas); -webkit-backdrop-filter: var(--a-glas-blur); backdrop-filter: var(--a-glas-blur); color: var(--a-blau); box-shadow: var(--a-schatten-1); }
+html[data-design='apple'] .kw-zoom button:disabled { opacity: 0.4; }
+html[data-design='apple'] .kw-fadenkreuz,
+html[data-design='apple'] .kw-popup { border: 0.5px solid var(--a-glas-rand); border-radius: 14px; background: var(--a-glas); -webkit-backdrop-filter: var(--a-glas-blur); backdrop-filter: var(--a-glas-blur); box-shadow: var(--a-glas-schatten); font: var(--a-footnote); font-variant-numeric: tabular-nums; color: var(--a-text); padding: 0.5rem 0.75rem; }
+html[data-design='apple'] .kw-fadenkreuz b { font-weight: 600; }
+html[data-design='apple'] .kw-tip-zeile i { width: 0.5rem; height: 0.5rem; }
+
+/* Agent: ruhiger Kern, Module als kleine Karten ohne Leuchten */
+html[data-design='apple'] .kw-kern { background: var(--a-flaeche2); border: 0; box-shadow: none; }
+html[data-design='apple'] .kw-kern::before { border-width: 2px; border-top-color: var(--a-blau); border-right-color: color-mix(in srgb, var(--a-blau) 30%, transparent); }
+html[data-design='apple'] .kw-kern span { font: var(--a-caption); color: var(--a-text2); }
+html[data-design='apple'] .kw-kern b .a-symbol, html[data-design='apple'] .kw-avatar .a-symbol { color: var(--a-blau); }
+html[data-design='apple'] .kw-modul { background: var(--a-flaeche2); border: 0; border-radius: 12px; padding: 0.35rem 0.45rem; transition: box-shadow var(--a-dauer) var(--a-feder-ruhig); }
+html[data-design='apple'] .kw-modul.leuchtet.gut { box-shadow: inset 0 0 0 1.5px var(--a-gruen); }
+html[data-design='apple'] .kw-modul.leuchtet.schlecht { box-shadow: inset 0 0 0 1.5px var(--a-rot); }
+html[data-design='apple'] .kw-modul.leuchtet.neutral { box-shadow: inset 0 0 0 1.5px var(--a-blau); }
+html[data-design='apple'] .kw-modul-kopf { font: 600 0.75rem/1.3 var(--a-schrift); }
+html[data-design='apple'] .kw-modul-kopf i { color: white; border-radius: 6px; font-weight: 700; }
+html[data-design='apple'] .kw-modul p { font: var(--a-caption2); color: var(--a-text2); }
+
+/* Volumen/X/PnL: Balken (Health), Listen, Kennzahlen */
+html[data-design='apple'] .kw-balken { gap: 3px; height: 5rem; }
+html[data-design='apple'] .kw-balken span { border-radius: 3px 3px 1px 1px; }
+html[data-design='apple'] .kw-liste { font: var(--a-subhead); gap: 0.6rem; }
+html[data-design='apple'] .kw-fortschritt { height: 4px; border-radius: 2px; background: var(--a-fuellung); }
+html[data-design='apple'] .kw-fortschritt b { background: var(--a-blau); border-radius: 2px; }
+html[data-design='apple'] .kw-zahlen { gap: 0.6rem; margin-top: 0.75rem; }
+html[data-design='apple'] .kw-zahlen div { background: var(--a-flaeche2); border-radius: var(--a-r-m); padding: 0.6rem 0.75rem; }
+html[data-design='apple'] .kw-zahlen span { font: var(--a-footnote); text-transform: none; letter-spacing: 0; color: var(--a-text2); }
+html[data-design='apple'] .kw-zahlen strong { font: var(--a-title3); letter-spacing: var(--a-tracking-text); font-variant-numeric: tabular-nums; }
+
+/* Euro: sekundäre Zeile (unter Zahlen) bzw. sekundäre Farbe im Fließtext */
+html[data-design='apple'] .hafen-eur { color: var(--a-text2); opacity: 1; font-weight: 400; }
+html[data-design='apple'] :is(.kw-zahlen strong, .kw-konto, .hafen-zahlen b) > .hafen-eur { display: block; font: var(--a-caption); letter-spacing: 0; white-space: nowrap; }
+html[data-design='apple'] .kw-zahlen strong > .hafen-eur { font: var(--a-caption); }
+
+/* Protokolle: Liste mit eingerückten Trennern */
+html[data-design='apple'] .kw-eintraege { gap: 0; font: var(--a-footnote); font-variant-numeric: tabular-nums; margin-top: 0.6rem; }
+html[data-design='apple'] .kw-eintraege li { background: transparent; border-radius: 0; padding: 0.5rem 0.1rem; border-bottom: 0.5px solid var(--a-trenner-fein); }
+html[data-design='apple'] .kw-eintraege li:last-child { border-bottom: 0; }
+html[data-design='apple'] .kw-eintraege li span:first-child { color: var(--a-text2); }
+html[data-design='apple'] .kw-tag { font-weight: 600; font-size: 0.75rem; }
+html[data-design='apple'] .kw-tag.buy, html[data-design='apple'] .kw-tag.kauf { color: var(--a-gruen); }
+html[data-design='apple'] .kw-tag.sell, html[data-design='apple'] .kw-tag.verkauf { color: var(--a-blau); }
+html[data-design='apple'] .kw-tag.block, html[data-design='apple'] .kw-tag.fehlschlag { color: var(--a-rot); }
+html[data-design='apple'] .kw-tag.hold { color: var(--a-text2); }
+
+/* Echtzeit, Muster-Rat, Alarme */
+html[data-design='apple'] .kw-echtzeit { gap: 0.75rem; }
+html[data-design='apple'] .kw-token-kerzen { background: var(--a-flaeche2); border: 0; border-radius: var(--a-r-m); padding: 0.6rem 0.7rem; }
+html[data-design='apple'] .kw-token-kerzen .zeile { font: var(--a-footnote); }
+html[data-design='apple'] .kw-token-kerzen .kw-gehalten { color: var(--a-blau); }
+html[data-design='apple'] .kw-token-kerzen.alarm-anstieg { box-shadow: inset 0 0 0 1.5px var(--a-gruen); }
+html[data-design='apple'] .kw-token-kerzen.alarm-absturz { box-shadow: inset 0 0 0 1.5px var(--a-rot); }
+html[data-design='apple'] .kw-alarm { display: inline-flex; align-items: center; gap: 0.2rem; font: 700 0.6875rem/1.4 var(--a-schrift); letter-spacing: 0.03em; border-radius: var(--a-r-voll); padding: 0.05rem 0.5rem; box-shadow: none; color: white; }
+html[data-design='apple'] .kw-alarm.anstieg { background: var(--a-gruen); }
+html[data-design='apple'] .kw-alarm.absturz { background: var(--a-rot); }
+html[data-design='apple'] .kw-frueh { border: 0; background: color-mix(in srgb, var(--a-blau) 15%, transparent); color: var(--a-blau); font: 600 0.6875rem/1.4 var(--a-schrift); }
+html[data-design='apple'] .kw-rat { font-weight: 700; }
+html[data-design='apple'] .kw-rat.kaufen { color: var(--a-gruen); }
+html[data-design='apple'] .kw-rat.raus { color: var(--a-rot); }
+html[data-design='apple'] .kw-rat.halten { color: var(--a-blau); }
+html[data-design='apple'] .kw-signale { font: var(--a-footnote); gap: 0.15rem 0.75rem; }
+html[data-design='apple'] .kw-signale span { display: inline-flex; align-items: center; gap: 0.2rem; }
+html[data-design='apple'] .kw-signale .gefahr { color: var(--a-rot); font-weight: 600; }
+html[data-design='apple'] .kw-verlauf { font: var(--a-footnote); color: var(--a-text2); opacity: 1; display: flex; align-items: center; gap: 0.3rem; }
+
+/* ───────────── Muster-Kielwasser ───────────── */
+html[data-design='apple'] .mk-modelle { gap: 0.35rem; }
+html[data-design='apple'] .mk-modelle li { background: var(--a-flaeche2); border: 0; border-radius: var(--a-r-m); }
+html[data-design='apple'] .mk-modelle li.an { box-shadow: inset 0 0 0 1.5px var(--a-blau); }
+html[data-design='apple'] .mk-modelle button { padding: 0.5rem 0.6rem; min-height: 2.75rem; }
+html[data-design='apple'] .mk-modelle button:focus-visible { outline: 3px solid color-mix(in srgb, var(--a-blau) 70%, transparent); outline-offset: -3px; border-radius: var(--a-r-m); }
+html[data-design='apple'] .mk-name { font: 600 0.875rem/1.3 var(--a-schrift); }
+html[data-design='apple'] .mk-wert { font: var(--a-caption); color: var(--a-text2); }
+html[data-design='apple'] .mk-balken i { height: 6px; border-radius: 3px; }
+html[data-design='apple'] .mk-balken i.vergleich { background: var(--a-text3); opacity: 1; }
+html[data-design='apple'] .mk-entscheidung { font: 600 0.6875rem/1.4 var(--a-schrift); border: 0; border-radius: var(--a-r-voll); padding: 0.1rem 0.5rem; background: var(--a-fuellung); color: var(--a-text2); }
+html[data-design='apple'] .mk-entscheidung.uebernommen { background: color-mix(in srgb, var(--a-gruen) 18%, transparent); color: var(--a-gruen); }
+html[data-design='apple'] .mk-entscheidung.behaelt { background: color-mix(in srgb, var(--a-blau) 15%, transparent); color: var(--a-blau); }
+html[data-design='apple'] .mk-entscheidung.nicht_aktiv { color: var(--a-rot); }
+html[data-design='apple'] .mk-chips { gap: 0.4rem; }
+html[data-design='apple'] .mk-chips button,
+html[data-design='apple'] .kw-legende button { font: var(--a-footnote); min-height: 1.9rem; padding: 0.25rem 0.7rem; border: 0; border-radius: var(--a-r-voll); background: var(--a-fuellung); color: var(--a-text2); }
+html[data-design='apple'] .mk-chips button.an,
+html[data-design='apple'] .kw-legende button.an { color: var(--a-text); background: var(--a-fuellung2); }
+html[data-design='apple'] .kw-legende button { color: var(--a-text); }
+html[data-design='apple'] .mk-chips i, html[data-design='apple'] .kw-legende i { border-top-width: 2px; }
+html[data-design='apple'] .mk-achse { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .mk-hinweis { color: var(--a-blau); font: var(--a-footnote); }
+html[data-design='apple'] .mk-status { font: var(--a-footnote); }
+html[data-design='apple'] .mk-klein { font: var(--a-caption); }
+html[data-design='apple'] .kw label.mk-auswahl { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .kw .mk-auswahl select { font: var(--a-subhead); color: var(--a-blau); background: var(--a-fuellung); border: 0; border-radius: var(--a-r-s); padding: 0.35rem 0.6rem; min-height: 2rem; }
+
+/* Konsole im Stil der Konsolen-App: Monospace, Zeilen leicht gestreift, Stufe farbig */
+html[data-design='apple'] .muster-konsole { --mk-gut: var(--a-gruen); --mk-warnung: var(--a-orange); --mk-fehler: var(--a-rot); --mk-entscheidung: var(--a-indigo); }
+html[data-design='apple'] .mk-leiste { font: var(--a-footnote); color: var(--a-text2); gap: 0.5rem 0.75rem; }
+html[data-design='apple'] .kw-eintraege.mk-feld { font: 400 0.75rem/1.5 var(--a-schrift-mono); background: var(--a-flaeche); border: 0.5px solid var(--a-trenner); border-radius: 10px; padding: 0; }
+html[data-design='apple'] .kw-eintraege.mk-feld li { padding: 0.2rem 0.6rem; border-bottom: 0; }
+html[data-design='apple'] .kw-eintraege.mk-feld li:nth-child(even) { background: color-mix(in srgb, var(--a-fuellung) 55%, transparent); }
+html[data-design='apple'] .kw-eintraege.mk-feld li .mk-zeit { color: var(--a-text2); }
+html[data-design='apple'] .kw-eintraege.mk-feld li .mk-bereich { color: var(--a-text2); }
+html[data-design='apple'] .kw-eintraege.mk-feld li.entscheidung { border-left: 3px solid var(--mk-entscheidung); padding-left: calc(0.6rem - 3px); }
+html[data-design='apple'] .kw-eintraege.mk-feld li.entscheidung .mk-text { font-weight: 600; }
+
+/* ───────────── Flotte (im Gebäude) ───────────── */
+html[data-design='apple'] .hafen h3 { display: inline-flex; align-items: center; gap: 0.35rem; }
+html[data-design='apple'] .hafen h3 .a-symbol, html[data-design='apple'] .hafen h4 .a-symbol { color: var(--a-blau); }
+html[data-design='apple'] .hafen-ampel { display: inline-block; width: 0.5rem; height: 0.5rem; border-radius: 50%; margin-right: 0.35rem; vertical-align: 0.05em; background: var(--a-grau); }
+html[data-design='apple'] .hafen-ampel.an { background: var(--a-gruen); }
+html[data-design='apple'] .hafen-ampel.aus { background: var(--a-rot); }
+html[data-design='apple'] .hafen-hinweis { border-left: 0; border-radius: var(--a-r-m); padding: 0.75rem 0.9rem; background: color-mix(in srgb, var(--a-blau) 9%, var(--a-flaeche)); font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .hafen-bots { grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr)); gap: 0.9rem; }
+/* Bot-Karte wie eine Wallet-Karte: Farbe des Bots als Tönung oben, keine Linie */
+html[data-design='apple'] .hafen-bot { border: 0 !important; border-radius: var(--a-r-l) !important; padding: 1rem 1.05rem !important; gap: 0.7rem; background: linear-gradient(160deg, color-mix(in srgb, var(--bot-farbe, var(--a-blau)) 20%, var(--a-flaeche)) 0%, var(--a-flaeche) 58%) !important; box-shadow: var(--a-schatten-2) !important; }
+html[data-design='apple'] .hafen-bot-kopf { gap: 0.7rem; }
+html[data-design='apple'] .hafen-bot-kopf .avatar { display: grid; place-items: center; width: 2.6rem; height: 2.6rem; flex: none; border-radius: 50%; font-size: 1.35rem; background: color-mix(in srgb, var(--bot-farbe, var(--a-blau)) 22%, var(--a-flaeche)); }
+html[data-design='apple'] .hafen-bot-kopf strong:first-child { font: var(--a-headline); }
+html[data-design='apple'] .hafen-bot-kopf > strong { font: var(--a-title3); font-variant-numeric: tabular-nums; }
+html[data-design='apple'] .hafen-bot-kopf .leise { font: var(--a-footnote) !important; color: var(--a-text2); }
+html[data-design='apple'] .hafen-zahlen { gap: 0.7rem 0.6rem; }
+html[data-design='apple'] .hafen-zahlen span { font: var(--a-caption); color: var(--a-text2); }
+html[data-design='apple'] .hafen-zahlen b { font: 600 0.9375rem/1.3 var(--a-schrift); font-variant-numeric: tabular-nums; }
+html[data-design='apple'] .hafen-knoepfe { gap: 0.5rem; }
+html[data-design='apple'] .hafen-wallet { font: var(--a-footnote); }
+html[data-design='apple'] .hafen-wallet code { font: 0.75rem var(--a-schrift-mono); }
+html[data-design='apple'] .hafen-notaus { background: var(--a-rot) !important; color: white !important; border: 0 !important; box-shadow: none !important; font-weight: 600; }
+html[data-design='apple'] .hafen-live { color: var(--a-rot); }
+html[data-design='apple'] .hafen-scharf { box-shadow: inset 0 0 0 2px var(--a-rot) !important; }
+html[data-design='apple'] .hafen-von { border: 0; background: color-mix(in srgb, var(--a-indigo) 15%, transparent); color: var(--a-indigo); font: 600 0.6875rem/1.4 var(--a-schrift); padding: 0.1rem 0.5rem; }
+html[data-design='apple'] .hafen section[aria-label='Vergleich der Bots'] svg polyline { stroke-width: 1.75; stroke-linecap: round; }
+html[data-design='apple'] .hafen section[aria-label='Vergleich der Bots'] svg { color: var(--a-text2); font-family: var(--a-schrift); }
+html[data-design='apple'] .hafen section[aria-label='Vergleich der Bots'] svg line { opacity: 0.25; }
+html[data-design='apple'] .hafen .diagramm-legende { font: var(--a-footnote); }
+/* Formular: Gruppen wie Inset-Grouped (Überschrift als Footnote in Großbuchstaben) */
+html[data-design='apple'] .hafen-formular fieldset { border: 0; border-radius: var(--a-r-m); background: var(--a-flaeche2); padding: 0.8rem 0.9rem; margin: 1.6rem 0 0.8rem; gap: 0.7rem 0.9rem; position: relative; }
+html[data-design='apple'] .hafen-formular legend { position: absolute; top: -1.4rem; left: 0.9rem; padding: 0; font: var(--a-footnote); text-transform: uppercase; letter-spacing: 0.02em; color: var(--a-text2); }
+html[data-design='apple'] .hafen-formular label { font: var(--a-subhead); gap: 0.25rem; }
+html[data-design='apple'] .hafen-trades { font: var(--a-footnote); gap: 0; }
+html[data-design='apple'] .hafen-trades li { padding: 0.4rem 0; border-bottom: 0.5px solid var(--a-trenner-fein); }
+html[data-design='apple'] .hafen-trades li span:first-child { color: var(--a-text2); }
+/* Muster-Modell in der Flotte */
+html[data-design='apple'] .hafen-muster-pille { border: 0; font: 600 0.75rem/1.4 var(--a-schrift); padding: 0.15rem 0.6rem; background: var(--a-fuellung); color: var(--a-text2); }
+html[data-design='apple'] .hafen-muster-pille.an { background: color-mix(in srgb, var(--a-gruen) 18%, transparent); color: var(--a-gruen); }
+html[data-design='apple'] .hafen-merkmale { font: var(--a-footnote); }
+html[data-design='apple'] .hafen-merkmale li i { background: var(--a-blau); height: 6px; }
+html[data-design='apple'] .hafen-muster-fortschritt { background: var(--a-fuellung); height: 1.5rem; }
+html[data-design='apple'] .hafen-muster-fortschritt b { background: color-mix(in srgb, var(--a-blau) 45%, transparent); }
+html[data-design='apple'] .hafen-muster-fortschritt span { font: 600 0.8125rem/1 var(--a-schrift); }
+html[data-design='apple'] .hafen-modelle { font: var(--a-footnote); }
+html[data-design='apple'] .hafen-modelle th { font-weight: 600; color: var(--a-text2); }
+html[data-design='apple'] .hafen-modelle th, html[data-design='apple'] .hafen-modelle td { padding: 0.4rem 0.5rem; border-bottom: 0.5px solid var(--a-trenner-fein); }
+html[data-design='apple'] .hafen-modelle .mono { font-family: var(--a-schrift); font-variant-numeric: tabular-nums; }
+html[data-design='apple'] .hafen-punkt { width: 0.5rem; height: 0.5rem; background: var(--a-text3); }
+html[data-design='apple'] .hafen-punkt.an { background: var(--a-gruen); }
+html[data-design='apple'] .hafen-kursvorhersage h4 { font: var(--a-headline); display: inline-flex; align-items: center; gap: 0.35rem; }
+html[data-design='apple'] .hafen-kursvorhersage p { font: var(--a-footnote); }
+html[data-design='apple'] .hafen-gruende { font: var(--a-caption); }
+
+/* ───────────── Börse ───────────── */
+/* Grün/Rot als Text: etwas dunkler bzw. heller gemischt, damit es AA erreicht (Diagramme behalten die reinen Systemfarben) */
+html[data-design='apple'] :is(.boerse, .boerse-analyse, .boerse-rechner, .hafen) .plus { color: color-mix(in srgb, var(--a-gruen) 66%, var(--a-text)); }
+html[data-design='apple'] :is(.boerse, .boerse-analyse, .boerse-rechner, .hafen) .minus { color: color-mix(in srgb, var(--a-rot) 84%, var(--a-text)); }
+/* Kennzahlen-Kacheln: Karten mit großer Zahl */
+html[data-design='apple'] :is(.boerse, .boerse-analyse, .boerse-rechner) .bank-kacheln { gap: 0.75rem; }
+html[data-design='apple'] :is(.boerse, .boerse-analyse, .boerse-rechner) .bank-kachel { border: 0; border-radius: var(--a-r-m); background: var(--a-flaeche); box-shadow: var(--a-schatten-1); padding: 0.75rem 0.9rem; gap: 0.15rem; min-width: 0; }
+html[data-design='apple'] :is(.boerse, .boerse-analyse, .boerse-rechner) .karte .bank-kachel { background: var(--a-flaeche2); box-shadow: none; }
+html[data-design='apple'] :is(.boerse, .boerse-analyse, .boerse-rechner) .bank-kachel > .leise { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] :is(.boerse, .boerse-analyse, .boerse-rechner) .bank-kachel strong { font: var(--a-title2); letter-spacing: var(--a-tracking-gross); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  html[data-design='apple'] :is(.boerse, .boerse-analyse, .boerse-rechner) .bank-kachel strong { font: var(--a-headline); }
+}
+/* Zeitraum/Anzeige/Rechner: Segmented Control (wie 1T · 1W · 1M in Aktien) */
+html[data-design='apple'] .ba-chips:is([role='group'], [role='tablist']) { display: inline-flex; flex-wrap: nowrap; gap: 0; padding: 2px; border-radius: 9px; background: var(--a-fuellung); max-width: 100%; overflow-x: auto; scrollbar-width: none; --a-segment-an: var(--a-flaeche); }
+html[data-design='apple'][data-dunkel='ja'] .ba-chips:is([role='group'], [role='tablist']) { --a-segment-an: color-mix(in srgb, var(--a-grau) 52%, var(--a-flaeche)); }
+html[data-design='apple'] .ba-chips:is([role='group'], [role='tablist']) > button,
+html[data-design='apple'] .ba-chips:is([role='group'], [role='tablist']) > button.klein { flex: none; margin: 0; border: 0 !important; box-shadow: none !important; background: transparent !important; color: var(--a-text) !important; font: 500 0.8125rem/1.2 var(--a-schrift) !important; padding: 0.35rem 0.8rem !important; min-height: 1.85rem; border-radius: 7px !important; white-space: nowrap; display: inline-flex; align-items: center; gap: 0.3rem; transition: background var(--a-dauer-kurz) var(--a-feder-ruhig); }
+html[data-design='apple'] .ba-chips:is([role='group'], [role='tablist']) > button:is(.an, [aria-pressed='true'], [aria-selected='true']) { background: var(--a-segment-an) !important; font-weight: 600 !important; box-shadow: 0 1px 3px rgb(0 0 0 / 0.12), 0 0 0 0.5px rgb(0 0 0 / 0.04) !important; }
+html[data-design='apple'] .ba-chips:is([role='group'], [role='tablist']) > :is(input, label) { margin: 0 0.25rem; }
+html[data-design='apple'] .ba-chips:is([role='group'], [role='tablist']) .a-symbol { color: var(--a-blau); }
+html[data-design='apple'] .ba-leiste { gap: 0.6rem 1rem; }
+/* Diagramme: leise Achsen, feine Linie, Fadenkreuz-Tooltip als Glas-Kapsel */
+html[data-design='apple'] .diagramm svg { font-family: var(--a-schrift); }
+html[data-design='apple'] .diagramm-gitter { stroke: var(--a-trenner-fein); }
+html[data-design='apple'] .diagramm-null { stroke: var(--a-text3); stroke-dasharray: 2 3; }
+html[data-design='apple'] .diagramm-achse { fill: var(--a-text2); font-size: 11px; font-family: var(--a-schrift); }
+html[data-design='apple'] .diagramm-zeiger { stroke: var(--a-text3); stroke-dasharray: none; }
+html[data-design='apple'] .diagramm-referenz { stroke: var(--a-orange); stroke-width: 1.25; stroke-dasharray: 2 3; }
+html[data-design='apple'] .diagramm-referenz-text { fill: var(--a-orange); font-weight: 600; }
+html[data-design='apple'] .diagramm-tip { border: 0.5px solid var(--a-glas-rand) !important; border-radius: 14px !important; background: var(--a-glas); -webkit-backdrop-filter: var(--a-glas-blur); backdrop-filter: var(--a-glas-blur); box-shadow: var(--a-glas-schatten) !important; font: var(--a-footnote); font-variant-numeric: tabular-nums; color: var(--a-text); padding: 0.5rem 0.75rem; }
+html[data-design='apple'] .diagramm-legende { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .sparkline path { stroke-width: 1.5; }
+html[data-design='apple'] .sparkline .sparkline-plus { stroke: var(--a-gruen); }
+html[data-design='apple'] .sparkline .sparkline-minus { stroke: var(--a-rot); }
+html[data-design='apple'] .saxo-verlauf svg { color: var(--a-blau); background: transparent; height: 160px; }
+html[data-design='apple'] .saxo-verlauf[data-richtung='plus'] svg { color: var(--a-gruen); }
+html[data-design='apple'] .saxo-verlauf[data-richtung='minus'] svg { color: var(--a-rot); }
+html[data-design='apple'] .saxo-verlauf figcaption { font: var(--a-footnote); }
+html[data-design='apple'] .anteile-balken { border-radius: 6px; gap: 2px; background: var(--a-fuellung); height: 1rem; }
+html[data-design='apple'] .anteile-liste { font: var(--a-subhead); }
+html[data-design='apple'] .anteile-zahl { font-variant-numeric: tabular-nums; }
+/* Tabellen in der Börse: Zahlen tabellarisch, Trenner fein */
+html[data-design='apple'] :is(.boerse, .boerse-analyse, .boerse-rechner) table { font-variant-numeric: tabular-nums; }
+html[data-design='apple'] .boerse-tabelle td .leise, html[data-design='apple'] .ba-tabelle td .leise { font: var(--a-caption); color: var(--a-text2); }
+html[data-design='apple'] .ba-sort { font-weight: 600; }
+html[data-design='apple'] .ba-sort:focus-visible, html[data-design='apple'] .ba-auge input:focus-visible + .diagramm-punkt { outline: 3px solid color-mix(in srgb, var(--a-blau) 70%, transparent); }
+html[data-design='apple'] .ba-link { color: var(--a-blau); text-decoration: none; font-weight: 600; }
+html[data-design='apple'] .ba-monate, html[data-design='apple'] .ba-korrelation { border-spacing: 3px; font: var(--a-caption); font-variant-numeric: tabular-nums; }
+html[data-design='apple'] .ba-monate th, html[data-design='apple'] .ba-korrelation th { font-weight: 600; color: var(--a-text2); }
+html[data-design='apple'] .ba-monate td, html[data-design='apple'] .ba-korrelation td { border-radius: 6px; }
+html[data-design='apple'] .ba-gv li.ba-gv-kopf { font: var(--a-footnote); text-transform: uppercase; letter-spacing: 0.02em; color: var(--a-text2); font-weight: 400; }
+html[data-design='apple'] .ba-gv ol { font: var(--a-subhead); }
+html[data-design='apple'] .ba-ziel-balken { border: 0; background: var(--a-fuellung); height: 0.6rem; }
+html[data-design='apple'] .ba-ziel-balken span { background: var(--a-blau); }
+html[data-design='apple'] .ba-schalter { font: var(--a-subhead); font-weight: 400; }
+html[data-design='apple'] .ba-roh code { background: var(--a-flaeche2); font-family: var(--a-schrift-mono); border-radius: var(--a-r-s); }
+/* Rechner */
+html[data-design='apple'] .rechner-feld { font: var(--a-footnote); font-weight: 400; color: var(--a-text2); }
+html[data-design='apple'] .rechner-eingabe input { font: var(--a-body); font-variant-numeric: tabular-nums; color: var(--a-text); }
+html[data-design='apple'] .rechner-ergebnis { font: var(--a-callout); }
+/* Berater: Karten mit Symbol-Kachel */
+html[data-design='apple'] .berater-karten { gap: 0.9rem; }
+html[data-design='apple'] .berater-karten > button.berater-karte { border: 0 !important; border-radius: var(--a-r-l) !important; background: var(--a-flaeche) !important; box-shadow: var(--a-schatten-1) !important; color: var(--a-text) !important; padding: 1rem 1.05rem !important; gap: 0.35rem; text-align: left; font: var(--a-body); transition: transform var(--a-dauer-kurz) var(--a-feder-ruhig), box-shadow var(--a-dauer-kurz); }
+html[data-design='apple'] .berater-karten > button.berater-karte:active:not(:disabled) { transform: scale(0.98); }
+html[data-design='apple'] .berater-karten > button.berater-karte.aktiv { box-shadow: inset 0 0 0 2px var(--a-blau), var(--a-schatten-1) !important; }
+html[data-design='apple'] .berater-karte strong { font: var(--a-headline); }
+html[data-design='apple'] .berater-karte .leise { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .berater-symbol { display: grid; place-items: center; width: 2.6rem; height: 2.6rem; border-radius: 12px; font-size: 1.35rem; background: color-mix(in srgb, var(--a-blau) 13%, transparent); color: var(--a-blau); margin-bottom: 0.25rem; }
+html[data-design='apple'] .berater-berichte { font: var(--a-subhead); }
+
+/* ───────────── Paketwerk: Terminal im Stil von macOS ───────────── */
+html[data-design='apple'] .pw h1 { font: var(--a-large-title); letter-spacing: var(--a-tracking-gross); display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+html[data-design='apple'] .pw h1 .a-symbol { color: var(--a-blau); }
+html[data-design='apple'] .pw h2 { font: var(--a-title3); letter-spacing: var(--a-tracking-text); margin-top: 1.5rem; }
+html[data-design='apple'] .pw-konsole {
+  --pw-grund: color-mix(in srgb, var(--a-grau) 14%, black);
+  --pw-text: color-mix(in srgb, white 90%, var(--a-grau));
+  --pw-leise: color-mix(in srgb, white 55%, var(--a-grau));
+  background: var(--pw-grund);
+  color: var(--pw-text);
+  border-radius: var(--a-r-m);
+  padding: 0.75rem 0.9rem;
+  gap: 0.5rem;
+  box-shadow: var(--a-schatten-2);
+  border: 0.5px solid color-mix(in srgb, white 10%, transparent);
+}
+html[data-design='apple'] .pw-ausgabe { font: 400 0.8125rem/1.5 var(--a-schrift-mono); color: var(--pw-text); }
+html[data-design='apple'] .pw-prompt { font-family: var(--a-schrift-mono); color: var(--a-gruen); }
+html[data-design='apple'] .pw-eingabe { font: 400 0.875rem/1.4 var(--a-schrift-mono) !important; background: color-mix(in srgb, white 7%, transparent) !important; color: var(--pw-text) !important; border: 0.5px solid color-mix(in srgb, white 16%, transparent) !important; border-radius: 7px !important; padding: 0.4rem 0.6rem !important; min-height: 2.1rem; caret-color: var(--a-gruen); }
+html[data-design='apple'] .pw-eingabe::placeholder { color: var(--pw-leise); }
+html[data-design='apple'] .pw-eingabe:focus-visible { outline: 3px solid color-mix(in srgb, var(--a-blau) 70%, transparent) !important; outline-offset: 1px; }
+html[data-design='apple'] .pw-status { font: 400 0.75rem/1.3 var(--a-schrift-mono); color: var(--pw-leise); }
+html[data-design='apple'] .pw-vorschlag { color: var(--a-gelb); font: var(--a-footnote); }
+html[data-design='apple'] .pw-knoepfe { gap: 0.5rem; margin-top: 0.75rem; }
+html[data-design='apple'] .pw-pakete { gap: 0; background: var(--a-flaeche); border-radius: var(--a-r-m); overflow: hidden; box-shadow: var(--a-schatten-1); }
+html[data-design='apple'] .pw-pakete li { min-height: 2.75rem; padding: 0.4rem 1rem; position: relative; }
+html[data-design='apple'] .pw-pakete li + li::before { content: ''; position: absolute; top: 0; left: 1rem; right: 0; border-top: 0.5px solid var(--a-trenner); }
+html[data-design='apple'] .pw-pakete code { font: var(--a-subhead); font-family: var(--a-schrift-mono); background: transparent; color: var(--a-text); }
+
+/* Symbole in Hafen-Tafeln: hafen.css macht jedes svg in Charts/Token-Kerzen 100 % breit – Symbole bleiben klein */
+html[data-design='apple'] :is(.kw, .hafen) svg.a-symbol { display: inline-block; width: 1.1em; height: 1.1em; margin: 0; vertical-align: -0.16em; flex: none; overflow: visible; }
+html[data-design='apple'] .hafen-kopf .hafen-ampel { margin-left: 0.4rem; }
+html[data-design='apple'] .hafen-bot-kopf .leise .a-symbol { width: 0.9em; height: 0.9em; }
+html[data-design='apple'] .berater-karten > button.berater-karte { white-space: normal; min-width: 0; display: grid; justify-items: start; align-content: start; }
+html[data-design='apple'] .berater-karten { grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); }
+html[data-design='apple'] .berater-schnell > button { white-space: normal; text-align: left; max-width: 100%; }
+html[data-design='apple'] :is(.kw-unten, .kw-protokoll) { align-items: start; }
+
+/* Bank-Kacheln (seiten-wissen.css gestaltet .bank-kachel für die Bank als Wallet mit Hero-Karte) – in der Börse schlichte Kennzahlen-Karten */
+html[data-design='apple'] :is(.boerse, .boerse-analyse, .boerse-rechner) .bank-kacheln { grid-template-areas: none; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); margin-bottom: 1rem; }
+html[data-design='apple'] :is(.boerse, .boerse-analyse, .boerse-rechner) .bank-kacheln > .bank-kachel:nth-child(n) { grid-area: auto; min-height: 0; justify-content: flex-start; padding: 0.75rem 0.9rem; border-radius: var(--a-r-m); background: var(--a-flaeche); color: var(--a-text); box-shadow: var(--a-schatten-1); }
+html[data-design='apple'] :is(.boerse, .boerse-analyse, .boerse-rechner) .karte .bank-kacheln > .bank-kachel:nth-child(n) { background: var(--a-flaeche2); box-shadow: none; }
+html[data-design='apple'] :is(.boerse, .boerse-analyse, .boerse-rechner) .bank-kacheln > .bank-kachel:nth-child(n) > .leise { color: var(--a-text2); font: var(--a-footnote); }
+html[data-design='apple'] :is(.boerse, .boerse-analyse, .boerse-rechner) .bank-kacheln > .bank-kachel:nth-child(n) strong { font: var(--a-title2); letter-spacing: var(--a-tracking-gross); color: var(--a-text); }
+html[data-design='apple'] :is(.boerse, .boerse-analyse, .boerse-rechner) .bank-kacheln > .bank-kachel:nth-child(n) strong.plus { color: color-mix(in srgb, var(--a-gruen) 66%, var(--a-text)); }
+html[data-design='apple'] :is(.boerse, .boerse-analyse, .boerse-rechner) .bank-kacheln > .bank-kachel:nth-child(n) strong.minus { color: color-mix(in srgb, var(--a-rot) 84%, var(--a-text)); }
+@media (max-width: 760px) {
+  html[data-design='apple'] :is(.boerse, .boerse-analyse, .boerse-rechner) .bank-kacheln { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html[data-design='apple'] :is(.boerse, .boerse-analyse, .boerse-rechner) .bank-kacheln > .bank-kachel:nth-child(n) strong { font: var(--a-headline); }
+}

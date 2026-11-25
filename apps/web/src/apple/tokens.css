@@ -1,0 +1,121 @@
+/* E240: Apple-Oberfläche – Grundwerte. Gilt NUR mit html[data-design="apple"]; das Dorf-Design bleibt unberührt.
+   Farben nach den Systemfarben von iOS/macOS (hell/dunkel), Schrift = Systemschrift (auf Apple-Geräten die SF-Familie,
+   sonst die jeweilige Systemschrift – SF-Dateien werden nicht mitgeliefert), Bewegung als kritisch gedämpfte Federn. */
+html[data-design='apple'] {
+  color-scheme: light;
+  /* Hintergründe (grouped) */
+  --a-grund: #f2f2f7; /* systemGroupedBackground */
+  --a-flaeche: #ffffff; /* secondarySystemGroupedBackground – Zellen, Karten */
+  --a-flaeche2: #f2f2f7; /* tertiary – Felder in Zellen */
+  --a-fuellung: rgba(120, 120, 128, 0.12); /* tertiarySystemFill – Suchfeld, Segmente */
+  --a-fuellung2: rgba(120, 120, 128, 0.2);
+  /* Text */
+  --a-text: #000000;
+  --a-text2: rgba(60, 60, 67, 0.6);
+  --a-text3: rgba(60, 60, 67, 0.3);
+  --a-trenner: rgba(60, 60, 67, 0.29);
+  --a-trenner-fein: rgba(60, 60, 67, 0.12);
+  /* Systemfarben */
+  --a-blau: #007aff;
+  --a-gruen: #34c759;
+  --a-rot: #ff3b30;
+  --a-orange: #ff9500;
+  --a-gelb: #ffcc00;
+  --a-lila: #af52de;
+  --a-indigo: #5856d6;
+  --a-pink: #ff2d55;
+  --a-mint: #00c7be;
+  --a-tuerkis: #30b0c7;
+  --a-cyan: #32ade6;
+  --a-braun: #a2845e;
+  --a-grau: #8e8e93;
+  --a-akzent: var(--a-blau);
+  /* Material (Liquid Glass nur für Bedienelemente/Navigation) */
+  --a-glas: rgba(255, 255, 255, 0.72);
+  --a-glas-dicht: rgba(249, 249, 251, 0.9);
+  --a-glas-rand: rgba(255, 255, 255, 0.55);
+  --a-glas-schatten: 0 8px 32px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --a-glas-blur: blur(24px) saturate(180%);
+  --a-scrim: rgba(0, 0, 0, 0.32);
+  /* Formen */
+  --a-r-xl: 28px; /* Sheets, große Karten */
+  --a-r-l: 20px; /* Karten */
+  --a-r-m: 12px; /* Zellen-Gruppen (inset grouped), Felder */
+  --a-r-s: 8px; /* kleine Knöpfe, Chips */
+  --a-r-voll: 999px;
+  --a-schatten-1: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --a-schatten-2: 0 6px 20px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
+  --a-schatten-3: 0 22px 60px rgba(0, 0, 0, 0.18), 0 4px 12px rgba(0, 0, 0, 0.08);
+  /* Schrift (Text Styles) */
+  --a-schrift: -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --a-schrift-rund: ui-rounded, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --a-schrift-mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  --a-large-title: 700 2.125rem/1.2 var(--a-schrift); /* 34 */
+  --a-title1: 700 1.75rem/1.21 var(--a-schrift); /* 28 */
+  --a-title2: 700 1.375rem/1.27 var(--a-schrift); /* 22 */
+  --a-title3: 600 1.25rem/1.25 var(--a-schrift); /* 20 */
+  --a-headline: 600 1.0625rem/1.3 var(--a-schrift); /* 17 */
+  --a-body: 400 1.0625rem/1.3 var(--a-schrift); /* 17 */
+  --a-callout: 400 1rem/1.31 var(--a-schrift); /* 16 */
+  --a-subhead: 400 0.9375rem/1.33 var(--a-schrift); /* 15 */
+  --a-footnote: 400 0.8125rem/1.38 var(--a-schrift); /* 13 */
+  --a-caption: 400 0.75rem/1.33 var(--a-schrift); /* 12 */
+  --a-caption2: 400 0.6875rem/1.18 var(--a-schrift); /* 11 */
+  --a-tracking-gross: -0.022em;
+  --a-tracking-text: -0.01em;
+  /* Bewegung: Federn ohne Überschwingen (Dämpfung 1,0), mit leichtem Nachfedern nur nach Wisch-Gesten */
+  --a-feder: linear(0, 0.009, 0.035 2.1%, 0.141 4.4%, 0.281 6.7%, 0.723 12.9%, 0.938 16.7%, 1.017 20.8%, 1.035 24.2%, 1.025 29%, 1.004 37.4%, 0.998 46.3%, 1);
+  --a-feder-ruhig: cubic-bezier(0.25, 1, 0.5, 1);
+  --a-dauer: 380ms;
+  --a-dauer-kurz: 180ms;
+  /* Inhaltsbreiten */
+  --a-lesebreite: 720px;
+  --a-inhalt: 1180px;
+  --a-seitenleiste: 260px;
+}
+
+html[data-design='apple'][data-dunkel='ja'] {
+  color-scheme: dark;
+  --a-grund: #000000;
+  --a-flaeche: #1c1c1e;
+  --a-flaeche2: #2c2c2e;
+  --a-fuellung: rgba(118, 118, 128, 0.24);
+  --a-fuellung2: rgba(118, 118, 128, 0.32);
+  --a-text: #ffffff;
+  --a-text2: rgba(235, 235, 245, 0.6);
+  --a-text3: rgba(235, 235, 245, 0.3);
+  --a-trenner: rgba(84, 84, 88, 0.65);
+  --a-trenner-fein: rgba(84, 84, 88, 0.34);
+  --a-blau: #0a84ff;
+  --a-gruen: #30d158;
+  --a-rot: #ff453a;
+  --a-orange: #ff9f0a;
+  --a-gelb: #ffd60a;
+  --a-lila: #bf5af2;
+  --a-indigo: #5e5ce6;
+  --a-pink: #ff375f;
+  --a-mint: #63e6e2;
+  --a-tuerkis: #40c8e0;
+  --a-cyan: #64d2ff;
+  --a-braun: #ac8e68;
+  --a-grau: #98989d;
+  --a-glas: rgba(30, 30, 32, 0.68);
+  --a-glas-dicht: rgba(28, 28, 30, 0.9);
+  --a-glas-rand: rgba(255, 255, 255, 0.12);
+  --a-glas-schatten: 0 8px 32px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --a-scrim: rgba(0, 0, 0, 0.5);
+  --a-schatten-1: none;
+  --a-schatten-2: 0 6px 20px rgba(0, 0, 0, 0.4);
+  --a-schatten-3: 0 22px 60px rgba(0, 0, 0, 0.6);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  html[data-design='apple'] { --a-glas: var(--a-glas-dicht); --a-glas-blur: none; }
+}
+@media (prefers-contrast: more) {
+  html[data-design='apple'] { --a-trenner: rgba(60, 60, 67, 0.6); --a-text2: rgba(60, 60, 67, 0.85); }
+  html[data-design='apple'][data-dunkel='ja'] { --a-trenner: rgba(235, 235, 245, 0.5); --a-text2: rgba(235, 235, 245, 0.85); }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-design='apple'] { --a-feder: ease; --a-dauer: 160ms; }
+}

@@ -7,6 +7,9 @@ import { useLiveEreignis } from '../live';
 import { BILD_ENDUNGEN, TEXT_ENDUNGEN, endung, finden, ordnerVon, useBaum } from '../vaultHilfen';
 import { Dateibaum } from '../komponenten/Dateibaum';
 import { Markdown } from '../komponenten/Markdown';
+import { useDesign } from '../apple/design';
+import { Symbol } from '../apple/Ikon';
+import { Chevron, Em } from '../apple/wissen-teile';
 // Schwere Teile (PDF-Anzeige, Editor) erst laden, wenn sie gebraucht werden – wichtig fürs Handy.
 const Editor = lazy(() => import('../komponenten/Editor').then((m) => ({ default: m.Editor })));
 const HtmlAnsicht = lazy(() => import('../komponenten/HtmlAnsicht').then((m) => ({ default: m.HtmlAnsicht })));
@@ -24,6 +27,7 @@ export function Bibliothek() {
   const [meldung, setMeldung] = useState('');
   const [baumOffen, setBaumOffen] = useState(false);
   const qc = useQueryClient();
+  const apple = useDesign() === 'apple';
 
   useEffect(() => setSuchtext(q), [q]);
   useEffect(() => setBaumOffen(false), [pfad]);
@@ -124,7 +128,7 @@ export function Bibliothek() {
         >
           <input type="search" placeholder="Im Vault suchen …" value={suchtext} onChange={(e) => setSuchtext(e.target.value)} aria-label="Suche" />
         </form>
-        <div className="werkzeuge">
+        <div className="werkzeuge bib-werkzeuge">
           <button onClick={neueNotiz}>+ Notiz</button>
           <button onClick={neuerOrdner}>+ Ordner</button>
           <button onClick={() => dateiInput.current?.click()}>Hochladen</button>
@@ -136,7 +140,7 @@ export function Bibliothek() {
       <div className="inhalt">
         <div className="pfadleiste">
           <button className="nur-mobil" onClick={() => setBaumOffen((o) => !o)}>
-            ☰ Dateien
+            {apple ? <Symbol name="liste" /> : '☰'} Dateien
           </button>
           <Brotkrumen pfad={pfad} />
           {pfad && (
@@ -173,6 +177,7 @@ export function Bibliothek() {
 
 function Brotkrumen({ pfad }: { pfad: string }) {
   const teile = pfad ? pfad.split('/') : [];
+  const apple = useDesign() === 'apple';
   return (
     <span className="brotkrumen">
       <a href={bibliothekUrl('')} onClick={linkKlick}>
@@ -180,7 +185,7 @@ function Brotkrumen({ pfad }: { pfad: string }) {
       </a>
       {teile.map((t, i) => (
         <span key={i}>
-          {' / '}
+          {apple ? <Chevron /> : ' / '}
           <a href={bibliothekUrl(teile.slice(0, i + 1).join('/'))} onClick={linkKlick}>
             {t}
           </a>
@@ -221,6 +226,7 @@ function Suchergebnisse({ q, pfad }: { q: string; pfad: string }) {
 
 function OrdnerAnsicht({ pfad }: { pfad: string }) {
   const baum = useBaum();
+  const apple = useDesign() === 'apple';
   const e = finden(baum.data, pfad);
   if (!e) return <p className="leise">Lade …</p>;
   const kinder = e.kinder ?? [];
@@ -230,11 +236,23 @@ function OrdnerAnsicht({ pfad }: { pfad: string }) {
       {kinder.length === 0 && <p className="leise">Leer.</p>}
       <ul className="ordnerliste">
         {kinder.map((k) => (
-          <li key={k.pfad}>
+          <li key={k.pfad} className={k.art}>
             <a href={bibliothekUrl(k.pfad)} onClick={linkKlick}>
-              {k.art === 'ordner' ? '📁' : '📄'} {k.name}
+              {apple ? (
+                <>
+                  <span className="ordner-ikon">
+                    <Symbol name={k.art === 'ordner' ? 'ordner' : 'dokument'} />
+                  </span>
+                  <span className="ordner-name">{k.name}</span>
+                </>
+              ) : (
+                <>
+                  {k.art === 'ordner' ? '📁' : '📄'} {k.name}
+                </>
+              )}
             </a>
             {k.geaendert && <span className="leise"> · {new Date(k.geaendert).toLocaleString('de-AT')}</span>}
+            {apple && k.art === 'ordner' && <Chevron />}
           </li>
         ))}
       </ul>
@@ -263,7 +281,7 @@ export function DateiAnsicht({ pfad }: { pfad: string }) {
         {/* E198: Bilder (und Atelier-Projekte) direkt im Bildeditor öffnen */}
         <p>
           <a className="knopf" href={`/atelier?pfad=${encodeURIComponent(pfad)}`} onClick={linkKlick}>
-            🎨 Im Atelier bearbeiten
+            <Em e="🎨" /> Im Atelier bearbeiten
           </a>
         </p>
         {BILD_ENDUNGEN.has(e) ? <img className="bild" src={rohUrl(pfad)} alt={pfad} /> : <p className="leise">Für dieses Format gibt es hier keine Vorschau – das Atelier kann es öffnen.</p>}

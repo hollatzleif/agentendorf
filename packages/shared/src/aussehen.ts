@@ -60,8 +60,14 @@ export const DIAGRAMM_FARBEN: Record<(typeof DIAGRAMME)[number], string[]> = {
 };
 
 /** Prüfung auf dem Server: apps/server/src/aussehen.ts (Zod) – hier nur Typ und Standard */
+/** E240: zweite Oberfläche – „dorf“ = der gewohnte Look mit allen Optionen, „apple“ = komplette Apple-Oberfläche (HIG) */
+export const DESIGNS = ['dorf', 'apple'] as const;
+export type Design = (typeof DESIGNS)[number];
+
 export interface AussehenT {
   version: 1;
+  /** E240: ganze Oberfläche (außer der 3D-Szene) im Apple-Stil; die übrigen Optionen gelten dann nicht (außer hell/dunkel) */
+  design?: Design;
   vorlage: Vorlage;
   /** eigene Farben überschreiben die der Vorlage */
   farben: Partial<Record<FarbRolle, string>>;
@@ -100,6 +106,7 @@ export interface AussehenT {
 }
 export const AUSSEHEN_STANDARD: AussehenT = {
   version: 1,
+  design: 'dorf',
   vorlage: 'spiel',
   farben: {},
   schrift: 'system',

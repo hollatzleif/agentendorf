@@ -4,6 +4,8 @@ import type { KarteFaellig, KartenFach } from '@dorf/shared';
 import { api, ApiFehler } from '../api';
 import { bibliothekUrl, linkKlick, navigieren } from '../router';
 import { Markdown } from './Markdown';
+import { useDesign } from '../apple/design';
+import { Chevron, Em } from '../apple/wissen-teile';
 
 const BEWERTUNG: [string, string, string][] = [
   ['nochmal', 'Nochmal', '1'],
@@ -52,7 +54,9 @@ export function KartenLernen() {
       <div className="fach-karten">
         {ueb.data?.map((f) => (
           <section key={f.fach} className="karte innen fach-karte" aria-label={`Karten ${f.fach}`}>
-            <h3>🃏 {f.fach}</h3>
+            <h3>
+              <Em e="🃏" /> {f.fach}
+            </h3>
             <div className="fach-zahlen">
               <span>
                 <strong>{f.faellig}</strong> heute dran
@@ -101,6 +105,7 @@ function Lernen({ fach, zurueck }: { fach: string; zurueck: () => void }) {
   const [zeigen, setZeigen] = useState(false);
   const [fertig, setFertig] = useState(0);
   const [fehler, setFehler] = useState('');
+  const apple = useDesign() === 'apple';
   useEffect(() => {
     void api<KarteFaellig[]>(`/api/karten/faellig?fach=${encodeURIComponent(fach)}`)
       .then(setStapel)
@@ -135,22 +140,59 @@ function Lernen({ fach, zurueck }: { fach: string; zurueck: () => void }) {
   return (
     <div className="karten-lernen">
       <div className="zeile">
-        <button type="button" onClick={zurueck}>
-          ← Fächer
+        <button type="button" className="karten-zurueck" onClick={zurueck}>
+          {apple ? <Chevron richtung="links" /> : '←'} Fächer
         </button>
-        <strong>🃏 {fach}</strong>
+        <strong>
+          <Em e="🃏" /> {fach}
+        </strong>
         {stapel && <span className="leise">{stapel.length ? `noch ${stapel.length}` : ''} · {fertig} erledigt</span>}
       </div>
       {fehler && <p className="fehler">{fehler}</p>}
       {stapel && !karte && (
         <div className="karte innen karten-ende">
-          <p>🎉 Fertig für heute – {fertig} Karten.</p>
+          <p>
+            <Em e="🎉" /> Fertig für heute – {fertig} Karten.
+          </p>
           <button type="button" onClick={() => navigieren('/heute')}>
             Zu „Heute“
           </button>
         </div>
       )}
-      {karte && (
+      {karte && apple && (
+        // Apple: große Karte, die sich zur Antwort umdreht (Feder; bei „weniger Bewegung“ nur Überblenden)
+        <div key={`${karte.id}-${fertig}`} className={`karteikarte-wende${zeigen ? ' gewendet' : ''}`} aria-label="Karteikarte" role="group">
+          <div className="karteikarte-innen">
+            <div className="karteikarte-seite vorne" inert={zeigen}>
+              {karte.neu && <span className="abzeichen">neu</span>}
+              <div className="karten-frage">
+                <Markdown inhalt={karte.frage} pfad={`Uni/faecher/${fach}/karten.md`} />
+              </div>
+              <button type="button" className="haupt" onClick={() => setZeigen(true)}>
+                Antwort zeigen <span className="leise">(Leertaste)</span>
+              </button>
+            </div>
+            {zeigen && (
+              <div className="karteikarte-seite hinten">
+                <div className="karten-frage klein">
+                  <Markdown inhalt={karte.frage} pfad={`Uni/faecher/${fach}/karten.md`} />
+                </div>
+                <div className="karten-antwort">
+                  <Markdown inhalt={karte.antwort} pfad={`Uni/faecher/${fach}/karten.md`} />
+                </div>
+                <div className="zeile karten-knoepfe">
+                  {BEWERTUNG.map(([b, t, taste]) => (
+                    <button key={b} type="button" className={`karten-${b}`} onClick={() => void bewerten(b)}>
+                      {t} <span className="leise">({taste})</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      {karte && !apple && (
         <div className="karte innen karteikarte" aria-label="Karteikarte">
           {karte.neu && <span className="abzeichen">neu</span>}
           <div className="karten-frage">

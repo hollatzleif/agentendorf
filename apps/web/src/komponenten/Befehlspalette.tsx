@@ -4,6 +4,8 @@ import { terminAusText, type AktionInfo, type Gebaeude, type Suchtreffer, type T
 import { api, ApiFehler, offlineGemerkt } from '../api';
 import { todoAusText } from '@dorf/shared';
 import { bibliothekUrl, navigieren } from '../router';
+import { useDesign } from '../apple/design';
+import { Ikon, IkonText, Symbol } from '../apple/Ikon';
 
 /**
  * Befehlspalette (Strg/⌘+K, Nacht 18./19.11.): ein Feld für alles.
@@ -73,6 +75,7 @@ function Palette({ schliessen }: { schliessen: () => void }) {
   const [bestaetigen, setBestaetigen] = useState<string | null>(null);
   const feld = useRef<HTMLInputElement>(null);
   useEffect(() => feld.current?.focus(), []);
+  const apple = useDesign() === 'apple';
 
   const gebaeude = useQuery({ queryKey: ['gebaeude'], queryFn: () => api<Gebaeude[]>('/api/gebaeude') });
   const todos = useQuery({ queryKey: ['liste', 'todo'], queryFn: () => api<TodoInfo[]>('/api/todos') });
@@ -199,38 +202,53 @@ function Palette({ schliessen }: { schliessen: () => void }) {
     }
   };
 
+  const feldJsx = (
+    <input
+      ref={feld}
+      value={q}
+      onChange={(e) => {
+        setQ(e.target.value);
+        setWahl(0); // sofort, nicht erst im Effekt – sonst kann ein schnelles Enter ins Leere gehen
+        setBestaetigen(null);
+      }}
+      placeholder="Suchen oder: todo …, termin morgen 14 Uhr …, notiz …, fokus …, timer 10 …, frag …"
+      aria-label="Befehl oder Suche"
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') schliessen();
+        else if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setWahl((w) => Math.min(eintraege.length - 1, w + 1));
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setWahl((w) => Math.max(0, w - 1));
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          void ausfuehren(eintraege[Math.min(wahl, eintraege.length - 1)]);
+        }
+      }}
+    />
+  );
   return (
     <div className="fenster-hintergrund palette-hintergrund" onClick={schliessen}>
       <div className="palette karte" role="dialog" aria-label="Befehlspalette" onClick={(e) => e.stopPropagation()}>
-        <input
-          ref={feld}
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-            setWahl(0); // sofort, nicht erst im Effekt – sonst kann ein schnelles Enter ins Leere gehen
-            setBestaetigen(null);
-          }}
-          placeholder="Suchen oder: todo …, termin morgen 14 Uhr …, notiz …, fokus …, timer 10 …, frag …"
-          aria-label="Befehl oder Suche"
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') schliessen();
-            else if (e.key === 'ArrowDown') {
-              e.preventDefault();
-              setWahl((w) => Math.min(eintraege.length - 1, w + 1));
-            } else if (e.key === 'ArrowUp') {
-              e.preventDefault();
-              setWahl((w) => Math.max(0, w - 1));
-            } else if (e.key === 'Enter') {
-              e.preventDefault();
-              void ausfuehren(eintraege[Math.min(wahl, eintraege.length - 1)]);
-            }
-          }}
-        />
-        {meldung && <p className="hinweis palette-meldung">{meldung}</p>}
+        {apple && (
+          <div className="palette-suche">
+            <Symbol name="suche" />
+            {feldJsx}
+          </div>
+        )}
+        {!apple && feldJsx}
+        {meldung && (
+          <p className="hinweis palette-meldung">
+            <IkonText text={meldung} />
+          </p>
+        )}
         <ul className="palette-liste" role="listbox" aria-label="Treffer">
           {eintraege.map((e, i) => (
             <li key={e.id} role="option" aria-selected={i === wahl} className={i === wahl ? 'gewaehlt' : ''} onMouseEnter={() => setWahl(i)} onClick={() => void ausfuehren(e)}>
-              <span className="palette-symbol">{e.symbol}</span>
+              <span className="palette-symbol">
+                <Ikon e={e.symbol} />
+              </span>
               <span className="palette-titel">{e.titel}</span>
               {e.zusatz && <span className="leise palette-zusatz">{e.zusatz}</span>}
             </li>
