@@ -231,6 +231,10 @@ test('E235: Muster-Modell in der Flotte (Jetzt trainieren, läuft schon), RL im 
   // E236: Tabelle aller Modelle – aktiv grün, inaktiv mit Grund, Wert-Modelle gegen den Median
   const modelle = tafel.getByTestId('muster-modelle');
   await expect(modelle.locator('tbody tr')).toHaveCount(5);
+  // E237-Nachtrag: Kopf beschreibt alle Modelle statt nur das Grundsignal
+  await expect(tafel.getByTestId('muster-aktiv-zahl')).toHaveText(/^\d+ von \d+ Modellen aktiv$/);
+  await expect(tafel).toContainText('Kursvorhersage für 5 s bis 5 min');
+  await expect(tafel.getByTestId('muster-erklaerung')).toHaveAttribute('href', /00_Muster-Modell\.html/);
   await expect(modelle.locator('tr[data-schluessel="basis"] .hafen-punkt.an')).toHaveCount(1);
   await expect(modelle.locator('tr[data-schluessel="absturz"]')).toContainText('AUC 0,664 vs. Raten 0,5');
   await expect(modelle.locator('tr[data-schluessel="absturz"] .hafen-punkt.an')).toHaveCount(1);

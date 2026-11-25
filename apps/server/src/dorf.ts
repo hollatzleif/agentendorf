@@ -103,6 +103,7 @@ const PFLICHT_DATEIEN = [
   // E227 Hafen
   'Hafen/gebaeude.md',
   'Hafen/00_Anleitung.html', // E228: Anleitung zum Hafen
+  'Hafen/00_Muster-Modell.html', // E237: Erklärung Muster-Modell + RL-Bot
   'Hafen/aktionen/hafenmeister.md', // E231
   'Hafen/hafenmeister-logbuch.md', // E231
   'Hafen/aktionen/muster-meister.md', // E235

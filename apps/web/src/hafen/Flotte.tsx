@@ -578,14 +578,30 @@ function MusterTafel() {
       {m && (
         <>
           <p className="leise" style={{ margin: 0 }}>
-            Sagt voraus, ob ein Token erst um +{m.ziel.zielProzent} % steigt, bevor er um −{m.ziel.stopProzent} % fällt (innerhalb {m.ziel.horizontMin} min). Getestet auf den neuesten, nie gesehenen Daten.
+            {m.modelle?.length ? (
+              <>
+                Lernt aus jedem Trade im Echtzeit-Strom: Grundsignal, 🚀 Pump, 💥 Absturz, Hoch/Tief und die Kursvorhersage für 5 s bis 5 min. Jedes Modell wird auf den neuesten, nie gesehenen Daten getestet und gibt nur Rat, wenn es dort besser ist als Raten bzw. als ein fester Wert. Der RL-Bot entscheidet mit allen aktiven Signalen.{' '}
+                <b data-testid="muster-aktiv-zahl">
+                  {m.modelle.filter((x) => x.aktiv).length} von {m.modelle.length} Modellen aktiv
+                </b>
+                {m.modelle.some((x) => x.aktiv) ? ` (${m.modelle.filter((x) => x.aktiv).map((x) => KRYPTO_MUSTER_MODELLE.find((d) => d.schluessel === x.schluessel)?.name.replace(/ \(.*$/, '') ?? x.schluessel).join(', ')})` : ''}.
+              </>
+            ) : (
+              <>
+                Sagt voraus, ob ein Token erst um +{m.ziel.zielProzent} % steigt, bevor er um −{m.ziel.stopProzent} % fällt (innerhalb {m.ziel.horizontMin} min). Getestet auf den neuesten, nie gesehenen Daten.
+              </>
+            )}
+          {' '}
+            <a href={bibliothekUrl('Hafen/00_Muster-Modell.html')} onClick={linkKlick} data-testid="muster-erklaerung">
+              📖 So funktioniert's
+            </a>
           </p>
           {m.modell ? (
             <>
               <div className="hafen-muster-status">
                 <span className={`hafen-muster-pille${m.modell.aktiv ? ' an' : ''}`}>{m.modell.aktiv ? '● aktiv – gibt Rat' : '○ inaktiv – noch nicht besser als Raten'}</span>
                 <span className="leise">
-                  v{m.modell.version} · trainiert {zeit(m.modell.trainiert)}
+                  {m.modelle?.length ? `Grundsignal (+${m.ziel.zielProzent} % vor −${m.ziel.stopProzent} %, ${m.ziel.horizontMin} min) · ` : ''}v{m.modell.version} · trainiert {zeit(m.modell.trainiert)}
                 </span>
               </div>
               <div className="hafen-zahlen">

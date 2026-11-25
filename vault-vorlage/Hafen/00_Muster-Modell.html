@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hafen · So lernt das Muster-Modell</title>
+<style>
+  :root { --bg:#f7f5ef; --karte:#fffdf8; --text:#1f2a37; --leise:#5b6573; --gruen:#14945a; --rot:#c2362f; --lila:#7a4fd9; --blau:#2563b8; --rand:#d9d3c5; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#12161c; --karte:#1b212a; --text:#e8ecf1; --leise:#9aa5b3; --rand:#2d3642; --blau:#6aa5f0; --lila:#a98af0; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 28px 18px 60px; }
+  h1 { font-size: 1.9rem; margin: 0 0 4px; }
+  h2 { font-size: 1.3rem; margin: 34px 0 10px; }
+  h3 { font-size: 1.05rem; margin: 18px 0 6px; }
+  p, li { color: var(--text); }
+  .leise { color: var(--leise); }
+  .karte { background: var(--karte); border: 1px solid var(--rand); border-radius: 14px; padding: 16px 18px; margin: 14px 0; }
+  .zwei { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 640px) { .zwei { grid-template-columns: 1fr; } }
+  .marke { display:inline-block; padding: 1px 9px; border-radius: 999px; font-size: .82rem; font-weight: 600; border: 1px solid currentColor; }
+  .gruen { color: var(--gruen); } .rot { color: var(--rot); } .lila { color: var(--lila); } .blau { color: var(--blau); }
+  table { width: 100%; border-collapse: collapse; font-size: .93rem; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--rand); vertical-align: top; }
+  th { font-weight: 600; color: var(--leise); }
+  code { background: color-mix(in srgb, var(--rand) 45%, transparent); padding: 1px 5px; border-radius: 5px; font-size: .9em; }
+  svg { width: 100%; height: auto; display: block; }
+  .hinweis { border-left: 4px solid var(--lila); }
+  .warnung { border-left: 4px solid var(--rot); }
+  details summary { cursor: pointer; font-weight: 600; }
+  ol li, ul li { margin: 4px 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🧠 So lernt das Muster-Modell</h1>
+  <p class="leise">Hafen · überwachtes Lernen + RL-Bot · Stand E237. Alles läuft nur im <b>Paper Trading</b> – der RL-Bot kann nicht scharf geschaltet werden.</p>
+
+  <div class="karte hinweis">
+    <b>In einem Satz:</b> Das Kryptowerk schreibt jeden Trade auf der Bonding Curve mit, lernt daraus alle 5 Stunden, wie Kerzenmuster
+    und Kaufdruck mit dem weiteren Kursverlauf zusammenhängen (<span class="lila">die Augen</span>), und ein RL-Agent lernt daraus,
+    wann sich Kaufen, Halten und Verkaufen nach Gebühren wirklich lohnt (<span class="blau">die Hände</span>).
+  </div>
+
+  <h2>Der Ablauf auf einen Blick</h2>
+  <div class="karte">
+    <svg viewBox="0 0 820 300" role="img" aria-label="Ablauf: Strom-Trades, Aufzeichnung, Training alle 5 Stunden, Modelle, RL-Agent, Bots">
+      <defs>
+        <marker id="pf" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+      </defs>
+      <g font-size="13" fill="currentColor" style="color:var(--text)">
+        <rect x="10" y="20" width="160" height="70" rx="12" fill="none" stroke="currentColor"/>
+        <text x="90" y="48" text-anchor="middle" font-weight="600">⚡ Echtzeit-Strom</text>
+        <text x="90" y="68" text-anchor="middle">jeder Trade (Helius)</text>
+
+        <rect x="230" y="20" width="160" height="70" rx="12" fill="none" stroke="currentColor"/>
+        <text x="310" y="48" text-anchor="middle" font-weight="600">🗄️ Aufzeichnung</text>
+        <text x="310" y="68" text-anchor="middle">7 Tage, bis 3 Mio. Trades</text>
+
+        <rect x="450" y="20" width="160" height="70" rx="12" fill="none" stroke="var(--lila)"/>
+        <text x="530" y="48" text-anchor="middle" font-weight="600">🎓 Training</text>
+        <text x="530" y="68" text-anchor="middle">alle 5 h auf dem VPS</text>
+
+        <rect x="650" y="20" width="160" height="70" rx="12" fill="none" stroke="var(--lila)"/>
+        <text x="730" y="44" text-anchor="middle" font-weight="600">👀 15 Modelle</text>
+        <text x="730" y="62" text-anchor="middle">nur die ehrlich</text>
+        <text x="730" y="78" text-anchor="middle">getesteten geben Rat</text>
+
+        <rect x="450" y="190" width="160" height="80" rx="12" fill="none" stroke="var(--blau)"/>
+        <text x="530" y="218" text-anchor="middle" font-weight="600">🤖 RL-Agent</text>
+        <text x="530" y="238" text-anchor="middle">kaufen · halten ·</text>
+        <text x="530" y="256" text-anchor="middle">halb · raus</text>
+
+        <rect x="650" y="190" width="160" height="80" rx="12" fill="none" stroke="currentColor"/>
+        <text x="730" y="218" text-anchor="middle" font-weight="600">⚓ Bots</text>
+        <text x="730" y="238" text-anchor="middle">Muster-Rat, 🚀/💥 Alarm</text>
+        <text x="730" y="256" text-anchor="middle">(nur mit Gewicht &gt; 0)</text>
+
+        <rect x="10" y="190" width="380" height="80" rx="12" fill="none" stroke="currentColor" stroke-dasharray="5 4"/>
+        <text x="200" y="218" text-anchor="middle" font-weight="600">🧭 Muster-Meister (alle 5 h, Abo)</text>
+        <text x="200" y="238" text-anchor="middle">liest den Bericht, stellt die Grenzen des RL-Bots nach,</text>
+        <text x="200" y="256" text-anchor="middle">schreibt Logbuch – nie scharf, nie Leifs Bots</text>
+      </g>
+      <g stroke="currentColor" style="color:var(--leise)" stroke-width="1.6" fill="none">
+        <path d="M170 55 H225" marker-end="url(#pf)"/>
+        <path d="M390 55 H445" marker-end="url(#pf)"/>
+        <path d="M610 55 H645" marker-end="url(#pf)"/>
+        <path d="M730 90 V185" marker-end="url(#pf)"/>
+        <path d="M690 90 C 640 140, 560 140, 545 185" marker-end="url(#pf)"/>
+        <path d="M610 230 H645" marker-end="url(#pf)"/>
+        <path d="M390 230 H445" marker-end="url(#pf)"/>
+      </g>
+    </svg>
+  </div>
+
+  <h2>1 · Was aufgezeichnet wird</h2>
+  <p>Sobald ein Bot läuft, beobachtet das Kryptowerk über den Echtzeit-Strom bis zu 20 Bonding Curves gleichzeitig (gehaltene Tokens zuerst).
+  Jede Änderung der Kurve ist praktisch ein Trade: <b>Zeit, Kurs, wie viel SOL rein oder raus ging, wie viel echte Liquidität danach in der Kurve liegt</b>.
+  Das ist der Lernstoff – je länger der Strom läuft, desto mehr. Die Tagesgrenze für den Strom (Helius) begrenzt, wie viel zusammenkommt.</p>
+
+  <h2>2 · Die Augen: überwachtes Lernen</h2>
+  <p>Für jeden Token wird alle 5 Sekunden ein „Foto“ der letzten ~2 Minuten gemacht – <b>35 Merkmale</b>, zum Beispiel:</p>
+  <ul>
+    <li>5-Sekunden-Kerzen: Körper, Dochte, wie viele grüne Kerzen in Folge</li>
+    <li>Kursänderung über 5 s, 15 s, 30 s, 1 min, 2 min · Schwankung</li>
+    <li>Käufe, Verkäufe und Netto-SOL der letzten 30 und 60 s, größter Einzelkauf/-verkauf</li>
+    <li>echte Liquidität und wie sie sich ändert · Abstand zum letzten Hoch</li>
+    <li>Alter des Tokens, Käufe und Rendite seit dem Start, wie viele andere Tokens der Ersteller in 24 h gestartet hat</li>
+  </ul>
+  <p>Weil die Aufzeichnung auch die <b>Zukunft</b> jedes Fotos kennt, weiß das Training zu jedem Foto die richtige Antwort.
+  Ein Gradient-Boosting-Modell (viele kleine Entscheidungsbäume hintereinander, jeder korrigiert die Fehler der vorigen) lernt daraus die Zusammenhänge.</p>
+
+  <h3>Was die Modelle vorhersagen</h3>
+  <table>
+    <thead><tr><th>Modell</th><th>Frage</th><th>Art</th></tr></thead>
+    <tbody>
+      <tr><td>Grundsignal</td><td>Steigt der Kurs erst um +20 %, bevor er um −15 % fällt (5 min)?</td><td>Wahrscheinlichkeit</td></tr>
+      <tr><td>🚀 Pump</td><td>Kommen +50 %, bevor −20 % kommen (2 min)?</td><td>Wahrscheinlichkeit</td></tr>
+      <tr><td>💥 Absturz</td><td>Kommen −30 %, bevor +20 % kommen (2 min)?</td><td>Wahrscheinlichkeit</td></tr>
+      <tr><td>Hoch / Tief</td><td>Wie hoch bzw. tief geht es in 1 bzw. 5 min (in %)?</td><td>Wert</td></tr>
+      <tr><td>Früh-Modelle</td><td>Pump/Absturz nur für Tokens bis 90 s alt (aus wenigen Kerzen)</td><td>Wahrscheinlichkeit</td></tr>
+      <tr><td>📈 Kursvorhersage</td><td>Wie ändert sich der Kurs in 5 s, 15 s, 30 s, 1 min, 2 min, 5 min (in %)?</td><td>Wert</td></tr>
+    </tbody>
+  </table>
+
+  <div class="karte">
+    <h3 style="margin-top:0">Der Penalty der Kursvorhersage (deine Regel)</h3>
+    <p>Der Fehler ist der Abstand zwischen Vorhersage und echter Veränderung, <b>quadriert</b> – große Irrtümer in die falsche Richtung kosten also sehr viel.
+    Dazu ist er <b>schief</b>: Lag der echte Kurs <span class="rot">unter</span> der Vorhersage (ein Fall wurde verpasst), zählt der Fehler <b>3×</b>;
+    lag er darüber (ein Anstieg wurde verpasst), zählt er 1×. Darum sagt das Modell bewusst vorsichtig voraus.</p>
+    <svg viewBox="0 0 520 200" role="img" aria-label="Verlustkurve: links steiler (verpasster Fall, 3-fach), rechts flacher (verpasster Anstieg)">
+      <g style="color:var(--leise)" stroke="currentColor" fill="none" stroke-width="1">
+        <path d="M20 170 H500"/><path d="M260 20 V175"/>
+      </g>
+      <path d="M40 30 Q 150 150 260 170" stroke="var(--rot)" stroke-width="3" fill="none"/>
+      <path d="M260 170 Q 380 150 490 115" stroke="var(--gruen)" stroke-width="3" fill="none"/>
+      <g font-size="12" fill="currentColor" style="color:var(--text)">
+        <text x="40" y="22">verpasster Fall · 3×</text>
+        <text x="400" y="105">verpasster Anstieg · 1×</text>
+        <text x="262" y="190">Vorhersage = Wirklichkeit</text>
+        <text x="22" y="190">echter Kurs tiefer</text>
+        <text x="420" y="190">echter Kurs höher</text>
+      </g>
+    </svg>
+    <p class="leise">Warum nicht wörtlich „Vorhersage × echte Veränderung“? Als Verlust wäre das unbeschränkt – das Modell lernt dann, immer extremere Zahlen
+    vorherzusagen. Der schiefe quadratische Fehler bestraft dasselbe (große Bewegung in die falsche Richtung = großer Penalty) und bleibt stabil.</p>
+  </div>
+
+  <h3>Ehrlich getestet – sonst kein Rat</h3>
+  <ol>
+    <li><b>Zeit-Trennung:</b> gelernt wird an den älteren 80 % der Daten, geprüft an den neuesten 20 %, die das Modell nie gesehen hat (mit Abstand dazwischen, damit nichts durchsickert).</li>
+    <li><b>Wahrscheinlichkeiten</b> brauchen eine Test-AUC ≥ 0,55 (0,5 = Raten), mindestens 200 Testbeispiele aus mindestens 10 Tokens – und müssen auch dann noch besser als Raten sein,
+      wenn man die Test-Tokens tausendfach neu zieht (Kurse eines Tokens hängen zusammen und täuschen sonst).</li>
+    <li><b>Werte</b> (Hoch/Tief, Kursvorhersage) müssen mindestens 5 % genauer sein als stur „der typische Wert“ – sonst bringen sie nichts.</li>
+    <li>Ein neues Modell ersetzt ein gültiges nur, wenn es nicht schlechter ist. Jedes der 15 Modelle wird <b>einzeln</b> aktiv oder nicht.</li>
+  </ol>
+  <p>In der Tafel <b>🧠 Muster-Modell</b> siehst du je Modell den Punkt (grün = aktiv) und den Grund, wenn nicht. Für die Kursvorhersage zusätzlich:
+  <b>Richtung</b> (bei großen Bewegungen: wie oft stimmte das Vorzeichen? über 50 % ist besser als eine Münze) und <b>Alarm-Treffer</b> (wie oft folgte auf einen Alarm wirklich die Bewegung).</p>
+
+  <h2>3 · Die Hände: der RL-Agent</h2>
+  <div class="zwei">
+    <div class="karte">
+      <h3 style="margin-top:0">Was er sieht</h3>
+      <ul>
+        <li>die aktiven Signale: Grundsignal, 🚀, 💥, Hoch/Tief 5 min, Kursvorhersage 1 und 5 min</li>
+        <li>seine Lage: hält er den Token, Plus/Minus seit Einstieg, Haltezeit, Trend der letzten 30 s</li>
+      </ul>
+      <h3>Was er tun kann</h3>
+      <p><b>warten · kaufen · halb verkaufen · ganz raus</b></p>
+    </div>
+    <div class="karte">
+      <h3 style="margin-top:0">Wie er lernt</h3>
+      <p>Q-Learning im <b>Zeitraffer</b>: er spielt die aufgezeichneten Trades durch – mit denselben Gebühren, derselben Slippage und 5 s Verzögerung wie im Paper.
+      Belohnung ist der <b>echte Gewinn nach Gebühren</b>, Pleite ist eine extra Strafe. So lernt er Timing und Ausstieg, nicht das Muster-Erkennen selbst.</p>
+      <p class="leise">Getestet wird er wieder auf den neuesten Daten – das ist die Zeile „RL-Zeitraffer“ in der Tafel.</p>
+    </div>
+  </div>
+
+  <h3>Harte Sicherungen (im Code, nicht verhandelbar)</h3>
+  <ul>
+    <li>Rug-, Dev- und Bundle-Sperren, RugCheck-Bericht und das Risk-Gate (Einsatz je Trade, offene Positionen, Tagesverlust, Not-Aus) gelten immer.</li>
+    <li>Kein Kauf ohne aktives Grundsignal oder Pump-Modell. Kein Kauf, wenn 💥 ≥ <code>rl.maxAbsturz</code> (Standard 0,35).</li>
+    <li>Gehalten und 💥 ≥ 70 % oder 💥-Alarm → nur noch „raus“, auch beim Ausprobieren.</li>
+    <li>Stop-Loss, Trailing Stop, Haltedauer und der Notausstieg bei großem Einzelverkauf greifen zusätzlich.</li>
+    <li><b>Nachschuss:</b> Ist das Spielgeld weg, gibt es neues – das zählt zum eingezahlten Kapital und <b>nie als Gewinn</b>.</li>
+    <li>RL-Bots laufen nur im Paper. Scharf schalten ist für sie gesperrt, auch für dich.</li>
+  </ul>
+
+  <h2>4 · Alarm für die anderen Bots</h2>
+  <div class="zwei">
+    <div class="karte"><span class="marke gruen">🚀 ALARM</span>
+      <p>Die Kursvorhersage erwartet in ≤ 2 min mindestens <b>+15 %</b> (oder 🚀 ≥ 40 %). Der Bot kauft – auch wenn er nach seinen Punkten nicht würde.
+      Sperren, Filterfenster und Risk-Gate gelten weiter, höchstens ein Alarm-Kauf je Token.</p></div>
+    <div class="karte"><span class="marke rot">💥 ALARM</span>
+      <p>Die Kursvorhersage erwartet in ≤ 2 min mindestens <b>−10 %</b> (oder 💥 ≥ 60 %). Der Bot verkauft eine gehaltene Position sofort – <b>auch scharf geschaltet</b> – und kauft diesen Token nicht.
+      Absturz hat immer Vorrang.</p></div>
+  </div>
+  <p><b>Wer reagiert?</b> Der RL-Bot immer. Alle anderen Bots nur, wenn bei ihnen <b>„Muster-Rat Gewicht“ &gt; 0</b> steht (Standard 0 = nur anzeigen).
+  Die Schwellen stellst du je Bot im Formular ein (<code>regeln.alarm</code>). Im Terminal siehst du die Vorhersage als gestrichelte Linie rechts an den 5-s-Kerzen und das Abzeichen am Token.</p>
+
+  <h2>5 · Der Muster-Meister</h2>
+  <p>Eine Aktion im Hafen, alle 5 Stunden (00:35, 05:35, 10:35, 15:35, 20:35) über dein Abo. Er liest den Trainingsbericht, legt bei Bedarf seinen RL-Bot
+  „HM Muster-RL“ an (eigener Platz, zählt nicht zu den 10 Agenten-Bots), wertet ihn aus, stellt <b>behutsam</b> nach (Mindestsicherheit, Erkunden, maxAbsturz, Alarm-Schwellen nur beim eigenen RL-Bot)
+  und schreibt ins <code>Hafen/muster-logbuch.md</code>. Das Muster-Gewicht deiner Bots setzt er nie selbst – höchstens empfiehlt er es, wenn sich ein Modell mehrere Tage bewährt hat.</p>
+
+  <h2>6 · Ehrlich: was du erwarten kannst</h2>
+  <div class="karte warnung">
+    <ul>
+      <li>Die ersten Tage steht vieles auf „nicht aktiv“ – das ist der ehrliche Test, kein Fehler. Je mehr aufgezeichnet ist, desto eher wird etwas sichtbar.</li>
+      <li>Ein aktives Modell sortiert besser als Raten – das heißt noch nicht, dass es nach Gebühren Geld verdient. Darauf schaut der RL-Zeitraffer.</li>
+      <li>Memecoin-Kurse sind stark vom Zufall getrieben; viele Tokens gehen schnell gegen null. Ob in den Mustern genug steckt, zeigt nur die Zeit.</li>
+      <li>Paper und Zeitraffer sind keine Garantie für echtes Geld.</li>
+    </ul>
+  </div>
+
+  <details class="karte">
+    <summary>Begriffe kurz erklärt</summary>
+    <p><b>AUC:</b> Wie gut ein Modell „gute“ vor „schlechte“ Momente sortiert. 0,5 = Münzwurf, 1 = perfekt.<br>
+    <b>Präzision vs. Basisrate:</b> Wie oft lag das Modell richtig, wenn es sich sicher war – verglichen mit blind kaufen.<br>
+    <b>Fehler vs. Konstante:</b> Durchschnittlicher Irrtum der Vorhersage gegenüber „immer den typischen Wert schätzen“.<br>
+    <b>Richtung:</b> Bei großen Bewegungen (≥ 10 %): Anteil, bei dem das Vorzeichen der Vorhersage stimmte.<br>
+    <b>Zeitraffer:</b> Der RL-Agent handelt die neuesten, nie gesehenen Daten im Schnelldurchlauf – Trades, Gewinn nach Gebühren, Pleiten.<br>
+    <b>Muster-Rat Gewicht:</b> 0 = nur anzeigen; &gt; 0 = das Modell gibt Punkte und die Alarme wirken bei diesem Bot.</p>
+  </details>
+</main>
+</body>
+</html>

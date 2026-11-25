@@ -2649,3 +2649,4 @@ Leif: „Es soll generell immer die nächsten Kerzen vorhersagen; einen starken 
 - **Euro:** Neben jedem SOL-Betrag im Hafen „(≈ x €)“ – SOL→USD von DexScreener, USD→EUR EZB-Referenzkurs (6 h zwischengespeichert, Fehler → letzter Wert/ohne €, nie blockierend); Kopfzeile „1 SOL ≈ x €“. Kurse je Token und Chart-Achsen bleiben SOL.
 - **Bot-Plätze:** Agenten 10 eigene Regel-/Prompt-Bots (Prompt höchstens 2) + 1 RL-Bot mit eigenem Platz, Flotte 20.
 - Training-Fortschritt in der App wurde doppelt mit 100 multipliziert („5600 %“) – behoben.
+- **Nachtrag (25.11.):** Der Kopf der Muster-Tafel beschrieb noch nur das Grundsignal („+20 % vor −15 %“) – Leif dachte, der RL-Bot lerne nur das. Jetzt beschreibt er alle Modelle, zählt „N von M Modellen aktiv“ (mit Namen) und verlinkt die neue Erklärseite `Hafen/00_Muster-Modell.html` (Pflichtdatei, eigenständiges HTML ohne Netz); die Kennzahlen darunter sind als „Grundsignal“ beschriftet.
