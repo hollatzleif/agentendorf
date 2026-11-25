@@ -6,6 +6,7 @@ import { KRYPTO_BOT_VON, KRYPTO_KERZEN_MS, KRYPTO_KERZEN_TAKTE, KRYPTO_VERLAUF_S
 import { api } from '../api';
 import { linkKlick } from '../router';
 import { Eur, EuroKurs, KURS_QUELLE, eurJeSolAus, eurText, eurZusatz, kursText, useEurJeSol } from './euro';
+import { KW_GRUEN, KW_ROT, markerPfad } from './chart';
 import { farbeAus, prozent, sol, solVz, stundeWien, uhrzeit, usdKurz } from './format';
 import './hafen.css';
 
@@ -629,7 +630,7 @@ function EquityKerzen({ kerzen: alle, start, sekunden = false, ms, trades }: { k
             }}
           >
             <circle cx={m.mx} cy={m.my} r={8} fill="transparent" />
-            <path d={m.kauf ? `M${m.mx} ${m.my - 5} L${m.mx + 5} ${m.my + 4} L${m.mx - 5} ${m.my + 4} Z` : `M${m.mx} ${m.my + 5} L${m.mx + 5} ${m.my - 4} L${m.mx - 5} ${m.my - 4} Z`} fill={m.kauf ? '#22c55e' : '#f43f5e'} stroke="#0d1117" strokeWidth={1} />
+            <path d={markerPfad(m.mx, m.my, m.kauf)} fill={m.kauf ? KW_GRUEN : KW_ROT} stroke="#0d1117" strokeWidth={1} />
           </g>
         ))}
       </svg>

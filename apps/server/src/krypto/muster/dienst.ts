@@ -14,6 +14,8 @@ import {
   type KryptoMusterModellInfo,
   type KryptoMusterSchluessel,
   type KryptoMusterStatus,
+  type KryptoMusterVerlauf,
+  type KryptoMusterVerlaufModell,
 } from '@dorf/shared';
 import type { Uhr } from '../../uhr.js';
 import { KryptoFehler, type KDB } from '../motor.js';
@@ -88,6 +90,18 @@ function infoAusBasis(m: BasisInfo): KryptoMusterModellInfo {
 /** umgekehrt (nur wenn das Lauf-Protokoll die basis-Info nicht mehr hat) – positivAnteil ist dann die Basisrate im Test */
 function basisAusInfo(i: KryptoMusterModellInfo): BasisInfo {
   return { version: i.version, trainiert: i.trainiert, beispiele: i.beispiele, positivAnteil: i.test.basis ?? 0, test: { beispiele: i.test.beispiele, auc: i.test.auc ?? 0, praezision: i.test.praezision, basis: i.test.basis ?? 0 }, aktiv: i.aktiv, merkmale: i.merkmale };
+}
+/** E239: Lernkurve nur im Verlauf, nicht im Status (der Status wird oft abgefragt und geht an den Muster-Meister) */
+function ohneLernkurve(i: KryptoMusterModellInfo): KryptoMusterModellInfo {
+  if (!i.lernkurve) return i;
+  const { lernkurve: _l, ...rest } = i;
+  return rest;
+}
+/** E239: RL-Info ohne Kapitalkurve und Beispiel-Trades (nur im Verlauf) */
+function rlKurz(r: KryptoMusterStatus['rl']): KryptoMusterStatus['rl'] {
+  if (!r) return r;
+  const { kurve: _k, beispiele: _b, startSol: _s, einsatzSol: _e, ...rest } = r;
+  return rest;
 }
 const nameVon = (k: KryptoMusterSchluessel) => KRYPTO_MUSTER_MODELLE.find((m) => m.schluessel === k)?.name ?? k;
 
@@ -556,17 +570,103 @@ export class MusterDienst {
     const r: KryptoMusterModellInfo[] = [];
     for (const m of KRYPTO_MUSTER_MODELLE) {
       const g = this.einzel[m.schluessel];
-      if (g) r.push({ ...g.info, aktiv: true });
-      else if (this.letzteInfos[m.schluessel]) r.push({ ...this.letzteInfos[m.schluessel]!, aktiv: false });
+      if (g) r.push({ ...ohneLernkurve(g.info), aktiv: true });
+      else if (this.letzteInfos[m.schluessel]) r.push({ ...ohneLernkurve(this.letzteInfos[m.schluessel]!), aktiv: false });
     }
     return r;
+  }
+
+  /**
+   * E239: Verlauf über die Trainings – je Lauf (neueste zuerst, laufender oben) je Schlüssel Test-Werte und Entscheidung
+   * (übernommen / behält vN / nicht aktiv) aus muster_einzel + muster_modelle; dazu die Einzelheiten eines Laufs (Modelle mit
+   * Lernkurve und Merkmalen, RL mit Kapitalkurve und Beispiel-Trades). Ohne version: der neueste gespeicherte Lauf.
+   */
+  verlaufLesen(o: { version?: number } = {}): KryptoMusterVerlauf {
+    const db = this.o.db;
+    const laufZeilen = db
+      .prepare('SELECT version, erstellt, dauer_ms, fehler, aktiv_geworden, rl_info_json FROM muster_modelle ORDER BY version DESC LIMIT ?')
+      .all(BEHALTEN) as Pick<ModellZeile, 'version' | 'erstellt' | 'dauer_ms' | 'fehler' | 'aktiv_geworden' | 'rl_info_json'>[];
+    const einzel = db.prepare('SELECT schluessel, version, info_json, aktiv FROM muster_einzel ORDER BY version ASC').all() as Pick<EinzelZeile, 'schluessel' | 'version' | 'info_json' | 'aktiv'>[];
+    const jeVersion = new Map<number, Pick<EinzelZeile, 'schluessel' | 'info_json' | 'aktiv'>[]>();
+    for (const z of einzel) (jeVersion.get(z.version) ?? jeVersion.set(z.version, []).get(z.version)!).push(z);
+    /** gültige Version je Schlüssel VOR einem Lauf (neuestes übernommenes davor) */
+    const vorher = (k: KryptoMusterSchluessel, v: number) => {
+      let r: number | null = null;
+      for (const z of einzel) if (z.schluessel === k && z.aktiv && z.version < v) r = z.version;
+      return r;
+    };
+    const zahl = (x: number | null | undefined, st = 2) => (x == null ? '–' : x.toFixed(st).replace('.', ','));
+    const laeufe: KryptoMusterVerlauf['laeufe'] = laufZeilen
+      .filter((z) => !(this.laeuft && this.konsole && z.version === this.konsole.version))
+      .map((z) => {
+        const geworden = z.aktiv_geworden ? (JSON.parse(z.aktiv_geworden) as string[]) : null;
+        const modelle: Partial<Record<KryptoMusterSchluessel, KryptoMusterVerlaufModell>> = {};
+        for (const e of jeVersion.get(z.version) ?? []) {
+          const i = JSON.parse(e.info_json) as KryptoMusterModellInfo;
+          const uebernommen = geworden ? geworden.includes(e.schluessel) : !!e.aktiv;
+          const alt = uebernommen ? null : vorher(e.schluessel, z.version);
+          const testText = i.test.auc != null ? `Test-AUC ${zahl(i.test.auc)} (Untergrenze ${zahl(i.test.aucUntergrenze)})` : `Fehler ${zahl(i.test.fehler, 1)} vs. ${zahl(i.test.fehlerBasis, 1)} (Konstante)`;
+          modelle[e.schluessel] = {
+            aktiv: !!i.aktiv,
+            auc: i.test.auc,
+            aucUntergrenze: i.test.aucUntergrenze,
+            fehler: i.test.fehler,
+            fehlerBasis: i.test.fehlerBasis,
+            entscheidung: uebernommen ? 'uebernommen' : alt != null ? 'behaelt' : 'nicht_aktiv',
+            ...(alt != null ? { behaeltVersion: alt } : {}),
+            grund: uebernommen ? `${testText} – Test bestanden` : `${testText}${i.gruende.length ? ` – ${i.gruende.join('; ')}` : i.aktiv ? ' – Merkmalsliste veraltet' : ''}`,
+          };
+        }
+        if (!z.fehler)
+          for (const m of KRYPTO_MUSTER_MODELLE)
+            if (!modelle[m.schluessel] && (jeVersion.has(z.version) || geworden)) {
+              if (geworden?.includes(m.schluessel)) {
+                modelle[m.schluessel] = { aktiv: true, auc: null, aucUntergrenze: null, fehler: null, fehlerBasis: null, entscheidung: 'uebernommen', grund: 'übernommen – Einzelheiten nicht mehr gespeichert (je Modell die letzten 10 Läufe)' };
+                continue;
+              }
+              const alt = vorher(m.schluessel, z.version);
+              modelle[m.schluessel] = { aktiv: false, auc: null, aucUntergrenze: null, fehler: null, fehlerBasis: null, entscheidung: 'nicht_trainiert', ...(alt != null ? { behaeltVersion: alt } : {}), grund: jeVersion.has(z.version) ? 'in diesem Lauf nicht trainiert (zu wenig Daten)' : 'keine Daten mehr (älterer Lauf)' };
+            }
+        const rl = z.rl_info_json ? (JSON.parse(z.rl_info_json) as NonNullable<KryptoMusterStatus['rl']>) : null;
+        return {
+          version: z.version,
+          erstellt: new Date(z.erstellt).toISOString(),
+          dauerMs: z.dauer_ms ?? null,
+          fehler: z.fehler ?? null,
+          aktivGeworden: geworden ?? [],
+          modelle,
+          rl: rl?.zeitraffer ?? null,
+        };
+      });
+    const k = this.konsole;
+    if (this.laeuft && k) laeufe.unshift({ version: k.version, erstellt: new Date(k.erstellt).toISOString(), dauerMs: null, fehler: null, laeuft: true, aktivGeworden: [], modelle: {}, rl: null });
+    const gespeichert = laufZeilen.filter((z) => !z.fehler);
+    const version = o.version ?? gespeichert[0]?.version ?? null;
+    if (version == null) return { laeufe, lauf: null };
+    const z = laufZeilen.find((x) => x.version === version) ?? (db.prepare('SELECT version, erstellt, rl_info_json, fehler FROM muster_modelle WHERE version = ?').get(version) as typeof laufZeilen[number] | undefined);
+    if (!z) {
+      if (this.laeuft && k?.version === version) return { laeufe, lauf: null };
+      throw new KryptoFehler(404, `Training v${version} ist nicht (mehr) im Protokoll.`);
+    }
+    const infos = (jeVersion.get(version) ?? []).map((e) => JSON.parse(e.info_json) as KryptoMusterModellInfo);
+    const reihe = (s: KryptoMusterSchluessel) => KRYPTO_MUSTER_MODELLE.findIndex((m) => m.schluessel === s);
+    infos.sort((a, b) => reihe(a.schluessel) - reihe(b.schluessel));
+    return {
+      laeufe,
+      lauf: {
+        version,
+        erstellt: new Date(z.erstellt).toISOString(),
+        modelle: infos,
+        rl: z.rl_info_json ? (JSON.parse(z.rl_info_json) as KryptoMusterStatus['rl']) : null,
+      },
+    };
   }
 
   status(): KryptoMusterStatus {
     return {
       ziel: { zielProzent: STANDARD_ZIEL.zielProzent, stopProzent: STANDARD_ZIEL.stopProzent, horizontMin: STANDARD_ZIEL.horizontMs / 60_000 },
       modell: this.modellInfo,
-      rl: this.rlInfo,
+      rl: rlKurz(this.rlInfo),
       training: {
         laeuft: this.laeuft,
         // in Prozent (0–100) wie beim Backtest

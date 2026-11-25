@@ -230,54 +230,95 @@
   white-space: nowrap;
 }
 
-/* E238: Trainings-Konsole des Muster-Modells – dunkles Terminal, Monospace, farbig nach Stufe; bricht um, scrollt (Handy) */
+/* E238/E239: Trainings-Konsole des Muster-Modells – Tafel im Muster-Kielwasser (kw-eintraege), farbig nach Stufe, bricht um */
 .muster-konsole {
-  --mk-grund: #0b0f17;
-  --mk-rand: #1f2937;
-  --mk-text: #d7dce8;
-  --mk-leise: #7d869c;
   --mk-gut: #4ade80;
   --mk-warnung: #fbbf24;
   --mk-fehler: #f87171;
   --mk-entscheidung: #c4b5fd;
-  --mk-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
-  display: grid;
-  gap: 0.45rem;
-  min-width: 0;
 }
-.mk-leiste { display: flex; flex-wrap: wrap; gap: 0.45rem 0.8rem; align-items: center; font-size: 0.82rem; }
-.mk-leiste select { max-width: 100%; }
-.mk-leiste label { min-width: 0; max-width: 100%; }
-.mk-filter { display: flex; flex-wrap: wrap; gap: 0.25rem; }
-.mk-filter button.an { outline: 2px solid var(--mk-entscheidung); outline-offset: 1px; font-weight: 800; }
-.mk-kopf { margin: 0; font-size: 0.8rem; overflow-wrap: anywhere; }
-.mk-feld {
-  background: var(--mk-grund);
-  color: var(--mk-text);
-  border: 1px solid var(--mk-rand);
-  border-radius: 10px;
-  padding: 0.55rem 0.7rem;
-  font-family: var(--mk-mono);
-  font-size: 0.75rem;
-  line-height: 1.45;
-  max-height: min(62vh, 34rem);
-  min-height: 8rem;
-  overflow: auto;
-  -webkit-overflow-scrolling: touch;
-  font-variant-numeric: tabular-nums;
-}
-.mk-zeile { display: grid; grid-template-columns: 5.6em 7.5em minmax(0, 1fr); gap: 0.6em; padding: 0.05rem 0; }
-.mk-zeit, .mk-bereich { color: var(--mk-leise); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mk-leiste { display: flex; flex-wrap: wrap; gap: 0.45rem 0.8rem; align-items: center; margin-top: 0.5rem; font-family: var(--kw-mono); font-size: 0.78rem; color: var(--kw-leise); }
+.mk-leiste .kw-takte { margin: 0; }
+.kw label.mk-auswahl { flex-direction: row; font-weight: 400; min-width: 0; max-width: 100%; display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; font-family: var(--kw-mono); font-size: 0.78rem; color: var(--kw-leise); }
+.kw .mk-auswahl select { width: auto; max-width: 100%; min-width: 0; background: var(--kw-tafel2); color: var(--kw-text); border: 1px solid var(--kw-rand); border-radius: 8px; padding: 0.25rem 0.4rem; font: inherit; }
+.mk-kopf { font-size: 0.74rem; overflow-wrap: anywhere; }
+.kw-eintraege.mk-feld { max-height: min(62vh, 36rem); min-height: 8rem; line-height: 1.45; }
+.kw-eintraege.mk-feld li { grid-template-columns: 5.2rem minmax(7rem, 12rem) minmax(0, 1fr); }
+.kw-eintraege.mk-feld li span { color: var(--kw-text); }
+.kw-eintraege.mk-feld li .mk-zeit, .kw-eintraege.mk-feld li .mk-bereich { color: var(--kw-leise); overflow-wrap: anywhere; }
 .mk-text { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
-.mk-zeile.gut .mk-text { color: var(--mk-gut); }
-.mk-zeile.warnung .mk-text { color: var(--mk-warnung); }
-.mk-zeile.fehler .mk-text { color: var(--mk-fehler); }
-.mk-zeile.entscheidung .mk-text { color: var(--mk-entscheidung); font-weight: 700; }
-.mk-zeile.entscheidung .mk-bereich { color: var(--mk-entscheidung); }
-@media (max-width: 560px) {
-  .mk-zeile { grid-template-columns: 5.2em minmax(0, 1fr); }
-  .mk-bereich { grid-column: 2; grid-row: 1; }
-  .mk-text { grid-column: 1 / -1; padding-left: 0.6em; }
+.kw-eintraege.mk-feld li.gut .mk-text { color: var(--mk-gut); }
+.kw-eintraege.mk-feld li.warnung .mk-text { color: var(--mk-warnung); }
+.kw-eintraege.mk-feld li.fehler .mk-text { color: var(--mk-fehler); }
+.kw-eintraege.mk-feld li.entscheidung { border-left: 2px solid var(--mk-entscheidung); }
+.kw-eintraege.mk-feld li.entscheidung .mk-text { color: var(--mk-entscheidung); font-weight: 700; }
+.kw-eintraege.mk-feld li.entscheidung .mk-bereich { color: var(--mk-entscheidung); }
+@container kw (max-width: 560px) {
+  .kw-eintraege.mk-feld li { grid-template-columns: 4.8rem minmax(0, 1fr); }
+  .kw-eintraege.mk-feld li .mk-text { grid-column: 1 / -1; }
+}
+
+/* E239: Muster-Kielwasser */
+.mk-klein { font-size: 0.7rem; }
+.muster-kw .kw-kopf > .kw-wer { flex: 1 1 26rem; }
+.muster-kw .kw-kopf > .kw-konto { flex: 0 0 auto; }
+.mk-kopfzeile { margin-top: 0.35rem; }
+.mk-konto { display: grid; justify-items: end; gap: 0.15rem; }
+.mk-status { font-family: var(--kw-mono); font-size: 0.78rem; display: grid; gap: 0.25rem; justify-items: end; min-width: 12rem; }
+.mk-status .kw-fortschritt { width: 12rem; height: 6px; }
+.mk-knoepfe { justify-content: flex-end; align-items: center; margin-top: 0.3rem; }
+.mk-knoepfe .kw-knopf:disabled, .mk-leiste .kw-knopf:disabled { opacity: 0.45; cursor: default; }
+.mk-hinweis { margin: 0.3rem 0 0; font-size: 0.74rem; color: var(--kw-lila-hell); }
+.mk-modelle { list-style: none; margin: 0.5rem 0 0; padding: 0; display: grid; gap: 0.25rem; }
+.mk-modelle li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.4rem; border-radius: 8px; background: var(--kw-tafel2); border: 1px solid transparent; }
+.mk-modelle li.an { border-color: var(--kw-lila); box-shadow: 0 0 0 1px var(--kw-lila) inset; }
+.mk-modelle button { all: unset; cursor: pointer; display: grid; grid-template-columns: 0.7rem minmax(7rem, 1.4fr) minmax(3rem, 1fr) auto; align-items: center; gap: 0.5rem; padding: 0.35rem 0.5rem; min-width: 0; }
+.mk-modelle button:focus-visible { outline: 2px solid var(--kw-lila-hell); outline-offset: -2px; border-radius: 8px; }
+.mk-name { font-size: 0.8rem; font-weight: 700; overflow-wrap: anywhere; min-width: 0; }
+.mk-balken { display: grid; gap: 2px; min-width: 0; }
+.mk-balken i { display: block; height: 5px; border-radius: 3px; }
+.mk-balken i.gut { background: var(--kw-gruen); }
+.mk-balken i.schlecht { background: var(--kw-rot); }
+.mk-balken i.vergleich { background: var(--kw-leise); opacity: 0.6; }
+.mk-wert { font-size: 0.7rem; color: var(--kw-text); white-space: nowrap; }
+.mk-entscheidung { font-family: var(--kw-mono); font-size: 0.64rem; padding: 0.1rem 0.4rem; margin-right: 0.4rem; border-radius: 999px; border: 1px solid var(--kw-rand); white-space: nowrap; cursor: help; }
+.mk-entscheidung.uebernommen { color: var(--kw-gruen); border-color: var(--kw-gruen); }
+.mk-entscheidung.behaelt { color: var(--kw-lila-hell); border-color: var(--kw-lila); }
+.mk-entscheidung.nicht_aktiv { color: #fda4af; }
+.mk-entscheidung.nicht_trainiert { color: var(--kw-leise); }
+.mk-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.5rem 0 0.2rem; }
+.mk-chips button, .kw-legende button { appearance: none; display: inline-flex; align-items: center; gap: 0.35rem; font-family: var(--kw-mono); font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 999px; border: 1px solid var(--kw-rand); background: var(--kw-tafel2); color: var(--kw-leise); cursor: pointer; }
+.mk-chips button.an { color: var(--kw-text); border-color: var(--kw-leise); }
+.mk-chips i, .kw-legende i { display: inline-block; width: 0.9rem; height: 0; border-top: 3px solid var(--farbe); border-radius: 2px; }
+.mk-chips i.gestrichelt, .kw-legende i.gestrichelt { border-top-style: dashed; }
+.mk-chips button:not(.an) i { opacity: 0.35; }
+.kw-legende { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.3rem; }
+.kw-legende button { color: var(--kw-text); }
+.kw-legende button:disabled { cursor: default; }
+.kw-legende button.an { border-color: var(--kw-lila); }
+.mk-achse { margin: 0.5rem 0 0; font-family: var(--kw-mono); font-size: 0.7rem; color: var(--kw-leise); }
+.kw-linien svg { overflow: visible; }
+.kw-tip-zeile { display: flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
+.kw-tip-zeile i { width: 0.55rem; height: 0.55rem; border-radius: 50%; flex: none; }
+.kw-leer { font-size: 0.74rem; }
+.mk-umbruch { overflow-wrap: anywhere; min-width: 0; }
+.mk-rl { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 0.8rem; margin-top: 0.4rem; }
+.mk-zahlen4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.kw-eintraege.mk-trades { max-height: 26rem; }
+.kw-eintraege.mk-trades li { grid-template-columns: 4.2rem 4.4rem minmax(0, 1fr); }
+@container kw (max-width: 900px) {
+  .mk-rl { grid-template-columns: minmax(0, 1fr); }
+}
+@container kw (max-width: 560px) {
+  .mk-konto { justify-items: start; }
+  .mk-status { justify-items: start; min-width: 0; }
+  .mk-knoepfe { justify-content: flex-start; }
+  .mk-zahlen4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mk-modelle button { grid-template-columns: 0.7rem minmax(0, 1fr) auto; }
+  .mk-modelle .mk-balken { grid-column: 2 / -1; grid-row: 2; }
+  .mk-entscheidung { align-self: end; margin-bottom: 0.4rem; }
+  .kw-eintraege.mk-trades li { grid-template-columns: 4.2rem minmax(0, 1fr); }
+  .kw-eintraege.mk-trades li > span:last-child { grid-column: 1 / -1; }
 }
 
 /* E238: Abzeichen für Bots der Agenten (Flotte + Terminal) */

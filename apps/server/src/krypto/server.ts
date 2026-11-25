@@ -76,6 +76,12 @@ export function kryptoServer(werk: Kryptowerk, geheimnis: string, backtests?: Ba
     const q = z.object({ version: z.coerce.number().int().positive().optional(), ab: z.coerce.number().int().min(0).optional() }).parse(req.query);
     return muster.konsoleLesen(q);
   });
+  // E239: Verlauf über die Trainings (+ Einzelheiten eines Laufs: Lernkurven, Merkmale, RL-Zeitraffer)
+  app.get('/muster/verlauf', async (req) => {
+    if (!muster) throw new KryptoFehler(503, 'Muster-Modell nicht verfügbar');
+    const q = z.object({ version: z.coerce.number().int().positive().optional() }).parse(req.query);
+    return muster.verlaufLesen(q);
+  });
   app.post('/notaus', async (req) => {
     werk.notausAusloesen(z.object({ grund: z.string().max(100).optional() }).parse(req.body ?? {}).grund ?? 'Not-Aus');
     return werk.uebersicht();

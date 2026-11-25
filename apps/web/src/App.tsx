@@ -29,6 +29,8 @@ const CodeEditorSeite = lazy(() => import('./codeeditor/CodeEditor'));
 // E205: das echte VS Code des Codehauses, eingebettet (eigener Ursprung) + Erweiterungen
 const VsCodeSeite = lazy(() => import('./seiten/VsCodeSeite'));
 // E198: der Bildeditor (und sein Stylesheet) wird nur auf dieser Seite geladen
+// E239: Muster-Kielwasser (/hafen/muster) – vor der Bot-Route, „muster“ ist keine Bot-Id
+const MusterKielwasserSeite = lazy(() => import('./hafen/MusterKielwasser').then((m) => ({ default: m.MusterKielwasserSeite })));
 const KielwasserSeite = lazy(() => import('./hafen/Terminal').then((m) => ({ default: m.KielwasserSeite })));
 const PaketwerkSeite = lazy(() => import('./seiten/Paketwerk').then((m) => ({ default: m.PaketwerkSeite })));
 const AtelierSeite = lazy(() => import('./atelier/Atelier').then((m) => ({ default: m.AtelierSeite })));
@@ -105,6 +107,7 @@ function Rahmen() {
   else if (pfad === '/heute') seite = <Heute />;
   else if (pfad === '/fokus') seite = <FokusVollbild />;
   else if (pfad === '/atelier') seite = <AtelierSeite />;
+  else if (pfad === '/hafen/muster') seite = <MusterKielwasserSeite />;
   else if (/^\/hafen\/[0-9a-f-]{36}$/.test(pfad)) seite = <KielwasserSeite botId={pfad.slice('/hafen/'.length)} />;
   else if (pfad === '/schriftprobe') seite = <Schriftprobe />;
   else if (pfad === '/anleitung') seite = <Anleitung />;

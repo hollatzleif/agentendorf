@@ -240,6 +240,8 @@ export interface RlTradeBeispiel {
   haltSek: number;
   /** Ergebnis nach allen Gebühren (SOL) */
   gewinnSol: number;
+  /** E239: Zeitpunkt des Abschlusses */
+  ende?: number;
 }
 
 /** E238: Entscheidung nachvollziehen (gleiche Logik wie rlHandlung ohne Erkunden) */
@@ -359,6 +361,7 @@ async function simulieren(
         halbVerkaeufe: pos.halb,
         haltSek: Math.max(0, (ende - pos.seit) / 1000),
         gewinnSol: g2,
+        ende,
       });
   };
   const pleitePruefen = () => {

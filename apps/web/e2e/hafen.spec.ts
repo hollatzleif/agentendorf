@@ -395,14 +395,18 @@ test('E235: Terminal ohne aktives Modell sagt es', async ({ page }) => {
   await expect(page.getByRole('region', { name: 'PnL' })).toBeVisible();
 });
 
-test('E238: Trainings-Konsole – live nachladen mit ab=, Filter Entscheidungen, Bereich, Laufauswahl, Kopieren', async ({ page }, info) => {
-  const { konsole } = await import('./hafen-daten');
+test('E238/E239: Trainings-Konsole im Muster-Kielwasser – live nachladen mit ab=, Filter Entscheidungen, Bereich, Laufauswahl, Kopieren', async ({ page }, info) => {
+  const { konsole, musterVerlauf } = await import('./hafen-daten');
   const konsolenAnfragen: string[] = [];
   let auto = 0;
   await page.route('**/api/krypto**', async (r) => {
     const url = new URL(r.request().url());
     if (url.pathname === '/api/krypto') return r.fulfill({ json: uebersicht() });
     if (url.pathname === '/api/krypto/muster') return r.fulfill({ json: muster(true) });
+    if (url.pathname === '/api/krypto/muster/verlauf') {
+      const v = url.searchParams.get('version');
+      return r.fulfill({ json: musterVerlauf(v ? Number(v) : null, true) });
+    }
     if (url.pathname === '/api/krypto/muster/konsole') {
       konsolenAnfragen.push(url.search);
       const v = url.searchParams.get('version');
@@ -415,26 +419,28 @@ test('E238: Trainings-Konsole – live nachladen mit ab=, Filter Entscheidungen,
   });
   await anmelden(page);
   await page.goto('/gebaeude/Hafen');
-  const tafel = page.getByTestId('muster-tafel');
-  await tafel.getByTestId('muster-konsole-knopf').click();
+  await page.getByTestId('muster-tafel').getByTestId('muster-konsole-knopf').click();
+  await expect(page).toHaveURL(/\/hafen\/muster$/);
   const k = page.getByTestId('muster-konsole');
   await expect(k).toBeVisible();
   // laufendes Training: erst 3 Zeilen, dann live mit ab= nachgeladen
-  await expect(k.getByTestId('konsole-kopf')).toContainText('v6');
+  await expect(k.getByRole('heading')).toContainText('v6');
   await expect(k.getByTestId('konsole-kopf')).toContainText('läuft – lädt live nach');
   await expect(k.getByTestId('konsole-zeilen')).toContainText('Live-Zeile 1');
   await expect(k.getByTestId('konsole-zeilen')).toContainText('Live-Zeile 7', { timeout: 10_000 });
   expect(konsolenAnfragen.some((s) => /ab=3/.test(s))).toBe(true);
   await expect(k.getByTestId('konsole-zeilen').locator('.mk-zeile')).toHaveCount(7);
   await expect(k.getByTestId('konsole-zeilen').locator('.mk-zeit').first()).toHaveText('+00:00.0');
-  // älteren Lauf wählen
-  await k.getByTestId('konsole-lauf').selectOption('5');
-  await expect(k.getByTestId('konsole-kopf')).toContainText('aktiv geworden: Grundsignal, 🚀 Pump, rl');
+  // älteren Lauf wählen (Laufauswahl im Kopf)
+  await page.getByTestId('muster-lauf').selectOption('5');
+  await expect(page.getByTestId('muster-lauf-info')).toContainText('aktiv geworden: Grundsignal, 🚀 Pump, 💥 Absturz');
   const zeilen = k.getByTestId('konsole-zeilen');
   await expect(zeilen).toContainText('AKTIV – ersetzt v3 (AUC 0,59 → 0,61)');
   await expect(zeilen.locator('.mk-zeile')).toHaveCount(9);
   await expect(zeilen.locator('.mk-zeile.entscheidung .mk-text').first()).toHaveCSS('font-weight', '700');
   await expect(zeilen).toContainText('warum: kaufen 0,124 > warten 0,031');
+  // Bereich ungekürzt (Name des Modells)
+  await expect(zeilen.locator('.mk-bereich').filter({ hasText: 'Grundsignal (+20 % vor −15 %, 5 min)' }).first()).toBeVisible();
   // Filter: nur Entscheidungen
   await k.getByTestId('konsole-filter-entscheidung').click();
   await expect(zeilen.locator('.mk-zeile')).toHaveCount(2);
@@ -452,7 +458,7 @@ test('E238: Trainings-Konsole – live nachladen mit ab=, Filter Entscheidungen,
   await k.getByTestId('konsole-kopieren').click();
   await expect(k.getByRole('status')).toContainText(/Zeilen kopiert|Kopieren nicht möglich/);
   // Lauf v4: nur eine Entscheidung
-  await k.getByTestId('konsole-lauf').selectOption('4');
+  await page.getByTestId('muster-lauf').selectOption('4');
   await expect(zeilen).toContainText('kein Modell trainiert, weil zu wenig Daten');
   await expect(zeilen.locator('.mk-zeile')).toHaveCount(1);
   expect(konsolenAnfragen).toContain('?version=4');
@@ -461,6 +467,105 @@ test('E238: Trainings-Konsole – live nachladen mit ab=, Filter Entscheidungen,
     expect(breit).toBeLessThanOrEqual(1);
   }
   await page.screenshot({ path: info.outputPath('muster-konsole.png'), fullPage: true });
+});
+
+test('E239: Muster-Kielwasser – Modelle mit Entscheidung, Verlauf mit Tooltip, Modell wählen → Lernkurve/Merkmale, RL-Marker, alter Lauf', async ({ page }, info) => {
+  const { musterVerlauf, konsole } = await import('./hafen-daten');
+  const verlaufAnfragen: string[] = [];
+  let trainiert = 0;
+  await page.route('**/api/krypto**', async (r) => {
+    const url = new URL(r.request().url());
+    if (url.pathname === '/api/krypto') return r.fulfill({ json: uebersicht() });
+    if (url.pathname === '/api/krypto/muster') return r.fulfill({ json: muster(false) });
+    if (url.pathname === '/api/krypto/muster/training') {
+      trainiert++;
+      return r.fulfill({ json: { ok: true } });
+    }
+    if (url.pathname === '/api/krypto/muster/verlauf') {
+      verlaufAnfragen.push(url.search);
+      const v = url.searchParams.get('version');
+      return r.fulfill({ json: musterVerlauf(v ? Number(v) : null) });
+    }
+    if (url.pathname === '/api/krypto/muster/konsole') {
+      const v = url.searchParams.get('version');
+      return r.fulfill({ json: konsole(v ? Number(v) : 5, Number(url.searchParams.get('ab') ?? 0)) });
+    }
+    return r.fulfill({ json: { ok: true } });
+  });
+  await anmelden(page);
+  await page.goto('/hafen/muster');
+  // Kopf: Status fertig, aktive Modelle, Jetzt trainieren
+  await expect(page.getByTestId('muster-status')).toContainText('fertig');
+  await expect(page.getByTestId('muster-aktiv')).toHaveText('7/15');
+  await page.getByTestId('muster-trainieren').click();
+  await expect(page.getByRole('status').filter({ hasText: 'Training gestartet' })).toBeVisible();
+  expect(trainiert).toBe(1);
+  // a) alle 15 Modelle, Name ungekürzt, Entscheidung mit Grund
+  const liste = page.getByTestId('muster-modelle-liste');
+  await expect(liste.locator('li')).toHaveCount(15);
+  await expect(liste).toContainText('📈 Kurs in 1 min (%)');
+  await expect(liste).toContainText('💥 Absturz – Früh-Modell (Token ≤ 90 s)');
+  await expect(page.getByTestId('entscheidung-basis')).toHaveText('ÜBERNOMMEN');
+  await expect(page.getByTestId('entscheidung-fruehAbsturz')).toHaveText('BEHÄLT v2');
+  await expect(page.getByTestId('entscheidung-fruehPump')).toHaveAttribute('title', /Test-AUC 0,49 < 0,55/);
+  // nichts abgeschnitten: der Name passt in seine Zelle
+  const abgeschnitten = await liste.locator('.mk-name').evaluateAll((els) => els.filter((e) => e.scrollWidth > e.clientWidth + 1).length);
+  expect(abgeschnitten).toBe(0);
+  // b) Verlauf: zwei Charts (AUC + Werte), Hilfslinie, gefüllte Punkte, Tooltip am Fadenkreuz
+  const auc = page.getByTestId('verlauf-auc');
+  await expect(auc.locator('[data-serie]')).toHaveCount(3);
+  await expect(page.getByTestId('verlauf-wert').locator('[data-serie]')).toHaveCount(1);
+  await expect(auc.getByTestId('chart-hilfslinie')).toContainText('Raten 0,50');
+  await expect(auc.locator('circle[data-voll="1"]').first()).toBeVisible();
+  await auc.locator('svg').scrollIntoViewIfNeeded();
+  const box = (await auc.locator('svg').boundingBox())!;
+  await page.mouse.move(box.x + box.width - 70, box.y + box.height / 2);
+  const tip = auc.getByTestId('chart-zeiger');
+  await expect(tip).toContainText('v5');
+  await expect(tip).toContainText('Grundsignal: 0,61');
+  await expect(tip).toContainText('💥 Absturz: 0,66');
+  // Linie hinzufügen
+  await page.getByTestId('linie-fruehPump').click();
+  await expect(auc.locator('[data-serie]')).toHaveCount(4);
+  // c/d) Standard Grundsignal; Modell wählen → Lernkurve und Merkmale wechseln
+  await expect(page.getByTestId('muster-lernkurve')).toContainText('Lernkurve · Grundsignal');
+  await expect(page.getByTestId('lernkurve-urteil')).toContainText('keine Über-Anpassung');
+  await expect(page.getByTestId('muster-merkmale').locator('li').first()).toContainText('kaufVerhaeltnis60s');
+  await page.getByTestId('modell-pump').click();
+  await expect(page.getByTestId('muster-lernkurve')).toContainText('Lernkurve · 🚀 Pump');
+  await expect(page.getByTestId('lernkurve-urteil')).toContainText('am besten bei Baum 30');
+  await expect(page.getByTestId('muster-merkmale').locator('li').first()).toContainText('ticks60s');
+  await expect(page.getByTestId('lernkurve-chart').locator('[data-serie]')).toHaveCount(2);
+  // Klick auf die Legende im Verlauf wählt ebenfalls
+  await auc.locator('.kw-legende button', { hasText: '💥 Absturz' }).click();
+  await expect(page.getByTestId('muster-lernkurve')).toContainText('Lernkurve · 💥 Absturz');
+  // e) RL: Kapitalkurve, Marker mit Tooltip, Kennzahlen, Beispiel-Trades
+  const rl = page.getByTestId('muster-rl');
+  await expect(rl.getByTestId('rl-chart').locator('[data-testid="rl-marker-kauf"]')).toHaveCount(6);
+  await rl.getByTestId('rl-marker-verkauf').nth(2).hover();
+  const mk = rl.getByTestId('chart-marker');
+  await expect(mk).toContainText('▼ RAUS');
+  await expect(mk).toContainText('Sicherung: 💥 0,80 ≥ 0,7 → nur raus');
+  await expect(mk).toContainText('Ergebnis −0,0800 SOL');
+  await expect(mk).toContainText('€');
+  await rl.getByTestId('rl-marker-kauf').first().hover();
+  await expect(mk).toContainText('▲ Kauf');
+  await expect(mk).toContainText('warum: kaufen 0,124 > warten 0,031');
+  await expect(rl.getByTestId('rl-gewinn')).toContainText('€');
+  await expect(rl.getByTestId('rl-trades').locator('li')).toHaveCount(6);
+  if (info.project.name === 'handy') {
+    const breit = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(breit).toBeLessThanOrEqual(1);
+  }
+  await page.mouse.move(0, 0);
+  await page.screenshot({ path: info.outputPath('muster-kielwasser.png'), fullPage: true });
+  for (const id of ['muster-verlauf', 'muster-lernkurve', 'muster-rl', 'muster-konsole']) await page.getByTestId(id).screenshot({ path: info.outputPath(`${id}.png`) });
+  // alter Lauf (vor E239): Lernkurve und Kapitalkurve „ab dem nächsten Training“
+  await page.getByTestId('muster-lauf').selectOption('4');
+  await expect(page.getByTestId('lernkurve-spaeter')).toContainText('ab dem nächsten Training');
+  await expect(page.getByTestId('rl-spaeter')).toContainText('ab dem nächsten Training');
+  expect(verlaufAnfragen).toContain('?version=4');
+  await expect(page.getByTestId('muster-lauf-info')).toContainText('v4');
 });
 
 test('E238: Bots der Agenten – eigener Abschnitt mit Abzeichen, ⚓ in der Legende, Schalter für den Vergleich, Abzeichen im Terminal', async ({ page }, info) => {

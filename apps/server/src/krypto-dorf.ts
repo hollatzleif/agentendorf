@@ -171,6 +171,11 @@ export function hafenRouten(app: FastifyInstance, h: Hafen, a?: { db: DB; uhr: U
     const p = new URLSearchParams(Object.entries(q).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)]));
     return h.anfrage('GET', `/muster/konsole${p.size ? `?${p}` : ''}`);
   });
+  // E239: Verlauf über die Trainings + Einzelheiten eines Laufs (Muster-Kielwasser) – version geprüft durchgereicht
+  app.get('/api/krypto/muster/verlauf', async (req) => {
+    const q = z.object({ version: z.coerce.number().int().positive().optional() }).parse(req.query);
+    return h.anfrage('GET', `/muster/verlauf${q.version != null ? `?version=${q.version}` : ''}`);
+  });
 }
 
 // ---- Bewertung für Prompt-Bots (vom Kryptowerk aufgerufen, interner Port) --------------------------------

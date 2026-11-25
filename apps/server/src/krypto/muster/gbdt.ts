@@ -171,9 +171,14 @@ export async function gbdtTrainieren(
     gewichtFall?: number;
     vorbereitung?: GbdtVorbereitung;
     auswahl?: ArrayLike<number>;
+    /**
+     * E239: Lernkurve mitschreiben – Verlust auf den Lerndaten und auf diesen Testzeilen von X (Ziele `y` in derselben
+     * Skala wie gelernt) nach Baum 1, alle `alle` (Standard 5) Bäume und nach dem letzten. Ändert Modell und Ergebnis nicht.
+     */
+    kurve?: { auswahl: ArrayLike<number>; y: ArrayLike<number>; alle?: number };
   } = {},
   abgeben?: () => Promise<void>,
-): Promise<{ modell: GbdtModell; wichtigkeit: number[] }> {
+): Promise<{ modell: GbdtModell; wichtigkeit: number[]; lernkurve?: { baum: number; lern: number; test: number | null }[] }> {
   const art: GbdtArt = o.art ?? "logistisch";
   const asymmetrisch = art === "asymmetrisch";
   const gewichtFall = o.gewichtFall ?? VERLAUF_GEWICHT_FALL;
@@ -367,6 +372,43 @@ export async function gbdtTrainieren(
     };
   };
 
+  // E239: Lernkurve – Rohwerte der Testzeilen laufen Baum für Baum mit (gleiche Schwellen wie gbdtVorhersagen)
+  const kurve = o.kurve;
+  const lernkurve: { baum: number; lern: number; test: number | null }[] = [];
+  const kAlle = Math.max(1, Math.floor(kurve?.alle ?? 5));
+  const kN = kurve ? kurve.auswahl.length : 0;
+  const rohTest = new Float64Array(kN).fill(basis);
+  const yTest = new Float64Array(kN);
+  for (let j = 0; j < kN; j++) {
+    const v = kurve!.y[j]!;
+    yTest[j] = quadratisch ? wert(v) : v > 0.5 ? 1 : 0;
+  }
+  const verlust = (echt: number, rohwert: number) => {
+    if (asymmetrisch) return asymVerlust(echt, rohwert, gewichtFall);
+    if (quadratisch) return (echt - rohwert) ** 2;
+    const p = Math.min(1 - 1e-12, Math.max(1e-12, sigmoid(rohwert)));
+    return echt > 0.5 ? -Math.log(p) : -Math.log(1 - p);
+  };
+  const kurveSchreiben = async (baum: GbdtKnoten, nr: number) => {
+    for (let j = 0; j < kN; j++) {
+      let k: GbdtKnoten = baum;
+      const x = X[kurve!.auswahl[j]!]!;
+      while (k.w === undefined) {
+        const nx: GbdtKnoten | undefined = wert(x[k.m ?? 0]) <= (k.s ?? 0) ? k.l : k.r;
+        if (!nx) break;
+        k = nx;
+      }
+      rohTest[j] = rohTest[j]! + lernrate * (k.w ?? 0);
+      if ((j & 16383) === 16383) await warte();
+    }
+    if (nr !== 1 && nr % kAlle !== 0 && nr !== anzahlBaeume) return;
+    let sl = 0;
+    for (let i = 0; i < n; i++) sl += verlust(ziel[i]!, roh[i]!);
+    let st = 0;
+    for (let j = 0; j < kN; j++) st += verlust(yTest[j]!, rohTest[j]!);
+    lernkurve.push({ baum: nr, lern: sl / n, test: kN ? st / kN : null });
+  };
+
   const alle = new Uint32Array(n);
   for (let i = 0; i < n; i++) alle[i] = i;
   for (let baum = 0; baum < anzahlBaeume; baum++) {
@@ -391,13 +433,16 @@ export async function gbdtTrainieren(
       }
     const wurzel = teilbar(alle, tiefe) ? await histogramm(alle) : null;
     await warte();
-    modell.baeume.push(await bauen(alle, tiefe, wurzel));
+    const neuerBaum = await bauen(alle, tiefe, wurzel);
+    modell.baeume.push(neuerBaum);
+    if (kurve) await kurveSchreiben(neuerBaum, baum + 1);
     await warte(true);
   }
   const summe = wichtigkeit.reduce((s, w) => s + w, 0);
   return {
     modell: modell as GbdtModell,
     wichtigkeit: wichtigkeit.map((w) => (summe > 0 ? w / summe : 0)),
+    ...(kurve ? { lernkurve } : {}),
   };
 }
 

@@ -1,5 +1,6 @@
 // E238: Trainings-Konsole des Muster-Modells – was das Training gemacht/überlegt hat und WARUM (Daten, Trennzeit, je Modell
 // Test und Entscheidung, RL mit Beispiel-Trades und Q-Werten). Während eines Trainings live: alle 1,5 s mit ab= nachladen.
+// E239: als Tafel im Muster-Kielwasser (kw-Stil wie die Protokolle im Terminal), Lauf kommt von der Seite, Bereich ungekürzt.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { KRYPTO_MUSTER_MODELLE, type KryptoKonsoleZeile, type KryptoMusterKonsole } from '@dorf/shared';
 import { ApiFehler, api } from '../api';
@@ -15,26 +16,23 @@ export function konsoleZeit(t: number): string {
   return `+${String(min).padStart(2, '0')}:${sek}`;
 }
 
-const bereichName = (b: string) => {
-  const m = KRYPTO_MUSTER_MODELLE.find((x) => x.schluessel === b);
-  return m ? m.name.replace(/ \(.*$/, '') : b;
-};
+/** voller Name des Bereichs (Modell-Schlüssel → Name, sonst wie er ist) */
+export const bereichName = (b: string) => KRYPTO_MUSTER_MODELLE.find((x) => x.schluessel === b)?.name ?? b;
 
 function zeilenKlasse(z: KryptoKonsoleZeile) {
   if (z.stufe === 'warnung' && z.bereich === 'Dienst' && /^Fehler/.test(z.text)) return 'mk-zeile warnung fehler';
   return `mk-zeile ${z.stufe}`;
 }
 
-export function MusterKonsole({ schliessen }: { schliessen: () => void }) {
-  /** null = automatisch (laufendes bzw. letztes Training) */
-  const [wahl, setWahl] = useState<number | null>(null);
+/** Konsole eines Laufs (version null = laufendes bzw. letztes Training, wechselt bei einem neuen Training von selbst) */
+export function MusterKonsole({ version: wahl }: { version: number | null }) {
   const [zeilen, setZeilen] = useState<KryptoKonsoleZeile[]>([]);
   const [kopf, setKopf] = useState<Omit<KryptoMusterKonsole, 'zeilen'> | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('alle');
   const [bereich, setBereich] = useState('');
   const [kopiert, setKopiert] = useState<string | null>(null);
-  const feld = useRef<HTMLDivElement>(null);
+  const feld = useRef<HTMLUListElement>(null);
   const unten = useRef(true);
 
   useEffect(() => {
@@ -107,30 +105,16 @@ export function MusterKonsole({ schliessen }: { schliessen: () => void }) {
     setTimeout(() => setKopiert(null), 2500);
   };
 
-  const datum = (iso: string) => new Date(iso).toLocaleString('de-AT', { timeZone: 'Europe/Vienna', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-  const lauf = kopf?.laeufe.find((l) => l.version === kopf.version);
-
   return (
-    <section className="muster-konsole" aria-label="Trainings-Konsole" data-testid="muster-konsole">
-      <div className="hafen-kopf">
-        <h4 style={{ margin: 0 }}>🖥️ Trainings-Konsole</h4>
-        <button type="button" className="klein" onClick={schliessen}>
-          Schließen
-        </button>
+    <section className="kw-tafel muster-konsole" aria-label="Trainings-Konsole" data-testid="muster-konsole">
+      <div className="kw-chart-kopf">
+        <h3>🖥️ Konsole{kopf?.version != null ? ` · v${kopf.version}` : ''}</h3>
+        <span className="leise mono mk-kopf" data-testid="konsole-kopf">
+          {kopf ? (kopf.version == null ? 'noch kein Training' : `${kopf.laeuft ? '● läuft – lädt live nach · ' : ''}${sichtbar.length} von ${kopf.gesamt} Zeilen`) : ''}
+        </span>
       </div>
       <div className="mk-leiste">
-        <label>
-          Lauf{' '}
-          <select value={wahl ?? ''} onChange={(e) => setWahl(e.target.value ? Number(e.target.value) : null)} data-testid="konsole-lauf">
-            <option value="">neuester / laufender</option>
-            {kopf?.laeufe.map((l) => (
-              <option key={l.version} value={l.version}>
-                v{l.version} · {datum(l.erstellt)} · {l.laeuft ? 'läuft …' : l.fehler ? '⚠ fehlgeschlagen' : `aktiv geworden: ${l.aktivGeworden.length ? l.aktivGeworden.map(bereichName).join(', ') : 'keins'}`}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="mk-filter" role="group" aria-label="Filter">
+        <div className="kw-takte" role="group" aria-label="Filter">
           {(
             [
               ['alle', 'Alle'],
@@ -138,12 +122,12 @@ export function MusterKonsole({ schliessen }: { schliessen: () => void }) {
               ['warnung', 'Warnungen'],
             ] as [Filter, string][]
           ).map(([f, text]) => (
-            <button key={f} type="button" className={`klein${filter === f ? ' an' : ''}`} aria-pressed={filter === f} onClick={() => setFilter(f)} data-testid={`konsole-filter-${f}`}>
+            <button key={f} type="button" className={filter === f ? 'an' : ''} aria-pressed={filter === f} onClick={() => setFilter(f)} data-testid={`konsole-filter-${f}`}>
               {text}
             </button>
           ))}
         </div>
-        <label>
+        <label className="mk-auswahl">
           Bereich{' '}
           <select value={bereich} onChange={(e) => setBereich(e.target.value)} data-testid="konsole-bereich">
             <option value="">alle</option>
@@ -154,25 +138,18 @@ export function MusterKonsole({ schliessen }: { schliessen: () => void }) {
             ))}
           </select>
         </label>
-        <button type="button" className="klein" onClick={() => void kopieren()} disabled={!sichtbar.length} data-testid="konsole-kopieren">
+        <button type="button" className="kw-knopf" onClick={() => void kopieren()} disabled={!sichtbar.length} data-testid="konsole-kopieren">
           📋 Kopieren
         </button>
+        {kopiert && (
+          <span className="leise mono" role="status" style={{ fontSize: '0.74rem' }}>
+            {kopiert}
+          </span>
+        )}
       </div>
-      {kopf && (
-        <p className="leise mk-kopf" data-testid="konsole-kopf">
-          {kopf.version == null
-            ? 'Noch kein Training gelaufen.'
-            : `v${kopf.version}${lauf ? ` · ${datum(lauf.erstellt)}` : ''}${kopf.laeuft ? ' · läuft – lädt live nach' : ''}${lauf?.dauerMs != null ? ` · ${Math.round(lauf.dauerMs / 1000)} s` : ''}${lauf?.fehler ? ` · fehlgeschlagen: ${lauf.fehler}` : ''}${lauf && !kopf.laeuft && !lauf.fehler ? ` · aktiv geworden: ${lauf.aktivGeworden.length ? lauf.aktivGeworden.map(bereichName).join(', ') : 'keins'}` : ''} · ${sichtbar.length} von ${kopf.gesamt} Zeilen`}
-        </p>
-      )}
-      {kopiert && (
-        <p className="leise" role="status" style={{ margin: 0 }}>
-          {kopiert}
-        </p>
-      )}
-      {fehler && <p className="hinweis">Konsole nicht erreichbar: {fehler}</p>}
-      <div
-        className="mk-feld"
+      {fehler && <p className="minus mono">Konsole nicht erreichbar: {fehler}</p>}
+      <ul
+        className="kw-eintraege mk-feld"
         ref={feld}
         role="log"
         aria-live={kopf?.laeuft ? 'polite' : 'off'}
@@ -182,16 +159,16 @@ export function MusterKonsole({ schliessen }: { schliessen: () => void }) {
           unten.current = f.scrollHeight - f.scrollTop - f.clientHeight < 30;
         }}
       >
-        {!kopf && !fehler && <div className="mk-zeile info">Lade …</div>}
-        {kopf && kopf.version != null && !zeilen.length && <div className="mk-zeile info">Für diesen Lauf gibt es keine Konsole (vor E238 trainiert).</div>}
+        {!kopf && !fehler && <li className="mk-zeile info">Lade …</li>}
+        {kopf && kopf.version != null && !zeilen.length && <li className="mk-zeile info">Für diesen Lauf gibt es keine Konsole (vor E238 trainiert).</li>}
         {sichtbar.map((z, i) => (
-          <div key={i} className={zeilenKlasse(z)} data-stufe={z.stufe}>
+          <li key={i} className={zeilenKlasse(z)} data-stufe={z.stufe}>
             <span className="mk-zeit">{konsoleZeit(z.t)}</span>
             <span className="mk-bereich">{bereichName(z.bereich)}</span>
             <span className="mk-text">{z.text}</span>
-          </div>
+          </li>
         ))}
-      </div>
+      </ul>
     </section>
   );
 }

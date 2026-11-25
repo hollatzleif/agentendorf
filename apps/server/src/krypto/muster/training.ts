@@ -22,6 +22,8 @@ import {
   type KryptoMusterModellInfo,
   type KryptoMusterSchluessel,
   type KryptoMusterStatus,
+  type KryptoRlBeispielTrade,
+  type KryptoRlEntscheidungInfo,
 } from "@dorf/shared";
 import {
   asymVerlust,
@@ -46,7 +48,9 @@ import {
 } from "./merkmale.js";
 import {
   RL_ALPHA,
+  RL_EINSATZ_SOL,
   RL_GAMMA,
+  RL_STARTKAPITAL_SOL,
   rlTrainieren,
   rlZeitraffer,
   type RlEntscheidung,
@@ -291,6 +295,8 @@ interface ModellDef {
 }
 
 const zahl = (x: number, stellen = 2) => x.toFixed(stellen).replace(".", ",");
+/** E239: 4 gültige Stellen (Lernkurve, Q-Werte – kleinere Speicherung) */
+const rund = (x: number) => (Number.isFinite(x) ? Number(x.toPrecision(4)) : 0);
 const prozent = (x: number) => `${zahl(x * 100, 1)} %`;
 const tausend = (n: number) => n.toLocaleString("de-DE");
 const vz = (x: number, stellen = 1) =>
@@ -343,6 +349,60 @@ function warumText(e: RlEntscheidung): string {
     )
     .join("");
 }
+/** E239: so viele Punkte hat die Kapitalkurve des Zeitraffers höchstens, so viele Beispiel-Trades bekommt die App */
+export const RL_KURVE_PUNKTE = 300;
+export const RL_BEISPIELE_APP = 30;
+
+/** E239: Kapital nach jedem Abschluss (zeitlich sortiert), ausgedünnt auf höchstens n Punkte – der letzte bleibt immer */
+export function kapitalKurve(
+  abschluesse: { zeit: number; gewinnSol: number }[],
+  start: number,
+  n: number,
+): { zeit: number; kapitalSol: number }[] {
+  const sortiert = [...abschluesse].sort((a, b) => a.zeit - b.zeit);
+  let k = start;
+  const alle = sortiert.map((a) => ({ zeit: a.zeit, kapitalSol: rund((k += a.gewinnSol)) }));
+  if (alle.length <= n) return alle;
+  const r = Array.from({ length: n - 1 }, (_, i) => alle[Math.floor((i * alle.length) / (n - 1))]!);
+  r.push(alle[alle.length - 1]!);
+  return r;
+}
+
+/** E239: Entscheidung des Zeitraffers für die App (gerundet, nur was die Tafel zeigt) */
+function entscheidungInfo(e: RlEntscheidung): KryptoRlEntscheidungInfo {
+  const z = (x: number | null | undefined) => (x == null || !Number.isFinite(x) ? null : rund(x));
+  const l = e.lage;
+  return {
+    zeit: e.zeit,
+    preis: e.preis,
+    handlung: e.handlung,
+    grund: e.grund,
+    q: e.q ? e.q.map((x) => ({ handlung: x.handlung, wert: rund(x.wert) })) : null,
+    ...(e.sicherung ? { sicherung: e.sicherung } : {}),
+    lage: {
+      p: z(l.p),
+      pump: z(l.pump),
+      absturz: z(l.absturz),
+      v1m: z(l.v1m),
+      v5m: z(l.v5m),
+      alarm: l.alarm ?? null,
+      plusProzent: l.haelt ? z(l.plusProzent) : null,
+      haltSek: l.haelt ? z(l.haltSek) : null,
+    },
+  };
+}
+function beispielInfo(t: RlTradeBeispiel): KryptoRlBeispielTrade {
+  return {
+    mint: t.mint,
+    kauf: entscheidungInfo(t.kauf),
+    verkauf: t.verkauf ? entscheidungInfo(t.verkauf) : null,
+    ende: t.ende ?? t.kauf.zeit,
+    halbVerkaeufe: t.halbVerkaeufe,
+    haltSek: rund(t.haltSek),
+    gewinnSol: rund(t.gewinnSol),
+  };
+}
+
 /** gleichmäßig verteilt höchstens n Elemente */
 function verteilt<T>(liste: T[], n: number): T[] {
   if (liste.length <= n) return liste;
@@ -759,6 +819,8 @@ export async function musterTrainieren(
     const konstante = def.asym
       ? expektil(Float64Array.from(lernIdx, (i) => yVoll[i]!))
       : 0;
+    // E239: Testziele für die Lernkurve in derselben Skala wie gelernt (Wert-Modelle: gekappt wie die Lerndaten, log)
+    const kurveY = Float64Array.from(testIdx, (i) => beispiele[i]!.y[def.spalte]!);
     if (def.wert) {
       const sortiert = Float64Array.from(lernIdx, (i) => yVoll[i]!).sort();
       median = quantil(sortiert, 0.5);
@@ -768,8 +830,10 @@ export async function musterTrainieren(
       // Mittelwert und verliert gegen den Median; auf der Log-Skala liegt die Schätzung nahe am typischen Wert
       for (const i of lernIdx)
         yVoll[i] = Math.log1p(Math.max(unten, Math.min(oben, yVoll[i]!)) / 100);
+      for (let j = 0; j < kurveY.length; j++)
+        kurveY[j] = Math.log1p(Math.max(unten, Math.min(oben, kurveY[j]!)) / 100);
     }
-    const { modell: gbdt, wichtigkeit } = await gbdtTrainieren(
+    const { modell: gbdt, wichtigkeit, lernkurve } = await gbdtTrainieren(
       X,
       yVoll,
       {
@@ -781,6 +845,7 @@ export async function musterTrainieren(
             : "logistisch",
         vorbereitung,
         auswahl: lernIdx,
+        kurve: { auswahl: testIdx, y: kurveY, alle: 5 },
       },
       async () => {
         await abgeben?.();
@@ -864,6 +929,7 @@ export async function musterTrainieren(
       merkmale: gbdt.merkmale
         .map((name, i) => ({ name, wichtigkeit: wichtigkeit[i] ?? 0 }))
         .sort((a, b) => b.wichtigkeit - a.wichtigkeit),
+      ...(lernkurve?.length ? { lernkurve: lernkurve.map((p) => ({ baum: p.baum, lern: rund(p.lern), test: p.test == null ? null : rund(p.test) })) } : {}),
     };
     let zeile: string;
     let bootAnteil: number | null = null;
@@ -1192,19 +1258,20 @@ export async function musterTrainieren(
   }
   const beispielTrades: RlTradeBeispiel[] = [];
   let tradesGesehen = 0;
+  // E239: jeder Abschluss (Zeit, Gewinn) für die Kapitalkurve – immer (ohne log dasselbe Ergebnis)
+  const abschluesse: { zeit: number; gewinnSol: number }[] = [];
   melde(0.95);
   const zeitraffer = await rlZeitraffer(
     rl,
     testEp,
     { ...KRYPTO_RL_STANDARD, erkunden: 0 },
     abgeben,
-    o.log
-      ? (t) => {
-          tradesGesehen++;
-          // die ersten 400 merken, daraus 15 gleichmäßig verteilt
-          if (beispielTrades.length < 400) beispielTrades.push(t);
-        }
-      : undefined,
+    (t) => {
+      tradesGesehen++;
+      abschluesse.push({ zeit: t.ende ?? t.kauf.zeit, gewinnSol: t.gewinnSol });
+      // die ersten 400 merken, daraus 15 (Konsole) bzw. 30 (App) gleichmäßig verteilt
+      if (beispielTrades.length < 400) beispielTrades.push(t);
+    },
   );
   abschnitt("Zeitraffer");
   if (o.log) {
@@ -1247,6 +1314,11 @@ export async function musterTrainieren(
       trefferquote: zeitraffer.trefferquote,
       pleiten: zeitraffer.pleiten,
     },
+    // E239: Kapitalkurve (nach Abschluss-Zeit, ≤ RL_KURVE_PUNKTE) und Beispiel-Trades strukturiert
+    startSol: RL_STARTKAPITAL_SOL,
+    einsatzSol: RL_EINSATZ_SOL,
+    kurve: kapitalKurve(abschluesse, RL_STARTKAPITAL_SOL, RL_KURVE_PUNKTE),
+    beispiele: verteilt(beispielTrades, RL_BEISPIELE_APP).map(beispielInfo),
   };
 
   const aktivAnzahl = Object.values(modelle).filter((m) => m.info.aktiv).length;

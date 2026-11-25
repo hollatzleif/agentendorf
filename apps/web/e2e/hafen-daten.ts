@@ -1,4 +1,4 @@
-import { KRYPTO_MODULE, KRYPTO_STANDARD, type KryptoBot, type KryptoKonsoleZeile, type KryptoMusterKonsole, type KryptoMusterModellInfo, type KryptoMusterStatus, type KryptoTerminal, type KryptoUebersicht } from '@dorf/shared';
+import { KRYPTO_MODULE, KRYPTO_MUSTER_MODELLE, KRYPTO_STANDARD, type KryptoBot, type KryptoKonsoleZeile, type KryptoMusterKonsole, type KryptoMusterModellInfo, type KryptoMusterSchluessel, type KryptoMusterStatus, type KryptoMusterVerlauf, type KryptoMusterVerlaufLauf, type KryptoMusterVerlaufModell, type KryptoRlBeispielTrade, type KryptoTerminal, type KryptoUebersicht } from '@dorf/shared';
 
 /** E227: nachgebaute Daten für den Hafen – fest, ohne Zufall */
 export const BOT_ID = '11111111-2222-4333-8444-555555555555';
@@ -204,4 +204,84 @@ export function konsole(version: number | null, ab: number, laeuftZeilen = 3): K
   }
   const alle = version === 4 ? v4 : v5;
   return { laeufe, version: version ?? 5, laeuft: false, zeilen: alle.slice(ab), gesamt: alle.length };
+}
+
+/** E239: Verlauf über die Trainings – v3, v4 (ohne Lernkurve/Kurve, wie vor E239), v5 (mit allem); optional v6 läuft */
+export function musterVerlauf(version: number | null, laeuft = false): KryptoMusterVerlauf {
+  const jetzt = Date.now();
+  const erstellt = (v: number) => new Date(jetzt - (6 - v) * 5 * 3_600_000).toISOString();
+  const auc: Record<number, Partial<Record<KryptoMusterSchluessel, number>>> = {
+    3: { basis: 0.57, pump: 0.53, absturz: 0.6, fruehPump: 0.5, fruehAbsturz: 0.52 },
+    4: { basis: 0.59, pump: 0.55, absturz: 0.63, fruehPump: 0.51, fruehAbsturz: 0.54 },
+    5: { basis: 0.612, pump: 0.58, absturz: 0.664, fruehPump: 0.49, fruehAbsturz: 0.53 },
+  };
+  const modelle = (v: number): KryptoMusterModellInfo[] =>
+    KRYPTO_MUSTER_MODELLE.map((d, i) => {
+      const p = d.art === 'wahrscheinlichkeit';
+      const a = auc[v]![d.schluessel] ?? 0.5;
+      const fehlerBasis = 5 + i;
+      const fehler = fehlerBasis * (1 - (0.02 * v + (i % 3) * 0.02));
+      const aktiv = p ? a >= 0.55 : fehler <= fehlerBasis * 0.95;
+      const info = modellInfo(d.schluessel, aktiv, p ? { auc: a, aucUntergrenze: a - 0.04, basis: 0.17 } : { fehler, fehlerBasis }, aktiv ? [] : [p ? `Test-AUC ${a.toFixed(2).replace('.', ',')} < 0,55` : 'Fehler nicht ≥ 5 % besser als die Konstante']);
+      info.version = v;
+      info.merkmale = ['kaufVerhaeltnis60s', 'rendite30s', 'ticks60s', 'abstandHoch120s', 'solImPool', 'alterSek', 'groessterKauf30s', 'nettoSol60s', 'volatilitaet60s', 'gruenInFolge', 'devTokens24h', 'rendite5s'].map((name, j) => ({ name: d.schluessel === 'pump' ? `${name}` : name, wichtigkeit: (d.schluessel === 'pump' ? (j === 2 ? 0.3 : 0.05) : 0.2 / (j + 1)) }));
+      if (d.schluessel === 'pump') info.merkmale.sort((x, y) => y.wichtigkeit - x.wichtigkeit);
+      if (v === 5)
+        info.lernkurve = Array.from({ length: 17 }, (_, k) => {
+          const baum = k === 0 ? 1 : Math.min(80, k * 5);
+          const lern = 0.5 * Math.exp(-baum / (d.schluessel === 'pump' ? 15 : 30)) + 0.2;
+          // pump passt sich an: Test steigt ab Baum 30 wieder
+          const test = d.schluessel === 'pump' ? 0.62 - 0.004 * Math.min(baum, 30) + 0.003 * Math.max(0, baum - 30) : lern + 0.03 + 0.01 * Math.exp(-baum / 20);
+          return { baum, lern, test };
+        });
+      return info;
+    });
+  const t0 = jetzt - 30 * 3_600_000;
+  const beispiele: KryptoRlBeispielTrade[] = Array.from({ length: 6 }, (_, i) => {
+    const zeit = t0 + (i + 1) * 3_600_000;
+    const gewinnSol = i % 3 === 2 ? -0.08 : 0.06 + i * 0.01;
+    const lage = { p: 0.72, pump: 0.31, absturz: 0.04, v1m: 3.2, v5m: 6.1, alarm: null, plusProzent: null, haltSek: null };
+    return {
+      mint: `7xKX${i}tg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU`,
+      kauf: { zeit, preis: 1.2e-7, handlung: 'kaufen', grund: 'q', q: [{ handlung: 'kaufen', wert: 0.124 }, { handlung: 'warten', wert: 0.031 }], lage },
+      verkauf: i === 4 ? null : { zeit: zeit + 45_000, preis: 1.3e-7, handlung: i === 2 ? 'raus' : 'raus', grund: i === 2 ? 'sicherung' : 'q', q: i === 2 ? [{ handlung: 'raus', wert: 0.2 }] : [{ handlung: 'raus', wert: 0.2 }, { handlung: 'warten', wert: 0.05 }], ...(i === 2 ? { sicherung: '💥 0,80 ≥ 0,7 → nur raus' } : {}), lage: { ...lage, absturz: i === 2 ? 0.8 : 0.04, plusProzent: i === 2 ? -9.5 : 12.4, haltSek: 45 } },
+      ende: zeit + 50_000,
+      halbVerkaeufe: 0,
+      haltSek: 50,
+      gewinnSol,
+    };
+  });
+  let kap = 10;
+  const kurve = Array.from({ length: 40 }, (_, i) => ({ zeit: t0 + i * 900_000 + 600_000, kapitalSol: (kap += Math.sin(i / 3) * 0.05 + 0.025) }));
+  const rl = (v: number): KryptoMusterVerlaufLauf['rl'] => ({ trades: 50 + v, gewinnSol: v === 5 ? kurve.at(-1)!.kapitalSol - 10 : 0.2, trefferquote: 0.42, pleiten: v === 5 ? 1 : 0 });
+  const zusammen = (v: number): KryptoMusterVerlaufLauf => {
+    const ms = modelle(v);
+    const geworden = ms.filter((x) => x.aktiv).map((x) => x.schluessel as string);
+    const eintraege = ms.map((x) => {
+      const e: KryptoMusterVerlaufModell = {
+        aktiv: x.aktiv,
+        auc: x.test.auc,
+        aucUntergrenze: x.test.aucUntergrenze,
+        fehler: x.test.fehler,
+        fehlerBasis: x.test.fehlerBasis,
+        entscheidung: x.aktiv ? 'uebernommen' : v > 3 && x.schluessel === 'fruehAbsturz' ? 'behaelt' : 'nicht_aktiv',
+        ...(x.schluessel === 'fruehAbsturz' && !x.aktiv && v > 3 ? { behaeltVersion: 2 } : {}),
+        grund: x.aktiv ? 'Test bestanden' : x.gruende.join('; '),
+      };
+      return [x.schluessel, e] as const;
+    });
+    return { version: v, erstellt: erstellt(v), dauerMs: 60_000 + v * 1000, fehler: null, aktivGeworden: [...geworden, 'rl'], modelle: Object.fromEntries(eintraege), rl: rl(v) };
+  };
+  const laeufe: KryptoMusterVerlaufLauf[] = [zusammen(5), zusammen(4), zusammen(3)];
+  if (laeuft) laeufe.unshift({ version: 6, erstellt: new Date(jetzt).toISOString(), dauerMs: null, fehler: null, laeuft: true, aktivGeworden: [], modelle: {}, rl: null });
+  const v = version ?? 5;
+  return {
+    laeufe,
+    lauf: {
+      version: v,
+      erstellt: erstellt(v),
+      modelle: modelle(v),
+      rl: { version: v, trainiert: erstellt(v), episoden: 4000, zeitraffer: rl(v)!, ...(v === 5 ? { startSol: 10, einsatzSol: 0.5, kurve, beispiele } : {}) },
+    },
+  };
 }

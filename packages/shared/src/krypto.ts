@@ -223,6 +223,41 @@ export interface KryptoMusterModellInfo {
     alarmFall?: { n: number; treffer: number } | null;
   };
   merkmale: { name: string; wichtigkeit: number }[];
+  /** E239: Verlust auf Lern- und Testdaten nach `baum` Bäumen (Skala wie im Training; fehlt bei Läufen vor E239) */
+  lernkurve?: KryptoLernkurvePunkt[];
+}
+
+/** E239: ein Punkt der Lernkurve – sinkt lern weiter, während test steigt, passt sich das Modell zu sehr an */
+export interface KryptoLernkurvePunkt {
+  baum: number;
+  lern: number;
+  test: number | null;
+}
+
+/** E239: eine Entscheidung des RL-Agenten im Zeitraffer (strukturiert, für Marker und Liste) */
+export interface KryptoRlEntscheidungInfo {
+  zeit: number;
+  /** Ausführungskurs (SOL je Token) */
+  preis: number;
+  handlung: 'warten' | 'kaufen' | 'halb' | 'raus';
+  /** q = beste erlaubte Handlung nach Q-Werten; regel = Lage nie geübt; sicherung = nur eine Handlung erlaubt */
+  grund: 'q' | 'regel' | 'sicherung';
+  q: { handlung: string; wert: number }[] | null;
+  sicherung?: string;
+  lage: { p: number | null; pump: number | null; absturz: number | null; v1m: number | null; v5m: number | null; alarm: 'anstieg' | 'absturz' | null; plusProzent: number | null; haltSek: number | null };
+}
+/** E239: ein abgeschlossener Beispiel-Trade aus dem Zeitraffer */
+export interface KryptoRlBeispielTrade {
+  mint: string;
+  kauf: KryptoRlEntscheidungInfo;
+  /** null = Ende der Aufzeichnung (zum letzten Kurs geschlossen) */
+  verkauf: KryptoRlEntscheidungInfo | null;
+  /** Zeitpunkt des Abschlusses */
+  ende: number;
+  halbVerkaeufe: number;
+  haltSek: number;
+  /** nach allen Gebühren */
+  gewinnSol: number;
 }
 
 export interface KryptoMusterStatus {
@@ -246,6 +281,11 @@ export interface KryptoMusterStatus {
     episoden: number;
     /** Zeitraffer über die Testdaten (Paper-Maschine mit Gebühren) */
     zeitraffer: { trades: number; gewinnSol: number; trefferquote: number | null; pleiten: number };
+    /** E239 (nur /muster/verlauf, nicht im Status): Kapital über die Testdaten nach Abschluss-Zeit (≤ 300 Punkte), Start, Beispiel-Trades */
+    kurve?: { zeit: number; kapitalSol: number }[];
+    startSol?: number;
+    einsatzSol?: number;
+    beispiele?: KryptoRlBeispielTrade[];
   };
   training: { laeuft: boolean; /** in Prozent (0–100) */ fortschritt: number; letzter: string | null; naechster: string | null; fehler: string | null; dauerMs: number | null };
   daten: { ticks: number; tokens: number; von: string | null; bis: string | null };
@@ -276,6 +316,45 @@ export interface KryptoMusterKonsole {
   zeilen: KryptoKonsoleZeile[];
   /** so viele Zeilen hat der Lauf insgesamt (bisher) */
   gesamt: number;
+}
+
+/** E239: was ein Lauf mit einem Modell-Schlüssel gemacht hat */
+export type KryptoMusterEntscheidung = 'uebernommen' | 'behaelt' | 'nicht_aktiv' | 'nicht_trainiert';
+export interface KryptoMusterVerlaufModell {
+  /** hat das Modell dieses Laufs den Test bestanden? */
+  aktiv: boolean;
+  auc: number | null;
+  aucUntergrenze: number | null;
+  fehler: number | null;
+  fehlerBasis: number | null;
+  entscheidung: KryptoMusterEntscheidung;
+  /** bei 'behaelt': die weiter gültige Version */
+  behaeltVersion?: number | null;
+  /** Gründe (nicht aktiv) bzw. Testwerte (übernommen) */
+  grund: string;
+}
+/** E239: ein Lauf im Verlauf über die Trainings */
+export interface KryptoMusterVerlaufLauf {
+  version: number;
+  erstellt: string;
+  dauerMs: number | null;
+  fehler: string | null;
+  laeuft?: boolean;
+  aktivGeworden: string[];
+  modelle: Partial<Record<KryptoMusterSchluessel, KryptoMusterVerlaufModell>>;
+  rl: NonNullable<KryptoMusterStatus['rl']>['zeitraffer'] | null;
+}
+/** E239: GET /api/krypto/muster/verlauf?version= – alle Läufe (neueste zuerst) + Einzelheiten eines Laufs */
+export interface KryptoMusterVerlauf {
+  laeufe: KryptoMusterVerlaufLauf[];
+  /** Einzelheiten des gewählten (bzw. neuesten gespeicherten) Laufs; null ohne gespeicherten Lauf */
+  lauf: null | {
+    version: number;
+    erstellt: string;
+    /** Modelle dieses Laufs (Reihenfolge KRYPTO_MUSTER_MODELLE; ältere Läufe können fehlen – je Schlüssel die letzten 10) */
+    modelle: KryptoMusterModellInfo[];
+    rl: KryptoMusterStatus['rl'];
+  };
 }
 
 export interface KryptoWallet {

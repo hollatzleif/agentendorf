@@ -5,7 +5,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { KRYPTO_BOT_VON, KRYPTO_MUSTER_MODELLE, type KryptoBotVon, KRYPTO_PAPER_MINDESTENS_STUNDEN, KRYPTO_RL_STANDARD, KRYPTO_STANDARD, type KryptoBacktest, type KryptoBot, type KryptoEinstellung, type KryptoMusterModellInfo, type KryptoMusterStatus, type KryptoUebersicht } from '@dorf/shared';
 import { ApiFehler, api } from '../api';
 import { bibliothekUrl, linkKlick } from '../router';
-import { MusterKonsole } from './MusterKonsole';
 import { Eur, EuroKurs, KURS_QUELLE, eurJeSolAus, kursText, solEurText, useEurJeSol } from './euro';
 import { prozent, sol, solVz, uhrzeit } from './format';
 import './hafen.css';
@@ -600,7 +599,6 @@ function MusterTafel() {
     retry: false,
   });
   const [hinweis, setHinweis] = useState<string | null>(null);
-  const [konsole, setKonsole] = useState(false);
   const trainieren = useMutation({
     mutationFn: () => api('/api/krypto/muster/training', { methode: 'POST' }),
     onSuccess: () => {
@@ -621,15 +619,14 @@ function MusterTafel() {
       <div className="hafen-kopf">
         <h3 style={{ margin: 0 }}>🧠 Muster-Modell</h3>
         <span className="hafen-knoepfe">
-          <button type="button" className="klein" aria-expanded={konsole} onClick={() => setKonsole((x) => !x)} data-testid="muster-konsole-knopf" title="Nachvollziehen, was das Training gemacht hat und warum">
+          <a className="knopf klein" href="/hafen/muster" onClick={linkKlick} data-testid="muster-konsole-knopf" title="Muster-Kielwasser: Modelle, Verlauf, Lernkurven, RL-Zeitraffer und die Konsole – was das Training gemacht hat und warum">
             🖥️ Konsole
-          </button>
+          </a>
           <button type="button" className="klein" disabled={!m || m.training.laeuft || trainieren.isPending} onClick={() => trainieren.mutate()}>
             {m?.training.laeuft ? 'Trainiert …' : 'Jetzt trainieren'}
           </button>
         </span>
       </div>
-      {konsole && <MusterKonsole schliessen={() => setKonsole(false)} />}
       {q.error && !m && <p className="leise">Muster-Modell nicht erreichbar: {q.error instanceof ApiFehler ? q.error.message : String(q.error)}</p>}
       {!m && !q.error && <p className="leise">Lade …</p>}
       {hinweis && (
