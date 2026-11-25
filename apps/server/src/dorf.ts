@@ -159,14 +159,17 @@ const VORLAGE_FRUEHERE_FASSUNGEN: Record<string, string[]> = {
     '33c3703227c34eb878405cb216f46775ee44b737eef1481b58b116966ed026aa', // E227 (Paper only, Agenten ohne Werkzeuge)
     '600e2d2bfa7a84a49e4fb0ace96ae11f2759b29d21050ce330877664e4211732', // E231 (ohne Muster-Modell)
     '34a24bdd934bdbb46a5751ce8fc52a0fff5a5b2cb1c0b579f2dd3e46126ce8a7', // E235 (ohne Pump/Absturz/Ausblick)
+    'f0efb548fedca203cc9391bf49e6d22692597bfc761e2bc75602749266a45393', // E236 (ohne Kursvorhersage/Alarm)
   ],
   '00_Stadtordnung/rundgang.md': ['60d05e9a34a9e8acce98164fed4eceea9ce8378ec38696613546e08c94697fb8'], // E192–E199 (18 Aktivitäten)
   'Hafen/aktionen/hafenmeister.md': [
     '0948db9c4de5dc3d90ff58a4fc69940e32ce5ccd0680037547ce1f105661fc7f', // E231 (ein Backtest-Fenster, ohne Tage im Plus)
     '39905afd63ff5b8b330fd5672ea2429837578301b53088cc3a5e2d8e6ab9d84d', // E234 (ohne Muster-Modell)
+    '47918450a391ebc15934415de003e83f4aae0f15c7502a80c30b17f4682576a2', // E235 (höchstens 6 eigene Bots, RL-Bot zählt mit)
   ],
   'Hafen/aktionen/muster-meister.md': [
     '5bc10bdc2be0f0f5467b8f6e86efe51ab5edf5235826e50c120527b440797d0f', // E235 (nur Grundsignal)
+    '72e809280b0067ecea0530111313727ed8e768a835e6836e1562fefd4da21929', // E236 (ohne Kursvorhersage/Alarm)
   ],
 };
 
@@ -288,7 +291,14 @@ export async function dorfStarten(
   const googleZugang = konfig.gmail ? new GoogleZugang({ ...konfig.gmail, tokenUrl: konfig.googleTokenUrl }) : undefined;
   const gmail = opt.gmail ?? (googleZugang ? gmailKlient(googleZugang, konfig.gmailApiUrl) : undefined);
   // E227: Hafen – Kryptowerk (eigener Container, Paper Trading)
-  const hafen = new Hafen({ url: konfig.kryptoUrl, ...(konfig.kryptoGeheimnis ? { geheimnis: konfig.kryptoGeheimnis } : {}), ...(opt.hafenHolen ? { holen: opt.hafenHolen } : {}) });
+  const hafen = new Hafen({
+    url: konfig.kryptoUrl,
+    ...(konfig.kryptoGeheimnis ? { geheimnis: konfig.kryptoGeheimnis } : {}),
+    ...(opt.hafenHolen ? { holen: opt.hafenHolen } : {}),
+    // E237: Euro-Werte im Hafen – US-Dollar je Euro von der EZB (wie die Börse)
+    usdJeEurHolen: async () => (await (opt.boerseFx ?? ((w) => ezbKurs(konfig.ezbUrl, w)))('USD')).kurs,
+    jetzt: () => uhr.jetzt(),
+  });
   const ki = new SystemAufrufe({
     db,
     uhr,

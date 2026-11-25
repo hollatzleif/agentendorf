@@ -3,7 +3,7 @@
 import crypto from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { KRYPTO_KERZEN_TAKTE, type KryptoUebersicht } from '@dorf/shared';
+import { KRYPTO_KERZEN_TAKTE, type KryptoTerminal, type KryptoUebersicht } from '@dorf/shared';
 import type { SystemAufrufe } from './agenten/system.js';
 import { tagesbeginnLinz } from './aufwachen.js';
 import type { DB } from './db.js';
@@ -13,9 +13,51 @@ import { nutzerLaden, passwortVergleichen } from './auth/passwort.js';
 import { totpPruefen } from './auth/totp.js';
 
 export const KRYPTO_LLM_JE_BOT_USD = 0.5;
+/** E237: EZB-Kurs US-Dollar je Euro so lange zwischenspeichern; nach einem Fehler erst so viel später neu versuchen */
+export const KRYPTO_EUR_GUELTIG_MS = 6 * 3_600_000;
+export const KRYPTO_EUR_FEHLER_PAUSE_MS = 10 * 60_000;
+/** so lange wartet eine Antwort höchstens auf die EZB – danach kommt sie mit dem letzten Wert (oder null), die Abfrage läuft weiter */
+const EUR_WARTEN_MS = 3000;
 
 export class Hafen {
-  constructor(private o: { url: string; geheimnis?: string; holen?: typeof fetch }) {}
+  private eur: { wert: number; zeit: number } | null = null;
+  private eurFehler = -Infinity;
+  private eurLaeuft: Promise<void> | null = null;
+
+  constructor(
+    private o: {
+      url: string;
+      geheimnis?: string;
+      holen?: typeof fetch;
+      /** E237: US-Dollar je Euro (Standard im Dorf: EZB über ezbKurs) */
+      usdJeEurHolen?: () => Promise<number>;
+      jetzt?: () => number;
+    },
+  ) {}
+
+  /** E237: US-Dollar je Euro für die Euro-Werte in der App – zwischengespeichert, Fehler → letzter Wert bzw. null, wirft nie */
+  async usdJeEur(): Promise<number | null> {
+    const holen = this.o.usdJeEurHolen;
+    if (!holen || !this.eingerichtet) return null;
+    const jetzt = this.o.jetzt?.() ?? Date.now();
+    if (this.eur && jetzt - this.eur.zeit < KRYPTO_EUR_GUELTIG_MS) return this.eur.wert;
+    if (jetzt - this.eurFehler < KRYPTO_EUR_FEHLER_PAUSE_MS) return this.eur?.wert ?? null;
+    this.eurLaeuft ??= (async () => {
+      try {
+        const k = await holen();
+        if (!Number.isFinite(k) || k <= 0) throw new Error('kein gültiger Kurs');
+        this.eur = { wert: k, zeit: jetzt };
+      } catch {
+        this.eurFehler = jetzt;
+      } finally {
+        this.eurLaeuft = null;
+      }
+    })();
+    let uhr: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([this.eurLaeuft, new Promise<void>((r) => (uhr = setTimeout(r, EUR_WARTEN_MS)))]);
+    clearTimeout(uhr);
+    return this.eur?.wert ?? null;
+  }
 
   get eingerichtet() {
     return !!this.o.geheimnis;
@@ -78,14 +120,20 @@ export function hafenRouten(app: FastifyInstance, h: Hafen, a?: { db: DB; uhr: U
   const bestaetigen = a ? bestaetigerBauen(a.db, a.uhr) : async () => {
     throw new DorfFehler(503, 'Bestätigung nicht verfügbar');
   };
-  app.get('/api/krypto', async () => h.uebersicht());
+  // E237: Übersicht und Terminal bekommen den EZB-Kurs dazu (App zeigt neben SOL den Euro-Wert)
+  app.get('/api/krypto', async () => {
+    const [u, usdJeEur] = await Promise.all([h.uebersicht(), h.usdJeEur()]);
+    return { ...u, usdJeEur };
+  });
   app.post('/api/krypto/bots', { bodyLimit: 64 * 1024 }, async (req) => h.anfrage('POST', '/bots', z.object({ einstellung: z.unknown() }).parse(req.body)));
   app.put('/api/krypto/bots/:id', { bodyLimit: 64 * 1024 }, async (req) => h.anfrage('PUT', `/bots/${Id.parse(req.params).id}`, z.object({ einstellung: z.unknown() }).parse(req.body)));
   app.post('/api/krypto/bots/:id/status', async (req) => h.anfrage('POST', `/bots/${Id.parse(req.params).id}/status`, z.object({ status: z.enum(['laeuft', 'pausiert']) }).parse(req.body)));
   app.delete('/api/krypto/bots/:id', async (req) => h.anfrage('DELETE', `/bots/${Id.parse(req.params).id}`));
   app.get('/api/krypto/bots/:id/terminal', async (req) => {
     const { takt } = z.object({ takt: z.enum(KRYPTO_KERZEN_TAKTE).default('15m') }).parse(req.query);
-    return h.anfrage('GET', `/bots/${Id.parse(req.params).id}/terminal?takt=${takt}`);
+    const id = Id.parse(req.params).id;
+    const [t, usdJeEur] = await Promise.all([h.anfrage<KryptoTerminal>('GET', `/bots/${id}/terminal?takt=${takt}`), h.usdJeEur()]);
+    return { ...t, usdJeEur };
   });
   app.get('/api/krypto/bots/:id/protokoll', async (req) => {
     const q = z.object({ vor: z.coerce.number().int().positive().optional(), anzahl: z.coerce.number().int().min(1).max(500).optional() }).parse(req.query);

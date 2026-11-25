@@ -51,6 +51,10 @@ export interface KryptoEinstellung {
     minPunkte: number;
     /** E235: so viele Punkte (0–30) darf der Rat des Muster-Modells beisteuern – 0 = nur anzeigen (Standard, bis es sich bewährt hat) */
     musterGewicht?: number;
+    /** E237: Alarm-Schwellen der Kursvorhersage (gilt für RL-Bots und Bots mit musterGewicht > 0):
+     *  🚀 vorhergesagt ≥ anstiegProzent in ≤ 2 min → Kauf auch unter minPunkte (Sperren und Risk-Gate gelten weiter);
+     *  💥 vorhergesagt ≤ −fallProzent in ≤ 2 min → gehaltene Position sofort verkaufen */
+    alarm?: { anstiegProzent: number; fallProzent: number };
   };
   /** nur bei art = prompt: Kauf erst ab dieser Sicherheit des LLM (0–1) */
   minSicherheit: number;
@@ -148,10 +152,32 @@ export interface KryptoMusterRat {
   ausblick?: { hoch1: number | null; tief1: number | null; hoch5: number | null; tief5: number | null } | null;
   /** E236: Pump/Absturz kamen vom Früh-Modell (Token ≤ 90 s alt) */
   frueh?: boolean;
+  /** E237: vorhergesagte Kursänderung in % je Horizont (KRYPTO_VERLAUF_SEK), null = Modell nicht aktiv */
+  verlauf?: (number | null)[] | null;
+  /** E237: Alarm – starker Anstieg oder Absturz steht bevor (aus Kursvorhersage oder Pump-/Absturz-Erkenner) */
+  alarm?: 'anstieg' | 'absturz' | null;
 }
 
 /** E236: Schlüssel der einzelnen Muster-Modelle */
-export type KryptoMusterSchluessel = 'basis' | 'pump' | 'absturz' | 'hoch1' | 'tief1' | 'hoch5' | 'tief5' | 'fruehPump' | 'fruehAbsturz';
+export type KryptoMusterSchluessel =
+  | 'basis'
+  | 'pump'
+  | 'absturz'
+  | 'hoch1'
+  | 'tief1'
+  | 'hoch5'
+  | 'tief5'
+  | 'fruehPump'
+  | 'fruehAbsturz'
+  // E237: Kursvorhersage – Kursänderung in % nach 5 s … 5 min (asymmetrischer Fehler: verpasster Absturz zählt mehr)
+  | 'verlauf5s'
+  | 'verlauf15s'
+  | 'verlauf30s'
+  | 'verlauf1m'
+  | 'verlauf2m'
+  | 'verlauf5m';
+/** E237: Horizonte der Kursvorhersage in Sekunden (Reihenfolge = MusterSignale.verlauf, KryptoMusterRat.verlauf) */
+export const KRYPTO_VERLAUF_SEK = [5, 15, 30, 60, 120, 300] as const;
 export const KRYPTO_MUSTER_MODELLE: { schluessel: KryptoMusterSchluessel; name: string; art: 'wahrscheinlichkeit' | 'wert' }[] = [
   { schluessel: 'basis', name: 'Grundsignal (+20 % vor −15 %, 5 min)', art: 'wahrscheinlichkeit' },
   { schluessel: 'pump', name: '🚀 Pump (+50 % vor −20 %, 2 min)', art: 'wahrscheinlichkeit' },
@@ -162,6 +188,12 @@ export const KRYPTO_MUSTER_MODELLE: { schluessel: KryptoMusterSchluessel; name: 
   { schluessel: 'tief5', name: 'Tief in 5 min (%)', art: 'wert' },
   { schluessel: 'fruehPump', name: '🚀 Pump – Früh-Modell (Token ≤ 90 s)', art: 'wahrscheinlichkeit' },
   { schluessel: 'fruehAbsturz', name: '💥 Absturz – Früh-Modell (Token ≤ 90 s)', art: 'wahrscheinlichkeit' },
+  { schluessel: 'verlauf5s', name: '📈 Kurs in 5 s (%)', art: 'wert' },
+  { schluessel: 'verlauf15s', name: '📈 Kurs in 15 s (%)', art: 'wert' },
+  { schluessel: 'verlauf30s', name: '📈 Kurs in 30 s (%)', art: 'wert' },
+  { schluessel: 'verlauf1m', name: '📈 Kurs in 1 min (%)', art: 'wert' },
+  { schluessel: 'verlauf2m', name: '📈 Kurs in 2 min (%)', art: 'wert' },
+  { schluessel: 'verlauf5m', name: '📈 Kurs in 5 min (%)', art: 'wert' },
 ];
 
 /** E236: Stand eines einzelnen Muster-Modells */
@@ -184,6 +216,11 @@ export interface KryptoMusterModellInfo {
     /** Wert-Modelle: mittlerer absoluter Fehler in %-Punkten gegen den Median als Schätzung */
     fehler: number | null;
     fehlerBasis: number | null;
+    /** E237 (nur verlauf*): bei großen Bewegungen (|Änderung| ≥ 10 %) Anteil mit richtiger Richtung der Vorhersage */
+    richtung?: number | null;
+    /** E237 (nur verlauf*): Alarme im Test – n = ausgelöst, treffer = Kurs bewegte sich danach mindestens halb so stark in diese Richtung */
+    alarmAnstieg?: { n: number; treffer: number } | null;
+    alarmFall?: { n: number; treffer: number } | null;
   };
   merkmale: { name: string; wichtigkeit: number }[];
 }
@@ -210,7 +247,7 @@ export interface KryptoMusterStatus {
     /** Zeitraffer über die Testdaten (Paper-Maschine mit Gebühren) */
     zeitraffer: { trades: number; gewinnSol: number; trefferquote: number | null; pleiten: number };
   };
-  training: { laeuft: boolean; fortschritt: number; letzter: string | null; naechster: string | null; fehler: string | null; dauerMs: number | null };
+  training: { laeuft: boolean; /** in Prozent (0–100) */ fortschritt: number; letzter: string | null; naechster: string | null; fehler: string | null; dauerMs: number | null };
   daten: { ticks: number; tokens: number; von: string | null; bis: string | null };
   /** Kurzbericht in Markdown (für den Hafenmeister) */
   bericht: string;
@@ -264,7 +301,33 @@ export interface KryptoBacktest {
     kurve: [number, number][];
     trades: KryptoTrade[];
     entscheidungen: { buy: number; hold: number; block: number };
+    /** E237: wie gut die Aufzeichnung den Zeitraum abdeckt (fehlt bei Backtests von vor E237) */
+    abdeckung?: KryptoBacktestAbdeckung;
+    /** E237: Hinweise zur Aussagekraft (z. B. Muster-Rat abgeschaltet, alte Aufzeichnung ohne Kursänderung 5 min) */
+    hinweise?: string[];
   };
+}
+
+/** E237: Abdeckung eines Backtests durch die Aufzeichnung */
+export interface KryptoBacktestAbdeckung {
+  /** Tokens, die im Zeitraum beobachtet werden konnten (entstanden ab Beginn minus maxAlterSek) */
+  tokens: number;
+  /** … davon mit mindestens einem Kurs, einem RugCheck-Bericht bzw. Echtzeit-Ticks */
+  mitKurs: number;
+  mitRug: number;
+  mitStrom: number;
+  /** Median der Abstände zwischen zwei Kursen desselben Tokens (s), null ohne Daten */
+  kursAbstandSek: number | null;
+  /** Anteil der Kurse ohne Kursänderung 5 min (Aufzeichnung von vor E237) */
+  ohneAenderungProzent: number;
+  /** Käufe, die zu Kursen mit Echtzeit-Ticks liefen (von allen Käufen) */
+  kaeufeMitStrom: number;
+  /** Positionen, die geschlossen wurden, weil die Aufzeichnung des Tokens endete (Verkauf zum letzten Kurs) */
+  datenende: number;
+  /** Käufe, die verfallen sind, weil nach der Verzögerung kein Kurs mehr kam */
+  kaeufeVerfallen: number;
+  /** Muster-Rat (musterGewicht/Alarm) im Backtest abgeschaltet */
+  musterAus: boolean;
 }
 
 export interface KryptoKerze {
@@ -357,6 +420,8 @@ export interface KryptoTerminal {
   jetzt: number;
   datenOnline: boolean;
   solUsd: number | null;
+  /** E237: US-Dollar je Euro (EZB-Referenzkurs, vom Dorf ergänzt, 6 h zwischengespeichert) – null ohne Kurs */
+  usdJeEur?: number | null;
   kerzen: KryptoKerze[];
   /** FLAT = keine offene Position */
   lage: 'FLAT' | 'LONG';
@@ -415,6 +480,9 @@ export interface KryptoTokenKerzen {
   verkaeufe: number;
   /** gehalten (offene Position dieses Bots) – sonst nur beobachtet */
   gehalten?: boolean;
+  /** E237: Kursvorhersage ab der letzten Kerze (zeit in ms, Kurs in SOL) – leer ohne aktive Verlauf-Modelle */
+  prognose?: { zeit: number; c: number }[];
+  alarm?: 'anstieg' | 'absturz' | null;
 }
 
 export interface KryptoUebersicht {
@@ -427,6 +495,8 @@ export interface KryptoUebersicht {
   datenOnline: boolean;
   beobachtet: number;
   solUsd: number | null;
+  /** E237: US-Dollar je Euro (EZB-Referenzkurs, vom Dorf ergänzt, 6 h zwischengespeichert) – null ohne Kurs */
+  usdJeEur?: number | null;
   bots: KryptoBot[];
   fehler?: string;
   /** E232: null = kein RPC eingerichtet */
@@ -456,7 +526,7 @@ export const KRYPTO_STANDARD: KryptoEinstellung = {
     maxTopHalterProzent: 20,
     minLiquiditaetSol: 5,
   },
-  regeln: { minPunkte: 60, musterGewicht: 0 },
+  regeln: { minPunkte: 60, musterGewicht: 0, alarm: { anstiegProzent: 15, fallProzent: 10 } },
   minSicherheit: 0.65,
   limits: { einsatzProTradeSol: 0.5, positionProzent: 5, maxTagesverlustSol: 2, maxOffen: 3, maxLlmProTag: 150 },
   ausstieg: {

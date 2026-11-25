@@ -18,17 +18,17 @@ import type { WerkzeugAufrufErgebnis, WerkzeugDefinition } from './werkzeuge.js'
  * Bot-Einstellungen prüft das Kryptowerk (Zod, strict) – genau wie bei Leifs Klick.
  */
 
-/** So viele EIGENE Bots dürfen Agenten zugleich haben (Leifs Bots zählen nicht) – davon höchstens so viele Prompt-Bots
- * (die kosten je bis 0,50 $/Tag); dazu eine Obergrenze für die ganze Flotte */
-export const HAFEN_AGENT_MAX_BOTS = 6;
+/** So viele EIGENE Regel-/Prompt-Bots dürfen Agenten zugleich haben (Leifs Bots zählen nicht; E237: 10 statt 6) – davon
+ * höchstens so viele Prompt-Bots (die kosten je bis 0,50 $/Tag); dazu eine Obergrenze für die ganze Flotte (E237: 20 statt 12) */
+export const HAFEN_AGENT_MAX_BOTS = 10;
 export const HAFEN_AGENT_MAX_PROMPT = 2;
-/** E235: höchstens ein eigener RL-Bot (handelt nach Muster-Modell + RL-Agent, nur Paper) */
+/** E235: höchstens ein eigener RL-Bot (handelt nach Muster-Modell + RL-Agent, nur Paper) – E237: eigener Platz, zählt NICHT in HAFEN_AGENT_MAX_BOTS */
 export const HAFEN_AGENT_MAX_RL = 1;
-export const HAFEN_FLOTTE_MAX = 12;
+export const HAFEN_FLOTTE_MAX = 20;
 const AGENTENBOTS = 'hafen_agentenbots';
 
 const EINSTELLUNG_BESCHREIBUNG =
-  'Teil-Einstellung – nur was vom Standard (anlegen) bzw. vom jetzigen Stand (ändern) abweicht. Felder: name (≤ 40), avatar (ein Emoji), art ("regeln" | "prompt" | "rl"), prompt (Strategie in Worten, ≤ 4000, nur art prompt), startkapitalSol (Paper-Spielgeld, Standard 10), minSicherheit (0–1, Prompt-Bots), regeln: {minPunkte 0–100, musterGewicht 0–30 (so viele Punkte darf der Rat des Muster-Modells beisteuern; 0 = nur anzeigen, Standard; > 0 heißt auch: sieht der aktive Absturz-Erkenner ≥ 70 %, verkauft auch ein Regel-/Prompt-Bot sofort)}, rl: {minSicherheit 0–1 (Kauf erst ab dieser Wahrscheinlichkeit des Muster-Modells – oder bei Pump-Signal ≥ 0,3), erkunden 0–0,3 (Anteil zufälliger Handlungen zum Lernen), nachschuss true/false (frisches Paper-Spielgeld nach Pleite – zählt nie als Gewinn), maxAbsturz 0–1 (kein Kauf, wenn der Absturz-Erkenner mindestens so viel sieht; Standard 0,35; gehalten ab 0,7 immer sofort raus)} – nur art rl, RL-Bots handeln nur Paper, filter: {maxRugScore, keineGefahr, minVolumenUsdM5, minKaeufeM5, minKaufVerhaeltnis, minAlterSek, maxAlterSek, minMarketCapUsd, maxMarketCapUsd, maxDevProzent, maxDevTokens24h (andere Tokens desselben Erstellers in 24 h), minEchtzeitKaufVerhaeltnis (Käufe÷Verkäufe der letzten 60 s aus dem Echtzeit-Strom, 0 = aus), maxTopHalterProzent, minLiquiditaetSol}, limits: {einsatzProTradeSol, positionProzent, maxTagesverlustSol, maxOffen, maxLlmProTag}, ausstieg: {takeProfit: [{beiProzent, verkaufProzent}] (ersetzt die ganze Liste), stopLossProzent, trailingProzent, maxHaltMinuten, notausEinzelverkaufProzent (sofort raus, wenn EIN Verkauf die Liquidität um so viel % senkt, 0 = aus)}, simulation: {verzoegerungMs ≥ 300, prioritaetSol, fehlschlagProzent, portalGebuehrProzent}, slippageProzent. Unterobjekte werden Feld für Feld zusammengeführt.';
+  'Teil-Einstellung – nur was vom Standard (anlegen) bzw. vom jetzigen Stand (ändern) abweicht. Felder: name (≤ 40), avatar (ein Emoji), art ("regeln" | "prompt" | "rl"), prompt (Strategie in Worten, ≤ 4000, nur art prompt), startkapitalSol (Paper-Spielgeld, Standard 10), minSicherheit (0–1, Prompt-Bots), regeln: {minPunkte 0–100, musterGewicht 0–30 (so viele Punkte darf der Rat des Muster-Modells beisteuern; 0 = nur anzeigen, Standard; > 0 heißt auch: sieht der aktive Absturz-Erkenner ≥ 70 %, verkauft auch ein Regel-/Prompt-Bot sofort), alarm: {anstiegProzent, fallProzent} (E237, Standard 15/10: Alarm der Kursvorhersage – 🚀 bei erwartetem Anstieg ≥ anstiegProzent in 2 min (oder Pump-Erkenner), 💥 bei erwartetem Fall ≥ fallProzent (oder Absturz-Erkenner); wirkt bei RL-Bots immer, bei Regel-/Prompt-Bots nur mit musterGewicht > 0: 🚀 kauft auch unter minPunkte bzw. ohne LLM-Zustimmung – Rug-/Dev-/Bundle-Sperren, Filter und Risk-Gate gelten weiter; 💥 verkauft eine gehaltene Position sofort, auch live, und kauft nie)}, rl: {minSicherheit 0–1 (Kauf erst ab dieser Wahrscheinlichkeit des Muster-Modells – oder bei Pump-Signal ≥ 0,3), erkunden 0–0,3 (Anteil zufälliger Handlungen zum Lernen), nachschuss true/false (frisches Paper-Spielgeld nach Pleite – zählt nie als Gewinn), maxAbsturz 0–1 (kein Kauf, wenn der Absturz-Erkenner mindestens so viel sieht; Standard 0,35; gehalten ab 0,7 immer sofort raus)} – nur art rl, RL-Bots handeln nur Paper, filter: {maxRugScore, keineGefahr, minVolumenUsdM5, minKaeufeM5, minKaufVerhaeltnis, minAlterSek, maxAlterSek, minMarketCapUsd, maxMarketCapUsd, maxDevProzent, maxDevTokens24h (andere Tokens desselben Erstellers in 24 h), minEchtzeitKaufVerhaeltnis (Käufe÷Verkäufe der letzten 60 s aus dem Echtzeit-Strom, 0 = aus), maxTopHalterProzent, minLiquiditaetSol}, limits: {einsatzProTradeSol, positionProzent, maxTagesverlustSol, maxOffen, maxLlmProTag}, ausstieg: {takeProfit: [{beiProzent, verkaufProzent}] (ersetzt die ganze Liste), stopLossProzent, trailingProzent, maxHaltMinuten, notausEinzelverkaufProzent (sofort raus, wenn EIN Verkauf die Liquidität um so viel % senkt, 0 = aus)}, simulation: {verzoegerungMs ≥ 300, prioritaetSol, fehlschlagProzent, portalGebuehrProzent}, slippageProzent. Unterobjekte werden Feld für Feld zusammengeführt.';
 
 export const HAFEN_DEFINITIONEN: Record<HafenWerkzeug, Omit<WerkzeugDefinition, 'name'> & { name: HafenWerkzeug }> = {
   hafen_uebersicht: {
@@ -53,7 +53,7 @@ export const HAFEN_DEFINITIONEN: Record<HafenWerkzeug, Omit<WerkzeugDefinition, 
   },
   hafen_bot_anlegen: {
     name: 'hafen_bot_anlegen',
-    description: `Neuen Bot anlegen – IMMER im Paper Trading (Spielgeld, echte Marktdaten, Gebühren/Slippage/Verzögerung simuliert). Er läuft sofort (starten: false = pausiert). Leif bekommt „Rückgängig“. Prompt-Bots kosten LLM-Geld (höchstens 0,50 $ je Bot und Tag). Agenten haben höchstens ${HAFEN_AGENT_MAX_BOTS} eigene Bots, davon höchstens ${HAFEN_AGENT_MAX_PROMPT} Prompt-Bots und ${HAFEN_AGENT_MAX_RL} RL-Bot (art "rl": handelt nach Muster-Modell + RL-Agent).`,
+    description: `Neuen Bot anlegen – IMMER im Paper Trading (Spielgeld, echte Marktdaten, Gebühren/Slippage/Verzögerung simuliert). Er läuft sofort (starten: false = pausiert). Leif bekommt „Rückgängig“. Prompt-Bots kosten LLM-Geld (höchstens 0,50 $ je Bot und Tag). Agenten haben höchstens ${HAFEN_AGENT_MAX_BOTS} eigene Regel-/Prompt-Bots, davon höchstens ${HAFEN_AGENT_MAX_PROMPT} Prompt-Bots, dazu einen eigenen Platz für ${HAFEN_AGENT_MAX_RL} RL-Bot (art "rl": handelt nach Muster-Modell + RL-Agent, zählt nicht zu den ${HAFEN_AGENT_MAX_BOTS}). Die ganze Flotte hat höchstens ${HAFEN_FLOTTE_MAX} Bots.`,
     input_schema: {
       type: 'object',
       properties: {
@@ -112,7 +112,7 @@ export const HAFEN_DEFINITIONEN: Record<HafenWerkzeug, Omit<WerkzeugDefinition, 
   hafen_muster: {
     name: 'hafen_muster',
     description:
-      'Das Muster-Modell im Hafen (E235/E236): mehrere Modelle aus denselben Echtzeit-Tick-Merkmalen – Grundsignal (erst +Ziel, bevor −Stop), 🚀 Pump- und 💥 Absturz-Erkenner (2 min), Ausblick Hoch/Tief in 1 und 5 min (%), Früh-Modelle für Tokens ≤ 90 s; jedes eigens ehrlich getestet und nur aktiv, wenn klar besser als Raten bzw. als der Median. Dazu ein RL-Agent, der mit allen aktiven Signalen im Zeitraffer über die Aufzeichnungen übt. Ohne Eingabe: Stand als Text – je Modell aktiv/nicht aktiv mit Gründen, Test-AUC (0,5 = Raten) bzw. Fehler vs. Median, Präzision vs. Basisrate, wichtigste Merkmale, Zeitraffer, Datenlage, letztes/nächstes Training, Bericht. Mit {"training": true}: startet sofort ein Training (dauert Minuten; läuft schon eines, passiert nichts). Nur lesen bzw. Training anstoßen.',
+      'Das Muster-Modell im Hafen (E235/E236): mehrere Modelle aus denselben Echtzeit-Tick-Merkmalen – Grundsignal (erst +Ziel, bevor −Stop), 🚀 Pump- und 💥 Absturz-Erkenner (2 min), Ausblick Hoch/Tief in 1 und 5 min (%), Früh-Modelle für Tokens ≤ 90 s, 📈 Kursvorhersage (E237: Kursänderung in % nach 5 s … 5 min, verpasster Absturz zählt 3× – bewusst vorsichtig; daraus der 🚀/💥-Alarm); jedes eigens ehrlich getestet und nur aktiv, wenn klar besser als Raten bzw. als der Median. Dazu ein RL-Agent, der mit allen aktiven Signalen im Zeitraffer über die Aufzeichnungen übt. Ohne Eingabe: Stand als Text – je Modell aktiv/nicht aktiv mit Gründen, Test-AUC (0,5 = Raten) bzw. Fehler vs. Median (Kursvorhersage: vs. Konstante, Richtung, Alarm-Treffer), Präzision vs. Basisrate, wichtigste Merkmale, Zeitraffer, Datenlage, letztes/nächstes Training, Bericht. Mit {"training": true}: startet sofort ein Training (dauert Minuten; läuft schon eines, passiert nichts). Nur lesen bzw. Training anstoßen.',
     input_schema: { type: 'object', properties: { training: { type: 'boolean', description: 'true = jetzt ein Training starten' } }, required: [], additionalProperties: false },
   },
   hafen_notaus: {
@@ -192,13 +192,23 @@ const pzEins = (x: number) => `${(Math.round(x * 10) / 10).toString().replace('.
 /** E236: je Modell eine Zeile – aktiv oder nicht (mit Gründen), Test gegen Raten bzw. gegen den Median */
 function modelleText(modelle: KryptoMusterModellInfo[]) {
   const zeilen = ['Modelle (je eigens getestet, nur aktive geben Rat):'];
+  if (modelle.some((m) => m.schluessel.startsWith('verlauf')))
+    zeilen.push('(📈 Kursvorhersage: verpasster Absturz zählt 3× – bewusst vorsichtig; Alarm t/n = Treffer/ausgelöst im Test)');
   const sortiert = [...modelle].sort((a, b) => KRYPTO_MUSTER_MODELLE.findIndex((x) => x.schluessel === a.schluessel) - KRYPTO_MUSTER_MODELLE.findIndex((x) => x.schluessel === b.schluessel));
   for (const mo of sortiert) {
     const def = KRYPTO_MUSTER_MODELLE.find((x) => x.schluessel === mo.schluessel);
     const name = def?.name ?? mo.schluessel;
     const t = mo.test;
     const teile: string[] = [];
-    if (def?.art === 'wert' || (t.auc == null && t.fehler != null)) {
+    if (mo.schluessel.startsWith('verlauf')) {
+      // E237: Kursvorhersage – Fehler gegen die beste Konstante (asymmetrischer Verlust), Richtung, Alarm-Treffer
+      const alarm = (a: { n: number; treffer: number } | null | undefined) => (a ? `${a.treffer}/${a.n}` : '–');
+      const k: string[] = [];
+      if (t.fehler != null) k.push(`Fehler ±${pzEins(t.fehler)} %-Punkte vs. Konstante ±${t.fehlerBasis == null ? '–' : pzEins(t.fehlerBasis)}`);
+      if (t.richtung != null) k.push(`Richtung ${Math.round(t.richtung * 100)} %`);
+      if (t.alarmAnstieg !== undefined || t.alarmFall !== undefined) k.push(`Alarm 🚀 ${alarm(t.alarmAnstieg)}, 💥 ${alarm(t.alarmFall)}`);
+      if (k.length) teile.push(k.join(', '));
+    } else if (def?.art === 'wert' || (t.auc == null && t.fehler != null)) {
       if (t.fehler != null) teile.push(`Fehler ±${pzEins(t.fehler)} %-Punkte vs. Median ±${t.fehlerBasis == null ? '–' : pzEins(t.fehlerBasis)}`);
     } else if (t.auc != null) {
       teile.push(`AUC ${z3(t.auc)} vs. 0,5 (Raten)${t.aucUntergrenze != null ? `, Untergrenze ${z3(t.aucUntergrenze)}` : ''}`);
@@ -217,7 +227,7 @@ export function musterText(m: KryptoMusterStatus) {
   const t = m.training;
   const zeilen = [
     `Muster-Modell · Ziel: erst +${m.ziel.zielProzent} %, bevor −${m.ziel.stopProzent} %, innerhalb ${m.ziel.horizontMin} min`,
-    `Training: ${t.laeuft ? `läuft (${Math.round(t.fortschritt * 100)} %)` : 'ruht'} · letztes ${ort(t.letzter)} · nächstes ${ort(t.naechster)}${t.dauerMs != null ? ` · Dauer ${Math.round(t.dauerMs / 1000)} s` : ''}${t.fehler ? ` · Fehler: ${t.fehler}` : ''}`,
+    `Training: ${t.laeuft ? `läuft (${Math.round(t.fortschritt)} %)` : 'ruht'} · letztes ${ort(t.letzter)} · nächstes ${ort(t.naechster)}${t.dauerMs != null ? ` · Dauer ${Math.round(t.dauerMs / 1000)} s` : ''}${t.fehler ? ` · Fehler: ${t.fehler}` : ''}`,
     `Daten: ${m.daten.ticks} Ticks von ${m.daten.tokens} Tokens (${ort(m.daten.von)} bis ${ort(m.daten.bis)})`,
   ];
   const mo = m.modell;
@@ -256,11 +266,17 @@ function nurPaper(b: KryptoBot) {
 }
 
 function backtestText(j: KryptoBacktest) {
-  const kopf = `Backtest ${j.id} · ${j.name} · ${j.status}${j.status === 'laeuft' ? ` (${Math.round(j.fortschritt * 100)} %)` : ''} · Daten ${j.von.slice(0, 16)} – ${j.bis.slice(0, 16)} UTC${j.daten ? ` · ${j.daten.tokens} Tokens, ${j.daten.kurse} Kurse` : ''}`;
+  const kopf = `Backtest ${j.id} · ${j.name} · ${j.status}${j.status === 'laeuft' ? ` (${Math.round(j.fortschritt)} %)` : ''} · Daten ${j.von.slice(0, 16)} – ${j.bis.slice(0, 16)} UTC${j.daten ? ` · ${j.daten.tokens} Tokens, ${j.daten.kurse} Kurse` : ''}`;
   if (j.fehler) return `${kopf}\nFehler: ${j.fehler}`;
   if (!j.ergebnis) return `${kopf}\nNoch nicht fertig – später mit id abfragen.`;
   const r = j.ergebnis;
-  return `${kopf}\n${kennzahlenText(r.kennzahlen)}\nEntscheidungen: ${r.entscheidungen.buy} buy, ${r.entscheidungen.hold} hold, ${r.entscheidungen.block} block\nHinweis: Vergangenheit ist kein Versprechen – Aufzeichnungen decken nur ab, was das Kryptowerk beobachtet hat.`;
+  // E237: Abdeckung der Aufzeichnung – sagt, wie belastbar der Backtest ist
+  const a = r.abdeckung;
+  const abdeckung = a
+    ? `\nAbdeckung: ${a.tokens} Tokens · mit Kurs ${a.mitKurs} · mit RugCheck ${a.mitRug} · mit Echtzeit-Ticks ${a.mitStrom}${a.kursAbstandSek != null ? ` · Kurse alle ~${Math.round(a.kursAbstandSek)} s` : ''} · Käufe mit Ticks ${a.kaeufeMitStrom}${a.kaeufeVerfallen ? ` · ${a.kaeufeVerfallen} Käufe verfallen (kein Kurs nach der Verzögerung)` : ''}${a.datenende ? ` · Datenende: ${a.datenende} Position(en) zum letzten Kurs geschlossen` : ''}`
+    : '';
+  const hinweise = r.hinweise?.length ? `\n${r.hinweise.map((h) => `⚠ ${h}`).join('\n')}` : '';
+  return `${kopf}\n${kennzahlenText(r.kennzahlen)}\nEntscheidungen: ${r.entscheidungen.buy} buy, ${r.entscheidungen.hold} hold, ${r.entscheidungen.block} block${abdeckung}${hinweise}\nHinweis: Vergangenheit ist kein Versprechen – Aufzeichnungen decken nur ab, was das Kryptowerk beobachtet hat.`;
 }
 
 export async function hafenAufrufen(name: HafenWerkzeug, eingabe: unknown, u: HafenUmgebung): Promise<WerkzeugAufrufErgebnis> {
@@ -303,14 +319,15 @@ export async function hafenAufrufen(name: HafenWerkzeug, eingabe: unknown, u: Ha
       const e = z.object({ einstellung: Teil, starten: z.boolean().default(true) }).parse(eingabe);
       const f = await flotte();
       const eigene = f.bots.filter((b) => agentenBots(u.db).includes(b.id));
+      const eigeneOhneRl = eigene.filter((b) => b.einstellung.art !== 'rl'); // E237: der RL-Bot hat einen eigenen Platz
       if ('modus' in e.einstellung) delete e.einstellung.modus; // es gibt nur Paper
       const einstellung = einstellungZusammenfuehren(KRYPTO_STANDARD, e.einstellung);
       if (einstellung.art === 'rl') einstellung.rl = { ...KRYPTO_RL_STANDARD, ...((e.einstellung.rl as object | undefined) ?? {}) };
       const grenze =
         f.bots.length >= HAFEN_FLOTTE_MAX
           ? `Die Flotte hat schon ${f.bots.length} Bots (höchstens ${HAFEN_FLOTTE_MAX}).`
-          : eigene.length >= HAFEN_AGENT_MAX_BOTS
-            ? `Agenten haben schon ${eigene.length} eigene Bots (höchstens ${HAFEN_AGENT_MAX_BOTS}) – erst einen schwachen eigenen Bot löschen (hafen_bot_loeschen) oder umbauen.`
+          : einstellung.art !== 'rl' && eigeneOhneRl.length >= HAFEN_AGENT_MAX_BOTS
+            ? `Agenten haben schon ${eigeneOhneRl.length} eigene Bots (höchstens ${HAFEN_AGENT_MAX_BOTS} Regel-/Prompt-Bots; der RL-Bot zählt nicht) – erst einen schwachen eigenen Bot löschen (hafen_bot_loeschen) oder umbauen.`
             : einstellung.art === 'prompt' && eigene.filter((b) => b.einstellung.art === 'prompt').length >= HAFEN_AGENT_MAX_PROMPT
               ? `Schon ${HAFEN_AGENT_MAX_PROMPT} eigene Prompt-Bots (kosten je bis 0,50 $/Tag) – teste die Idee als Regel-Bot oder lösche erst einen Prompt-Bot.`
               : einstellung.art === 'rl' && eigene.filter((b) => b.einstellung.art === 'rl').length >= HAFEN_AGENT_MAX_RL
@@ -332,8 +349,27 @@ export async function hafenAufrufen(name: HafenWerkzeug, eingabe: unknown, u: Ha
     }
     case 'hafen_bot_aendern': {
       const e = z.object({ bot: z.string().min(1).max(100), einstellung: Teil }).parse(eingabe);
-      const b = finden(await flotte(), e.bot);
+      const f = await flotte();
+      const b = finden(f, e.bot);
       nurPaper(b);
+      // E237: ein Art-Wechsel eines eigenen Bots darf die Grenzen (10 Regel-/Prompt-Bots, 2 Prompt, 1 RL) nicht umgehen
+      const neueArt = e.einstellung.art;
+      if (typeof neueArt === 'string' && neueArt !== b.einstellung.art && agentenBots(u.db).includes(b.id)) {
+        const andere = f.bots.filter((x) => x.id !== b.id && agentenBots(u.db).includes(x.id));
+        const zahl = (art: string) => andere.filter((x) => x.einstellung.art === art).length;
+        const grenze =
+          neueArt === 'rl' && zahl('rl') >= HAFEN_AGENT_MAX_RL
+            ? `Schon ${HAFEN_AGENT_MAX_RL} eigener RL-Bot – keinen zweiten durch Umbau.`
+            : neueArt === 'prompt' && zahl('prompt') >= HAFEN_AGENT_MAX_PROMPT
+              ? `Schon ${HAFEN_AGENT_MAX_PROMPT} eigene Prompt-Bots – keinen weiteren durch Umbau.`
+              : neueArt !== 'rl' && b.einstellung.art === 'rl' && andere.filter((x) => x.einstellung.art !== 'rl').length >= HAFEN_AGENT_MAX_BOTS
+                ? `Schon ${HAFEN_AGENT_MAX_BOTS} eigene Regel-/Prompt-Bots – der RL-Bot lässt sich nicht in einen weiteren umbauen.`
+                : null;
+        if (grenze) {
+          u.log(name, eingabe, grenze, false);
+          return { ok: false, text: grenze };
+        }
+      }
       const neu = await h.anfrage<KryptoBot>('PUT', `/bots/${b.id}`, { einstellung: einstellungZusammenfuehren(b.einstellung, e.einstellung) });
       await u.merken('hafen_bot_geaendert', `Hafen: „${b.einstellung.name}“ geändert`, { id: b.id, vorher: b.einstellung }, true);
       const geaendert = Object.keys(e.einstellung).join(', ');

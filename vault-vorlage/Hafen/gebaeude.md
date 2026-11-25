@@ -33,7 +33,8 @@ Die Anleitung für Leif steht in `Hafen/00_Anleitung.html`.
 ## Hafenmeister
 Jeden Morgen (Aktion „Hafenmeister“) züchtet er Bots: auswerten, Erkenntnisse ins Logbuch
 (`Hafen/hafenmeister-logbuch.md`), die schwächsten eigenen Bots löschen, leicht abgewandelte Nachfolger anlegen. Höchstens
-6 eigene Bots, davon 2 Prompt-Bots und 1 RL-Bot. Kurzfassung in der Morgenzeitung.
+10 eigene Regel-/Prompt-Bots, davon 2 Prompt-Bots; der RL-Bot hat einen eigenen Platz. Die ganze Flotte hat höchstens 20 Bots.
+Kurzfassung in der Morgenzeitung.
 
 ## Muster-Modell und Muster-Meister
 Das Kryptowerk trainiert alle 5 Stunden ein Muster-Modell auf den Echtzeit-Ticks: Steigt ein Token erst um das Ziel, bevor
@@ -41,7 +42,13 @@ es um den Stop fällt? Getestet wird zeitlich getrennt auf den neuesten, nie ges
 Modell dort klar besser als Raten ist (Test-AUC ≥ 0,55). Seit E236 kommen aus denselben Merkmalen weitere Modelle dazu,
 jedes eigens getestet und nur aktiv, wenn es sich bewährt: 🚀 Pump- und 💥 Absturz-Erkenner (2 min), Ausblick auf Hoch/Tief
 in 1 und 5 min, Früh-Modelle für Tokens bis 90 s. Der Absturz-Erkenner bremst Käufe des RL-Bots (`rl.maxAbsturz`) und lässt
-ab 70 % sofort verkaufen – bei `regeln.musterGewicht` > 0 auch Regel- und Prompt-Bots. Ein RL-Bot (Art „RL“, nur Paper) handelt danach; geht ihm das
+ab 70 % sofort verkaufen – bei `regeln.musterGewicht` > 0 auch Regel- und Prompt-Bots.
+Seit E237 sagt eine **Kursvorhersage** die nächsten Kerzen voraus (Kursänderung in 5 s, 15 s, 30 s, 1 min, 2 min, 5 min).
+Sie lernt mit einem schiefen Fehler: einen Absturz zu verpassen zählt 3× so viel wie einen Anstieg zu verpassen – die
+Vorhersage ist also bewusst vorsichtig. Daraus kommt der **Alarm**: 🚀 (starker Anstieg erwartet, Standard ab +15 % in 2 min)
+lässt kaufen, auch wenn die Punkte nicht reichen – Sperren, Filter und Risiko-Grenzen gelten weiter; 💥 (Absturz erwartet,
+Standard ab −10 %) lässt sofort verkaufen. Das gilt für RL-Bots immer, für Regel-/Prompt-Bots nur mit `regeln.musterGewicht`
+> 0; die Schwellen stehen in `regeln.alarm` (`anstiegProzent`, `fallProzent`). Ein RL-Bot (Art „RL“, nur Paper) handelt danach; geht ihm das
 Spielgeld aus, gibt es einen **Nachschuss** – der zählt nie als Gewinn. Der Muster-Meister (Aktion, fünfmal am Tag)
 liest den Bericht, pflegt den RL-Bot und schreibt ins Logbuch (`Hafen/muster-logbuch.md`). Den Muster-Rat für andere
 Bots (`regeln.musterGewicht`) schaltet nur Leif hoch.

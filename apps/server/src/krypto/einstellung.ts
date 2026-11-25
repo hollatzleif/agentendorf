@@ -32,7 +32,14 @@ export const EinstellungSchema = z
         minEchtzeitKaufVerhaeltnis: zahl(0, 100).default(0),
       })
       .strict(),
-    regeln: z.object({ minPunkte: zahl(0, 100), musterGewicht: zahl(0, 30).default(0) }).strict(),
+    regeln: z
+      .object({
+        minPunkte: zahl(0, 100),
+        musterGewicht: zahl(0, 30).default(0),
+        // E237: Alarm-Schwellen der Kursvorhersage (wirken nur bei RL-Bots und musterGewicht > 0)
+        alarm: z.object({ anstiegProzent: zahl(1, 500), fallProzent: zahl(1, 95) }).strict().default({ anstiegProzent: 15, fallProzent: 10 }),
+      })
+      .strict(),
     minSicherheit: zahl(0, 1),
     limits: z
       .object({

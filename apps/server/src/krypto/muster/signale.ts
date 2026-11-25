@@ -1,7 +1,8 @@
 // E236: alle Signale eines Tokens zu einem Zeitpunkt aus den aktiven Muster-Modellen (reiner Code).
 // Früh-Modelle (🚀/💥 nur auf jungen Tokens gelernt) gelten, wenn der Token höchstens FRUEH_ALTER_MS alt ist und das
 // jeweilige Früh-Modell da ist; sonst die allgemeinen Pump-/Absturz-Modelle.
-import type { KryptoMusterSchluessel } from "@dorf/shared";
+// E237: dazu die Kursvorhersage (verlauf, Reihenfolge KRYPTO_VERLAUF_SEK) – der Alarm daraus steht in merkmale.ts (alarmAus).
+import { KRYPTO_VERLAUF_SEK, type KryptoMusterSchluessel } from "@dorf/shared";
 import { gbdtVorhersagen } from "./gbdt.js";
 import { EXTREM_MAX, EXTREM_MIN, merkmale } from "./merkmale.js";
 import {
@@ -12,7 +13,19 @@ import {
   type TokenMeta,
 } from "./typen.js";
 
+export {
+  ALARM_STANDARD,
+  alarmAus,
+  type AlarmSchwellen,
+} from "./merkmale.js";
+
 export type MusterModelle = Partial<Record<KryptoMusterSchluessel, GbdtModell>>;
+
+/** E237: Schlüssel der Kursvorhersage je Horizont (Reihenfolge = KRYPTO_VERLAUF_SEK = MusterSignale.verlauf) */
+export const VERLAUF_SCHLUESSEL: KryptoMusterSchluessel[] = KRYPTO_VERLAUF_SEK.map(
+  (sek) =>
+    (sek < 60 ? `verlauf${sek}s` : `verlauf${sek / 60}m`) as KryptoMusterSchluessel,
+);
 
 function vorhersage(
   m: GbdtModell | undefined,
@@ -48,6 +61,7 @@ export function signaleAusMerkmalen(
     hoch5: vorhersage(modelle.hoch5, x, true),
     tief5: vorhersage(modelle.tief5, x, true),
     frueh: fruehPump !== null || fruehAbsturz !== null,
+    verlauf: VERLAUF_SCHLUESSEL.map((k) => vorhersage(modelle[k], x, true)),
   };
 }
 

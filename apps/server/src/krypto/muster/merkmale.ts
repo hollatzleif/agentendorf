@@ -2,6 +2,8 @@
 // Reiner Code: nur die übergebenen Ticks, nur Ticks mit zeit <= t (keine Zukunftsdaten in den Merkmalen).
 // E236: dazu Früh-Merkmale „seit Start“ (für junge Tokens), größter Einzelkauf/-verkauf, Label in beide Richtungen,
 // Hoch/Tief im Horizont (extreme) und der Rat aus allen Signalen.
+// E237: Kursänderung nach h Sekunden (rendite – Label der Kursvorhersage) und der Alarm (alarmAus) für alle Bots.
+import { KRYPTO_VERLAUF_SEK } from "@dorf/shared";
 import type { MusterSignale, Tick, TokenMeta, Ziel } from "./typen.js";
 
 const FENSTER_MS = 120_000;
@@ -280,18 +282,82 @@ export function extreme(
 }
 
 /**
+ * E237: Kursänderung in % vom Kurs bei t (letzter Tick ≤ t) zum Kurs nach horizontMs (letzter Tick ≤ t + horizont),
+ * begrenzt auf [EXTREM_MIN, EXTREM_MAX]; null, wenn die Aufzeichnung t + horizont nicht abdeckt (wie label/extreme).
+ */
+export function rendite(
+  ticks: Tick[],
+  t: number,
+  horizontMs: number,
+): number | null {
+  const i = letzterIndex(ticks, t);
+  if (i < 0) return null;
+  const p0 = ticks[i]!.preis;
+  if (!(p0 > 0)) return null;
+  const ende = t + horizontMs;
+  if (ticks[ticks.length - 1]!.zeit < ende) return null;
+  const p1 = ticks[letzterIndex(ticks, ende)]!.preis;
+  if (!(p1 > 0)) return EXTREM_MIN;
+  return Math.max(EXTREM_MIN, Math.min(EXTREM_MAX, endlich(prozent(p1, p0))));
+}
+
+/** E237: Alarm-Schwellen (Standard wie KRYPTO_STANDARD.regeln.alarm) */
+export interface AlarmSchwellen {
+  anstiegProzent: number;
+  fallProzent: number;
+}
+export const ALARM_STANDARD: AlarmSchwellen = { anstiegProzent: 15, fallProzent: 10 };
+/** E237: Alarm schaut nur auf die Kursvorhersage bis 2 min (Indizes in KRYPTO_VERLAUF_SEK) */
+const ALARM_BIS_SEK = 120;
+/** E237: Pump-/Absturz-Erkenner lösen ab dieser Wahrscheinlichkeit aus */
+export const ALARM_PUMP = 0.4;
+export const ALARM_ABSTURZ = 0.6;
+
+/**
+ * E237: Alarm aus den Signalen (null-Werte = Modell nicht aktiv, zählen nicht). Absturz hat Vorrang:
+ * 'absturz', wenn die Kursvorhersage bis 2 min irgendwo ≤ −fallProzent liegt oder 💥 ≥ 0,6;
+ * sonst 'anstieg', wenn sie irgendwo ≥ +anstiegProzent liegt oder 🚀 ≥ 0,4; sonst null.
+ */
+export function alarmAus(
+  s: MusterSignale,
+  a: AlarmSchwellen = ALARM_STANDARD,
+): "anstieg" | "absturz" | null {
+  let min = Infinity;
+  let max = -Infinity;
+  const v = s.verlauf ?? [];
+  KRYPTO_VERLAUF_SEK.forEach((sek, i) => {
+    const x = v[i];
+    if (sek > ALARM_BIS_SEK || x == null || !Number.isFinite(x)) return;
+    if (x < min) min = x;
+    if (x > max) max = x;
+  });
+  if (min <= -a.fallProzent || (s.absturz != null && s.absturz >= ALARM_ABSTURZ))
+    return "absturz";
+  if (max >= a.anstiegProzent || (s.pump != null && s.pump >= ALARM_PUMP))
+    return "anstieg";
+  return null;
+}
+
+/**
  * E236: Rat aus allen Signalen (null = Modell nicht aktiv):
  * kaufen – nicht gehalten und (p ≥ 0,6 oder 🚀 ≥ 0,3) und kein 💥 ≥ 0,35;
  * raus – gehalten und (💥 ≥ 0,5 oder p < 0,3); sonst halten.
+ * E237: Alarm geht vor – 'absturz': gehalten → raus, sonst nie kaufen; 'anstieg' → kaufen (wenn nicht gehalten).
  */
 export function ratAus(
   s: MusterSignale,
   haelt: boolean,
+  a: AlarmSchwellen = ALARM_STANDARD,
 ): "kaufen" | "halten" | "raus" {
+  const alarm = alarmAus(s, a);
   if (haelt)
-    return (s.absturz != null && s.absturz >= 0.5) || (s.p != null && s.p < 0.3)
+    return alarm === "absturz" ||
+      (s.absturz != null && s.absturz >= 0.5) ||
+      (s.p != null && s.p < 0.3)
       ? "raus"
       : "halten";
+  if (alarm === "absturz") return "halten";
+  if (alarm === "anstieg") return "kaufen";
   const auf = (s.p != null && s.p >= 0.6) || (s.pump != null && s.pump >= 0.3);
   const sicher = s.absturz == null || s.absturz < 0.35;
   return auf && sicher ? "kaufen" : "halten";

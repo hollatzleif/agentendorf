@@ -2,10 +2,11 @@
 // X-Feed, PnL und das Protokoll. Daten alle 2 s vom Dorf (das sie vom Kryptowerk holt). Alles Paper Trading.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { KRYPTO_KERZEN_MS, KRYPTO_KERZEN_TAKTE, type KryptoKerze, type KryptoTrade, type KryptoKerzenTakt, type KryptoModul, type KryptoTerminal, type KryptoTokenKerzen } from '@dorf/shared';
+import { KRYPTO_KERZEN_MS, KRYPTO_KERZEN_TAKTE, KRYPTO_VERLAUF_SEK, type KryptoKerze, type KryptoTrade, type KryptoKerzenTakt, type KryptoModul, type KryptoTerminal, type KryptoTokenKerzen } from '@dorf/shared';
 import { api } from '../api';
 import { linkKlick } from '../router';
-import { farbeAus, prozent, sol, solVz, stundeWien, uhrzeit, usd, usdKurz } from './format';
+import { Eur, EuroKurs, KURS_QUELLE, eurJeSolAus, eurText, eurZusatz, kursText, useEurJeSol } from './euro';
+import { farbeAus, prozent, sol, solVz, stundeWien, uhrzeit, usdKurz } from './format';
 import './hafen.css';
 
 /** feste Reihenfolge, nie zyklisch vergeben (je Modul eine Farbe für das Buchstaben-Icon) */
@@ -73,7 +74,11 @@ export function KielwasserSeite({ botId }: { botId: string }) {
         <p className="leise mono">verbinde …</p>
       </div>
     );
-  return <Terminal t={q.data} jetzt={jetzt} takt={takt} taktWaehlen={taktWaehlen} />;
+  return (
+    <EuroKurs.Provider value={eurJeSolAus(q.data.solUsd, q.data.usdJeEur)}>
+      <Terminal t={q.data} jetzt={jetzt} takt={takt} taktWaehlen={taktWaehlen} />
+    </EuroKurs.Provider>
+  );
 }
 
 function Terminal({ t, jetzt, takt, taktWaehlen }: { t: KryptoTerminal; jetzt: number; takt: KryptoKerzenTakt; taktWaehlen: (t: KryptoKerzenTakt) => void }) {
@@ -83,6 +88,8 @@ function Terminal({ t, jetzt, takt, taktWaehlen }: { t: KryptoTerminal; jetzt: n
   const seit = Date.parse(b.erstellt);
   const tage = Math.max(0, Math.floor((jetzt - seit) / 86_400_000));
   const letzterGeschlossen = t.trades.find((x) => x.gewinnSol != null);
+  const eurJeSol = useEurJeSol();
+  const eurT = (n: number | null | undefined, vz = false) => eurZusatz(n, eurJeSol, vz);
   return (
     <div className="kw" aria-label={`Terminal ${e.name}`}>
       <header className="kw-tafel kw-kopf">
@@ -101,21 +108,27 @@ function Terminal({ t, jetzt, takt, taktWaehlen }: { t: KryptoTerminal; jetzt: n
               <span>Pump.fun · Solana</span>
               <span>{e.art === 'prompt' ? 'Prompt + LLM' : e.art === 'rl' ? 'RL + Muster-Modell' : 'Regeln'}</span>
               <span className={`kw-online${t.datenOnline ? '' : ' aus'}`}>{t.datenOnline ? 'online' : 'offline'}</span>
+              {eurJeSol != null && (
+                <span title={KURS_QUELLE} data-testid="kw-kurs">
+                  {kursText(eurJeSol)}
+                </span>
+              )}
             </div>
             {b.wallet && (
               <div className="kw-zeile" title="Eigenes Wallet dieses Bots">
                 <span>
                   👛 {b.wallet.adresse.slice(0, 6)}…{b.wallet.adresse.slice(-6)}
                   {b.wallet.guthabenSol != null ? ` · ${sol(b.wallet.guthabenSol, 4)}` : ''}
+                  <Eur sol={b.wallet.guthabenSol} />
                 </span>
               </div>
             )}
           </div>
         </div>
         <div className="kw-konto">
-          <strong>{sol(k.kapitalSol, 3)}</strong>
+          <strong data-testid="kw-kapital">{sol(k.kapitalSol, 3)}</strong>
           <span>
-            {t.solUsd ? `≈ ${usd(k.kapitalSol * t.solUsd)} · ` : ''}
+            {eurJeSol != null ? `≈ ${eurText(k.kapitalSol * eurJeSol)} · ` : ''}
             <b className={k.faktor >= 1 ? 'plus' : 'minus'}>{k.faktor.toLocaleString('de-DE', { maximumFractionDigits: 3 })}×</b> · {k.trades} Trades · {k.gewonnen}W/{k.verloren}L
           </span>
           <div className="kw-zeile" style={{ justifyContent: 'flex-end', marginTop: '0.35rem' }}>
@@ -129,13 +142,17 @@ function Terminal({ t, jetzt, takt, taktWaehlen }: { t: KryptoTerminal; jetzt: n
       <section className="kw-tafel" aria-label="Beobachtete Tokens">
         <div className="kw-pillen">
           {t.pillen.length ? (
-            t.pillen.map((p) => (
-              <span key={p.mint} className={`kw-token${p.gehalten ? ' aktiv' : ''}`} title={p.mint}>
-                <i style={{ background: farbeAus(p.symbol) }}>{p.symbol.slice(0, 1).toUpperCase()}</i>
-                {p.symbol}
-                <b className={(p.prozent ?? 0) >= 0 ? 'plus' : 'minus'}>{prozent(p.prozent, 1)}</b>
-              </span>
-            ))
+            t.pillen.map((p) => {
+              // E237: gehaltene Position mit Einsatz und Wert (SOL + €) im Tooltip
+              const pos = t.positionen.find((x) => x.mint === p.mint);
+              return (
+                <span key={p.mint} className={`kw-token${p.gehalten ? ' aktiv' : ''}`} title={pos ? `${p.mint}\nEinsatz ${sol(pos.einsatzSol)}${eurT(pos.einsatzSol)} · Wert ${sol(pos.wertSol)}${eurT(pos.wertSol)}` : p.mint} data-testid={pos ? 'kw-position' : undefined}>
+                  <i style={{ background: farbeAus(p.symbol) }}>{p.symbol.slice(0, 1).toUpperCase()}</i>
+                  {p.symbol}
+                  <b className={(p.prozent ?? 0) >= 0 ? 'plus' : 'minus'}>{prozent(p.prozent, 1)}</b>
+                </span>
+              );
+            })
           ) : (
             <span className="leise mono" style={{ fontSize: '0.78rem' }}>
               noch keine Tokens im Blick – {t.datenOnline ? 'neue Coins kommen laufend' : 'warte auf die Verbindung zu PumpPortal'}
@@ -144,7 +161,7 @@ function Terminal({ t, jetzt, takt, taktWaehlen }: { t: KryptoTerminal; jetzt: n
         </div>
         <div className="kw-stunden" aria-label="Gewinn je Stunde heute">
           {t.pnlStunden.map((v, i) => (
-            <div key={i} className={`${i === stundeWien(jetzt) ? 'jetzt ' : ''}${v == null ? '' : v >= 0 ? 'plus' : 'minus'}`} title={v == null ? `${i}:00 – kein Trade` : `${i}:00 ${solVz(v)} SOL`}>
+            <div key={i} className={`${i === stundeWien(jetzt) ? 'jetzt ' : ''}${v == null ? '' : v >= 0 ? 'plus' : 'minus'}`} title={v == null ? `${i}:00 – kein Trade` : `${i}:00 ${solVz(v)} SOL${eurT(v, true)}`}>
               {i + 1}
             </div>
           ))}
@@ -169,7 +186,8 @@ function Terminal({ t, jetzt, takt, taktWaehlen }: { t: KryptoTerminal; jetzt: n
             <p className="kw-letzter" data-testid="letzter-trade">
               Letzter Trade: <b>{letzterGeschlossen.symbol}</b> · 1× (kein Hebel) ·{' '}
               <span className={letzterGeschlossen.gewinnSol! >= 0 ? 'plus' : 'minus'}>
-                {solVz(letzterGeschlossen.gewinnSol!)} SOL{t.solUsd ? ` (${usd(letzterGeschlossen.gewinnSol! * t.solUsd)})` : ''} · {prozent(letzterGeschlossen.gewinnProzent!)}
+                {solVz(letzterGeschlossen.gewinnSol!)} SOL
+                <Eur sol={letzterGeschlossen.gewinnSol} vz /> · {prozent(letzterGeschlossen.gewinnProzent!)}
               </span>
             </p>
           )}
@@ -238,15 +256,26 @@ function Terminal({ t, jetzt, takt, taktWaehlen }: { t: KryptoTerminal; jetzt: n
           <div className="kw-zahlen">
             <div>
               <span>Heute</span>
-              <strong className={k.heuteSol >= 0 ? 'plus' : 'minus'}>{solVz(k.heuteSol)}</strong>
+              <strong className={k.heuteSol >= 0 ? 'plus' : 'minus'}>
+                {solVz(k.heuteSol)}
+                <Eur sol={k.heuteSol} vz />
+              </strong>
             </div>
             <div>
               <span>Gesamt</span>
-              <strong className={k.gewinnSol >= 0 ? 'plus' : 'minus'}>{prozent(k.gewinnProzent)}</strong>
+              <strong className={k.gewinnSol >= 0 ? 'plus' : 'minus'} data-testid="kw-gesamt">
+                {prozent(k.gewinnProzent)}
+                <em className="hafen-eur" style={{ display: 'block', fontStyle: 'normal' }}>
+                  {solVz(k.gewinnSol)} SOL{eurT(k.gewinnSol, true)}
+                </em>
+              </strong>
             </div>
             <div>
               <span>Bester Trade</span>
-              <strong className="plus">{t.besterTradeSol == null ? '–' : solVz(t.besterTradeSol)}</strong>
+              <strong className="plus">
+                {t.besterTradeSol == null ? '–' : solVz(t.besterTradeSol)}
+                <Eur sol={t.besterTradeSol} vz />
+              </strong>
             </div>
             <div>
               <span>Rugs geblockt</span>
@@ -257,7 +286,7 @@ function Terminal({ t, jetzt, takt, taktWaehlen }: { t: KryptoTerminal; jetzt: n
               <strong>{k.trefferquote == null ? '–' : `${Math.round(k.trefferquote * 100)} %`}</strong>
             </div>
             {k.tage && k.tage.length > 0 && (
-              <div title={k.tage.map((x) => `${x.tag}: ${solVz(x.gewinnSol)} (${x.trades} Trades)`).join('\n')} data-testid="tage-im-plus">
+              <div title={k.tage.map((x) => `${x.tag}: ${solVz(x.gewinnSol)} SOL${eurT(x.gewinnSol, true)} (${x.trades} Trades)`).join('\n')} data-testid="tage-im-plus">
                 <span>Tage im Plus</span>
                 <strong>
                   {k.tage.filter((x) => x.gewinnSol > 0).length}/{k.tage.length}
@@ -269,6 +298,7 @@ function Terminal({ t, jetzt, takt, taktWaehlen }: { t: KryptoTerminal; jetzt: n
                 <span>Nachschuss</span>
                 <strong>
                   {sol(k.nachschussSol, 2)}
+                  <Eur sol={k.nachschussSol} />
                   {k.nachschuesse ? ` · ${k.nachschuesse}×` : ''}
                 </strong>
                 <em className="leise" style={{ display: 'block', fontSize: '0.62rem', fontStyle: 'normal' }}>
@@ -284,15 +314,24 @@ function Terminal({ t, jetzt, takt, taktWaehlen }: { t: KryptoTerminal; jetzt: n
           <div className="kw-zahlen">
             <div>
               <span>Umsatz</span>
-              <strong>{sol(k.umsatzSol, 2)}</strong>
+              <strong>
+                {sol(k.umsatzSol, 2)}
+                <Eur sol={k.umsatzSol} />
+              </strong>
             </div>
-            <div title={`Pump.fun ${sol(k.gebuehrenArt.pumpSol, 4)} · PumpPortal ${sol(k.gebuehrenArt.portalSol, 4)} · Netz/Priority ${sol(k.gebuehrenArt.netzSol, 4)}`}>
+            <div title={`Pump.fun ${sol(k.gebuehrenArt.pumpSol, 4)}${eurT(k.gebuehrenArt.pumpSol)} · PumpPortal ${sol(k.gebuehrenArt.portalSol, 4)}${eurT(k.gebuehrenArt.portalSol)} · Netz/Priority ${sol(k.gebuehrenArt.netzSol, 4)}${eurT(k.gebuehrenArt.netzSol)}`}>
               <span>Gebühren</span>
-              <strong>{sol(k.gebuehrenSol, 3)}</strong>
+              <strong>
+                {sol(k.gebuehrenSol, 3)}
+                <Eur sol={k.gebuehrenSol} />
+              </strong>
             </div>
           </div>
           <p className="leise mono" style={{ fontSize: '0.68rem', margin: '0.5rem 0 0' }}>
-            Heute, Gesamt und Bester Trade sind schon nach Gebühren. Gebühren: Pump.fun {sol(k.gebuehrenArt.pumpSol, 4)} · PumpPortal {sol(k.gebuehrenArt.portalSol, 4)} · Netz {sol(k.gebuehrenArt.netzSol, 4)}
+            Heute, Gesamt und Bester Trade sind schon nach Gebühren. Gebühren: Pump.fun {sol(k.gebuehrenArt.pumpSol, 4)}
+            {eurT(k.gebuehrenArt.pumpSol)} · PumpPortal {sol(k.gebuehrenArt.portalSol, 4)}
+            {eurT(k.gebuehrenArt.portalSol)} · Netz {sol(k.gebuehrenArt.netzSol, 4)}
+            {eurT(k.gebuehrenArt.netzSol)}
             <br />
             {b.modus === 'live' ? 'LIVE – echte Transaktionen über PumpPortal und dein RPC.' : `Paper Trading mit Pump.fun- und PumpPortal-Gebühren, Slippage, ${e.simulation.verzoegerungMs} ms Verzögerung, ${e.simulation.fehlschlagProzent} % Fehlschlägen.`}
           </p>
@@ -329,11 +368,20 @@ function Terminal({ t, jetzt, takt, taktWaehlen }: { t: KryptoTerminal; jetzt: n
                 <span>{uhrzeit(x.zeit, true)}</span>
                 <span className={`kw-tag ${x.art}`}>{x.art === 'fehlschlag' ? 'FAIL' : x.art === 'kauf' ? 'BUY' : 'SELL'}</span>
                 <span>
-                  <b style={{ color: 'var(--kw-text)' }}>{x.symbol}</b> {x.art !== 'fehlschlag' && `${sol(x.sol)} · Slippage ${x.slippageProzent.toFixed(1)} % · `}Gebühr {sol(x.gebuehrSol, 4)} · {x.verzoegerungMs} ms
+                  <b style={{ color: 'var(--kw-text)' }}>{x.symbol}</b>{' '}
+                  {x.art !== 'fehlschlag' && (
+                    <>
+                      {sol(x.sol)}
+                      <Eur sol={x.sol} /> · Slippage {x.slippageProzent.toFixed(1)} % ·{' '}
+                    </>
+                  )}
+                  Gebühr {sol(x.gebuehrSol, 4)}
+                  <Eur sol={x.gebuehrSol} /> · {x.verzoegerungMs} ms
                   {x.gewinnSol != null && (
-                    <b className={x.gewinnSol >= 0 ? 'plus' : 'minus'}>
+                    <b className={x.gewinnSol >= 0 ? 'plus' : 'minus'} data-testid="kw-trade-gewinn">
                       {' '}
-                      · {solVz(x.gewinnSol)} ({prozent(x.gewinnProzent)})
+                      · {solVz(x.gewinnSol)} SOL
+                      <Eur sol={x.gewinnSol} vz /> ({prozent(x.gewinnProzent)})
                     </b>
                   )}
                   <br />
@@ -398,6 +446,7 @@ function Ohlc({ k }: { k: KryptoKerze | undefined }) {
  * Käufe (▲) und Verkäufe (▼) – Details beim Drüberfahren. Ohne Zoom folgt der Chart dem rechten Rand (neueste Kerze).
  */
 function EquityKerzen({ kerzen: alle, start, sekunden = false, ms, trades }: { kerzen: KryptoKerze[]; start: number; sekunden?: boolean; ms: number; trades: KryptoTrade[] }) {
+  const eurJeSol = useEurJeSol();
   const B = 640;
   const H = 420;
   const R = 62; // Preisskala rechts
@@ -584,6 +633,12 @@ function EquityKerzen({ kerzen: alle, start, sekunden = false, ms, trades }: { k
           <b>{uhrzeit(z.zeit, sekunden)}</b>
           <br />O {f3(z.o)} · H {f3(z.h)}
           <br />L {f3(z.l)} · C <span className={z.c >= z.o ? 'plus' : 'minus'}>{f3(z.c)}</span>
+          {eurJeSol != null && (
+            <>
+              <br />
+              <span className="hafen-eur">≈ {eurText(z.c * eurJeSol)}</span>
+            </>
+          )}
           <br />
           <span className={z.c >= start ? 'plus' : 'minus'}>{prozent((z.c / start - 1) * 100)} seit Start</span>
         </div>
@@ -595,13 +650,16 @@ function EquityKerzen({ kerzen: alle, start, sekunden = false, ms, trades }: { k
           </b>
           <br />
           {uhrzeit(marker.t.zeit, true)} · {marker.t.sol.toLocaleString('de-DE', { maximumFractionDigits: 4 })} SOL
+          <Eur sol={marker.t.sol} />
           <br />
           Kurs {marker.t.preis.toExponential(3)} · Gebühr {marker.t.gebuehrSol.toLocaleString('de-DE', { maximumFractionDigits: 4 })} SOL
+          <Eur sol={marker.t.gebuehrSol} />
           {marker.t.gewinnSol != null && (
             <>
               <br />
               <span className={marker.t.gewinnSol >= 0 ? 'plus' : 'minus'}>
-                Ergebnis {solVz(marker.t.gewinnSol)} SOL ({prozent(marker.t.gewinnProzent ?? 0)})
+                Ergebnis {solVz(marker.t.gewinnSol)} SOL
+                <Eur sol={marker.t.gewinnSol} vz /> ({prozent(marker.t.gewinnProzent ?? 0)})
               </span>
             </>
           )}
@@ -646,6 +704,37 @@ function Echtzeit({ t }: { t: KryptoTerminal }) {
   );
 }
 
+/** E237: Horizont-Beschriftung der Kursvorhersage */
+function horizontText(sek: number) {
+  return sek < 60 ? `${sek} s` : `${sek / 60} min`;
+}
+
+/** E237: „5 s +1 % · 30 s +4 % · 1 min +9 %“ – nur aktive Horizonte (null = Modell nicht aktiv) */
+function verlaufText(v: (number | null)[] | null | undefined) {
+  if (!v) return '';
+  return KRYPTO_VERLAUF_SEK.map((sek, i) => {
+    const w = v[i];
+    if (w == null || !Number.isFinite(w)) return null;
+    const r = Math.round(w);
+    return `${horizontText(sek)} ${r >= 0 ? '+' : '−'}${Math.abs(r)} %`;
+  })
+    .filter(Boolean)
+    .join(' · ');
+}
+
+/** E237: deutliches Alarm-Abzeichen – 🚀 starker Anstieg / 💥 Absturz steht bevor */
+function AlarmAbzeichen({ alarm }: { alarm: 'anstieg' | 'absturz' }) {
+  return (
+    <span
+      className={`kw-alarm ${alarm}`}
+      data-testid="muster-alarm"
+      title={alarm === 'anstieg' ? 'Kursvorhersage/Pump-Erkenner: starker Anstieg in den nächsten 2 min erwartet' : 'Kursvorhersage/Absturz-Erkenner: Absturz in den nächsten 2 min erwartet'}
+    >
+      {alarm === 'anstieg' ? '🚀 ALARM' : '💥 ALARM'}
+    </span>
+  );
+}
+
 /** E235: Rat des Muster-Modells – nur Anzeige (Punkte steuert er erst mit regeln.musterGewicht > 0 bei) */
 function MusterRat({ t }: { t: KryptoTerminal }) {
   const rat = t.musterRat ?? [];
@@ -655,7 +744,7 @@ function MusterRat({ t }: { t: KryptoTerminal }) {
       <div className="kw-chart-kopf">
         <h3>🧠 Muster-Rat</h3>
         <span className="leise mono" style={{ fontSize: '0.72rem' }}>
-          {t.bot.einstellung.art === 'rl' ? 'handelt danach (RL, nur Paper)' : gewicht > 0 ? `zählt bis ${gewicht} Punkte · 💥 ≥ 70 % → raus` : 'nur Anzeige'}
+          {t.bot.einstellung.art === 'rl' ? 'handelt danach (RL, nur Paper) · Alarme wirken' : gewicht > 0 ? `zählt bis ${gewicht} Punkte · 💥 ≥ 70 % → raus · Alarme wirken` : 'nur Anzeige'}
         </span>
       </div>
       {rat.length ? (
@@ -677,6 +766,7 @@ function MusterRat({ t }: { t: KryptoTerminal }) {
                         früh
                       </span>
                     )}
+                    {x.alarm && <AlarmAbzeichen alarm={x.alarm} />}
                   </span>
                   <span>
                     {p != null && <>p {pz(p)} · </>}
@@ -700,6 +790,11 @@ function MusterRat({ t }: { t: KryptoTerminal }) {
                     )}
                   </div>
                 )}
+                {verlaufText(x.verlauf) && (
+                  <div className="kw-verlauf mono" data-testid="muster-verlauf" title="Kursvorhersage (nur aktive Horizonte) – bewusst vorsichtig: ein verpasster Absturz zählt 3×">
+                    📈 {verlaufText(x.verlauf)}
+                  </div>
+                )}
                 {p != null && (
                   <div className="kw-fortschritt">
                     <b style={{ width: `${Math.round(p * 100)}%` }} />
@@ -721,30 +816,42 @@ function MusterRat({ t }: { t: KryptoTerminal }) {
 function TokenKerzen({ k }: { k: KryptoTokenKerzen }) {
   const B = 320;
   const H = 140;
-  const werte = k.kerzen.flatMap((x) => [x.h, x.l]);
+  const letzte = k.kerzen.at(-1)!;
+  // E237: Kursvorhersage – nur Punkte nach der letzten Kerze; eigener x-Bereich rechts (bis zur letzten Prognosezeit)
+  const prognose = (k.prognose ?? []).filter((p) => Number.isFinite(p.c) && p.c > 0 && p.zeit > letzte.zeit).sort((a, b) => a.zeit - b.zeit);
+  const mitPrognose = prognose.length > 0;
+  const kerzenB = mitPrognose ? Math.round((B - 8) * 0.72) : B - 8;
+  const werte = [...k.kerzen.flatMap((x) => [x.h, x.l]), ...prognose.map((p) => p.c)];
   let lo = Math.min(...werte);
   let hi = Math.max(...werte);
   if (hi - lo < hi * 1e-6) ((lo *= 0.995), (hi *= 1.005));
   const y = (v: number) => 6 + ((hi - v) / (hi - lo)) * (H - 12);
   const n = Math.max(k.kerzen.length, 30);
-  const w = (B - 8) / n;
+  const w = kerzenB / n;
   const x = (i: number) => 4 + (n - k.kerzen.length + i) * w + w / 2;
   const erst = k.kerzen[0]!.o;
-  const letzt = k.kerzen.at(-1)!.c;
+  const letzt = letzte.c;
   const pz = (letzt / erst - 1) * 100;
+  const xJetzt = x(k.kerzen.length - 1);
+  const tEnde = prognose.at(-1)?.zeit ?? letzte.zeit;
+  const xStart = xJetzt + w / 2; // eigener x-Bereich der Vorhersage: ab dem Ende der letzten Kerze bis zur letzten Prognosezeit
+  const xP = (zeit: number) => xStart + ((zeit - letzte.zeit) / Math.max(1, tEnde - letzte.zeit)) * (B - 4 - xStart);
+  const pLetzt = prognose.at(-1)?.c;
+  const pFarbe = pLetzt == null ? '#a78bfa' : pLetzt >= letzt ? '#22c55e' : '#f43f5e';
   return (
-    <div className="kw-token-kerzen">
+    <div className={`kw-token-kerzen${k.alarm ? ` alarm-${k.alarm}` : ''}`}>
       <div className="zeile">
         <b>
           {k.symbol}
           {k.gehalten ? <span className="kw-gehalten"> · gehalten</span> : <span className="leise"> · beobachtet</span>}
+          {k.alarm && <> <AlarmAbzeichen alarm={k.alarm} /></>}
         </b>
         <span className={pz >= 0 ? 'plus' : 'minus'}>{prozent(pz, 1)} · 10 min</span>
         <span>
           <span className="plus">{k.kaeufe}↑</span> <span className="minus">{k.verkaeufe}↓</span>
         </span>
       </div>
-      <svg viewBox={`0 0 ${B} ${H}`} role="img" aria-label={`${k.symbol}: ${k.kerzen.length} Kerzen, ${prozent(pz, 1)}`}>
+      <svg viewBox={`0 0 ${B} ${H}`} role="img" aria-label={`${k.symbol}: ${k.kerzen.length} Kerzen, ${prozent(pz, 1)}${mitPrognose ? `, Vorhersage ${prozent((pLetzt! / letzt - 1) * 100, 1)}` : ''}`}>
         {k.kerzen.map((c, i) => {
           const farbe = c.c >= c.o ? '#22c55e' : '#f43f5e';
           const kw = Math.max(1.5, w * 0.62);
@@ -755,6 +862,23 @@ function TokenKerzen({ k }: { k: KryptoTokenKerzen }) {
             </g>
           );
         })}
+        {mitPrognose && (
+          <g data-testid="prognose">
+            <line x1={xStart} x2={xStart} y1={2} y2={H - 2} stroke="#6b7280" strokeWidth={0.5} strokeDasharray="1 2" />
+            <polyline
+              points={[`${xJetzt},${y(letzt)}`, ...prognose.map((p) => `${xP(p.zeit)},${y(p.c)}`)].join(' ')}
+              fill="none"
+              stroke={pFarbe}
+              strokeWidth={1.4}
+              strokeDasharray="4 3"
+            />
+            {prognose.map((p) => (
+              <circle key={p.zeit} cx={xP(p.zeit)} cy={y(p.c)} r={1.6} fill={pFarbe}>
+                <title>{`in ${horizontText(Math.round((p.zeit - letzte.zeit) / 1000))}: ${prozent((p.c / letzt - 1) * 100, 1)}`}</title>
+              </circle>
+            ))}
+          </g>
+        )}
       </svg>
     </div>
   );

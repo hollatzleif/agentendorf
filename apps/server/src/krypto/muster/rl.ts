@@ -11,9 +11,15 @@
 // Modell aktiv ist – sonst bleibt der Zustandsschlüssel wie in E235, alte Q-Tabellen gelten weiter). Harte Sicherungen im
 // Code: kein Kauf ab 💥 ≥ maxAbsturz (Standard 0,35); gehalten und 💥 ≥ 0,7 → nur noch „raus“. Kauf mit p ≥ minSicherheit
 // oder 🚀 ≥ 0,3 (dann auch ohne aktives Grundsignal – p ist dann 0).
+//
+// E237: Die Kursvorhersage ist sein Auge: v1m/v5m (erwartete Kursänderung in 1 und 5 min) grob in Stufen im Zustand –
+// nur, wenn eines davon aktiv ist (sonst bleibt der Schlüssel wie bisher). Die Belohnung bleibt der echte Gewinn nach
+// Gebühren (er soll Geld lernen, nicht Vorhersagen). Harte Sicherung: Alarm 'absturz' → ohne Position nie kaufen,
+// gehalten nur noch raus; Alarm 'anstieg' erlaubt den Kauf auch ohne p ≥ minSicherheit (💥-Sperre gilt weiter).
 import type { KryptoRlGrenzen } from "@dorf/shared";
 import { GRUNDGEBUEHR_SOL, kaufen, kurveAusKurs, verkaufen } from "../kurve.js";
 import { takt } from "./gbdt.js";
+import { ALARM_STANDARD } from "./merkmale.js";
 import {
   RL_HANDLUNGEN,
   type RlHandlung,
@@ -36,6 +42,11 @@ export const RL_PUMP_KAUF = 0.3;
 export const RL_ABSTURZ_RAUS = 0.7;
 const MAX_ABSTURZ_STANDARD = 0.35;
 
+export type RlAlarm = "anstieg" | "absturz" | null;
+/** E237: Lage mit Alarm – motor.ts gibt alarmAus(Signale, regeln.alarm) mit (das Training ebenso); fehlt das Feld
+ *  (undefined), leitet rl.ts ihn nur aus v1m ab (≤ −10 % → absturz, ≥ +15 % → anstieg) – 🚀/💥 wirken dann wie in E236 */
+export type RlLageMitAlarm = RlLage & { alarm?: RlAlarm };
+
 function stufeVon(x: number, grenzen: number[]) {
   let i = 0;
   while (i < grenzen.length && x >= grenzen[i]!) i++;
@@ -51,6 +62,21 @@ function wStufe(x: number | null | undefined): string {
   return v === null ? "n" : String(stufeVon(v, [0.15, 0.35]));
 }
 
+/** E237: Kursvorhersage in 4 Stufen: n (nicht aktiv), < −5 %, −5 … +10 %, > +10 % */
+function verlaufStufe(x: number | null | undefined): string {
+  const v = zahlOderNull(x);
+  return v === null ? "n" : v < -5 ? "0" : v <= 10 ? "1" : "2";
+}
+
+/** E237: Alarm der Lage (ausdrücklich übergeben oder grob abgeleitet) */
+export function rlAlarm(l: RlLageMitAlarm): RlAlarm {
+  if (l.alarm !== undefined) return l.alarm;
+  const v1m = zahlOderNull(l.v1m);
+  if (v1m !== null && v1m <= -ALARM_STANDARD.fallProzent) return "absturz";
+  if (v1m !== null && v1m >= ALARM_STANDARD.anstiegProzent) return "anstieg";
+  return null;
+}
+
 /** Hoch/Tief grob in 3 Stufen (n = nicht aktiv): Hoch < 10 / < 30 / ≥ 30 %, Tief > −10 / > −25 / ≤ −25 % */
 function hochStufe(x: number | null | undefined): string {
   const v = zahlOderNull(x);
@@ -64,6 +90,7 @@ function tiefStufe(x: number | null | undefined): string {
 /**
  * Zustandsschlüssel: p in 10 Stufen, hält?, Plus-Stufe, Haltezeit-Stufe, Trend-Stufe. E236: dazu – nur wenn mindestens
  * ein Signal aktiv ist – ohne Position Pump/Absturz/Hoch5/Tief5, mit Position Absturz/Hoch5 (Zustandsraum klein halten).
+ * E237: dazu – nur wenn v1m oder v5m aktiv ist – die Kursvorhersage in 1/5 min (je 4 Stufen).
  */
 export function rlZustand(l: RlLage): string {
   const p = Math.max(
@@ -76,33 +103,53 @@ export function rlZustand(l: RlLage): string {
     zahlOderNull(l.absturz) !== null ||
     zahlOderNull(l.hoch5) !== null ||
     zahlOderNull(l.tief5) !== null;
+  const verlauf =
+    zahlOderNull(l.v1m) !== null || zahlOderNull(l.v5m) !== null
+      ? `|v${verlaufStufe(l.v1m)}${verlaufStufe(l.v5m)}`
+      : "";
   if (!l.haelt) {
     const basis = `w|${p}|${trend}`;
-    return signale
-      ? `${basis}|p${wStufe(l.pump)}a${wStufe(l.absturz)}h${hochStufe(l.hoch5)}t${tiefStufe(l.tief5)}`
-      : basis;
+    return (
+      (signale
+        ? `${basis}|p${wStufe(l.pump)}a${wStufe(l.absturz)}h${hochStufe(l.hoch5)}t${tiefStufe(l.tief5)}`
+        : basis) + verlauf
+    );
   }
   const plus = stufeVon(l.plusProzent, [-10, 0, 10, 20]);
   const halt = stufeVon(l.haltSek, [30, 60, 120, 300]);
   const basis = `h|${p}|${plus}|${halt}|${trend}`;
-  return signale ? `${basis}|a${wStufe(l.absturz)}h${hochStufe(l.hoch5)}` : basis;
+  return (
+    (signale ? `${basis}|a${wStufe(l.absturz)}h${hochStufe(l.hoch5)}` : basis) +
+    verlauf
+  );
 }
 
-/** E236: Kauf erlaubt? (p ≥ minSicherheit oder 🚀 ≥ 0,3) und nicht 💥 ≥ maxAbsturz */
-function kaufErlaubt(l: RlLage, g: KryptoRlGrenzen): boolean {
+/** E236: Kauf erlaubt? (p ≥ minSicherheit oder 🚀 ≥ 0,3) und nicht 💥 ≥ maxAbsturz;
+ *  E237: nie bei Alarm 'absturz', bei Alarm 'anstieg' auch ohne p/🚀 */
+function kaufErlaubt(l: RlLageMitAlarm, g: KryptoRlGrenzen): boolean {
+  const alarm = rlAlarm(l);
+  if (alarm === "absturz") return false;
   const absturz = zahlOderNull(l.absturz);
   if (absturz !== null && absturz >= (g.maxAbsturz ?? MAX_ABSTURZ_STANDARD))
     return false;
   const pump = zahlOderNull(l.pump);
-  return l.p >= g.minSicherheit || (pump !== null && pump >= RL_PUMP_KAUF);
+  return (
+    alarm === "anstieg" ||
+    l.p >= g.minSicherheit ||
+    (pump !== null && pump >= RL_PUMP_KAUF)
+  );
 }
 
 /** erlaubte Handlungen: ohne Position warten/kaufen (kaufen nur nach kaufErlaubt), mit Position warten/halb/raus –
- *  E236: gehalten und 💥 ≥ 0,7 → nur raus */
-export function rlErlaubt(l: RlLage, g: KryptoRlGrenzen): RlHandlung[] {
+ *  E236: gehalten und 💥 ≥ 0,7 → nur raus; E237: gehalten und Alarm 'absturz' → nur raus */
+export function rlErlaubt(l: RlLageMitAlarm, g: KryptoRlGrenzen): RlHandlung[] {
   if (l.haelt) {
     const absturz = zahlOderNull(l.absturz);
-    if (absturz !== null && absturz >= RL_ABSTURZ_RAUS) return ["raus"];
+    if (
+      (absturz !== null && absturz >= RL_ABSTURZ_RAUS) ||
+      rlAlarm(l) === "absturz"
+    )
+      return ["raus"];
     return ["warten", "halb", "raus"];
   }
   return kaufErlaubt(l, g) ? ["warten", "kaufen"] : ["warten"];
@@ -110,7 +157,7 @@ export function rlErlaubt(l: RlLage, g: KryptoRlGrenzen): RlHandlung[] {
 
 /** Regel ohne Q-Werte: kaufen, wenn erlaubt; raus bei 💥 ≥ 0,5, Minus ≥ 10 % oder schwachem Signal (p < 0,3 – ist nur
  *  das Pump-Signal aktiv (p = 0), dann 🚀 < 0,3) */
-function regel(l: RlLage, g: KryptoRlGrenzen): RlHandlung {
+function regel(l: RlLageMitAlarm, g: KryptoRlGrenzen): RlHandlung {
   if (!l.haelt) return kaufErlaubt(l, g) ? "kaufen" : "warten";
   const absturz = zahlOderNull(l.absturz);
   const pump = zahlOderNull(l.pump);
@@ -123,7 +170,7 @@ function regel(l: RlLage, g: KryptoRlGrenzen): RlHandlung {
 
 export function rlHandlung(
   m: RlModell | null,
-  l: RlLage,
+  l: RlLageMitAlarm,
   g: KryptoRlGrenzen,
   zufall: () => number,
 ): RlHandlung {
@@ -157,6 +204,10 @@ export interface RlSchritt {
   absturz?: number | null;
   hoch5?: number | null;
   tief5?: number | null;
+  /** E237: Kursvorhersage 1/5 min (%) und Alarm (null = keiner / Modelle nicht aktiv) */
+  v1m?: number | null;
+  v5m?: number | null;
+  alarm?: RlAlarm;
 }
 export type RlEpisode = RlSchritt[];
 
@@ -248,12 +299,16 @@ async function simulieren(
     }[] = [];
     for (let i = 0; i < ep.length; i++) {
       const schritt = ep[i]!;
-      const lage: RlLage = {
+      const lage: RlLageMitAlarm = {
         p: schritt.p,
         pump: schritt.pump ?? null,
         absturz: schritt.absturz ?? null,
         hoch5: schritt.hoch5 ?? null,
         tief5: schritt.tief5 ?? null,
+        v1m: schritt.v1m ?? null,
+        v5m: schritt.v5m ?? null,
+        // Alarm wie im Training berechnet (fehlt er im Schritt, leitet rlAlarm ihn aus der Lage ab)
+        ...(schritt.alarm !== undefined ? { alarm: schritt.alarm } : {}),
         haelt: pos !== null,
         plusProzent: pos ? (schritt.preis / pos.einstieg - 1) * 100 : 0,
         haltSek: pos ? (schritt.zeit - pos.seit) / 1000 : 0,

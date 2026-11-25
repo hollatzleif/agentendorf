@@ -120,14 +120,17 @@ describe('Hafen-Werkzeuge gegen das echte Kryptowerk (E231)', () => {
     expect(k.pfade.filter((p) => /scharf|entschaerfen|auszahlen/.test(p))).toEqual([]);
   });
 
-  it('Hafenmeister: eigene Bots löschen ja, Leifs nie; höchstens 6 eigene, 2 Prompt-Bots', async () => {
+  it('Hafenmeister: eigene Bots löschen ja, Leifs nie; höchstens 10 eigene Regel-/Prompt-Bots, 2 Prompt-Bots, RL-Bot mit eigenem Platz (E237)', async () => {
     const k = kryptowerk();
     const leif = k.werk.anlegen({ ...KRYPTO_STANDARD, name: 'Test Bot Standart' });
     const d = await testDorf({ env: { KRYPTO_GEHEIMNIS: G }, hafenHolen: k.holen });
     const prompt = (n: string) => ({ einstellung: { name: n, art: 'prompt', prompt: 'Kaufe nur bei breitem Kaufdruck.' } });
+    expect(HAFEN_AGENT_MAX_BOTS).toBe(10);
+    const M = HAFEN_AGENT_MAX_BOTS;
     const t = await lauf(d, [
-      ...Array.from({ length: HAFEN_AGENT_MAX_BOTS }, (_, i) => w('hafen_bot_anlegen', i < 2 ? prompt(`HM G1-${i}`) : { einstellung: { name: `HM G1-${i}` } })),
+      ...Array.from({ length: M }, (_, i) => w('hafen_bot_anlegen', i < 2 ? prompt(`HM G1-${i}`) : { einstellung: { name: `HM G1-${i}` } })),
       w('hafen_bot_anlegen', { einstellung: { name: 'HM G1-zuviel' } }),
+      w('hafen_bot_anlegen', { einstellung: { name: 'HM Muster-RL', art: 'rl' } }), // eigener Platz – zählt nicht in die 10
       w('hafen_uebersicht', {}),
       w('hafen_bot_loeschen', { bot: 'Test Bot Standart', grund: 'schwach' }),
       w('hafen_bot_loeschen', { bot: 'HM G1-0', grund: 'Prompt-Bot verliert nach Gebühren' }),
@@ -136,20 +139,26 @@ describe('Hafen-Werkzeuge gegen das echte Kryptowerk (E231)', () => {
       w('hafen_bot_anlegen', prompt('HM G2-B')),
       w('hafen_bot_anlegen', { einstellung: { name: 'HM G2-B', filter: { minAlterSek: 90 } } }),
       w('hafen_bot_anlegen', { einstellung: { name: 'HM G2-C' } }),
+      w('hafen_bot_aendern', { bot: 'HM G2-B', einstellung: { art: 'rl' } }), // Umbau umgeht die RL-Grenze nicht
+      w('hafen_bot_aendern', { bot: 'HM Muster-RL', einstellung: { art: 'regeln' } }), // … und auch nicht die 10
     ]);
-    expect(t.slice(0, HAFEN_AGENT_MAX_BOTS).every((x) => /angelegt/.test(x))).toBe(true);
-    expect(t[6]).toMatch(/\(verweigert\).*schon 6 eigene Bots/);
-    expect(t[7]).toMatch(/Test Bot Standart · [0-9a-f-]{36} · Regeln · paper · laeuft · Leifs Bot/);
-    expect(t[7]).toMatch(/HM G1-0 · .* · 🤖 Agent/);
-    expect(t[8]).toMatch(/\(verweigert\).*Leifs Bot – löschen darf ihn nur Leif/);
-    expect(t[9]).toMatch(/HM G1-0 gelöscht \(0 Trades.*Prompt-Bot verliert/);
-    expect(t[10]).toMatch(/HM G2-A angelegt/); // wieder ein Platz frei (2 Prompt-Bots: G1-1 + G2-A)
-    expect(t[11]).toMatch(/HM G1-2 gelöscht/);
-    expect(t[12]).toMatch(/\(verweigert\).*Schon 2 eigene Prompt-Bots/);
-    expect(t[13]).toMatch(/HM G2-B angelegt/);
-    expect(t[14]).toMatch(/\(verweigert\).*schon 6 eigene Bots/);
+    expect(t.slice(0, M).every((x) => /angelegt/.test(x))).toBe(true);
+    expect(t[M]).toMatch(/\(verweigert\).*schon 10 eigene Bots \(höchstens 10 Regel-\/Prompt-Bots; der RL-Bot zählt nicht\)/);
+    expect(t[M + 1]).toMatch(/HM Muster-RL angelegt/);
+    expect(t[M + 2]).toMatch(/Test Bot Standart · [0-9a-f-]{36} · Regeln · paper · laeuft · Leifs Bot/);
+    expect(t[M + 2]).toMatch(/HM G1-0 · .* · 🤖 Agent/);
+    expect(t[M + 3]).toMatch(/\(verweigert\).*Leifs Bot – löschen darf ihn nur Leif/);
+    expect(t[M + 4]).toMatch(/HM G1-0 gelöscht \(0 Trades.*Prompt-Bot verliert/);
+    expect(t[M + 5]).toMatch(/HM G2-A angelegt/); // wieder ein Platz frei (2 Prompt-Bots: G1-1 + G2-A)
+    expect(t[M + 6]).toMatch(/HM G1-2 gelöscht/);
+    expect(t[M + 7]).toMatch(/\(verweigert\).*Schon 2 eigene Prompt-Bots/);
+    expect(t[M + 8]).toMatch(/HM G2-B angelegt/);
+    expect(t[M + 9]).toMatch(/\(verweigert\).*schon 10 eigene Bots/);
+    expect(t[M + 10]).toMatch(/\(verweigert\).*Schon 1 eigener RL-Bot/);
+    expect(t[M + 11]).toMatch(/\(verweigert\).*Schon 10 eigene Regel-\/Prompt-Bots/);
     expect(k.werk.uebersicht().bots.some((b) => b.id === leif.id)).toBe(true);
-    expect(agentenBots(d.db)).toHaveLength(HAFEN_AGENT_MAX_BOTS);
+    expect(agentenBots(d.db)).toHaveLength(M + 1);
+    expect(k.werk.uebersicht().bots.filter((b) => b.einstellung.art === 'rl')).toHaveLength(1);
     // ein scharfer eigener Bot lässt sich auch nicht löschen
     const g11 = k.werk.uebersicht().bots.find((b) => b.einstellung.name === 'HM G1-1')!;
     k.db.prepare("UPDATE bots SET modus = 'live' WHERE id = ?").run(g11.id);
@@ -165,8 +174,9 @@ describe('Hafen-Werkzeuge gegen das echte Kryptowerk (E231)', () => {
       gemeldet.push(r.titel);
     });
     const t = await lauf(d, [w('hafen_bot_anlegen', { einstellung: { name: 'Neunter' } }), w('hafen_notaus', { grund: 'Daten seit 20 Minuten offline' })]);
-    expect(t[0]).toMatch(/\(verweigert\).*schon 12 Bots/);
-    expect(t[1]).toMatch(/Not-Aus gezogen: alle 12 Bots gestoppt/);
+    expect(HAFEN_FLOTTE_MAX).toBe(20);
+    expect(t[0]).toMatch(/\(verweigert\).*schon 20 Bots/);
+    expect(t[1]).toMatch(/Not-Aus gezogen: alle 20 Bots gestoppt/);
     expect(k.werk.uebersicht().notaus).toBe(true);
     expect(k.werk.uebersicht().bots.every((b) => b.status === 'gestoppt')).toBe(true);
     expect(gemeldet).toEqual(['Hafen: NOT-AUS gezogen – Daten seit 20 Minuten offline']);

@@ -24,7 +24,7 @@ function bot(id: string, name: string, avatar: string, faktor: number, art: 'reg
 }
 
 export function uebersicht(): KryptoUebersicht {
-  return { verbunden: true, liveMoeglich: true, auszahlung: 'DRpbCBMxVnDK7maPM5tGv6MvB3v1sRMC86PZ8okm21hy', notaus: false, datenOnline: true, beobachtet: 214, solUsd: 70.2, bots: [bot(BOT_ID, 'Schwarm', '🦈', 1.184), bot(BOT2_ID, 'Grübler', '🐙', 0.93, 'prompt')] };
+  return { verbunden: true, liveMoeglich: true, auszahlung: 'DRpbCBMxVnDK7maPM5tGv6MvB3v1sRMC86PZ8okm21hy', notaus: false, datenOnline: true, beobachtet: 214, solUsd: 70.2, usdJeEur: 1.08, bots: [bot(BOT_ID, 'Schwarm', '🦈', 1.184), bot(BOT2_ID, 'Grübler', '🐙', 0.93, 'prompt')] };
 }
 
 /** E235: Stand des Muster-Modells */
@@ -49,7 +49,7 @@ export function muster(laeuft = false): KryptoMusterStatus {
       ],
     },
     rl: { version: 3, trainiert: new Date(jetzt - 2 * 3_600_000).toISOString(), episoden: 4000, zeitraffer: { trades: 57, gewinnSol: 0.84, trefferquote: 0.42, pleiten: 1 } },
-    training: { laeuft, fortschritt: laeuft ? 0.4 : 0, letzter: new Date(jetzt - 2 * 3_600_000).toISOString(), naechster: new Date(jetzt + 3 * 3_600_000).toISOString(), fehler: null, dauerMs: 61_000 },
+    training: { laeuft, fortschritt: laeuft ? 40 : 0, letzter: new Date(jetzt - 2 * 3_600_000).toISOString(), naechster: new Date(jetzt + 3 * 3_600_000).toISOString(), fehler: null, dauerMs: 61_000 },
     daten: { ticks: 1_204_000, tokens: 3_100, von: new Date(jetzt - 72 * 3_600_000).toISOString(), bis: new Date(jetzt).toISOString() },
     bericht: '## Muster-Modell v4\nTest-AUC 0,61 – besser als Raten.',
     // E236: alle Modelle
@@ -59,6 +59,13 @@ export function muster(laeuft = false): KryptoMusterStatus {
       modellInfo('absturz', true, { auc: 0.664, aucUntergrenze: 0.62, praezision: 0.44, basis: 0.21 }),
       modellInfo('hoch5', true, { fehler: 18.4, fehlerBasis: 23.9 }),
       modellInfo('tief5', false, { fehler: 14.9, fehlerBasis: 15.1 }, ['Fehler nicht ≥ 5 % besser als der Median']),
+      // E237: Kursvorhersage (asymmetrischer Fehler) – einige aktiv
+      modellInfo('verlauf5s', true, { fehler: 2.1, fehlerBasis: 2.6, richtung: 0.58, alarmAnstieg: { n: 4, treffer: 1 }, alarmFall: { n: 9, treffer: 6 } }),
+      modellInfo('verlauf15s', false, { fehler: 4.4, fehlerBasis: 4.5, richtung: 0.52, alarmAnstieg: null, alarmFall: null }, ['Fehler nicht ≥ 5 % besser als die Konstante']),
+      modellInfo('verlauf30s', true, { fehler: 6.2, fehlerBasis: 7.4, richtung: 0.61, alarmAnstieg: { n: 12, treffer: 7 }, alarmFall: { n: 31, treffer: 22 } }),
+      modellInfo('verlauf1m', true, { fehler: 9.8, fehlerBasis: 11.9, richtung: 0.64, alarmAnstieg: { n: 18, treffer: 9 }, alarmFall: { n: 40, treffer: 27 } }),
+      modellInfo('verlauf2m', false, { fehler: 14.1, fehlerBasis: 14.3, richtung: 0.55, alarmAnstieg: { n: 2, treffer: 0 }, alarmFall: { n: 14, treffer: 8 } }, ['Token-Bootstrap nur 81 % (< 95 %)']),
+      modellInfo('verlauf5m', true, { fehler: 21.3, fehlerBasis: 25.0, richtung: 0.66, alarmAnstieg: { n: 25, treffer: 11 }, alarmFall: { n: 52, treffer: 37 } }),
     ],
   };
 }
@@ -99,6 +106,7 @@ export function terminal(): KryptoTerminal {
     jetzt,
     datenOnline: true,
     solUsd: 70.2,
+    usdJeEur: 1.08, // E237: 1 SOL ≈ 65,00 €
     kerzen,
     lage: 'LONG',
     positionen: [{ id: 'p1', mint: 'MOONCATmint1111111111111111111111111pump', symbol: 'MOONCAT', name: 'Moon Cat', geoeffnet: jetzt - 300_000, einsatzSol: 0.5005, einstiegPreis: 4.1e-8, preis: 4.8e-8, wertSol: 0.57, prozent: 17.1, tpStufe: 0 }],
@@ -133,8 +141,8 @@ export function terminal(): KryptoTerminal {
     besterTradeSol: 0.29,
     // E235: Rat des Muster-Modells
     musterRat: [
-      { mint: 'MOONCATmint1111111111111111111111111pump', symbol: 'MOONCAT', wahrscheinlichkeit: 0.72, rat: 'kaufen', zeit: jetzt - 4000, pump: 0.34, absturz: 0.08, ausblick: { hoch1: 9, tief1: -4, hoch5: 27, tief5: -12 }, frueh: true },
-      { mint: 'b', symbol: 'SADCAT', wahrscheinlichkeit: 0.18, rat: 'raus', zeit: jetzt - 6000, pump: 0.02, absturz: 0.61, ausblick: { hoch1: null, tief1: null, hoch5: 3, tief5: -38 }, frueh: false },
+      { mint: 'MOONCATmint1111111111111111111111111pump', symbol: 'MOONCAT', wahrscheinlichkeit: 0.72, rat: 'kaufen', zeit: jetzt - 4000, pump: 0.34, absturz: 0.08, ausblick: { hoch1: 9, tief1: -4, hoch5: 27, tief5: -12 }, frueh: true, verlauf: [1.2, null, 4.4, 9.1, null, -3.2], alarm: 'anstieg' },
+      { mint: 'b', symbol: 'SADCAT', wahrscheinlichkeit: 0.18, rat: 'raus', zeit: jetzt - 6000, pump: 0.02, absturz: 0.61, ausblick: { hoch1: null, tief1: null, hoch5: 3, tief5: -38 }, frueh: false, verlauf: [-2, null, -12, -19, null, -31], alarm: 'absturz' },
     ],
     // E232: Echtzeit-Kurse
     echtzeit: { an: true, online: true, abos: 7, ticksMinute: 42, mbHeute: 12.4, grenzeMb: 800, grenzeErreicht: false, fehler: null },
@@ -150,6 +158,14 @@ export function terminal(): KryptoTerminal {
           const c = 4.1e-8 * (1 + (i + 1) * 0.003 + Math.sin((i + 1) / 4) * 0.01);
           return { zeit: jetzt - (60 - i) * 5000, o, c, h: Math.max(o, c) * 1.002, l: Math.min(o, c) * 0.998 };
         }),
+        // E237: Kursvorhersage (aktive Horizonte 5 s, 30 s, 1 min, 5 min) ab der letzten Kerze + Alarm
+        prognose: [
+          { zeit: jetzt - 5000 + 5_000, c: 4.1e-8 * 1.19 * 1.012 },
+          { zeit: jetzt - 5000 + 30_000, c: 4.1e-8 * 1.19 * 1.044 },
+          { zeit: jetzt - 5000 + 60_000, c: 4.1e-8 * 1.19 * 1.091 },
+          { zeit: jetzt - 5000 + 300_000, c: 4.1e-8 * 1.19 * 0.968 },
+        ],
+        alarm: 'anstieg',
       },
     ],
   };

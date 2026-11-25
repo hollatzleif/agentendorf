@@ -234,13 +234,14 @@ describe('Rat im Terminal (E236)', () => {
     expect(rat[0]!.pump).toBeCloseTo(0.4, 6);
     expect(rat[0]!.absturz).toBeCloseTo(0.1, 6);
     expect(x.werk.musterP(MINT)).toBeNull();
-    // Absturz hoch → kein Kauf-Rat; Früh-Modell übernimmt bei jungem Token
-    x.muster.modelleSetzen({ absturz: fest(0.5), fruehPump: fest(0.6) });
+    // Absturz hoch → kein Kauf-Rat; Früh-Modell übernimmt bei jungem Token (E237: 🚀 unter 40 %, sonst wäre es ein Alarm)
+    x.muster.modelleSetzen({ absturz: fest(0.5), fruehPump: fest(0.35) });
     x.uhr.vor(2000);
     const r2 = x.werk.terminal(bot.id).musterRat![0]!;
     expect(r2.rat).toBe('halten');
+    expect(r2.alarm).toBeNull();
     expect(r2.frueh).toBe(true);
-    expect(r2.pump).toBeCloseTo(0.6, 6);
+    expect(r2.pump).toBeCloseTo(0.35, 6);
     // ohne jedes Modell: kein Rat
     x.muster.modelleSetzen({ pump: null, absturz: null, hoch5: null, tief5: null, fruehPump: null });
     x.uhr.vor(2000);
@@ -261,12 +262,13 @@ describe('RL-Bot mit allen Signalen (E236)', () => {
 
   it('kauft über den Pump-Erkenner ohne Grundsignal (p zählt als 0)', async () => {
     const x = aufbau();
-    x.muster.modelleSetzen({ pump: fest(0.5) });
+    // E237: 🚀 unter 40 % – ab 40 % kauft schon der Alarm (e237-alarm-werk.test.ts)
+    x.muster.modelleSetzen({ pump: fest(0.35) });
     const bot = await rlStart(x);
     const kauf = x.werk.protokoll(bot.id).entscheidungen.find((z) => z.aktion === 'buy')!;
     expect(kauf).toMatchObject({ quelle: 'modell', mint: MINT });
-    expect(kauf.grund).toMatch(/^RL: kaufen · 🚀 Pump 50 % ≥ 30 %/);
-    expect(kauf.sicherheit).toBeCloseTo(0.5, 6);
+    expect(kauf.grund).toMatch(/^RL: kaufen · 🚀 Pump 35 % ≥ 30 %/);
+    expect(kauf.sicherheit).toBeCloseTo(0.35, 6);
     await x.schritt(2000);
     expect(x.werk.terminal(bot.id).lage).toBe('LONG');
     x.werk.beenden();
@@ -362,13 +364,14 @@ describe('Andere Bots: Absturz-Ausstieg nur mit musterGewicht > 0, Punkte mit al
       return { punkte: Math.round(e.sicherheit! * 100), vol };
     };
     const ohne = await lauf(0);
-    const mit = await lauf(30, { basis: fest(0.25), pump: fest(0.4), absturz: fest(0.1) });
-    expect(mit.punkte).toBe(ohne.punkte - 6);
+    // E237: 🚀 unter 40 % – ab 40 % kauft bei musterGewicht > 0 der Alarm (e237-alarm-werk.test.ts)
+    const mit = await lauf(30, { basis: fest(0.25), pump: fest(0.38), absturz: fest(0.1) });
+    expect(mit.punkte).toBe(ohne.punkte - 7);
     // die Terminal-Zeile ist auf 60 Zeichen gekürzt – die Punkte stehen oben
-    expect(mit.vol).toMatch(/Muster p 25 % · 🚀 40 % · 💥 10 %/);
-    const nurPump = await lauf(20, { pump: fest(0.4) });
+    expect(mit.vol).toMatch(/Muster p 25 % · 🚀 38 % · 💥 10 %/);
+    const nurPump = await lauf(20, { pump: fest(0.38) });
     expect(nurPump.punkte).toBe(ohne.punkte + 8);
-    expect(nurPump.vol).toMatch(/Muster 🚀 40 % \+8/);
+    expect(nurPump.vol).toMatch(/Muster 🚀 38 % \+8/);
   });
 });
 

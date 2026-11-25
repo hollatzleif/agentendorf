@@ -44,7 +44,13 @@ export interface MusterSignale {
   tief5: number | null;
   /** pump/absturz stammen vom Früh-Modell */
   frueh: boolean;
+  /** E237: vorhergesagte Kursänderung in % je Horizont KRYPTO_VERLAUF_SEK (null = nicht aktiv) */
+  verlauf: (number | null)[];
 }
+
+/** E237: Gewicht des Fehlers, wenn der echte Kurs UNTER der Vorhersage liegt (verpasster Fall) – Leifs Regel:
+ *  ein nicht vorhergesagter Absturz kostet mehr als ein verpasster Anstieg (asymmetrischer quadratischer Fehler / Expektile) */
+export const VERLAUF_GEWICHT_FALL = 3;
 
 /** Gradient-Boosting-Modell (Regressionsbäume auf Log-Odds), als JSON speicherbar */
 export interface GbdtKnoten {
@@ -58,7 +64,9 @@ export interface GbdtKnoten {
 export interface GbdtModell {
   version: number;
   /** E236: 'quadratisch' = Wert-Modell (Regression); fehlt = logistisch (Wahrscheinlichkeit) */
-  art?: 'logistisch' | 'quadratisch';
+  art?: 'logistisch' | 'quadratisch' | 'asymmetrisch';
+  /** E237: Gewicht des Fehlers bei verpasstem Fall (nur asymmetrisch) */
+  gewichtFall?: number;
   /** E236: Wert-Modell lernt auf log(1 + x/100) (schiefe Verteilungen) – Vorhersage wird zurückgerechnet */
   skala?: 'log';
   merkmale: string[];
@@ -85,6 +93,9 @@ export interface RlLage {
   absturz?: number | null;
   hoch5?: number | null;
   tief5?: number | null;
+  /** E237: vorhergesagte Kursänderung in 1 min / 5 min (%) */
+  v1m?: number | null;
+  v5m?: number | null;
   /** hält der Bot den Token? */
   haelt: boolean;
   /** Kursänderung seit Einstieg in % (0, wenn nicht gehalten) */

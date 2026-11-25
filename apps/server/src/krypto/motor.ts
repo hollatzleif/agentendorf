@@ -15,6 +15,7 @@ import {
   type KryptoTokenKerzen,
   type KryptoKerzenTakt,
   KRYPTO_KERZEN_MS,
+  KRYPTO_VERLAUF_SEK,
   type KryptoModul,
   type KryptoModulSchluessel,
   type KryptoMusterRat,
@@ -34,9 +35,9 @@ import type { DexScreener, NeuerTokenT, PumpPortal, RugBericht, RugCheck, Schnap
 import type { KurveStand, KurveStrom } from './strom.js';
 import type { MusterDienst } from './muster/dienst.js';
 import { ratAus } from './muster/merkmale.js';
-import { rlHandlung } from './muster/rl.js';
-import { musterSignale as signaleRechnen } from './muster/signale.js';
-import type { MusterSignale, RlLage, Tick } from './muster/typen.js';
+import { rlHandlung, type RlLageMitAlarm } from './muster/rl.js';
+import { alarmAus, musterSignale as signaleRechnen } from './muster/signale.js';
+import type { MusterSignale, Tick } from './muster/typen.js';
 
 export type KDB = Database.Database;
 
@@ -96,6 +97,9 @@ const MIGRATIONEN = [
      info_json TEXT NOT NULL, aktiv INTEGER NOT NULL, PRIMARY KEY (schluessel, version));
    ALTER TABLE muster_modelle ADD COLUMN rl_aktiv INTEGER NOT NULL DEFAULT 0;
    UPDATE muster_modelle SET rl_aktiv = aktiv;`,
+  // E237: Kursänderung 5 min / 1 h von DexScreener mit aufzeichnen – der Backtest rechnet die Sniper-Punkte wie das Paper
+  `ALTER TABLE kurse ADD COLUMN aenderung_m5 REAL;
+   ALTER TABLE kurse ADD COLUMN aenderung_h1 REAL;`,
 ];
 
 export function kryptoDb(datei: string): KDB {
@@ -195,7 +199,12 @@ const RUG_GUELTIG = 10 * MINUTE;
 /** ein Token wird je Bot höchstens alle 3 min neu bewertet */
 const NEU_BEWERTEN = 3 * MINUTE;
 const MAX_BEOBACHTET = 600;
-const KURSE_BEHALTEN = 14 * 86_400_000;
+/** E237: zusätzlich höchstens so viele Kandidaten/Gekaufte (auch im Nachlauf nach dem Fenster) */
+const MAX_NACHLAUF = 400;
+/** E237: dichtere Aufzeichnung (10 s statt 30 s, Nachlauf) → 5 statt 14 Tage; reicht für Backtests bis 72 h samt Vorlauf */
+const KURSE_BEHALTEN = 5 * 86_400_000;
+/** E237: Nicht-Kandidaten höchstens alle 10 s aufzeichnen (vorher 30 s – zu dünn für einen ehrlichen Backtest) */
+const KURS_ABSTAND_MS = 10_000;
 /** E235: Echtzeit-Ticks für das Training: 7 Tage, höchstens 3 Mio. Zeilen */
 const TICKS_BEHALTEN = 7 * 86_400_000;
 const TICKS_HOECHSTENS = 3_000_000;
@@ -221,6 +230,32 @@ function signalZeile(s: MusterSignale): string {
   return `Muster ${teile.join(' · ')}`;
 }
 const RL_POSITION_MS = 1000;
+/** E237: Alarm-Schwellen eines Bots (Standard 15/10) */
+type AlarmGrenzen = { anstiegProzent: number; fallProzent: number };
+const ALARM_STANDARD: AlarmGrenzen = KRYPTO_STANDARD.regeln.alarm ?? { anstiegProzent: 15, fallProzent: 10 };
+const alarmGrenzen = (e: KryptoEinstellung): AlarmGrenzen => e.regeln.alarm ?? ALARM_STANDARD;
+/** E237: wirkt der Alarm auf den Bot? RL-Bots immer, alle anderen nur mit musterGewicht > 0 (sonst nur anzeigen – Leifs Regel) */
+const alarmWirkt = (e: KryptoEinstellung) => e.art === 'rl' || (e.regeln.musterGewicht ?? 0) > 0;
+/** E237: Horizont als Text (5 s, 1 min …) */
+const horizontText = (sek: number) => (sek < 60 ? `${sek} s` : `${sek / 60} min`);
+/** E237: Kursvorhersagen bis 2 min zählen für den Alarm (wie alarmAus) */
+const ALARM_BIS_SEK = 120;
+/**
+ * E237: Begründung eines Alarms – der stärkste Horizont (bis 2 min) über der Schwelle, sonst der Erkenner (🚀/💥).
+ * sicherheit: Erkenner-Wahrscheinlichkeit bzw. |Vorhersage|/100 (höchstens 1).
+ */
+export function alarmGrund(s: MusterSignale, a: 'anstieg' | 'absturz', g: AlarmGrenzen): { grund: string; sicherheit: number } {
+  let bester: { v: number; sek: number } | null = null;
+  KRYPTO_VERLAUF_SEK.forEach((sek, i) => {
+    const v = s.verlauf?.[i];
+    if (sek > ALARM_BIS_SEK || v == null || !Number.isFinite(v)) return;
+    if (a === 'anstieg' ? v >= g.anstiegProzent && (!bester || v > bester.v) : v <= -g.fallProzent && (!bester || v < bester.v)) bester = { v, sek };
+  });
+  const b = bester as { v: number; sek: number } | null;
+  if (b) return { grund: `${a === 'anstieg' ? '🚀' : '💥'} Alarm: ${b.v >= 0 ? '+' : '−'}${Math.abs(Math.round(b.v))} % in ${horizontText(b.sek)} erwartet`, sicherheit: Math.min(1, Math.abs(b.v) / 100) };
+  const w = a === 'anstieg' ? s.pump : s.absturz;
+  return { grund: `${a === 'anstieg' ? '🚀 Alarm: Pump-Erkenner' : '💥 Alarm: Absturz-Erkenner'} ${pz(w ?? 0)}${s.frueh ? ' (Früh-Modell)' : ''}`, sicherheit: Math.max(0, Math.min(1, w ?? 0)) };
+}
 /** E235: ein RL-Bot sieht sich einen Kandidaten höchstens alle 10 s an */
 const RL_KANDIDAT_MS = 10_000;
 
@@ -261,6 +296,10 @@ export class Kryptowerk {
       muster?: MusterDienst;
       /** E235: höchstens so viele aufgezeichnete Ticks (Standard 3 Mio.) */
       maxTicks?: number;
+      /** E237 (Backtest): Aufzeichnung, aus der devTokens24h zählt (Standard: die eigene DB) */
+      datenDb?: KDB;
+      /** E237 (Backtest): false = keine Kurse/Ticks in die eigene DB schreiben (die Aufzeichnung gibt es schon) */
+      aufzeichnen?: boolean;
     },
   ) {}
 
@@ -280,6 +319,8 @@ export class Kryptowerk {
 
   private liveLaeuft = new Set<Auftrag>();
   private aufgezeichnet = new Map<string, number>();
+  /** E237: Takte (jeder zweite fragt den Nachlauf ab) */
+  private takte = 0;
   private guthaben = new Map<string, { sol: number; zeit: number }>();
 
   // ---- Lebenszyklus ---------------------------------------------------------------------------------
@@ -339,6 +380,8 @@ export class Kryptowerk {
     e.ausstieg.notausEinzelverkaufProzent ??= KRYPTO_STANDARD.ausstieg.notausEinzelverkaufProzent;
     // E235
     e.regeln.musterGewicht ??= 0;
+    // E237
+    e.regeln.alarm ??= { ...ALARM_STANDARD };
     if (e.art === 'rl') e.rl ??= { ...KRYPTO_RL_STANDARD };
     return e;
   }
@@ -426,11 +469,21 @@ export class Kryptowerk {
       .prepare('INSERT OR IGNORE INTO tokens (mint, symbol, name, erstellt, creator, dev_token, start_sol, start_marktwert_sol, uri) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .run(t.mint, info.symbol, info.name, zeit, info.creator, info.devToken, t.solAmount ?? null, t.marketCapSol ?? null, t.uri?.slice(0, 300) ?? null);
     // älteste, nicht gehaltene Beobachtungen fallen weg
+    // E237: getrennte Grenzen – höchstens 600 gewöhnliche Tokens und 400 Kandidaten/Gekaufte (aufzeichnen, auch im Nachlauf)
     if (this.tokens.size > MAX_BEOBACHTET) {
-      const gehalten = new Set(this.offenePositionen().map((p) => p.mint));
-      for (const [m] of this.tokens) {
-        if (this.tokens.size <= MAX_BEOBACHTET) break;
-        if (!gehalten.has(m) && !this.aktiv().some((a) => a.mint === m)) this.tokens.delete(m);
+      let gewoehnlich = 0;
+      let kandidaten = 0;
+      for (const b of this.tokens.values()) b.aufzeichnen ? kandidaten++ : gewoehnlich++;
+      if (gewoehnlich > MAX_BEOBACHTET || kandidaten > MAX_NACHLAUF) {
+        const gehalten = new Set(this.offenePositionen().map((p) => p.mint));
+        for (const [m, b] of this.tokens) {
+          if (gewoehnlich <= MAX_BEOBACHTET && kandidaten <= MAX_NACHLAUF) break;
+          const zuViel = b.aufzeichnen ? kandidaten > MAX_NACHLAUF : gewoehnlich > MAX_BEOBACHTET;
+          if (!zuViel || gehalten.has(m) || this.aktiv().some((a) => a.mint === m)) continue;
+          this.tokens.delete(m);
+          if (b.aufzeichnen) kandidaten--;
+          else gewoehnlich--;
+        }
       }
     }
   }
@@ -438,7 +491,7 @@ export class Kryptowerk {
   /** E234: wie viele ANDERE Tokens derselbe Ersteller in den 24 h davor gestartet hat (eigene Aufzeichnung) */
   private devTokens24h(creator: string | null, zeit: number, mint: string): number | undefined {
     if (!creator) return undefined;
-    return (this.o.db.prepare('SELECT COUNT(*) AS n FROM tokens WHERE creator = ? AND erstellt >= ? AND erstellt <= ? AND mint != ?').get(creator, zeit - 86_400_000, zeit, mint) as { n: number }).n;
+    return ((this.o.datenDb ?? this.o.db).prepare('SELECT COUNT(*) AS n FROM tokens WHERE creator = ? AND erstellt >= ? AND erstellt <= ? AND mint != ?').get(creator, zeit - 86_400_000, zeit, mint) as { n: number }).n;
   }
 
   /** E234: Kaufdruck der letzten 60 s aus dem Strom (null = keine Strom-Daten für diesen Token) */
@@ -500,7 +553,7 @@ export class Kryptowerk {
     if (l.length > 3000) l.splice(0, l.length - 3000);
     this.stromTicks.set(mint, l);
     // E235: Aufzeichnung fürs Muster-Training (gesammelt geschrieben; großer Puffer sofort)
-    this.tickPuffer.push([mint, zeit, stand.preisSol, sol, stand.echtSol]);
+    if (this.o.aufzeichnen !== false) this.tickPuffer.push([mint, zeit, stand.preisSol, sol, stand.echtSol]);
     if (this.tickPuffer.length >= 5000) this.ticksSchreiben();
     const b = this.tokens.get(mint);
     if (!b?.letzter || b.letzter.dex !== 'pumpfun' || stand.komplett) return;
@@ -533,7 +586,7 @@ export class Kryptowerk {
   }
 
   /** Gehaltene Tokens zuerst, dann die lebhaftesten aus dem Strom – zusammen höchstens `max` Tafeln */
-  private tokenKerzenFuer(gehalten: { mint: string; symbol: string }[], max = 4): KryptoTokenKerzen[] {
+  private tokenKerzenFuer(gehalten: { mint: string; symbol: string }[], grenzen: AlarmGrenzen = ALARM_STANDARD, max = 4): KryptoTokenKerzen[] {
     const jetzt = this.o.uhr.jetzt();
     const fest = new Set(gehalten.map((g) => g.mint));
     const aktiv = [...this.stromTicks.entries()]
@@ -542,11 +595,11 @@ export class Kryptowerk {
       .filter((x) => x.n >= 2)
       .sort((a, b) => b.n - a.n)
       .map((x) => ({ mint: x.mint, symbol: this.tokens.get(x.mint)?.info.symbol ?? x.mint.slice(0, 4) }));
-    const gehaltenKerzen = this.tokenKerzen(gehalten).map((k) => ({ ...k, gehalten: true }));
-    return [...gehaltenKerzen, ...this.tokenKerzen(aktiv.slice(0, Math.max(0, max - gehaltenKerzen.length)))];
+    const gehaltenKerzen = this.tokenKerzen(gehalten, grenzen).map((k) => ({ ...k, gehalten: true }));
+    return [...gehaltenKerzen, ...this.tokenKerzen(aktiv.slice(0, Math.max(0, max - gehaltenKerzen.length)), grenzen)];
   }
 
-  private tokenKerzen(mints: { mint: string; symbol: string }[]): KryptoTokenKerzen[] {
+  private tokenKerzen(mints: { mint: string; symbol: string }[], grenzen: AlarmGrenzen = ALARM_STANDARD): KryptoTokenKerzen[] {
     const jetzt = this.o.uhr.jetzt();
     const r: KryptoTokenKerzen[] = [];
     for (const { mint, symbol } of mints) {
@@ -559,7 +612,18 @@ export class Kryptowerk {
         if (k && k.zeit === z) ((k.h = Math.max(k.h, t.preis)), (k.l = Math.min(k.l, t.preis)), (k.c = t.preis));
         else kerzen.push({ zeit: z, o: k?.c ?? t.preis, h: Math.max(k?.c ?? t.preis, t.preis), l: Math.min(k?.c ?? t.preis, t.preis), c: t.preis });
       }
-      r.push({ mint, symbol, kerzen: kerzen.slice(-120), kaeufe: ticks.filter((t) => t.kauf).length, verkaeufe: ticks.filter((t) => !t.kauf).length });
+      const k: KryptoTokenKerzen = { mint, symbol, kerzen: kerzen.slice(-120), kaeufe: ticks.filter((t) => t.kauf).length, verkaeufe: ticks.filter((t) => !t.kauf).length };
+      // E237: Kursvorhersage als Fortsetzung der letzten Kerze (nur aktive Horizonte) + Alarm
+      const ms = this.o.muster?.signaleAktiv ? this.musterSignale(mint) : null;
+      if (ms) {
+        const letzte = kerzen.at(-1)!;
+        k.prognose = KRYPTO_VERLAUF_SEK.flatMap((sek, i) => {
+          const v = ms.verlauf?.[i];
+          return v != null && Number.isFinite(v) ? [{ zeit: letzte.zeit + sek * 1000, c: letzte.c * (1 + v / 100) }] : [];
+        });
+        k.alarm = alarmAus(ms, grenzen);
+      }
+      r.push(k);
     }
     return r;
   }
@@ -589,6 +653,7 @@ export class Kryptowerk {
       this.equityMerken();
       this.guthabenAuffrischen();
       this.aufraeumen();
+      this.kurseAusduennen();
     } finally {
       this.taktLaeuft = false;
     }
@@ -609,35 +674,32 @@ export class Kryptowerk {
       .sort((a, b) => a.abgefragt - b.abgefragt)
       .map((b) => b.info.mint);
     const auswahl = [...gehalten, ...rest].slice(0, 30);
-    if (!auswahl.length) return;
-    let antwort: Awaited<ReturnType<DexScreener['paare']>>;
-    try {
-      antwort = await this.o.dex.paare(auswahl);
-      this.fehler = null;
-    } catch (e) {
-      this.fehler = (e as Error).message;
-      return;
-    }
-    if (antwort.solUsd) this.solUsd = antwort.solUsd;
-    for (const m of auswahl) {
-      const b = this.tokens.get(m);
-      if (b) b.abgefragt = jetzt;
-    }
-    const einfuegen = this.o.db.prepare('INSERT OR REPLACE INTO kurse (mint, zeit, preis_sol, marktwert_usd, vol_m5, kaeufe_m5, verkaeufe_m5, dex, pool_sol, pool_token) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-    for (const s of antwort.schnappschuesse) {
-      let b = this.tokens.get(s.mint);
-      if (!b) {
-        // gehaltener Token nach einem Neustart: Daten aus der Aufzeichnung
-        const t = this.o.db.prepare('SELECT * FROM tokens WHERE mint = ?').get(s.mint) as { symbol: string; name: string; erstellt: number; creator: string | null; dev_token: number | null } | undefined;
-        b = { info: { mint: s.mint, symbol: t?.symbol ?? s.symbol, name: t?.name ?? s.name, erstellt: t?.erstellt ?? jetzt, devToken: t?.dev_token ?? null, creator: t?.creator ?? null, devTokens24h: this.devTokens24h(t?.creator ?? null, t?.erstellt ?? jetzt, s.mint) }, letzter: null, abgefragt: jetzt, rug: null, rugFehler: 0, bewertet: new Map(), aufzeichnen: true };
-        this.tokens.set(s.mint, b);
+    if (auswahl.length) {
+      try {
+        const antwort = await this.o.dex.paare(auswahl);
+        this.fehler = null;
+        this.schnappschuesseUebernehmen(antwort, auswahl, gehalten, jetzt);
+      } catch (e) {
+        this.fehler = (e as Error).message;
+        return;
       }
-      b.letzter = this.mitStromKurs(s);
-      // Aufzeichnung für den Backtest: Kandidaten und Gehaltenes immer, alle anderen höchstens alle 30 s
-      const zuletzt = this.aufgezeichnet.get(s.mint) ?? 0;
-      if (b.aufzeichnen || gehalten.has(s.mint) || s.zeit - zuletzt >= 30_000) this.aufgezeichnet.set(s.mint, s.zeit);
-      else continue;
-      einfuegen.run(s.mint, s.zeit, s.preisSol, s.marktwertUsd, s.volumenUsdM5, s.kaeufeM5, s.verkaeufeM5, s.dex, s.poolSol, s.poolToken);
+    }
+    // E237: Nachlauf – jeden zweiten Takt ein zweiter Abruf (Takt 2 s: 30 + 15 = 45 Abrufe je Minute, eigenes Limit 60) für
+    // Kandidaten und Gekauftes, die aus dem Fenster gefallen sind: so hat der Backtest Kurse für Ausstiege bis maxHaltMinuten
+    if (++this.takte % 2 === 0) {
+      const bis = fenster + this.nachlaufMs();
+      const nach = [...this.tokens.values()]
+        .filter((b) => b.aufzeichnen && !gehalten.has(b.info.mint) && jetzt - b.info.erstellt > fenster && jetzt - b.info.erstellt <= bis)
+        .sort((a, b) => a.abgefragt - b.abgefragt)
+        .slice(0, 30)
+        .map((b) => b.info.mint);
+      if (nach.length) {
+        try {
+          this.schnappschuesseUebernehmen(await this.o.dex.paare(nach), nach, gehalten, jetzt);
+        } catch (e) {
+          this.o.log?.(`Nachlauf: ${(e as Error).message}`);
+        }
+      }
     }
     // Volumen je Minute (für die Balken im Terminal)
     const minute = Math.floor(jetzt / MINUTE) * MINUTE;
@@ -649,6 +711,66 @@ export class Kryptowerk {
       this.minutenVolumen.push({ zeit: minute, kaeufe: k, verkaeufe: v });
       this.minutenVolumen = this.minutenVolumen.slice(-30);
     }
+  }
+
+  /** E237: Nachlauf = so lange nach dem Beobachtungsfenster werden Kandidaten und Gekauftes weiter abgefragt (längste Haltedauer) */
+  private nachlaufMs() {
+    const bots = this.laufendeBots();
+    return bots.length ? Math.max(...bots.map((b) => this.einstellung(b).ausstieg.maxHaltMinuten)) * MINUTE : 0;
+  }
+
+  private schnappschuesseUebernehmen(antwort: Awaited<ReturnType<DexScreener['paare']>>, abgefragt: string[], gehalten: Set<string>, jetzt: number) {
+    if (antwort.solUsd) this.solUsd = antwort.solUsd;
+    for (const m of abgefragt) {
+      const b = this.tokens.get(m);
+      if (b) b.abgefragt = jetzt;
+    }
+    const einfuegen = this.o.db.prepare(
+      'INSERT OR REPLACE INTO kurse (mint, zeit, preis_sol, marktwert_usd, vol_m5, kaeufe_m5, verkaeufe_m5, dex, pool_sol, pool_token, aenderung_m5, aenderung_h1) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    );
+    for (const s of antwort.schnappschuesse) {
+      let b = this.tokens.get(s.mint);
+      if (!b) {
+        // gehaltener Token nach einem Neustart: Daten aus der Aufzeichnung
+        const t = (this.o.datenDb ?? this.o.db).prepare('SELECT * FROM tokens WHERE mint = ?').get(s.mint) as { symbol: string; name: string; erstellt: number; creator: string | null; dev_token: number | null } | undefined;
+        b = { info: { mint: s.mint, symbol: t?.symbol ?? s.symbol, name: t?.name ?? s.name, erstellt: t?.erstellt ?? jetzt, devToken: t?.dev_token ?? null, creator: t?.creator ?? null, devTokens24h: this.devTokens24h(t?.creator ?? null, t?.erstellt ?? jetzt, s.mint) }, letzter: null, abgefragt: jetzt, rug: null, rugFehler: 0, bewertet: new Map(), aufzeichnen: true };
+        this.tokens.set(s.mint, b);
+      }
+      b.letzter = this.mitStromKurs(s);
+      if (this.o.aufzeichnen === false) continue;
+      // Aufzeichnung für den Backtest: Kandidaten und Gehaltenes immer, alle anderen höchstens alle 10 s (E237, vorher 30 s)
+      const zuletzt = this.aufgezeichnet.get(s.mint) ?? 0;
+      if (b.aufzeichnen || gehalten.has(s.mint) || s.zeit - zuletzt >= KURS_ABSTAND_MS) this.aufgezeichnet.set(s.mint, s.zeit);
+      else continue;
+      einfuegen.run(s.mint, s.zeit, s.preisSol, s.marktwertUsd, s.volumenUsdM5, s.kaeufeM5, s.verkaeufeM5, s.dex, s.poolSol, s.poolToken, s.aenderungM5 ?? null, s.aenderungH1 ?? null);
+    }
+  }
+
+  /** E237 (Backtest): aufgezeichneten RugCheck-Bericht zu seiner Zeit einspielen (statt der Warteschlange) – false = Token unbekannt */
+  rugSetzen(mint: string, bericht: RugBericht): boolean {
+    const b = this.tokens.get(mint);
+    if (!b) return false;
+    if (!b.rug || b.rug.zeit <= bericht.zeit) b.rug = bericht;
+    return true;
+  }
+
+  /**
+   * E237 (Backtest): Die Aufzeichnung eines gehaltenen Tokens ist zu Ende – offene Positionen zum letzten bekannten Kurs verkaufen
+   * (ohne simulierten Fehlschlag), damit sie nicht ewig Plätze belegen. Gibt die Zahl der geschlossenen Positionen zurück.
+   */
+  datenEnde(mint: string, grund: string): number {
+    const s = this.tokens.get(mint)?.letzter;
+    if (!s) return 0;
+    const jetzt = this.o.uhr.jetzt();
+    let n = 0;
+    for (const p of this.offenePositionen()) {
+      if (p.mint !== mint) continue;
+      this.auftraege = this.auftraege.filter((a) => a.positionId !== p.id);
+      const a: Auftrag = { botId: p.bot_id, art: 'verkauf', mint, symbol: p.symbol, name: p.name, menge: p.rest_token, positionId: p.id, grund, entschieden: jetzt, ab: jetzt, versuche: 0 };
+      this.entscheidungMerken(p.bot_id, mint, p.symbol, 'sell', null, grund, 'code');
+      if (this.verkaufAusfuehren(a, s, true)) n++;
+    }
+    return n;
   }
 
   private async rugHolen() {
@@ -697,8 +819,19 @@ export class Kryptowerk {
     return this.ausstehendeKaeufe(botId).reduce((x, a) => x + a.menge, 0);
   }
 
+  /** E237: Token aus dem Fenster gefallen und nicht gehalten – Kurse kommen nur noch aus dem Nachlauf (für die Aufzeichnung), bewertet wird er nicht mehr */
+  private nurNachlauf(b: Beobachtung, jetzt: number, fenster: number, gehalten: Set<string>) {
+    return jetzt - b.info.erstellt > fenster + 30_000 && !gehalten.has(b.info.mint);
+  }
+
+  private gehaltenUndAuftraege() {
+    return new Set([...this.offenePositionen().map((p) => p.mint), ...this.auftraege.map((a) => a.mint)]);
+  }
+
   private async bewerten() {
     const jetzt = this.o.uhr.jetzt();
+    const fenster = this.fensterSek() * 1000;
+    const gehalten = this.gehaltenUndAuftraege();
     for (const bot of this.laufendeBots()) {
       const e = this.einstellung(bot);
       if (e.art === 'rl') {
@@ -706,7 +839,9 @@ export class Kryptowerk {
         continue;
       }
       for (const b of this.tokens.values()) {
-        if (!b.letzter || jetzt - b.letzter.zeit > 30_000) continue;
+        if (!b.letzter || jetzt - b.letzter.zeit > 30_000 || this.nurNachlauf(b, jetzt, fenster, gehalten)) continue;
+        // E237: 🚀 Alarm der Kursvorhersage → Kauf auch unter minPunkte/ohne LLM (Sperren und Risk-Gate gelten weiter)
+        if (this.alarmKaufen(bot, e, b, jetzt)) continue;
         if (!b.rug) {
           // Vorprüfung ohne RugCheck: nur fürs Terminal (welche Module gerade was sehen), kein Protokolleintrag
           const vorab = `vorab:${bot.id}`;
@@ -729,6 +864,12 @@ export class Kryptowerk {
         if (p === null) {
           const grund = signale.filter((s) => s.sperre).map((s) => `${KRYPTO_MODULE.find((m) => m.schluessel === s.schluessel)!.name}: ${s.zeile}`).join(' · ');
           this.entscheidungMerken(bot.id, b.info.mint, b.info.symbol, 'block', null, grund, 'code', signale, signale.some((s) => s.sperre && (s.schluessel === 'rug' || s.schluessel === 'bundle')));
+          continue;
+        }
+        // E237: 💥 Alarm → kein Kauf (nur Bots, auf die der Alarm wirkt)
+        const sturz = this.alarmFuer(e, b.info.mint, 'absturz');
+        if (sturz) {
+          this.entscheidungMerken(bot.id, b.info.mint, b.info.symbol, 'hold', p / 100, `${sturz.grund} – kein Kauf`, 'modell', signale);
           continue;
         }
         const groesse = positionsGroesse(e, bot.kasse_sol - this.reserviert(bot.id));
@@ -830,7 +971,9 @@ export class Kryptowerk {
       if (roh) {
         const w = (x: number | null | undefined) => (x != null && Number.isFinite(x) ? Math.max(0, Math.min(1, x)) : null);
         const z = (x: number | null | undefined) => (x != null && Number.isFinite(x) ? x : null);
-        s = { p: w(roh.p), pump: w(roh.pump), absturz: w(roh.absturz), hoch1: z(roh.hoch1), tief1: z(roh.tief1), hoch5: z(roh.hoch5), tief5: z(roh.tief5), frueh: !!roh.frueh };
+        // E237: Kursvorhersage je Horizont (immer Länge 6, nicht aktive = null)
+        const verlauf = KRYPTO_VERLAUF_SEK.map((_h, i) => z(roh.verlauf?.[i]));
+        s = { p: w(roh.p), pump: w(roh.pump), absturz: w(roh.absturz), hoch1: z(roh.hoch1), tief1: z(roh.tief1), hoch5: z(roh.hoch5), tief5: z(roh.tief5), frueh: !!roh.frueh, verlauf };
       }
     }
     this.musterCache.set(mint, { zeit: jetzt, s });
@@ -869,6 +1012,55 @@ export class Kryptowerk {
     v.zeile += ` · ${signalZeile(s)} ${zusatz >= 0 ? '+' : ''}${zusatz}`;
   }
 
+  /** E237: Alarm einer Art für einen Bot, auf den der Alarm wirkt (sonst null) – mit Begründung */
+  private alarmFuer(e: KryptoEinstellung, mint: string, art: 'anstieg' | 'absturz'): { grund: string; sicherheit: number; s: MusterSignale } | null {
+    if (!alarmWirkt(e) || !this.stromTicks.has(mint)) return null;
+    const s = this.musterSignale(mint);
+    if (!s || alarmAus(s, alarmGrenzen(e)) !== art) return null;
+    return { ...alarmGrund(s, art, alarmGrenzen(e)), s };
+  }
+
+  /**
+   * E237: 🚀 Alarm (Kursvorhersage ≥ anstiegProzent in ≤ 2 min oder Pump-Erkenner ≥ 40 %) → Kauf, auch wenn der Bot sonst nicht
+   * kaufen würde (unter minPunkte, ohne LLM, ohne RL-Wahl). Nur RL-Bots und Bots mit musterGewicht > 0. Es gelten weiter: RugCheck-
+   * Bericht nötig, Rug/Dev/Bundle-Sperren, das Filter-Fenster (sniper; nicht bei RL-Bots, die Strom-Tokens nach Modell handeln),
+   * bei RL-Bots die 💥-Grenze maxAbsturz, und das Risk-Gate. Höchstens ein Alarm-Kauf je Bot und Token. true = Kauf aufgegeben.
+   */
+  private alarmKaufen(bot: BotZeile, e: KryptoEinstellung, b: Beobachtung, jetzt: number): boolean {
+    const merker = `alarmkauf:${bot.id}`;
+    if (!b.letzter || b.bewertet.has(merker)) return false;
+    const a = this.alarmFuer(e, b.info.mint, 'anstieg');
+    if (!a) return false;
+    const lage = this.lage(bot.id, e, b.info.mint);
+    if (lage.haeltSchon) return false;
+    const sym = b.info.symbol;
+    if (!b.rug) {
+      this.modulMerken(bot.id, 'gate', `${sym}: ${a.grund} – warte auf RugCheck`, 'neutral');
+      return false;
+    }
+    const signale = pruefen(e, b.info, b.letzter, b.rug, jetzt, this.echtzeit60(b.info.mint));
+    const sperren: KryptoModulSchluessel[] = e.art === 'rl' ? ['rug', 'dev', 'bundle'] : ['rug', 'dev', 'bundle', 'sniper'];
+    const hart = signale.filter((x) => x.sperre && sperren.includes(x.schluessel));
+    if (hart.length) {
+      this.modulMerken(bot.id, 'gate', `${sym}: ${a.grund} – gesperrt (${hart.map((x) => KRYPTO_MODULE.find((m) => m.schluessel === x.schluessel)!.name).join(', ')})`, 'schlecht');
+      return false;
+    }
+    if (e.art === 'rl') {
+      const maxAbsturz = (e.rl ?? KRYPTO_RL_STANDARD).maxAbsturz ?? KRYPTO_RL_STANDARD.maxAbsturz ?? 0.35;
+      if (a.s.absturz != null && a.s.absturz >= maxAbsturz) return false;
+    }
+    const groesse = positionsGroesse(e, this.botZeile(bot.id).kasse_sol - this.reserviert(bot.id));
+    const frei = gate(e, lage, groesse);
+    if (!frei.erlaubt) {
+      this.modulMerken(bot.id, 'gate', `${sym}: ${a.grund} – ${frei.grund}`, 'schlecht');
+      return false;
+    }
+    b.bewertet.set(merker, jetzt);
+    this.zuletztBewertet.set(bot.id, jetzt);
+    this.kaufVersuchen(bot.id, e, b, groesse, a.grund, 'modell', a.sicherheit, signale);
+    return true;
+  }
+
   /**
    * RL-Bot: kauft NICHT über Punkte, sondern wenn der RL-Agent bei einem Strom-Token „kaufen“ wählt (nur mit aktivem Modell und
    * p ≥ minSicherheit). Harte Sicherung wie bei allen Bots: Rug, Dev, Bundle (ohne RugCheck-Bericht kein Kauf); das Risk-Gate gilt.
@@ -878,11 +1070,15 @@ export class Kryptowerk {
     if (!muster?.rlBereit) return this.modulMerken(bot.id, 'gate', 'wartet auf Modell', 'neutral');
     const g = e.rl ?? KRYPTO_RL_STANDARD;
     const maxAbsturz = g.maxAbsturz ?? KRYPTO_RL_STANDARD.maxAbsturz ?? 0.35;
+    const fenster = this.fensterSek() * 1000;
+    const gehalten = this.gehaltenUndAuftraege();
     for (const mint of this.stromTicks.keys()) {
       const b = this.tokens.get(mint);
-      if (!b?.letzter || b.letzter.dex !== 'pumpfun' || jetzt - b.letzter.zeit > 30_000) continue;
+      if (!b?.letzter || b.letzter.dex !== 'pumpfun' || jetzt - b.letzter.zeit > 30_000 || this.nurNachlauf(b, jetzt, fenster, gehalten)) continue;
       const lage = this.lage(bot.id, e, mint);
       if (lage.haeltSchon) continue;
+      // E237: 🚀 Alarm → Kauf (jeden Takt geprüft, nicht erst alle 10 s)
+      if (this.alarmKaufen(bot, e, b, jetzt)) continue;
       const schluessel = `rl:${bot.id}`;
       if (jetzt - (b.bewertet.get(schluessel) ?? 0) < RL_KANDIDAT_MS) continue;
       b.bewertet.set(schluessel, jetzt);
@@ -915,7 +1111,13 @@ export class Kryptowerk {
         this.modulMerken(bot.id, 'volumen', `${b.info.symbol}: 💥 ${pz(ms.absturz)} ≥ ${pz(maxAbsturz)} – kein Kauf`, 'schlecht');
         continue;
       }
-      const lageRl: RlLage = { p, pump: ms.pump, absturz: ms.absturz, hoch5: ms.hoch5, tief5: ms.tief5, haelt: false, plusProzent: 0, haltSek: 0, trend30Prozent: this.trend30(mint, jetzt) };
+      // E237: harte Sicherung – 💥 Alarm → nie kaufen
+      const sturz = alarmAus(ms, alarmGrenzen(e)) === 'absturz' ? alarmGrund(ms, 'absturz', alarmGrenzen(e)) : null;
+      if (sturz) {
+        this.modulMerken(bot.id, 'volumen', `${b.info.symbol}: ${sturz.grund} – kein Kauf`, 'schlecht');
+        continue;
+      }
+      const lageRl: RlLageMitAlarm = { p, pump: ms.pump, absturz: ms.absturz, hoch5: ms.hoch5, tief5: ms.tief5, v1m: ms.verlauf?.[3] ?? null, v5m: ms.verlauf?.[5] ?? null, alarm: alarmAus(ms, alarmGrenzen(e)), haelt: false, plusProzent: 0, haltSek: 0, trend30Prozent: this.trend30(mint, jetzt) };
       const h = rlHandlung(muster.rl, lageRl, g, this.o.zufall ?? Math.random);
       this.modulMerken(bot.id, 'volumen', `${b.info.symbol}: ${signalZeile(ms)} → ${h}`, h === 'kaufen' ? 'gut' : 'neutral');
       // zweite Sicherung: nie ohne p ≥ minSicherheit oder 🚀 ≥ 30 % kaufen (auch nicht beim Erkunden)
@@ -963,9 +1165,15 @@ export class Kryptowerk {
         h = 'raus';
         grund = `Absturz-Erkenner ${pz(ms.absturz)}${ms.frueh ? ' (Früh-Modell)' : ''} · ${plus >= 0 ? '+' : ''}${plus.toFixed(1)} %`;
         sicherheit = ms.absturz;
+      } else if (alarmAus(ms, alarmGrenzen(e)) === 'absturz') {
+        // E237: 💥 Alarm der Kursvorhersage → sofort raus (auch live, wie der Absturz-Erkenner)
+        const a = alarmGrund(ms, 'absturz', alarmGrenzen(e));
+        h = 'raus';
+        grund = `${a.grund} · ${plus >= 0 ? '+' : ''}${plus.toFixed(1)} %`;
+        sicherheit = a.sicherheit;
       } else if (rl && (ms.p != null || ms.pump != null)) {
         const pm = ms.p ?? 0;
-        const wahl = rlHandlung(muster.rl, { p: pm, pump: ms.pump, absturz: ms.absturz, hoch5: ms.hoch5, tief5: ms.tief5, haelt: true, plusProzent: plus, haltSek: (jetzt - p.geoeffnet) / 1000, trend30Prozent: this.trend30(p.mint, jetzt) }, e.rl ?? KRYPTO_RL_STANDARD, this.o.zufall ?? Math.random);
+        const wahl = rlHandlung(muster.rl, { p: pm, pump: ms.pump, absturz: ms.absturz, hoch5: ms.hoch5, tief5: ms.tief5, v1m: ms.verlauf?.[3] ?? null, v5m: ms.verlauf?.[5] ?? null, alarm: alarmAus(ms, alarmGrenzen(e)), haelt: true, plusProzent: plus, haltSek: (jetzt - p.geoeffnet) / 1000, trend30Prozent: this.trend30(p.mint, jetzt) }, e.rl ?? KRYPTO_RL_STANDARD, this.o.zufall ?? Math.random);
         if (wahl === 'halb' || wahl === 'raus') {
           h = wahl;
           grund = `RL: ${h === 'raus' ? 'raus' : 'halb verkaufen'} · ${ms.p != null ? `Muster ${pz(ms.p)}` : signalZeile(ms)} · ${plus >= 0 ? '+' : ''}${plus.toFixed(1)} %`;
@@ -1020,7 +1228,7 @@ export class Kryptowerk {
   }
 
   /** Rat des Modells zu gehaltenen und beobachteten Strom-Tokens (höchstens 8; leer ohne aktives Modell) */
-  private musterRatFuer(gehalten: { mint: string; symbol: string }[]): KryptoMusterRat[] {
+  private musterRatFuer(gehalten: { mint: string; symbol: string }[], grenzen: AlarmGrenzen = ALARM_STANDARD): KryptoMusterRat[] {
     if (!this.o.muster?.signaleAktiv) return [];
     const jetzt = this.o.uhr.jetzt();
     const fest = new Set(gehalten.map((g) => g.mint));
@@ -1037,10 +1245,13 @@ export class Kryptowerk {
       if (gesehen.has(mint) || !this.stromTicks.has(mint)) continue;
       gesehen.add(mint);
       const s = this.musterSignale(mint);
-      // E236: Rat auch, wenn nur 🚀/💥 aktiv sind (ohne Grundsignal ist wahrscheinlichkeit null)
-      if (!s || (s.p == null && s.pump == null && s.absturz == null)) continue;
+      // E236: Rat auch, wenn nur 🚀/💥 aktiv sind (ohne Grundsignal ist wahrscheinlichkeit null); E237: oder nur die Kursvorhersage
+      const mitVerlauf = !!s?.verlauf?.some((v) => v != null);
+      if (!s || (s.p == null && s.pump == null && s.absturz == null && !mitVerlauf)) continue;
       const ausblick = s.hoch1 != null || s.tief1 != null || s.hoch5 != null || s.tief5 != null ? { hoch1: s.hoch1, tief1: s.tief1, hoch5: s.hoch5, tief5: s.tief5 } : null;
-      r.push({ mint, symbol, wahrscheinlichkeit: s.p, rat: ratAus(s, fest.has(mint)), zeit: this.musterCache.get(mint)?.zeit ?? jetzt, pump: s.pump, absturz: s.absturz, ausblick, frueh: s.frueh });
+      // E237: Alarm mit den Schwellen des Bots, dessen Terminal das ist (Anzeige – ob er wirkt, entscheidet musterGewicht/RL)
+      const alarm = alarmAus(s, grenzen);
+      r.push({ mint, symbol, wahrscheinlichkeit: s.p, rat: ratAus(s, fest.has(mint), grenzen), zeit: this.musterCache.get(mint)?.zeit ?? jetzt, pump: s.pump, absturz: s.absturz, ausblick, frueh: s.frueh, verlauf: mitVerlauf ? s.verlauf : null, alarm });
     }
     return r;
   }
@@ -1292,7 +1503,7 @@ export class Kryptowerk {
   }
 
   /** false = fehlgeschlagen (wird erneut versucht) */
-  private verkaufAusfuehren(a: Auftrag, s: Schnappschuss): boolean {
+  private verkaufAusfuehren(a: Auftrag, s: Schnappschuss, ohneFehlschlag = false): boolean {
     const p = this.o.db.prepare('SELECT * FROM positionen WHERE id = ?').get(a.positionId) as PositionZeile | undefined;
     if (!p || !p.offen) return true;
     const e = this.einstellung(this.botZeile(a.botId));
@@ -1302,7 +1513,7 @@ export class Kryptowerk {
     const verz = s.zeit - a.entschieden;
     const menge = Math.min(a.menge, p.rest_token);
     if (!markt) return false;
-    if (this.fehlgeschlagen(e) && a.versuche < 5) {
+    if (!ohneFehlschlag && this.fehlgeschlagen(e) && a.versuche < 5) {
       this.o.db.prepare('UPDATE bots SET kasse_sol = kasse_sol - ? WHERE id = ?').run(netz, a.botId);
       this.o.db.prepare('UPDATE positionen SET erloes_sol = erloes_sol - ? WHERE id = ?').run(netz, p.id);
       this.o.db.prepare("INSERT INTO trades (bot_id, position_id, zeit, art, mint, symbol, sol, token, preis, gebuehr_sol, netz_sol, slippage, verzoegerung_ms, grund) VALUES (?, ?, ?, 'fehlschlag', ?, ?, 0, 0, ?, 0, ?, 0, ?, ?)").run(a.botId, p.id, jetzt, a.mint, a.symbol, s.preisSol, netz, verz, 'Verkauf fehlgeschlagen (simuliert) – neuer Versuch');
@@ -1413,11 +1624,17 @@ export class Kryptowerk {
     return this.equityWert(botId, this.botZeile(botId).kasse_sol) - basis - nach;
   }
 
+  /** E237: alte Kurse in Portionen löschen (je Takt höchstens 20 000 Zeilen) – nach dem Kürzen auf 5 Tage lag sonst ein
+   *  einziger Riesen-DELETE (≈ 9 Tage) im Takt und hielt das Kryptowerk an */
+  private kurseAusduennen() {
+    const grenze = this.o.uhr.jetzt() - KURSE_BEHALTEN;
+    this.o.db.prepare('DELETE FROM kurse WHERE rowid IN (SELECT rowid FROM kurse WHERE zeit < ? LIMIT 20000)').run(grenze);
+  }
+
   private aufraeumen() {
     const jetzt = this.o.uhr.jetzt();
     if (jetzt - Number(this.stand('aufgeraeumt') ?? 0) < 3_600_000) return;
     this.standSetzen('aufgeraeumt', String(jetzt));
-    this.o.db.prepare('DELETE FROM kurse WHERE zeit < ?').run(jetzt - KURSE_BEHALTEN);
     this.o.db.prepare('DELETE FROM equity_fein WHERE zeit < ?').run(jetzt - 6 * 3_600_000);
     this.o.db.prepare("DELETE FROM entscheidungen WHERE aktion IN ('block', 'hold') AND zeit < ?").run(jetzt - 7 * 86_400_000);
     this.o.db.prepare('DELETE FROM equity WHERE zeit < ? AND zeit % 3600000 != 0').run(jetzt - 7 * 86_400_000);
@@ -1432,7 +1649,10 @@ export class Kryptowerk {
     }
     const fenster = Math.max(this.fensterSek() * 1000, 30 * MINUTE);
     const gehalten = new Set(this.offenePositionen().map((p) => p.mint));
-    for (const [m, b] of this.tokens) if (!gehalten.has(m) && jetzt - b.info.erstellt > fenster + 10 * MINUTE) this.tokens.delete(m);
+    for (const m of this.aufgezeichnet.keys()) if (!this.tokens.has(m)) this.aufgezeichnet.delete(m);
+    // E237: Kandidaten/Gekauftes erst nach dem Nachlauf
+    const nachlauf = this.nachlaufMs();
+    for (const [m, b] of this.tokens) if (!gehalten.has(m) && jetzt - b.info.erstellt > fenster + (b.aufzeichnen ? nachlauf : 0) + 10 * MINUTE) this.tokens.delete(m);
   }
 
   kennzahlen(id: string): KryptoKennzahlen {
@@ -1676,8 +1896,8 @@ export class Kryptowerk {
       pnlStunden,
       besterTradeSol: bester,
       echtzeit: this.o.strom?.status() ?? null,
-      tokenKerzen: this.tokenKerzenFuer(positionen.map((p) => ({ mint: p.mint, symbol: p.symbol }))),
-      musterRat: this.musterRatFuer(positionen.map((p) => ({ mint: p.mint, symbol: p.symbol }))),
+      tokenKerzen: this.tokenKerzenFuer(positionen.map((p) => ({ mint: p.mint, symbol: p.symbol })), alarmGrenzen(e)),
+      musterRat: this.musterRatFuer(positionen.map((p) => ({ mint: p.mint, symbol: p.symbol })), alarmGrenzen(e)),
     };
   }
 }

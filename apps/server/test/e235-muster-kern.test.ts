@@ -212,6 +212,7 @@ describe("E235 Label", () => {
       hoch5: null,
       tief5: null,
       frueh: false,
+      verlauf: [null, null, null, null, null, null],
     });
     expect(ratAus(nur(0.6), false)).toBe("kaufen");
     expect(ratAus(nur(0.59), false)).toBe("halten");

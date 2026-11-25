@@ -71,7 +71,7 @@ function kryptowerk(m: KryptoMusterStatus = status()) {
     const methode = init.method ?? 'GET';
     const body = init.body ? JSON.parse(String(init.body)) : undefined;
     anfragen.push({ methode, pfad: u.pathname, auth: new Headers(init.headers).get('authorization'), body });
-    if (u.pathname === '/muster' && methode === 'GET') return Response.json({ ...m, training: { ...m.training, laeuft: training, fortschritt: training ? 0.4 : 0 } });
+    if (u.pathname === '/muster' && methode === 'GET') return Response.json({ ...m, training: { ...m.training, laeuft: training, fortschritt: training ? 40 : 0 } });
     if (u.pathname === '/muster/training' && methode === 'POST') {
       if (training) return Response.json({ fehler: 'Das Training läuft schon.' }, { status: 409 });
       training = true;

@@ -53,6 +53,7 @@ const signale = (o: Partial<MusterSignale>): MusterSignale => ({
   hoch5: null,
   tief5: null,
   frueh: false,
+  verlauf: [null, null, null, null, null, null], // E237
   ...o,
 });
 

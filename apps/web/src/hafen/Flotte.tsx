@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { KRYPTO_MUSTER_MODELLE, KRYPTO_PAPER_MINDESTENS_STUNDEN, KRYPTO_RL_STANDARD, KRYPTO_STANDARD, type KryptoBacktest, type KryptoBot, type KryptoEinstellung, type KryptoMusterModellInfo, type KryptoMusterStatus, type KryptoUebersicht } from '@dorf/shared';
 import { ApiFehler, api } from '../api';
 import { bibliothekUrl, linkKlick } from '../router';
+import { Eur, EuroKurs, KURS_QUELLE, eurJeSolAus, kursText, solEurText, useEurJeSol } from './euro';
 import { prozent, sol, solVz, uhrzeit } from './format';
 import './hafen.css';
 
@@ -26,94 +27,102 @@ export function HafenFlotte() {
   const u = q.data;
   if (!u) return <p className="leise">Lade den Hafen …</p>;
   const farbe = (id: string) => FARBEN[u.bots.findIndex((b) => b.id === id) % FARBEN.length]!;
+  const eurJeSol = eurJeSolAus(u.solUsd, u.usdJeEur);
 
   return (
-    <div className="hafen" style={{ display: 'grid', gap: '0.8rem' }}>
-      <div className="karte innen hafen-kopf">
-        <div>
-          <h3 style={{ margin: 0 }}>⚓ Flotte</h3>
-          <span className="leise">
-            {u.verbunden ? (u.datenOnline ? `🟢 Pump.fun live · ${u.beobachtet} Tokens im Blick` : '⚪ wartet auf Daten (verbindet, sobald ein Bot läuft)') : '🔴 Kryptowerk nicht erreichbar'}
-            {u.solUsd ? ` · SOL ≈ $${u.solUsd.toLocaleString('de-DE', { maximumFractionDigits: 2 })}` : ''}
-          </span>
-        </div>
-        <div className="hafen-knoepfe">
-          <a className="knopf klein" href={bibliothekUrl('Hafen/00_Anleitung.html')} onClick={linkKlick}>
-            📖 Anleitung
-          </a>
-          <button type="button" onClick={() => setForm({ e: structuredClone(KRYPTO_STANDARD) })} disabled={!u.verbunden}>
-            + Neuer Bot
-          </button>
-          {u.notaus ? (
-            <button type="button" onClick={() => tun.mutate(() => api('/api/krypto/notaus/aufheben', { methode: 'POST' }))}>
-              Not-Aus aufheben
+    <EuroKurs.Provider value={eurJeSol}>
+      <div className="hafen" style={{ display: 'grid', gap: '0.8rem' }}>
+        <div className="karte innen hafen-kopf">
+          <div>
+            <h3 style={{ margin: 0 }}>⚓ Flotte</h3>
+            <span className="leise">
+              {u.verbunden ? (u.datenOnline ? `🟢 Pump.fun live · ${u.beobachtet} Tokens im Blick` : '⚪ wartet auf Daten (verbindet, sobald ein Bot läuft)') : '🔴 Kryptowerk nicht erreichbar'}
+            </span>
+            {eurJeSol != null && (
+              <span className="leise hafen-kurs" title={KURS_QUELLE} data-testid="hafen-kurs">
+                {' · '}
+                {kursText(eurJeSol)}
+              </span>
+            )}
+          </div>
+          <div className="hafen-knoepfe">
+            <a className="knopf klein" href={bibliothekUrl('Hafen/00_Anleitung.html')} onClick={linkKlick}>
+              📖 Anleitung
+            </a>
+            <button type="button" onClick={() => setForm({ e: structuredClone(KRYPTO_STANDARD) })} disabled={!u.verbunden}>
+              + Neuer Bot
             </button>
-          ) : (
-            <button
-              type="button"
-              className="hafen-notaus"
-              disabled={!u.verbunden}
-              onClick={() => {
-                if (window.confirm('Not-Aus: alle Bots sofort stoppen und offene Positionen (simuliert) verkaufen?')) tun.mutate(() => api('/api/krypto/notaus', { methode: 'POST' }));
-              }}
-            >
-              🛑 Not-Aus
-            </button>
-          )}
+            {u.notaus ? (
+              <button type="button" onClick={() => tun.mutate(() => api('/api/krypto/notaus/aufheben', { methode: 'POST' }))}>
+                Not-Aus aufheben
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="hafen-notaus"
+                disabled={!u.verbunden}
+                onClick={() => {
+                  if (window.confirm('Not-Aus: alle Bots sofort stoppen und offene Positionen (simuliert) verkaufen?')) tun.mutate(() => api('/api/krypto/notaus', { methode: 'POST' }));
+                }}
+              >
+                🛑 Not-Aus
+              </button>
+            )}
+          </div>
         </div>
-      </div>
-      {u.fehler && <p className="hinweis">{u.fehler}</p>}
-      {u.notaus && <p className="hinweis">Not-Aus ist aktiv – alle Bots stehen. „Not-Aus aufheben“, dann jeden Bot einzeln starten.</p>}
-      {meldung && (
-        <p className="hinweis" role="alert">
-          {meldung}{' '}
-          <button type="button" className="klein" onClick={() => setMeldung(null)}>
-            ok
-          </button>
+        {u.fehler && <p className="hinweis">{u.fehler}</p>}
+        {u.notaus && <p className="hinweis">Not-Aus ist aktiv – alle Bots stehen. „Not-Aus aufheben“, dann jeden Bot einzeln starten.</p>}
+        {meldung && (
+          <p className="hinweis" role="alert">
+            {meldung}{' '}
+            <button type="button" className="klein" onClick={() => setMeldung(null)}>
+              ok
+            </button>
+          </p>
+        )}
+        <p className="hafen-hinweis leise">
+          <b>Paper Trading:</b> echte Live-Daten von Pump.fun, aber nur simulierte Trades – mit Pump.fun-Gebühren, Slippage aus der Bonding Curve, Verzögerung und fehlgeschlagenen Transaktionen. Kein Wallet, kein Hebel. Die meisten neuen
+          Coins verlieren schnell an Wert – das zeigt sich hier ohne echtes Geld.
         </p>
-      )}
-      <p className="hafen-hinweis leise">
-        <b>Paper Trading:</b> echte Live-Daten von Pump.fun, aber nur simulierte Trades – mit Pump.fun-Gebühren, Slippage aus der Bonding Curve, Verzögerung und fehlgeschlagenen Transaktionen. Kein Wallet, kein Hebel. Die meisten neuen
-        Coins verlieren schnell an Wert – das zeigt sich hier ohne echtes Geld.
-      </p>
 
-      {form && (
-        <BotFormular
-          start={form.e}
-          {...(form.id ? { id: form.id } : {})}
-          fertig={() => {
-            setForm(null);
-            void neu();
-          }}
-          abbrechen={() => setForm(null)}
-        />
-      )}
-
-      {dialog?.art === 'scharf' && <ScharfDialog bot={dialog.bot} fertig={() => (setDialog(null), void neu())} />}
-      {dialog?.art === 'auszahlen' && <AuszahlenDialog bot={dialog.bot} an={u.auszahlung ?? ''} fertig={() => (setDialog(null), void neu())} />}
-      {dialog?.art === 'backtest' && <BacktestPanel bot={dialog.bot} schliessen={() => setDialog(null)} />}
-
-      {u.bots.length > 0 && <Vergleich bots={u.bots} farbe={farbe} />}
-
-      {u.verbunden && <MusterTafel />}
-
-      <div className="hafen-bots">
-        {u.bots.map((b) => (
-          <BotKarte
-            key={b.id}
-            b={b}
-            farbe={farbe(b.id)}
-            notaus={u.notaus}
-            bearbeiten={() => setForm({ id: b.id, e: structuredClone(b.einstellung) })}
-            tun={(f) => tun.mutate(f)}
-            liveMoeglich={!!u.liveMoeglich}
-            auszahlung={u.auszahlung ?? null}
-            oeffnen={(art) => setDialog({ art, bot: b })}
+        {form && (
+          <BotFormular
+            start={form.e}
+            {...(form.id ? { id: form.id } : {})}
+            fertig={() => {
+              setForm(null);
+              void neu();
+            }}
+            abbrechen={() => setForm(null)}
           />
-        ))}
-        {!u.bots.length && u.verbunden && <p className="leise">Noch keine Bots. „+ Neuer Bot“ legt einen mit vorsichtigen Standardwerten an.</p>}
+        )}
+
+        {dialog?.art === 'scharf' && <ScharfDialog bot={dialog.bot} fertig={() => (setDialog(null), void neu())} />}
+        {dialog?.art === 'auszahlen' && <AuszahlenDialog bot={dialog.bot} an={u.auszahlung ?? ''} fertig={() => (setDialog(null), void neu())} />}
+        {dialog?.art === 'backtest' && <BacktestPanel bot={dialog.bot} schliessen={() => setDialog(null)} />}
+
+        {u.bots.length > 0 && <Vergleich bots={u.bots} farbe={farbe} />}
+
+        {u.verbunden && <MusterTafel />}
+
+        <div className="hafen-bots">
+          {u.bots.map((b) => (
+            <BotKarte
+              key={b.id}
+              b={b}
+              farbe={farbe(b.id)}
+              notaus={u.notaus}
+              bearbeiten={() => setForm({ id: b.id, e: structuredClone(b.einstellung) })}
+              tun={(f) => tun.mutate(f)}
+              liveMoeglich={!!u.liveMoeglich}
+              auszahlung={u.auszahlung ?? null}
+              oeffnen={(art) => setDialog({ art, bot: b })}
+            />
+          ))}
+          {!u.bots.length && u.verbunden && <p className="leise">Noch keine Bots. „+ Neuer Bot“ legt einen mit vorsichtigen Standardwerten an.</p>}
+        </div>
       </div>
-    </div>
+    </EuroKurs.Provider>
   );
 }
 
@@ -138,11 +147,17 @@ function BotKarte({ b, farbe, notaus, bearbeiten, tun, liveMoeglich, auszahlung,
       <div className="hafen-zahlen">
         <div>
           <span>Kapital</span>
-          <b>{sol(k.kapitalSol, 2)}</b>
+          <b data-testid="bot-kapital">
+            {sol(k.kapitalSol, 2)}
+            <Eur sol={k.kapitalSol} />
+          </b>
         </div>
         <div>
           <span>Gewinn</span>
-          <b className={k.gewinnSol >= 0 ? 'plus' : 'minus'}>{solVz(k.gewinnSol, 2)}</b>
+          <b className={k.gewinnSol >= 0 ? 'plus' : 'minus'} data-testid="bot-gewinn">
+            {solVz(k.gewinnSol, 2)} SOL
+            <Eur sol={k.gewinnSol} vz />
+          </b>
         </div>
         <div>
           <span>Trades</span>
@@ -171,10 +186,21 @@ function BotKarte({ b, farbe, notaus, bearbeiten, tun, liveMoeglich, auszahlung,
           <button type="button" className="klein" onClick={() => void navigator.clipboard?.writeText(b.wallet!.adresse)}>
             Kopieren
           </button>
-          {b.wallet.guthabenSol != null && <span> · {sol(b.wallet.guthabenSol, 4)}</span>}
+          {b.wallet.guthabenSol != null && (
+            <span>
+              {' '}
+              · {sol(b.wallet.guthabenSol, 4)}
+              <Eur sol={b.wallet.guthabenSol} />
+            </span>
+          )}
         </div>
       )}
-      {live && b.live && <div className="leise">Scharf seit {new Date(b.live.seit).toLocaleString('de-AT')} · Budget {sol(b.live.budgetSol, 2)}</div>}
+      {live && b.live && (
+        <div className="leise">
+          Scharf seit {new Date(b.live.seit).toLocaleString('de-AT')} · Budget {sol(b.live.budgetSol, 2)}
+          <Eur sol={b.live.budgetSol} />
+        </div>
+      )}
       {!live && b.paperBilanz && <div className="leise">Letzter Live-Abschnitt vorher: {prozent(b.paperBilanz.gewinnProzent)}</div>}
       <div className="hafen-knoepfe">
         <a className="knopf klein" href={`/hafen/${b.id}`} onClick={linkKlick}>
@@ -234,6 +260,7 @@ function BotKarte({ b, farbe, notaus, bearbeiten, tun, liveMoeglich, auszahlung,
 
 /** Vergleich: Kapital aller Bots relativ zum Startkapital (Index 100 = Start), eine Achse */
 function Vergleich({ bots, farbe }: { bots: KryptoBot[]; farbe: (id: string) => string }) {
+  const eurJeSol = useEurJeSol();
   const B = 720;
   const H = 220;
   const reihen = bots.map((b) => ({ id: b.id, name: b.einstellung.name, punkte: b.kurve.map(([t, w]) => [t, (w / b.kennzahlen.startSol) * 100] as [number, number]) }));
@@ -273,7 +300,10 @@ function Vergleich({ bots, farbe }: { bots: KryptoBot[]; farbe: (id: string) => 
         {bots.map((b) => (
           <li key={b.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
             <span style={{ width: '0.8rem', height: '0.8rem', borderRadius: '50%', background: farbe(b.id) }} />
-            {b.einstellung.avatar} {b.einstellung.name} <b className={b.kennzahlen.gewinnSol >= 0 ? 'plus' : 'minus'}>{prozent(b.kennzahlen.gewinnProzent)}</b>
+            {b.einstellung.avatar} {b.einstellung.name}{' '}
+            <b className={b.kennzahlen.gewinnSol >= 0 ? 'plus' : 'minus'} title={solEurText(b.kennzahlen.gewinnSol, eurJeSol, { vorzeichen: true })}>
+              {prozent(b.kennzahlen.gewinnProzent)}
+            </b>
           </li>
         ))}
       </ul>
@@ -299,6 +329,31 @@ function BotFormular({ start, id, fertig, abbrechen }: { start: KryptoEinstellun
       />
       {o.hinweis && <small className="leise">{o.hinweis}</small>}
     </label>
+  );
+  // E237: Alarm-Schwellen der Kursvorhersage (regeln.alarm) – für RL-Bots immer, für Regel-/Prompt-Bots nur mit musterGewicht > 0
+  const alarmStd = KRYPTO_STANDARD.regeln.alarm ?? { anstiegProzent: 15, fallProzent: 10 };
+  const alarmFeld = (k: 'anstiegProzent' | 'fallProzent', label: string, hilfe: string) => (
+    <label title={hilfe}>
+      {label}
+      <input
+        type="number"
+        step={1}
+        min={1}
+        max={100}
+        data-testid={`alarm-${k}`}
+        value={e.regeln.alarm?.[k] ?? alarmStd[k]}
+        onChange={(ev) => setE((x) => ({ ...x, regeln: { ...x.regeln, alarm: { ...alarmStd, ...x.regeln.alarm, [k]: Number(ev.target.value) } } }))}
+      />
+    </label>
+  );
+  const alarmFelder = (
+    <>
+      {alarmFeld('anstiegProzent', '🚀 Alarm ab +% (2 min)', 'Sagt die Kursvorhersage in den nächsten 2 min mindestens so viel Anstieg voraus (oder der Pump-Erkenner schlägt an), kauft der Bot auch unter der Punkte-Schwelle – Sperren, Filter und Risiko-Grenzen gelten weiter.')}
+      {alarmFeld('fallProzent', '💥 Alarm ab −% (2 min)', 'Sagt die Kursvorhersage in den nächsten 2 min mindestens so viel Fall voraus (oder der Absturz-Erkenner schlägt an), verkauft der Bot eine gehaltene Position sofort und kauft nicht.')}
+      <small className="leise breit" style={{ gridColumn: '1 / -1' }}>
+        {e.art === 'rl' ? 'Alarme wirken bei RL-Bots immer.' : 'Alarme wirken nur mit Muster-Rat Gewicht > 0 – sonst nur Anzeige.'}
+      </small>
+    </>
   );
   const speichern = async () => {
     setLaeuft(true);
@@ -362,6 +417,7 @@ function BotFormular({ start, id, fertig, abbrechen }: { start: KryptoEinstellun
               <input type="number" step={0.05} min={0} max={1} value={e.rl?.maxAbsturz ?? KRYPTO_RL_STANDARD.maxAbsturz ?? 0.35} onChange={(ev) => setE((x) => ({ ...x, rl: { ...KRYPTO_RL_STANDARD, ...x.rl, maxAbsturz: Number(ev.target.value) } }))} />
               <small className="leise">gehalten ab 70 % sofort raus</small>
             </label>
+            {alarmFelder}
             <label title="Frisches Paper-Spielgeld, wenn das Kapital aufgebraucht ist – zählt zum Startkapital, nie als Gewinn.">
               RL: Nachschuss nach Pleite
               <select value={(e.rl?.nachschuss ?? KRYPTO_RL_STANDARD.nachschuss) ? 'ja' : 'nein'} onChange={(ev) => setE((x) => ({ ...x, rl: { ...KRYPTO_RL_STANDARD, ...x.rl, nachschuss: ev.target.value === 'ja' } }))}>
@@ -374,11 +430,14 @@ function BotFormular({ start, id, fertig, abbrechen }: { start: KryptoEinstellun
             </p>
           </>
         ) : (
-          zahl('regeln', 'musterGewicht', 'Muster-Rat Gewicht (0 = nur anzeigen)', {
-            schritt: 1,
-            hilfe: 'So viele Punkte (0–30) darf der Rat des Muster-Modells beisteuern – erst erhöhen, wenn sich das Modell bewährt hat. Über 0 verkauft der Bot außerdem, sobald der aktive Absturz-Erkenner ≥ 70 % sieht.',
-            hinweis: '> 0: auch Verkauf bei Absturz-Risiko ≥ 70 %',
-          })
+          <>
+            {zahl('regeln', 'musterGewicht', 'Muster-Rat Gewicht (0 = nur anzeigen)', {
+              schritt: 1,
+              hilfe: 'So viele Punkte (0–30) darf der Rat des Muster-Modells beisteuern – erst erhöhen, wenn sich das Modell bewährt hat. Über 0 verkauft der Bot außerdem, sobald der aktive Absturz-Erkenner ≥ 70 % sieht, und folgt den 🚀/💥-Alarmen.',
+              hinweis: '> 0: auch Verkauf bei Absturz-Risiko ≥ 70 % und Alarme',
+            })}
+            {alarmFelder}
+          </>
         )}
         {e.art === 'rl' ? null : e.art === 'prompt' ? (
           <>
@@ -547,7 +606,7 @@ function MusterTafel() {
                   </b>
                 </div>
               </div>
-              {m.modelle?.length ? <ModellTabelle modelle={m.modelle} /> : null}
+              {m.modelle?.length ? <ModelleAnzeige modelle={m.modelle} /> : null}
               {m.modell.merkmale.length > 0 && (
                 <div>
                   <span className="leise" style={{ fontSize: '0.8rem' }}>
@@ -566,7 +625,7 @@ function MusterTafel() {
               )}
             </>
           ) : m.modelle?.length ? (
-            <ModellTabelle modelle={m.modelle} />
+            <ModelleAnzeige modelle={m.modelle} />
           ) : (
             <p className="leise" style={{ margin: 0 }}>
               Noch kein Modell trainiert – es braucht erst genug aufgezeichnete Ticks aus dem Echtzeit-Strom.
@@ -575,7 +634,10 @@ function MusterTafel() {
           {m.rl && (
             <p className="leise" style={{ margin: 0 }} data-testid="muster-zeitraffer">
               RL-Zeitraffer (v{m.rl.version}, {m.rl.episoden.toLocaleString('de-DE')} Episoden): {m.rl.zeitraffer.trades} Trades ·{' '}
-              <b className={m.rl.zeitraffer.gewinnSol >= 0 ? 'plus' : 'minus'}>{solVz(m.rl.zeitraffer.gewinnSol)} SOL</b> nach Gebühren · Treffer {m.rl.zeitraffer.trefferquote == null ? '–' : pz(m.rl.zeitraffer.trefferquote)} · {m.rl.zeitraffer.pleiten} Pleiten
+              <b className={m.rl.zeitraffer.gewinnSol >= 0 ? 'plus' : 'minus'}>
+                {solVz(m.rl.zeitraffer.gewinnSol)} SOL
+                <Eur sol={m.rl.zeitraffer.gewinnSol} vz />
+              </b> nach Gebühren · Treffer {m.rl.zeitraffer.trefferquote == null ? '–' : pz(m.rl.zeitraffer.trefferquote)} · {m.rl.zeitraffer.pleiten} Pleiten
             </p>
           )}
           <p className="leise" style={{ margin: 0, fontSize: '0.8rem' }}>
@@ -583,9 +645,9 @@ function MusterTafel() {
             {m.training.dauerMs != null ? ` · Dauer ${Math.round(m.training.dauerMs / 1000)} s` : ''}
           </p>
           {m.training.laeuft && (
-            <div className="hafen-muster-fortschritt" role="progressbar" aria-label="Training" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(m.training.fortschritt * 100)}>
-              <b style={{ width: `${Math.round(m.training.fortschritt * 100)}%` }} />
-              <span>Training läuft … {Math.round(m.training.fortschritt * 100)} %</span>
+            <div className="hafen-muster-fortschritt" role="progressbar" aria-label="Training" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(m.training.fortschritt)}>
+              <b style={{ width: `${Math.round(m.training.fortschritt)}%` }} />
+              <span>Training läuft … {Math.round(m.training.fortschritt)} %</span>
             </div>
           )}
           {m.training.fehler && (
@@ -596,6 +658,63 @@ function MusterTafel() {
         </>
       )}
     </section>
+  );
+}
+
+/** E237: übrige Modelle als Tabelle, die 6 Horizonte der Kursvorhersage kompakt darunter */
+function ModelleAnzeige({ modelle }: { modelle: KryptoMusterModellInfo[] }) {
+  const verlauf = modelle.filter((x) => x.schluessel.startsWith('verlauf'));
+  const andere = modelle.filter((x) => !x.schluessel.startsWith('verlauf'));
+  return (
+    <>
+      {andere.length > 0 && <ModellTabelle modelle={andere} />}
+      {verlauf.length > 0 && <Kursvorhersage modelle={verlauf} />}
+    </>
+  );
+}
+
+/** E237: Kursvorhersage – je Horizont aktiv-Punkt, Fehler vs. Konstante, Richtung, Alarm-Treffer */
+function Kursvorhersage({ modelle }: { modelle: KryptoMusterModellInfo[] }) {
+  const reihe = (s: KryptoMusterModellInfo['schluessel']) => KRYPTO_MUSTER_MODELLE.findIndex((x) => x.schluessel === s);
+  const sortiert = [...modelle].sort((a, b) => reihe(a.schluessel) - reihe(b.schluessel));
+  const k = (n: number) => n.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const alarm = (a: { n: number; treffer: number } | null | undefined) => (a ? `${a.treffer}/${a.n}` : '–');
+  const horizont = (s: string) => (KRYPTO_MUSTER_MODELLE.find((x) => x.schluessel === s)?.name ?? s).replace(/^📈 Kurs in /, '').replace(/ \(%\)$/, '');
+  return (
+    <div className="hafen-kursvorhersage" data-testid="kursvorhersage">
+      <h4>📈 Kursvorhersage</h4>
+      <p className="leise">Kursänderung in den nächsten Sekunden/Minuten – verpasster Absturz zählt 3× – die Vorhersage ist bewusst vorsichtig.</p>
+      <div className="hafen-tabelle-huelle">
+        <table className="hafen-modelle">
+          <thead>
+            <tr>
+              <th>in</th>
+              <th title="mittlerer (schiefer) Fehler in %-Punkten gegen die beste feste Schätzung">Fehler vs. Konstante</th>
+              <th title="bei großen Bewegungen (≥ 10 %): wie oft die Richtung stimmte">Richtung</th>
+              <th title="Alarme im Test: Treffer/ausgelöst">Alarm 🚀 · 💥</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortiert.map((mo) => {
+              const t = mo.test;
+              const gruende = mo.gruende.join(' · ');
+              return (
+                <tr key={mo.schluessel} data-schluessel={mo.schluessel} className={mo.aktiv ? 'an' : undefined} title={mo.aktiv ? `aktiv – v${mo.version}` : `nicht aktiv${gruende ? `: ${gruende}` : ''}`}>
+                  <td>
+                    <span className={`hafen-punkt${mo.aktiv ? ' an' : ''}`} aria-label={mo.aktiv ? 'aktiv' : 'nicht aktiv'} /> {horizont(mo.schluessel)}
+                  </td>
+                  <td className="mono">{t.fehler == null ? '–' : `±${k(t.fehler)} vs. ±${t.fehlerBasis == null ? '–' : k(t.fehlerBasis)}`}</td>
+                  <td className="mono">{t.richtung == null ? '–' : `${Math.round(t.richtung * 100)} %`}</td>
+                  <td className="mono">
+                    {alarm(t.alarmAnstieg)} · {alarm(t.alarmFall)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
@@ -684,14 +803,21 @@ function ScharfDialog({ bot, fertig }: { bot: KryptoBot; fertig: () => void }) {
       <ul className="leise">
         <li>{stunden >= KRYPTO_PAPER_MINDESTENS_STUNDEN ? '✓' : '✗'} mindestens {KRYPTO_PAPER_MINDESTENS_STUNDEN} h im Paper Trading (jetzt {Math.floor(stunden)} h) – Paper-Ergebnis: {prozent(bot.kennzahlen.gewinnProzent)} bei {bot.kennzahlen.trades} Trades</li>
         <li>{bot.kennzahlen.offen === 0 ? '✓' : '✗'} keine offenen Paper-Positionen</li>
-        <li>Wallet: {bot.wallet?.guthabenSol == null ? 'Guthaben wird geprüft' : sol(bot.wallet.guthabenSol, 4)}</li>
-        <li>Grenzen im Code: Einsatz je Trade höchstens {sol(bot.einstellung.limits.einsatzProTradeSol, 2)} bzw. {bot.einstellung.limits.positionProzent} % des Budgets, Tagesverlust höchstens {sol(bot.einstellung.limits.maxTagesverlustSol, 2)}, höchstens {bot.einstellung.limits.maxOffen} offene Positionen. Kein Hebel.</li>
+        <li>
+          Wallet: {bot.wallet?.guthabenSol == null ? 'Guthaben wird geprüft' : sol(bot.wallet.guthabenSol, 4)}
+          <Eur sol={bot.wallet?.guthabenSol} />
+        </li>
+        <li>
+          Grenzen im Code: Einsatz je Trade höchstens {sol(bot.einstellung.limits.einsatzProTradeSol, 2)}
+          <Eur sol={bot.einstellung.limits.einsatzProTradeSol} /> bzw. {bot.einstellung.limits.positionProzent} % des Budgets, Tagesverlust höchstens {sol(bot.einstellung.limits.maxTagesverlustSol, 2)}
+          <Eur sol={bot.einstellung.limits.maxTagesverlustSol} />, höchstens {bot.einstellung.limits.maxOffen} offene Positionen. Kein Hebel.</li>
       </ul>
       <fieldset>
         <legend>Bestätigen</legend>
         <label>
           Budget (SOL, 0,05–50)
           <input type="number" step="0.05" min={0.05} max={50} value={budget} onChange={(ev) => setBudget(Number(ev.target.value))} />
+          <Eur sol={Number.isFinite(budget) ? budget : null} />
         </label>
         <label>
           Dein Passwort
@@ -730,10 +856,11 @@ function AuszahlenDialog({ bot, an, fertig }: { bot: KryptoBot; an: string; fert
   const [passwort, setPasswort] = useState('');
   const [code, setCode] = useState('');
   const [meldung, setMeldung] = useState<string | null>(null);
+  const eurJeSol = useEurJeSol();
   const los = async () => {
     try {
       const r = await api<{ signatur: string; betragSol: number }>(`/api/krypto/bots/${bot.id}/auszahlen`, { methode: 'POST', body: { passwort, ...(totp ? { code } : {}) } });
-      setMeldung(`Ausgezahlt: ${sol(r.betragSol, 4)} – Transaktion ${r.signatur}`);
+      setMeldung(`Ausgezahlt: ${solEurText(r.betragSol, eurJeSol, { stellen: 4 })} – Transaktion ${r.signatur}`);
     } catch (x) {
       setMeldung(x instanceof ApiFehler ? x.message : String(x));
     }
@@ -742,7 +869,8 @@ function AuszahlenDialog({ bot, an, fertig }: { bot: KryptoBot; an: string; fert
     <section className="karte innen hafen-formular" aria-label="Auszahlen">
       <h3 style={{ marginTop: 0 }}>Auszahlen: {bot.einstellung.name}</h3>
       <p className="leise">
-        Das ganze Guthaben ({bot.wallet?.guthabenSol == null ? '?' : sol(bot.wallet.guthabenSol, 4)}) geht an deine feste Adresse <code>{an}</code>. Eine andere Adresse geht nur auf dem Server (dorf krypto-auszahlung).
+        Das ganze Guthaben ({bot.wallet?.guthabenSol == null ? '?' : sol(bot.wallet.guthabenSol, 4)}
+        <Eur sol={bot.wallet?.guthabenSol} />) geht an deine feste Adresse <code>{an}</code>. Eine andere Adresse geht nur auf dem Server (dorf krypto-auszahlung).
       </p>
       <fieldset>
         <label>
@@ -826,7 +954,8 @@ function BacktestPanel({ bot, schliessen }: { bot: KryptoBot; schliessen: () => 
             <div>
               <span>Ergebnis</span>
               <b className={k.gewinnSol >= 0 ? 'plus' : 'minus'}>
-                {solVz(k.gewinnSol, 3)} ({prozent(k.gewinnProzent)})
+                {solVz(k.gewinnSol, 3)} SOL ({prozent(k.gewinnProzent)})
+                <Eur sol={k.gewinnSol} vz />
               </b>
             </div>
             <div>
@@ -841,11 +970,17 @@ function BacktestPanel({ bot, schliessen }: { bot: KryptoBot; schliessen: () => 
             </div>
             <div>
               <span>Umsatz</span>
-              <b>{sol(k.umsatzSol, 2)}</b>
+              <b>
+                {sol(k.umsatzSol, 2)}
+                <Eur sol={k.umsatzSol} />
+              </b>
             </div>
             <div>
               <span>Gebühren</span>
-              <b>{sol(k.gebuehrenSol, 4)}</b>
+              <b>
+                {sol(k.gebuehrenSol, 4)}
+                <Eur sol={k.gebuehrenSol} />
+              </b>
             </div>
             <div>
               <span>Entscheidungen</span>
@@ -861,8 +996,23 @@ function BacktestPanel({ bot, schliessen }: { bot: KryptoBot; schliessen: () => 
             {j.ergebnis.trades.slice(0, 30).map((t) => (
               <li key={t.id}>
                 <span>{new Date(t.zeit).toLocaleString('de-AT', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}</span>
-                <b>{t.art === 'kauf' ? 'Kauf' : t.art === 'verkauf' ? 'Verkauf' : 'Fehlschlag'}</b> {t.symbol} {t.art !== 'fehlschlag' && sol(t.sol)} · Gebühr {sol(t.gebuehrSol, 4)}
-                {t.gewinnSol != null && <b className={t.gewinnSol >= 0 ? 'plus' : 'minus'}> {solVz(t.gewinnSol)}</b>} <span className="leise">{t.grund}</span>
+                <b>{t.art === 'kauf' ? 'Kauf' : t.art === 'verkauf' ? 'Verkauf' : 'Fehlschlag'}</b> {t.symbol}{' '}
+                {t.art !== 'fehlschlag' && (
+                  <>
+                    {sol(t.sol)}
+                    <Eur sol={t.sol} />
+                  </>
+                )}{' '}
+                · Gebühr {sol(t.gebuehrSol, 4)}
+                <Eur sol={t.gebuehrSol} />
+                {t.gewinnSol != null && (
+                  <b className={t.gewinnSol >= 0 ? 'plus' : 'minus'}>
+                    {' '}
+                    {solVz(t.gewinnSol)} SOL
+                    <Eur sol={t.gewinnSol} vz />
+                  </b>
+                )}{' '}
+                <span className="leise">{t.grund}</span>
               </li>
             ))}
           </ul>

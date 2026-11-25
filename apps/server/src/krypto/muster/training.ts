@@ -6,29 +6,48 @@
 // 5 min (Werte in %, L2-Regression), Früh-Pump/-Absturz (nur Zeitpunkte mit Token-Alter ≤ 90 s). Die Beispiele (Merkmale)
 // entstehen EINMAL, die Matrix liegt einmal im Speicher, die Stufen werden einmal berechnet; jedes Modell nimmt seine
 // Zeilen (eigene Labels, eigene Lücke je Horizont), hat einen eigenen ehrlichen Test und wird einzeln aktiv.
+//
+// E237: dazu die Kursvorhersage – sechs Wert-Modelle verlauf5s … verlauf5m (KRYPTO_VERLAUF_SEK): Kursänderung in % nach h,
+// gelernt auf log(1 + x/100) mit dem asymmetrischen Fehler (gbdt.ts, 'asymmetrisch': ein verpasster Fall kostet
+// VERLAUF_GEWICHT_FALL-fach). Ehrlicher Test je Horizont: mittlerer asymmetrischer Fehler (Wurzel daraus = fehler, in
+// %-Punkten) gegen die beste KONSTANTE unter demselben Verlust (Expektil der Lerndaten = fehlerBasis); aktiv wie die
+// Wert-Modelle (≥ 5 % besser, Token-Bootstrap ≥ 95 %, ≥ 200 Testbeispiele, ≥ 10 Tokens, nicht schlechter als das alte × 1,01).
+// Dazu Richtung bei großen Bewegungen und Treffer der Alarme. Das RL-Training sieht v1m/v5m und den Alarm.
 import {
   KRYPTO_MUSTER_MODELLE,
   KRYPTO_RL_STANDARD,
+  KRYPTO_VERLAUF_SEK,
   type KryptoMusterModellInfo,
   type KryptoMusterSchluessel,
   type KryptoMusterStatus,
 } from "@dorf/shared";
 import {
+  asymVerlust,
   auc,
+  expektil,
   gbdtTrainieren,
   gbdtVorbereiten,
   gbdtVorhersagen,
   takt,
 } from "./gbdt.js";
 import {
+  ALARM_STANDARD,
+  EXTREM_MAX,
+  EXTREM_MIN,
   MERKMAL_NAMEN,
+  alarmAus,
   extreme,
   label,
   letzterIndex,
   merkmale,
+  rendite,
 } from "./merkmale.js";
 import { rlTrainieren, rlZeitraffer, type RlEpisode } from "./rl.js";
-import { signaleAusMerkmalen, type MusterModelle } from "./signale.js";
+import {
+  VERLAUF_SCHLUESSEL,
+  signaleAusMerkmalen,
+  type MusterModelle,
+} from "./signale.js";
 import {
   ABSTURZ_ZIEL,
   FRUEH_ALTER_MS,
@@ -78,6 +97,10 @@ export const WERT_BOOTSTRAP_ANTEIL = 0.95;
 /** E236: Bäume je Modell – das Grundsignal wie in E235, die übrigen weniger (Laufzeit: 9 Modelle) */
 export const BAEUME_BASIS = 80;
 export const BAEUME_NEBEN = 50;
+/** E237: Bäume je Kursvorhersage-Modell (Laufzeit: jetzt 15 Modelle) */
+export const BAEUME_VERLAUF = 40;
+/** E237: Richtung zählt nur bei großen Bewegungen (|echt| ≥ so viel %) */
+export const RICHTUNG_AB_PROZENT = 10;
 
 /** zufällige Ganzzahlen fest geseedet – Bootstrap reproduzierbar */
 function bootstrapZufall() {
@@ -222,8 +245,10 @@ const SPALTE = {
   tief1: 4,
   hoch5: 5,
   tief5: 6,
+  /** E237: verlauf je Horizont KRYPTO_VERLAUF_SEK ab hier */
+  verlauf: 7,
 } as const;
-const SPALTEN = 7;
+const SPALTEN = 7 + KRYPTO_VERLAUF_SEK.length;
 
 interface Schritt {
   mint: string;
@@ -246,6 +271,8 @@ interface ModellDef {
   /** Präzision ab dieser Wahrscheinlichkeit (so nutzt ratAus/RL das Signal) */
   schwelle: number;
   selten: boolean;
+  /** E237: Kursvorhersage mit asymmetrischem Fehler */
+  asym: boolean;
 }
 
 const zahl = (x: number, stellen = 2) => x.toFixed(stellen).replace(".", ",");
@@ -269,6 +296,7 @@ function modellDefs(ziel: Ziel): ModellDef[] {
     baeume: BAEUME_NEBEN,
     schwelle: 0.5,
     selten: false,
+    asym: false,
     ...o,
   });
   return [
@@ -295,6 +323,13 @@ function modellDefs(ziel: Ziel): ModellDef[] {
     w("fruehAbsturz", SPALTE.absturz, ABSTURZ_ZIEL.horizontMs, {
       frueh: true,
     }),
+    ...KRYPTO_VERLAUF_SEK.map((sek, i) =>
+      w(VERLAUF_SCHLUESSEL[i]!, SPALTE.verlauf + i, sek * 1000, {
+        wert: true,
+        asym: true,
+        baeume: BAEUME_VERLAUF,
+      }),
+    ),
   ];
 }
 
@@ -382,6 +417,10 @@ export async function musterTrainieren(
           if (e1) ((y[SPALTE.hoch1] = e1.hoch), (y[SPALTE.tief1] = e1.tief));
           const e5 = extreme(ticks, t, 300_000);
           if (e5) ((y[SPALTE.hoch5] = e5.hoch), (y[SPALTE.tief5] = e5.tief));
+          KRYPTO_VERLAUF_SEK.forEach((sek, k) => {
+            const r = rendite(ticks, t, sek * 1000);
+            if (r !== null) y[SPALTE.verlauf + k] = r;
+          });
           liste.push({ mint, zeit: t, preis: ticks[i]!.preis, alter, x, y });
         }
       }
@@ -394,8 +433,13 @@ export async function musterTrainieren(
 
   // 2. Beispiele (mit mindestens einem Label), zeitlich sortiert; Trennzeit wie E235 aus den Grundsignal-Beispielen
   const beispiele: Schritt[] = [];
+  // E237: nur Schritte mit mindestens einem Label der E236-Modelle (Horizont ≥ 1 min abgedeckt) – so bleiben Beispiele,
+  // Stufen und Trennzeit genau wie in E236 (die Modelle von dort ändern sich nicht); den kurzen Kursvorhersagen fehlen
+  // nur die letzten < 60 s jeder Aufzeichnung
   for (const l of jeToken.values())
-    for (const s of l) if (s.y.some((v) => !Number.isNaN(v))) beispiele.push(s);
+    for (const s of l)
+      if (s.y.some((v, k) => k < SPALTE.verlauf && !Number.isNaN(v)))
+        beispiele.push(s);
   await warte();
   beispiele.sort((a, b) => a.zeit - b.zeit);
   await warte();
@@ -479,6 +523,10 @@ export async function musterTrainieren(
     yVoll.fill(NaN);
     for (const i of lernIdx) yVoll[i] = beispiele[i]!.y[def.spalte]!;
     let median = 0;
+    // E237: beste Konstante unter dem asymmetrischen Fehler (aus den ungekappten Lerndaten in %)
+    const konstante = def.asym
+      ? expektil(Float64Array.from(lernIdx, (i) => yVoll[i]!))
+      : 0;
     if (def.wert) {
       const sortiert = Float64Array.from(lernIdx, (i) => yVoll[i]!).sort();
       median = quantil(sortiert, 0.5);
@@ -494,7 +542,11 @@ export async function musterTrainieren(
       yVoll,
       {
         baeume: def.baeume,
-        art: def.wert ? "quadratisch" : "logistisch",
+        art: def.asym
+          ? "asymmetrisch"
+          : def.wert
+            ? "quadratisch"
+            : "logistisch",
         vorbereitung,
         auswahl: lernIdx,
       },
@@ -509,7 +561,10 @@ export async function musterTrainieren(
     if (def.wert) gbdt.skala = "log";
     const vorhersage: number[] = [];
     for (const b of test) {
-      vorhersage.push(gbdtVorhersagen(gbdt, b.x));
+      const v = gbdtVorhersagen(gbdt, b.x);
+      vorhersage.push(
+        def.asym ? Math.max(EXTREM_MIN, Math.min(EXTREM_MAX, v)) : v,
+      );
       if ((vorhersage.length & 4095) === 0) await warte();
     }
     const yTest = test.map((b) => b.y[def.spalte]!);
@@ -600,6 +655,65 @@ export async function musterTrainieren(
           gruende,
         };
       }
+    } else if (def.asym) {
+      // E237: asymmetrischer Fehler je Beispiel (%-Punkte²) – Modell gegen die beste Konstante (Expektil der Lerndaten)
+      const fehlerModell = vorhersage.map((v, i) => asymVerlust(yTest[i]!, v));
+      const fehlerBasis = yTest.map((v) => asymVerlust(v, konstante));
+      const fehler = test.length
+        ? Math.sqrt(fehlerModell.reduce((s, v) => s + v, 0) / test.length)
+        : 0;
+      const fehlerKonst = test.length
+        ? Math.sqrt(fehlerBasis.reduce((s, v) => s + v, 0) / test.length)
+        : 0;
+      info.test.fehler = fehler;
+      info.test.fehlerBasis = fehlerKonst;
+      // Richtung bei großen Bewegungen; Alarme (Schwellen wie der Standard-Alarm), Treffer = halbe Schwelle erreicht
+      let gross = 0;
+      let richtig = 0;
+      const auf = { n: 0, treffer: 0 };
+      const ab = { n: 0, treffer: 0 };
+      vorhersage.forEach((v, i) => {
+        const echt = yTest[i]!;
+        if (Math.abs(echt) >= RICHTUNG_AB_PROZENT) {
+          gross++;
+          if (Math.sign(v) === Math.sign(echt)) richtig++;
+        }
+        if (v >= ALARM_STANDARD.anstiegProzent) {
+          auf.n++;
+          if (echt >= ALARM_STANDARD.anstiegProzent / 2) auf.treffer++;
+        }
+        if (v <= -ALARM_STANDARD.fallProzent) {
+          ab.n++;
+          if (echt <= -ALARM_STANDARD.fallProzent / 2) ab.treffer++;
+        }
+      });
+      info.test.richtung = gross ? richtig / gross : null;
+      info.test.alarmAnstieg = auf;
+      info.test.alarmFall = ab;
+      if (!test.length) {
+        // keine Testbeispiele – Grund steht schon oben
+      } else if (!(fehler <= WERT_FAKTOR * fehlerKonst))
+        gruende.push(
+          `Fehler ${zahl(fehler, 1)} nicht ≥ 5 % besser als die Konstante (${zahl(fehlerKonst, 1)})`,
+        );
+      else if (testTokens >= MIN_TESTTOKENS) {
+        const anteil = wertBootstrapAnteil(fehlerModell, fehlerBasis, tokens);
+        if (anteil < WERT_BOOTSTRAP_ANTEIL)
+          gruende.push(
+            `nicht sicher besser als die Konstante (nur in ${prozent(anteil)} der Token-Stichproben)`,
+          );
+      }
+      const altFehler = alt[def.schluessel]?.fehler;
+      if (altFehler != null && fehler > altFehler * 1.01)
+        gruende.push(
+          `schlechter als das aktive Modell (Fehler ${zahl(altFehler, 1)})`,
+        );
+      const quote = (a: { n: number; treffer: number }) =>
+        a.n ? `${a.treffer}/${a.n} (${prozent(a.treffer / a.n)})` : "keine";
+      zeile =
+        `asym. Fehler ${zahl(fehler, 1)} %-Punkte vs. Konstante ${zahl(fehlerKonst, 1)} (${zahl(konstante, 1)} %), ` +
+        `Richtung bei |Δ| ≥ ${RICHTUNG_AB_PROZENT} %: ${info.test.richtung == null ? "–" : `${prozent(info.test.richtung)} (${gross})`}, ` +
+        `Alarm 🚀 ${quote(auf)}, 💥 ${quote(ab)}`;
     } else {
       const fehlerModell = vorhersage.map((v, i) => Math.abs(v - yTest[i]!));
       const fehlerBasis = yTest.map((v) => Math.abs(median - v));
@@ -669,6 +783,7 @@ export async function musterTrainieren(
     "tief5",
     "fruehPump",
     "fruehAbsturz",
+    ...VERLAUF_SCHLUESSEL,
   ] as KryptoMusterSchluessel[]) {
     const neu = modelle[k];
     const m =
@@ -689,7 +804,7 @@ export async function musterTrainieren(
     const b: RlEpisode = [];
     for (const s of liste) {
       const sig = signaleAusMerkmalen(rlModelle, s.x, s.alter);
-      const schritt = {
+      const schritt: RlEpisode[number] = {
         zeit: s.zeit,
         preis: s.preis,
         p: sig.p ?? 0,
@@ -698,6 +813,9 @@ export async function musterTrainieren(
         absturz: sig.absturz,
         hoch5: sig.hoch5,
         tief5: sig.tief5,
+        v1m: sig.verlauf[KRYPTO_VERLAUF_SEK.indexOf(60)] ?? null,
+        v5m: sig.verlauf[KRYPTO_VERLAUF_SEK.indexOf(300)] ?? null,
+        alarm: alarmAus(sig),
       };
       (s.zeit < trennZeit ? a : b).push(schritt);
     }

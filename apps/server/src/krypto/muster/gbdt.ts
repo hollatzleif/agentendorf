@@ -5,17 +5,65 @@
 // E236: art 'quadratisch' = Regression (L2-Verlust: G = Vorhersage − Ziel, H = 1 → Blatt = Mittelwert der Residuen,
 // geschrumpft mit λ), Start = Mittelwert, Vorhersage = Wert statt Wahrscheinlichkeit. Mehrere Modelle auf denselben
 // Merkmalen teilen sich die Stufen (gbdtVorbereiten) und wählen ihre Zeilen (auswahl) – die Matrix liegt nur einmal im Speicher.
+// E237: art 'asymmetrisch' = gewichteter quadratischer Fehler (Expektil-Regression, Leifs Penalty für die Kursvorhersage):
+// Residuum r = echt − vorhergesagt, Gewicht w = gewichtFall (Standard 3), wenn r < 0 (der Kurs fiel tiefer als vorhergesagt –
+// ein verpasster Fall), sonst 1; je Iteration und Beispiel neu: G = −w·r, H = w. Die Vorhersage liegt darum bewusst
+// vorsichtig (unter dem Mittelwert). Leifs erste Idee „Vorhersage × echte Veränderung“ direkt als Verlust ist nach unten
+// unbeschränkt (das Modell würde ins Unendliche vorhersagen); der gewichtete quadratische Fehler bestraft dasselbe – große
+// Bewegung in die falsche Richtung = sehr großer Fehler – und bleibt stabil. Vorhersage wie 'quadratisch' (auch skala 'log').
 import { MERKMAL_NAMEN } from "./merkmale.js";
-import type { GbdtKnoten, GbdtModell } from "./typen.js";
+import {
+  VERLAUF_GEWICHT_FALL,
+  type GbdtKnoten,
+  type GbdtModell,
+} from "./typen.js";
 
-export type GbdtArt = "logistisch" | "quadratisch";
-/** GbdtModell mit Art (fehlt = logistisch – so bleiben gespeicherte E235-Modelle gültig) */
-type GbdtModellMitArt = GbdtModell & { art?: GbdtArt };
+export type GbdtArt = "logistisch" | "quadratisch" | "asymmetrisch";
+/** GbdtModell mit Art (fehlt = logistisch – so bleiben gespeicherte E235-Modelle gültig); E237: gewichtFall bei 'asymmetrisch' */
+export type GbdtModellMitArt = Omit<GbdtModell, "art"> & {
+  art?: GbdtArt;
+  gewichtFall?: number;
+};
 
 export function gbdtArt(m: GbdtModell): GbdtArt {
-  return (m as GbdtModellMitArt).art === "quadratisch"
-    ? "quadratisch"
-    : "logistisch";
+  const a = (m as GbdtModellMitArt).art;
+  return a === "quadratisch" || a === "asymmetrisch" ? a : "logistisch";
+}
+
+/** E237: asymmetrischer quadratischer Fehler eines Beispiels – zu optimistisch (echt < vorhergesagt) kostet gewichtFall-fach */
+export function asymVerlust(
+  echt: number,
+  vorhergesagt: number,
+  gewichtFall = VERLAUF_GEWICHT_FALL,
+): number {
+  const r = echt - vorhergesagt;
+  return (r < 0 ? gewichtFall : 1) * r * r;
+}
+
+/** E237: beste Konstante unter dem asymmetrischen Fehler (Expektil, τ = 1/(1+gewichtFall)) – Fixpunkt-Iteration */
+export function expektil(
+  werte: ArrayLike<number>,
+  gewichtFall = VERLAUF_GEWICHT_FALL,
+): number {
+  const n = werte.length;
+  if (!n) return 0;
+  let e = 0;
+  for (let i = 0; i < n; i++) e += werte[i]!;
+  e /= n;
+  for (let runde = 0; runde < 100; runde++) {
+    let sw = 0;
+    let swy = 0;
+    for (let i = 0; i < n; i++) {
+      const y = werte[i]!;
+      const w = y < e ? gewichtFall : 1;
+      sw += w;
+      swy += w * y;
+    }
+    const neu = swy / sw;
+    if (Math.abs(neu - e) <= 1e-12 * (1 + Math.abs(e))) return neu;
+    e = neu;
+  }
+  return e;
 }
 
 /** Stufen aller Merkmale, einmal berechnet (zeilenweise: Stufe von Beispiel i, Merkmal f an i·F + f) */
@@ -119,13 +167,18 @@ export async function gbdtTrainieren(
     lernrate?: number;
     minBlatt?: number;
     art?: GbdtArt;
+    /** E237: Gewicht verpasster Fälle bei art 'asymmetrisch' (Standard VERLAUF_GEWICHT_FALL) */
+    gewichtFall?: number;
     vorbereitung?: GbdtVorbereitung;
     auswahl?: ArrayLike<number>;
   } = {},
   abgeben?: () => Promise<void>,
 ): Promise<{ modell: GbdtModell; wichtigkeit: number[] }> {
   const art: GbdtArt = o.art ?? "logistisch";
-  const quadratisch = art === "quadratisch";
+  const asymmetrisch = art === "asymmetrisch";
+  const gewichtFall = o.gewichtFall ?? VERLAUF_GEWICHT_FALL;
+  /** Werte statt Wahrscheinlichkeiten (quadratisch oder asymmetrisch) */
+  const quadratisch = art === "quadratisch" || asymmetrisch;
   const auswahl = o.auswahl;
   const n = auswahl ? auswahl.length : X.length;
   const F = X.length ? X[0]!.length : 0;
@@ -146,7 +199,8 @@ export async function gbdtTrainieren(
     ziel[i] = quadratisch ? wert(v) : v > 0.5 ? 1 : 0;
   }
   let basis: number;
-  if (quadratisch) {
+  if (asymmetrisch) basis = expektil(ziel, gewichtFall);
+  else if (quadratisch) {
     let summe = 0;
     for (let i = 0; i < n; i++) summe += ziel[i]!;
     basis = n ? summe / n : 0;
@@ -163,9 +217,11 @@ export async function gbdtTrainieren(
     lernrate,
     baeume: [],
     ...(quadratisch ? { art } : {}),
+    ...(asymmetrisch ? { gewichtFall } : {}),
   };
   const wichtigkeit = new Array<number>(F).fill(0);
-  if (n === 0 || F === 0) return { modell, wichtigkeit };
+  if (n === 0 || F === 0)
+    return { modell: modell as GbdtModell, wichtigkeit };
 
   // Stufen: vorbereitet (nur die gewählten Zeilen herauskopieren – n·F Bytes) oder jetzt berechnen
   let zeilen: Uint8Array;
@@ -314,7 +370,15 @@ export async function gbdtTrainieren(
   const alle = new Uint32Array(n);
   for (let i = 0; i < n; i++) alle[i] = i;
   for (let baum = 0; baum < anzahlBaeume; baum++) {
-    if (quadratisch)
+    if (asymmetrisch)
+      for (let i = 0; i < n; i++) {
+        // r = echt − vorhergesagt; r < 0: Kurs fiel tiefer als vorhergesagt → gewichtFall-fach
+        const r = ziel[i]! - roh[i]!;
+        const w = r < 0 ? gewichtFall : 1;
+        G[i] = -w * r;
+        H[i] = w;
+      }
+    else if (quadratisch)
       for (let i = 0; i < n; i++) {
         G[i] = roh[i]! - ziel[i]!;
         H[i] = 1;
@@ -332,12 +396,12 @@ export async function gbdtTrainieren(
   }
   const summe = wichtigkeit.reduce((s, w) => s + w, 0);
   return {
-    modell,
+    modell: modell as GbdtModell,
     wichtigkeit: wichtigkeit.map((w) => (summe > 0 ? w / summe : 0)),
   };
 }
 
-/** Wahrscheinlichkeit (0–1) für ein Merkmal-Bündel; E236: bei art 'quadratisch' der vorhergesagte Wert */
+/** Wahrscheinlichkeit (0–1) für ein Merkmal-Bündel; E236: bei art 'quadratisch' (E237: und 'asymmetrisch') der Wert */
 export function gbdtVorhersagen(m: GbdtModell, x: number[]): number {
   let s = m.basis;
   for (const baum of m.baeume) {
@@ -350,7 +414,7 @@ export function gbdtVorhersagen(m: GbdtModell, x: number[]): number {
     }
     s += m.lernrate * (k.w ?? 0);
   }
-  if (gbdtArt(m) !== "quadratisch") return sigmoid(s);
+  if (gbdtArt(m) === "logistisch") return sigmoid(s);
   return m.skala === "log" ? 100 * Math.expm1(s) : s;
 }
 

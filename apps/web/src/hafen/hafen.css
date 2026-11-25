@@ -211,3 +211,21 @@
 .kw-signale { display: flex; flex-wrap: wrap; gap: 0.15rem 0.6rem; font-family: var(--kw-mono); font-size: 0.7rem; margin-top: 0.15rem; }
 .kw-signale .gefahr { color: var(--kw-rot); font-weight: 800; }
 .kw-frueh { font-size: 0.62rem; font-weight: 800; padding: 0 0.35rem; border-radius: 999px; border: 1px solid var(--kw-lila); color: var(--kw-lila-hell); margin-left: 0.3rem; }
+/* E237: Kursvorhersage + Alarm */
+.hafen-kursvorhersage { display: grid; gap: 0.25rem; }
+.hafen-kursvorhersage h4 { margin: 0.3rem 0 0; font-size: 0.9rem; }
+.hafen-kursvorhersage p { margin: 0; font-size: 0.78rem; }
+.kw-verlauf { font-size: 0.72rem; color: var(--kw-text, inherit); opacity: 0.9; margin-top: 0.15rem; }
+.kw-alarm { display: inline-block; margin-left: 0.4rem; padding: 0.05rem 0.45rem; border-radius: 999px; font-size: 0.7rem; font-weight: 900; letter-spacing: 0.04em; color: #fff; vertical-align: middle; }
+.kw-alarm.anstieg { background: #16a34a; box-shadow: 0 0 10px rgb(34 197 94 / 0.55); }
+.kw-alarm.absturz { background: #dc2626; box-shadow: 0 0 10px rgb(244 63 94 / 0.6); }
+.kw-token-kerzen.alarm-anstieg { border-color: #16a34a; }
+.kw-token-kerzen.alarm-absturz { border-color: #dc2626; }
+
+/* E237: Euro neben SOL – dezent */
+.hafen-eur {
+  font-size: 0.8em;
+  font-weight: 400;
+  opacity: 0.72;
+  white-space: nowrap;
+}
