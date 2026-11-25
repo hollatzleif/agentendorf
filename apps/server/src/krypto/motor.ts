@@ -105,6 +105,11 @@ const MIGRATIONEN = [
    ALTER TABLE muster_modelle ADD COLUMN dauer_ms INTEGER;
    ALTER TABLE muster_modelle ADD COLUMN fehler TEXT;
    ALTER TABLE muster_modelle ADD COLUMN aktiv_geworden TEXT;`,
+  // E241: Beispiel-Archiv des Muster-Modells – Zeitpunkte mit Merkmalen (x) und Labels (y) als Float32, bleiben nach den Ticks
+  // (7 Tage); kennung = Merkmale/Labels/Ziele des Codes (passt sie nicht mehr, wird das Archiv geleert)
+  `CREATE TABLE muster_archiv (mint TEXT NOT NULL, zeit INTEGER NOT NULL, alter_ms INTEGER NOT NULL, preis REAL NOT NULL,
+     x BLOB NOT NULL, y BLOB NOT NULL, kennung TEXT NOT NULL, PRIMARY KEY (mint, zeit)) WITHOUT ROWID;
+   CREATE INDEX muster_archiv_zeit ON muster_archiv (zeit);`,
 ];
 
 export function kryptoDb(datei: string): KDB {
@@ -651,6 +656,7 @@ export class Kryptowerk {
       this.ticksSchreiben();
       this.auftraegeAusfuehren();
       this.positionenPflegen();
+      this.musterRlSichern();
       this.rlPflegen();
       this.nachschussPruefen();
       await this.rugHolen();
@@ -1140,6 +1146,24 @@ export class Kryptowerk {
    * E236: Absturz-Erkenner ≥ 70 % → sofort raus – für RL-Bots immer, für alle anderen Bots nur mit musterGewicht > 0 (sonst nur
    * anzeigen, Leifs Regel). Stop-Loss & Co. bleiben (positionenPflegen).
    */
+  /**
+   * E241: Das Muster-Modell handelt immer auch selbst – live auf Paper wie die anderen Bots. Gibt es noch keinen RL-Bot, legt das
+   * Kryptowerk EINMAL „🧠 Muster-RL“ an (nur Paper, mit Nachschuss). Löscht Leif ihn, bleibt er weg (Merker in stand).
+   */
+  private musterRlSichern() {
+    if (!this.o.muster || this.stand('muster_rl_bot')) return;
+    const vorhanden = (this.o.db.prepare('SELECT id, einstellung_json FROM bots').all() as { id: string; einstellung_json: string }[]).find(
+      (b) => (JSON.parse(b.einstellung_json) as KryptoEinstellung).art === 'rl',
+    );
+    if (vorhanden) {
+      this.standSetzen('muster_rl_bot', vorhanden.id);
+      return;
+    }
+    const bot = this.anlegen({ ...KRYPTO_STANDARD, name: 'Muster-RL', avatar: '🧠', art: 'rl', rl: { ...KRYPTO_RL_STANDARD } });
+    this.standSetzen('muster_rl_bot', bot.id);
+    this.o.log?.(`Muster-RL-Bot angelegt (Paper): ${bot.id}`);
+  }
+
   private rlPflegen() {
     const muster = this.o.muster;
     if (!muster?.signaleAktiv) return;

@@ -21,12 +21,16 @@ import type { Uhr } from '../../uhr.js';
 import { KryptoFehler, type KDB } from '../motor.js';
 import { gbdtVorhersagen } from './gbdt.js';
 import { MERKMAL_NAMEN } from './merkmale.js';
-import { musterTrainieren, type TrainingsDaten, type TrainingsErgebnis } from './training.js';
+import { ARCHIV_KENNUNG, musterTrainieren, type MusterSchritt, type TrainingsDaten, type TrainingsErgebnis } from './training.js';
 import { STANDARD_ZIEL, type GbdtModell, type RlModell, type Tick, type TokenMeta } from './typen.js';
 
 const TAG = 86_400_000;
 /** Ticks so lange lesen (wie lange sie aufbewahrt werden: motor.ts) */
 const FENSTER = 7 * TAG;
+/** E241: so viele Zeitpunkte bleiben höchstens im Beispiel-Archiv (≈ 250 Bytes je Zeile), die ältesten gehen zuerst */
+export const ARCHIV_HOECHSTENS = 1_000_000;
+/** E241: nur Zeitpunkte, die mindestens so alt sind, kommen ins Archiv (alle Horizonte ≤ 5 min sind dann abgedeckt) */
+const ARCHIV_VERZUG = 30 * 60_000;
 /** so viele Trainingsläufe bleiben im Lauf-Protokoll (das aktive basis-Modell und der gültige RL-Agent immer) */
 const BEHALTEN = 20;
 /** E236: so viele Versionen je Schlüssel bleiben in muster_einzel (das gültige immer) */
@@ -141,6 +145,8 @@ export class MusterDienst {
       trainer?: Trainer;
       /** so viele Ticks je Lese-Stück (Standard 20 000) */
       stueckGroesse?: number;
+      /** E241: Grenze des Beispiel-Archivs (Tests) */
+      archivHoechstens?: number;
     },
   ) {
     this.naechster = o.uhr.jetzt() + (o.ersteNachMs ?? 10 * 60_000);
@@ -342,7 +348,11 @@ export class MusterDienst {
           this.fortschritt = 0.2 + Math.max(0, Math.min(1, anteil)) * 0.8;
         },
         log: (z) => this.zeile(z.stufe, z.bereich, z.text, { t: versatz + (Number.isFinite(z.t) ? z.t : 0), vomTraining: true }),
+        // E241: Beispiel-Archiv – fertige Zeitpunkte bleiben, auch wenn die Ticks nach 7 Tagen gelöscht werden
+        archiv: (n) => this.archivLesen(jetzt - FENSTER, n),
+        archivieren: (liste) => this.archivSchreiben(liste, jetzt),
       });
+      this.archivAufraeumen();
       this.speichern(version, jetzt, erg);
       gespeichert = true;
     } catch (e) {
@@ -497,6 +507,82 @@ export class MusterDienst {
     this.zeile('info', 'Dienst', `gespeichert: Lauf v${version} in muster_modelle, ${Object.keys(modelle).length} Modelle in muster_einzel; aktiv geworden: ${uebernommen.length ? uebernommen.join(', ') : 'keins'}`);
     if (this.konsole) this.konsole.aktivGeworden = [...uebernommen, ...(rlNeu ? ['rl'] : [])];
     this.o.log?.(`Muster-Training v${version}: ${uebernommen.length ? `übernommen: ${uebernommen.join(', ')}` : 'nichts übernommen'}${rlNeu ? ' + RL' : ''}`);
+  }
+
+  /** E241: passt das Archiv nicht mehr zum Code (Merkmale/Labels geändert), ist es wertlos → leeren */
+  private archivPruefen() {
+    if (this.archivGeprueft) return;
+    this.archivGeprueft = true;
+    const n = this.o.db.prepare('DELETE FROM muster_archiv WHERE kennung != ?').run(ARCHIV_KENNUNG).changes;
+    if (n) this.zeile('warnung', 'Archiv', `${n.toLocaleString('de-DE')} Archiv-Beispiele gelöscht – Merkmale oder Labels haben sich im Code geändert, sie passten nicht mehr`);
+  }
+  private archivGeprueft = false;
+
+  /** E241: fertige Zeitpunkte eines Tokens ins Archiv (schon vorhandene bleiben) */
+  private archivSchreiben(liste: MusterSchritt[], jetzt: number) {
+    this.archivPruefen();
+    const st = this.o.db.prepare('INSERT OR IGNORE INTO muster_archiv (mint, zeit, alter_ms, preis, x, y, kennung) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    const grenze = jetzt - ARCHIV_VERZUG;
+    this.o.db.transaction(() => {
+      for (const s of liste) {
+        if (s.zeit > grenze) continue;
+        st.run(s.mint, s.zeit, Math.round(s.alter), s.preis, Buffer.from(Float32Array.from(s.x).buffer), Buffer.from(Float32Array.from(s.y).buffer), ARCHIV_KENNUNG);
+      }
+    })();
+  }
+
+  /** E241: die neuesten `n` Zeitpunkte VOR dem Tick-Fenster (`bis`), stückweise (Schlüssel zeit, mint) */
+  private async archivLesen(bis: number, n: number): Promise<MusterSchritt[]> {
+    this.archivPruefen();
+    const r: MusterSchritt[] = [];
+    const st = this.o.db.prepare(
+      'SELECT mint, zeit, alter_ms, preis, x, y FROM muster_archiv WHERE kennung = ? AND (zeit < ? OR (zeit = ? AND mint < ?)) ORDER BY zeit DESC, mint DESC LIMIT ?',
+    );
+    const f = (b: Buffer) => Array.from(new Float32Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength)));
+    let zeit = bis;
+    let mint = '';
+    while (r.length < n) {
+      const teil = st.all(ARCHIV_KENNUNG, zeit, zeit, mint, Math.min(20_000, n - r.length)) as { mint: string; zeit: number; alter_ms: number; preis: number; x: Buffer; y: Buffer }[];
+      if (!teil.length) break;
+      for (const z of teil) r.push({ mint: z.mint, zeit: z.zeit, alter: z.alter_ms, preis: z.preis, x: f(z.x), y: f(z.y) });
+      zeit = teil.at(-1)!.zeit;
+      mint = teil.at(-1)!.mint;
+      await abgeben();
+    }
+    return r;
+  }
+
+  /** E241: Archiv auf ARCHIV_HOECHSTENS kürzen (die ältesten zuerst) */
+  private archivAufraeumen() {
+    const db = this.o.db;
+    const n = (db.prepare('SELECT COUNT(*) AS n FROM muster_archiv').get() as { n: number }).n;
+    const zuviel = n - (this.o.archivHoechstens ?? ARCHIV_HOECHSTENS);
+    if (zuviel > 0) {
+      const grenze = db.prepare('SELECT zeit FROM muster_archiv ORDER BY zeit ASC LIMIT 1 OFFSET ?').get(zuviel - 1) as { zeit: number };
+      db.prepare('DELETE FROM muster_archiv WHERE zeit <= ?').run(grenze.zeit);
+      this.zeile('info', 'Archiv', `Archiv gekürzt: ältester Teil gelöscht (höchstens ${(this.o.archivHoechstens ?? ARCHIV_HOECHSTENS).toLocaleString('de-DE')} Zeitpunkte)`);
+    }
+    this.archivCache = null;
+  }
+
+  private archivCache: { zeit: number; archiv: NonNullable<KryptoMusterStatus['archiv']> } | null = null;
+  private archivStand(): NonNullable<KryptoMusterStatus['archiv']> {
+    const jetzt = this.o.uhr.jetzt();
+    if (this.archivCache && jetzt - this.archivCache.zeit < 5 * 60_000) return this.archivCache.archiv;
+    const r = this.o.db.prepare('SELECT COUNT(*) AS n, COUNT(DISTINCT mint) AS t, MIN(zeit) AS von FROM muster_archiv').get() as { n: number; t: number; von: number | null };
+    const archiv = { beispiele: r.n, tokens: r.t, von: r.von != null ? new Date(r.von).toISOString() : null };
+    this.archivCache = { zeit: jetzt, archiv };
+    return archiv;
+  }
+
+  /** E241: Grundsignal-Beispiele des neuesten Laufs (auch wenn sein Modell nicht übernommen wurde) */
+  private letzterLauf(): KryptoMusterStatus['letzterLauf'] {
+    const z = this.o.db.prepare("SELECT version, info_json, aktiv FROM muster_einzel WHERE schluessel = 'basis' ORDER BY version DESC LIMIT 1").get() as
+      | { version: number; info_json: string; aktiv: number }
+      | undefined;
+    if (!z) return null;
+    const i = JSON.parse(z.info_json) as KryptoMusterModellInfo;
+    return { version: z.version, beispiele: Math.max(0, i.beispiele - i.test.beispiele), testBeispiele: i.test.beispiele, uebernommen: this.einzel.basis?.info.version === z.version };
   }
 
   /** Ticks der letzten 7 Tage stückweise (rowid) lesen, je Token sortiert; Metadaten aus tokens (+ Dev-Historie 24 h) */
@@ -677,6 +763,8 @@ export class MusterDienst {
         dauerMs: this.dauerMs,
       },
       daten: this.daten(),
+      archiv: this.archivStand(),
+      letzterLauf: this.letzterLauf(),
       bericht: this.bericht,
       modelle: this.modelleStatus(),
     };

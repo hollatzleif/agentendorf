@@ -269,6 +269,21 @@ const SPALTE = {
 } as const;
 const SPALTEN = 7 + KRYPTO_VERLAUF_SEK.length;
 
+/**
+ * E241: Kennung des Beispiel-Archivs – gespeicherte Schritte gelten nur, solange Merkmale, Label-Spalten und Ziele gleich sind
+ * (sonst passten alte x/y nicht mehr zum Code; der Dienst löscht dann das Archiv)
+ */
+export const ARCHIV_KENNUNG = [
+  MERKMAL_NAMEN.join(","),
+  SPALTEN,
+  KRYPTO_VERLAUF_SEK.join(","),
+  JSON.stringify([STANDARD_ZIEL, PUMP_ZIEL, ABSTURZ_ZIEL]),
+  FENSTER_MS,
+].join("|");
+
+/** E241: ein Zeitpunkt mit Merkmalen und allen Labels (so liegt er auch im Archiv) */
+export type MusterSchritt = Schritt;
+
 interface Schritt {
   mint: string;
   zeit: number;
@@ -492,6 +507,13 @@ export async function musterTrainieren(
     fortschritt?: (x: number) => void;
     /** E238: Trainings-Konsole – was das Training tut und WARUM (optional, ändert nichts am Ergebnis) */
     log?: TrainingsLog;
+    /**
+     * E241: Beispiel-Archiv – ältere Schritte (vor dem Tick-Fenster), höchstens `hoechstens`, die neuesten zuerst; so lernt jedes
+     * Training mit allem, was je aufgezeichnet wurde, auch wenn die Ticks nach 7 Tagen gelöscht sind
+     */
+    archiv?: (hoechstens: number) => MusterSchritt[] | Promise<MusterSchritt[]>;
+    /** E241: die aus den Ticks gerechneten Schritte eines Tokens (der Dienst legt die fertigen ins Archiv) */
+    archivieren?: (liste: MusterSchritt[]) => void | Promise<void>;
   },
 ): Promise<TrainingsErgebnis> {
   const ziel = o.ziel ?? STANDARD_ZIEL;
@@ -625,6 +647,7 @@ export async function musterTrainieren(
       await warte();
     }
     if (liste.length) jeToken.set(mint, liste);
+    if (liste.length && o.archivieren) await o.archivieren(liste);
     schritteGesamt += liste.length;
     melde((0.35 * tokenNr) / Math.max(1, d.ticks.size));
   }
@@ -652,6 +675,41 @@ export async function musterTrainieren(
       "Daten",
       `${tausend(schritteGesamt)} Zeitpunkte mit Merkmalen aus ${tausend(jeToken.size)} Tokens`,
     );
+  }
+  // E241: ältere Beispiele aus dem Archiv dazu (Zeitpunkte vor dem Tick-Fenster – die Ticks dazu sind schon gelöscht);
+  // zusammen höchstens MAX_BEISPIELE (Speicher des Kryptowerks), dann die neuesten
+  if (o.archiv) {
+    const platz = Math.max(0, MAX_BEISPIELE - schritteGesamt);
+    const alte = platz > 0 ? await o.archiv(platz) : [];
+    const ersteJe = new Map<string, number>();
+    for (const [mint, l] of jeToken) ersteJe.set(mint, l[0]!.zeit);
+    let dazu = 0;
+    const archivTokens = new Set<string>();
+    for (const s of alte) {
+      const erste = ersteJe.get(s.mint);
+      if (erste != null && s.zeit >= erste) continue; // liegt schon im Tick-Fenster
+      let l = jeToken.get(s.mint);
+      if (!l) jeToken.set(s.mint, (l = []));
+      l.push(s);
+      archivTokens.add(s.mint);
+      dazu++;
+    }
+    for (const mint of archivTokens) jeToken.get(mint)!.sort((a, b) => a.zeit - b.zeit);
+    schritteGesamt += dazu;
+    await warte();
+    log(
+      "info",
+      "Archiv",
+      platz > 0
+        ? `${tausend(dazu)} ältere Beispiele aus dem Archiv dazu (${tausend(archivTokens.size)} Tokens, vor dem 7-Tage-Fenster der Ticks) – zusammen ${tausend(schritteGesamt)} Zeitpunkte`
+        : `Archiv nicht gelesen – schon ${tausend(schritteGesamt)} Zeitpunkte aus den Ticks (Grenze ${tausend(MAX_BEISPIELE)})`,
+    );
+    if (alte.length >= platz && platz > 0)
+      log(
+        "warnung",
+        "Archiv",
+        `Grenze ${tausend(MAX_BEISPIELE)} Zeitpunkte erreicht (Speicher des Kryptowerks) – die ältesten Archiv-Beispiele bleiben diesmal draußen`,
+      );
   }
   abschnitt("Merkmale und Labels");
 
@@ -789,7 +847,7 @@ export async function musterTrainieren(
       else if (b.zeit >= trennZeit) testIdx.push(i);
     }
     await warte();
-    const altW = alt[def.schluessel];
+    let altW = alt[def.schluessel];
     const altName = altW?.version != null ? `v${altW.version}` : "das bisherige Modell";
     const altGueltig = !!altW && (altW.auc != null || altW.fehler != null);
     log(
@@ -900,6 +958,30 @@ export async function musterTrainieren(
     const yTest = test.map((b) => b.y[def.spalte]!);
     const tokens = test.map((b) => b.mint);
     const testTokens = new Set(tokens).size;
+    // E241: fairer Vergleich – das gültige Modell auf GENAU denselben Testdaten messen (sein alter Testwert stammt aus
+    // anderen, älteren Daten; so verlor ein neues Modell mit mehr Daten oft gegen eine Zahl aus einem leichteren Test)
+    const altModell = o.aktuelle?.[def.schluessel];
+    if (altW && altModell && test.length && altModell.merkmale.length === MERKMAL_NAMEN.length) {
+      const pAlt: number[] = [];
+      for (const b of test) {
+        const v = gbdtVorhersagen(altModell, b.x);
+        pAlt.push(def.asym ? Math.max(EXTREM_MIN, Math.min(EXTREM_MAX, v)) : v);
+        if ((pAlt.length & 4095) === 0) await warte();
+      }
+      const vorher = def.wert ? altW.fehler : altW.auc;
+      let jetzt: number;
+      if (!def.wert) jetzt = auc(pAlt, yTest);
+      else if (def.asym)
+        jetzt = Math.sqrt(pAlt.reduce((s, v, i) => s + asymVerlust(yTest[i]!, v), 0) / test.length);
+      else jetzt = pAlt.reduce((s, v, i) => s + Math.abs(v - yTest[i]!), 0) / test.length;
+      altW = def.wert ? { ...altW, fehler: jetzt } : { ...altW, auc: jetzt };
+      alt[def.schluessel] = altW;
+      log(
+        "info",
+        def.schluessel,
+        `${altName} auf denselben Testdaten: ${def.wert ? "Fehler" : "AUC"} ${zahl(jetzt, def.wert ? 1 : 2)} (sein eigener Test damals ${vorher == null ? "–" : zahl(vorher, def.wert ? 1 : 2)}) – das ist der Maßstab`,
+      );
+    }
     const gruende: string[] = [];
     if (test.length < MIN_TESTBEISPIELE)
       gruende.push(

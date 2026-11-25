@@ -704,12 +704,20 @@ function MusterTafel() {
                     {m.modell.test.praezision == null ? '–' : pz(m.modell.test.praezision)} vs. {pz(m.modell.test.basis)}
                   </b>
                 </div>
-                <div>
-                  <span>Beispiele (Lernen · Test)</span>
+                <div title="Mit so vielen Beispielen wurde das GÜLTIGE Modell trainiert – es bleibt, bis ein neues auf denselben Testdaten nicht schlechter ist">
+                  <span>Beispiele gültiges v{m.modell.version} (Lernen · Test)</span>
                   <b>
                     {m.modell.beispiele.toLocaleString('de-DE')} · {m.modell.test.beispiele.toLocaleString('de-DE')}
                   </b>
                 </div>
+                {m.letzterLauf && m.letzterLauf.version !== m.modell.version && (
+                  <div title="Das neueste Training – nimmt jedes Mal alle Beispiele (Ticks der letzten 7 Tage + Archiv)" data-testid="muster-letzter-lauf">
+                    <span>Neuestes Training v{m.letzterLauf.version}{m.letzterLauf.uebernommen ? '' : ' (nicht übernommen)'}</span>
+                    <b>
+                      {m.letzterLauf.beispiele.toLocaleString('de-DE')} · {m.letzterLauf.testBeispiele.toLocaleString('de-DE')}
+                    </b>
+                  </div>
+                )}
               </div>
               {m.modelle?.length ? <ModelleAnzeige modelle={m.modelle} /> : null}
               {m.modell.merkmale.length > 0 && (
@@ -746,7 +754,8 @@ function MusterTafel() {
             </p>
           )}
           <p className="leise" style={{ margin: 0, fontSize: '0.8rem' }}>
-            Daten: {m.daten.ticks.toLocaleString('de-DE')} Ticks · {m.daten.tokens.toLocaleString('de-DE')} Tokens · letztes Training {zeit(m.training.letzter)} · nächstes {zeit(m.training.naechster)}
+            Daten: {m.daten.ticks.toLocaleString('de-DE')} Ticks · {m.daten.tokens.toLocaleString('de-DE')} Tokens ·{' '}
+            {m.archiv ? <span data-testid="muster-archiv">Archiv {m.archiv.beispiele.toLocaleString('de-DE')} Beispiele ·{' '}</span> : null} letztes Training {zeit(m.training.letzter)} · nächstes {zeit(m.training.naechster)}
             {m.training.dauerMs != null ? ` · Dauer ${Math.round(m.training.dauerMs / 1000)} s` : ''}
           </p>
           {m.training.laeuft && (

@@ -631,15 +631,17 @@ describe("E236 musterTrainieren mit allen Modellen", () => {
     expect(e2.modelle.hoch1!.info.gruende.join()).toContain("schlechter als das aktive Modell");
     expect(e2.modelle.absturz!.info.aktiv).toBe(true);
     expect(e2.modelle.tief1!.info.aktiv).toBe(true);
-    // RL nimmt für Pump dann das übergebene bisherige Modell
+    // E241: liegt das bisherige Modell vor, zählt SEIN Wert auf denselben Testdaten – nicht die Zahl aus seinem alten Test
+    const zeilen: string[] = [];
     const e3 = await musterTrainieren(d, {
       jetzt,
       version: 9,
-      alt: { pump: { auc: 0.99 } },
+      alt: { pump: { auc: 0.99, version: 4 } },
       aktuelle: { pump: m.pump!.gbdt },
+      log: (z) => zeilen.push(`${z.bereich}: ${z.text}`),
     });
-    expect(e3.modelle.pump!.info.aktiv).toBe(false);
-    expect(e3.bericht).toContain("pump (bisheriges)");
+    expect(e3.modelle.pump!.info.aktiv).toBe(true);
+    expect(zeilen.join("\n")).toMatch(/pump: v4 auf denselben Testdaten: AUC [\d,]+ \(sein eigener Test damals 0,99\)/);
   }, 240_000);
 
   it("auf Rauschen ist nichts aktiv", async () => {

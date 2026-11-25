@@ -289,6 +289,10 @@ export interface KryptoMusterStatus {
   };
   training: { laeuft: boolean; /** in Prozent (0–100) */ fortschritt: number; letzter: string | null; naechster: string | null; fehler: string | null; dauerMs: number | null };
   daten: { ticks: number; tokens: number; von: string | null; bis: string | null };
+  /** E241: Beispiel-Archiv (Zeitpunkte mit Merkmalen + Labels, bleiben nach dem Löschen der Ticks) */
+  archiv?: { beispiele: number; tokens: number; von: string | null };
+  /** E241: Beispiele des neuesten Laufs (Grundsignal) – wächst mit jedem Training, auch wenn das gültige Modell bleibt */
+  letzterLauf?: { version: number; beispiele: number; testBeispiele: number; uebernommen: boolean } | null;
   /** Kurzbericht in Markdown (für den Hafenmeister) */
   bericht: string;
   /** E236: alle Modelle (basis entspricht `modell`) – das jeweils gültige je Schlüssel */
