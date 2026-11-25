@@ -4,7 +4,17 @@
 // EINZELN ersetzt, wenn musterTrainieren es „aktiv“ nennt; gültig ist je Schlüssel das neueste aktive Modell, dessen Merkmalsliste
 // zu MERKMAL_NAMEN passt (sonst veraltet → nicht geladen). Der RL-Agent wechselt, wenn nach dem Training mindestens ein
 // Wahrscheinlichkeits-Modell gültig ist. muster_modelle bleibt das Lauf-Protokoll (Bericht, basis-Info, RL). Fehler stehen im Status.
-import { KRYPTO_MUSTER_MODELLE, type KryptoMusterModellInfo, type KryptoMusterSchluessel, type KryptoMusterStatus } from '@dorf/shared';
+// E238: Trainings-Konsole – jeder Lauf schreibt Zeilen (Dienst + musterTrainieren: was und WARUM), live abrufbar, danach in
+// muster_modelle.konsole_json (höchstens KONSOLE_MAX Zeilen); fehlgeschlagene Läufe stehen mit `fehler` im Protokoll.
+import {
+  KRYPTO_MUSTER_MODELLE,
+  type KryptoKonsoleStufe,
+  type KryptoKonsoleZeile,
+  type KryptoMusterKonsole,
+  type KryptoMusterModellInfo,
+  type KryptoMusterSchluessel,
+  type KryptoMusterStatus,
+} from '@dorf/shared';
 import type { Uhr } from '../../uhr.js';
 import { KryptoFehler, type KDB } from '../motor.js';
 import { gbdtVorhersagen } from './gbdt.js';
@@ -20,6 +30,10 @@ const BEHALTEN = 20;
 /** E236: so viele Versionen je Schlüssel bleiben in muster_einzel (das gültige immer) */
 const BEHALTEN_JE_SCHLUESSEL = 10;
 /** E236: Schlüssel, deren Modelle Wahrscheinlichkeiten (0–1) liefern – mindestens eins muss gültig sein, damit der RL-Agent gilt */
+/** E238: höchstens so viele Konsolen-Zeilen je Lauf (die letzten KONSOLE_RESERVE nur für den Dienst) */
+export const KONSOLE_MAX = 2000;
+const KONSOLE_RESERVE = 50;
+const KONSOLE_ZEICHEN = 1000;
 const WAHRSCHEINLICHKEIT = new Set<KryptoMusterSchluessel>(KRYPTO_MUSTER_MODELLE.filter((m) => m.art === 'wahrscheinlichkeit').map((m) => m.schluessel));
 
 interface ModellZeile {
@@ -32,6 +46,10 @@ interface ModellZeile {
   bericht: string;
   aktiv: number;
   rl_aktiv: number;
+  konsole_json?: string | null;
+  dauer_ms?: number | null;
+  fehler?: string | null;
+  aktiv_geworden?: string | null;
 }
 interface EinzelZeile {
   schluessel: KryptoMusterSchluessel;
@@ -93,6 +111,8 @@ export class MusterDienst {
   private lauf: Promise<void> | null = null;
   private zeitgeber: ReturnType<typeof setInterval> | null = null;
   private datenCache: { zeit: number; daten: KryptoMusterStatus['daten'] } | null = null;
+  /** E238: Konsole des laufenden bzw. letzten Laufs */
+  private konsole: { version: number; erstellt: number; start: number; zeilen: KryptoKonsoleZeile[]; gekuerzt: boolean; aktivGeworden: string[] } | null = null;
 
   constructor(
     private o: {
@@ -128,7 +148,7 @@ export class MusterDienst {
       const gbdt = JSON.parse(z.gbdt_json) as GbdtModell;
       if (merkmaleAktuell(gbdt)) this.einzel[z.schluessel] = { gbdt, info };
     }
-    const neu = db.prepare('SELECT * FROM muster_modelle ORDER BY version DESC LIMIT 1').get() as ModellZeile | undefined;
+    const neu = db.prepare('SELECT * FROM muster_modelle WHERE fehler IS NULL ORDER BY version DESC LIMIT 1').get() as ModellZeile | undefined;
     if (neu) {
       this.bericht = neu.bericht;
       this.letzter = neu.erstellt;
@@ -177,7 +197,7 @@ export class MusterDienst {
   /** startet das Training, wenn es an der Zeit ist (true = gestartet) */
   faelligPruefen(): boolean {
     if (this.laeuft || this.o.uhr.jetzt() < this.naechster) return false;
-    this.trainingStarten();
+    this.trainingStarten('Zeitplan');
     return true;
   }
 
@@ -238,12 +258,12 @@ export class MusterDienst {
     if (rl !== undefined) this.rl = rl;
   }
 
-  trainingStarten() {
+  trainingStarten(anlass = 'auf Wunsch') {
     if (this.laeuft) throw new KryptoFehler(409, 'Das Training läuft schon – bitte warten.');
     this.laeuft = true;
     this.fortschritt = 0;
     this.fehler = null;
-    this.lauf = this.trainieren().finally(() => {
+    this.lauf = this.trainieren(anlass).finally(() => {
       this.laeuft = false;
     });
     return { ok: true as const };
@@ -254,21 +274,47 @@ export class MusterDienst {
     await this.lauf;
   }
 
-  private async trainieren() {
+  /** E238: eine Zeile in die Konsole des laufenden Laufs (Training-Zeilen nur bis KONSOLE_MAX − Reserve, dann „gekürzt“) */
+  private zeile(stufe: KryptoKonsoleStufe, bereich: string, text: string, o: { t?: number; vomTraining?: boolean } = {}) {
+    const k = this.konsole;
+    if (!k) return;
+    const t = o.t ?? Date.now() - k.start;
+    const grenze = o.vomTraining ? KONSOLE_MAX - KONSOLE_RESERVE : KONSOLE_MAX;
+    if (k.zeilen.length >= grenze) {
+      if (o.vomTraining && !k.gekuerzt) {
+        k.gekuerzt = true;
+        k.zeilen.push({ t, stufe: 'warnung', bereich: 'Dienst', text: `… gekürzt – mehr als ${grenze} Zeilen, weitere Zeilen des Trainings fehlen in der Konsole` });
+      }
+      return;
+    }
+    k.zeilen.push({ t: Math.max(0, Math.round(t)), stufe, bereich: String(bereich).slice(0, 40), text: String(text).slice(0, KONSOLE_ZEICHEN) });
+  }
+
+  private async trainieren(anlass: string) {
     const start = Date.now();
     const jetzt = this.o.uhr.jetzt();
+    const db = this.o.db;
+    let version = 0;
+    let gespeichert = false;
     try {
-      const daten = await this.datenLaden(jetzt);
-      this.fortschritt = 0.2;
-      const db = this.o.db;
       const hoechste = Math.max(
         (db.prepare('SELECT MAX(version) AS v FROM muster_modelle').get() as { v: number | null }).v ?? 0,
         (db.prepare('SELECT MAX(version) AS v FROM muster_einzel').get() as { v: number | null }).v ?? 0,
       );
-      const version = hoechste + 1;
+      version = hoechste + 1;
+      this.konsole = { version, erstellt: jetzt, start, zeilen: [], gekuerzt: false, aktivGeworden: [] };
+      this.zeile('info', 'Dienst', `Training v${version} gestartet (${anlass}) – Daten der letzten ${FENSTER / TAG} Tage`);
+      const gueltig = KRYPTO_MUSTER_MODELLE.filter((m) => this.einzel[m.schluessel]).map((m) => {
+        const i = this.einzel[m.schluessel]!.info;
+        return `${m.schluessel} v${i.version} (${i.test.auc != null ? `AUC ${i.test.auc.toFixed(2).replace('.', ',')}` : `Fehler ${(i.test.fehler ?? 0).toFixed(1).replace('.', ',')}`})`;
+      });
+      this.zeile('info', 'Dienst', gueltig.length ? `Maßstab – derzeit gültig: ${gueltig.join(', ')}; ein neues Modell ersetzt eins nur, wenn es nicht schlechter ist` : 'noch kein gültiges Modell – jedes neue, das den Test besteht, wird übernommen');
+      const daten = await this.datenLaden(jetzt);
+      this.fortschritt = 0.2;
       // E236: Maßstab je Schlüssel = das gültige Modell (AUC bzw. MAE); aktuelle = die gültigen GBDTs (für das RL-Training)
-      const alt: Partial<Record<KryptoMusterSchluessel, { auc?: number | null; fehler?: number | null }>> = {};
-      for (const [k, v] of Object.entries(this.einzel)) alt[k as KryptoMusterSchluessel] = { auc: v.info.test.auc, fehler: v.info.test.fehler };
+      const alt: Partial<Record<KryptoMusterSchluessel, { auc?: number | null; fehler?: number | null; version?: number | null }>> = {};
+      for (const [k, v] of Object.entries(this.einzel)) alt[k as KryptoMusterSchluessel] = { auc: v.info.test.auc, fehler: v.info.test.fehler, version: v.info.version };
+      const versatz = Date.now() - start;
       const erg = await (this.o.trainer ?? musterTrainieren)(daten, {
         jetzt,
         version,
@@ -281,18 +327,79 @@ export class MusterDienst {
           const anteil = x > 1 ? x / 100 : x;
           this.fortschritt = 0.2 + Math.max(0, Math.min(1, anteil)) * 0.8;
         },
+        log: (z) => this.zeile(z.stufe, z.bereich, z.text, { t: versatz + (Number.isFinite(z.t) ? z.t : 0), vomTraining: true }),
       });
       this.speichern(version, jetzt, erg);
+      gespeichert = true;
     } catch (e) {
       this.fehler = (e as Error).message || String(e);
       this.o.log?.(`Muster-Training: ${this.fehler}`);
+      this.zeile('warnung', 'Dienst', `Fehler: ${this.fehler}`);
+      this.zeile('entscheidung', 'Dienst', 'nichts übernommen – die bisherigen Modelle bleiben gültig');
     } finally {
       const ende = this.o.uhr.jetzt();
       this.letzter = ende;
       this.naechster = ende + this.abstandMs;
       this.dauerMs = Date.now() - start;
       this.fortschritt = this.fehler ? this.fortschritt : 1;
+      this.zeile('info', 'Dienst', `Lauf beendet nach ${(this.dauerMs / 1000).toFixed(1).replace('.', ',')} s – nächstes Training ${new Date(this.naechster).toISOString().slice(0, 16).replace('T', ' ')} UTC`);
+      if (version) this.konsoleSichern(version, jetzt, gespeichert);
     }
+  }
+
+  /** E238: Konsole (+ Dauer, Fehler, übernommene Modelle) in muster_modelle; ein fehlgeschlagener Lauf bekommt eine eigene Zeile */
+  private konsoleSichern(version: number, jetzt: number, gespeichert: boolean) {
+    const k = this.konsole;
+    const db = this.o.db;
+    try {
+      const json = JSON.stringify(k?.zeilen ?? []);
+      const geworden = JSON.stringify(k?.aktivGeworden ?? []);
+      const da = gespeichert && db.prepare('SELECT 1 FROM muster_modelle WHERE version = ?').get(version);
+      if (da) db.prepare('UPDATE muster_modelle SET konsole_json = ?, dauer_ms = ?, aktiv_geworden = ? WHERE version = ?').run(json, this.dauerMs, geworden, version);
+      else
+        db.prepare('INSERT OR REPLACE INTO muster_modelle (version, erstellt, bericht, aktiv, rl_aktiv, konsole_json, dauer_ms, fehler, aktiv_geworden) VALUES (?, ?, ?, 0, 0, ?, ?, ?, ?)').run(
+          version,
+          jetzt,
+          `Training fehlgeschlagen: ${this.fehler ?? 'unbekannt'}`,
+          json,
+          this.dauerMs,
+          this.fehler ?? 'unbekannt',
+          geworden,
+        );
+      // fehlgeschlagene Läufe räumen wie die übrigen (die letzten BEHALTEN)
+      db.prepare('DELETE FROM muster_modelle WHERE fehler IS NOT NULL AND version <= ?').run(version - BEHALTEN);
+    } catch (e) {
+      this.o.log?.(`Muster-Konsole nicht gespeichert: ${(e as Error).message}`);
+    }
+  }
+
+  /** E238: Konsole eines Laufs (ohne version: laufendes bzw. letztes Training), Zeilen ab Index `ab` zum Nachladen */
+  konsoleLesen(o: { version?: number; ab?: number } = {}): KryptoMusterKonsole {
+    const db = this.o.db;
+    const zeilen = db.prepare('SELECT version, erstellt, dauer_ms, fehler, aktiv_geworden FROM muster_modelle ORDER BY version DESC LIMIT ?').all(BEHALTEN) as Pick<ModellZeile, 'version' | 'erstellt' | 'dauer_ms' | 'fehler' | 'aktiv_geworden'>[];
+    const k = this.konsole;
+    const laeufe: KryptoMusterKonsole['laeufe'] = zeilen
+      .filter((z) => !(this.laeuft && k && z.version === k.version))
+      .map((z) => ({
+        version: z.version,
+        erstellt: new Date(z.erstellt).toISOString(),
+        dauerMs: z.dauer_ms ?? null,
+        fehler: z.fehler ?? null,
+        aktivGeworden: z.aktiv_geworden ? (JSON.parse(z.aktiv_geworden) as string[]) : [],
+      }));
+    if (this.laeuft && k) laeufe.unshift({ version: k.version, erstellt: new Date(k.erstellt).toISOString(), dauerMs: null, fehler: null, aktivGeworden: [], laeuft: true });
+    const version = o.version ?? (this.laeuft && k ? k.version : (laeufe[0]?.version ?? null));
+    let alle: KryptoKonsoleZeile[] = [];
+    if (version != null) {
+      if (k && k.version === version) alle = k.zeilen;
+      else {
+        const z = db.prepare('SELECT konsole_json FROM muster_modelle WHERE version = ?').get(version) as { konsole_json: string | null } | undefined;
+        if (!z) throw new KryptoFehler(404, `Training v${version} ist nicht (mehr) im Protokoll.`);
+        alle = z.konsole_json ? (JSON.parse(z.konsole_json) as KryptoKonsoleZeile[]) : [];
+      }
+    }
+    const ab = Math.max(0, Math.min(alle.length, Math.floor(o.ab ?? 0)));
+    return { laeufe, version, laeuft: this.laeuft && !!k && k.version === version, zeilen: alle.slice(ab), gesamt: alle.length };
   }
 
   private speichern(version: number, jetzt: number, erg: TrainingsErgebnis) {
@@ -308,14 +415,21 @@ export class MusterDienst {
     const neuLetzte = { ...this.letzteInfos };
     for (const m of KRYPTO_MUSTER_MODELLE) {
       const x = modelle[m.schluessel];
-      if (!x) continue;
+      const bisher = this.einzel[m.schluessel];
+      if (!x) {
+        if (bisher) this.zeile('entscheidung', m.schluessel, `behalten: v${bisher.info.version} (in diesem Lauf nicht trainiert)`);
+        continue;
+      }
       const aktiv = !!x.info.aktiv && merkmaleAktuell(x.gbdt);
       einfuegen.run(m.schluessel, version, jetzt, JSON.stringify(x.gbdt), JSON.stringify(x.info), aktiv ? 1 : 0);
       neuLetzte[m.schluessel] = x.info;
       if (aktiv) {
         neuEinzel[m.schluessel] = x;
         uebernommen.push(m.schluessel);
-      }
+        this.zeile('entscheidung', m.schluessel, `übernommen: v${version}${bisher ? ` ersetzt v${bisher.info.version}` : ' (vorher keins gültig)'}`);
+      } else if (x.info.aktiv)
+        this.zeile('warnung', m.schluessel, `nicht übernommen: Merkmalsliste passt nicht zum Code (veraltet)${bisher ? ` – v${bisher.info.version} bleibt` : ''}`);
+      else this.zeile('entscheidung', m.schluessel, bisher ? `behalten: v${bisher.info.version} (das neue ist nicht aktiv)` : 'keins gültig – das neue ist nicht aktiv');
     }
     const basisNeu = uebernommen.includes('basis');
     const rlNeu = !!erg.rl && Object.keys(neuEinzel).some((k) => WAHRSCHEINLICHKEIT.has(k as KryptoMusterSchluessel));
@@ -357,6 +471,17 @@ export class MusterDienst {
       'DELETE FROM muster_einzel WHERE schluessel = ? AND version != ? AND version NOT IN (SELECT version FROM muster_einzel WHERE schluessel = ? ORDER BY version DESC LIMIT ?)',
     );
     for (const m of KRYPTO_MUSTER_MODELLE) raeumen.run(m.schluessel, this.einzel[m.schluessel]?.info.version ?? -1, m.schluessel, BEHALTEN_JE_SCHLUESSEL);
+    this.zeile(
+      rlNeu ? 'entscheidung' : 'warnung',
+      'RL',
+      erg.rl
+        ? rlNeu
+          ? `RL-Agent v${version} übernommen – mindestens ein Wahrscheinlichkeits-Modell ist gültig (${Object.keys(neuEinzel).filter((k) => WAHRSCHEINLICHKEIT.has(k as KryptoMusterSchluessel)).join(', ')})`
+          : `RL-Agent v${version} nicht übernommen – kein Wahrscheinlichkeits-Modell gültig, er hätte nichts zu sehen${this.rl ? `; v${this.rl.version} bleibt` : ''}`
+        : 'kein RL-Agent in diesem Lauf (zu wenig Daten)',
+    );
+    this.zeile('info', 'Dienst', `gespeichert: Lauf v${version} in muster_modelle, ${Object.keys(modelle).length} Modelle in muster_einzel; aktiv geworden: ${uebernommen.length ? uebernommen.join(', ') : 'keins'}`);
+    if (this.konsole) this.konsole.aktivGeworden = [...uebernommen, ...(rlNeu ? ['rl'] : [])];
     this.o.log?.(`Muster-Training v${version}: ${uebernommen.length ? `übernommen: ${uebernommen.join(', ')}` : 'nichts übernommen'}${rlNeu ? ' + RL' : ''}`);
   }
 
@@ -404,7 +529,14 @@ export class MusterDienst {
       meta.set(z.mint, m);
     }
     // Ticks ohne Token-Eintrag (Alter unbekannt) werden nicht verwendet – nichts erfinden
-    for (const m of [...ticks.keys()]) if (!meta.has(m)) ticks.delete(m);
+    let ohne = 0;
+    for (const m of [...ticks.keys()])
+      if (!meta.has(m)) {
+        ticks.delete(m);
+        ohne++;
+      }
+    this.zeile('info', 'Daten', `${gelesen.toLocaleString('de-DE')} Ticks aus strom_ticks gelesen (stückweise, ${(this.o.stueckGroesse ?? 20_000).toLocaleString('de-DE')} je Stück), ${(ticks.size + ohne).toLocaleString('de-DE')} Tokens`);
+    if (ohne) this.zeile('warnung', 'Daten', `${ohne.toLocaleString('de-DE')} Tokens ohne Eintrag in tokens übersprungen – Alter unbekannt, nichts erfinden`);
     this.datenCache = { zeit: this.o.uhr.jetzt(), daten: { ticks: gelesen, tokens: meta.size, von: min != null ? new Date(min).toISOString() : null, bis: max != null ? new Date(max).toISOString() : null } };
     return { ticks, meta };
   }

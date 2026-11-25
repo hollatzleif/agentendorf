@@ -1,10 +1,10 @@
-import { KRYPTO_MODULE, KRYPTO_STANDARD, type KryptoBot, type KryptoMusterModellInfo, type KryptoMusterStatus, type KryptoTerminal, type KryptoUebersicht } from '@dorf/shared';
+import { KRYPTO_MODULE, KRYPTO_STANDARD, type KryptoBot, type KryptoKonsoleZeile, type KryptoMusterKonsole, type KryptoMusterModellInfo, type KryptoMusterStatus, type KryptoTerminal, type KryptoUebersicht } from '@dorf/shared';
 
 /** E227: nachgebaute Daten für den Hafen – fest, ohne Zufall */
 export const BOT_ID = '11111111-2222-4333-8444-555555555555';
 export const BOT2_ID = '66666666-7777-4888-8999-000000000000';
 
-function bot(id: string, name: string, avatar: string, faktor: number, art: 'regeln' | 'prompt' = 'regeln'): KryptoBot {
+function bot(id: string, name: string, avatar: string, faktor: number, art: 'regeln' | 'prompt' | 'rl' = 'regeln'): KryptoBot {
   const jetzt = Date.now();
   const kurve: [number, number][] = Array.from({ length: 24 }, (_, i) => [jetzt - (24 - i) * 3_600_000, 10 * (1 + ((faktor - 1) * i) / 23 + Math.sin(i / 2) * 0.03)]);
   const kapital = 10 * faktor;
@@ -169,4 +169,39 @@ export function terminal(): KryptoTerminal {
       },
     ],
   };
+}
+
+/** E238: Flotte mit Bots der Agenten (Hafenmeister, Muster-Meister) */
+export const HM_ID = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+export const RL_ID = 'bbbbbbbb-cccc-4ddd-8eee-ffffffffffff';
+export function uebersichtMitAgenten(): KryptoUebersicht {
+  const u = uebersicht();
+  return { ...u, bots: [...u.bots, bot(HM_ID, 'HM Momentum 3', '⚓', 1.05), bot(RL_ID, 'HM Muster-RL', '🧠', 0.97, 'rl')], agentenBots: [{ id: HM_ID, von: 'hafenmeister' }, { id: RL_ID, von: 'muster-meister' }] };
+}
+
+/** E238: Trainings-Konsole – v5 fertig (mit Entscheidungen/Warnungen), v4 älter, v6 läuft (live nachladen) */
+export function konsole(version: number | null, ab: number, laeuftZeilen = 3): KryptoMusterKonsole {
+  const jetzt = Date.now();
+  const laeufe: KryptoMusterKonsole['laeufe'] = [
+    { version: 5, erstellt: new Date(jetzt - 2 * 3_600_000).toISOString(), dauerMs: 61_000, fehler: null, aktivGeworden: ['basis', 'pump', 'rl'] },
+    { version: 4, erstellt: new Date(jetzt - 7 * 3_600_000).toISOString(), dauerMs: 58_000, fehler: null, aktivGeworden: [] },
+  ];
+  const v5: KryptoKonsoleZeile[] = [
+    { t: 0, stufe: 'info', bereich: 'Dienst', text: 'Training v5 gestartet (Zeitplan) – Daten der letzten 7 Tage' },
+    { t: 1200, stufe: 'info', bereich: 'Daten', text: '1.204.000 Ticks gelesen, 2026-11-22 08:00:00 UTC bis 2026-11-25 08:00:00 UTC (72,0 h)' },
+    { t: 1300, stufe: 'warnung', bereich: 'Daten', text: '12 Tokens übersprungen – weniger als 3 Ticks, daraus lassen sich keine Merkmale rechnen' },
+    { t: 1400, stufe: 'info', bereich: 'Trennung', text: 'Lernen bis 2026-11-24 18:00:00 UTC, Test ab 2026-11-24 18:00:00 UTC' },
+    { t: 9800, stufe: 'gut', bereich: 'basis', text: 'Test: Test-AUC 0,61 (Raten 0,50), positiv 17,0 %' },
+    { t: 9810, stufe: 'entscheidung', bereich: 'basis', text: 'AKTIV – ersetzt v3 (AUC 0,59 → 0,61), weil Test-AUC 0,61 ≥ 0,55, Untergrenze 0,57 > 0,50' },
+    { t: 14_500, stufe: 'entscheidung', bereich: 'absturz', text: 'nicht aktiv, weil Test-AUC 0,52 < 0,55' },
+    { t: 30_000, stufe: 'info', bereich: 'RL', text: '24.11. 19:02:15 UTC 7xKX…gAsU KAUFEN · p 0,72 · 🚀 0,31 · 💥 0,04 · v1m +3,2 % · warum: kaufen 0,124 > warten 0,031' },
+    { t: 61_000, stufe: 'info', bereich: 'Dienst', text: 'Lauf beendet nach 61,0 s' },
+  ];
+  const v4: KryptoKonsoleZeile[] = [{ t: 0, stufe: 'entscheidung', bereich: 'Dienst', text: 'kein Modell trainiert, weil zu wenig Daten (312 < 500 Lernbeispiele)' }];
+  if (version === 6 || (version === null && laeuftZeilen > 0)) {
+    const alle: KryptoKonsoleZeile[] = Array.from({ length: laeuftZeilen }, (_, i) => ({ t: i * 700, stufe: 'info', bereich: 'Daten', text: `Live-Zeile ${i + 1}` }));
+    return { laeufe: [{ version: 6, erstellt: new Date(jetzt).toISOString(), dauerMs: null, fehler: null, aktivGeworden: [], laeuft: true }, ...laeufe], version: 6, laeuft: true, zeilen: alle.slice(ab), gesamt: alle.length };
+  }
+  const alle = version === 4 ? v4 : v5;
+  return { laeufe, version: version ?? 5, laeuft: false, zeilen: alle.slice(ab), gesamt: alle.length };
 }

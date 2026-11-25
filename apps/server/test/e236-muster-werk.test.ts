@@ -149,7 +149,7 @@ describe('Muster-Dienst: Modelle je Schlüssel (E236)', () => {
     expect(g.pump!.version).toBe(2);
     expect(g.tief5!.version).toBe(1);
     expect(uebergaben[0]).toEqual({ alt: {}, aktuelle: [], altAuc: null });
-    expect(uebergaben[1]).toEqual({ alt: { basis: { auc: 0.61, fehler: null }, tief5: { auc: null, fehler: 6 } }, aktuelle: ['basis', 'tief5'], altAuc: 0.61 });
+    expect(uebergaben[1]).toEqual({ alt: { basis: { auc: 0.61, fehler: null, version: 1 }, tief5: { auc: null, fehler: 6, version: 1 } }, aktuelle: ['basis', 'tief5'], altAuc: 0.61 }); // E238: mit version (Konsole: „ersetzt v1“)
     const st = m.status();
     expect(st.modell).toMatchObject({ version: 1, aktiv: true });
     expect(st.modelle!.map((x) => [x.schluessel, x.version, x.aktiv])).toEqual([

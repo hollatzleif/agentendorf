@@ -131,7 +131,7 @@ describe('hafen_muster und RL-Bots für Agenten (E235)', () => {
     expect(werkzeugprofil({ werkzeuge: ['hafen'], fremdinhalte: false }).dorf).toContain('hafen_muster');
     expect(Object.keys(WERKZEUG_DEFINITIONEN)).toContain('hafen_muster');
     const def = WERKZEUG_DEFINITIONEN.hafen_muster as { input_schema: { properties: Record<string, unknown> } };
-    expect(Object.keys(def.input_schema.properties)).toEqual(['training']);
+    expect(Object.keys(def.input_schema.properties)).toEqual(['training', 'konsole']); // E238: konsole dazu
   });
 
   it('Status als Text, Training starten, „läuft schon“ freundlich; ohne Hafen-Werkzeug verweigert', async () => {

@@ -70,6 +70,12 @@ export function kryptoServer(werk: Kryptowerk, geheimnis: string, backtests?: Ba
     if (!muster) throw new KryptoFehler(503, 'Muster-Modell nicht verfügbar');
     return muster.trainingStarten();
   });
+  // E238: Trainings-Konsole – ohne version das laufende bzw. letzte Training; ab = ab dieser Zeile (live nachladen)
+  app.get('/muster/konsole', async (req) => {
+    if (!muster) throw new KryptoFehler(503, 'Muster-Modell nicht verfügbar');
+    const q = z.object({ version: z.coerce.number().int().positive().optional(), ab: z.coerce.number().int().min(0).optional() }).parse(req.query);
+    return muster.konsoleLesen(q);
+  });
   app.post('/notaus', async (req) => {
     werk.notausAusloesen(z.object({ grund: z.string().max(100).optional() }).parse(req.body ?? {}).grund ?? 'Not-Aus');
     return werk.uebersicht();

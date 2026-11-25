@@ -3,7 +3,8 @@
 import crypto from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { KRYPTO_KERZEN_TAKTE, type KryptoTerminal, type KryptoUebersicht } from '@dorf/shared';
+import { KRYPTO_KERZEN_TAKTE, kryptoBotVon, type KryptoBotVon, type KryptoTerminal, type KryptoUebersicht } from '@dorf/shared';
+import { agentenBots } from './agenten/werkzeuge-hafen.js';
 import type { SystemAufrufe } from './agenten/system.js';
 import { tagesbeginnLinz } from './aufwachen.js';
 import type { DB } from './db.js';
@@ -121,9 +122,13 @@ export function hafenRouten(app: FastifyInstance, h: Hafen, a?: { db: DB; uhr: U
     throw new DorfFehler(503, 'Bestätigung nicht verfügbar');
   };
   // E237: Übersicht und Terminal bekommen den EZB-Kurs dazu (App zeigt neben SOL den Euro-Wert)
+  // E238: welche Bots Agenten gehören (dorf_stand hafen_agentenbots) – die App zeigt sie in einem eigenen Abschnitt
+  const agentenIds = () => new Set(a ? agentenBots(a.db) : []);
   app.get('/api/krypto', async () => {
     const [u, usdJeEur] = await Promise.all([h.uebersicht(), h.usdJeEur()]);
-    return { ...u, usdJeEur };
+    const ids = agentenIds();
+    const agenten = (u.bots ?? []).filter((b) => ids.has(b.id)).map((b) => ({ id: b.id, von: kryptoBotVon(b.einstellung) }));
+    return { ...u, usdJeEur, agentenBots: agenten };
   });
   app.post('/api/krypto/bots', { bodyLimit: 64 * 1024 }, async (req) => h.anfrage('POST', '/bots', z.object({ einstellung: z.unknown() }).parse(req.body)));
   app.put('/api/krypto/bots/:id', { bodyLimit: 64 * 1024 }, async (req) => h.anfrage('PUT', `/bots/${Id.parse(req.params).id}`, z.object({ einstellung: z.unknown() }).parse(req.body)));
@@ -133,7 +138,8 @@ export function hafenRouten(app: FastifyInstance, h: Hafen, a?: { db: DB; uhr: U
     const { takt } = z.object({ takt: z.enum(KRYPTO_KERZEN_TAKTE).default('15m') }).parse(req.query);
     const id = Id.parse(req.params).id;
     const [t, usdJeEur] = await Promise.all([h.anfrage<KryptoTerminal>('GET', `/bots/${id}/terminal?takt=${takt}`), h.usdJeEur()]);
-    return { ...t, usdJeEur };
+    const von: KryptoBotVon | undefined = t.bot && agentenIds().has(t.bot.id) ? kryptoBotVon(t.bot.einstellung) : undefined;
+    return { ...t, usdJeEur, ...(von ? { von } : {}) };
   });
   app.get('/api/krypto/bots/:id/protokoll', async (req) => {
     const q = z.object({ vor: z.coerce.number().int().positive().optional(), anzahl: z.coerce.number().int().min(1).max(500).optional() }).parse(req.query);
@@ -159,6 +165,12 @@ export function hafenRouten(app: FastifyInstance, h: Hafen, a?: { db: DB; uhr: U
   // E235: Muster-Modell – Status lesen, Training anstoßen (409, wenn schon eines läuft)
   app.get('/api/krypto/muster', async () => h.anfrage('GET', '/muster'));
   app.post('/api/krypto/muster/training', async () => h.anfrage('POST', '/muster/training', {}));
+  // E238: Trainings-Konsole (Sitzung wie alle /api/krypto/*) – version/ab geprüft durchgereicht
+  app.get('/api/krypto/muster/konsole', async (req) => {
+    const q = z.object({ version: z.coerce.number().int().positive().optional(), ab: z.coerce.number().int().min(0).optional() }).parse(req.query);
+    const p = new URLSearchParams(Object.entries(q).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)]));
+    return h.anfrage('GET', `/muster/konsole${p.size ? `?${p}` : ''}`);
+  });
 }
 
 // ---- Bewertung für Prompt-Bots (vom Kryptowerk aufgerufen, interner Port) --------------------------------

@@ -171,6 +171,7 @@ const VORLAGE_FRUEHERE_FASSUNGEN: Record<string, string[]> = {
   'Hafen/aktionen/muster-meister.md': [
     '5bc10bdc2be0f0f5467b8f6e86efe51ab5edf5235826e50c120527b440797d0f', // E235 (nur Grundsignal)
     '72e809280b0067ecea0530111313727ed8e768a835e6836e1562fefd4da21929', // E236 (ohne Kursvorhersage/Alarm)
+    '974a889d98a76e55a11e5aca35acee0304783df58772f9c38407916b0a594c97', // E237 (ohne Trainings-Konsole)
   ],
 };
 

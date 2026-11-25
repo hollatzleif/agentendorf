@@ -394,3 +394,112 @@ test('E235: Terminal ohne aktives Modell sagt es', async ({ page }) => {
   await expect(page.getByRole('region', { name: 'Muster-Rat' })).toContainText('kein aktives Modell');
   await expect(page.getByRole('region', { name: 'PnL' })).toBeVisible();
 });
+
+test('E238: Trainings-Konsole – live nachladen mit ab=, Filter Entscheidungen, Bereich, Laufauswahl, Kopieren', async ({ page }, info) => {
+  const { konsole } = await import('./hafen-daten');
+  const konsolenAnfragen: string[] = [];
+  let auto = 0;
+  await page.route('**/api/krypto**', async (r) => {
+    const url = new URL(r.request().url());
+    if (url.pathname === '/api/krypto') return r.fulfill({ json: uebersicht() });
+    if (url.pathname === '/api/krypto/muster') return r.fulfill({ json: muster(true) });
+    if (url.pathname === '/api/krypto/muster/konsole') {
+      konsolenAnfragen.push(url.search);
+      const v = url.searchParams.get('version');
+      const ab = Number(url.searchParams.get('ab') ?? 0);
+      if (v) return r.fulfill({ json: konsole(Number(v), ab) });
+      auto++;
+      return r.fulfill({ json: konsole(null, ab, Math.min(3 + 2 * (auto - 1), 7)) });
+    }
+    return r.fulfill({ json: { ok: true } });
+  });
+  await anmelden(page);
+  await page.goto('/gebaeude/Hafen');
+  const tafel = page.getByTestId('muster-tafel');
+  await tafel.getByTestId('muster-konsole-knopf').click();
+  const k = page.getByTestId('muster-konsole');
+  await expect(k).toBeVisible();
+  // laufendes Training: erst 3 Zeilen, dann live mit ab= nachgeladen
+  await expect(k.getByTestId('konsole-kopf')).toContainText('v6');
+  await expect(k.getByTestId('konsole-kopf')).toContainText('läuft – lädt live nach');
+  await expect(k.getByTestId('konsole-zeilen')).toContainText('Live-Zeile 1');
+  await expect(k.getByTestId('konsole-zeilen')).toContainText('Live-Zeile 7', { timeout: 10_000 });
+  expect(konsolenAnfragen.some((s) => /ab=3/.test(s))).toBe(true);
+  await expect(k.getByTestId('konsole-zeilen').locator('.mk-zeile')).toHaveCount(7);
+  await expect(k.getByTestId('konsole-zeilen').locator('.mk-zeit').first()).toHaveText('+00:00.0');
+  // älteren Lauf wählen
+  await k.getByTestId('konsole-lauf').selectOption('5');
+  await expect(k.getByTestId('konsole-kopf')).toContainText('aktiv geworden: Grundsignal, 🚀 Pump, rl');
+  const zeilen = k.getByTestId('konsole-zeilen');
+  await expect(zeilen).toContainText('AKTIV – ersetzt v3 (AUC 0,59 → 0,61)');
+  await expect(zeilen.locator('.mk-zeile')).toHaveCount(9);
+  await expect(zeilen.locator('.mk-zeile.entscheidung .mk-text').first()).toHaveCSS('font-weight', '700');
+  await expect(zeilen).toContainText('warum: kaufen 0,124 > warten 0,031');
+  // Filter: nur Entscheidungen
+  await k.getByTestId('konsole-filter-entscheidung').click();
+  await expect(zeilen.locator('.mk-zeile')).toHaveCount(2);
+  await expect(zeilen.locator('.mk-zeile.entscheidung')).toHaveCount(2);
+  await expect(zeilen).toContainText('nicht aktiv, weil Test-AUC 0,52 < 0,55');
+  // Warnungen
+  await k.getByTestId('konsole-filter-warnung').click();
+  await expect(zeilen.locator('.mk-zeile')).toHaveCount(1);
+  await expect(zeilen).toContainText('12 Tokens übersprungen');
+  // Bereich
+  await k.getByTestId('konsole-filter-alle').click();
+  await k.getByTestId('konsole-bereich').selectOption('basis');
+  await expect(zeilen.locator('.mk-zeile')).toHaveCount(2);
+  await k.getByTestId('konsole-bereich').selectOption('');
+  await k.getByTestId('konsole-kopieren').click();
+  await expect(k.getByRole('status')).toContainText(/Zeilen kopiert|Kopieren nicht möglich/);
+  // Lauf v4: nur eine Entscheidung
+  await k.getByTestId('konsole-lauf').selectOption('4');
+  await expect(zeilen).toContainText('kein Modell trainiert, weil zu wenig Daten');
+  await expect(zeilen.locator('.mk-zeile')).toHaveCount(1);
+  expect(konsolenAnfragen).toContain('?version=4');
+  if (info.project.name === 'handy') {
+    const breit = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(breit).toBeLessThanOrEqual(1);
+  }
+  await page.screenshot({ path: info.outputPath('muster-konsole.png'), fullPage: true });
+});
+
+test('E238: Bots der Agenten – eigener Abschnitt mit Abzeichen, ⚓ in der Legende, Schalter für den Vergleich, Abzeichen im Terminal', async ({ page }, info) => {
+  const { uebersichtMitAgenten, HM_ID } = await import('./hafen-daten');
+  let mitAgenten = true;
+  await page.route('**/api/krypto**', async (r) => {
+    const url = new URL(r.request().url());
+    if (url.pathname === '/api/krypto') return r.fulfill({ json: mitAgenten ? uebersichtMitAgenten() : { ...uebersicht(), agentenBots: [] } });
+    if (url.pathname === '/api/krypto/muster') return r.fulfill({ json: muster() });
+    return r.fulfill({ json: { ok: true } });
+  });
+  await page.route('**/api/krypto/bots/*/terminal**', (r) => r.fulfill({ json: { ...terminal(), von: 'hafenmeister' } }));
+  await anmelden(page);
+  await page.goto('/gebaeude/Hafen');
+  const eigene = page.getByTestId('eigene-bots');
+  const agenten = page.getByTestId('agenten-bots');
+  await expect(agenten.getByRole('heading')).toHaveText('⚓ Bots der Agenten (2)');
+  await expect(eigene.getByRole('article')).toHaveCount(2);
+  await expect(eigene.getByTestId('bot-von')).toHaveCount(0);
+  await expect(agenten.getByRole('article', { name: 'Bot HM Momentum 3' }).getByTestId('bot-von')).toHaveText('⚓ Hafenmeister');
+  await expect(agenten.getByRole('article', { name: 'Bot HM Muster-RL' }).getByTestId('bot-von')).toHaveText('🧠 Muster-Meister');
+  const legende = page.getByRole('list', { name: 'Legende' });
+  await expect(legende.locator('li')).toHaveCount(4);
+  await expect(legende.getByTestId('legende-agent')).toHaveCount(2);
+  // Schalter: Agenten-Bots aus dem Vergleich – bleibt nach dem Neuladen
+  await page.getByTestId('agenten-im-vergleich').uncheck();
+  await expect(legende.locator('li')).toHaveCount(2);
+  await page.reload();
+  await expect(page.getByTestId('agenten-im-vergleich')).not.toBeChecked();
+  await expect(page.getByRole('list', { name: 'Legende' }).locator('li')).toHaveCount(2);
+  await page.getByTestId('agenten-im-vergleich').check();
+  await expect(page.getByRole('list', { name: 'Legende' }).locator('li')).toHaveCount(4);
+  await page.screenshot({ path: info.outputPath('agenten-bots.png'), fullPage: true });
+  // Terminal eines Agenten-Bots zeigt das Abzeichen
+  await page.goto(`/hafen/${HM_ID}`);
+  await expect(page.getByTestId('bot-von')).toHaveText('⚓ Hafenmeister');
+  // ohne Agenten-Bots: Hinweis
+  mitAgenten = false;
+  await page.goto('/gebaeude/Hafen');
+  await expect(page.getByTestId('agenten-bots')).toContainText('Der Hafenmeister legt seine Bots täglich um 06:05 an.');
+  await expect(page.getByTestId('agenten-bots').getByRole('heading')).toHaveText('⚓ Bots der Agenten (0)');
+});

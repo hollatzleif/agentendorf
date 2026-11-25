@@ -2,7 +2,7 @@
 // X-Feed, PnL und das Protokoll. Daten alle 2 s vom Dorf (das sie vom Kryptowerk holt). Alles Paper Trading.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { KRYPTO_KERZEN_MS, KRYPTO_KERZEN_TAKTE, KRYPTO_VERLAUF_SEK, type KryptoKerze, type KryptoTrade, type KryptoKerzenTakt, type KryptoModul, type KryptoTerminal, type KryptoTokenKerzen } from '@dorf/shared';
+import { KRYPTO_BOT_VON, KRYPTO_KERZEN_MS, KRYPTO_KERZEN_TAKTE, KRYPTO_VERLAUF_SEK, type KryptoKerze, type KryptoTrade, type KryptoKerzenTakt, type KryptoModul, type KryptoTerminal, type KryptoTokenKerzen } from '@dorf/shared';
 import { api } from '../api';
 import { linkKlick } from '../router';
 import { Eur, EuroKurs, KURS_QUELLE, eurJeSolAus, eurText, eurZusatz, kursText, useEurJeSol } from './euro';
@@ -101,6 +101,11 @@ function Terminal({ t, jetzt, takt, taktWaehlen }: { t: KryptoTerminal; jetzt: n
             <div className="kw-name">
               {e.name}
               <span className={`kw-pille${b.modus === 'live' ? ' live' : ''}`}>{b.modus === 'paper' ? 'PAPER' : 'LIVE'}</span>
+              {t.von && (
+                <span className="kw-pille kw-von" data-testid="bot-von" title="Von einem Agenten angelegt">
+                  {KRYPTO_BOT_VON[t.von]}
+                </span>
+              )}
             </div>
             <div className="kw-zeile">
               <span>{uhrzeit(jetzt, true)}</span>

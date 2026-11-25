@@ -229,3 +229,58 @@
   opacity: 0.72;
   white-space: nowrap;
 }
+
+/* E238: Trainings-Konsole des Muster-Modells – dunkles Terminal, Monospace, farbig nach Stufe; bricht um, scrollt (Handy) */
+.muster-konsole {
+  --mk-grund: #0b0f17;
+  --mk-rand: #1f2937;
+  --mk-text: #d7dce8;
+  --mk-leise: #7d869c;
+  --mk-gut: #4ade80;
+  --mk-warnung: #fbbf24;
+  --mk-fehler: #f87171;
+  --mk-entscheidung: #c4b5fd;
+  --mk-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+.mk-leiste { display: flex; flex-wrap: wrap; gap: 0.45rem 0.8rem; align-items: center; font-size: 0.82rem; }
+.mk-leiste select { max-width: 100%; }
+.mk-leiste label { min-width: 0; max-width: 100%; }
+.mk-filter { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.mk-filter button.an { outline: 2px solid var(--mk-entscheidung); outline-offset: 1px; font-weight: 800; }
+.mk-kopf { margin: 0; font-size: 0.8rem; overflow-wrap: anywhere; }
+.mk-feld {
+  background: var(--mk-grund);
+  color: var(--mk-text);
+  border: 1px solid var(--mk-rand);
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+  font-family: var(--mk-mono);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  max-height: min(62vh, 34rem);
+  min-height: 8rem;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  font-variant-numeric: tabular-nums;
+}
+.mk-zeile { display: grid; grid-template-columns: 5.6em 7.5em minmax(0, 1fr); gap: 0.6em; padding: 0.05rem 0; }
+.mk-zeit, .mk-bereich { color: var(--mk-leise); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mk-text { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
+.mk-zeile.gut .mk-text { color: var(--mk-gut); }
+.mk-zeile.warnung .mk-text { color: var(--mk-warnung); }
+.mk-zeile.fehler .mk-text { color: var(--mk-fehler); }
+.mk-zeile.entscheidung .mk-text { color: var(--mk-entscheidung); font-weight: 700; }
+.mk-zeile.entscheidung .mk-bereich { color: var(--mk-entscheidung); }
+@media (max-width: 560px) {
+  .mk-zeile { grid-template-columns: 5.2em minmax(0, 1fr); }
+  .mk-bereich { grid-column: 2; grid-row: 1; }
+  .mk-text { grid-column: 1 / -1; padding-left: 0.6em; }
+}
+
+/* E238: Abzeichen für Bots der Agenten (Flotte + Terminal) */
+.hafen-von { display: inline-block; margin-left: 0.4rem; font-size: 0.72rem; font-weight: 700; padding: 0.05rem 0.45rem; border-radius: 999px; border: 1px solid color-mix(in srgb, #8b5cf6 55%, transparent); background: color-mix(in srgb, #8b5cf6 12%, transparent); white-space: nowrap; vertical-align: middle; }
+.hafen-schalter { display: inline-flex; align-items: center; gap: 0.3rem; }
+.kw-pille.kw-von { border-color: var(--kw-leise); color: var(--kw-text); }

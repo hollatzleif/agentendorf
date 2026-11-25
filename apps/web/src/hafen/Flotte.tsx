@@ -2,9 +2,10 @@
 // Not-Aus. Jeder neue Bot läuft im Paper Trading.
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { KRYPTO_MUSTER_MODELLE, KRYPTO_PAPER_MINDESTENS_STUNDEN, KRYPTO_RL_STANDARD, KRYPTO_STANDARD, type KryptoBacktest, type KryptoBot, type KryptoEinstellung, type KryptoMusterModellInfo, type KryptoMusterStatus, type KryptoUebersicht } from '@dorf/shared';
+import { KRYPTO_BOT_VON, KRYPTO_MUSTER_MODELLE, type KryptoBotVon, KRYPTO_PAPER_MINDESTENS_STUNDEN, KRYPTO_RL_STANDARD, KRYPTO_STANDARD, type KryptoBacktest, type KryptoBot, type KryptoEinstellung, type KryptoMusterModellInfo, type KryptoMusterStatus, type KryptoUebersicht } from '@dorf/shared';
 import { ApiFehler, api } from '../api';
 import { bibliothekUrl, linkKlick } from '../router';
+import { MusterKonsole } from './MusterKonsole';
 import { Eur, EuroKurs, KURS_QUELLE, eurJeSolAus, kursText, solEurText, useEurJeSol } from './euro';
 import { prozent, sol, solVz, uhrzeit } from './format';
 import './hafen.css';
@@ -12,8 +13,18 @@ import './hafen.css';
 /** feste Farbreihenfolge je Bot (nach Anlage), nie zyklisch nach Rang */
 const FARBEN = ['#7c3aed', '#0ea5e9', '#f59e0b', '#10b981', '#ef4444', '#64748b', '#d946ef', '#84cc16'];
 
+/** E238: Agenten-Bots im Vergleich zeigen (Standard an, je Gerät) */
+const AGENTEN_IM_VERGLEICH = 'dorf.hafen.agentenImVergleich';
+
 export function HafenFlotte() {
   const qc = useQueryClient();
+  const [agentenImVergleich, setAgentenImVergleich] = useState(() => {
+    try {
+      return localStorage.getItem(AGENTEN_IM_VERGLEICH) !== 'aus';
+    } catch {
+      return true;
+    }
+  });
   const q = useQuery({ queryKey: ['krypto'], queryFn: () => api<KryptoUebersicht>('/api/krypto'), refetchInterval: 5000 });
   const [form, setForm] = useState<{ id?: string; e: KryptoEinstellung } | null>(null);
   const [dialog, setDialog] = useState<{ art: 'scharf' | 'auszahlen' | 'backtest'; bot: KryptoBot } | null>(null);
@@ -28,6 +39,25 @@ export function HafenFlotte() {
   if (!u) return <p className="leise">Lade den Hafen …</p>;
   const farbe = (id: string) => FARBEN[u.bots.findIndex((b) => b.id === id) % FARBEN.length]!;
   const eurJeSol = eurJeSolAus(u.solUsd, u.usdJeEur);
+  // E238: Bots der Agenten (Hafenmeister, Muster-Meister, andere) getrennt von Leifs eigenen
+  const vonJe = new Map((u.agentenBots ?? []).map((x) => [x.id, x.von] as const));
+  const eigene = u.bots.filter((b) => !vonJe.has(b.id));
+  const agenten = u.bots.filter((b) => vonJe.has(b.id));
+  const imVergleich = agentenImVergleich ? u.bots : eigene;
+  const karte = (b: KryptoBot) => (
+    <BotKarte
+      key={b.id}
+      b={b}
+      farbe={farbe(b.id)}
+      notaus={u.notaus}
+      bearbeiten={() => setForm({ id: b.id, e: structuredClone(b.einstellung) })}
+      tun={(f) => tun.mutate(f)}
+      liveMoeglich={!!u.liveMoeglich}
+      auszahlung={u.auszahlung ?? null}
+      oeffnen={(art) => setDialog({ art, bot: b })}
+      {...(vonJe.has(b.id) ? { von: vonJe.get(b.id)! } : {})}
+    />
+  );
 
   return (
     <EuroKurs.Provider value={eurJeSol}>
@@ -101,32 +131,50 @@ export function HafenFlotte() {
         {dialog?.art === 'auszahlen' && <AuszahlenDialog bot={dialog.bot} an={u.auszahlung ?? ''} fertig={() => (setDialog(null), void neu())} />}
         {dialog?.art === 'backtest' && <BacktestPanel bot={dialog.bot} schliessen={() => setDialog(null)} />}
 
-        {u.bots.length > 0 && <Vergleich bots={u.bots} farbe={farbe} />}
+        {imVergleich.length > 0 && <Vergleich bots={imVergleich} farbe={farbe} agenten={vonJe} />}
+        {agenten.length > 0 && (
+          <label className="leise hafen-schalter" style={{ fontSize: '0.85rem' }}>
+            <input
+              type="checkbox"
+              checked={agentenImVergleich}
+              onChange={(e) => {
+                setAgentenImVergleich(e.target.checked);
+                try {
+                  localStorage.setItem(AGENTEN_IM_VERGLEICH, e.target.checked ? 'an' : 'aus');
+                } catch {
+                  /* privat: nur für diese Sitzung */
+                }
+              }}
+              data-testid="agenten-im-vergleich"
+            />{' '}
+            Agenten-Bots im Vergleich zeigen
+          </label>
+        )}
 
         {u.verbunden && <MusterTafel />}
 
-        <div className="hafen-bots">
-          {u.bots.map((b) => (
-            <BotKarte
-              key={b.id}
-              b={b}
-              farbe={farbe(b.id)}
-              notaus={u.notaus}
-              bearbeiten={() => setForm({ id: b.id, e: structuredClone(b.einstellung) })}
-              tun={(f) => tun.mutate(f)}
-              liveMoeglich={!!u.liveMoeglich}
-              auszahlung={u.auszahlung ?? null}
-              oeffnen={(art) => setDialog({ art, bot: b })}
-            />
-          ))}
-          {!u.bots.length && u.verbunden && <p className="leise">Noch keine Bots. „+ Neuer Bot“ legt einen mit vorsichtigen Standardwerten an.</p>}
-        </div>
+        <section aria-label="Deine Bots" data-testid="eigene-bots" style={{ display: 'grid', gap: '0.5rem' }}>
+          <h3 style={{ margin: 0 }}>Deine Bots</h3>
+          <div className="hafen-bots">
+            {eigene.map(karte)}
+            {!eigene.length && u.verbunden && <p className="leise">Noch keine eigenen Bots. „+ Neuer Bot“ legt einen mit vorsichtigen Standardwerten an.</p>}
+          </div>
+        </section>
+        {u.verbunden && (
+          <section aria-label="Bots der Agenten" data-testid="agenten-bots" style={{ display: 'grid', gap: '0.5rem' }}>
+            <h3 style={{ margin: 0 }}>⚓ Bots der Agenten ({agenten.length})</h3>
+            <div className="hafen-bots">
+              {agenten.map(karte)}
+              {!agenten.length && <p className="leise">Der Hafenmeister legt seine Bots täglich um 06:05 an.</p>}
+            </div>
+          </section>
+        )}
       </div>
     </EuroKurs.Provider>
   );
 }
 
-function BotKarte({ b, farbe, notaus, bearbeiten, tun, liveMoeglich, auszahlung, oeffnen }: { b: KryptoBot; farbe: string; notaus: boolean; bearbeiten: () => void; tun: (f: () => Promise<unknown>) => void; liveMoeglich: boolean; auszahlung: string | null; oeffnen: (art: 'scharf' | 'auszahlen' | 'backtest') => void }) {
+function BotKarte({ b, farbe, notaus, bearbeiten, tun, liveMoeglich, auszahlung, oeffnen, von }: { b: KryptoBot; farbe: string; notaus: boolean; bearbeiten: () => void; tun: (f: () => Promise<unknown>) => void; liveMoeglich: boolean; auszahlung: string | null; oeffnen: (art: 'scharf' | 'auszahlen' | 'backtest') => void; von?: KryptoBotVon }) {
   const k = b.kennzahlen;
   const e = b.einstellung;
   const live = b.modus === 'live';
@@ -138,6 +186,11 @@ function BotKarte({ b, farbe, notaus, bearbeiten, tun, liveMoeglich, auszahlung,
         </span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <strong>{e.name}</strong>
+          {von && (
+            <span className="hafen-von" data-testid="bot-von" title="Von einem Agenten angelegt">
+              {KRYPTO_BOT_VON[von]}
+            </span>
+          )}
           <div className="leise" style={{ fontSize: '0.8rem' }}>
             {b.status === 'laeuft' ? '🟢 läuft' : b.status === 'pausiert' ? '⏸ pausiert' : '🛑 gestoppt'} · {live ? <b className="hafen-live">LIVE · echtes Geld</b> : 'Paper'} · {e.art === 'prompt' ? 'Prompt' : e.art === 'rl' ? '🧠 RL' : 'Regeln'}
           </div>
@@ -259,7 +312,7 @@ function BotKarte({ b, farbe, notaus, bearbeiten, tun, liveMoeglich, auszahlung,
 }
 
 /** Vergleich: Kapital aller Bots relativ zum Startkapital (Index 100 = Start), eine Achse */
-function Vergleich({ bots, farbe }: { bots: KryptoBot[]; farbe: (id: string) => string }) {
+function Vergleich({ bots, farbe, agenten }: { bots: KryptoBot[]; farbe: (id: string) => string; agenten?: Map<string, KryptoBotVon> }) {
   const eurJeSol = useEurJeSol();
   const B = 720;
   const H = 220;
@@ -300,7 +353,12 @@ function Vergleich({ bots, farbe }: { bots: KryptoBot[]; farbe: (id: string) => 
         {bots.map((b) => (
           <li key={b.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
             <span style={{ width: '0.8rem', height: '0.8rem', borderRadius: '50%', background: farbe(b.id) }} />
-            {b.einstellung.avatar} {b.einstellung.name}{' '}
+            {b.einstellung.avatar} {b.einstellung.name}
+            {agenten?.has(b.id) && (
+              <small title={`Agenten-Bot (${KRYPTO_BOT_VON[agenten.get(b.id)!]})`} aria-label="Agenten-Bot" data-testid="legende-agent">
+                ⚓
+              </small>
+            )}{' '}
             <b className={b.kennzahlen.gewinnSol >= 0 ? 'plus' : 'minus'} title={solEurText(b.kennzahlen.gewinnSol, eurJeSol, { vorzeichen: true })}>
               {prozent(b.kennzahlen.gewinnProzent)}
             </b>
@@ -542,6 +600,7 @@ function MusterTafel() {
     retry: false,
   });
   const [hinweis, setHinweis] = useState<string | null>(null);
+  const [konsole, setKonsole] = useState(false);
   const trainieren = useMutation({
     mutationFn: () => api('/api/krypto/muster/training', { methode: 'POST' }),
     onSuccess: () => {
@@ -561,10 +620,16 @@ function MusterTafel() {
     <section className="karte innen hafen-muster" aria-label="Muster-Modell" data-testid="muster-tafel">
       <div className="hafen-kopf">
         <h3 style={{ margin: 0 }}>🧠 Muster-Modell</h3>
-        <button type="button" className="klein" disabled={!m || m.training.laeuft || trainieren.isPending} onClick={() => trainieren.mutate()}>
-          {m?.training.laeuft ? 'Trainiert …' : 'Jetzt trainieren'}
-        </button>
+        <span className="hafen-knoepfe">
+          <button type="button" className="klein" aria-expanded={konsole} onClick={() => setKonsole((x) => !x)} data-testid="muster-konsole-knopf" title="Nachvollziehen, was das Training gemacht hat und warum">
+            🖥️ Konsole
+          </button>
+          <button type="button" className="klein" disabled={!m || m.training.laeuft || trainieren.isPending} onClick={() => trainieren.mutate()}>
+            {m?.training.laeuft ? 'Trainiert …' : 'Jetzt trainieren'}
+          </button>
+        </span>
       </div>
+      {konsole && <MusterKonsole schliessen={() => setKonsole(false)} />}
       {q.error && !m && <p className="leise">Muster-Modell nicht erreichbar: {q.error instanceof ApiFehler ? q.error.message : String(q.error)}</p>}
       {!m && !q.error && <p className="leise">Lade …</p>}
       {hinweis && (

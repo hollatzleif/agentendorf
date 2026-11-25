@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { KRYPTO_MUSTER_MODELLE, KRYPTO_RL_STANDARD, KRYPTO_STANDARD, type KryptoBacktest, type KryptoBot, type KryptoEinstellung, type KryptoKennzahlen, type KryptoMusterModellInfo, type KryptoMusterStatus, type KryptoTerminal, type KryptoUebersicht } from '@dorf/shared';
+import { KRYPTO_MUSTER_MODELLE, KRYPTO_RL_STANDARD, KRYPTO_STANDARD, type KryptoBacktest, type KryptoBot, type KryptoEinstellung, type KryptoKennzahlen, type KryptoMusterKonsole, type KryptoMusterModellInfo, type KryptoMusterStatus, type KryptoTerminal, type KryptoUebersicht } from '@dorf/shared';
 import type { DB } from '../db.js';
 import { DorfFehler } from '../fehler.js';
 import type { Hafen } from '../krypto-dorf.js';
@@ -112,8 +112,16 @@ export const HAFEN_DEFINITIONEN: Record<HafenWerkzeug, Omit<WerkzeugDefinition, 
   hafen_muster: {
     name: 'hafen_muster',
     description:
-      'Das Muster-Modell im Hafen (E235/E236): mehrere Modelle aus denselben Echtzeit-Tick-Merkmalen – Grundsignal (erst +Ziel, bevor −Stop), 🚀 Pump- und 💥 Absturz-Erkenner (2 min), Ausblick Hoch/Tief in 1 und 5 min (%), Früh-Modelle für Tokens ≤ 90 s, 📈 Kursvorhersage (E237: Kursänderung in % nach 5 s … 5 min, verpasster Absturz zählt 3× – bewusst vorsichtig; daraus der 🚀/💥-Alarm); jedes eigens ehrlich getestet und nur aktiv, wenn klar besser als Raten bzw. als der Median. Dazu ein RL-Agent, der mit allen aktiven Signalen im Zeitraffer über die Aufzeichnungen übt. Ohne Eingabe: Stand als Text – je Modell aktiv/nicht aktiv mit Gründen, Test-AUC (0,5 = Raten) bzw. Fehler vs. Median (Kursvorhersage: vs. Konstante, Richtung, Alarm-Treffer), Präzision vs. Basisrate, wichtigste Merkmale, Zeitraffer, Datenlage, letztes/nächstes Training, Bericht. Mit {"training": true}: startet sofort ein Training (dauert Minuten; läuft schon eines, passiert nichts). Nur lesen bzw. Training anstoßen.',
-    input_schema: { type: 'object', properties: { training: { type: 'boolean', description: 'true = jetzt ein Training starten' } }, required: [], additionalProperties: false },
+      'Das Muster-Modell im Hafen (E235/E236): mehrere Modelle aus denselben Echtzeit-Tick-Merkmalen – Grundsignal (erst +Ziel, bevor −Stop), 🚀 Pump- und 💥 Absturz-Erkenner (2 min), Ausblick Hoch/Tief in 1 und 5 min (%), Früh-Modelle für Tokens ≤ 90 s, 📈 Kursvorhersage (E237: Kursänderung in % nach 5 s … 5 min, verpasster Absturz zählt 3× – bewusst vorsichtig; daraus der 🚀/💥-Alarm); jedes eigens ehrlich getestet und nur aktiv, wenn klar besser als Raten bzw. als der Median. Dazu ein RL-Agent, der mit allen aktiven Signalen im Zeitraffer über die Aufzeichnungen übt. Ohne Eingabe: Stand als Text – je Modell aktiv/nicht aktiv mit Gründen, Test-AUC (0,5 = Raten) bzw. Fehler vs. Median (Kursvorhersage: vs. Konstante, Richtung, Alarm-Treffer), Präzision vs. Basisrate, wichtigste Merkmale, Zeitraffer, Datenlage, letztes/nächstes Training, Bericht. Mit {"training": true}: startet sofort ein Training (dauert Minuten; läuft schon eines, passiert nichts). Mit {"konsole": true} (E238): die letzten ~80 Zeilen der Trainings-Konsole des letzten Laufs – was das Training gemacht hat und WARUM: Daten, Trennzeit, je Modell Test und Entscheidung („aktiv, weil …“, „nicht aktiv, weil …“, „ersetzt v3 …“, „behält v3 …“), RL mit Beispiel-Trades und Q-Werten. Nur lesen bzw. Training anstoßen.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        training: { type: 'boolean', description: 'true = jetzt ein Training starten' },
+        konsole: { type: 'boolean', description: 'true = die letzten Zeilen der Trainings-Konsole (warum Modelle aktiv wurden oder nicht)' },
+      },
+      required: [],
+      additionalProperties: false,
+    },
   },
   hafen_notaus: {
     name: 'hafen_notaus',
@@ -223,6 +231,26 @@ function modelleText(modelle: KryptoMusterModellInfo[]) {
 }
 
 /** E235: Stand des Muster-Modells als lesbarer Text (für Hafenmeister/Muster-Meister) */
+/** E238: so viele Konsolen-Zeilen bekommt ein Agent (die letzten des Laufs) */
+export const HAFEN_KONSOLE_ZEILEN = 80;
+
+/** E238: Trainings-Konsole als Text – Kopf mit Lauf, dann die letzten Zeilen (Entscheidungen markiert) */
+export function konsoleText(k: KryptoMusterKonsole, anzahl = HAFEN_KONSOLE_ZEILEN): string {
+  if (k.version == null) return 'Noch kein Training gelaufen – keine Konsole.';
+  const lauf = k.laeufe.find((l) => l.version === k.version);
+  const kopf = `Trainings-Konsole v${k.version}${lauf ? ` (${lauf.erstellt.slice(0, 16).replace('T', ' ')} UTC${lauf.dauerMs != null ? `, ${Math.round(lauf.dauerMs / 1000)} s` : ''})` : ''}${k.laeuft ? ' – läuft noch' : ''}${lauf?.fehler ? ` – FEHLGESCHLAGEN: ${lauf.fehler}` : ''}${lauf && !k.laeuft ? ` · aktiv geworden: ${lauf.aktivGeworden.length ? lauf.aktivGeworden.join(', ') : 'keins'}` : ''}`;
+  if (!k.zeilen.length) return `${kopf}
+(keine Zeilen – Lauf vor E238)`;
+  const zeilen = k.zeilen.slice(-anzahl);
+  const zeit = (t: number) => `+${Math.floor(t / 60_000)}:${String(Math.floor((t % 60_000) / 1000)).padStart(2, '0')}`;
+  const marke = { info: ' ', gut: '+', warnung: '!', entscheidung: '»' } as const;
+  return [
+    kopf,
+    ...(k.gesamt > zeilen.length ? [`(die letzten ${zeilen.length} von ${k.gesamt} Zeilen)`] : []),
+    ...zeilen.map((z) => `${zeit(z.t)} ${marke[z.stufe] ?? ' '} [${z.bereich}] ${z.text}`),
+  ].join('\n');
+}
+
 export function musterText(m: KryptoMusterStatus) {
   const t = m.training;
   const zeilen = [
@@ -432,7 +460,12 @@ export async function hafenAufrufen(name: HafenWerkzeug, eingabe: unknown, u: Ha
       return { ok: true, text };
     }
     case 'hafen_muster': {
-      const e = z.object({ training: z.boolean().optional() }).parse(eingabe ?? {});
+      const e = z.object({ training: z.boolean().optional(), konsole: z.boolean().optional() }).parse(eingabe ?? {});
+      if (e.konsole && !e.training) {
+        const k = await h.anfrage<KryptoMusterKonsole>('GET', '/muster/konsole');
+        u.log(name, eingabe, k.version == null ? 'keine Konsole' : `Konsole v${k.version} (${k.gesamt} Zeilen)`, true, undefined, 'gelesen');
+        return { ok: true, text: konsoleText(k) };
+      }
       if (e.training) {
         try {
           await h.anfrage('POST', '/muster/training', {});

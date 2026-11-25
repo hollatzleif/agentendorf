@@ -17,6 +17,8 @@ import {
   KRYPTO_MUSTER_MODELLE,
   KRYPTO_RL_STANDARD,
   KRYPTO_VERLAUF_SEK,
+  type KryptoKonsoleStufe,
+  type KryptoKonsoleZeile,
   type KryptoMusterModellInfo,
   type KryptoMusterSchluessel,
   type KryptoMusterStatus,
@@ -42,7 +44,15 @@ import {
   merkmale,
   rendite,
 } from "./merkmale.js";
-import { rlTrainieren, rlZeitraffer, type RlEpisode } from "./rl.js";
+import {
+  RL_ALPHA,
+  RL_GAMMA,
+  rlTrainieren,
+  rlZeitraffer,
+  type RlEntscheidung,
+  type RlEpisode,
+  type RlTradeBeispiel,
+} from "./rl.js";
 import {
   VERLAUF_SCHLUESSEL,
   signaleAusMerkmalen,
@@ -80,6 +90,11 @@ export interface TrainingsErgebnis {
     >
   >;
 }
+
+/** E238: eine Zeile der Trainings-Konsole (t = ms seit Trainingsstart) */
+export type TrainingsLog = (z: KryptoKonsoleZeile) => void;
+/** E238: so viele Beispiel-Trades aus dem Zeitraffer erklärt die Konsole */
+export const KONSOLE_BEISPIEL_TRADES = 15;
 
 export const MIN_LERNBEISPIELE = 500;
 export const MIN_TESTBEISPIELE = 200;
@@ -277,6 +292,62 @@ interface ModellDef {
 
 const zahl = (x: number, stellen = 2) => x.toFixed(stellen).replace(".", ",");
 const prozent = (x: number) => `${zahl(x * 100, 1)} %`;
+const tausend = (n: number) => n.toLocaleString("de-DE");
+const vz = (x: number, stellen = 1) =>
+  `${x >= 0 ? "+" : "−"}${zahl(Math.abs(x), stellen)}`;
+const zeitText = (ms: number) =>
+  `${new Date(ms).toISOString().slice(0, 19).replace("T", " ")} UTC`;
+const zeitKurz = (ms: number) => {
+  const d = new Date(ms).toISOString();
+  return `${d.slice(8, 10)}.${d.slice(5, 7)}. ${d.slice(11, 19)} UTC`;
+};
+const dauerText = (ms: number) =>
+  ms < 60_000 ? `${Math.round(ms / 1000)} s` : `${zahl(ms / 60_000, ms % 60_000 ? 1 : 0)} min`;
+const mintKurz = (m: string) =>
+  m.length > 10 ? `${m.slice(0, 4)}…${m.slice(-4)}` : m;
+const wText = (x: number | null | undefined) =>
+  x == null || !Number.isFinite(x) ? "–" : zahl(x);
+const pzText = (x: number | null | undefined) =>
+  x == null || !Number.isFinite(x) ? "–" : `${vz(x)} %`;
+
+/** größte Tiefe der Bäume eines GBDT */
+function baumTiefe(m: GbdtModell): number {
+  const tiefe = (k: GbdtModell["baeume"][number] | undefined): number =>
+    !k || k.w !== undefined || (!k.l && !k.r) ? 0 : 1 + Math.max(tiefe(k.l), tiefe(k.r));
+  return m.baeume.reduce((t, b) => Math.max(t, tiefe(b)), 0);
+}
+
+/** E238: Lage, wie der RL-Agent sie sah (p, 🚀, 💥, v1m, Plus, Haltezeit) */
+function lageText(e: RlEntscheidung): string {
+  const l = e.lage;
+  const teile = [
+    `p ${wText(l.p)}`,
+    `🚀 ${wText(l.pump)}`,
+    `💥 ${wText(l.absturz)}`,
+    `v1m ${pzText(l.v1m)}`,
+  ];
+  if (l.alarm) teile.push(`Alarm ${l.alarm === "absturz" ? "💥" : "🚀"}`);
+  if (l.haelt)
+    teile.push(`Plus ${pzText(l.plusProzent)}`, `${Math.round(l.haltSek)} s gehalten`);
+  return teile.join(" · ");
+}
+/** E238: warum diese Handlung – Q-Werte der erlaubten Handlungen (beste zuerst), Sicherung oder Regel */
+function warumText(e: RlEntscheidung): string {
+  if (e.grund === "sicherung") return `Sicherung: ${e.sicherung}`;
+  if (e.grund === "regel" || !e.q)
+    return "Lage nie geübt → Regel ohne Q-Werte";
+  return e.q
+    .map(
+      (x, i) =>
+        `${i ? (e.q![i - 1]!.wert > x.wert ? " > " : " = ") : ""}${x.handlung} ${zahl(x.wert, 3)}`,
+    )
+    .join("");
+}
+/** gleichmäßig verteilt höchstens n Elemente */
+function verteilt<T>(liste: T[], n: number): T[] {
+  if (liste.length <= n) return liste;
+  return Array.from({ length: n }, (_, i) => liste[Math.floor((i * liste.length) / n)]!);
+}
 
 function modellDefs(ziel: Ziel): ModellDef[] {
   const name = (k: KryptoMusterSchluessel) =>
@@ -352,17 +423,53 @@ export async function musterTrainieren(
     alt?: Partial<
       Record<
         KryptoMusterSchluessel,
-        { auc?: number | null; fehler?: number | null }
+        { auc?: number | null; fehler?: number | null; version?: number | null }
       >
     >;
     /** E236: die derzeit gültigen (aktiven) Modelle – das RL-Training nimmt sie für Schlüssel ohne neues aktives Modell */
     aktuelle?: MusterModelle;
     abgeben?: () => Promise<void>;
     fortschritt?: (x: number) => void;
+    /** E238: Trainings-Konsole – was das Training tut und WARUM (optional, ändert nichts am Ergebnis) */
+    log?: TrainingsLog;
   },
 ): Promise<TrainingsErgebnis> {
   const ziel = o.ziel ?? STANDARD_ZIEL;
-  const warte = takt(o.abgeben);
+  const t0 = Date.now();
+  const log = (stufe: KryptoKonsoleStufe, bereich: string, text: string) => {
+    if (o.log) o.log({ t: Date.now() - t0, stufe, bereich, text });
+  };
+  // Abgaben zählen (Konsole) – gleiche Abgabe wie bisher
+  let abgaben = 0;
+  const abgebenRoh = o.abgeben;
+  const abgeben = abgebenRoh
+    ? async () => {
+        abgaben++;
+        await abgebenRoh();
+      }
+    : undefined;
+  const laufzeit: [string, number][] = [];
+  let abschnittStart = t0;
+  const abschnitt = (name: string) => {
+    const j = Date.now();
+    laufzeit.push([name, j - abschnittStart]);
+    abschnittStart = j;
+  };
+  const laufzeitLoggen = () => {
+    if (!o.log) return;
+    const gesamt = Date.now() - t0;
+    log(
+      "info",
+      "Laufzeit",
+      `Abschnitte: ${laufzeit.map(([n, ms]) => `${n} ${tausend(ms)} ms`).join(" · ")}`,
+    );
+    log(
+      "info",
+      "Laufzeit",
+      `gesamt ${tausend(gesamt)} ms · ${tausend(abgaben)}× Rechenzeit abgegeben (HTTP, Takt und Echtzeit-Kurse laufen dazwischen weiter)`,
+    );
+  };
+  const warte = takt(abgeben);
   const melde = (x: number) => o.fortschritt?.(Math.max(0, Math.min(1, x)));
   const trainiert = new Date(o.jetzt).toISOString();
   const alt = { ...(o.alt ?? {}) };
@@ -380,6 +487,29 @@ export async function musterTrainieren(
   }
   const schrittMs =
     SCHRITT_MS * Math.max(1, Math.ceil(schaetzung / MAX_BEISPIELE));
+  log(
+    "info",
+    "Daten",
+    `Lese ${tausend(d.ticks.size)} Tokens mit aufgezeichneten Ticks; Merkmale aus den letzten ${FENSTER_MS / 1000} s je Zeitpunkt (${MERKMAL_NAMEN.length} Merkmale)`,
+  );
+  if (schrittMs > SCHRITT_MS)
+    log(
+      "warnung",
+      "Daten",
+      `ausgedünnt: ≈ ${tausend(Math.round(schaetzung))} Zeitpunkte wären mehr als ${tausend(MAX_BEISPIELE)} → nur alle ${schrittMs / 1000} s (junge Tokens ≤ 90 s weiter alle 5 s, sonst hätten die Früh-Modelle zu wenig)`,
+    );
+  else
+    log(
+      "info",
+      "Daten",
+      `Zeitpunkte alle ${SCHRITT_MS / 1000} s (≈ ${tausend(Math.round(schaetzung))}, Grenze ${tausend(MAX_BEISPIELE)} – nicht ausgedünnt)`,
+    );
+  let tickSumme = 0;
+  let zuWenigTicks = 0;
+  let ohneMeta = 0;
+  let vonZeit = Infinity;
+  let bisZeit = -Infinity;
+  let schritteGesamt = 0;
 
   // 1. Schritte je Token (Merkmale + alle Labels) – einmal für alle Modelle
   const jeToken = new Map<string, Schritt[]>();
@@ -387,7 +517,14 @@ export async function musterTrainieren(
   for (const [mint, roh] of d.ticks) {
     tokenNr++;
     const ticks = roh.filter((t) => t.zeit <= o.jetzt);
-    if (ticks.length < 3) continue;
+    tickSumme += ticks.length;
+    if (ticks.length < 3) {
+      zuWenigTicks++;
+      continue;
+    }
+    if (!d.meta.has(mint)) ohneMeta++;
+    vonZeit = Math.min(vonZeit, ticks[0]!.zeit);
+    bisZeit = Math.max(bisZeit, ticks[ticks.length - 1]!.zeit);
     const meta = d.meta.get(mint) ?? { mint, erstellt: ticks[0]!.zeit };
     const liste: Schritt[] = [];
     const ende = ticks[ticks.length - 1]!.zeit;
@@ -428,8 +565,35 @@ export async function musterTrainieren(
       await warte();
     }
     if (liste.length) jeToken.set(mint, liste);
+    schritteGesamt += liste.length;
     melde((0.35 * tokenNr) / Math.max(1, d.ticks.size));
   }
+
+  if (o.log) {
+    log(
+      "info",
+      "Daten",
+      `${tausend(tickSumme)} Ticks gelesen${Number.isFinite(vonZeit) ? `, ${zeitText(vonZeit)} bis ${zeitText(bisZeit)} (${zahl((bisZeit - vonZeit) / 3_600_000, 1)} h)` : ""}`,
+    );
+    if (zuWenigTicks)
+      log(
+        "warnung",
+        "Daten",
+        `${tausend(zuWenigTicks)} Tokens übersprungen – weniger als 3 Ticks, daraus lassen sich keine Merkmale rechnen`,
+      );
+    if (ohneMeta)
+      log(
+        "warnung",
+        "Daten",
+        `${tausend(ohneMeta)} Tokens ohne Metadaten – Alter ab dem ersten Tick geschätzt, Dev-Historie fehlt`,
+      );
+    log(
+      "info",
+      "Daten",
+      `${tausend(schritteGesamt)} Zeitpunkte mit Merkmalen aus ${tausend(jeToken.size)} Tokens`,
+    );
+  }
+  abschnitt("Merkmale und Labels");
 
   // 2. Beispiele (mit mindestens einem Label), zeitlich sortiert; Trennzeit wie E235 aus den Grundsignal-Beispielen
   const beispiele: Schritt[] = [];
@@ -454,8 +618,57 @@ export async function musterTrainieren(
   const basisLern = mitBasis.filter(
     (b) => b.zeit < trennZeit - ziel.horizontMs,
   ).length;
+  const defs = modellDefs(ziel);
+  if (o.log) {
+    const jeSpalte = new Array<number>(SPALTEN).fill(0);
+    for (const b of beispiele)
+      for (let k = 0; k < SPALTEN; k++) if (!Number.isNaN(b.y[k]!)) jeSpalte[k]!++;
+    log(
+      "info",
+      "Daten",
+      `${tausend(beispiele.length)} Beispiele mit mindestens einem Label (Horizont ≥ 1 min von der Aufzeichnung abgedeckt – sonst lernte es „kurz vor Schluss steigt es“)`,
+    );
+    log(
+      "info",
+      "Daten",
+      `Labels je Spalte: ${defs
+        .filter((x) => !x.frueh)
+        .map((x) => `${x.schluessel} ${tausend(jeSpalte[x.spalte]!)}`)
+        .join(" · ")}`,
+    );
+    if (Number.isFinite(trennZeit)) {
+      const testBasis = mitBasis.filter((b) => b.zeit >= trennZeit);
+      log(
+        "info",
+        "Trennung",
+        `Lernen bis ${zeitText(trennZeit)}, Test ab ${zeitText(trennZeit)} – die neuesten 20 % der Grundsignal-Beispiele sieht kein Modell beim Lernen`,
+      );
+      log(
+        "info",
+        "Trennung",
+        `Lücke je Horizont: Lernbeispiele, deren Label in die Testzeit schauen könnte, fallen weg (Grundsignal ${dauerText(ziel.horizontMs)}, Pump/Absturz ${dauerText(PUMP_ZIEL.horizontMs)}, Hoch/Tief 1/5 min, Kurs ${KRYPTO_VERLAUF_SEK.map((x) => dauerText(x * 1000)).join("/")})`,
+      );
+      log(
+        "info",
+        "Trennung",
+        `Grundsignal: ${tausend(basisLern)} Lernbeispiele, ${tausend(testBasis.length)} Testbeispiele aus ${tausend(new Set(testBasis.map((b) => b.mint)).size)} Tokens`,
+      );
+    }
+  }
 
   if (basisLern < MIN_LERNBEISPIELE) {
+    log(
+      "warnung",
+      "Daten",
+      `zu wenig Daten: ${tausend(basisLern)} Grundsignal-Lernbeispiele, braucht ≥ ${tausend(MIN_LERNBEISPIELE)}`,
+    );
+    log(
+      "entscheidung",
+      "Dienst",
+      `kein Modell trainiert, weil zu wenig Daten (${tausend(basisLern)} < ${tausend(MIN_LERNBEISPIELE)} Lernbeispiele) – die bisherigen Modelle bleiben, Training später erneut`,
+    );
+    abschnitt("Prüfung");
+    laufzeitLoggen();
     melde(1);
     return {
       gbdt: null,
@@ -477,13 +690,18 @@ export async function musterTrainieren(
   const vorbereitung = await gbdtVorbereiten(
     X,
     async () => {
-      await o.abgeben?.();
+      await abgeben?.();
     },
     Math.max(1, lernzeitEnde),
   );
   melde(0.4);
+  log(
+    "info",
+    "Daten",
+    `Merkmals-Stufen (Quantil-Histogramme) einmal aus den ${tausend(Math.max(1, lernzeitEnde))} Zeilen der Lernzeit – die Testzeit fließt nicht ein`,
+  );
+  abschnitt("Stufen");
 
-  const defs = modellDefs(ziel);
   const modelle: TrainingsErgebnis["modelle"] = {};
   const berichtModelle: string[] = [];
   let basisZusatz: {
@@ -511,7 +729,21 @@ export async function musterTrainieren(
       else if (b.zeit >= trennZeit) testIdx.push(i);
     }
     await warte();
+    const altW = alt[def.schluessel];
+    const altName = altW?.version != null ? `v${altW.version}` : "das bisherige Modell";
+    const altGueltig = !!altW && (altW.auc != null || altW.fehler != null);
+    log(
+      "info",
+      def.schluessel,
+      `${def.name}: ${tausend(lernIdx.length)} Lernbeispiele, ${tausend(testIdx.length)} Testbeispiele, Lücke ${dauerText(def.horizontMs)}${def.frueh ? ", nur Token-Alter ≤ 90 s" : ""}`,
+    );
     if (lernIdx.length < MIN_LERNBEISPIELE) {
+      log(
+        "entscheidung",
+        def.schluessel,
+        `nicht trainiert, weil nur ${tausend(lernIdx.length)} Lernbeispiele (braucht ≥ ${tausend(MIN_LERNBEISPIELE)})${altGueltig ? ` – ${altName} bleibt gültig` : ""}`,
+      );
+      abschnitt(def.schluessel);
       berichtModelle.push(
         `- ${def.name}: nicht trainiert – zu wenig Daten (${lernIdx.length} Lernbeispiele, braucht ≥ ${MIN_LERNBEISPIELE})`,
       );
@@ -551,10 +783,43 @@ export async function musterTrainieren(
         auswahl: lernIdx,
       },
       async () => {
-        await o.abgeben?.();
+        await abgeben?.();
       },
     );
     gbdt.version = o.version;
+    if (o.log) {
+      const verlust = def.asym
+        ? `asymmetrisch (verpasster Fall zählt ${gbdt.gewichtFall ?? 3}×), auf log(1 + x/100)`
+        : def.wert
+          ? "quadratisch auf log(1 + x/100) (schiefe Verteilung)"
+          : "logistisch (Wahrscheinlichkeit)";
+      log(
+        "info",
+        def.schluessel,
+        `${gbdt.baeume.length} Bäume, Tiefe ≤ ${baumTiefe(gbdt)}, Lernrate ${zahl(gbdt.lernrate)}, Verlust ${verlust}`,
+      );
+      if (def.asym)
+        log(
+          "info",
+          def.schluessel,
+          `Vergleich: beste Konstante unter demselben Verlust (Expektil der Lerndaten) = ${vz(konstante)} %, Median ${vz(median)} %`,
+        );
+      else if (def.wert)
+        log(
+          "info",
+          def.schluessel,
+          `Vergleich: Median der Lerndaten ${vz(median)} % (stur immer diesen Wert schätzen); Ausreißer auf das 1-/99-%-Quantil gekappt`,
+        );
+      else {
+        let pos = 0;
+        for (const i of lernIdx) pos += beispiele[i]!.y[def.spalte]!;
+        log(
+          "info",
+          def.schluessel,
+          `Basisrate in den Lerndaten: ${prozent(pos / lernIdx.length)} positiv – das träfe blindes Raten`,
+        );
+      }
+    }
 
     // ehrlicher Test auf den neuesten, nie gesehenen Daten
     const test = testIdx.map((i) => beispiele[i]!);
@@ -601,6 +866,7 @@ export async function musterTrainieren(
         .sort((a, b) => b.wichtigkeit - a.wichtigkeit),
     };
     let zeile: string;
+    let bootAnteil: number | null = null;
     if (!def.wert) {
       const testAuc = auc(vorhersage, yTest);
       const positiv = yTest.reduce((s, v) => s + v, 0);
@@ -638,7 +904,7 @@ export async function musterTrainieren(
             `nicht sicher besser als Raten (AUC-Untergrenze ${zahl(unten)} ≤ 0,50 über Tokens)`,
           );
       }
-      const altAuc = alt[def.schluessel]?.auc;
+      const altAuc = altW?.auc;
       if (altAuc != null && testAuc < altAuc - 0.01)
         gruende.push(`schlechter als das aktive Modell (AUC ${zahl(altAuc)})`);
       zeile = `Test-AUC ${zahl(testAuc)} (Raten 0,50), positiv ${prozent(basisRate)}, Präzision bei p ≥ ${zahl(def.schwelle, 1)}: ${praezision === null ? "–" : `${prozent(praezision)} (${sicherN})`}`;
@@ -698,6 +964,7 @@ export async function musterTrainieren(
         );
       else if (testTokens >= MIN_TESTTOKENS) {
         const anteil = wertBootstrapAnteil(fehlerModell, fehlerBasis, tokens);
+        bootAnteil = anteil;
         if (anteil < WERT_BOOTSTRAP_ANTEIL)
           gruende.push(
             `nicht sicher besser als die Konstante (nur in ${prozent(anteil)} der Token-Stichproben)`,
@@ -733,6 +1000,7 @@ export async function musterTrainieren(
         );
       else if (testTokens >= MIN_TESTTOKENS) {
         const anteil = wertBootstrapAnteil(fehlerModell, fehlerBasis, tokens);
+        bootAnteil = anteil;
         if (anteil < WERT_BOOTSTRAP_ANTEIL)
           gruende.push(
             `nicht sicher besser als der Median (nur in ${prozent(anteil)} der Token-Stichproben)`,
@@ -747,6 +1015,41 @@ export async function musterTrainieren(
     }
     info.aktiv = gruende.length === 0;
     modelle[def.schluessel] = { gbdt, info };
+    if (o.log) {
+      const tst = info.test;
+      log(
+        info.aktiv ? "gut" : "warnung",
+        def.schluessel,
+        `Test: ${zeile}${tst.aucUntergrenze != null ? `, AUC-Untergrenze (Token-Bootstrap 5 %) ${zahl(tst.aucUntergrenze)}` : ""}${bootAnteil != null ? `, besser in ${prozent(bootAnteil)} der Token-Stichproben` : ""}; ${tausend(test.length)} Test/${tausend(testTokens)} Tokens`,
+      );
+      log(
+        "info",
+        def.schluessel,
+        `wichtigste Merkmale: ${info.merkmale
+          .slice(0, 3)
+          .map((m) => `${m.name} ${prozent(m.wichtigkeit)}`)
+          .join(", ")}`,
+      );
+      const mess = (w: number | null | undefined) =>
+        w == null ? "–" : def.wert ? zahl(w, 1) : zahl(w);
+      const art = def.wert ? "Fehler" : "AUC";
+      const neuWert = def.wert ? tst.fehler : tst.auc;
+      const altWert = def.wert ? altW?.fehler : altW?.auc;
+      let text: string;
+      if (info.aktiv) {
+        const weil = def.wert
+          ? `Fehler ${mess(tst.fehler)} ≤ 95 % von ${mess(tst.fehlerBasis)} (${def.asym ? "Konstante" : "Median"})${bootAnteil != null ? `, in ${prozent(bootAnteil)} der Token-Stichproben besser` : ""}`
+          : `Test-AUC ${mess(tst.auc)} ≥ ${zahl(MIN_AUC)}, Untergrenze ${mess(tst.aucUntergrenze)} > 0,50`;
+        text = altWert != null
+          ? `AKTIV – ersetzt ${altName} (${art} ${mess(altWert)} → ${mess(neuWert)}), weil ${weil}; ${tausend(test.length)} Testbeispiele/${tausend(testTokens)} Tokens`
+          : `AKTIV, weil ${weil}; ${tausend(test.length)} Testbeispiele/${tausend(testTokens)} Tokens`;
+      } else if (gruende.some((g) => g.startsWith("schlechter als das aktive")))
+        text = `behält ${altName}, neues ist schlechter (${art} ${mess(altWert)} → ${mess(neuWert)})${gruende.length > 1 ? `; außerdem: ${gruende.filter((g) => !g.startsWith("schlechter als das aktive")).join("; ")}` : ""}`;
+      else
+        text = `nicht aktiv, weil ${gruende.join("; ")}${altGueltig ? ` – ${altName} bleibt gültig` : ""}`;
+      log("entscheidung", def.schluessel, text);
+    }
+    abschnitt(def.schluessel);
     berichtModelle.push(
       `- ${def.name}: ${info.aktiv ? "**aktiv**" : `nicht aktiv (${gruende.join("; ")})`} – ${zeile}; ${test.length} Test/${testTokens} Tokens`,
     );
@@ -797,6 +1100,29 @@ export async function musterTrainieren(
       genutzt.push(neu?.info.aktiv ? k : `${k} (bisheriges)`);
     }
   }
+  if (o.log) {
+    const fehlen = ([
+      "basis",
+      "pump",
+      "absturz",
+      "hoch5",
+      "tief5",
+      "fruehPump",
+      "fruehAbsturz",
+      ...VERLAUF_SCHLUESSEL,
+    ] as KryptoMusterSchluessel[]).filter((k) => !rlModelle[k]);
+    log(
+      "info",
+      "RL",
+      `Signale im Zustand: ${genutzt.length ? genutzt.join(", ") : "keine (p = 0)"}`,
+    );
+    if (fehlen.length)
+      log(
+        "warnung",
+        "RL",
+        `fehlen (nicht aktiv – im Zustand „n“, die Q-Tabelle bleibt kleiner): ${fehlen.join(", ")}`,
+      );
+  }
   const lernEp: RlEpisode[] = [];
   const testEp: RlEpisode[] = [];
   for (const liste of jeToken.values()) {
@@ -806,6 +1132,7 @@ export async function musterTrainieren(
       const sig = signaleAusMerkmalen(rlModelle, s.x, s.alter);
       const schritt: RlEpisode[number] = {
         zeit: s.zeit,
+        mint: s.mint,
         preis: s.preis,
         p: sig.p ?? 0,
         trend30Prozent: s.x[TREND30] ?? 0,
@@ -824,18 +1151,92 @@ export async function musterTrainieren(
     await warte();
   }
   melde(0.87);
+  abschnitt("RL-Episoden");
+  log(
+    "info",
+    "RL",
+    `${tausend(lernEp.length)} Lern-Episoden (Token-Verläufe vor der Trennzeit), ${tausend(testEp.length)} für den Zeitraffer; 10 Durchläufe, Lernrate α ${zahl(RL_ALPHA)}, γ ${zahl(RL_GAMMA)}, Erkunden 0,30 → 0,05 (nimmt ab: erst ausprobieren, dann nutzen)`,
+  );
+  log(
+    "info",
+    "RL",
+    `Belohnung = echter Gewinn nach Gebühren (Bonding Curve, PumpPortal, Netz, 5 s Verzögerung), Pleite −2; Handlungen warten/kaufen/halb/raus`,
+  );
   const { modell: rl, episoden } = await rlTrainieren(
     lernEp,
-    { version: o.version, epochen: 10 },
-    o.abgeben,
+    {
+      version: o.version,
+      epochen: 10,
+      ...(o.log
+        ? {
+            durchlauf: (z) =>
+              log(
+                "info",
+                "RL",
+                `Durchlauf ${z.nr}/${z.von}: erkunden ${zahl(z.erkunden)} · ${tausend(z.ergebnis.trades)} Trades · ${vz(z.ergebnis.gewinnSol, 3)} SOL · Treffer ${z.ergebnis.trefferquote == null ? "–" : prozent(z.ergebnis.trefferquote)} · ${tausend(z.zustaende)} Zustände`,
+              ),
+          }
+        : {}),
+    },
+    abgeben,
   );
+  abschnitt("RL-Training");
+  if (o.log) {
+    const schluessel = Object.keys(rl.q);
+    const mitPos = schluessel.filter((k) => k.startsWith("h|")).length;
+    log(
+      "info",
+      "RL",
+      `Q-Tabelle: ${tausend(schluessel.length)} Zustände (${tausend(schluessel.length - mitPos)} ohne, ${tausend(mitPos)} mit Position)`,
+    );
+  }
+  const beispielTrades: RlTradeBeispiel[] = [];
+  let tradesGesehen = 0;
   melde(0.95);
   const zeitraffer = await rlZeitraffer(
     rl,
     testEp,
     { ...KRYPTO_RL_STANDARD, erkunden: 0 },
-    o.abgeben,
+    abgeben,
+    o.log
+      ? (t) => {
+          tradesGesehen++;
+          // die ersten 400 merken, daraus 15 gleichmäßig verteilt
+          if (beispielTrades.length < 400) beispielTrades.push(t);
+        }
+      : undefined,
   );
+  abschnitt("Zeitraffer");
+  if (o.log) {
+    log(
+      zeitraffer.gewinnSol > 0 ? "gut" : "warnung",
+      "RL",
+      `Zeitraffer auf den Testdaten (nie gesehen, gierig, minSicherheit ${zahl(KRYPTO_RL_STANDARD.minSicherheit, 1)}, ${zahl(0.5, 1)} SOL je Kauf): ${tausend(zeitraffer.trades)} Trades · ${vz(zeitraffer.gewinnSol, 3)} SOL nach Gebühren · Treffer ${zeitraffer.trefferquote === null ? "–" : prozent(zeitraffer.trefferquote)} · Pleiten ${zeitraffer.pleiten}`,
+    );
+    const auswahl = verteilt(beispielTrades, KONSOLE_BEISPIEL_TRADES);
+    if (auswahl.length)
+      log(
+        "info",
+        "RL",
+        `Beispiel-Trades aus dem Zeitraffer (${auswahl.length} von ${tausend(tradesGesehen)}) – Lage beim Entscheiden und die Q-Werte der erlaubten Handlungen:`,
+      );
+    for (const t of auswahl) {
+      log(
+        "info",
+        "RL",
+        `${zeitKurz(t.kauf.zeit)} ${mintKurz(t.mint)} KAUFEN · ${lageText(t.kauf)} · warum: ${warumText(t.kauf)}`,
+      );
+      const halb = t.halbVerkaeufe ? ` (vorher ${t.halbVerkaeufe}× halb verkauft)` : "";
+      const raus = t.verkauf
+        ? `${t.verkauf.handlung.toUpperCase()} nach ${Math.round(t.haltSek)} s · ${lageText(t.verkauf)} · warum: ${warumText(t.verkauf)}`
+        : `Ende der Aufzeichnung nach ${Math.round(t.haltSek)} s – zum letzten Kurs geschlossen`;
+      log(
+        t.gewinnSol > 0 ? "gut" : "warnung",
+        "RL",
+        `   → ${raus}${halb} · Ergebnis ${vz(t.gewinnSol, 4)} SOL nach Gebühren`,
+      );
+    }
+  }
   const rlInfo: NonNullable<KryptoMusterStatus["rl"]> = {
     version: o.version,
     trainiert,
@@ -867,6 +1268,12 @@ export async function musterTrainieren(
       `${zeitraffer.gewinnSol >= 0 ? "+" : ""}${zahl(zeitraffer.gewinnSol, 3)} SOL, Trefferquote ${zeitraffer.trefferquote === null ? "–" : prozent(zeitraffer.trefferquote)}, Pleiten ${zeitraffer.pleiten}`,
     `- RL gelernt aus ${lernEp.length} Token-Episoden × 10 Durchläufe (${Object.keys(rl.q).length} Zustände)`,
   ].join("\n");
+  log(
+    "info",
+    "Dienst",
+    `Training v${o.version} fertig: ${aktivAnzahl} von ${Object.keys(modelle).length} trainierten Modellen bestehen den Test`,
+  );
+  laufzeitLoggen();
   melde(1);
   return { gbdt: basis.gbdt, rl, modell, rlInfo, bericht, modelle };
 }

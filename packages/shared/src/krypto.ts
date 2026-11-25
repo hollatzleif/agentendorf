@@ -255,6 +255,29 @@ export interface KryptoMusterStatus {
   modelle?: KryptoMusterModellInfo[];
 }
 
+/** E238: eine Zeile der Trainings-Konsole (t = ms seit Laufbeginn) */
+export type KryptoKonsoleStufe = 'info' | 'gut' | 'warnung' | 'entscheidung';
+export interface KryptoKonsoleZeile {
+  t: number;
+  stufe: KryptoKonsoleStufe;
+  /** 'Dienst', 'Daten', 'Trennung', ein Modell-Schlüssel (basis, pump …), 'RL' oder 'Laufzeit' */
+  bereich: string;
+  text: string;
+}
+/** E238: Trainings-Konsole des Muster-Modells – GET /api/krypto/muster/konsole?version=&ab= */
+export interface KryptoMusterKonsole {
+  /** neueste zuerst (höchstens 20 + ein laufendes) */
+  laeufe: { version: number; erstellt: string; dauerMs: number | null; fehler: string | null; aktivGeworden: string[]; laeuft?: boolean }[];
+  /** Lauf dieser Zeilen (null = noch keiner) */
+  version: number | null;
+  /** läuft dieser Lauf gerade? (dann mit ab= nachladen) */
+  laeuft: boolean;
+  /** Zeilen ab Index `ab` */
+  zeilen: KryptoKonsoleZeile[];
+  /** so viele Zeilen hat der Lauf insgesamt (bisher) */
+  gesamt: number;
+}
+
 export interface KryptoWallet {
   adresse: string;
   /** null = ohne RPC nicht abrufbar */
@@ -422,6 +445,8 @@ export interface KryptoTerminal {
   solUsd: number | null;
   /** E237: US-Dollar je Euro (EZB-Referenzkurs, vom Dorf ergänzt, 6 h zwischengespeichert) – null ohne Kurs */
   usdJeEur?: number | null;
+  /** E238: von einem Agenten angelegt (vom Dorf ergänzt; fehlt = Leifs Bot) */
+  von?: KryptoBotVon;
   kerzen: KryptoKerze[];
   /** FLAT = keine offene Position */
   lage: 'FLAT' | 'LONG';
@@ -501,6 +526,18 @@ export interface KryptoUebersicht {
   fehler?: string;
   /** E232: null = kein RPC eingerichtet */
   echtzeit?: KryptoEchtzeit | null;
+  /** E238: Bots, die Agenten angelegt haben (vom Dorf ergänzt) – alle übrigen sind Leifs */
+  agentenBots?: { id: string; von: KryptoBotVon }[];
+}
+
+/** E238: wer einen Agenten-Bot angelegt hat (RL-Bot → Muster-Meister, Name „HM …“ → Hafenmeister, sonst ein Agent) */
+export type KryptoBotVon = 'hafenmeister' | 'muster-meister' | 'agent';
+export const KRYPTO_BOT_VON: Record<KryptoBotVon, string> = { hafenmeister: '⚓ Hafenmeister', 'muster-meister': '🧠 Muster-Meister', agent: '🤖 Agent' };
+/** E238: Zuordnung eines Agenten-Bots */
+export function kryptoBotVon(e: { art?: string; name: string }): KryptoBotVon {
+  if (e.art === 'rl') return 'muster-meister';
+  if (e.name.startsWith('HM ')) return 'hafenmeister';
+  return 'agent';
 }
 
 /** Vorgaben für einen neuen Bot – Paper Trading, vorsichtige Limits */

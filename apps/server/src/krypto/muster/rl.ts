@@ -34,8 +34,10 @@ export const RL_PORTAL_SATZ = 0.005;
 /** Netzgebühr je Transaktion (Grundgebühr + Priorität wie im Paper-Standard grob) */
 export const RL_NETZ_SOL = GRUNDGEBUEHR_SOL + 0.0001;
 
-const GAMMA = 0.99;
-const ALPHA = 0.1;
+export const RL_GAMMA = 0.99;
+const GAMMA = RL_GAMMA;
+export const RL_ALPHA = 0.1;
+const ALPHA = RL_ALPHA;
 /** E236: Kauf auch ohne Grundsignal, wenn der Pump-Erkenner so viel sieht */
 export const RL_PUMP_KAUF = 0.3;
 /** E236: gehalten und Absturz-Erkenner ≥ so viel → nur noch raus (harte Sicherung) */
@@ -197,6 +199,8 @@ export function rlHandlung(
  *  E236: die übrigen Signale (null/fehlt = Modell nicht aktiv) */
 export interface RlSchritt {
   zeit: number;
+  /** E238: Token (nur für die Beispiel-Trades der Konsole) */
+  mint?: string;
   preis: number;
   p: number;
   trend30Prozent: number;
@@ -210,6 +214,68 @@ export interface RlSchritt {
   alarm?: RlAlarm;
 }
 export type RlEpisode = RlSchritt[];
+
+/** E238: wie und warum der Agent an einer Stelle entschieden hat (für die Trainings-Konsole) */
+export interface RlEntscheidung {
+  zeit: number;
+  /** Ausführungskurs (nächster Schritt) */
+  preis: number;
+  handlung: RlHandlung;
+  lage: RlLageMitAlarm;
+  /** q = beste erlaubte Handlung nach Q-Werten; regel = Zustand nie gesehen (Regel ohne Q-Werte); sicherung = nur eine
+   *  Handlung erlaubt (harte Sicherung) */
+  grund: "q" | "regel" | "sicherung";
+  /** Q-Werte der erlaubten Handlungen, beste zuerst (null ohne Q-Werte) */
+  q: { handlung: RlHandlung; wert: number }[] | null;
+  /** Text der Sicherung (nur grund 'sicherung') */
+  sicherung?: string;
+}
+/** E238: ein abgeschlossener Trade aus dem Zeitraffer mit beiden Entscheidungen */
+export interface RlTradeBeispiel {
+  mint: string;
+  kauf: RlEntscheidung;
+  /** null = Ende der Aufzeichnung (zum letzten Kurs geschlossen) */
+  verkauf: RlEntscheidung | null;
+  halbVerkaeufe: number;
+  haltSek: number;
+  /** Ergebnis nach allen Gebühren (SOL) */
+  gewinnSol: number;
+}
+
+/** E238: Entscheidung nachvollziehen (gleiche Logik wie rlHandlung ohne Erkunden) */
+export function rlErklaeren(
+  m: RlModell | null,
+  l: RlLageMitAlarm,
+  g: KryptoRlGrenzen,
+  handlung: RlHandlung,
+  zeit: number,
+  preis: number,
+): RlEntscheidung {
+  const erlaubt = rlErlaubt(l, g);
+  const q = m?.q[rlZustand(l)];
+  const werte = q
+    ? erlaubt
+        .map((a) => ({ handlung: a, wert: q[RL_HANDLUNGEN.indexOf(a)] ?? 0 }))
+        .sort((a, b) => b.wert - a.wert)
+    : null;
+  let sicherung: string | undefined;
+  if (l.haelt && erlaubt.length === 1) {
+    const absturz = zahlOderNull(l.absturz);
+    sicherung =
+      absturz !== null && absturz >= RL_ABSTURZ_RAUS
+        ? `💥 ${absturz.toFixed(2).replace(".", ",")} ≥ ${String(RL_ABSTURZ_RAUS).replace(".", ",")} → nur raus`
+        : "Alarm 💥 → nur raus";
+  }
+  return {
+    zeit,
+    preis,
+    handlung,
+    lage: { ...l },
+    grund: sicherung ? "sicherung" : werte ? "q" : "regel",
+    q: werte,
+    ...(sicherung ? { sicherung } : {}),
+  };
+}
 
 export interface RlZeitraffer {
   trades: number;
@@ -239,6 +305,10 @@ interface Position {
   erloes: number;
   einstieg: number;
   seit: number;
+  /** E238: nur mit Beobachter */
+  kauf?: RlEntscheidung;
+  halb: number;
+  mint?: string;
 }
 
 async function simulieren(
@@ -248,6 +318,7 @@ async function simulieren(
   zufall: () => number,
   lernen: boolean,
   warte: (erzwingen?: boolean) => Promise<void>,
+  beobachter?: (t: RlTradeBeispiel) => void,
 ): Promise<RlZeitraffer> {
   let kapital = RL_STARTKAPITAL_SOL;
   const erg: RlZeitraffer = {
@@ -271,11 +342,24 @@ async function simulieren(
     kapital += sol;
     return sol - kosten;
   };
-  const abschliessen = (pos: Position) => {
+  const abschliessen = (
+    pos: Position,
+    verkauf: RlEntscheidung | null,
+    ende: number,
+  ) => {
     const g2 = pos.erloes - pos.einsatzGesamt;
     erg.trades++;
     erg.gewinnSol += g2;
     if (g2 > 0) treffer++;
+    if (beobachter && pos.kauf)
+      beobachter({
+        mint: pos.mint ?? "?",
+        kauf: pos.kauf,
+        verkauf,
+        halbVerkaeufe: pos.halb,
+        haltSek: Math.max(0, (ende - pos.seit) / 1000),
+        gewinnSol: g2,
+      });
   };
   const pleitePruefen = () => {
     if (kapital >= RL_EINSATZ_SOL) return 0;
@@ -328,6 +412,10 @@ async function simulieren(
       let a = rlHandlung(m, lage, g, zufall);
       // Ausführung zum Kurs des nächsten Schritts (Verzögerung); am Ende der Episode zum letzten Kurs
       const preis = (ep[i + 1] ?? schritt).preis;
+      const erklaerung: RlEntscheidung | undefined =
+        beobachter && (a === "kaufen" ? !pos : pos && a !== "warten")
+          ? rlErklaeren(m, lage, g, a, schritt.zeit, preis)
+          : undefined;
       let r = 0;
       if (a === "kaufen" && !pos) {
         if (kapital < RL_EINSATZ_SOL) a = "warten";
@@ -342,15 +430,20 @@ async function simulieren(
             erloes: 0,
             einstieg: preis,
             seit: ep[i + 1]?.zeit ?? schritt.zeit,
+            halb: 0,
+            ...(erklaerung
+              ? { kauf: erklaerung, mint: schritt.mint ?? "?" }
+              : {}),
           };
         }
       } else if (pos && (a === "raus" || (a === "halb" && pos.einsatz < 0.1))) {
         r += verkauf(pos, preis, 1);
-        abschliessen(pos);
+        abschliessen(pos, erklaerung ?? null, ep[i + 1]?.zeit ?? schritt.zeit);
         pos = null;
         r += pleitePruefen();
       } else if (pos && a === "halb") {
         r += verkauf(pos, preis, 0.5);
+        pos.halb++;
       }
       if (lernen)
         pfad.push({
@@ -366,7 +459,7 @@ async function simulieren(
     const letzter = ep[ep.length - 1];
     if (pos && letzter) {
       const r = verkauf(pos, letzter.preis, 1);
-      abschliessen(pos);
+      abschliessen(pos, null, letzter.zeit);
       pos = null;
       const strafe = pleitePruefen();
       const ende = pfad[pfad.length - 1];
@@ -392,7 +485,19 @@ async function simulieren(
  *  der Agent soll lernen, dass das teuer ist), nur „gehalten + 💥 ≥ 0,7 → raus“ gilt wie live */
 export async function rlTrainieren(
   episoden: RlEpisode[],
-  o: { version?: number; epochen?: number; seed?: number } = {},
+  o: {
+    version?: number;
+    epochen?: number;
+    seed?: number;
+    /** E238: nach jedem Durchlauf (für die Trainings-Konsole) */
+    durchlauf?: (z: {
+      nr: number;
+      von: number;
+      erkunden: number;
+      ergebnis: RlZeitraffer;
+      zustaende: number;
+    }) => void;
+  } = {},
   abgeben?: () => Promise<void>,
 ): Promise<{ modell: RlModell; episoden: number }> {
   const modell: RlModell = { version: o.version ?? 0, q: {} };
@@ -406,7 +511,7 @@ export async function rlTrainieren(
       [reihe[i], reihe[j]] = [reihe[j]!, reihe[i]!];
     }
     const erkunden = epochen > 1 ? 0.3 - (0.25 * e) / (epochen - 1) : 0.1;
-    await simulieren(
+    const ergebnis = await simulieren(
       modell,
       reihe,
       { minSicherheit: 0, erkunden, nachschuss: true, maxAbsturz: Infinity },
@@ -414,6 +519,13 @@ export async function rlTrainieren(
       true,
       warte,
     );
+    o.durchlauf?.({
+      nr: e + 1,
+      von: epochen,
+      erkunden,
+      ergebnis,
+      zustaende: Object.keys(modell.q).length,
+    });
     await warte(true);
   }
   return { modell, episoden: episoden.length * epochen };
@@ -425,6 +537,8 @@ export async function rlZeitraffer(
   episoden: RlEpisode[],
   g: KryptoRlGrenzen,
   abgeben?: () => Promise<void>,
+  /** E238: jeder abgeschlossene Trade mit Kauf-/Verkaufsentscheidung (für die Trainings-Konsole) */
+  trade?: (t: RlTradeBeispiel) => void,
 ): Promise<RlZeitraffer> {
   return simulieren(
     m,
@@ -433,5 +547,6 @@ export async function rlZeitraffer(
     zufallAus(1),
     false,
     takt(abgeben),
+    trade,
   );
 }

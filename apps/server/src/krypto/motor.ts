@@ -100,6 +100,11 @@ const MIGRATIONEN = [
   // E237: Kursänderung 5 min / 1 h von DexScreener mit aufzeichnen – der Backtest rechnet die Sniper-Punkte wie das Paper
   `ALTER TABLE kurse ADD COLUMN aenderung_m5 REAL;
    ALTER TABLE kurse ADD COLUMN aenderung_h1 REAL;`,
+  // E238: Trainings-Konsole je Lauf (Zeilen), Dauer, übernommene Modelle; fehlgeschlagene Läufe stehen mit fehler im Protokoll
+  `ALTER TABLE muster_modelle ADD COLUMN konsole_json TEXT;
+   ALTER TABLE muster_modelle ADD COLUMN dauer_ms INTEGER;
+   ALTER TABLE muster_modelle ADD COLUMN fehler TEXT;
+   ALTER TABLE muster_modelle ADD COLUMN aktiv_geworden TEXT;`,
 ];
 
 export function kryptoDb(datei: string): KDB {

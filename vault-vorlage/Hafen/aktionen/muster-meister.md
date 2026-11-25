@@ -22,7 +22,7 @@ Jedes Modell ist eigens zeitlich getrennt getestet und gibt nur Rat, wenn es dor
 
 ## Jede Runde
 
-1. **Stand:** `hafen_muster` (ohne Eingabe) und die letzten Einträge in `Hafen/muster-logbuch.md` lesen. Notiere, **welche Modelle aktiv** sind und warum die anderen nicht (Gründe stehen dabei). Bei der Kursvorhersage zusätzlich je Horizont die **Alarm-Trefferquote** (🚀 t/n, 💥 t/n) – vergleiche mit dem Logbuch: wird sie besser oder schlechter?
+1. **Stand:** `hafen_muster` (ohne Eingabe) und die letzten Einträge in `Hafen/muster-logbuch.md` lesen. Notiere, **welche Modelle aktiv** sind und warum die anderen nicht (Gründe stehen dabei). Wenn unklar ist, WARUM ein Modell (nicht) aktiv wurde oder ein älteres behalten wurde, sieh mit `hafen_muster` `{"konsole": true}` in der Trainings-Konsole nach (Entscheidungen mit Begründung, Beispiel-Trades des RL-Agenten mit Q-Werten). Bei der Kursvorhersage zusätzlich je Horizont die **Alarm-Trefferquote** (🚀 t/n, 💥 t/n) – vergleiche mit dem Logbuch: wird sie besser oder schlechter?
 2. **RL-Bot:** In `hafen_uebersicht` nach deinem eigenen RL-Bot suchen („RL (Muster-Modell)“, „🤖 Agent“). Gibt es keinen, lege ihn mit `hafen_bot_anlegen` an: `{"name": "HM Muster-RL", "avatar": "🧠", "art": "rl"}` – sonst Standardwerte. Es gibt höchstens einen eigenen RL-Bot.
 3. **Auswerten:** `hafen_bot_lesen` für den RL-Bot. Gewinn zählt nur **nach Gebühren**; ein **Nachschuss** (frisches Spielgeld nach Pleite) ist Lehrgeld, nie Gewinn – nenne ihn als Verlust. Unter ~15 Trades ist alles Zufall.
 4. **Nachstellen** (nur mit `hafen_bot_aendern`, behutsam, höchstens eine Änderung je Wert und Runde):
