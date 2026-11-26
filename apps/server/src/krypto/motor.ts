@@ -31,7 +31,8 @@ import { einstellungPruefen } from './einstellung.js';
 import { GRUNDGEBUEHR_SOL, gebuehrSatz, kaufen, verkaufen, verkaufsWert, ANGEBOT } from './kurve.js';
 import type { LiveAusfuehrer } from './ausfuehrung.js';
 import { istAdresse, type WalletTresor } from './wallet.js';
-import type { DexScreener, NeuerTokenT, PumpPortal, RugBericht, RugCheck, Schnappschuss } from './quellen.js';
+import type { DexScreener, Metadaten, NeuerTokenT, PumpPortal, RugBericht, RugCheck, Schnappschuss } from './quellen.js';
+import type { SmartMoney } from './smart.js';
 import type { KurveStand, KurveStrom } from './strom.js';
 import type { MusterDienst } from './muster/dienst.js';
 import { ratAus, schichtUrteil } from './muster/merkmale.js';
@@ -110,6 +111,16 @@ const MIGRATIONEN = [
   `CREATE TABLE muster_archiv (mint TEXT NOT NULL, zeit INTEGER NOT NULL, alter_ms INTEGER NOT NULL, preis REAL NOT NULL,
      x BLOB NOT NULL, y BLOB NOT NULL, kennung TEXT NOT NULL, PRIMARY KEY (mint, zeit)) WITHOUT ROWID;
    CREATE INDEX muster_archiv_zeit ON muster_archiv (zeit);`,
+  // E244: Hype-Signale je Token (mit dem Zeitpunkt, ab dem sie bekannt waren – das Training sieht sie erst ab da) und Smart Money
+  `ALTER TABLE tokens ADD COLUMN boost REAL;
+   ALTER TABLE tokens ADD COLUMN boost_zeit INTEGER;
+   ALTER TABLE tokens ADD COLUMN links TEXT;
+   ALTER TABLE tokens ADD COLUMN links_zeit INTEGER;
+   ALTER TABLE tokens ADD COLUMN smart_kaeufer INTEGER;
+   ALTER TABLE tokens ADD COLUMN smart_zeit INTEGER;
+   CREATE TABLE fruehe_kaeufer (mint TEXT NOT NULL, wallet TEXT NOT NULL, zeit INTEGER NOT NULL, PRIMARY KEY (mint, wallet)) WITHOUT ROWID;
+   CREATE INDEX fruehe_kaeufer_wallet ON fruehe_kaeufer (wallet);
+   CREATE TABLE token_ergebnis (mint TEXT PRIMARY KEY, gewinner INTEGER NOT NULL, faktor REAL, zeit INTEGER NOT NULL);`,
 ];
 
 export function kryptoDb(datei: string): KDB {
@@ -141,6 +152,42 @@ export interface LlmAntwort {
   confidence: number;
   reason: string;
 }
+
+/** E244: Hype-Spalten der Tabelle tokens */
+interface TokenZeileHype {
+  symbol: string;
+  name: string;
+  erstellt: number;
+  creator: string | null;
+  dev_token: number | null;
+  uri?: string | null;
+  boost?: number | null;
+  boost_zeit?: number | null;
+  links?: string | null;
+  links_zeit?: number | null;
+  smart_kaeufer?: number | null;
+  smart_zeit?: number | null;
+}
+/** E244: Hype-Felder einer tokens-Zeile für TokenInfo */
+function hypeAusZeile(t: TokenZeileHype | undefined): Partial<TokenInfo> {
+  if (!t) return {};
+  let links: string[] | undefined;
+  try {
+    links = t.links ? (JSON.parse(t.links) as string[]).filter((x) => typeof x === 'string').slice(0, 6) : undefined;
+  } catch {
+    links = undefined;
+  }
+  return {
+    uri: t.uri ?? null,
+    ...(t.boost_zeit != null ? { boost: t.boost ?? 0, boostZeit: t.boost_zeit } : {}),
+    ...(links && t.links_zeit != null ? { links, linksZeit: t.links_zeit } : {}),
+    ...(t.smart_zeit != null ? { smartKaeufer: t.smart_kaeufer ?? 0, smartZeit: t.smart_zeit } : {}),
+  };
+}
+/** E244: so oft die DexScreener-Boost-Listen (2 Anfragen) */
+const BOOSTS_ALLE_MS = 60_000;
+/** E244: Smart Money frühestens so alt (dann gibt es die ersten Käufe) und nur für Tokens im Echtzeit-Strom */
+const SMART_AB_ALTER_MS = 45_000;
 
 interface Beobachtung {
   info: TokenInfo;
@@ -313,6 +360,9 @@ export class Kryptowerk {
       datenDb?: KDB;
       /** E237 (Backtest): false = keine Kurse/Ticks in die eigene DB schreiben (die Aufzeichnung gibt es schon) */
       aufzeichnen?: boolean;
+      /** E244: Smart Money (Helius) und Pump.fun-Metadaten (IPFS) – fehlen → Signale „keine Daten“ */
+      smart?: SmartMoney;
+      metadaten?: Metadaten;
     },
   ) {}
 
@@ -397,6 +447,7 @@ export class Kryptowerk {
     e.regeln.alarm ??= { ...ALARM_STANDARD };
     // E242
     e.regeln.musterSchicht ??= { an: false, fallProzent: 5 };
+    e.regeln.signale ??= { boost: false, socials: false, smart: false };
     if (e.art === 'rl') e.rl ??= { ...KRYPTO_RL_STANDARD };
     return e;
   }
@@ -477,7 +528,7 @@ export class Kryptowerk {
   /** neuer Token von PumpPortal */
   neuerToken(t: NeuerTokenT, zeit: number) {
     if (this.tokens.has(t.mint)) return;
-    const info: TokenInfo = { mint: t.mint, symbol: (t.symbol || '?').slice(0, 20), name: (t.name || '').slice(0, 60), erstellt: zeit, devToken: t.initialBuy ?? null, creator: t.traderPublicKey ?? null };
+    const info: TokenInfo = { mint: t.mint, symbol: (t.symbol || '?').slice(0, 20), name: (t.name || '').slice(0, 60), erstellt: zeit, devToken: t.initialBuy ?? null, creator: t.traderPublicKey ?? null, uri: t.uri?.slice(0, 300) ?? null };
     info.devTokens24h = this.devTokens24h(info.creator, zeit, t.mint);
     this.tokens.set(t.mint, { info, letzter: null, abgefragt: 0, rug: null, rugFehler: 0, bewertet: new Map(), aufzeichnen: false });
     this.o.db
@@ -662,6 +713,9 @@ export class Kryptowerk {
       this.auftraegeAusfuehren();
       this.positionenPflegen();
       this.musterRlSichern();
+      await this.boostsHolen();
+      this.metadatenHolen();
+      this.smartHolen();
       this.rlPflegen();
       this.nachschussPruefen();
       await this.rugHolen();
@@ -748,11 +802,12 @@ export class Kryptowerk {
       let b = this.tokens.get(s.mint);
       if (!b) {
         // gehaltener Token nach einem Neustart: Daten aus der Aufzeichnung
-        const t = (this.o.datenDb ?? this.o.db).prepare('SELECT * FROM tokens WHERE mint = ?').get(s.mint) as { symbol: string; name: string; erstellt: number; creator: string | null; dev_token: number | null } | undefined;
-        b = { info: { mint: s.mint, symbol: t?.symbol ?? s.symbol, name: t?.name ?? s.name, erstellt: t?.erstellt ?? jetzt, devToken: t?.dev_token ?? null, creator: t?.creator ?? null, devTokens24h: this.devTokens24h(t?.creator ?? null, t?.erstellt ?? jetzt, s.mint) }, letzter: null, abgefragt: jetzt, rug: null, rugFehler: 0, bewertet: new Map(), aufzeichnen: true };
+        const t = (this.o.datenDb ?? this.o.db).prepare('SELECT * FROM tokens WHERE mint = ?').get(s.mint) as TokenZeileHype | undefined;
+        b = { info: { mint: s.mint, symbol: t?.symbol ?? s.symbol, name: t?.name ?? s.name, erstellt: t?.erstellt ?? jetzt, devToken: t?.dev_token ?? null, creator: t?.creator ?? null, devTokens24h: this.devTokens24h(t?.creator ?? null, t?.erstellt ?? jetzt, s.mint), ...hypeAusZeile(t) }, letzter: null, abgefragt: jetzt, rug: null, rugFehler: 0, bewertet: new Map(), aufzeichnen: true };
         this.tokens.set(s.mint, b);
       }
       b.letzter = this.mitStromKurs(s);
+      this.hypeAusDex(b, s, jetzt);
       if (this.o.aufzeichnen === false) continue;
       // Aufzeichnung für den Backtest: Kandidaten und Gehaltenes immer, alle anderen höchstens alle 10 s (E237, vorher 30 s)
       const zuletzt = this.aufgezeichnet.get(s.mint) ?? 0;
@@ -935,6 +990,10 @@ export class Kryptowerk {
           rugcheck: b.rug,
           module: Object.fromEntries(signale.map((x) => [x.schluessel, x.zeile])),
           punkteNachRegeln: p,
+          // E244: Hype-Signale nur mit Häkchen
+          ...(e.regeln.signale?.boost ? { boost: { menge: b.info.boost ?? 0, topListe: !!b.info.boostTop } } : {}),
+          ...(e.regeln.signale?.socials ? { socials: b.info.linksZeit == null ? null : (b.info.links ?? []) } : {}),
+          ...(e.regeln.signale?.smart ? { smartMoney: b.info.smartZeit == null ? null : { smartWallets: b.info.smartKaeufer ?? 0 } } : {}),
           // E236: Signale des Muster-Modells (nur aktive Modelle, sonst null) – fehlt ohne Modell/Ticks
           ...(muster ? { muster } : {}),
         },
@@ -970,6 +1029,124 @@ export class Kryptowerk {
     this.entscheidungMerken(botId, b.info.mint, b.info.symbol, 'buy', sicherheit, grund, quelle, signale);
   }
 
+  // ---- E244: Hype-Signale (DexScreener-Boost/Profil, Pump.fun-Socials, Smart Money) --------------------------------
+
+  private boostListe = new Map<string, { amount: number; top: boolean }>();
+  private boostsZuletzt = 0;
+  private metaLaeuft = false;
+  private metaGeprueft = new Set<string>();
+  private smartLaeuft = false;
+  private smartGeprueft = new Set<string>();
+  private ergebnisZuletzt = 0;
+
+  /** nur wenn ein laufender Bot die Signale braucht (spart Anfragen) – das Muster-Modell bekommt sie trotzdem, wenn sie da sind */
+  private signaleGebraucht(k: 'boost' | 'socials' | 'smart') {
+    return this.laufendeBots().some((b) => this.einstellung(b).regeln.signale?.[k]) || !!this.o.muster;
+  }
+
+  /** E244: Boost und Links aus einem DexScreener-Schnappschuss (+ Boost-Liste) übernehmen, einmal je Änderung speichern */
+  private hypeAusDex(b: Beobachtung, s: Schnappschuss, jetzt: number) {
+    const liste = this.boostListe.get(b.info.mint);
+    const boost = Math.max(s.boostAktiv ?? 0, liste?.amount ?? 0);
+    const i = b.info;
+    let geaendert = false;
+    if (boost > 0 && (i.boostZeit == null || boost > (i.boost ?? 0) || (liste?.top && !i.boostTop))) {
+      i.boost = boost;
+      i.boostTop = !!liste?.top || !!i.boostTop;
+      i.boostZeit ??= jetzt;
+      geaendert = true;
+    }
+    if (s.links?.length) {
+      const neu = [...new Set([...(i.links ?? []), ...s.links])].slice(0, 6);
+      if (neu.length !== (i.links?.length ?? 0)) {
+        i.links = neu;
+        i.linksZeit ??= jetzt;
+        geaendert = true;
+      }
+    }
+    if (geaendert && this.o.aufzeichnen !== false) this.hypeSpeichern(i);
+  }
+
+  private hypeSpeichern(i: TokenInfo) {
+    this.o.db
+      .prepare('UPDATE tokens SET boost = ?, boost_zeit = ?, links = ?, links_zeit = ?, smart_kaeufer = ?, smart_zeit = ? WHERE mint = ?')
+      .run(i.boost ?? null, i.boostZeit ?? null, i.links ? JSON.stringify(i.links) : null, i.linksZeit ?? null, i.smartKaeufer ?? null, i.smartZeit ?? null, i.mint);
+  }
+
+  /** E244: DexScreener-Boost-Listen (neueste + Top) jede Minute */
+  private async boostsHolen() {
+    const jetzt = this.o.uhr.jetzt();
+    if (jetzt - this.boostsZuletzt < BOOSTS_ALLE_MS || !this.signaleGebraucht('boost') || typeof this.o.dex.boosts !== 'function') return;
+    this.boostsZuletzt = jetzt;
+    try {
+      this.boostListe = await this.o.dex.boosts();
+      for (const [mint, x] of this.boostListe) {
+        const b = this.tokens.get(mint);
+        if (b?.letzter) this.hypeAusDex(b, { ...b.letzter, boostAktiv: Math.max(b.letzter.boostAktiv ?? 0, x.amount) }, jetzt);
+      }
+    } catch (e) {
+      this.o.log?.(`Boosts: ${(e as Error).message}`);
+    }
+  }
+
+  /** E244: Pump.fun-Metadaten (X/Telegram/Website) für beobachtete Tokens – einer nach dem anderen, im Hintergrund */
+  private metadatenHolen() {
+    const m = this.o.metadaten;
+    if (!m || this.metaLaeuft || !m.bereit() || !this.signaleGebraucht('socials')) return;
+    const b = [...this.tokens.values()].find((x) => x.letzter && x.info.uri && !this.metaGeprueft.has(x.info.mint));
+    if (!b) return;
+    this.metaGeprueft.add(b.info.mint);
+    if (this.metaGeprueft.size > 20_000) this.metaGeprueft.clear();
+    this.metaLaeuft = true;
+    void m
+      .links(b.info.uri!)
+      .then((links) => {
+        if (links === null) return;
+        const i = b.info;
+        i.links = [...new Set([...(i.links ?? []), ...links])].slice(0, 6);
+        i.linksZeit ??= this.o.uhr.jetzt();
+        if (this.o.aufzeichnen !== false) this.hypeSpeichern(i);
+      })
+      .catch((e) => this.o.log?.(`Metadaten ${b.info.symbol}: ${(e as Error).message}`))
+      .finally(() => {
+        this.metaLaeuft = false;
+      });
+  }
+
+  /** E244: frühe Käufer + Smart-Wallets für Tokens im Echtzeit-Strom (ab 45 s alt, einmal je Token, im Hintergrund) */
+  private smartHolen() {
+    const sm = this.o.smart;
+    if (!sm?.eingerichtet) return;
+    const jetzt = this.o.uhr.jetzt();
+    if (jetzt - this.ergebnisZuletzt >= 5 * MINUTE) {
+      this.ergebnisZuletzt = jetzt;
+      try {
+        sm.ergebnisseFesthalten();
+      } catch (e) {
+        this.o.log?.(`Smart Money Ergebnisse: ${(e as Error).message}`);
+      }
+    }
+    if (this.smartLaeuft || !this.signaleGebraucht('smart')) return;
+    const b = [...this.stromTicks.keys()]
+      .map((m) => this.tokens.get(m))
+      .find((x): x is Beobachtung => !!x?.letzter && jetzt - x.info.erstellt >= SMART_AB_ALTER_MS && !this.smartGeprueft.has(x.info.mint));
+    if (!b) return;
+    this.smartGeprueft.add(b.info.mint);
+    if (this.smartGeprueft.size > 20_000) this.smartGeprueft.clear();
+    this.smartLaeuft = true;
+    void sm
+      .pruefen(b.info.mint)
+      .then((r) => {
+        if (!r) return;
+        b.info.smartKaeufer = r.smart;
+        b.info.smartZeit = this.o.uhr.jetzt();
+        if (this.o.aufzeichnen !== false) this.hypeSpeichern(b.info);
+      })
+      .finally(() => {
+        this.smartLaeuft = false;
+      });
+  }
+
   // ---- E235: Muster-Modell, RL-Agent, Nachschuss -----------------------------------------------------
 
   /** Strom-Ticks im Speicher (bis 15 min, höchstens 3000) im Format des Muster-Kerns – die Früh-Merkmale zählen ab dem ersten Tick */
@@ -992,7 +1169,15 @@ export class Kryptowerk {
     const info = this.tokens.get(mint)?.info;
     let s: MusterSignale | null = null;
     if (info) {
-      const roh = signaleRechnen(m.gueltigeModelle(), this.musterTicks(mint, jetzt), jetzt, { mint, erstellt: info.erstellt, ...(info.devTokens24h != null ? { devTokens24h: info.devTokens24h } : {}) });
+      const roh = signaleRechnen(m.gueltigeModelle(), this.musterTicks(mint, jetzt), jetzt, {
+        mint,
+        erstellt: info.erstellt,
+        ...(info.devTokens24h != null ? { devTokens24h: info.devTokens24h } : {}),
+        // E244: Hype-Signale wie im Training
+        ...(info.boostZeit != null ? { boost: info.boost ?? 0, boostZeit: info.boostZeit } : {}),
+        ...(info.linksZeit != null ? { links: info.links ?? [], linksZeit: info.linksZeit } : {}),
+        ...(info.smartZeit != null ? { smartKaeufer: info.smartKaeufer ?? 0, smartZeit: info.smartZeit } : {}),
+      });
       if (roh) {
         const w = (x: number | null | undefined) => (x != null && Number.isFinite(x) ? Math.max(0, Math.min(1, x)) : null);
         const z = (x: number | null | undefined) => (x != null && Number.isFinite(x) ? x : null);
@@ -1913,7 +2098,12 @@ export class Kryptowerk {
     const tpZeile = positionen.length ? positionen.map((p) => `${p.symbol} → +${e.ausstieg.takeProfit[p.tpStufe]?.beiProzent ?? '–'} %`).join(' · ') : `+${e.ausstieg.takeProfit.map((t) => t.beiProzent).join('/+')} %`;
     const module: KryptoModul[] = KRYPTO_MODULE.map((x) => {
       const z = m.get(x.schluessel);
-      if (x.schluessel === 'kol') return { ...x, an: false, zeile: 'aus – braucht PumpPortal-Schlüssel', zuletzt: null, ton: 'neutral' };
+      // E244: Hype-Signale nur mit Häkchen im Bot
+      const sig = e.regeln.signale;
+      if (x.schluessel === 'kol' && !sig?.smart) return { ...x, an: false, zeile: 'aus – Häkchen „Smart Money“', zuletzt: null, ton: 'neutral' };
+      if (x.schluessel === 'kol' && !this.o.smart?.eingerichtet) return { ...x, an: false, zeile: 'aus – braucht Helius (KRYPTO_RPC_URL)', zuletzt: null, ton: 'neutral' };
+      if (x.schluessel === 'hype' && !sig?.boost) return { ...x, an: false, zeile: 'aus – Häkchen „Boost & Profil“', zuletzt: null, ton: 'neutral' };
+      if (x.schluessel === 'socials' && !sig?.socials) return { ...x, an: false, zeile: 'aus – Häkchen „Socials“', zuletzt: null, ton: 'neutral' };
       if (x.schluessel === 'x') return { ...x, an: false, zeile: 'aus – braucht Grok-Schlüssel', zuletzt: null, ton: 'neutral' };
       const ersatz = x.schluessel === 'groesse' ? `${positionsGroesse(e, this.botZeile(id).kasse_sol).toFixed(3)} SOL je Trade` : x.schluessel === 'tp' ? tpZeile : x.schluessel === 'sl' ? `−${e.ausstieg.stopLossProzent} % · Trail ${e.ausstieg.trailingProzent} %` : x.schluessel === 'gate' ? `${bot.kennzahlen.offen}/${e.limits.maxOffen} offen · Tag ${bot.kennzahlen.heuteSol >= 0 ? '+' : ''}${bot.kennzahlen.heuteSol.toFixed(2)}` : 'wartet';
       return { ...x, an: true, zeile: z?.zeile ?? ersatz, zuletzt: z?.zeit ?? null, ton: z?.ton ?? 'neutral' };

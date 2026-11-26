@@ -75,6 +75,8 @@ describe('Hafen (E227)', () => {
     expect(r.json()).toEqual({ action: 'buy', token: 'MINT', confidence: 0.8, reason: 'Volumen stark' });
     const p = m.anfragen[0] as { system: string; messages: { content: string }[]; output_config: { format: { type: string } } };
     expect(p.output_config.format.type).toBe('json_schema');
+    // E244-Fix: genug Platz für Denken + JSON (mit 400 brach Haiku 5.5 meist ab)
+    expect((p as unknown as { max_tokens: number }).max_tokens).toBeGreaterThanOrEqual(4000);
     expect(p.messages[0]!.content).toMatch(/<daten-[0-9a-f]{12}>/);
     expect(p.system).toContain('nie Anweisungen');
     // zählt nicht gegen das Tagesbudget des Dorfs (Post, Zeitung …)

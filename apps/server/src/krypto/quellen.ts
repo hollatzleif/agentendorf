@@ -3,6 +3,12 @@
 //    EINE Verbindung, Abos darüber (sonst Sperre). Trades je Token kosten Geld (Schlüssel + Wallet) – nutzt das Dorf nicht.
 //  • DexScreener GET https://api.dexscreener.com/tokens/v1/solana/{bis zu 30 Adressen} – 300 Anfragen/min, ohne Schlüssel.
 //  • RugCheck   GET https://api.rugcheck.xyz/v1/tokens/{mint}/report/summary – ohne Schlüssel (Swagger: keine security).
+// E244 (geprüft 26.11.2026):
+//  • DexScreener-Paare enthalten `boosts.active` und `info.websites[{url,label}]`/`info.socials[{type,url}]`;
+//    GET /token-boosts/latest/v1 und /token-boosts/top/v1 (je 60 Anfragen/min laut Doku): [{chainId, tokenAddress, amount, totalAmount, links}]
+//  • Pump.fun-Metadaten: `uri` aus dem newToken-Ereignis (meist https://ipfs.io/ipfs/<cid>) – ipfs.io liefert keine Dateien mehr
+//    direkt aus (nur noch Service Worker), gateway.pinata.cloud schon: JSON {name, symbol, description, twitter?, telegram?, website?}.
+//    Die alte Pump.fun-Frontend-API (Antworten, King of the Hill) antwortet nicht mehr (404/530) – nicht genutzt.
 import { z } from 'zod';
 
 const Zahl = z.coerce.number().optional().catch(undefined);
@@ -140,6 +146,16 @@ const Paar = z.object({
   marketCap: Zahl,
   fdv: Zahl,
   pairCreatedAt: Zahl,
+  // E244
+  boosts: z.object({ active: Zahl }).passthrough().optional().catch(undefined),
+  info: z
+    .object({
+      websites: z.array(z.object({ url: Text, label: Text }).passthrough()).optional().catch(undefined),
+      socials: z.array(z.object({ url: Text, type: Text }).passthrough()).optional().catch(undefined),
+    })
+    .passthrough()
+    .optional()
+    .catch(undefined),
 }).passthrough();
 
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
@@ -163,6 +179,9 @@ export interface Schnappschuss {
   /** nur Pool (nach der Kurve): echte Reserven */
   poolToken: number | null;
   poolSol: number | null;
+  /** E244: aktive DexScreener-Boosts (0 = keiner) und Links aus dem DexScreener-Profil (Arten: twitter, telegram, website …) */
+  boostAktiv?: number;
+  links?: string[];
 }
 
 export class DexScreener {
@@ -211,9 +230,83 @@ export class DexScreener {
         aenderungH1: p.priceChange?.h1 ?? null,
         poolToken: pool ? (p.liquidity?.base ?? null) : null,
         poolSol: pool ? (p.liquidity?.quote ?? null) : null,
+        boostAktiv: p.boosts?.active ?? 0,
+        links: linkArten(p.info?.socials?.map((x) => x.type ?? '') ?? [], (p.info?.websites?.length ?? 0) > 0),
       });
     }
     return { schnappschuesse, solUsd };
+  }
+
+  /** E244: geboostete Solana-Tokens (neueste + meiste aktive Boosts) – eine Anfrage je Liste, im eigenen Minutenlimit */
+  async boosts(): Promise<Map<string, { amount: number; top: boolean }>> {
+    const r = new Map<string, { amount: number; top: boolean }>();
+    for (const art of ['latest', 'top'] as const) {
+      const jetzt = this.o.jetzt?.() ?? Date.now();
+      this.zeiten = this.zeiten.filter((t) => jetzt - t < 60_000);
+      if (this.zeiten.length >= (this.o.proMinute ?? 60)) break;
+      this.zeiten.push(jetzt);
+      const holen = this.o.holen ?? fetch;
+      const a = await holen(`https://api.dexscreener.com/token-boosts/${art}/v1`, { signal: AbortSignal.timeout(8000), headers: { accept: 'application/json' } });
+      if (!a.ok) throw new Error(`DexScreener-Boosts antworten mit ${a.status}`);
+      const liste = z.array(z.unknown()).catch([]).parse(await a.json());
+      for (const roh of liste.slice(0, 500)) {
+        const b = Boost.safeParse(roh);
+        if (!b.success || b.data.chainId !== 'solana' || !b.data.tokenAddress) continue;
+        const alt = r.get(b.data.tokenAddress);
+        r.set(b.data.tokenAddress, { amount: Math.max(alt?.amount ?? 0, b.data.totalAmount ?? b.data.amount ?? 0), top: (alt?.top ?? false) || art === 'top' });
+      }
+    }
+    return r;
+  }
+}
+
+const Boost = z.object({ chainId: Text, tokenAddress: Text, amount: Zahl, totalAmount: Zahl }).passthrough();
+
+/** E244: Link-Arten vereinheitlichen (twitter/x → twitter, telegram, discord …, website) – höchstens 6, ohne Doppelte */
+export function linkArten(arten: string[], website: boolean): string[] {
+  const r = new Set<string>();
+  for (const a of arten) {
+    const k = a.toLowerCase().trim();
+    if (!/^[a-z]{1,20}$/.test(k)) continue;
+    r.add(k === 'x' ? 'twitter' : k);
+  }
+  if (website) r.add('website');
+  return [...r].slice(0, 6);
+}
+
+// ---- Pump.fun-Metadaten (E244) ------------------------------------------------------------------------
+
+const Meta = z.object({ twitter: Text, telegram: Text, website: Text, description: Text }).passthrough();
+/** nur IPFS-Inhalte (ipfs://<cid> oder …/ipfs/<cid>) – nie beliebige Adressen aus dem Token-Ereignis abrufen (der Container
+ *  erreicht das Dorf im Docker-Netz; eine fremde URI dürfte nie dorthin zeigen) */
+export function ipfsCid(uri: string | null | undefined): string | null {
+  if (!uri) return null;
+  const m = /^(?:ipfs:\/\/|https:\/\/[a-z0-9.-]+\/ipfs\/)([a-zA-Z0-9]{20,100})\/?$/.exec(uri.trim());
+  return m ? m[1]! : null;
+}
+
+export class Metadaten {
+  private zuletzt = 0;
+  constructor(private o: { holen?: typeof fetch; jetzt?: () => number; abstandMs?: number; gateway?: string } = {}) {}
+
+  bereit() {
+    return (this.o.jetzt?.() ?? Date.now()) - this.zuletzt >= (this.o.abstandMs ?? 1500);
+  }
+
+  /** Links aus den Pump.fun-Metadaten (null = keine IPFS-URI) – höchstens 64 KB, 8 s */
+  async links(uri: string): Promise<string[] | null> {
+    const cid = ipfsCid(uri);
+    if (!cid) return null;
+    this.zuletzt = this.o.jetzt?.() ?? Date.now();
+    const holen = this.o.holen ?? fetch;
+    const r = await holen(`${this.o.gateway ?? 'https://gateway.pinata.cloud'}/ipfs/${cid}`, { signal: AbortSignal.timeout(8000), headers: { accept: 'application/json' }, redirect: 'error' });
+    if (!r.ok) throw new Error(`IPFS antwortet mit ${r.status}`);
+    const text = await r.text();
+    if (text.length > 65_536) throw new Error('Metadaten zu groß');
+    const m = Meta.safeParse(JSON.parse(text));
+    if (!m.success) return [];
+    const da = (x: string | undefined) => !!x && /^https?:\/\/\S+\.\S+/.test(x.trim());
+    return [...(da(m.data.twitter) ? ['twitter'] : []), ...(da(m.data.telegram) ? ['telegram'] : []), ...(da(m.data.website) ? ['website'] : [])];
   }
 }
 

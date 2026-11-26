@@ -230,7 +230,9 @@ export function kryptoBewertenBauen(o: { db: DB; uhr: Uhr; ki?: SystemAufrufe })
       schema: ANTWORT_SCHEMA,
       pruefen: (x) => Antwort.parse(x),
       kurzErgebnis: (e) => `${e.action} (${e.confidence.toFixed(2)}): ${e.reason}`,
-      maxTokens: 400,
+      // E244-Fix: Haiku 5.5 denkt standardmäßig (adaptive thinking) – das Denken zählt in max_tokens; mit 400 brach die Antwort
+      // meist vor dem JSON ab („Antwort abgeschnitten“). 4000 reicht für Denken + JSON (≈ 0,002 $ höchstens je Bewertung)
+      maxTokens: 4000,
       ausloeser: 'krypto',
     });
   };

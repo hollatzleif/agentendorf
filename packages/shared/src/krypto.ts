@@ -62,6 +62,12 @@ export interface KryptoEinstellung {
      *  ≤ −fallProzent fallen soll und lang (2/5 min) nicht steigt.
      */
     musterSchicht?: { an: boolean; fallProzent: number };
+    /**
+     * E244: zusätzliche Signale (je Häkchen an/aus) – geben Punkte und gehen an das LLM:
+     *  boost: DexScreener-Boost aktiv / Top-Boost / Profil bezahlt; socials: X, Telegram, Website (Pump.fun-Metadaten, DexScreener);
+     *  smart: Smart-Money-Wallets unter den ersten Käufern (über Leifs Helius-RPC)
+     */
+    signale?: { boost: boolean; socials: boolean; smart: boolean };
   };
   /** nur bei art = prompt: Kauf erst ab dieser Sicherheit des LLM (0–1) */
   minSicherheit: number;
@@ -514,6 +520,9 @@ export type KryptoModulSchluessel =
   | 'bundle'
   | 'kol'
   | 'x'
+  // E244: DexScreener-Boost/Profil und Socials (Pump.fun-Metadaten + DexScreener-Links)
+  | 'hype'
+  | 'socials'
   | 'holder'
   | 'volumen'
   | 'sniper'
@@ -666,7 +675,7 @@ export const KRYPTO_STANDARD: KryptoEinstellung = {
     maxTopHalterProzent: 20,
     minLiquiditaetSol: 5,
   },
-  regeln: { minPunkte: 60, musterGewicht: 0, alarm: { anstiegProzent: 15, fallProzent: 10 }, musterSchicht: { an: false, fallProzent: 5 } },
+  regeln: { minPunkte: 60, musterGewicht: 0, alarm: { anstiegProzent: 15, fallProzent: 10 }, musterSchicht: { an: false, fallProzent: 5 }, signale: { boost: false, socials: false, smart: false } },
   minSicherheit: 0.65,
   limits: { einsatzProTradeSol: 0.5, positionProzent: 5, maxTagesverlustSol: 2, maxOffen: 3, maxLlmProTag: 150 },
   ausstieg: {
@@ -691,8 +700,10 @@ export const KRYPTO_MODULE: { schluessel: KryptoModulSchluessel; name: string; b
   { schluessel: 'rug', name: 'Rug-Filter', buchstabe: 'R' },
   { schluessel: 'dev', name: 'Dev-Check', buchstabe: 'D' },
   { schluessel: 'bundle', name: 'Bundle-Scan', buchstabe: 'B' },
-  { schluessel: 'kol', name: 'KOL-Watch', buchstabe: 'K' },
+  { schluessel: 'kol', name: 'Smart Money', buchstabe: 'K' },
   { schluessel: 'x', name: 'X-Sentiment', buchstabe: 'X' },
+  { schluessel: 'hype', name: 'Boost & Profil', buchstabe: 'Y' },
+  { schluessel: 'socials', name: 'Socials', buchstabe: 'O' },
   { schluessel: 'holder', name: 'Holder-Map', buchstabe: 'H' },
   { schluessel: 'volumen', name: 'Volume-Flow', buchstabe: 'V' },
   { schluessel: 'sniper', name: 'Sniper', buchstabe: 'S' },

@@ -71,6 +71,7 @@ apps/server     Node + Fastify + SQLite (better-sqlite3). Einstieg: src/start.ts
                   E228: wallet.ts (je Bot eigenes Wallet, AES-256-GCM, Hauptschlüssel nur in krypto.env – nie im Log/LLM/Dorf),
                   ausfuehrung.ts (PumpPortal Local trade-local → nur signieren, wenn das Bot-Wallet zahlt → Leifs RPC), backtest.ts (dieselbe
                   Maschine über die Aufzeichnungen, nur Regel-Bots). Scharf schalten nur mit Passwort/TOTP + „SCHARF“ nach ≥ 24 h Paper.
+                  E244: smart.ts (Smart Money über Helius: frühe Käufer, Ergebnisse, Smart-Wallets), quellen.ts Metadaten (nur IPFS) + DexScreener-Boosts.
                   E232: strom.ts – Echtzeit-Kurse per accountSubscribe auf Bonding-Curve-Konten (IDL-Layout, PDA ["bonding-curve", mint], nur
                   Quote SOL) über wss von KRYPTO_RPC_URL; gehaltene Tokens zuerst, ≤ 20 Abos, MB-Grenze je Tag, DexScreener bleibt für Volumen/Filter
   agenten/werkzeuge-hafen.ts E231: hafen_* für Agenten (werkzeuge: [hafen], Helfer-Fähigkeit hafen, Bürgermeister) – Flotte lesen, PAPER-Bots
@@ -322,6 +323,7 @@ Lokal: `COOKIE_SICHER=false` setzen, wenn ohne HTTPS getestet wird (Dev-Server �
 - [x] E213 (22.11.): Handschrift kann Mathe – Formeln ($…$ oder schlicht), Rechenwege am „=“ ausgerichtet, Brüche/Wurzeln/∑∫, Markdown-Tabellen mit Handgitter (handformel.py + Hershey); „=“ wird nicht mehr zu „-“
 - [x] E214 (22.11.): Handschrift realistischer – gerade Linien wie GoodNotes (Tabellen, Bruchstriche), ruhigere Formeln, gleichmäßiger Stift, Logik-Zeichen (∧ ∨ ¬ ↔ ⊢ ⊨ ⊤ ⊥ □), Wahrheitstafeln mittig
 - [x] E215 (22.11.): Handschrift `stil: einheitlich` (Standard) – EINE Hand für Text, Formeln und Tabellen (Schreiber-Profil je Dokument, jedes Zeichen einmalig verformt, Wortgrundlinien, Unterschneiden); `stil: ki` = KI-Modell für freien Fließtext
+- [x] E244 (26.11.): Hype-Signale je Bot abhakbar (`regeln.signale`): 🔥 DexScreener-Boost/Profil, 🔗 Socials (Pump.fun-Metadaten nur über IPFS/Pinata + DexScreener-Links), 🐋 Smart Money (frühe Käufer über Helius, `smart.ts`, Tagesgrenze, Ergebnisse aus eigenen Kursen) – Punkte, LLM, Terminal; 3 neue Muster-Merkmale (Modelle lernen neu)
 - [x] E243 (26.11.): Ertrags-Modell (Meta-Labeling: `ertrag`/`ertragWert` – lohnt sich ein Kauf jetzt nach allen Gebühren mit den Standard-Ausstiegen, Kaufschwelle auf Test-Hälfte 1 gewählt und auf Hälfte 2 geprüft) für Muster-Schicht und RL; RL repariert: Einstieg nach Regel (Ertrags-Modell), gelernt wird nur der Ausstieg
 - [x] E242 (26.11.): Muster-Schicht für Regel-/Prompt-Bots (`regeln.musterSchicht`: 🚀-Kauf nur mit steigender 2–5-min-Vorhersage, Kauf-Sperre bei vorhergesagtem Fall, früher raus, wenn es kurz fällt und lang nicht steigt), Archiv nur mit Labels, Kryptowerk 1152 MB / bis 400 000 Zeitpunkte je Training
 - [x] E241 (25.11.): Muster-Modell lernt mit allen Beispielen – Beispiel-Archiv `muster_archiv` (fertige Zeitpunkte bleiben nach den 7 Tagen Ticks, ≤ 1 Mio., ≤ 200 000 je Training), fairer Vergleich (gültiges Modell auf denselben Testdaten), Tafel zeigt gültiges und neuestes Training; „🧠 Muster-RL“ wird einmal von selbst angelegt und handelt live auf Paper

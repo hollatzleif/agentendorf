@@ -83,6 +83,9 @@ test('Terminal Kielwasser: Kopf, Token-Leiste, Equity-Kerzen, Agent mit Modulen,
   const agent = page.getByRole('region', { name: 'Agent' });
   await expect(agent).toContainText('10 Module online');
   await expect(agent).toContainText('Risk-Gate');
+  // E244: Smart Money / Boost / Socials ohne Häkchen aus
+  await expect(agent).toContainText('aus – Häkchen „Smart Money“');
+  await expect(agent).toContainText('Boost & Profil');
   await expect(agent).toContainText('scoring');
   await expect(page.getByRole('region', { name: 'X-Feed' })).toContainText('Grok-Schlüssel');
   await expect(page.getByRole('region', { name: 'PnL' })).toContainText('37');
@@ -253,7 +256,12 @@ test('E235: Muster-Modell in der Flotte (Jetzt trainieren, läuft schon), RL im 
   const form = page.getByRole('region', { name: 'Neuer Bot' });
   await expect(form.getByLabel('Muster-Rat Gewicht (0 = nur anzeigen)')).toHaveValue('0');
   await expect(form).toContainText('> 0: auch Verkauf bei Absturz-Risiko ≥ 70 %');
+  // E244: Häkchen für die Hype-Signale (Standard aus), anhakbar; bei RL-Bots nicht da
+  await expect(form.getByTestId('signal-boost')).not.toBeChecked();
+  await form.getByTestId('signal-smart').check();
+  await expect(form.getByTestId('signal-smart')).toBeChecked();
   await form.getByLabel('Strategie').selectOption('rl');
+  await expect(form.getByTestId('signal-smart')).toHaveCount(0);
   await expect(form.getByLabel('Muster-Rat Gewicht (0 = nur anzeigen)')).toHaveCount(0);
   await expect(form).toContainText('nur im Paper Trading');
   await form.getByLabel('RL: Kauf ab Modell-Sicherheit (0–1)').fill('0.65');

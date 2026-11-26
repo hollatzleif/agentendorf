@@ -14,7 +14,22 @@ export interface TokenInfo {
   creator: string | null;
   /** E234: wie viele ANDERE Tokens derselbe Ersteller in den 24 h davor gestartet hat (aus der eigenen Aufzeichnung) */
   devTokens24h?: number;
+  /** E244: Metadaten-Adresse aus dem newToken-Ereignis */
+  uri?: string | null;
+  /** E244: DexScreener-Boost (höchste gesehene Menge), in der Top-Liste?, seit wann bekannt */
+  boost?: number;
+  boostTop?: boolean;
+  boostZeit?: number;
+  /** E244: Link-Arten (twitter, telegram, website …) aus Pump.fun-Metadaten und DexScreener-Profil, seit wann bekannt */
+  links?: string[];
+  linksZeit?: number;
+  /** E244: Smart-Wallets unter den ersten Käufern (beim Abruf), seit wann bekannt */
+  smartKaeufer?: number;
+  smartZeit?: number;
 }
+
+/** E244: Punkte der Hype-Signale – nie sperrend, nur mit Häkchen im Bot */
+export const HYPE_PUNKTE = { boost: 5, boostTop: 3, twitter: 3, telegram: 2, website: 2, jeSmart: 5, smartMax: 15 } as const;
 
 /** E234: Kaufdruck der letzten 60 s aus dem Echtzeit-Strom (Änderungen der Bonding Curve) */
 export interface Echtzeit60 {
@@ -90,6 +105,22 @@ export function pruefen(e: KryptoEinstellung, t: TokenInfo, s: Schnappschuss, ru
   const liq = markt ? liquiditaetSol(markt) : 0;
   const imFenster = alter >= f.minAlterSek && alter <= f.maxAlterSek && mw >= f.minMarketCapUsd && mw <= f.maxMarketCapUsd && liq >= f.minLiquiditaetSol && !!markt;
   const schwung = s.aenderungM5 ?? 0;
+  // E244: Hype-Signale je Häkchen (nie sperrend – wer sie nicht will, lässt das Häkchen weg)
+  const sig = e.regeln.signale;
+  if (sig?.boost) {
+    const p = t.boost ? HYPE_PUNKTE.boost + (t.boostTop ? HYPE_PUNKTE.boostTop : 0) : 0;
+    r.push({ schluessel: 'hype', sperre: false, punkte: p, ton: p ? 'gut' : 'neutral', zeile: t.boost ? `Boost ${Math.round(t.boost)}${t.boostTop ? ' · Top-Liste' : ''}` : 'kein Boost' });
+  }
+  if (sig?.socials) {
+    const l = t.links ?? [];
+    const p = (l.includes('twitter') ? HYPE_PUNKTE.twitter : 0) + (l.includes('telegram') ? HYPE_PUNKTE.telegram : 0) + (l.includes('website') ? HYPE_PUNKTE.website : 0);
+    r.push({ schluessel: 'socials', sperre: false, punkte: p, ton: p ? 'gut' : 'neutral', zeile: t.linksZeit == null ? 'noch keine Daten' : l.length ? l.join(' · ') : 'keine Links' });
+  }
+  if (sig?.smart) {
+    const n = t.smartKaeufer ?? 0;
+    const p = Math.min(HYPE_PUNKTE.smartMax, n * HYPE_PUNKTE.jeSmart);
+    r.push({ schluessel: 'kol', sperre: false, punkte: p, ton: p ? 'gut' : 'neutral', zeile: t.smartZeit == null ? 'noch nicht geprüft' : n ? `${n} Smart-Wallet${n === 1 ? '' : 's'} unter den ersten Käufern` : 'keine Smart-Wallets' });
+  }
   r.push({ schluessel: 'sniper', sperre: !imFenster, punkte: imFenster ? Math.round(Math.max(0, Math.min(30, 10 + schwung / 3))) : 0, ton: imFenster ? (schwung > 0 ? 'gut' : 'neutral') : 'schlecht', zeile: `${alter < 120 ? `${alter}s` : `${Math.round(alter / 60)}m`} · MC ${usd(mw)} · ${liq.toFixed(1)} SOL${schwung ? ` · ${schwung > 0 ? '+' : ''}${prozent(schwung, 0)}` : ''}` });
   return r;
 }

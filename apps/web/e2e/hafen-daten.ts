@@ -94,10 +94,28 @@ export function terminal(): KryptoTerminal {
     // auf 15-min-Grenzen wie vom Server (die Marker suchen ihre Kerze über die Slot-Zeit)
     return { zeit: Math.floor(jetzt / 900_000) * 900_000 - (59 - i) * 900_000, o, c, h: Math.max(o, c) + 0.08, l: Math.min(o, c) - 0.06 };
   });
+  // E244: Zeilen je Schlüssel (nicht je Position – neue Module kamen dazu); Smart Money/X/Boost/Socials ohne Häkchen aus
+  const zeilen: Record<string, string> = {
+    rug: 'MOONCAT: Score 4',
+    dev: 'MOONCAT: Dev 1,9 %',
+    bundle: 'keine Bundles gemeldet',
+    kol: 'aus – Häkchen „Smart Money“',
+    x: 'aus – braucht Grok-Schlüssel',
+    hype: 'aus – Häkchen „Boost & Profil“',
+    socials: 'aus – Häkchen „Socials“',
+    holder: 'Top-Halter 6,2 %',
+    volumen: 'MOONCAT: $18,4k/5m · 140↑ 52↓',
+    sniper: '3m · MC $41k · 22,0 SOL · +18 %',
+    groesse: '0.500 SOL je Trade',
+    tp: 'MOONCAT → +50 %',
+    sl: '−25 % · Trail 20 %',
+    gate: 'frei · 9.10 SOL frei',
+  };
+  const aus = new Set(['kol', 'x', 'hype', 'socials']);
   const module = KRYPTO_MODULE.map((m, i) => ({
     ...m,
-    an: m.schluessel !== 'kol' && m.schluessel !== 'x',
-    zeile: m.schluessel === 'kol' ? 'aus – braucht PumpPortal-Schlüssel' : m.schluessel === 'x' ? 'aus – braucht Grok-Schlüssel' : ['MOONCAT: Score 4', 'MOONCAT: Dev 1,9 %', 'keine Bundles gemeldet', '', '', 'Top-Halter 6,2 %', 'MOONCAT: $18,4k/5m · 140↑ 52↓', '3m · MC $41k · 22,0 SOL · +18 %', '0.500 SOL je Trade', 'MOONCAT → +50 %', '−25 % · Trail 20 %', 'frei · 9.10 SOL frei'][i]!,
+    an: !aus.has(m.schluessel),
+    zeile: zeilen[m.schluessel] ?? '',
     zuletzt: i % 3 === 0 ? jetzt : jetzt - 60_000,
     ton: (i % 2 ? 'gut' : 'neutral') as 'gut' | 'neutral',
   }));

@@ -16,6 +16,13 @@ export interface TokenMeta {
   mint: string;
   erstellt: number;
   devTokens24h?: number;
+  /** E244: Hype-Signale mit dem Zeitpunkt, ab dem sie bekannt waren (vorher zählen sie nicht – kein Blick in die Zukunft) */
+  boost?: number;
+  boostZeit?: number;
+  links?: string[];
+  linksZeit?: number;
+  smartKaeufer?: number;
+  smartZeit?: number;
 }
 
 /** Label: erst +zielProzent, bevor −stopProzent, innerhalb horizontMs */

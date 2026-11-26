@@ -51,6 +51,10 @@ export const MERKMAL_NAMEN: string[] = [
   "sekSeitErstemTick",
   "groessterKauf30s",
   "groessterVerkauf30s",
+  // E244: Hype-Signale (boost: log(1 + Menge), 0 = keiner; Links/Smart: −1 = bei t noch nicht bekannt)
+  "boost",
+  "socialsAnzahl",
+  "smartKaeufer",
 ];
 
 /** Index des letzten Ticks mit zeit <= t (−1, wenn keiner) – binäre Suche, Ticks aufsteigend nach zeit */
@@ -218,6 +222,9 @@ export function merkmale(
     (t - erster.zeit) / 1000,
     groessterKauf30,
     groessterVerkauf30,
+    meta.boostZeit != null && t >= meta.boostZeit ? Math.log1p(meta.boost ?? 0) : 0,
+    meta.linksZeit != null && t >= meta.linksZeit ? (meta.links?.length ?? 0) : -1,
+    meta.smartZeit != null && t >= meta.smartZeit ? (meta.smartKaeufer ?? 0) : -1,
   ];
   return roh.map(endlich);
 }

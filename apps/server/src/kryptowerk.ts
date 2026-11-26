@@ -5,7 +5,8 @@ import fs from 'node:fs';
 import { z } from 'zod';
 import { systemUhr } from './uhr.js';
 import { Kryptowerk, kryptoDb, type LlmAntwort } from './krypto/motor.js';
-import { DexScreener, PumpPortal, RugCheck } from './krypto/quellen.js';
+import { DexScreener, Metadaten, PumpPortal, RugCheck } from './krypto/quellen.js';
+import { SmartMoney } from './krypto/smart.js';
 import { kryptoServer } from './krypto/server.js';
 import { WalletTresor, istAdresse } from './krypto/wallet.js';
 import { LiveAusfuehrer } from './krypto/ausfuehrung.js';
@@ -58,6 +59,9 @@ werk = new Kryptowerk({
   log,
   tresor,
   muster,
+  // E244: Pump.fun-Metadaten (nur IPFS über gateway.pinata.cloud) und Smart Money über Leifs Helius-RPC (eigene Tagesgrenze)
+  metadaten: new Metadaten(),
+  smart: new SmartMoney({ db, rpcUrl: rpcUrl ?? null, creditsTag: Number(process.env.KRYPTO_SMART_CREDITS_TAG ?? '') || undefined }),
   ...(strom ? { strom } : {}),
   ...(rpcUrl && /^https:\/\//.test(rpcUrl) && tresor.bereit ? { live: LiveAusfuehrer.mitRpcUrl(tresor, rpcUrl) } : {}),
   ...(auszahlung ? { auszahlung } : {}),

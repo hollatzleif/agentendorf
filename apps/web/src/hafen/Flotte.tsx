@@ -542,6 +542,26 @@ function BotFormular({ start, id, fertig, abbrechen }: { start: KryptoEinstellun
                 onChange={(ev) => setE((x) => ({ ...x, regeln: { ...x.regeln, musterSchicht: { an: false, ...x.regeln.musterSchicht, fallProzent: Number(ev.target.value) } } }))}
               />
             </label>
+            <fieldset className="breit hafen-signale" style={{ gridColumn: '1 / -1' }} data-testid="hype-signale">
+              <legend>Zusätzliche Signale (geben Punkte, gehen ans LLM)</legend>
+              {(
+                [
+                  ['boost', '🔥 Boost & Profil', 'DexScreener: aktive Boosts (+5), Top-Liste (+3) – jemand bezahlt für Aufmerksamkeit'],
+                  ['socials', '🔗 Socials', 'X (+3), Telegram (+2), Website (+2) aus den Pump.fun-Metadaten und dem DexScreener-Profil'],
+                  ['smart', '🐋 Smart Money', 'Wallets unter den ersten Käufern, die früher oft auf spätere Gewinner gesetzt haben (+5 je Wallet, höchstens +15) – über deinen Helius-Zugang'],
+                ] as const
+              ).map(([k, name, hilfe]) => (
+                <label key={k} className="hafen-haken" title={hilfe}>
+                  <input
+                    type="checkbox"
+                    data-testid={`signal-${k}`}
+                    checked={!!e.regeln.signale?.[k]}
+                    onChange={(ev) => setE((x) => ({ ...x, regeln: { ...x.regeln, signale: { boost: false, socials: false, smart: false, ...x.regeln.signale, [k]: ev.target.checked } } }))}
+                  />{' '}
+                  {name}
+                </label>
+              ))}
+            </fieldset>
             <small className="leise breit" style={{ gridColumn: '1 / -1' }}>
               Muster-Schicht an: kauft wie gewohnt <b>plus</b> bei 🚀 mit steigender 2–5-min-Vorhersage, <b>nicht</b> bei vorhergesagtem Fall, und verkauft früher, wenn es kurz fällt und lang nicht steigt. Alarme wirken dann auch ohne Gewicht.
             </small>

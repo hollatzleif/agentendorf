@@ -616,7 +616,9 @@ export class MusterDienst {
     for (const l of ticks.values()) l.sort((a, b) => a.zeit - b.zeit);
     await abgeben();
     // Metadaten: Tokens mit Ticks; Dev-Historie wie motor.ts devTokens24h (andere Tokens desselben Erstellers in 24 h davor)
-    const zeilen = this.o.db.prepare('SELECT mint, erstellt, creator FROM tokens WHERE erstellt >= ?').all(von - 2 * TAG) as { mint: string; erstellt: number; creator: string | null }[];
+    const zeilen = this.o.db
+      .prepare('SELECT mint, erstellt, creator, boost, boost_zeit, links, links_zeit, smart_kaeufer, smart_zeit FROM tokens WHERE erstellt >= ?')
+      .all(von - 2 * TAG) as { mint: string; erstellt: number; creator: string | null; boost: number | null; boost_zeit: number | null; links: string | null; links_zeit: number | null; smart_kaeufer: number | null; smart_zeit: number | null }[];
     const jeErsteller = new Map<string, number[]>();
     for (const z of zeilen) if (z.creator) (jeErsteller.get(z.creator) ?? jeErsteller.set(z.creator, []).get(z.creator)!).push(z.erstellt);
     for (const l of jeErsteller.values()) l.sort((a, b) => a - b);
@@ -624,6 +626,17 @@ export class MusterDienst {
     for (const z of zeilen) {
       if (!ticks.has(z.mint)) continue;
       const m: TokenMeta = { mint: z.mint, erstellt: z.erstellt };
+      // E244: Hype-Signale mit ihrem Bekannt-ab-Zeitpunkt
+      if (z.boost_zeit != null) ((m.boost = z.boost ?? 0), (m.boostZeit = z.boost_zeit));
+      if (z.links_zeit != null) {
+        try {
+          m.links = (JSON.parse(z.links ?? '[]') as unknown[]).filter((x): x is string => typeof x === 'string');
+          m.linksZeit = z.links_zeit;
+        } catch {
+          /* kaputte Zeile: ohne Links */
+        }
+      }
+      if (z.smart_zeit != null) ((m.smartKaeufer = z.smart_kaeufer ?? 0), (m.smartZeit = z.smart_zeit));
       if (z.creator) {
         const l = jeErsteller.get(z.creator)!;
         // Anzahl in [erstellt − 24 h, erstellt] ohne den Token selbst

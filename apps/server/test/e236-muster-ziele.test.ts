@@ -178,7 +178,7 @@ describe("E236 Label in beide Richtungen und extreme()", () => {
       });
     const x = merkmale(ticks, T0 + 39_000, meta)!;
     const n = (name: string) => x[MERKMAL_NAMEN.indexOf(name)]!;
-    expect(MERKMAL_NAMEN.length).toBe(35);
+    expect(MERKMAL_NAMEN.length).toBe(38);
     expect(x).toHaveLength(MERKMAL_NAMEN.length);
     expect(n("sekSeitErstemTick")).toBe(39);
     expect(n("kaeufeSeitStart")).toBe(29);
