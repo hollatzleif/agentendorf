@@ -367,11 +367,14 @@ function lageText(e: RlEntscheidung): string {
 /** E238: warum diese Handlung – Q-Werte der erlaubten Handlungen (beste zuerst), Sicherung oder Regel */
 function warumText(e: RlEntscheidung): string {
   if (e.grund === "sicherung") return `Sicherung: ${e.sicherung}`;
-  if (e.handlung === "kaufen" && e.regel) return `Einstieg nach Regel (${e.regel})`;
+  if (e.handlung === "kaufen" && e.regel)
+    return `Einstieg nach Regel (${e.regel})${e.einsatz ? ` · ${e.einsatz}` : ""}`;
   if (e.handlung === "kaufen")
-    return e.lage.ertrag != null && e.lage.ertragSchwelle != null
-      ? `Einstieg nach Regel: 💰 Ertrag ${wText(e.lage.ertrag)} ≥ Schwelle ${wText(e.lage.ertragSchwelle)}`
-      : "Einstieg nach Regel (Signale – Ertrags-Modell nicht aktiv)";
+    return (
+      (e.lage.ertrag != null && e.lage.ertragSchwelle != null
+        ? `Einstieg nach Regel: 💰 Ertrag ${wText(e.lage.ertrag)} ≥ Schwelle ${wText(e.lage.ertragSchwelle)}`
+        : "Einstieg nach Regel (Signale – Ertrags-Modell nicht aktiv)") + (e.einsatz ? ` · ${e.einsatz}` : "")
+    );
   if (e.grund === "regel" || !e.q)
     return "Lage nie geübt → Regel ohne Q-Werte";
   return e.q
@@ -412,6 +415,7 @@ function entscheidungInfo(e: RlEntscheidung): KryptoRlEntscheidungInfo {
     q: e.q ? e.q.map((x) => ({ handlung: x.handlung, wert: rund(x.wert) })) : null,
     ...(e.sicherung ? { sicherung: e.sicherung } : {}),
     ...(e.regel ? { regel: e.regel } : {}),
+    ...(e.einsatz ? { einsatz: e.einsatz } : {}),
     lage: {
       p: z(l.p),
       pump: z(l.pump),
@@ -433,6 +437,7 @@ function beispielInfo(t: RlTradeBeispiel): KryptoRlBeispielTrade {
     halbVerkaeufe: t.halbVerkaeufe,
     haltSek: rund(t.haltSek),
     gewinnSol: rund(t.gewinnSol),
+    ...(t.einsatzSol != null ? { einsatzSol: rund(t.einsatzSol) } : {}),
   };
 }
 
@@ -1360,6 +1365,7 @@ export async function musterTrainieren(
         v5m: sig.verlauf[KRYPTO_VERLAUF_SEK.indexOf(300)] ?? null,
         ertrag: sig.ertrag ?? null,
         ertragSchwelle: sig.ertragSchwelle ?? null,
+        ertragWert: sig.ertragWert ?? null,
         alarm: alarmAus(sig),
       };
       (s.zeit < trennZeit ? a : b).push(schritt);
@@ -1456,12 +1462,20 @@ export async function musterTrainieren(
       if (beispielTrades.length < 400) beispielTrades.push(t);
     },
   );
+  // E247: Vergleich – derselbe Zeitraffer mit immer gleichem Einsatz
+  const flach = await rlZeitraffer(rl, testEp, { ...KRYPTO_RL_STANDARD, erkunden: 0 }, abgeben, undefined, false);
   abschnitt("Zeitraffer");
   if (o.log) {
     log(
       zeitraffer.gewinnSol > 0 ? "gut" : "warnung",
       "RL",
       `Zeitraffer auf allen Testdaten (nie gesehen, gierig, Einstieg ${rl.einstieg ? rlEinstiegText(rl.einstieg) : `minSicherheit ${zahl(KRYPTO_RL_STANDARD.minSicherheit, 1)}`}, ${zahl(0.5, 1)} SOL je Kauf): ${tausend(zeitraffer.trades)} Trades · ${vz(zeitraffer.gewinnSol, 3)} SOL nach Gebühren · Treffer ${zeitraffer.trefferquote === null ? "–" : prozent(zeitraffer.trefferquote)} · Pleiten ${zeitraffer.pleiten}`,
+    );
+    const rendite = (g: number, e: number | undefined) => (e ? prozent(g / e) : "–");
+    log(
+      zeitraffer.gewinnSol >= flach.gewinnSol ? "gut" : "warnung",
+      "RL",
+      `Einsatz gestaffelt nach Sicherheit und vorhergesagtem Kurs (20–100 % von ${zahl(0.5, 1)} SOL): Ø ${zahl(zeitraffer.trades ? (zeitraffer.eingesetztSol ?? 0) / zeitraffer.trades : 0, 3)} SOL je Kauf · ${vz(zeitraffer.gewinnSol, 3)} SOL (Rendite ${rendite(zeitraffer.gewinnSol, zeitraffer.eingesetztSol)}) – gleich groß: ${vz(flach.gewinnSol, 3)} SOL (Rendite ${rendite(flach.gewinnSol, flach.eingesetztSol)})`,
     );
     const auswahl = verteilt(beispielTrades, KONSOLE_BEISPIEL_TRADES);
     if (auswahl.length)
@@ -1496,7 +1510,9 @@ export async function musterTrainieren(
       gewinnSol: zeitraffer.gewinnSol,
       trefferquote: zeitraffer.trefferquote,
       pleiten: zeitraffer.pleiten,
+      eingesetztSol: rund(zeitraffer.eingesetztSol ?? 0),
     },
+    flach: { trades: flach.trades, gewinnSol: rund(flach.gewinnSol), eingesetztSol: rund(flach.eingesetztSol ?? 0) },
     einstieg: rl.einstieg ?? null,
     // E239: Kapitalkurve (nach Abschluss-Zeit, ≤ RL_KURVE_PUNKTE) und Beispiel-Trades strukturiert
     startSol: RL_STARTKAPITAL_SOL,

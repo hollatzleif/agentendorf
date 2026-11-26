@@ -298,6 +298,8 @@ export interface KryptoRlEntscheidungInfo {
   sicherung?: string;
   /** E246: Einstieg nach der gelernten Regel (Text, z. B. „📈 Kurs in 1 min +5,2 % ≥ +4,0 %“) */
   regel?: string;
+  /** E247: Einsatz beim Kauf (Anteil, Sicherheit, erwarteter Kurs) */
+  einsatz?: string;
   lage: { p: number | null; pump: number | null; absturz: number | null; v1m: number | null; v5m: number | null; alarm: 'anstieg' | 'absturz' | null; plusProzent: number | null; haltSek: number | null };
 }
 /** E239: ein abgeschlossener Beispiel-Trade aus dem Zeitraffer */
@@ -312,6 +314,8 @@ export interface KryptoRlBeispielTrade {
   haltSek: number;
   /** nach allen Gebühren */
   gewinnSol: number;
+  /** E247: eingesetzt (SOL) */
+  einsatzSol?: number;
 }
 
 export interface KryptoMusterStatus {
@@ -334,7 +338,9 @@ export interface KryptoMusterStatus {
     trainiert: string;
     episoden: number;
     /** Zeitraffer über die Testdaten (Paper-Maschine mit Gebühren) */
-    zeitraffer: { trades: number; gewinnSol: number; trefferquote: number | null; pleiten: number };
+    zeitraffer: { trades: number; gewinnSol: number; trefferquote: number | null; pleiten: number; /** E247 */ eingesetztSol?: number };
+    /** E247: derselbe Zeitraffer mit immer gleichem Einsatz (0,5 SOL) – Vergleich zur Staffel */
+    flach?: { trades: number; gewinnSol: number; eingesetztSol: number } | null;
     /** E246: gelernte Einstiegs-Regel (fehlt bei älteren Läufen / ohne genug Testdaten) */
     einstieg?: KryptoRlEinstieg | null;
     /** E239 (nur /muster/verlauf, nicht im Status): Kapital über die Testdaten nach Abschluss-Zeit (≤ 300 Punkte), Start, Beispiel-Trades */

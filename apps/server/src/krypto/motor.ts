@@ -36,7 +36,7 @@ import type { SmartMoney } from './smart.js';
 import type { KurveStand, KurveStrom } from './strom.js';
 import type { MusterDienst } from './muster/dienst.js';
 import { ratAus, schichtUrteil } from './muster/merkmale.js';
-import { rlEinstiegErfuellt, rlEinstiegText, rlEinstiegWert, rlHandlung, type RlLageMitAlarm } from './muster/rl.js';
+import { rlEinsatz, rlEinstiegErfuellt, rlEinstiegText, rlEinstiegWert, rlHandlung, type RlLageMitAlarm } from './muster/rl.js';
 import { alarmAus, musterSignale as signaleRechnen } from './muster/signale.js';
 import type { MusterSignale, Tick } from './muster/typen.js';
 
@@ -1277,7 +1277,15 @@ export class Kryptowerk {
       const maxAbsturz = (e.rl ?? KRYPTO_RL_STANDARD).maxAbsturz ?? KRYPTO_RL_STANDARD.maxAbsturz ?? 0.35;
       if (a.s.absturz != null && a.s.absturz >= maxAbsturz) return false;
     }
-    const groesse = positionsGroesse(e, this.botZeile(bot.id).kasse_sol - this.reserviert(bot.id));
+    let groesse = positionsGroesse(e, this.botZeile(bot.id).kasse_sol - this.reserviert(bot.id));
+    let grund = a.grund;
+    // E247: RL-Bot staffelt den Einsatz auch beim Alarm-Kauf
+    if (e.art === 'rl') {
+      const s = a.s;
+      const ein = rlEinsatz({ p: s.p ?? 0, pump: s.pump, absturz: s.absturz, hoch5: s.hoch5, tief5: s.tief5, v1m: s.verlauf?.[3] ?? null, v5m: s.verlauf?.[5] ?? null, ertrag: s.ertrag ?? null, ertragSchwelle: s.ertragSchwelle ?? null, ertragWert: s.ertragWert ?? null, haelt: false, plusProzent: 0, haltSek: 0, trend30Prozent: 0 }, this.o.muster?.rl?.einstieg ?? null);
+      groesse *= ein.anteil;
+      grund = `${grund} · ${ein.text}`;
+    }
     const frei = gate(e, lage, groesse);
     if (!frei.erlaubt) {
       this.modulMerken(bot.id, 'gate', `${sym}: ${a.grund} – ${frei.grund}`, 'schlecht');
@@ -1285,7 +1293,7 @@ export class Kryptowerk {
     }
     b.bewertet.set(merker, jetzt);
     this.zuletztBewertet.set(bot.id, jetzt);
-    this.kaufVersuchen(bot.id, e, b, groesse, a.grund, 'modell', a.sicherheit, signale);
+    this.kaufVersuchen(bot.id, e, b, groesse, grund, 'modell', a.sicherheit, signale);
     return true;
   }
 
@@ -1345,7 +1353,7 @@ export class Kryptowerk {
         this.modulMerken(bot.id, 'volumen', `${b.info.symbol}: ${sturz.grund} – kein Kauf`, 'schlecht');
         continue;
       }
-      const lageRl: RlLageMitAlarm = { p, pump: ms.pump, absturz: ms.absturz, hoch5: ms.hoch5, tief5: ms.tief5, v1m: ms.verlauf?.[3] ?? null, v5m: ms.verlauf?.[5] ?? null, ertrag: ms.ertrag ?? null, ertragSchwelle: ms.ertragSchwelle ?? null, alarm: alarmAus(ms, alarmGrenzen(e)), haelt: false, plusProzent: 0, haltSek: 0, trend30Prozent: this.trend30(mint, jetzt) };
+      const lageRl: RlLageMitAlarm = { p, pump: ms.pump, absturz: ms.absturz, hoch5: ms.hoch5, tief5: ms.tief5, v1m: ms.verlauf?.[3] ?? null, v5m: ms.verlauf?.[5] ?? null, ertrag: ms.ertrag ?? null, ertragSchwelle: ms.ertragSchwelle ?? null, ertragWert: ms.ertragWert ?? null, alarm: alarmAus(ms, alarmGrenzen(e)), haelt: false, plusProzent: 0, haltSek: 0, trend30Prozent: this.trend30(mint, jetzt) };
       const h = rlHandlung(muster.rl, lageRl, g, this.o.zufall ?? Math.random);
       this.modulMerken(bot.id, 'volumen', `${b.info.symbol}: ${signalZeile(ms)} → ${h}`, h === 'kaufen' ? 'gut' : 'neutral');
       if (h !== 'kaufen') continue;
@@ -1357,7 +1365,11 @@ export class Kryptowerk {
         const wert = rlEinstiegWert(lageRl, einstieg.signal)!;
         const zusatz = [einstieg.signal !== 'pump' && ms.pump != null ? `🚀 ${pz(ms.pump)}` : '', ms.absturz != null ? `💥 ${pz(ms.absturz)}` : ''].filter(Boolean).join(' · ');
         const sicher = einstieg.signal === 'p' || einstieg.signal === 'pump' || einstieg.signal === 'ertrag' ? wert : (ms.p ?? 0);
-        this.kaufVersuchen(bot.id, e, b, groesse, `RL: kaufen · gelernt: ${rlEinstiegText(einstieg, wert)}${einstieg.bestaetigt ? '' : ' (Paper, nicht bestätigt)'}${zusatz ? ` · ${zusatz}` : ''}`, 'modell', sicher, signale);
+        // E247: Einsatz nach Sicherheit und vorhergesagtem Kurs (20–100 % des Bot-Limits)
+        const ein = rlEinsatz(lageRl, einstieg);
+        const g2 = groesse * ein.anteil;
+        if (!gate(e, lage, g2).erlaubt) continue;
+        this.kaufVersuchen(bot.id, e, b, g2, `RL: kaufen · gelernt: ${rlEinstiegText(einstieg, wert)}${einstieg.bestaetigt ? '' : ' (Paper, nicht bestätigt)'}${zusatz ? ` · ${zusatz}` : ''} · ${ein.text}`, 'modell', sicher, signale);
         continue;
       }
       // sonst (keine Regel / Signal fehlt): nie ohne Ertrags-Modell ab Schwelle (E243), p ≥ minSicherheit oder 🚀 ≥ 30 % kaufen
@@ -1370,7 +1382,10 @@ export class Kryptowerk {
         ? `💰 Ertrag ${pz(ms.ertrag!)} ≥ Schwelle ${pz(ms.ertragSchwelle!)}${ms.ertragWert != null ? ` (erwartet ${ms.ertragWert >= 0 ? '+' : ''}${ms.ertragWert.toFixed(1)} %)` : ''}`
         : ueberP ? `Muster ${pz(ms.p!)} ≥ ${pz(g.minSicherheit)}` : `🚀 Pump ${pz(ms.pump!)} ≥ ${pz(PUMP_KAUF)}`;
       const zusatz = [ueberP && ms.pump != null ? `🚀 ${pz(ms.pump)}` : '', ms.absturz != null ? `💥 ${pz(ms.absturz)}` : ''].filter(Boolean).join(' · ');
-      this.kaufVersuchen(bot.id, e, b, groesse, `RL: kaufen · ${warum}${zusatz ? ` · ${zusatz}` : ''}`, 'modell', ueberErtrag ? ms.ertrag! : ueberP ? ms.p! : ms.pump!, signale);
+      const ein = rlEinsatz(lageRl, null);
+      const g2 = groesse * ein.anteil;
+      if (!gate(e, lage, g2).erlaubt) continue;
+      this.kaufVersuchen(bot.id, e, b, g2, `RL: kaufen · ${warum}${zusatz ? ` · ${zusatz}` : ''} · ${ein.text}`, 'modell', ueberErtrag ? ms.ertrag! : ueberP ? ms.p! : ms.pump!, signale);
     }
   }
 
@@ -1440,7 +1455,7 @@ export class Kryptowerk {
         sicherheit = null;
       } else if (rl && (ms.p != null || ms.pump != null)) {
         const pm = ms.p ?? 0;
-        const wahl = rlHandlung(muster.rl, { p: pm, pump: ms.pump, absturz: ms.absturz, hoch5: ms.hoch5, tief5: ms.tief5, v1m: ms.verlauf?.[3] ?? null, v5m: ms.verlauf?.[5] ?? null, ertrag: ms.ertrag ?? null, ertragSchwelle: ms.ertragSchwelle ?? null, alarm: alarmAus(ms, alarmGrenzen(e)), haelt: true, plusProzent: plus, haltSek: (jetzt - p.geoeffnet) / 1000, trend30Prozent: this.trend30(p.mint, jetzt) }, e.rl ?? KRYPTO_RL_STANDARD, this.o.zufall ?? Math.random);
+        const wahl = rlHandlung(muster.rl, { p: pm, pump: ms.pump, absturz: ms.absturz, hoch5: ms.hoch5, tief5: ms.tief5, v1m: ms.verlauf?.[3] ?? null, v5m: ms.verlauf?.[5] ?? null, ertrag: ms.ertrag ?? null, ertragSchwelle: ms.ertragSchwelle ?? null, ertragWert: ms.ertragWert ?? null, alarm: alarmAus(ms, alarmGrenzen(e)), haelt: true, plusProzent: plus, haltSek: (jetzt - p.geoeffnet) / 1000, trend30Prozent: this.trend30(p.mint, jetzt) }, e.rl ?? KRYPTO_RL_STANDARD, this.o.zufall ?? Math.random);
         if (wahl === 'halb' || wahl === 'raus') {
           h = wahl;
           grund = `RL: ${h === 'raus' ? 'raus' : 'halb verkaufen'} · ${ms.p != null ? `Muster ${pz(ms.p)}` : signalZeile(ms)} · ${plus >= 0 ? '+' : ''}${plus.toFixed(1)} %`;

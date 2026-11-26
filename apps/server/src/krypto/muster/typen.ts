@@ -116,6 +116,8 @@ export interface RlLage {
   /** E243: Ertrags-Modell und seine Kaufschwelle – sind beide da, entscheidet NUR es über den Einstieg des RL-Bots */
   ertrag?: number | null;
   ertragSchwelle?: number | null;
+  /** E247: erwarteter Ertrag je Trade nach Gebühren (%) – für die Einsatz-Staffel */
+  ertragWert?: number | null;
   /** hält der Bot den Token? */
   haelt: boolean;
   /** Kursänderung seit Einstieg in % (0, wenn nicht gehalten) */

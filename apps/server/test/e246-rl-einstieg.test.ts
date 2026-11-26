@@ -126,6 +126,8 @@ describe('RL-Bot im Kryptowerk mit gelernter Regel (E246)', () => {
     const kauf = ja.entscheidungen(b1.id, 'buy');
     expect(kauf).toHaveLength(1);
     expect(kauf[0]!.grund).toMatch(/^RL: kaufen · gelernt: 🚀 Pump 15 % ≥ 10 %/);
+    // E247: Einsatz gestaffelt – knapp über der Schwelle, ohne Kursmodell → 42 % des Limits
+    expect(kauf[0]!.grund).toMatch(/Einsatz 42 % \(sicher 6 %, Kurs –\)$/);
 
     const nein = aufbau();
     nein.muster.modelleSetzen({ pump: fest(0.15) }, { version: 1, q: {} });

@@ -149,6 +149,10 @@ describe('Ertrags-Modell im Training (E243)', () => {
     expect(erg.rlInfo!.einstieg).toBeTruthy();
     expect(erg.rl!.einstieg).toEqual(erg.rlInfo!.einstieg);
     expect(zeilen.join('\n')).toMatch(/RL: gewählt: kaufen, wenn .+ – Wahl-Hälfte \d+ Trades/);
+    // E247: Einsatz gestaffelt, Vergleich mit gleich großem Einsatz
+    expect(erg.rlInfo!.flach).toBeTruthy();
+    expect(erg.rlInfo!.zeitraffer.eingesetztSol).toBeGreaterThan(0);
+    expect(zeilen.join('\n')).toMatch(/RL: Einsatz gestaffelt nach Sicherheit und vorhergesagtem Kurs .* – gleich groß: /);
   }, 240_000);
 });
 

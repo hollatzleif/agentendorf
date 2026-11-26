@@ -29,6 +29,9 @@
 // („kaufen, wenn 📈 Kurs in 1 min ≥ 4 %“), gewählt im Zeitraffer auf der ersten Hälfte der Testdaten mit dem gelernten Ausstieg,
 // geprüft auf der zweiten (rlEinstiegWaehlen). Sie steht im Modell (RlModell.einstieg) und gilt im Zeitraffer und live;
 // minSicherheit/🚀 ≥ 0,3 bleiben nur Rückfall (Modell ohne Regel oder Signal gerade nicht da). 💥-Sperren gelten immer.
+//
+// E247: Einsatz gestaffelt (rlEinsatz) – je sicherer das Modell (Signal über der gelernten Schwelle, wenig 💥) und je besser der
+// vorhergesagte Kurs nach Gebühren, desto mehr: 20 … 100 % des Einsatzes (live: des Bot-Limits, nie darüber; Zeitraffer: 0,5 SOL).
 import {
   KRYPTO_RL_EINSTIEG_NAMEN,
   type KryptoRlEinstieg,
@@ -46,6 +49,12 @@ import {
 } from "./typen.js";
 
 export const RL_EINSATZ_SOL = 0.5;
+/** E247: kleinster Einsatz-Anteil (unsicher, schwacher Kurs); 1 = voller Einsatz */
+export const RL_EINSATZ_MIN_ANTEIL = 0.2;
+/** E247: Gebühren eines Kauf+Verkauf grob in % (Bonding Curve 2 × 1,25 %, PumpPortal 2 × 0,5 %, Slippage/Netz) */
+export const RL_GEBUEHREN_RUNDE_PROZENT = 3.5;
+/** E247: so viel erwarteter Gewinn nach Gebühren (%) zählt als „bester Kurs“ */
+const RL_KURS_VOLL_PROZENT = 20;
 export const RL_STARTKAPITAL_SOL = 10;
 export const RL_PLEITE_STRAFE = -2;
 export const RL_PORTAL_SATZ = 0.005;
@@ -281,6 +290,7 @@ export interface RlSchritt {
   /** E243: Ertrags-Modell und seine Kaufschwelle (null = nicht aktiv) */
   ertrag?: number | null;
   ertragSchwelle?: number | null;
+  ertragWert?: number | null;
 }
 export type RlEpisode = RlSchritt[];
 
@@ -300,6 +310,8 @@ export interface RlEntscheidung {
   sicherung?: string;
   /** E246: Kauf nach der gelernten Einstiegs-Regel (Text) */
   regel?: string;
+  /** E247: Einsatz (Text: Anteil, Sicherheit, erwarteter Kurs) */
+  einsatz?: string;
 }
 /** E238: ein abgeschlossener Trade aus dem Zeitraffer mit beiden Entscheidungen */
 export interface RlTradeBeispiel {
@@ -313,6 +325,8 @@ export interface RlTradeBeispiel {
   gewinnSol: number;
   /** E239: Zeitpunkt des Abschlusses */
   ende?: number;
+  /** E247: eingesetzt (SOL, ohne Netzgebühr) */
+  einsatzSol?: number;
 }
 
 /** E238: Entscheidung nachvollziehen (gleiche Logik wie rlHandlung ohne Erkunden) */
@@ -353,12 +367,15 @@ export function rlErklaeren(
     q: werte,
     ...(sicherung ? { sicherung } : {}),
     ...(regelText ? { regel: regelText } : {}),
+    ...(!l.haelt && handlung === "kaufen" ? { einsatz: rlEinsatz(l, m?.einstieg).text } : {}),
   };
 }
 
 export interface RlZeitraffer {
   trades: number;
   gewinnSol: number;
+  /** E247: Summe der Einsätze (SOL) – Gewinn / eingesetzt = Rendite */
+  eingesetztSol?: number;
   trefferquote: number | null;
   pleiten: number;
   nachschussSol: number;
@@ -386,6 +403,7 @@ interface Position {
   seit: number;
   /** E238: nur mit Beobachter */
   kauf?: RlEntscheidung;
+  einsatzSol?: number;
   halb: number;
   mint?: string;
 }
@@ -398,11 +416,14 @@ async function simulieren(
   lernen: boolean,
   warte: (erzwingen?: boolean) => Promise<void>,
   beobachter?: (t: RlTradeBeispiel) => void,
+  /** E247: Einsatz nach Sicherheit/Kurs staffeln (Zeitraffer); sonst immer RL_EINSATZ_SOL (Training, Regelwahl) */
+  staffeln = false,
 ): Promise<RlZeitraffer> {
   let kapital = RL_STARTKAPITAL_SOL;
   const erg: RlZeitraffer = {
     trades: 0,
     gewinnSol: 0,
+    eingesetztSol: 0,
     trefferquote: null,
     pleiten: 0,
     nachschussSol: 0,
@@ -439,6 +460,7 @@ async function simulieren(
         haltSek: Math.max(0, (ende - pos.seit) / 1000),
         gewinnSol: g2,
         ende,
+        ...(pos.einsatzSol != null ? { einsatzSol: pos.einsatzSol } : {}),
       });
   };
   const pleitePruefen = () => {
@@ -475,6 +497,7 @@ async function simulieren(
         v5m: schritt.v5m ?? null,
         ertrag: schritt.ertrag ?? null,
         ertragSchwelle: schritt.ertragSchwelle ?? null,
+        ertragWert: schritt.ertragWert ?? null,
         // Alarm wie im Training berechnet (fehlt er im Schritt, leitet rlAlarm ihn aus der Lage ab)
         ...(schritt.alarm !== undefined ? { alarm: schritt.alarm } : {}),
         haelt: pos !== null,
@@ -505,9 +528,13 @@ async function simulieren(
       if (a === "kaufen" && !pos) {
         if (kapital < RL_EINSATZ_SOL) a = "warten";
         else {
-          const f = kaufen(kurveAusKurs(preis), RL_EINSATZ_SOL, RL_PORTAL_SATZ);
-          kapital -= RL_EINSATZ_SOL + RL_NETZ_SOL;
-          const einsatz = RL_EINSATZ_SOL + RL_NETZ_SOL;
+          const betrag = staffeln
+            ? RL_EINSATZ_SOL * rlEinsatz(lage, m.einstieg).anteil
+            : RL_EINSATZ_SOL;
+          const f = kaufen(kurveAusKurs(preis), betrag, RL_PORTAL_SATZ);
+          kapital -= betrag + RL_NETZ_SOL;
+          erg.eingesetztSol = (erg.eingesetztSol ?? 0) + betrag;
+          const einsatz = betrag + RL_NETZ_SOL;
           pos = {
             token: f.token,
             einsatz,
@@ -516,12 +543,13 @@ async function simulieren(
             einstieg: preis,
             seit: ep[i + 1]?.zeit ?? schritt.zeit,
             halb: 0,
+            einsatzSol: betrag,
             ...(erklaerung
               ? { kauf: erklaerung, mint: schritt.mint ?? "?" }
               : {}),
           };
         }
-      } else if (pos && (a === "raus" || (a === "halb" && pos.einsatz < 0.1))) {
+      } else if (pos && (a === "raus" || (a === "halb" && pos.einsatz < 0.2 * pos.einsatzGesamt))) {
         r += verkauf(pos, preis, 1);
         abschliessen(pos, erklaerung ?? null, ep[i + 1]?.zeit ?? schritt.zeit);
         pos = null;
@@ -626,6 +654,8 @@ export async function rlZeitraffer(
   abgeben?: () => Promise<void>,
   /** E238: jeder abgeschlossene Trade mit Kauf-/Verkaufsentscheidung (für die Trainings-Konsole) */
   trade?: (t: RlTradeBeispiel) => void,
+  /** E247: Einsatz staffeln (Standard ja – wie live) */
+  staffeln = true,
 ): Promise<RlZeitraffer> {
   return simulieren(
     m,
@@ -635,6 +665,7 @@ export async function rlZeitraffer(
     false,
     takt(abgeben),
     trade,
+    staffeln,
   );
 }
 
@@ -689,7 +720,7 @@ export async function rlEinstiegWaehlen(
     for (const schwelle of schwellen) {
       const anteil = werte.filter((w) => w >= schwelle).length / schritte;
       const probe: KryptoRlEinstieg = { signal, schwelle, anteil, wahl: { trades: 0, gewinnSol: 0 }, pruef: { trades: 0, gewinnSol: 0 }, bestaetigt: false };
-      const z = await rlZeitraffer({ ...m, einstieg: probe }, wahl, grenzen, abgeben);
+      const z = await rlZeitraffer({ ...m, einstieg: probe }, wahl, grenzen, abgeben, undefined, false);
       kandidaten.push({ signal, schwelle, anteil, trades: z.trades, gewinnSol: z.gewinnSol });
     }
   }
@@ -706,8 +737,51 @@ export async function rlEinstiegWaehlen(
     pruef: { trades: 0, gewinnSol: 0 },
     bestaetigt: false,
   };
-  const z2 = await rlZeitraffer({ ...m, einstieg }, pruef, grenzen, abgeben);
+  const z2 = await rlZeitraffer({ ...m, einstieg }, pruef, grenzen, abgeben, undefined, false);
   einstieg.pruef = { trades: z2.trades, gewinnSol: z2.gewinnSol };
   einstieg.bestaetigt = z2.trades >= RL_EINSTIEG_MIN_PRUEF && z2.gewinnSol > 0;
   return { einstieg, kandidaten };
+}
+
+export interface RlEinsatz {
+  /** Anteil am vollen Einsatz (RL_EINSATZ_MIN_ANTEIL … 1) */
+  anteil: number;
+  /** 0–1: wie weit das Signal über der Schwelle liegt (ohne Regel: p/🚀/Ertrag), mal (1 − 💥) */
+  sicherheit: number;
+  /** vorhergesagte Kursänderung in % (Ertrag je Trade, sonst Kurs in 5 min, 1 min, Hoch in 5 min) – null, wenn kein Modell */
+  erwartetProzent: number | null;
+  text: string;
+}
+
+const klemme = (x: number) => Math.max(0, Math.min(1, x));
+const pzT = (x: number) => `${x >= 0 ? "+" : ""}${x.toFixed(1).replace(".", ",")} %`;
+
+/**
+ * E247: Einsatz nach Sicherheit und vorhergesagtem Kurs. Sicherheit: mit gelernter Regel der Abstand des Signals über der Schwelle
+ * (Wahrscheinlichkeiten relativ zum Rest bis 1, Prozent-Signale je 10 %-Punkte über der Schwelle), sonst das stärkste Signal
+ * (p, 🚀, Ertrag); mal (1 − 💥). Kurs: erwartete Änderung nach Gebühren, ab +20 % voll; ohne Kursmodell neutral (0,5).
+ * Anteil = 0,2 + 0,8 × Mittel aus beiden.
+ */
+export function rlEinsatz(l: RlLage, einstieg?: KryptoRlEinstieg | null): RlEinsatz {
+  let sicher: number;
+  const w = einstieg ? rlEinstiegWert(l, einstieg.signal) : null;
+  if (einstieg && w !== null) {
+    sicher = KRYPTO_RL_EINSTIEG_NAMEN[einstieg.signal].prozent
+      ? klemme((w - einstieg.schwelle) / (Math.abs(einstieg.schwelle) + 10))
+      : klemme((w - einstieg.schwelle) / Math.max(0.05, 1 - einstieg.schwelle));
+  } else {
+    sicher = klemme(Math.max(l.p, zahlOderNull(l.pump) ?? 0, zahlOderNull(l.ertrag) ?? 0));
+  }
+  const absturz = zahlOderNull(l.absturz);
+  if (absturz !== null) sicher *= 1 - klemme(absturz);
+  const erwartet =
+    zahlOderNull(l.ertragWert) ?? zahlOderNull(l.v5m) ?? zahlOderNull(l.v1m) ?? zahlOderNull(l.hoch5);
+  const kurs = erwartet === null ? 0.5 : klemme((erwartet - RL_GEBUEHREN_RUNDE_PROZENT) / RL_KURS_VOLL_PROZENT);
+  const anteil = RL_EINSATZ_MIN_ANTEIL + (1 - RL_EINSATZ_MIN_ANTEIL) * ((sicher + kurs) / 2);
+  return {
+    anteil,
+    sicherheit: sicher,
+    erwartetProzent: erwartet,
+    text: `Einsatz ${Math.round(anteil * 100)} % (sicher ${Math.round(sicher * 100)} %, Kurs ${erwartet === null ? "–" : pzT(erwartet)})`,
+  };
 }

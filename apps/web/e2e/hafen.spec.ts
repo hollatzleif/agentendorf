@@ -564,6 +564,9 @@ test('E239: Muster-Kielwasser – Modelle mit Entscheidung, Verlauf mit Tooltip,
   // E246: gelernte Einstiegs-Regel
   await expect(rl.getByTestId('rl-einstieg')).toContainText('📈 Kurs in 1 min ≥ +4,0 %');
   await expect(rl.getByTestId('rl-einstieg')).toContainText('bestätigt');
+  // E247: Einsatz gestaffelt vs. gleich groß
+  await expect(rl.getByTestId('rl-einsatz')).toContainText('Ø 0,409 SOL je Kauf');
+  await expect(rl.getByTestId('rl-einsatz')).toContainText('gleich groß');
   if (info.project.name === 'handy') {
     const breit = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(breit).toBeLessThanOrEqual(1);

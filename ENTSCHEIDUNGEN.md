@@ -2778,3 +2778,20 @@ Leif (mit Screenshot Muster-Kielwasser v27, RL-Zeitraffer 0 Trades): „Jetzt ka
   - Bei 0 Trades steht nicht mehr fälschlich „ab dem nächsten Training“.
 - **Ehrlich:** Der Zeitraffer über alle Testdaten enthält die Wahl-Hälfte und ist darum etwas zu optimistisch. Die ehrliche Zahl ist die Prüf-Hälfte.
 - **Wirksam:** ab dem ersten Training nach dem Deploy (10 min nach dem Start des Kryptowerks).
+
+## E247 – RL-Agent setzt je nach Sicherheit und vorhergesagtem Kurs (26.11.)
+
+Leif: „Mach auch, dass das Mustermodell den Einsatz immer davon abhängig macht, wie sicher es sich ist und wie gut der vorhergesagte Kurs ist.“
+
+- **Formel (`rlEinsatz` in rl.ts):** Anteil = 0,2 + 0,8 × Mittel aus Sicherheit und Kurs, also 20 … 100 % des Einsatzes.
+  - **Sicherheit:**
+    - Mit gelernter Einstiegs-Regel (E246) zählt, wie weit das Signal über der Schwelle liegt. Bei Wahrscheinlichkeiten ist das der Anteil am Rest bis 1, bei Prozent-Signalen je 10 %-Punkte über der Schwelle.
+    - Ohne Regel zählt das stärkste von p, 🚀 und Ertrag.
+    - Immer mal (1 − 💥).
+  - **Kurs:** die vorhergesagte Änderung (Ertrag je Trade, sonst 📈 Kurs in 5 min, 1 min, Hoch in 5 min) abzüglich ≈ 3,5 % Gebühren einer Runde. Ab +20 % zählt er voll, ohne Kursmodell neutral (0,5).
+- **Live (Muster-RL, alle RL-Bots, auch beim 🚀-Alarm-Kauf):** Anteil × Positionsgröße des Bots (`positionsGroesse`). Damit nie über `einsatzProTradeSol` und `positionProzent` – die Grenzen sitzen weiter im Code. Das Risk-Gate prüft die gestaffelte Größe. Der Kaufgrund nennt „Einsatz 64 % (sicher 70 %, Kurs +12,3 %)“.
+- **Zeitraffer:** Er staffelt wie live (0,5 SOL = 100 %).
+  - Zum Vergleich läuft derselbe Zeitraffer mit gleich großem Einsatz. Konsole und Kielwasser zeigen beide mit Rendite (Gewinn / eingesetzt) und dem Abzeichen „Staffel besser“ bzw. „gleich groß besser“.
+  - Training und Regelwahl (E246) bleiben bei gleich großem Einsatz, damit die Lernsignale vergleichbar sind.
+- **Nebenbei repariert:** „Halb verkaufen“ schloss im Zeitraffer bei einem Rest unter 0,1 SOL ganz. Das war fest an 0,5 SOL gebunden, jetzt gilt ein Rest unter 20 % des Einsatzes. Bei 0,5 SOL ist das dasselbe; kleinere Einsätze verkauften sonst früh und kauften am Episodenende verlustreich nach.
+- **Ehrlich:** Die Formel ist von Hand gesetzt, nicht gelernt. Ob sie sich lohnt, zeigt der Vergleich im Zeitraffer bei jedem Training.

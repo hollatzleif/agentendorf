@@ -460,7 +460,7 @@ function lageText(e: KryptoRlEntscheidungInfo) {
 }
 function warumText(e: KryptoRlEntscheidungInfo) {
   if (e.grund === 'sicherung') return `Sicherung: ${e.sicherung ?? ''}`;
-  if (e.handlung === 'kaufen' && (e.regel || !e.q)) return `Einstieg nach Regel${e.regel ? ` (${e.regel})` : ''}`;
+  if (e.handlung === 'kaufen' && (e.regel || !e.q)) return `Einstieg nach Regel${e.regel ? ` (${e.regel})` : ''}${e.einsatz ? ` · ${e.einsatz}` : ''}`;
   if (e.grund === 'regel' || !e.q) return 'Lage nie geübt → Regel ohne Q-Werte';
   return e.q.map((x, i) => `${i ? (e.q![i - 1]!.wert > x.wert ? ' > ' : ' = ') : ''}${x.handlung} ${komma(x.wert, 3)}`).join('');
 }
@@ -504,6 +504,18 @@ function EinstiegZeile({ e }: { e: KryptoRlEinstieg | null | undefined }) {
     <p className="mono mk-klein" data-testid="rl-einstieg" title="Gewählt im Zeitraffer auf der ersten Hälfte der Testdaten (bester Gewinn nach Gebühren mit dem gelernten Ausstieg), geprüft auf der zweiten Hälfte">
       Einstieg (gelernt): kaufen, wenn <b>{n.name} ≥ {wert}</b> · {Math.round(e.anteil * 1000) / 10} % der Zeitpunkte · Wahl {e.wahl.trades} Trades {solVz(e.wahl.gewinnSol, 3)} SOL · Prüfung {e.pruef.trades} Trades {solVz(e.pruef.gewinnSol, 3)} SOL{' '}
       <span className={`kw-tag ${e.bestaetigt ? 'kauf' : 'fehlschlag'}`}>{e.bestaetigt ? 'bestätigt' : 'nicht bestätigt'}</span>
+    </p>
+  );
+}
+
+/** E247: Einsatz-Staffel – Ø Einsatz und Rendite gestaffelt vs. immer gleich groß */
+function EinsatzZeile({ z, flach }: { z: NonNullable<KryptoMusterStatus['rl']>['zeitraffer']; flach: NonNullable<KryptoMusterStatus['rl']>['flach'] }) {
+  if (z.eingesetztSol == null || !flach || !z.trades) return null;
+  const rendite = (g: number, e: number) => (e > 0 ? `${g >= 0 ? '+' : ''}${komma((g / e) * 100, 1)} %` : '–');
+  return (
+    <p className="mono mk-klein" data-testid="rl-einsatz" title="Einsatz je Kauf 20–100 % – je sicherer das Modell und je besser der vorhergesagte Kurs nach Gebühren, desto mehr">
+      Einsatz gestaffelt: Ø {komma(z.eingesetztSol / z.trades, 3)} SOL je Kauf · {solVz(z.gewinnSol, 3)} SOL (Rendite {rendite(z.gewinnSol, z.eingesetztSol)}) · gleich groß {solVz(flach.gewinnSol, 3)} SOL (Rendite {rendite(flach.gewinnSol, flach.eingesetztSol)}){' '}
+      <span className={`kw-tag ${z.gewinnSol >= flach.gewinnSol ? 'kauf' : 'fehlschlag'}`}>{z.gewinnSol >= flach.gewinnSol ? 'Staffel besser' : 'gleich groß besser'}</span>
     </p>
   );
 }
@@ -570,6 +582,7 @@ function RlTafel({ rl, lauf }: { rl: KryptoMusterStatus['rl']; lauf: number | nu
               </p>
             )}
             <EinstiegZeile e={rl.einstieg} />
+            <EinsatzZeile z={z} flach={rl.flach} />
             <div className="kw-zahlen mk-zahlen4">
               <div>
                 <span>Trades</span>
@@ -603,7 +616,7 @@ function RlTafel({ rl, lauf }: { rl: KryptoMusterStatus['rl']; lauf: number | nu
                     <span>
                       <b style={{ color: 'var(--kw-text)' }}>{mintKurz(t.mint)}</b> KAUFEN · {lageText(t.kauf)} · warum: {warumText(t.kauf)}
                       <br />→ {t.verkauf ? `${HANDLUNG[t.verkauf.handlung]} nach ${Math.round(t.haltSek)} s · ${lageText(t.verkauf)} · warum: ${warumText(t.verkauf)}` : `Ende der Aufzeichnung nach ${Math.round(t.haltSek)} s`}
-                      {t.halbVerkaeufe ? ` (vorher ${t.halbVerkaeufe}× halb)` : ''} · Ergebnis {solVz(t.gewinnSol, 4)} SOL
+                      {t.halbVerkaeufe ? ` (vorher ${t.halbVerkaeufe}× halb)` : ''}{t.einsatzSol != null ? ` · Einsatz ${komma(t.einsatzSol, 3)} SOL` : ''} · Ergebnis {solVz(t.gewinnSol, 4)} SOL
                       <Eur sol={t.gewinnSol} vz />
                     </span>
                   </li>

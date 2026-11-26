@@ -278,7 +278,8 @@ describe('Alarm bei RL-Bots (E237)', () => {
     const bot = await x.start(einstellung({ name: 'RL', art: 'rl', rl: { minSicherheit: 0.6, erkunden: 0, nachschuss: true } }));
     const kauf = x.entscheidungen(bot.id, 'buy');
     expect(kauf).toHaveLength(1);
-    expect(kauf[0]).toMatchObject({ quelle: 'modell', grund: '🚀 Alarm: +18 % in 15 s erwartet' });
+    // E247: RL-Bot staffelt auch beim Alarm-Kauf den Einsatz
+    expect(kauf[0]).toMatchObject({ quelle: 'modell', grund: expect.stringMatching(/^🚀 Alarm: \+18 % in 15 s erwartet · Einsatz \d+ % \(sicher \d+ %, Kurs –\)$/) });
     await x.schritt(2000);
     expect(x.werk.terminal(bot.id).lage).toBe('LONG');
     x.muster.modelleSetzen({ verlauf5s: wert(-11) });
