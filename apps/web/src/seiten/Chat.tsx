@@ -257,7 +257,20 @@ function Nachricht({ n, anhaenge }: { n: ChatNachricht; anhaenge?: DateiKarte[] 
   if (n.rolle === 'agent' && !n.text.trim()) return null;
   return (
     <div className={`nachricht ${n.rolle}`}>
-      {n.rolle === 'nutzer' ? (
+      {n.rolle === 'nutzer' && n.anzeige != null ? (
+        <>
+          {/* E245: Arbeitsanweisung geht ans Modell, Leif sieht nur seine Eingabe (die Anweisung lässt sich aufklappen) */}
+          <div data-testid="auftrag-anzeige">
+            <Markdown inhalt={n.anzeige} pfad="" />
+          </div>
+          <details className="arbeitsanweisung" data-testid="arbeitsanweisung">
+            <summary className="leise" title="Die vollständige Anweisung an das Modell">
+              Arbeitsanweisung
+            </summary>
+            <NutzerText text={n.text} />
+          </details>
+        </>
+      ) : n.rolle === 'nutzer' ? (
         <NutzerText text={n.text} />
       ) : n.rolle === 'hinweis' ? (
         <div className="hinweis">

@@ -779,3 +779,14 @@ html[data-design='apple'] .atelier .at-nur-schmal { display: none; }
   html[data-design='apple'] .dorf-panel { padding-bottom: var(--a-unten, 0px); }
   html[data-design='apple'] .bau-leiste { max-height: calc(100% - var(--a-unten, 0px) - 5rem); }
 }
+
+/* E245: Letzte Chats – Glasknopf in der Kopfleiste, Liste als Popover (Material wie Menüs) */
+html[data-design='apple'] .letzte-chats-liste {
+  background: var(--a-glas-dicht); color: var(--a-text); border: 0.5px solid var(--a-glas-rand);
+  border-radius: 14px; box-shadow: var(--a-glas-schatten); backdrop-filter: var(--a-glas-blur); -webkit-backdrop-filter: var(--a-glas-blur);
+}
+html[data-design='apple'] .letzte-chats-eintrag { border-radius: 10px; }
+html[data-design='apple'] .letzte-chats-eintrag:hover { background: color-mix(in srgb, var(--a-blau) 12%, transparent); }
+html[data-design='apple'] .letzte-chats-kopf, html[data-design='apple'] .letzte-chats-vorschau { font: var(--a-footnote); color: var(--a-text2); }
+html[data-design='apple'] .letzte-chats-titel { font: var(--a-subheadline); font-weight: 600; }
+html[data-design='apple'] .arbeitsanweisung > summary { font: var(--a-footnote); color: var(--a-text2); }

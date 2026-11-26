@@ -2734,3 +2734,20 @@ Umsetzung:
 - **Muster-Modell:** drei neue Merkmale `boost`, `socialsAnzahl`, `smartKaeufer` – im Training erst ab ihrem Bekannt-Zeitpunkt (sonst 0 bzw. −1), live genauso. Dadurch ändert sich die Merkmalsliste: Die bisherigen Modelle gelten nicht mehr, und das Archiv wird geleert. Das erste Training läuft 10 min nach dem Deploy und lernt alles neu aus den Ticks der letzten 7 Tage. Bei älteren Tokens fehlen die Signale (−1), das Modell lernt sie erst mit neuen Daten.
 - Abgerufen wird nur, wenn ein laufender Bot das Häkchen hat oder das Muster-Modell läuft (immer – es braucht die Merkmale).
 - **Fix „Antwort abgeschnitten (max_tokens)“ bei Prompt-Bots:** Die Bewertung läuft über das System-Modell Haiku 5.5. Das denkt standardmäßig nach (adaptive thinking), und dieses Denken zählt in `max_tokens`. Mit 400 brach rund 3 von 4 Bewertungen ab, bevor das JSON kam – der Bot verpasste so die meisten Gelegenheiten. Jetzt 4000 (höchstens ≈ 0,002 $ je Bewertung, im Budget je Bot).
+
+## E245 – Arbeitsanweisungen im Chat ausgeblendet + „Letzte Chats“ in der Kopfleiste (26.11.)
+
+Leif: „Kannst du machen, dass bei allen Chats die Arbeitsanweisungen immer ausgeblendet werden? Die sollen mitübermittelt werden, aber im Chat für mich nicht sichtbar sein. Und bau oben (Apple und normal) einen Tab ‚Letzte Chats‘ – beim Hovern die letzten 5 Chats, in denen ich geschrieben habe oder ein Modell geantwortet hat (egal welches Gebäude, auch Bürgermeister), und ich springe per Klick hinein.“
+
+- **Arbeitsanweisung:** Die erste Nachricht eines Aktions- oder Helfer-Chats bleibt unverändert (sie geht so ans Modell, auch in Spiegel und Protokoll). Die App bekommt dazu `anzeige` (`auftragAnzeige` in dienst.ts) und zeigt nur das:
+  - eine Eingabe: ihr Wert (z. B. die Frage an den Berater);
+  - mehrere Eingaben: „Feld: Wert“ je Zeile;
+  - ohne Eingaben: „▶ Name“;
+  - Helfer des Bürgermeisters: „Auftrag: …“.
+
+  Die ganze Anweisung steht darunter klein und zugeklappt („Arbeitsanweisung“) – zum Nachsehen, falls ein Ergebnis seltsam ist. Freie Chats (Leif schreibt selbst) bleiben wie sie sind.
+- **Letzte Chats** (`GET /api/chats/letzte`, `LetzteChats.tsx`): die 5 Chats mit der jüngsten Nachricht von Leif oder einem Modell (nicht Werkzeug/Hinweis), über alle Gebäude inkl. Bürgermeister. System-Chats (Post-Einordnung, Hafen-Bewertungen, Zeitung …, `rolle = system`) zählen nicht – sie würden die Liste fluten. Die Vorschau zeigt nie die Arbeitsanweisung und beim Modell nur die Antwort ohne das Protokoll („## Zusammenfassung“).
+  - Dorf: Eintrag „Letzte Chats“ in der Navigation.
+  - Apple: Glasknopf mit Sprechblase in der Kopfleiste.
+  - Öffnen beim Überfahren, Antippen auf dem Handy (dort als Tafel oben, weil die Navigation unten liegen kann), Esc/Klick daneben schließt.
+  - Live aktualisiert über die Chat-Ereignisse.

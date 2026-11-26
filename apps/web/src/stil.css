@@ -2102,3 +2102,34 @@ details.karte > summary { cursor: pointer; }
 .pw-pakete { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.3rem; }
 .pw-pakete li { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; min-width: 0; }
 .pw-pakete code { overflow-wrap: anywhere; color: var(--text); }
+
+/* E245: Letzte Chats in der Kopfleiste – beim Überfahren/Antippen die 5 letzten Chats */
+.letzte-chats { position: relative; display: inline-flex; }
+.letzte-chats-knopf { padding: 0.3rem 0.8rem; border-radius: 12px; color: var(--kopf-text); background: none; font: inherit; font-weight: 800; border: 2px solid transparent; cursor: pointer; }
+.letzte-chats-knopf:hover, .letzte-chats-knopf.aktiv { background: rgb(255 255 255 / 0.12); }
+.letzte-chats-liste {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 60; width: min(360px, 92vw);
+  display: flex; flex-direction: column; gap: 2px; padding: 6px;
+  background: var(--karte, #fff); color: var(--text, #222); border: 2px solid var(--rand, rgb(0 0 0 / 0.15)); border-radius: 12px;
+  box-shadow: 0 10px 28px rgb(0 0 0 / 0.25);
+}
+.letzte-chats-dorf .letzte-chats-liste { left: 0; right: auto; }
+.letzte-chats-liste > p { margin: 0.4rem 0.6rem; }
+.letzte-chats-eintrag {
+  display: flex; flex-direction: column; align-items: stretch; gap: 1px; text-align: left; width: 100%;
+  padding: 0.45rem 0.6rem; border: 0; border-radius: 8px; background: none; color: inherit; font: inherit; cursor: pointer;
+}
+.letzte-chats-eintrag:hover, .letzte-chats-eintrag:focus-visible { background: color-mix(in srgb, var(--akzent, #3a7) 14%, transparent); outline: none; }
+.letzte-chats-kopf { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.78rem; }
+.letzte-chats-gebaeude { font-weight: 700; }
+.letzte-chats-titel { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.letzte-chats-vorschau { font-size: 0.82rem; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+/* E245: Arbeitsanweisung unter Leifs Eingabe – klein und zu */
+.arbeitsanweisung { margin-top: 0.35rem; }
+.arbeitsanweisung > summary { cursor: pointer; font-size: 0.75rem; opacity: 0.7; }
+.arbeitsanweisung[open] { opacity: 0.85; }
+/* E245: auf dem Handy (Navigation oft unten) als feste Tafel oben, über allem */
+@media (max-width: 760px), (pointer: coarse) {
+  .letzte-chats-dorf .letzte-chats-liste { position: fixed; top: 64px; left: 8px; right: 8px; width: auto; z-index: 500; max-height: 70vh; overflow: auto; }
+  .letzte-chats-knopf { padding: 0.35rem 0.5rem; font-size: 0.95rem; }
+}

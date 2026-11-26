@@ -10,6 +10,7 @@ import { schnellDunkelUmschalten } from '../aussehen';
 import { Ikon, Symbol } from './Ikon';
 import type { SymbolName } from './symbole';
 import { Sheet } from './Sheet';
+import { LetzteChats } from '../komponenten/LetzteChats';
 
 type Ziel = { href: string; text: string; symbol: SymbolName };
 
@@ -149,6 +150,7 @@ export function AppleSchale({ pfad, freigaben, konflikte, live, children }: { pf
                 <span className="a-plakette">{konflikte}</span>
               </a>
             )}
+            <LetzteChats variante="apple" kinder={<Symbol name="sprechblase" />} />
             <button type="button" className="a-glasknopf" aria-label="Suchen" title="Suchen (⌘K)" onClick={() => window.dispatchEvent(new Event('dorf:palette'))}>
               <Symbol name="suche" />
             </button>

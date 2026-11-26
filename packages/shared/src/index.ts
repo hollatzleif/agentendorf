@@ -374,6 +374,24 @@ export interface ChatNachricht {
   rolle: 'nutzer' | 'agent' | 'werkzeug' | 'hinweis';
   text: string;
   erstellt: string;
+  /**
+   * E245: erste Nachricht einer Aktion/eines Helfers – `text` ist die ganze Arbeitsanweisung (geht so an das Modell), die App
+   * zeigt stattdessen nur das, was Leif eingegeben hat (bzw. den Auftrag des Bürgermeisters)
+   */
+  anzeige?: string;
+}
+
+/** E245: einer der letzten Chats, in denen Leif geschrieben oder ein Modell geantwortet hat (Kopfleiste „Letzte Chats“) */
+export interface LetzterChat {
+  id: string;
+  gebaeude: string;
+  titel: string;
+  /** Zeit der letzten Nachricht von Leif oder einem Modell */
+  zuletzt: string;
+  von: 'nutzer' | 'agent';
+  /** Anfang der letzten Nachricht (ohne Arbeitsanweisung) */
+  vorschau: string;
+  status?: LaufStatus;
 }
 
 export interface ChatDetail extends ChatInfo {

@@ -3,7 +3,7 @@ import type { Noten } from '../uni/noten.js';
 import type { Saxo } from '../saxo.js';
 import type { Hafen } from '../krypto-dorf.js';
 import crypto from 'node:crypto';
-import type { Ausloeser, ChatDetail, DateiKarte, ChatInfo, LaufInfo, LaufStatus, Motor as MotorName, Stufe } from '@dorf/shared';
+import type { Ausloeser, ChatDetail, ChatNachricht, DateiKarte, ChatInfo, LaufInfo, LaufStatus, LetzterChat, Motor as MotorName, Stufe } from '@dorf/shared';
 import type { DB } from '../db.js';
 import type { Uhr } from '../uhr.js';
 import type { VaultDienst } from '../vault/dienst.js';
@@ -950,12 +950,71 @@ Erledige genau diesen Auftrag. Lege Ergebnisse als Notiz in ${o.gebaeude}/ ab un
         erstellt: number;
       }[]
     ).map((n) => ({ id: n.id, laufId: n.lauf_id ?? undefined, rolle: n.rolle, text: n.text, erstellt: iso(n.erstellt)! }));
+    // E245: die erste Nachricht von Aktionen/Helfern ist die Arbeitsanweisung – angezeigt wird nur Leifs Eingabe
+    const erste = nachrichten.find((n) => n.rolle === 'nutzer');
+    const anzeige = erste ? auftragAnzeige(c) : null;
+    if (erste && anzeige !== null) (erste as ChatNachricht).anzeige = anzeige;
     return { ...this.chatInfo(c, laeufe.at(-1)?.status), nachrichten, laeufe, wartend: this.wartend(id) };
+  }
+
+  /** E245: die letzten Chats, in denen Leif geschrieben oder ein Modell geantwortet hat (ohne System-Chats wie Post-Einordnung) */
+  letzteChats(anzahl = 5): LetzterChat[] {
+    const zeilen = this.db
+      .prepare(
+        `SELECT c.*, m.zuletzt AS zuletzt,
+           (SELECT status FROM laeufe WHERE chat_id = c.id ORDER BY nummer DESC LIMIT 1) AS lauf_status,
+           (SELECT n.rolle || char(1) || n.text FROM nachrichten n WHERE n.chat_id = c.id AND n.rolle IN ('nutzer', 'agent') AND TRIM(n.text) != ''
+              ORDER BY n.id DESC LIMIT 1) AS letzte,
+           (SELECT MIN(n.id) FROM nachrichten n WHERE n.chat_id = c.id AND n.rolle = 'nutzer') AS erste_id,
+           (SELECT n.id FROM nachrichten n WHERE n.chat_id = c.id AND n.rolle IN ('nutzer', 'agent') AND TRIM(n.text) != '' ORDER BY n.id DESC LIMIT 1) AS letzte_id
+         FROM chats c
+         JOIN (SELECT chat_id, MAX(erstellt) AS zuletzt FROM nachrichten WHERE rolle IN ('nutzer', 'agent') AND TRIM(text) != '' GROUP BY chat_id) m ON m.chat_id = c.id
+         WHERE COALESCE(c.rolle, '') != 'system'
+         ORDER BY m.zuletzt DESC LIMIT ?`,
+      )
+      .all(Math.max(1, Math.min(20, anzahl))) as (ChatZeile & { zuletzt: number; lauf_status: LaufStatus | null; letzte: string | null; erste_id: number | null; letzte_id: number | null })[];
+    return zeilen.map((c) => {
+      const [rolle, ...rest] = (c.letzte ?? 'agent\u0001').split('\u0001');
+      let text = rest.join('\u0001');
+      // die Arbeitsanweisung nie als Vorschau
+      if (c.letzte_id != null && c.letzte_id === c.erste_id) text = auftragAnzeige(c) ?? text;
+      // beim Modell nur die Antwort, nicht das Protokoll darunter (## Zusammenfassung, wie in der App eingeklappt)
+      const z = /^##\s*Zusammenfassung\s*$/m.exec(text);
+      if (rolle !== 'nutzer' && z && z.index > 0) text = text.slice(0, z.index);
+      return {
+        id: c.id,
+        gebaeude: c.gebaeude,
+        titel: c.titel,
+        zuletzt: iso(c.zuletzt)!,
+        von: rolle === 'nutzer' ? 'nutzer' : 'agent',
+        vorschau: text.replace(/\s+/g, ' ').trim().slice(0, 140),
+        ...(c.lauf_status ? { status: c.lauf_status } : {}),
+      };
+    });
   }
 
   aktiveLaeufe(): LaufInfo[] {
     return (this.db.prepare("SELECT * FROM laeufe WHERE status IN ('wartet_freigabe', 'wartend', 'laeuft') ORDER BY erstellt").all() as LaufZeile[]).map(laufInfo);
   }
+}
+
+/**
+ * E245: Was die App statt der Arbeitsanweisung zeigt (null = normale Nachricht, z. B. ein Chat, den Leif selbst begonnen hat):
+ * Aktion mit Eingaben → die Eingaben (eine: nur der Wert; mehrere: „Feld: Wert“ je Zeile); Aktion ohne Eingaben → „▶ Name“;
+ * Helfer des Bürgermeisters → „Auftrag: …“ (Titel ohne „Helfer: “).
+ */
+export function auftragAnzeige(c: Pick<ChatZeile, 'aktion' | 'titel' | 'eingaben_json'>): string | null {
+  if (!c.aktion) return c.titel.startsWith('Helfer: ') ? `Auftrag: ${c.titel.slice('Helfer: '.length)}` : null;
+  let werte: Record<string, unknown> = {};
+  try {
+    werte = JSON.parse(c.eingaben_json || '{}') as Record<string, unknown>;
+  } catch {
+    werte = {};
+  }
+  const gefuellt = Object.entries(werte).filter(([, v]) => typeof v === 'string' && v.trim()) as [string, string][];
+  if (!gefuellt.length) return `▶ ${c.titel}`;
+  if (gefuellt.length === 1) return gefuellt[0]![1].trim();
+  return gefuellt.map(([k, v]) => `**${k}:** ${v.trim()}`).join('\n\n');
 }
 
 export { kurztitel };

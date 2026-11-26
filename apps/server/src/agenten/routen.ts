@@ -57,6 +57,8 @@ export function agentenRouten(
     const q = z.object({ gebaeude: z.string().optional(), q: z.string().max(100).optional() }).parse(req.query);
     return agenten.chatListe(q);
   });
+  // E245: Kopfleiste „Letzte Chats“
+  app.get('/api/chats/letzte', async (req) => agenten.letzteChats(z.object({ anzahl: z.coerce.number().int().min(1).max(20).default(5) }).parse(req.query).anzahl));
   app.get('/api/chats/:id', async (req) => agenten.chatDetail(z.object({ id: z.string() }).parse(req.params).id));
   // E190: Text + Dateien (multipart) oder nur Text (JSON) – läuft gerade etwas, kommt beides in die Warteschlange
   app.post('/api/chats/:id/nachricht', async (req) => {

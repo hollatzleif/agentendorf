@@ -16,6 +16,7 @@ import { SeitenFehler } from './komponenten/SeitenFehler';
 import { Tastenkuerzel } from './komponenten/Tastenkuerzel';
 import { useDesign } from './apple/design';
 import { AppleSchale } from './apple/Schale';
+import { LetzteChats } from './komponenten/LetzteChats';
 
 // Seiten erst laden, wenn man sie öffnet – der Start (Dorf) bleibt klein
 const GebaeudeSeite = lazy(() => import('./seiten/Gebaeude').then((m) => ({ default: m.GebaeudeSeite })));
@@ -154,6 +155,7 @@ function Rahmen() {
           {nav('/heute', 'Heute', pfad === '/heute')}
           {nav('/bibliothek', 'Bibliothek', pfad === '/bibliothek')}
           {nav('/einstellungen', 'Einstellungen', pfad === '/einstellungen' || pfad === '/paketwerk')}
+          <LetzteChats variante="dorf" kinder="Letzte Chats" />
         </nav>
         <div className="status">
           <DunkelSchalter />
