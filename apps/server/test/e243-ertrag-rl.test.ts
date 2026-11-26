@@ -145,6 +145,10 @@ describe('Ertrags-Modell im Training (E243)', () => {
     expect(zeilen.join('\n')).toMatch(/ertrag: .*Schwelle \d,\d+ \(gewählt auf Hälfte 1: [+−][\d,]+ %\/Trade, \d+ Tokens\) → Hälfte 2: \d+ Käufe/);
     // RL: Einstiege nach Regel (Ertrags-Modell) – der Zeitraffer handelt
     expect(erg.rlInfo!.zeitraffer.trades).toBeGreaterThan(0);
+    // E246: Einstiegs-Regel gelernt, steht im Modell und in der Konsole
+    expect(erg.rlInfo!.einstieg).toBeTruthy();
+    expect(erg.rl!.einstieg).toEqual(erg.rlInfo!.einstieg);
+    expect(zeilen.join('\n')).toMatch(/RL: gewählt: kaufen, wenn .+ – Wahl-Hälfte \d+ Trades/);
   }, 240_000);
 });
 

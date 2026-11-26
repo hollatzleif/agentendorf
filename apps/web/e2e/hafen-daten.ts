@@ -299,7 +299,7 @@ export function musterVerlauf(version: number | null, laeuft = false): KryptoMus
       version: v,
       erstellt: erstellt(v),
       modelle: modelle(v),
-      rl: { version: v, trainiert: erstellt(v), episoden: 4000, zeitraffer: rl(v)!, ...(v === 5 ? { startSol: 10, einsatzSol: 0.5, kurve, beispiele } : {}) },
+      rl: { version: v, trainiert: erstellt(v), episoden: 4000, zeitraffer: rl(v)!, ...(v === 5 ? { startSol: 10, einsatzSol: 0.5, kurve, beispiele, einstieg: { signal: 'v1m', schwelle: 4, anteil: 0.05, wahl: { trades: 24, gewinnSol: 0.31 }, pruef: { trades: 19, gewinnSol: 0.12 }, bestaetigt: true } } : {}) },
     },
   };
 }

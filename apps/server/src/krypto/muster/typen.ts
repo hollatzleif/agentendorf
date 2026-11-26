@@ -1,6 +1,7 @@
 // E235: Verträge zwischen Muster-Kern (merkmale/gbdt/rl/training) und Kryptowerk (motor.ts).
 // Alles in diesem Ordner ist reiner Code ohne DB/Netz – testbar mit erfundenen Tick-Reihen.
 
+import type { KryptoRlEinstieg } from "@dorf/shared";
 /** Ein Trade auf der Bonding Curve, wie ihn der Echtzeit-Strom sieht (E232) */
 export interface Tick {
   zeit: number;
@@ -95,6 +96,8 @@ export type RlHandlung = 'warten' | 'kaufen' | 'halb' | 'raus';
 export interface RlModell {
   version: number;
   q: Record<string, number[]>;
+  /** E246: gelernte Einstiegs-Regel (ersetzt minSicherheit/🚀 ≥ 0,3 bzw. die Ertrags-Schwelle) */
+  einstieg?: KryptoRlEinstieg | null;
 }
 export const RL_HANDLUNGEN: RlHandlung[] = ['warten', 'kaufen', 'halb', 'raus'];
 

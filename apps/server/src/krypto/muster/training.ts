@@ -53,6 +53,8 @@ import {
   RL_EINSATZ_SOL,
   RL_GAMMA,
   RL_STARTKAPITAL_SOL,
+  rlEinstiegText,
+  rlEinstiegWaehlen,
   rlTrainieren,
   rlZeitraffer,
   type RlEntscheidung,
@@ -365,6 +367,7 @@ function lageText(e: RlEntscheidung): string {
 /** E238: warum diese Handlung – Q-Werte der erlaubten Handlungen (beste zuerst), Sicherung oder Regel */
 function warumText(e: RlEntscheidung): string {
   if (e.grund === "sicherung") return `Sicherung: ${e.sicherung}`;
+  if (e.handlung === "kaufen" && e.regel) return `Einstieg nach Regel (${e.regel})`;
   if (e.handlung === "kaufen")
     return e.lage.ertrag != null && e.lage.ertragSchwelle != null
       ? `Einstieg nach Regel: 💰 Ertrag ${wText(e.lage.ertrag)} ≥ Schwelle ${wText(e.lage.ertragSchwelle)}`
@@ -408,6 +411,7 @@ function entscheidungInfo(e: RlEntscheidung): KryptoRlEntscheidungInfo {
     grund: e.grund,
     q: e.q ? e.q.map((x) => ({ handlung: x.handlung, wert: rund(x.wert) })) : null,
     ...(e.sicherung ? { sicherung: e.sicherung } : {}),
+    ...(e.regel ? { regel: e.regel } : {}),
     lage: {
       p: z(l.p),
       pump: z(l.pump),
@@ -1404,6 +1408,37 @@ export async function musterTrainieren(
       `Q-Tabelle: ${tausend(schluessel.length)} Zustände (${tausend(schluessel.length - mitPos)} ohne, ${tausend(mitPos)} mit Position)`,
     );
   }
+  // E246: Einstiegs-Regel lernen (Signal + Schwelle) – auf der ersten Hälfte der Testdaten gewählt, auf der zweiten geprüft
+  const wahlErg = await rlEinstiegWaehlen(rl, testEp, { ...KRYPTO_RL_STANDARD, erkunden: 0 }, abgeben);
+  rl.einstieg = wahlErg.einstieg;
+  abschnitt("Einstieg");
+  if (o.log) {
+    const sortiert = [...wahlErg.kandidaten].sort((a, b) => b.gewinnSol - a.gewinnSol);
+    log(
+      "info",
+      "RL",
+      `Einstiegs-Regel: ${wahlErg.kandidaten.length} Kandidaten (Signal × Schwelle) im Zeitraffer auf der ersten Hälfte der Testdaten; beste nach Gewinn:`,
+    );
+    for (const k of sortiert.slice(0, 5))
+      log(
+        "info",
+        "RL",
+        `   ${rlEinstiegText({ signal: k.signal, schwelle: k.schwelle, anteil: k.anteil, wahl: { trades: 0, gewinnSol: 0 }, pruef: { trades: 0, gewinnSol: 0 }, bestaetigt: false })} (${prozent(k.anteil)} der Zeitpunkte): ${tausend(k.trades)} Trades · ${vz(k.gewinnSol, 3)} SOL`,
+      );
+    const e = wahlErg.einstieg;
+    if (e)
+      log(
+        e.bestaetigt ? "gut" : "warnung",
+        "RL",
+        `gewählt: kaufen, wenn ${rlEinstiegText(e)} – Wahl-Hälfte ${tausend(e.wahl.trades)} Trades ${vz(e.wahl.gewinnSol, 3)} SOL · Prüf-Hälfte ${tausend(e.pruef.trades)} Trades ${vz(e.pruef.gewinnSol, 3)} SOL → ${e.bestaetigt ? "bestätigt" : "nicht bestätigt (Paper – er kauft trotzdem, um zu lernen)"}`,
+      );
+    else
+      log(
+        "warnung",
+        "RL",
+        `keine Einstiegs-Regel – zu wenig Testdaten oder kein Kandidat mit Trades; Rückfall auf minSicherheit ${zahl(KRYPTO_RL_STANDARD.minSicherheit, 1)} / 🚀 ≥ 0,3`,
+      );
+  }
   const beispielTrades: RlTradeBeispiel[] = [];
   let tradesGesehen = 0;
   // E239: jeder Abschluss (Zeit, Gewinn) für die Kapitalkurve – immer (ohne log dasselbe Ergebnis)
@@ -1426,7 +1461,7 @@ export async function musterTrainieren(
     log(
       zeitraffer.gewinnSol > 0 ? "gut" : "warnung",
       "RL",
-      `Zeitraffer auf den Testdaten (nie gesehen, gierig, minSicherheit ${zahl(KRYPTO_RL_STANDARD.minSicherheit, 1)}, ${zahl(0.5, 1)} SOL je Kauf): ${tausend(zeitraffer.trades)} Trades · ${vz(zeitraffer.gewinnSol, 3)} SOL nach Gebühren · Treffer ${zeitraffer.trefferquote === null ? "–" : prozent(zeitraffer.trefferquote)} · Pleiten ${zeitraffer.pleiten}`,
+      `Zeitraffer auf allen Testdaten (nie gesehen, gierig, Einstieg ${rl.einstieg ? rlEinstiegText(rl.einstieg) : `minSicherheit ${zahl(KRYPTO_RL_STANDARD.minSicherheit, 1)}`}, ${zahl(0.5, 1)} SOL je Kauf): ${tausend(zeitraffer.trades)} Trades · ${vz(zeitraffer.gewinnSol, 3)} SOL nach Gebühren · Treffer ${zeitraffer.trefferquote === null ? "–" : prozent(zeitraffer.trefferquote)} · Pleiten ${zeitraffer.pleiten}`,
     );
     const auswahl = verteilt(beispielTrades, KONSOLE_BEISPIEL_TRADES);
     if (auswahl.length)
@@ -1462,6 +1497,7 @@ export async function musterTrainieren(
       trefferquote: zeitraffer.trefferquote,
       pleiten: zeitraffer.pleiten,
     },
+    einstieg: rl.einstieg ?? null,
     // E239: Kapitalkurve (nach Abschluss-Zeit, ≤ RL_KURVE_PUNKTE) und Beispiel-Trades strukturiert
     startSol: RL_STARTKAPITAL_SOL,
     einsatzSol: RL_EINSATZ_SOL,
@@ -1484,7 +1520,7 @@ export async function musterTrainieren(
     ...berichtModelle,
     `#### RL-Agent`,
     `- Signale im Training: ${genutzt.length ? genutzt.join(", ") : "keine aktiven (p = 0)"}`,
-    `- RL-Zeitraffer auf den Testdaten (Einsatz ${zahl(0.5, 1)} SOL, Gebühren wie Paper, minSicherheit ${zahl(KRYPTO_RL_STANDARD.minSicherheit, 1)}): ${zeitraffer.trades} Trades, ` +
+    `- RL-Zeitraffer auf den Testdaten (Einsatz ${zahl(0.5, 1)} SOL, Gebühren wie Paper, Einstieg ${rl.einstieg ? `${rlEinstiegText(rl.einstieg)}, Prüf-Hälfte ${rl.einstieg.pruef.trades} Trades ${rl.einstieg.pruef.gewinnSol >= 0 ? "+" : ""}${zahl(rl.einstieg.pruef.gewinnSol, 3)} SOL${rl.einstieg.bestaetigt ? " (bestätigt)" : " (nicht bestätigt)"}` : `minSicherheit ${zahl(KRYPTO_RL_STANDARD.minSicherheit, 1)}`}): ${zeitraffer.trades} Trades, ` +
       `${zeitraffer.gewinnSol >= 0 ? "+" : ""}${zahl(zeitraffer.gewinnSol, 3)} SOL, Trefferquote ${zeitraffer.trefferquote === null ? "–" : prozent(zeitraffer.trefferquote)}, Pleiten ${zeitraffer.pleiten}`,
     `- RL gelernt aus ${lernEp.length} Token-Episoden × 10 Durchläufe (${Object.keys(rl.q).length} Zustände)`,
   ].join("\n");

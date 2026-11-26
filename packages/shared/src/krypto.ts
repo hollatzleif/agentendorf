@@ -149,6 +149,32 @@ export interface KryptoRlGrenzen {
 
 export const KRYPTO_RL_STANDARD: KryptoRlGrenzen = { minSicherheit: 0.6, erkunden: 0.05, nachschuss: true, maxAbsturz: 0.35 };
 
+/** E246: Signale, aus denen das Training die Einstiegs-Regel des RL-Agenten wählt */
+export type KryptoRlEinstiegSignal = 'p' | 'pump' | 'hoch5' | 'v1m' | 'v5m' | 'ertrag';
+export const KRYPTO_RL_EINSTIEG_NAMEN: Record<KryptoRlEinstiegSignal, { name: string; prozent: boolean }> = {
+  p: { name: 'Grundsignal', prozent: false },
+  pump: { name: '🚀 Pump', prozent: false },
+  hoch5: { name: 'Hoch in 5 min', prozent: true },
+  v1m: { name: '📈 Kurs in 1 min', prozent: true },
+  v5m: { name: '📈 Kurs in 5 min', prozent: true },
+  ertrag: { name: '💰 Ertrag', prozent: false },
+};
+/**
+ * E246: gelernte Einstiegs-Regel des RL-Agenten – „kaufen, wenn <signal> ≥ <schwelle>“. Gewählt im Zeitraffer auf der ersten
+ * Hälfte der Testdaten (bester Gewinn nach Gebühren mit dem gelernten Ausstieg), geprüft auf der zweiten Hälfte.
+ */
+export interface KryptoRlEinstieg {
+  signal: KryptoRlEinstiegSignal;
+  /** Wahrscheinlichkeit 0–1 (p, pump, ertrag) bzw. Prozent (hoch5, v1m, v5m) */
+  schwelle: number;
+  /** Anteil der Zeitpunkte der Wahl-Hälfte mit Signal ≥ Schwelle */
+  anteil: number;
+  wahl: { trades: number; gewinnSol: number };
+  pruef: { trades: number; gewinnSol: number };
+  /** Prüfhälfte bestätigt: genug Trades und Gewinn nach Gebühren > 0 */
+  bestaetigt: boolean;
+}
+
 /** Was das Modell gerade zu einem Token rät */
 export interface KryptoMusterRat {
   mint: string;
@@ -270,6 +296,8 @@ export interface KryptoRlEntscheidungInfo {
   grund: 'q' | 'regel' | 'sicherung';
   q: { handlung: string; wert: number }[] | null;
   sicherung?: string;
+  /** E246: Einstieg nach der gelernten Regel (Text, z. B. „📈 Kurs in 1 min +5,2 % ≥ +4,0 %“) */
+  regel?: string;
   lage: { p: number | null; pump: number | null; absturz: number | null; v1m: number | null; v5m: number | null; alarm: 'anstieg' | 'absturz' | null; plusProzent: number | null; haltSek: number | null };
 }
 /** E239: ein abgeschlossener Beispiel-Trade aus dem Zeitraffer */
@@ -307,6 +335,8 @@ export interface KryptoMusterStatus {
     episoden: number;
     /** Zeitraffer über die Testdaten (Paper-Maschine mit Gebühren) */
     zeitraffer: { trades: number; gewinnSol: number; trefferquote: number | null; pleiten: number };
+    /** E246: gelernte Einstiegs-Regel (fehlt bei älteren Läufen / ohne genug Testdaten) */
+    einstieg?: KryptoRlEinstieg | null;
     /** E239 (nur /muster/verlauf, nicht im Status): Kapital über die Testdaten nach Abschluss-Zeit (≤ 300 Punkte), Start, Beispiel-Trades */
     kurve?: { zeit: number; kapitalSol: number }[];
     startSol?: number;

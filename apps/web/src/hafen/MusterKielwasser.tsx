@@ -5,12 +5,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   KRYPTO_MUSTER_MODELLE,
+  KRYPTO_RL_EINSTIEG_NAMEN,
   type KryptoMusterModellInfo,
   type KryptoMusterSchluessel,
   type KryptoMusterStatus,
   type KryptoMusterVerlauf,
   type KryptoMusterVerlaufModell,
   type KryptoRlBeispielTrade,
+  type KryptoRlEinstieg,
   type KryptoRlEntscheidungInfo,
   type KryptoUebersicht,
 } from '@dorf/shared';
@@ -458,6 +460,7 @@ function lageText(e: KryptoRlEntscheidungInfo) {
 }
 function warumText(e: KryptoRlEntscheidungInfo) {
   if (e.grund === 'sicherung') return `Sicherung: ${e.sicherung ?? ''}`;
+  if (e.handlung === 'kaufen' && (e.regel || !e.q)) return `Einstieg nach Regel${e.regel ? ` (${e.regel})` : ''}`;
   if (e.grund === 'regel' || !e.q) return 'Lage nie geübt → Regel ohne Q-Werte';
   return e.q.map((x, i) => `${i ? (e.q![i - 1]!.wert > x.wert ? ' > ' : ' = ') : ''}${x.handlung} ${komma(x.wert, 3)}`).join('');
 }
@@ -488,6 +491,20 @@ function MarkerInhalt({ t, kauf }: { t: KryptoRlBeispielTrade; kauf: boolean }) 
         <Eur sol={t.gewinnSol} vz />
       </span>
     </>
+  );
+}
+
+/** E246: gelernte Einstiegs-Regel – Signal, Schwelle, Wahl- und Prüf-Hälfte */
+function EinstiegZeile({ e }: { e: KryptoRlEinstieg | null | undefined }) {
+  if (e === undefined) return null;
+  if (!e) return <p className="leise mono mk-klein" data-testid="rl-einstieg">Einstieg: keine gelernte Regel (zu wenig Testdaten) – Rückfall auf Modell-Sicherheit / 🚀</p>;
+  const n = KRYPTO_RL_EINSTIEG_NAMEN[e.signal];
+  const wert = n.prozent ? `${e.schwelle >= 0 ? '+' : ''}${komma(e.schwelle, 1)} %` : `${Math.round(e.schwelle * 100)} %`;
+  return (
+    <p className="mono mk-klein" data-testid="rl-einstieg" title="Gewählt im Zeitraffer auf der ersten Hälfte der Testdaten (bester Gewinn nach Gebühren mit dem gelernten Ausstieg), geprüft auf der zweiten Hälfte">
+      Einstieg (gelernt): kaufen, wenn <b>{n.name} ≥ {wert}</b> · {Math.round(e.anteil * 1000) / 10} % der Zeitpunkte · Wahl {e.wahl.trades} Trades {solVz(e.wahl.gewinnSol, 3)} SOL · Prüfung {e.pruef.trades} Trades {solVz(e.pruef.gewinnSol, 3)} SOL{' '}
+      <span className={`kw-tag ${e.bestaetigt ? 'kauf' : 'fehlschlag'}`}>{e.bestaetigt ? 'bestätigt' : 'nicht bestätigt'}</span>
+    </p>
   );
 }
 
@@ -543,11 +560,16 @@ function RlTafel({ rl, lauf }: { rl: KryptoMusterStatus['rl']; lauf: number | nu
                   ) : null
                 }
               />
+            ) : z.trades === 0 ? (
+              <p className="leise mono" data-testid="rl-spaeter">
+                Keine Trades im Zeitraffer – {rl.einstieg === undefined ? 'die Einstiegs-Regel lernt der Agent ab dem nächsten Training.' : 'kein Zeitpunkt erfüllte die Einstiegs-Regel.'}
+              </p>
             ) : (
               <p className="leise mono" data-testid="rl-spaeter">
                 Kapitalkurve und Beispiel-Trades gibt es ab dem nächsten Training (v{lauf} ist älter).
               </p>
             )}
+            <EinstiegZeile e={rl.einstieg} />
             <div className="kw-zahlen mk-zahlen4">
               <div>
                 <span>Trades</span>
@@ -588,7 +610,7 @@ function RlTafel({ rl, lauf }: { rl: KryptoMusterStatus['rl']; lauf: number | nu
                 ))}
               </ul>
             ) : (
-              <p className="leise mono">{kurve.length ? 'Keine Trades im Zeitraffer.' : 'ab dem nächsten Training'}</p>
+              <p className="leise mono">{kurve.length || z.trades === 0 ? 'Keine Trades im Zeitraffer.' : 'ab dem nächsten Training'}</p>
             )}
           </div>
         </div>

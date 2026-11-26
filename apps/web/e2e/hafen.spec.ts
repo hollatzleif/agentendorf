@@ -264,7 +264,7 @@ test('E235: Muster-Modell in der Flotte (Jetzt trainieren, läuft schon), RL im 
   await expect(form.getByTestId('signal-smart')).toHaveCount(0);
   await expect(form.getByLabel('Muster-Rat Gewicht (0 = nur anzeigen)')).toHaveCount(0);
   await expect(form).toContainText('nur im Paper Trading');
-  await form.getByLabel('RL: Kauf ab Modell-Sicherheit (0–1)').fill('0.65');
+  await form.getByLabel('RL: Kauf ab Modell-Sicherheit (0–1, nur ohne gelernte Regel)').fill('0.65');
   await expect(form.getByLabel('RL: Erkunden (0–0,3)')).toHaveValue('0.05');
   await form.getByLabel('RL: Nachschuss nach Pleite').selectOption('nein');
   await expect(form.getByLabel('RL: Kein Kauf ab Absturz-Risiko (0–1)')).toHaveValue('0.35');
@@ -561,6 +561,9 @@ test('E239: Muster-Kielwasser – Modelle mit Entscheidung, Verlauf mit Tooltip,
   await expect(mk).toContainText('warum: kaufen 0,124 > warten 0,031');
   await expect(rl.getByTestId('rl-gewinn')).toContainText('€');
   await expect(rl.getByTestId('rl-trades').locator('li')).toHaveCount(6);
+  // E246: gelernte Einstiegs-Regel
+  await expect(rl.getByTestId('rl-einstieg')).toContainText('📈 Kurs in 1 min ≥ +4,0 %');
+  await expect(rl.getByTestId('rl-einstieg')).toContainText('bestätigt');
   if (info.project.name === 'handy') {
     const breit = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(breit).toBeLessThanOrEqual(1);

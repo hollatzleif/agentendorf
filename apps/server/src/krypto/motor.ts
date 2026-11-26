@@ -36,7 +36,7 @@ import type { SmartMoney } from './smart.js';
 import type { KurveStand, KurveStrom } from './strom.js';
 import type { MusterDienst } from './muster/dienst.js';
 import { ratAus, schichtUrteil } from './muster/merkmale.js';
-import { rlHandlung, type RlLageMitAlarm } from './muster/rl.js';
+import { rlEinstiegErfuellt, rlEinstiegText, rlEinstiegWert, rlHandlung, type RlLageMitAlarm } from './muster/rl.js';
 import { alarmAus, musterSignale as signaleRechnen } from './muster/signale.js';
 import type { MusterSignale, Tick } from './muster/typen.js';
 
@@ -1348,12 +1348,24 @@ export class Kryptowerk {
       const lageRl: RlLageMitAlarm = { p, pump: ms.pump, absturz: ms.absturz, hoch5: ms.hoch5, tief5: ms.tief5, v1m: ms.verlauf?.[3] ?? null, v5m: ms.verlauf?.[5] ?? null, ertrag: ms.ertrag ?? null, ertragSchwelle: ms.ertragSchwelle ?? null, alarm: alarmAus(ms, alarmGrenzen(e)), haelt: false, plusProzent: 0, haltSek: 0, trend30Prozent: this.trend30(mint, jetzt) };
       const h = rlHandlung(muster.rl, lageRl, g, this.o.zufall ?? Math.random);
       this.modulMerken(bot.id, 'volumen', `${b.info.symbol}: ${signalZeile(ms)} → ${h}`, h === 'kaufen' ? 'gut' : 'neutral');
-      // zweite Sicherung: nie ohne Ertrags-Modell ab Schwelle (E243), p ≥ minSicherheit oder 🚀 ≥ 30 % kaufen
+      if (h !== 'kaufen') continue;
+      // E246: gelernte Einstiegs-Regel – zweite Sicherung: nur kaufen, wenn das Signal die gelernte Schwelle erreicht
+      const einstieg = muster.rl?.einstieg ?? null;
+      const gelernt = einstieg ? rlEinstiegErfuellt(lageRl, einstieg) : null;
+      if (einstieg && gelernt !== null) {
+        if (!gelernt) continue;
+        const wert = rlEinstiegWert(lageRl, einstieg.signal)!;
+        const zusatz = [einstieg.signal !== 'pump' && ms.pump != null ? `🚀 ${pz(ms.pump)}` : '', ms.absturz != null ? `💥 ${pz(ms.absturz)}` : ''].filter(Boolean).join(' · ');
+        const sicher = einstieg.signal === 'p' || einstieg.signal === 'pump' || einstieg.signal === 'ertrag' ? wert : (ms.p ?? 0);
+        this.kaufVersuchen(bot.id, e, b, groesse, `RL: kaufen · gelernt: ${rlEinstiegText(einstieg, wert)}${einstieg.bestaetigt ? '' : ' (Paper, nicht bestätigt)'}${zusatz ? ` · ${zusatz}` : ''}`, 'modell', sicher, signale);
+        continue;
+      }
+      // sonst (keine Regel / Signal fehlt): nie ohne Ertrags-Modell ab Schwelle (E243), p ≥ minSicherheit oder 🚀 ≥ 30 % kaufen
       const ueberErtrag = ms.ertrag != null && ms.ertragSchwelle != null && ms.ertrag >= ms.ertragSchwelle;
       const mitErtrag = ms.ertrag != null && ms.ertragSchwelle != null;
       const ueberP = !mitErtrag && ms.p != null && ms.p >= g.minSicherheit;
       const ueberPump = !mitErtrag && ms.pump != null && ms.pump >= PUMP_KAUF;
-      if (h !== 'kaufen' || (!ueberErtrag && !ueberP && !ueberPump)) continue;
+      if (!ueberErtrag && !ueberP && !ueberPump) continue;
       const warum = ueberErtrag
         ? `💰 Ertrag ${pz(ms.ertrag!)} ≥ Schwelle ${pz(ms.ertragSchwelle!)}${ms.ertragWert != null ? ` (erwartet ${ms.ertragWert >= 0 ? '+' : ''}${ms.ertragWert.toFixed(1)} %)` : ''}`
         : ueberP ? `Muster ${pz(ms.p!)} ≥ ${pz(g.minSicherheit)}` : `🚀 Pump ${pz(ms.pump!)} ≥ ${pz(PUMP_KAUF)}`;

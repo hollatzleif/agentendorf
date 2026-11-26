@@ -486,8 +486,8 @@ function BotFormular({ start, id, fertig, abbrechen }: { start: KryptoEinstellun
         </label>
         {e.art === 'rl' ? (
           <>
-            <label title="Kauf nur, wenn das Muster-Modell mindestens diese Wahrscheinlichkeit sieht, dass der Kurs erst ums Ziel steigt, bevor er um den Stop fällt.">
-              RL: Kauf ab Modell-Sicherheit (0–1)
+            <label title="Den Einstieg lernt das Training selbst (Signal + Schwelle, siehe Muster-Kielwasser). Diese Grenze gilt nur, solange es noch keine gelernte Regel gibt: Kauf, wenn das Muster-Modell mindestens diese Wahrscheinlichkeit sieht, dass der Kurs erst ums Ziel steigt, bevor er um den Stop fällt.">
+              RL: Kauf ab Modell-Sicherheit (0–1, nur ohne gelernte Regel)
               <input type="number" step={0.05} min={0} max={1} value={e.rl?.minSicherheit ?? KRYPTO_RL_STANDARD.minSicherheit} onChange={(ev) => setE((x) => ({ ...x, rl: { ...KRYPTO_RL_STANDARD, ...x.rl, minSicherheit: Number(ev.target.value) } }))} />
             </label>
             <label title="So oft probiert der Agent eine zufällige Handlung – zum Lernen (0–0,3).">

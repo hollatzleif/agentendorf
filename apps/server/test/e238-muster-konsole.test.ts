@@ -116,7 +116,7 @@ describe('musterTrainieren mit Konsole (E238)', () => {
     expect(t).toMatch(/\[RL\] \d+ Lern-Episoden .* 10 Durchläufe, Lernrate α 0,10, γ 0,99, Erkunden 0,30 → 0,05/);
     expect(zeilen.filter((z) => /^Durchlauf \d+\/10: erkunden 0,\d\d · [\d.]+ Trades · [+−][\d,]+ SOL/.test(z.text))).toHaveLength(10);
     expect(t).toMatch(/\[RL\] Q-Tabelle: \d+ Zustände \(\d+ ohne, \d+ mit Position\)/);
-    expect(t).toMatch(/\[RL\] Zeitraffer auf den Testdaten .*: \d+ Trades · [+−][\d,]+ SOL nach Gebühren/);
+    expect(t).toMatch(/\[RL\] Zeitraffer auf allen Testdaten .*: \d+ Trades · [+−][\d,]+ SOL nach Gebühren/);
     expect(t).toMatch(/\[RL\] Beispiel-Trades aus dem Zeitraffer \(15 von \d+\)/);
     const kaeufe = zeilen.filter((z) => z.bereich === 'RL' && / KAUFEN · /.test(z.text));
     expect(kaeufe).toHaveLength(15);
@@ -128,7 +128,7 @@ describe('musterTrainieren mit Konsole (E238)', () => {
     expect(ausgaenge.some((z) => /RAUS nach \d+ s · .*Plus [+−][\d,]+ % · \d+ s gehalten · warum: raus -?\d,\d{3}/.test(z.text))).toBe(true);
     for (const z of ausgaenge) expect(z.text).toMatch(/Ergebnis [+−]\d,\d{4} SOL nach Gebühren$/);
     // Laufzeit
-    expect(t).toMatch(/\[Laufzeit\] Abschnitte: Merkmale und Labels \d+ ms · Stufen \d+ ms · basis \d+ ms .* RL-Training \d+ ms · Zeitraffer \d+ ms/);
+    expect(t).toMatch(/\[Laufzeit\] Abschnitte: Merkmale und Labels \d+ ms · Stufen \d+ ms · basis \d+ ms .* RL-Training \d+ ms · Einstieg \d+ ms · Zeitraffer \d+ ms/);
     expect(t).toMatch(/\[Laufzeit\] gesamt [\d.]+ ms · [\d.]+× Rechenzeit abgegeben/);
 
     // Entscheidungen gegen das bisherige Modell: behält (besseres altes), ersetzt (schwächeres altes), bleibt gültig (neues inaktiv)

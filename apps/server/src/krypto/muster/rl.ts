@@ -23,7 +23,18 @@
 // nach Gebühren?“), sonst wie bisher (p ≥ minSicherheit, 🚀 ≥ 0,3 oder Alarm 'anstieg'); 💥-Sperren gelten immer.
 // Im Training kauft er bei jedem erlaubten Zeitpunkt (viele Einstiege → viel Ausstiegs-Übung), im Zeitraffer und live
 // nur nach der Regel mit den Grenzen des Bots.
-import type { KryptoRlGrenzen } from "@dorf/shared";
+//
+// E246: Ohne aktives Ertrags-Modell kaufte er wieder nie – p ≥ 0,6 und 🚀 ≥ 0,3 sind fest gewählte Grenzen, die das Modell
+// praktisch nie erreicht (Zeitraffer v27: 0 Trades). Jetzt lernt das Training die Einstiegs-Regel selbst: Signal und Schwelle
+// („kaufen, wenn 📈 Kurs in 1 min ≥ 4 %“), gewählt im Zeitraffer auf der ersten Hälfte der Testdaten mit dem gelernten Ausstieg,
+// geprüft auf der zweiten (rlEinstiegWaehlen). Sie steht im Modell (RlModell.einstieg) und gilt im Zeitraffer und live;
+// minSicherheit/🚀 ≥ 0,3 bleiben nur Rückfall (Modell ohne Regel oder Signal gerade nicht da). 💥-Sperren gelten immer.
+import {
+  KRYPTO_RL_EINSTIEG_NAMEN,
+  type KryptoRlEinstieg,
+  type KryptoRlEinstiegSignal,
+  type KryptoRlGrenzen,
+} from "@dorf/shared";
 import { GRUNDGEBUEHR_SOL, kaufen, kurveAusKurs, verkaufen } from "../kurve.js";
 import { takt } from "./gbdt.js";
 import { ALARM_STANDARD } from "./merkmale.js";
@@ -133,19 +144,55 @@ export function rlZustand(l: RlLage): string {
   );
 }
 
+/** E246: Wert des Einstiegs-Signals in der Lage (null = Modell nicht da) */
+export function rlEinstiegWert(
+  l: Partial<Record<KryptoRlEinstiegSignal, number | null>>,
+  signal: KryptoRlEinstiegSignal,
+): number | null {
+  return zahlOderNull(l[signal]);
+}
+
+/** E246: erfüllt die Lage die gelernte Einstiegs-Regel? (null = Signal fehlt → Rückfall auf die alte Regel) */
+export function rlEinstiegErfuellt(
+  l: RlLage,
+  e: KryptoRlEinstieg,
+): boolean | null {
+  const w = rlEinstiegWert(l, e.signal);
+  return w === null ? null : w >= e.schwelle;
+}
+
+/** E246: „📈 Kurs in 1 min +5,2 % ≥ +4,0 %“ bzw. „🚀 Pump 31 % ≥ 12 %“ */
+export function rlEinstiegText(e: KryptoRlEinstieg, wert?: number | null) {
+  const n = KRYPTO_RL_EINSTIEG_NAMEN[e.signal];
+  const f = (x: number) =>
+    n.prozent
+      ? `${x >= 0 ? "+" : ""}${x.toFixed(1).replace(".", ",")} %`
+      : `${Math.round(x * 100)} %`;
+  return `${n.name} ${wert != null ? `${f(wert)} ` : ""}≥ ${f(e.schwelle)}`;
+}
+
 /** E236: Kauf erlaubt? (p ≥ minSicherheit oder 🚀 ≥ 0,3) und nicht 💥 ≥ maxAbsturz;
- *  E237: nie bei Alarm 'absturz', bei Alarm 'anstieg' auch ohne p/🚀 */
-function kaufErlaubt(l: RlLageMitAlarm, g: KryptoRlGrenzen): boolean {
+ *  E237: nie bei Alarm 'absturz', bei Alarm 'anstieg' auch ohne p/🚀; E246: gelernte Einstiegs-Regel vor allem anderen */
+function kaufErlaubt(
+  l: RlLageMitAlarm,
+  g: KryptoRlGrenzen,
+  einstieg?: KryptoRlEinstieg | null,
+): boolean {
   const alarm = rlAlarm(l);
   if (alarm === "absturz") return false;
   const absturz = zahlOderNull(l.absturz);
   if (absturz !== null && absturz >= (g.maxAbsturz ?? MAX_ABSTURZ_STANDARD))
     return false;
-  // E243: Ertrags-Modell aktiv → nur es entscheidet (im Training mit minSicherheit 0: jeder Zeitpunkt)
+  // Training: minSicherheit 0 → jeder erlaubte Zeitpunkt (viel Ausstiegs-Übung)
+  if (g.minSicherheit <= 0) return true;
+  if (einstieg) {
+    const ok = rlEinstiegErfuellt(l, einstieg);
+    if (ok !== null) return ok || alarm === "anstieg";
+  }
+  // E243: Ertrags-Modell aktiv → nur es entscheidet
   const ertrag = zahlOderNull(l.ertrag);
   const schwelle = zahlOderNull(l.ertragSchwelle);
-  if (ertrag !== null && schwelle !== null)
-    return g.minSicherheit <= 0 || ertrag >= schwelle;
+  if (ertrag !== null && schwelle !== null) return ertrag >= schwelle;
   const pump = zahlOderNull(l.pump);
   return (
     alarm === "anstieg" ||
@@ -156,7 +203,11 @@ function kaufErlaubt(l: RlLageMitAlarm, g: KryptoRlGrenzen): boolean {
 
 /** erlaubte Handlungen: ohne Position warten/kaufen (kaufen nur nach kaufErlaubt), mit Position warten/halb/raus –
  *  E236: gehalten und 💥 ≥ 0,7 → nur raus; E237: gehalten und Alarm 'absturz' → nur raus */
-export function rlErlaubt(l: RlLageMitAlarm, g: KryptoRlGrenzen): RlHandlung[] {
+export function rlErlaubt(
+  l: RlLageMitAlarm,
+  g: KryptoRlGrenzen,
+  einstieg?: KryptoRlEinstieg | null,
+): RlHandlung[] {
   if (l.haelt) {
     const absturz = zahlOderNull(l.absturz);
     if (
@@ -166,13 +217,14 @@ export function rlErlaubt(l: RlLageMitAlarm, g: KryptoRlGrenzen): RlHandlung[] {
       return ["raus"];
     return ["warten", "halb", "raus"];
   }
-  return kaufErlaubt(l, g) ? ["warten", "kaufen"] : ["warten"];
+  return kaufErlaubt(l, g, einstieg) ? ["warten", "kaufen"] : ["warten"];
 }
 
 /** Regel ohne Q-Werte: kaufen, wenn erlaubt; raus bei 💥 ≥ 0,5, Minus ≥ 10 % oder schwachem Signal (p < 0,3 – ist nur
  *  das Pump-Signal aktiv (p = 0), dann 🚀 < 0,3) */
 function regel(l: RlLageMitAlarm, g: KryptoRlGrenzen): RlHandlung {
   if (!l.haelt) return kaufErlaubt(l, g) ? "kaufen" : "warten";
+  // (gehalten – die Einstiegs-Regel spielt hier keine Rolle)
   const absturz = zahlOderNull(l.absturz);
   const pump = zahlOderNull(l.pump);
   const schwach =
@@ -188,7 +240,7 @@ export function rlHandlung(
   g: KryptoRlGrenzen,
   zufall: () => number,
 ): RlHandlung {
-  const erlaubt = rlErlaubt(l, g);
+  const erlaubt = rlErlaubt(l, g, m?.einstieg);
   // E243: Einstieg nach Regel (kein Q-Wert, kein Erkunden) – gelernt wird nur der Ausstieg
   if (!l.haelt) return erlaubt.includes("kaufen") ? "kaufen" : "warten";
   if (g.erkunden > 0 && zufall() < g.erkunden)
@@ -246,6 +298,8 @@ export interface RlEntscheidung {
   q: { handlung: RlHandlung; wert: number }[] | null;
   /** Text der Sicherung (nur grund 'sicherung') */
   sicherung?: string;
+  /** E246: Kauf nach der gelernten Einstiegs-Regel (Text) */
+  regel?: string;
 }
 /** E238: ein abgeschlossener Trade aus dem Zeitraffer mit beiden Entscheidungen */
 export interface RlTradeBeispiel {
@@ -270,7 +324,7 @@ export function rlErklaeren(
   zeit: number,
   preis: number,
 ): RlEntscheidung {
-  const erlaubt = rlErlaubt(l, g);
+  const erlaubt = rlErlaubt(l, g, m?.einstieg);
   // E243: Einstiege entscheidet die Regel (Ertrags-Modell bzw. Signale) – keine Q-Werte
   const q = l.haelt ? m?.q[rlZustand(l)] : undefined;
   const werte = q
@@ -286,6 +340,10 @@ export function rlErklaeren(
         ? `💥 ${absturz.toFixed(2).replace(".", ",")} ≥ ${String(RL_ABSTURZ_RAUS).replace(".", ",")} → nur raus`
         : "Alarm 💥 → nur raus";
   }
+  const regelText =
+    !l.haelt && handlung === "kaufen" && m?.einstieg && rlEinstiegErfuellt(l, m.einstieg)
+      ? `gelernt: ${rlEinstiegText(m.einstieg, rlEinstiegWert(l, m.einstieg.signal))}`
+      : undefined;
   return {
     zeit,
     preis,
@@ -294,6 +352,7 @@ export function rlErklaeren(
     grund: sicherung ? "sicherung" : werte ? "q" : "regel",
     q: werte,
     ...(sicherung ? { sicherung } : {}),
+    ...(regelText ? { regel: regelText } : {}),
   };
 }
 
@@ -577,4 +636,78 @@ export async function rlZeitraffer(
     takt(abgeben),
     trade,
   );
+}
+
+/** E246: Signale, aus denen die Einstiegs-Regel gewählt wird, und die Schwellen (Anteile der Zeitpunkte darüber) */
+export const RL_EINSTIEG_SIGNALE: KryptoRlEinstiegSignal[] = ["ertrag", "p", "pump", "v1m", "v5m", "hoch5"];
+const RL_EINSTIEG_QUANTILE = [0.5, 0.7, 0.8, 0.9, 0.95, 0.98, 0.99];
+/** so viele Trades braucht eine Regel auf der Wahl-Hälfte bzw. damit die Prüf-Hälfte zählt */
+export const RL_EINSTIEG_MIN_WAHL = 10;
+export const RL_EINSTIEG_MIN_PRUEF = 8;
+
+export interface RlEinstiegKandidat {
+  signal: KryptoRlEinstiegSignal;
+  schwelle: number;
+  anteil: number;
+  trades: number;
+  gewinnSol: number;
+}
+
+/**
+ * E246: Einstiegs-Regel lernen. Die Test-Episoden (nie gesehen) werden nach Startzeit halbiert. Auf der ersten Hälfte läuft
+ * für jedes Signal und jede Schwelle (Quantile 50 … 99 % seiner Werte) der Zeitraffer mit dem gelernten Ausstieg; gewählt wird
+ * der beste Gewinn nach Gebühren mit ≥ RL_EINSTIEG_MIN_WAHL Trades (gibt es keine, die Regel mit den meisten Trades). Die zweite
+ * Hälfte prüft ehrlich. Absichtlich auch dann eine Regel, wenn sie im Minus liegt: der RL-Bot handelt nur auf Paper und soll
+ * kaufen, um zu lernen – ob sie trägt, sagt `bestaetigt`.
+ */
+export async function rlEinstiegWaehlen(
+  m: RlModell,
+  episoden: RlEpisode[],
+  g: KryptoRlGrenzen,
+  abgeben?: () => Promise<void>,
+): Promise<{ einstieg: KryptoRlEinstieg | null; kandidaten: RlEinstiegKandidat[] }> {
+  const reihe = episoden.filter((e) => e.length > 1).sort((a, b) => a[0]!.zeit - b[0]!.zeit);
+  if (reihe.length < 4) return { einstieg: null, kandidaten: [] };
+  const mitte = Math.floor(reihe.length / 2);
+  const wahl = reihe.slice(0, mitte);
+  const pruef = reihe.slice(mitte);
+  const schritte = wahl.reduce((n, e) => n + e.length, 0);
+  // im Zeitraffer gilt die Regel (minSicherheit > 0 – sonst kauft er überall wie im Training)
+  const grenzen: KryptoRlGrenzen = { ...g, minSicherheit: Math.max(g.minSicherheit, 0.01) };
+  const kandidaten: RlEinstiegKandidat[] = [];
+  for (const signal of RL_EINSTIEG_SIGNALE) {
+    const werte: number[] = [];
+    for (const e of wahl)
+      for (const s of e) {
+        const w = rlEinstiegWert(s, signal);
+        if (w !== null) werte.push(w);
+      }
+    if (werte.length < 50) continue;
+    werte.sort((a, b) => a - b);
+    if (werte[0] === werte[werte.length - 1]) continue;
+    const schwellen = [...new Set(RL_EINSTIEG_QUANTILE.map((q) => werte[Math.min(werte.length - 1, Math.floor(q * werte.length))]!))];
+    for (const schwelle of schwellen) {
+      const anteil = werte.filter((w) => w >= schwelle).length / schritte;
+      const probe: KryptoRlEinstieg = { signal, schwelle, anteil, wahl: { trades: 0, gewinnSol: 0 }, pruef: { trades: 0, gewinnSol: 0 }, bestaetigt: false };
+      const z = await rlZeitraffer({ ...m, einstieg: probe }, wahl, grenzen, abgeben);
+      kandidaten.push({ signal, schwelle, anteil, trades: z.trades, gewinnSol: z.gewinnSol });
+    }
+  }
+  const genug = kandidaten.filter((k) => k.trades >= RL_EINSTIEG_MIN_WAHL);
+  const beste = genug.length
+    ? genug.reduce((a, b) => (b.gewinnSol > a.gewinnSol ? b : a))
+    : kandidaten.filter((k) => k.trades > 0).reduce<RlEinstiegKandidat | null>((a, b) => (!a || b.trades > a.trades || (b.trades === a.trades && b.gewinnSol > a.gewinnSol) ? b : a), null);
+  if (!beste) return { einstieg: null, kandidaten };
+  const einstieg: KryptoRlEinstieg = {
+    signal: beste.signal,
+    schwelle: beste.schwelle,
+    anteil: beste.anteil,
+    wahl: { trades: beste.trades, gewinnSol: beste.gewinnSol },
+    pruef: { trades: 0, gewinnSol: 0 },
+    bestaetigt: false,
+  };
+  const z2 = await rlZeitraffer({ ...m, einstieg }, pruef, grenzen, abgeben);
+  einstieg.pruef = { trades: z2.trades, gewinnSol: z2.gewinnSol };
+  einstieg.bestaetigt = z2.trades >= RL_EINSTIEG_MIN_PRUEF && z2.gewinnSol > 0;
+  return { einstieg, kandidaten };
 }

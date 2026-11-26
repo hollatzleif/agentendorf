@@ -2751,3 +2751,30 @@ Leif: „Kannst du machen, dass bei allen Chats die Arbeitsanweisungen immer aus
   - Apple: Glasknopf mit Sprechblase in der Kopfleiste.
   - Öffnen beim Überfahren, Antippen auf dem Handy (dort als Tafel oben, weil die Navigation unten liegen kann), Esc/Klick daneben schließt.
   - Live aktualisiert über die Chat-Ereignisse.
+
+## E246 – RL-Agent lernt seinen Einstieg selbst (26.11.)
+
+Leif (mit Screenshot Muster-Kielwasser v27, RL-Zeitraffer 0 Trades): „Jetzt kauft es einfach wieder nichts. Überleg dir was und fix das.“
+
+**Ursache:** Seit E243 entscheidet eine Regel über den Einstieg, das RL nur über den Ausstieg. Ist das Ertrags-Modell nicht aktiv (v27: AUC 0,58), greift die alte Regel: Grundsignal p ≥ minSicherheit 0,6 oder 🚀 ≥ 0,3. Das sind fest gewählte Grenzen. Das Grundsignal sagt „+20 % vor −15 % in 5 min“ mit einer Basisrate weit unter 60 %, darum erreicht ein gut kalibriertes Modell diese Werte fast nie. Ergebnis: 0 Trades im Zeitraffer, und live kaufte der Muster-RL ebenfalls nicht. Die zweite Sicherung im Motor verlangte dieselben Grenzen.
+
+**Lösung:** Das Training lernt die Einstiegs-Regel selbst (`rlEinstiegWaehlen` in rl.ts):
+- Die Regel lautet „kaufen, wenn ⟨Signal⟩ ≥ ⟨Schwelle⟩“. Kandidaten sind Ertrag, Grundsignal, 🚀 Pump, 📈 Kurs in 1 min, 📈 Kurs in 5 min und Hoch in 5 min (nur Signale, deren Modelle gültig sind und die sich unterscheiden). Als Schwellen dienen die 50/70/80/90/95/98/99-%-Quantile ihrer Werte.
+- Die Test-Episoden (nie gesehen) werden nach Startzeit halbiert.
+  - **Wahl:** Auf der ersten Hälfte läuft für jeden Kandidaten der Zeitraffer, mit dem gelernten Ausstieg, mit Gebühren und 5 s Verzögerung. Gewählt wird der beste Gewinn mit ≥ 10 Trades.
+  - **Prüfung:** Auf der zweiten Hälfte ist die Regel „bestätigt“, wenn sie ≥ 8 Trades und einen Gewinn > 0 bringt.
+- **Bewusst auch unbestätigt aktiv:** Der RL-Bot handelt nur auf Paper und soll kaufen, um zu lernen. App, Konsole und Kaufgrund sagen ehrlich „nicht bestätigt“. Gibt es zu wenig Testdaten, entsteht keine Regel, und es gilt die alte (minSicherheit/🚀).
+- Die Regel steht im RL-Modell (`RlModell.einstieg`) und gilt im Zeitraffer und live.
+  - Live gilt sie vor p/🚀/Ertrag.
+  - Die zweite Sicherung im Motor prüft dieselbe Schwelle.
+  - Fehlt das Signal live gerade, gilt die alte Regel.
+  - 💥-Sperren (maxAbsturz, Alarm) gelten immer.
+  - minSicherheit des Bots wirkt nur noch ohne gelernte Regel (Formular-Hinweis).
+- **Sichtbar:**
+  - Konsole: die 5 besten Kandidaten, die gewählte Regel mit Wahl- und Prüf-Hälfte und den Abschnitt „Einstieg“ in der Laufzeit.
+  - Muster-Kielwasser: die Zeile „Einstieg (gelernt)“ mit dem Abzeichen bestätigt/nicht bestätigt.
+  - Kaufgrund live: „RL: kaufen · gelernt: 📈 Kurs in 1 min +5,2 % ≥ +4,0 %“.
+  - Beispiel-Trades zeigen die Regel statt „Lage nie geübt“.
+  - Bei 0 Trades steht nicht mehr fälschlich „ab dem nächsten Training“.
+- **Ehrlich:** Der Zeitraffer über alle Testdaten enthält die Wahl-Hälfte und ist darum etwas zu optimistisch. Die ehrliche Zahl ist die Prüf-Hälfte.
+- **Wirksam:** ab dem ersten Training nach dem Deploy (10 min nach dem Start des Kryptowerks).
