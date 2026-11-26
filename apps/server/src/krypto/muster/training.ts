@@ -249,7 +249,8 @@ export function wertBootstrapAnteil(
   return besser / runden;
 }
 
-export const MAX_BEISPIELE = 200_000;
+/** E242: 400 000 (Kryptowerk 1152 MB, Heap 896 MB; ≈ 0,5 KB je Zeitpunkt im Training) – vorher 200 000 bei 384 MB */
+export const MAX_BEISPIELE = 400_000;
 const SCHRITT_MS = 5_000;
 const FENSTER_MS = 120_000;
 /** Index von rendite30s in MERKMAL_NAMEN (= Trend 30 s für den RL-Agenten) */

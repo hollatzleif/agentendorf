@@ -362,3 +362,45 @@ export function ratAus(
   const sicher = s.absturz == null || s.absturz < 0.35;
   return auf && sicher ? "kaufen" : "halten";
 }
+
+/** E242: Absturz-Erkenner ab hier → Muster-Schicht kauft nicht */
+export const SCHICHT_ABSTURZ_SPERRE = 0.35;
+/** E242: Absturz-Erkenner ab hier → Muster-Schicht verkauft (wie ABSTURZ_RAUS im Kryptowerk) */
+export const SCHICHT_ABSTURZ_RAUS = 0.7;
+
+const vorhersage = (s: MusterSignale, sek: number): number | null => {
+  const x = s.verlauf?.[KRYPTO_VERLAUF_SEK.indexOf(sek as (typeof KRYPTO_VERLAUF_SEK)[number])];
+  return x != null && Number.isFinite(x) ? x : null;
+};
+const pzt = (x: number) => `${x >= 0 ? "+" : "−"}${Math.abs(x).toFixed(1).replace(".", ",")} %`;
+
+/**
+ * E242: Urteil der Muster-Schicht über einen Token (nur aktive Modelle zählen; fehlt ein Modell, entscheidet es nichts):
+ * - fall: Grund, warum NICHT gekauft wird – 💥-Alarm, Absturz ≥ 35 % oder Vorhersage 1/2/5 min ≤ −fallProzent
+ * - steigt: die Vorhersage auf lange Sicht (2/5 min, die weiteste vorhandene) liegt über 0 – Bedingung für den 🚀-Zusatzkauf
+ * - raus: Grund für einen früheren Verkauf – 💥-Alarm, Absturz ≥ 70 %, oder kurz (30 s/1 min) ≤ −fallProzent und lang nicht > 0
+ */
+export function schichtUrteil(
+  s: MusterSignale,
+  fallProzent: number,
+  a: AlarmSchwellen = ALARM_STANDARD,
+): { fall: string | null; steigt: boolean; raus: string | null } {
+  const alarm = alarmAus(s, a);
+  const kurz = [vorhersage(s, 30), vorhersage(s, 60)].filter((x): x is number => x != null);
+  const lang = [vorhersage(s, 120), vorhersage(s, 300)].filter((x): x is number => x != null);
+  const mittel = [vorhersage(s, 60), vorhersage(s, 120), vorhersage(s, 300)].filter((x): x is number => x != null);
+  const langWert = lang.length ? lang[lang.length - 1]! : null;
+  let fall: string | null = null;
+  if (alarm === "absturz") fall = "💥 Alarm";
+  else if (s.absturz != null && s.absturz >= SCHICHT_ABSTURZ_SPERRE)
+    fall = `Absturz-Risiko ${Math.round(s.absturz * 100)} %`;
+  else if (mittel.length && Math.min(...mittel) <= -fallProzent)
+    fall = `Vorhersage ${pzt(Math.min(...mittel))} (≤ −${fallProzent} %)`;
+  let raus: string | null = null;
+  if (s.absturz != null && s.absturz >= SCHICHT_ABSTURZ_RAUS)
+    raus = `Absturz-Risiko ${Math.round(s.absturz * 100)} %`;
+  else if (alarm === "absturz") raus = "💥 Alarm";
+  else if (kurz.length && Math.min(...kurz) <= -fallProzent && !(langWert != null && langWert > 0))
+    raus = `kurz ${pzt(Math.min(...kurz))}, lang ${langWert == null ? "–" : pzt(langWert)}`;
+  return { fall, steigt: langWert != null && langWert > 0, raus };
+}

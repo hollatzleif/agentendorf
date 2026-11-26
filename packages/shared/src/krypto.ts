@@ -55,6 +55,13 @@ export interface KryptoEinstellung {
      *  🚀 vorhergesagt ≥ anstiegProzent in ≤ 2 min → Kauf auch unter minPunkte (Sperren und Risk-Gate gelten weiter);
      *  💥 vorhergesagt ≤ −fallProzent in ≤ 2 min → gehaltene Position sofort verkaufen */
     alarm?: { anstiegProzent: number; fallProzent: number };
+    /**
+     * E242: Muster-Schicht – kauft und verkauft wie gewohnt (Punkte/LLM unverändert), dazu:
+     *  Kauf auch, wenn 🚀 Alarm UND die Vorhersage auf 2–5 min steigt; KEIN Kauf, wenn Fall vorhergesagt
+     *  (💥, Absturz ≥ 35 % oder 1/2/5 min ≤ −fallProzent); Verkauf früher bei 💥/Absturz ≥ 70 % oder wenn es kurz (30 s/1 min)
+     *  ≤ −fallProzent fallen soll und lang (2/5 min) nicht steigt.
+     */
+    musterSchicht?: { an: boolean; fallProzent: number };
   };
   /** nur bei art = prompt: Kauf erst ab dieser Sicherheit des LLM (0–1) */
   minSicherheit: number;
@@ -646,7 +653,7 @@ export const KRYPTO_STANDARD: KryptoEinstellung = {
     maxTopHalterProzent: 20,
     minLiquiditaetSol: 5,
   },
-  regeln: { minPunkte: 60, musterGewicht: 0, alarm: { anstiegProzent: 15, fallProzent: 10 } },
+  regeln: { minPunkte: 60, musterGewicht: 0, alarm: { anstiegProzent: 15, fallProzent: 10 }, musterSchicht: { an: false, fallProzent: 5 } },
   minSicherheit: 0.65,
   limits: { einsatzProTradeSol: 0.5, positionProzent: 5, maxTagesverlustSol: 2, maxOffen: 3, maxLlmProTag: 150 },
   ausstieg: {

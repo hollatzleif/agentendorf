@@ -433,7 +433,7 @@ function BotFormular({ start, id, fertig, abbrechen }: { start: KryptoEinstellun
       {alarmFeld('anstiegProzent', '🚀 Alarm ab +% (2 min)', 'Sagt die Kursvorhersage in den nächsten 2 min mindestens so viel Anstieg voraus (oder der Pump-Erkenner schlägt an), kauft der Bot auch unter der Punkte-Schwelle – Sperren, Filter und Risiko-Grenzen gelten weiter.')}
       {alarmFeld('fallProzent', '💥 Alarm ab −% (2 min)', 'Sagt die Kursvorhersage in den nächsten 2 min mindestens so viel Fall voraus (oder der Absturz-Erkenner schlägt an), verkauft der Bot eine gehaltene Position sofort und kauft nicht.')}
       <small className="leise breit" style={{ gridColumn: '1 / -1' }}>
-        {e.art === 'rl' ? 'Alarme wirken bei RL-Bots immer.' : 'Alarme wirken nur mit Muster-Rat Gewicht > 0 – sonst nur Anzeige.'}
+        {e.art === 'rl' ? 'Alarme wirken bei RL-Bots immer.' : 'Alarme wirken nur mit Muster-Rat Gewicht > 0 oder Muster-Schicht – sonst nur Anzeige.'}
       </small>
     </>
   );
@@ -519,6 +519,32 @@ function BotFormular({ start, id, fertig, abbrechen }: { start: KryptoEinstellun
               hinweis: '> 0: auch Verkauf bei Absturz-Risiko ≥ 70 % und Alarme',
             })}
             {alarmFelder}
+            <label title="Der Bot kauft und verkauft wie gewohnt. Zusätzlich: Kauf bei 🚀, wenn die Vorhersage auch auf 2–5 min steigt; kein Kauf, wenn ein Fall vorhergesagt ist; früher raus, wenn es kurz fällt und lang nicht steigt (vor dem Stop-Loss).">
+              🧠 Muster-Schicht
+              <select
+                data-testid="muster-schicht"
+                value={e.regeln.musterSchicht?.an ? 'an' : 'aus'}
+                onChange={(ev) => setE((x) => ({ ...x, regeln: { ...x.regeln, musterSchicht: { fallProzent: 5, ...x.regeln.musterSchicht, an: ev.target.value === 'an' } } }))}
+              >
+                <option value="aus">aus</option>
+                <option value="an">an</option>
+              </select>
+            </label>
+            <label title="Ab so viel vorhergesagtem Fall sperrt die Schicht Käufe (1/2/5 min) bzw. verkauft früher (30 s/1 min, wenn es auf 2–5 min nicht steigt).">
+              Schicht: Fall ab −%
+              <input
+                type="number"
+                step={1}
+                min={1}
+                max={50}
+                data-testid="muster-schicht-fall"
+                value={e.regeln.musterSchicht?.fallProzent ?? 5}
+                onChange={(ev) => setE((x) => ({ ...x, regeln: { ...x.regeln, musterSchicht: { an: false, ...x.regeln.musterSchicht, fallProzent: Number(ev.target.value) } } }))}
+              />
+            </label>
+            <small className="leise breit" style={{ gridColumn: '1 / -1' }}>
+              Muster-Schicht an: kauft wie gewohnt <b>plus</b> bei 🚀 mit steigender 2–5-min-Vorhersage, <b>nicht</b> bei vorhergesagtem Fall, und verkauft früher, wenn es kurz fällt und lang nicht steigt. Alarme wirken dann auch ohne Gewicht.
+            </small>
           </>
         )}
         {e.art === 'rl' ? null : e.art === 'prompt' ? (
@@ -755,7 +781,7 @@ function MusterTafel() {
           )}
           <p className="leise" style={{ margin: 0, fontSize: '0.8rem' }}>
             Daten: {m.daten.ticks.toLocaleString('de-DE')} Ticks · {m.daten.tokens.toLocaleString('de-DE')} Tokens ·{' '}
-            {m.archiv ? <span data-testid="muster-archiv">Archiv {m.archiv.beispiele.toLocaleString('de-DE')} Beispiele ·{' '}</span> : null} letztes Training {zeit(m.training.letzter)} · nächstes {zeit(m.training.naechster)}
+            {m.archiv ? <span data-testid="muster-archiv">Archiv {m.archiv.beispiele.toLocaleString('de-DE')} Zeitpunkte ·{' '}</span> : null} letztes Training {zeit(m.training.letzter)} · nächstes {zeit(m.training.naechster)}
             {m.training.dauerMs != null ? ` · Dauer ${Math.round(m.training.dauerMs / 1000)} s` : ''}
           </p>
           {m.training.laeuft && (

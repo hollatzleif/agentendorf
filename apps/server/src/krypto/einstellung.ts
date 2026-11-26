@@ -38,6 +38,8 @@ export const EinstellungSchema = z
         musterGewicht: zahl(0, 30).default(0),
         // E237: Alarm-Schwellen der Kursvorhersage (wirken nur bei RL-Bots und musterGewicht > 0)
         alarm: z.object({ anstiegProzent: zahl(1, 500), fallProzent: zahl(1, 95) }).strict().default({ anstiegProzent: 15, fallProzent: 10 }),
+        // E242: Muster-Schicht (zusätzliche Käufe/Verkäufe nach dem Muster-Modell, Kauf-Sperre bei vorhergesagtem Fall)
+        musterSchicht: z.object({ an: z.boolean(), fallProzent: zahl(1, 50) }).strict().default({ an: false, fallProzent: 5 }),
       })
       .strict(),
     minSicherheit: zahl(0, 1),

@@ -174,7 +174,9 @@ services:
     # Internet (PumpPortal, DexScreener, RugCheck), aber KEIN Vault, KEINE Dorf-Geheimnisse, kein Wallet, kein Schlüssel –
     # nur KRYPTO_GEHEIMNIS (krypto.env). Spricht nur mit dem Dorf (kryptonetz); LLM-Bewertungen laufen über das Dorf.
     image: agentendorf:${DORF_VERSION:-latest}
-    command: ["node", "--enable-source-maps", "dist/kryptowerk.js"]
+    # E242: Heap 896 MB fürs Muster-Training (bis 400 000 Zeitpunkte) – im Alltag braucht das Kryptowerk ~150 MB;
+    # mem_limit ist nur die Obergrenze, nichts wird vorab belegt
+    command: ["node", "--enable-source-maps", "--max-old-space-size=896", "dist/kryptowerk.js"]
     restart: unless-stopped
     env_file: /srv/dorf/krypto.env
     environment:
@@ -194,7 +196,7 @@ services:
       interval: 30s
       timeout: 5s
       start_period: 20s
-    mem_limit: 384m
+    mem_limit: 1152m
     cpus: 0.5
     pids_limit: 128
     networks: [kryptonetz]

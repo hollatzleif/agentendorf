@@ -771,7 +771,7 @@ function MusterRat({ t }: { t: KryptoTerminal }) {
           <Em e="🧠" /> Muster-Rat
         </h3>
         <span className="leise mono" style={{ fontSize: '0.72rem' }}>
-          {t.bot.einstellung.art === 'rl' ? 'handelt danach (RL, nur Paper) · Alarme wirken' : gewicht > 0 ? `zählt bis ${gewicht} Punkte · 💥 ≥ 70 % → raus · Alarme wirken` : 'nur Anzeige'}
+          {t.bot.einstellung.art === 'rl' ? 'handelt danach (RL, nur Paper) · Alarme wirken' : [gewicht > 0 ? `zählt bis ${gewicht} Punkte · 💥 ≥ 70 % → raus` : null, t.bot.einstellung.regeln.musterSchicht?.an ? `Schicht an: 🚀 kauft · Fall ≤ −${t.bot.einstellung.regeln.musterSchicht.fallProzent} % sperrt/verkauft` : null].filter(Boolean).join(' · ') + (gewicht > 0 || t.bot.einstellung.regeln.musterSchicht?.an ? ' · Alarme wirken' : '') || 'nur Anzeige'}
         </span>
       </div>
       {rat.length ? (

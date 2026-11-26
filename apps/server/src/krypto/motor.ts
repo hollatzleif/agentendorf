@@ -34,7 +34,7 @@ import { istAdresse, type WalletTresor } from './wallet.js';
 import type { DexScreener, NeuerTokenT, PumpPortal, RugBericht, RugCheck, Schnappschuss } from './quellen.js';
 import type { KurveStand, KurveStrom } from './strom.js';
 import type { MusterDienst } from './muster/dienst.js';
-import { ratAus } from './muster/merkmale.js';
+import { ratAus, schichtUrteil } from './muster/merkmale.js';
 import { rlHandlung, type RlLageMitAlarm } from './muster/rl.js';
 import { alarmAus, musterSignale as signaleRechnen } from './muster/signale.js';
 import type { MusterSignale, Tick } from './muster/typen.js';
@@ -245,7 +245,10 @@ type AlarmGrenzen = { anstiegProzent: number; fallProzent: number };
 const ALARM_STANDARD: AlarmGrenzen = KRYPTO_STANDARD.regeln.alarm ?? { anstiegProzent: 15, fallProzent: 10 };
 const alarmGrenzen = (e: KryptoEinstellung): AlarmGrenzen => e.regeln.alarm ?? ALARM_STANDARD;
 /** E237: wirkt der Alarm auf den Bot? RL-Bots immer, alle anderen nur mit musterGewicht > 0 (sonst nur anzeigen – Leifs Regel) */
-const alarmWirkt = (e: KryptoEinstellung) => e.art === 'rl' || (e.regeln.musterGewicht ?? 0) > 0;
+const alarmWirkt = (e: KryptoEinstellung) => e.art === 'rl' || (e.regeln.musterGewicht ?? 0) > 0 || schichtAn(e);
+/** E242: Muster-Schicht (nicht bei RL-Bots – die handeln ohnehin nach dem Modell) */
+const schichtAn = (e: KryptoEinstellung) => e.art !== 'rl' && !!e.regeln.musterSchicht?.an;
+const schichtFall = (e: KryptoEinstellung) => e.regeln.musterSchicht?.fallProzent ?? 5;
 /** E237: Horizont als Text (5 s, 1 min …) */
 const horizontText = (sek: number) => (sek < 60 ? `${sek} s` : `${sek / 60} min`);
 /** E237: Kursvorhersagen bis 2 min zählen für den Alarm (wie alarmAus) */
@@ -392,6 +395,8 @@ export class Kryptowerk {
     e.regeln.musterGewicht ??= 0;
     // E237
     e.regeln.alarm ??= { ...ALARM_STANDARD };
+    // E242
+    e.regeln.musterSchicht ??= { an: false, fallProzent: 5 };
     if (e.art === 'rl') e.rl ??= { ...KRYPTO_RL_STANDARD };
     return e;
   }
@@ -883,6 +888,12 @@ export class Kryptowerk {
           this.entscheidungMerken(bot.id, b.info.mint, b.info.symbol, 'hold', p / 100, `${sturz.grund} – kein Kauf`, 'modell', signale);
           continue;
         }
+        // E242: Muster-Schicht – Fall vorhergesagt → kein Kauf (spart auch den LLM-Aufruf)
+        const veto = this.schichtSperre(e, b.info.mint);
+        if (veto) {
+          this.entscheidungMerken(bot.id, b.info.mint, b.info.symbol, 'hold', p / 100, `Muster-Schicht: ${veto} – kein Kauf`, 'modell', signale);
+          continue;
+        }
         const groesse = positionsGroesse(e, bot.kasse_sol - this.reserviert(bot.id));
         if (e.art === 'regeln') {
           if (p < e.regeln.minPunkte) {
@@ -946,6 +957,9 @@ export class Kryptowerk {
 
   /** Vorschlag „kaufen“ → das Risk-Gate entscheidet */
   private kaufVersuchen(botId: string, e: KryptoEinstellung, b: Beobachtung, groesse: number, grund: string, quelle: 'regeln' | 'llm' | 'modell', sicherheit: number, signale: Signal[]) {
+    // E242: Muster-Schicht – kein Kauf, wenn das Muster-Modell einen Fall vorhersagt (auch nach der LLM-Antwort noch einmal geprüft)
+    const veto = this.schichtSperre(e, b.info.mint);
+    if (veto) return this.entscheidungMerken(botId, b.info.mint, b.info.symbol, 'hold', sicherheit, `Muster-Schicht: ${veto} – kein Kauf (${grund})`.slice(0, 400), 'modell', signale);
     const g = gate(e, this.lage(botId, e, b.info.mint), groesse);
     this.modulMerken(botId, 'groesse', `${groesse.toFixed(3)} SOL`, 'neutral');
     this.modulMerken(botId, 'gate', g.erlaubt ? `frei · ${g.grund}` : g.grund, g.erlaubt ? 'gut' : 'schlecht');
@@ -1023,6 +1037,13 @@ export class Kryptowerk {
     v.zeile += ` · ${signalZeile(s)} ${zusatz >= 0 ? '+' : ''}${zusatz}`;
   }
 
+  /** E242: Grund, warum die Muster-Schicht einen Kauf sperrt (null = frei oder Schicht aus / keine Echtzeit-Daten) */
+  private schichtSperre(e: KryptoEinstellung, mint: string): string | null {
+    if (!schichtAn(e) || !this.stromTicks.has(mint)) return null;
+    const s = this.musterSignale(mint);
+    return s ? schichtUrteil(s, schichtFall(e), alarmGrenzen(e)).fall : null;
+  }
+
   /** E237: Alarm einer Art für einen Bot, auf den der Alarm wirkt (sonst null) – mit Begründung */
   private alarmFuer(e: KryptoEinstellung, mint: string, art: 'anstieg' | 'absturz'): { grund: string; sicherheit: number; s: MusterSignale } | null {
     if (!alarmWirkt(e) || !this.stromTicks.has(mint)) return null;
@@ -1042,6 +1063,14 @@ export class Kryptowerk {
     if (!b.letzter || b.bewertet.has(merker)) return false;
     const a = this.alarmFuer(e, b.info.mint, 'anstieg');
     if (!a) return false;
+    // E242: Muster-Schicht kauft auf 🚀 nur, wenn auch die Vorhersage auf 2–5 min steigt und kein Fall vorhergesagt ist
+    if (schichtAn(e) && (e.regeln.musterGewicht ?? 0) <= 0) {
+      const u = schichtUrteil(a.s, schichtFall(e), alarmGrenzen(e));
+      if (u.fall || !u.steigt) {
+        this.modulMerken(bot.id, 'gate', `${b.info.symbol}: Schicht: ${u.fall ?? 'kein Anstieg in 2–5 min'} – 🚀 ignoriert`, 'neutral');
+        return false;
+      }
+    }
     const lage = this.lage(bot.id, e, b.info.mint);
     if (lage.haeltSchon) return false;
     const sym = b.info.symbol;
@@ -1177,7 +1206,7 @@ export class Kryptowerk {
         const bz = this.botZeile(p.bot_id);
         const e = this.einstellung(bz);
         const rl = bz.modus === 'paper' && e.art === 'rl';
-        einst.set(p.bot_id, rl || (e.art !== 'rl' && (e.regeln.musterGewicht ?? 0) > 0) ? { e, rl } : null);
+        einst.set(p.bot_id, rl || (e.art !== 'rl' && ((e.regeln.musterGewicht ?? 0) > 0 || schichtAn(e))) ? { e, rl } : null);
       }
       const be = einst.get(p.bot_id);
       if (!be || !this.stromTicks.has(p.mint) || this.aktiv().some((a) => a.positionId === p.id)) continue;
@@ -1200,6 +1229,11 @@ export class Kryptowerk {
         h = 'raus';
         grund = `${a.grund} · ${plus >= 0 ? '+' : ''}${plus.toFixed(1)} %`;
         sicherheit = a.sicherheit;
+      } else if (!rl && schichtAn(e) && schichtUrteil(ms, schichtFall(e), alarmGrenzen(e)).raus) {
+        // E242: Muster-Schicht – kurz fällt es, lang steigt es nicht → früher raus (vor dem Stop-Loss)
+        h = 'raus';
+        grund = `Muster-Schicht: ${schichtUrteil(ms, schichtFall(e), alarmGrenzen(e)).raus} · ${plus >= 0 ? '+' : ''}${plus.toFixed(1)} %`;
+        sicherheit = null;
       } else if (rl && (ms.p != null || ms.pump != null)) {
         const pm = ms.p ?? 0;
         const wahl = rlHandlung(muster.rl, { p: pm, pump: ms.pump, absturz: ms.absturz, hoch5: ms.hoch5, tief5: ms.tief5, v1m: ms.verlauf?.[3] ?? null, v5m: ms.verlauf?.[5] ?? null, alarm: alarmAus(ms, alarmGrenzen(e)), haelt: true, plusProzent: plus, haltSek: (jetzt - p.geoeffnet) / 1000, trend30Prozent: this.trend30(p.mint, jetzt) }, e.rl ?? KRYPTO_RL_STANDARD, this.o.zufall ?? Math.random);

@@ -151,7 +151,7 @@ function Kopf({ m, v, wahl, setWahl, trainieren, startet, hinweis, hinweisWeg }:
             {m && (
               <span>
                 {m.daten.ticks.toLocaleString('de-DE')} Ticks · {m.daten.tokens.toLocaleString('de-DE')} Tokens
-                {m.archiv ? ` · Archiv ${m.archiv.beispiele.toLocaleString('de-DE')} Beispiele` : ''}
+                {m.archiv ? ` · Archiv ${m.archiv.beispiele.toLocaleString('de-DE')} Zeitpunkte` : ''}
               </span>
             )}
             {eurJeSol != null && <span title={KURS_QUELLE}>{kursText(eurJeSol)}</span>}

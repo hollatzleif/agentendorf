@@ -526,6 +526,8 @@ export class MusterDienst {
     this.o.db.transaction(() => {
       for (const s of liste) {
         if (s.zeit > grenze) continue;
+        // E242: nur Zeitpunkte mit mindestens einem Label – ohne Label lernt kein Modell daraus (sie zählten nur mit)
+        if (!s.y.some((v) => !Number.isNaN(v))) continue;
         st.run(s.mint, s.zeit, Math.round(s.alter), s.preis, Buffer.from(Float32Array.from(s.x).buffer), Buffer.from(Float32Array.from(s.y).buffer), ARCHIV_KENNUNG);
       }
     })();
