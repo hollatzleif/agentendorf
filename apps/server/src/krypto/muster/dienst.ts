@@ -233,7 +233,8 @@ export class MusterDienst {
 
   /** E236: kann ein RL-Bot kaufen? (Grundsignal oder Pump-Erkenner gültig) */
   get rlBereit(): boolean {
-    return !!(this.einzel.basis || this.einzel.pump || this.einzel.fruehPump);
+    // E243: oder das Ertrags-Modell (es entscheidet dann allein über den Einstieg)
+    return !!(this.einzel.basis || this.einzel.pump || this.einzel.fruehPump || this.einzel.ertrag);
   }
 
   /** E236: die gültigen GBDTs je Schlüssel (für musterSignale) */

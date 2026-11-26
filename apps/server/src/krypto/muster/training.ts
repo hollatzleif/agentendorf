@@ -14,6 +14,7 @@
 // Wert-Modelle (≥ 5 % besser, Token-Bootstrap ≥ 95 %, ≥ 200 Testbeispiele, ≥ 10 Tokens, nicht schlechter als das alte × 1,01).
 // Dazu Richtung bei großen Bewegungen und Treffer der Alarme. Das RL-Training sieht v1m/v5m und den Alarm.
 import {
+  KRYPTO_ERTRAG_HORIZONT_MIN,
   KRYPTO_MUSTER_MODELLE,
   KRYPTO_RL_STANDARD,
   KRYPTO_VERLAUF_SEK,
@@ -40,6 +41,7 @@ import {
   EXTREM_MIN,
   MERKMAL_NAMEN,
   alarmAus,
+  ertragLabel,
   extreme,
   label,
   letzterIndex,
@@ -267,8 +269,15 @@ const SPALTE = {
   tief5: 6,
   /** E237: verlauf je Horizont KRYPTO_VERLAUF_SEK ab hier */
   verlauf: 7,
+  /** E243: Ertrag des Kaufs bei t nach Gebühren – im Plus? (0/1) und in % */
+  ertrag: 7 + KRYPTO_VERLAUF_SEK.length,
+  ertragWert: 8 + KRYPTO_VERLAUF_SEK.length,
 } as const;
-const SPALTEN = 7 + KRYPTO_VERLAUF_SEK.length;
+const SPALTEN = 9 + KRYPTO_VERLAUF_SEK.length;
+/** E243: Kaufschwelle des Ertrags-Modells – so viele Tokens müssen auf jeder Test-Hälfte ab der Schwelle gekauft werden */
+export const ERTRAG_MIN_TRADES_WAHL = 10;
+export const ERTRAG_MIN_TRADES_PRUEF = 8;
+const ERTRAG_HORIZONT_MS = KRYPTO_ERTRAG_HORIZONT_MIN * 60_000;
 
 /**
  * E241: Kennung des Beispiel-Archivs – gespeicherte Schritte gelten nur, solange Merkmale, Label-Spalten und Ziele gleich sind
@@ -356,6 +365,10 @@ function lageText(e: RlEntscheidung): string {
 /** E238: warum diese Handlung – Q-Werte der erlaubten Handlungen (beste zuerst), Sicherung oder Regel */
 function warumText(e: RlEntscheidung): string {
   if (e.grund === "sicherung") return `Sicherung: ${e.sicherung}`;
+  if (e.handlung === "kaufen")
+    return e.lage.ertrag != null && e.lage.ertragSchwelle != null
+      ? `Einstieg nach Regel: 💰 Ertrag ${wText(e.lage.ertrag)} ≥ Schwelle ${wText(e.lage.ertragSchwelle)}`
+      : "Einstieg nach Regel (Signale – Ertrags-Modell nicht aktiv)";
   if (e.grund === "regel" || !e.q)
     return "Lage nie geübt → Regel ohne Q-Werte";
   return e.q
@@ -477,6 +490,9 @@ function modellDefs(ziel: Ziel): ModellDef[] {
         baeume: BAEUME_VERLAUF,
       }),
     ),
+    // E243: Ertrags-Modell (Meta-Labeling) – Lücke = längste Haltedauer, damit kein Lern-Label in die Testzeit schaut
+    w("ertrag", SPALTE.ertrag, ERTRAG_HORIZONT_MS, { baeume: BAEUME_BASIS }),
+    w("ertragWert", SPALTE.ertragWert, ERTRAG_HORIZONT_MS, { wert: true }),
   ];
 }
 
@@ -641,6 +657,9 @@ export async function musterTrainieren(
             const r = rendite(ticks, t, sek * 1000);
             if (r !== null) y[SPALTE.verlauf + k] = r;
           });
+          // E243: was hätte ein Kauf jetzt mit den Standard-Ausstiegen nach Gebühren gebracht?
+          const er = ertragLabel(ticks, t);
+          if (er !== null) ((y[SPALTE.ertrag] = er > 0 ? 1 : 0), (y[SPALTE.ertragWert] = er));
           liste.push({ mint, zeit: t, preis: ticks[i]!.preis, alter, x, y });
         }
       }
@@ -1057,6 +1076,50 @@ export async function musterTrainieren(
       if (altAuc != null && testAuc < altAuc - 0.01)
         gruende.push(`schlechter als das aktive Modell (AUC ${zahl(altAuc)})`);
       zeile = `Test-AUC ${zahl(testAuc)} (Raten 0,50), positiv ${prozent(basisRate)}, Präzision bei p ≥ ${zahl(def.schwelle, 1)}: ${praezision === null ? "–" : `${prozent(praezision)} (${sicherN})`}`;
+      if (def.schluessel === "ertrag" && test.length) {
+        // E243: Kaufschwelle ehrlich wählen – auf der ersten Hälfte der Testdaten (zeitlich) die Schwelle mit dem besten
+        // mittleren Ertrag je Token (wie live: höchstens ein Kauf je Token, beim ersten Zeitpunkt ab der Schwelle), geprüft
+        // auf der zweiten Hälfte gegen „jeden Token beim ersten Zeitpunkt kaufen“
+        const netto = test.map((b) => b.y[SPALTE.ertragWert]!);
+        const mitte = Math.floor(test.length / 2);
+        const handel = (von: number, bis: number, schwelle: number) => {
+          const gesehen = new Set<string>();
+          let n = 0;
+          let summe = 0;
+          for (let i = von; i < bis; i++) {
+            const b = test[i]!;
+            if (gesehen.has(b.mint) || vorhersage[i]! < schwelle || !Number.isFinite(netto[i]!)) continue;
+            gesehen.add(b.mint);
+            n++;
+            summe += netto[i]!;
+          }
+          return { n, mittel: n ? summe / n : null };
+        };
+        let beste: { schwelle: number; mittel: number; n: number } | null = null;
+        for (let k = 0; k <= 26; k++) {
+          const schwelle = Math.round((0.3 + k * 0.025) * 1000) / 1000;
+          const a = handel(0, mitte, schwelle);
+          if (a.n >= ERTRAG_MIN_TRADES_WAHL && a.mittel !== null && (!beste || a.mittel > beste.mittel)) beste = { schwelle, mittel: a.mittel, n: a.n };
+        }
+        const alle = handel(mitte, test.length, -Infinity);
+        info.test.ertragAlle = alle.mittel;
+        if (!beste) {
+          gruende.push(`keine Kaufschwelle mit ≥ ${ERTRAG_MIN_TRADES_WAHL} Tokens auf der ersten Test-Hälfte`);
+        } else {
+          const b = handel(mitte, test.length, beste.schwelle);
+          gbdt.schwelle = beste.schwelle;
+          info.test.schwelle = beste.schwelle;
+          info.test.trades = b.n;
+          info.test.ertragJeTrade = b.mittel;
+          if (b.n < ERTRAG_MIN_TRADES_PRUEF)
+            gruende.push(`nur ${b.n} Käufe ab Schwelle ${zahl(beste.schwelle)} auf der zweiten Test-Hälfte (braucht ≥ ${ERTRAG_MIN_TRADES_PRUEF})`);
+          else if (!(b.mittel! > 0))
+            gruende.push(`ab Schwelle ${zahl(beste.schwelle)} im Mittel ${vz(b.mittel!)} % je Trade – kein Gewinn nach Gebühren`);
+          else if (alle.mittel !== null && !(b.mittel! > alle.mittel))
+            gruende.push(`ab Schwelle nicht besser als jeden Token zu kaufen (${vz(b.mittel!)} vs. ${vz(alle.mittel)} %)`);
+          zeile += ` · Schwelle ${zahl(beste.schwelle)} (gewählt auf Hälfte 1: ${vz(beste.mittel)} %/Trade, ${beste.n} Tokens) → Hälfte 2: ${b.n} Käufe, ${b.mittel === null ? "–" : `${vz(b.mittel)} %`} je Trade vs. alle ${alle.mittel === null ? "–" : `${vz(alle.mittel)} %`}`;
+        }
+      }
       if (def.schluessel === "basis") {
         let posAlle = 0;
         for (const i of lernIdx) posAlle += beispiele[i]!.y[def.spalte]!;
@@ -1291,6 +1354,8 @@ export async function musterTrainieren(
         tief5: sig.tief5,
         v1m: sig.verlauf[KRYPTO_VERLAUF_SEK.indexOf(60)] ?? null,
         v5m: sig.verlauf[KRYPTO_VERLAUF_SEK.indexOf(300)] ?? null,
+        ertrag: sig.ertrag ?? null,
+        ertragSchwelle: sig.ertragSchwelle ?? null,
         alarm: alarmAus(sig),
       };
       (s.zeit < trennZeit ? a : b).push(schritt);

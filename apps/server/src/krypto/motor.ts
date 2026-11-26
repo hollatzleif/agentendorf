@@ -998,7 +998,7 @@ export class Kryptowerk {
         const z = (x: number | null | undefined) => (x != null && Number.isFinite(x) ? x : null);
         // E237: Kursvorhersage je Horizont (immer Länge 6, nicht aktive = null)
         const verlauf = KRYPTO_VERLAUF_SEK.map((_h, i) => z(roh.verlauf?.[i]));
-        s = { p: w(roh.p), pump: w(roh.pump), absturz: w(roh.absturz), hoch1: z(roh.hoch1), tief1: z(roh.tief1), hoch5: z(roh.hoch5), tief5: z(roh.tief5), frueh: !!roh.frueh, verlauf };
+        s = { p: w(roh.p), pump: w(roh.pump), absturz: w(roh.absturz), hoch1: z(roh.hoch1), tief1: z(roh.tief1), hoch5: z(roh.hoch5), tief5: z(roh.tief5), frueh: !!roh.frueh, verlauf, ertrag: w(roh.ertrag), ertragSchwelle: w(roh.ertragSchwelle), ertragWert: z(roh.ertragWert) };
       }
     }
     this.musterCache.set(mint, { zeit: jetzt, s });
@@ -1061,16 +1061,19 @@ export class Kryptowerk {
   private alarmKaufen(bot: BotZeile, e: KryptoEinstellung, b: Beobachtung, jetzt: number): boolean {
     const merker = `alarmkauf:${bot.id}`;
     if (!b.letzter || b.bewertet.has(merker)) return false;
-    const a = this.alarmFuer(e, b.info.mint, 'anstieg');
-    if (!a) return false;
-    // E242: Muster-Schicht kauft auf 🚀 nur, wenn auch die Vorhersage auf 2–5 min steigt und kein Fall vorhergesagt ist
-    if (schichtAn(e) && (e.regeln.musterGewicht ?? 0) <= 0) {
-      const u = schichtUrteil(a.s, schichtFall(e), alarmGrenzen(e));
-      if (u.fall || !u.steigt) {
+    let a = this.alarmFuer(e, b.info.mint, 'anstieg');
+    if (schichtAn(e) && this.stromTicks.has(b.info.mint)) {
+      const ms = a?.s ?? this.musterSignale(b.info.mint);
+      const u = ms ? schichtUrteil(ms, schichtFall(e), alarmGrenzen(e)) : null;
+      // E242: Muster-Schicht kauft auf 🚀 nur, wenn auch die Vorhersage auf 2–5 min steigt und kein Fall vorhergesagt ist
+      if (a && u && (e.regeln.musterGewicht ?? 0) <= 0 && (u.fall || !u.steigt)) {
         this.modulMerken(bot.id, 'gate', `${b.info.symbol}: Schicht: ${u.fall ?? 'kein Anstieg in 2–5 min'} – 🚀 ignoriert`, 'neutral');
-        return false;
+        a = null;
       }
+      // E243: oder das Ertrags-Modell sagt „lohnt sich nach Gebühren“ (ab seiner Kaufschwelle)
+      if (!a && ms && u?.kauf) a = { grund: u.kauf, sicherheit: ms.ertrag ?? 0, s: ms };
     }
+    if (!a) return false;
     const lage = this.lage(bot.id, e, b.info.mint);
     if (lage.haeltSchon) return false;
     const sym = b.info.symbol;
@@ -1125,7 +1128,7 @@ export class Kryptowerk {
       this.zuletztBewertet.set(bot.id, jetzt);
       const ms = this.musterSignale(mint);
       // E236: ohne Grundsignal auch über den Pump-Erkenner (p zählt dann als 0)
-      if (!ms || (ms.p == null && ms.pump == null)) continue;
+      if (!ms || (ms.p == null && ms.pump == null && ms.ertrag == null)) continue;
       const p = ms.p ?? 0;
       const signale = pruefen(e, b.info, b.letzter, b.rug, jetzt, this.echtzeit60(mint));
       const hart = signale.filter((s) => s.sperre && (s.schluessel === 'rug' || s.schluessel === 'dev' || s.schluessel === 'bundle'));
@@ -1157,16 +1160,20 @@ export class Kryptowerk {
         this.modulMerken(bot.id, 'volumen', `${b.info.symbol}: ${sturz.grund} – kein Kauf`, 'schlecht');
         continue;
       }
-      const lageRl: RlLageMitAlarm = { p, pump: ms.pump, absturz: ms.absturz, hoch5: ms.hoch5, tief5: ms.tief5, v1m: ms.verlauf?.[3] ?? null, v5m: ms.verlauf?.[5] ?? null, alarm: alarmAus(ms, alarmGrenzen(e)), haelt: false, plusProzent: 0, haltSek: 0, trend30Prozent: this.trend30(mint, jetzt) };
+      const lageRl: RlLageMitAlarm = { p, pump: ms.pump, absturz: ms.absturz, hoch5: ms.hoch5, tief5: ms.tief5, v1m: ms.verlauf?.[3] ?? null, v5m: ms.verlauf?.[5] ?? null, ertrag: ms.ertrag ?? null, ertragSchwelle: ms.ertragSchwelle ?? null, alarm: alarmAus(ms, alarmGrenzen(e)), haelt: false, plusProzent: 0, haltSek: 0, trend30Prozent: this.trend30(mint, jetzt) };
       const h = rlHandlung(muster.rl, lageRl, g, this.o.zufall ?? Math.random);
       this.modulMerken(bot.id, 'volumen', `${b.info.symbol}: ${signalZeile(ms)} → ${h}`, h === 'kaufen' ? 'gut' : 'neutral');
-      // zweite Sicherung: nie ohne p ≥ minSicherheit oder 🚀 ≥ 30 % kaufen (auch nicht beim Erkunden)
-      const ueberP = ms.p != null && ms.p >= g.minSicherheit;
-      const ueberPump = ms.pump != null && ms.pump >= PUMP_KAUF;
-      if (h !== 'kaufen' || (!ueberP && !ueberPump)) continue;
-      const warum = ueberP ? `Muster ${pz(ms.p!)} ≥ ${pz(g.minSicherheit)}` : `🚀 Pump ${pz(ms.pump!)} ≥ ${pz(PUMP_KAUF)}`;
+      // zweite Sicherung: nie ohne Ertrags-Modell ab Schwelle (E243), p ≥ minSicherheit oder 🚀 ≥ 30 % kaufen
+      const ueberErtrag = ms.ertrag != null && ms.ertragSchwelle != null && ms.ertrag >= ms.ertragSchwelle;
+      const mitErtrag = ms.ertrag != null && ms.ertragSchwelle != null;
+      const ueberP = !mitErtrag && ms.p != null && ms.p >= g.minSicherheit;
+      const ueberPump = !mitErtrag && ms.pump != null && ms.pump >= PUMP_KAUF;
+      if (h !== 'kaufen' || (!ueberErtrag && !ueberP && !ueberPump)) continue;
+      const warum = ueberErtrag
+        ? `💰 Ertrag ${pz(ms.ertrag!)} ≥ Schwelle ${pz(ms.ertragSchwelle!)}${ms.ertragWert != null ? ` (erwartet ${ms.ertragWert >= 0 ? '+' : ''}${ms.ertragWert.toFixed(1)} %)` : ''}`
+        : ueberP ? `Muster ${pz(ms.p!)} ≥ ${pz(g.minSicherheit)}` : `🚀 Pump ${pz(ms.pump!)} ≥ ${pz(PUMP_KAUF)}`;
       const zusatz = [ueberP && ms.pump != null ? `🚀 ${pz(ms.pump)}` : '', ms.absturz != null ? `💥 ${pz(ms.absturz)}` : ''].filter(Boolean).join(' · ');
-      this.kaufVersuchen(bot.id, e, b, groesse, `RL: kaufen · ${warum}${zusatz ? ` · ${zusatz}` : ''}`, 'modell', ueberP ? ms.p! : ms.pump!, signale);
+      this.kaufVersuchen(bot.id, e, b, groesse, `RL: kaufen · ${warum}${zusatz ? ` · ${zusatz}` : ''}`, 'modell', ueberErtrag ? ms.ertrag! : ueberP ? ms.p! : ms.pump!, signale);
     }
   }
 
@@ -1236,7 +1243,7 @@ export class Kryptowerk {
         sicherheit = null;
       } else if (rl && (ms.p != null || ms.pump != null)) {
         const pm = ms.p ?? 0;
-        const wahl = rlHandlung(muster.rl, { p: pm, pump: ms.pump, absturz: ms.absturz, hoch5: ms.hoch5, tief5: ms.tief5, v1m: ms.verlauf?.[3] ?? null, v5m: ms.verlauf?.[5] ?? null, alarm: alarmAus(ms, alarmGrenzen(e)), haelt: true, plusProzent: plus, haltSek: (jetzt - p.geoeffnet) / 1000, trend30Prozent: this.trend30(p.mint, jetzt) }, e.rl ?? KRYPTO_RL_STANDARD, this.o.zufall ?? Math.random);
+        const wahl = rlHandlung(muster.rl, { p: pm, pump: ms.pump, absturz: ms.absturz, hoch5: ms.hoch5, tief5: ms.tief5, v1m: ms.verlauf?.[3] ?? null, v5m: ms.verlauf?.[5] ?? null, ertrag: ms.ertrag ?? null, ertragSchwelle: ms.ertragSchwelle ?? null, alarm: alarmAus(ms, alarmGrenzen(e)), haelt: true, plusProzent: plus, haltSek: (jetzt - p.geoeffnet) / 1000, trend30Prozent: this.trend30(p.mint, jetzt) }, e.rl ?? KRYPTO_RL_STANDARD, this.o.zufall ?? Math.random);
         if (wahl === 'halb' || wahl === 'raus') {
           h = wahl;
           grund = `RL: ${h === 'raus' ? 'raus' : 'halb verkaufen'} · ${ms.p != null ? `Muster ${pz(ms.p)}` : signalZeile(ms)} · ${plus >= 0 ? '+' : ''}${plus.toFixed(1)} %`;

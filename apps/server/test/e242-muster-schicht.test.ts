@@ -84,7 +84,7 @@ const v = (werte: (number | null)[]) => ({ p: null, pump: null, absturz: null, h
 describe('schichtUrteil (E242)', () => {
   it('Fall, Steigen und Früher-raus aus den Vorhersagen', () => {
     // 5 s, 15 s, 30 s, 1 min, 2 min, 5 min
-    expect(schichtUrteil(v([null, null, null, 3, 4, 12]), 5)).toEqual({ fall: null, steigt: true, raus: null });
+    expect(schichtUrteil(v([null, null, null, 3, 4, 12]), 5)).toEqual({ fall: null, steigt: true, raus: null, kauf: null });
     expect(schichtUrteil(v([null, null, null, 3, null, -6]), 5).fall).toBe('Vorhersage −6,0 % (≤ −5 %)');
     expect(schichtUrteil(v([null, null, -6, null, null, 0]), 5)).toMatchObject({ steigt: false, raus: 'kurz −6,0 %, lang +0,0 %' });
     // kurz fällt, lang steigt → bleibt drin
@@ -94,7 +94,7 @@ describe('schichtUrteil (E242)', () => {
     expect(schichtUrteil({ ...(v([]) as object), absturz: 0.4 } as never, 5)).toMatchObject({ fall: 'Absturz-Risiko 40 %', raus: null });
     expect(schichtUrteil({ ...(v([]) as object), absturz: 0.75 } as never, 5).raus).toBe('Absturz-Risiko 75 %');
     // ohne aktive Modelle entscheidet die Schicht nichts
-    expect(schichtUrteil(v([null, null, null, null, null, null]), 5)).toEqual({ fall: null, steigt: false, raus: null });
+    expect(schichtUrteil(v([null, null, null, null, null, null]), 5)).toEqual({ fall: null, steigt: false, raus: null, kauf: null });
   });
 });
 

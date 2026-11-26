@@ -46,6 +46,11 @@ export interface MusterSignale {
   frueh: boolean;
   /** E237: vorhergesagte Kursänderung in % je Horizont KRYPTO_VERLAUF_SEK (null = nicht aktiv) */
   verlauf: (number | null)[];
+  /** E243: Ertrags-Modell – Wahrscheinlichkeit, dass ein Kauf jetzt nach Gebühren im Plus endet, seine Kaufschwelle und der
+   *  erwartete Ertrag je Trade in % (null/fehlt = nicht aktiv) */
+  ertrag?: number | null;
+  ertragSchwelle?: number | null;
+  ertragWert?: number | null;
 }
 
 /** E237: Gewicht des Fehlers, wenn der echte Kurs UNTER der Vorhersage liegt (verpasster Fall) – Leifs Regel:
@@ -69,6 +74,8 @@ export interface GbdtModell {
   gewichtFall?: number;
   /** E236: Wert-Modell lernt auf log(1 + x/100) (schiefe Verteilungen) – Vorhersage wird zurückgerechnet */
   skala?: 'log';
+  /** E243 (nur ertrag): Kaufschwelle aus den Testdaten */
+  schwelle?: number;
   merkmale: string[];
   /** Start-Log-Odds */
   basis: number;
@@ -96,6 +103,9 @@ export interface RlLage {
   /** E237: vorhergesagte Kursänderung in 1 min / 5 min (%) */
   v1m?: number | null;
   v5m?: number | null;
+  /** E243: Ertrags-Modell und seine Kaufschwelle – sind beide da, entscheidet NUR es über den Einstieg des RL-Bots */
+  ertrag?: number | null;
+  ertragSchwelle?: number | null;
   /** hält der Bot den Token? */
   haelt: boolean;
   /** Kursänderung seit Einstieg in % (0, wenn nicht gehalten) */

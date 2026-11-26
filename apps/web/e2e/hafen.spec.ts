@@ -496,13 +496,13 @@ test('E239: Muster-Kielwasser – Modelle mit Entscheidung, Verlauf mit Tooltip,
   await page.goto('/hafen/muster');
   // Kopf: Status fertig, aktive Modelle, Jetzt trainieren
   await expect(page.getByTestId('muster-status')).toContainText('fertig');
-  await expect(page.getByTestId('muster-aktiv')).toHaveText('7/15');
+  await expect(page.getByTestId('muster-aktiv')).toHaveText('7/17');  // E243: 17 Modelle (+ ertrag, ertragWert)
   await page.getByTestId('muster-trainieren').click();
   await expect(page.getByRole('status').filter({ hasText: 'Training gestartet' })).toBeVisible();
   expect(trainiert).toBe(1);
-  // a) alle 15 Modelle, Name ungekürzt, Entscheidung mit Grund
+  // a) alle 17 Modelle, Name ungekürzt, Entscheidung mit Grund
   const liste = page.getByTestId('muster-modelle-liste');
-  await expect(liste.locator('li')).toHaveCount(15);
+  await expect(liste.locator('li')).toHaveCount(17);
   await expect(liste).toContainText('📈 Kurs in 1 min (%)');
   await expect(liste).toContainText('💥 Absturz – Früh-Modell (Token ≤ 90 s)');
   await expect(page.getByTestId('entscheidung-basis')).toHaveText('ÜBERNOMMEN');

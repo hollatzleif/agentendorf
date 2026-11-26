@@ -898,6 +898,11 @@ function ModellTabelle({ modelle }: { modelle: KryptoMusterModellInfo[] }) {
                     : t.auc == null
                       ? '–'
                       : `AUC ${k(t.auc, 3)} vs. Raten 0,5`}
+                  {mo.schluessel === 'ertrag' && t.schwelle != null && (
+                    <small className="leise hafen-gruende" data-testid="ertrag-schwelle">
+                      Kauf ab {k(t.schwelle, 2)} · {t.trades ?? 0} Käufe: {t.ertragJeTrade == null ? '–' : `${t.ertragJeTrade >= 0 ? '+' : ''}${k(t.ertragJeTrade, 1)} %`} je Trade vs. alle {t.ertragAlle == null ? '–' : `${t.ertragAlle >= 0 ? '+' : ''}${k(t.ertragAlle, 1)} %`}
+                    </small>
+                  )}
                 </td>
                 <td className="mono">{t.tokens.toLocaleString('de-DE')}</td>
               </tr>

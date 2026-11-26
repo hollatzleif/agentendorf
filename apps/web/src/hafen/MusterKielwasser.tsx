@@ -43,6 +43,9 @@ const LINIE: Record<KryptoMusterSchluessel, { farbe: string; gestrichelt?: boole
   hoch5: { farbe: SERIEN_FARBEN[6], gestrichelt: true },
   tief1: { farbe: SERIEN_FARBEN[7] },
   tief5: { farbe: SERIEN_FARBEN[7], gestrichelt: true },
+  // E243: Ertrags-Modell (Wahrscheinlichkeiten-Chart: Farbe 6 ist dort frei; Werte-Chart gestrichelt)
+  ertrag: { farbe: SERIEN_FARBEN[5] },
+  ertragWert: { farbe: SERIEN_FARBEN[5], gestrichelt: true },
 };
 
 const name = (k: string) => KRYPTO_MUSTER_MODELLE.find((m) => m.schluessel === k)?.name ?? (k === 'rl' ? 'RL-Agent' : k);

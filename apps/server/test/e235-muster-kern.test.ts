@@ -445,10 +445,14 @@ describe("E235 RL", () => {
     );
     expect(n).toBe(1200);
     expect(abgaben).toBeGreaterThanOrEqual(6);
-    const q8 = modell.q["w|8|2"]!;
-    const q1 = modell.q["w|1|2"]!;
-    expect(q8[1]).toBeGreaterThan(q8[0]!); // bei p 0,85 lieber kaufen als warten
-    expect(q1[1]).toBeLessThan(q8[1]!); // bei p 0,15 lohnt kaufen weniger
+    // E243: Einstiege macht die Regel – gelernt werden nur gehaltene Lagen (warten/halb/raus)
+    expect(Object.keys(modell.q).some((k) => k.startsWith("w|"))).toBe(false);
+    const mehrheit = (p: number, besser: (q: number[]) => boolean) => {
+      const zeilen = Object.entries(modell.q).filter(([k]) => k.startsWith(`h|${p}|`)).map(([, q]) => q);
+      return zeilen.filter(besser).length / zeilen.length;
+    };
+    // steigender Kurs (p 0,85): halten schlägt raus (der Zeitraffer unten kauft nur dort – p 0,15 < minSicherheit)
+    expect(mehrheit(8, (q) => q[0]! >= q[3]!)).toBeGreaterThan(0.5);
     const zr = await rlZeitraffer(modell, episoden, {
       ...KRYPTO_RL_STANDARD,
       erkunden: 0,

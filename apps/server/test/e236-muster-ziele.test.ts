@@ -54,6 +54,9 @@ const signale = (o: Partial<MusterSignale>): MusterSignale => ({
   tief5: null,
   frueh: false,
   verlauf: [null, null, null, null, null, null], // E237
+  ertrag: null, // E243
+  ertragSchwelle: null,
+  ertragWert: null,
   ...o,
 });
 

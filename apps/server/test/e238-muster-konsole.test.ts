@@ -121,7 +121,8 @@ describe('musterTrainieren mit Konsole (E238)', () => {
     const kaeufe = zeilen.filter((z) => z.bereich === 'RL' && / KAUFEN · /.test(z.text));
     expect(kaeufe).toHaveLength(15);
     expect(kaeufe[0]!.text).toMatch(/^\d\d\.11\. \d\d:\d\d:\d\d UTC T\d+pump KAUFEN · p \d,\d\d · 🚀 \S+ · 💥 \S+ · v1m \S+/);
-    expect(kaeufe.some((z) => /warum: kaufen -?\d,\d{3} [>=] warten -?\d,\d{3}/.test(z.text))).toBe(true);
+    // E243: Einstiege nach Regel (Ertrags-Modell bzw. Signale) – keine Q-Werte
+    expect(kaeufe.every((z) => /warum: Einstieg nach Regel/.test(z.text))).toBe(true);
     const ausgaenge = zeilen.filter((z) => z.bereich === 'RL' && z.text.startsWith('   → '));
     expect(ausgaenge).toHaveLength(15);
     expect(ausgaenge.some((z) => /RAUS nach \d+ s · .*Plus [+−][\d,]+ % · \d+ s gehalten · warum: raus -?\d,\d{3}/.test(z.text))).toBe(true);
@@ -181,7 +182,8 @@ describe('RL-Zeitraffer erklärt Trades (E238)', () => {
     expect(trades).toHaveLength(2);
     const [a, b] = trades;
     expect(a!.mint).toBe('ABCDEFGHIJKLMNOP');
-    expect(a!.kauf).toMatchObject({ handlung: 'kaufen', grund: 'q', q: [{ handlung: 'kaufen', wert: 0.12 }, { handlung: 'warten', wert: 0.03 }], zeit: T0, preis: 1.2e-7 });
+    // E243: der Einstieg kommt aus der Regel (p 0,9 ≥ minSicherheit), nicht aus Q-Werten
+    expect(a!.kauf).toMatchObject({ handlung: 'kaufen', grund: 'regel', q: null, zeit: T0, preis: 1.2e-7 });
     expect(a!.verkauf).toMatchObject({ handlung: 'raus', grund: 'q', q: [{ handlung: 'raus', wert: 0.2 }, { handlung: 'warten', wert: 0.05 }, { handlung: 'halb', wert: 0.01 }] });
     expect(a!.verkauf!.lage).toMatchObject({ haelt: true, haltSek: 0 });
     expect(a!.haltSek).toBe(5);

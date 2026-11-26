@@ -16,6 +16,13 @@
 // nur, wenn eines davon aktiv ist (sonst bleibt der Schlüssel wie bisher). Die Belohnung bleibt der echte Gewinn nach
 // Gebühren (er soll Geld lernen, nicht Vorhersagen). Harte Sicherung: Alarm 'absturz' → ohne Position nie kaufen,
 // gehalten nur noch raus; Alarm 'anstieg' erlaubt den Kauf auch ohne p ≥ minSicherheit (💥-Sperre gilt weiter).
+//
+// E243 (Reparatur): Der Agent hatte gelernt, nie zu kaufen – jeder zufällige Einstieg kostet Gebühren, „warten“ bringt immer
+// 0. Jetzt entscheidet er NUR noch über den Ausstieg (halten / halb / raus – dort gibt es dichte Rückmeldung). Den Einstieg
+// bestimmt eine Regel: ist das Ertrags-Modell aktiv, kauft er ab dessen Kaufschwelle (Meta-Labeling: „lohnt sich der Kauf
+// nach Gebühren?“), sonst wie bisher (p ≥ minSicherheit, 🚀 ≥ 0,3 oder Alarm 'anstieg'); 💥-Sperren gelten immer.
+// Im Training kauft er bei jedem erlaubten Zeitpunkt (viele Einstiege → viel Ausstiegs-Übung), im Zeitraffer und live
+// nur nach der Regel mit den Grenzen des Bots.
 import type { KryptoRlGrenzen } from "@dorf/shared";
 import { GRUNDGEBUEHR_SOL, kaufen, kurveAusKurs, verkaufen } from "../kurve.js";
 import { takt } from "./gbdt.js";
@@ -134,6 +141,11 @@ function kaufErlaubt(l: RlLageMitAlarm, g: KryptoRlGrenzen): boolean {
   const absturz = zahlOderNull(l.absturz);
   if (absturz !== null && absturz >= (g.maxAbsturz ?? MAX_ABSTURZ_STANDARD))
     return false;
+  // E243: Ertrags-Modell aktiv → nur es entscheidet (im Training mit minSicherheit 0: jeder Zeitpunkt)
+  const ertrag = zahlOderNull(l.ertrag);
+  const schwelle = zahlOderNull(l.ertragSchwelle);
+  if (ertrag !== null && schwelle !== null)
+    return g.minSicherheit <= 0 || ertrag >= schwelle;
   const pump = zahlOderNull(l.pump);
   return (
     alarm === "anstieg" ||
@@ -177,6 +189,8 @@ export function rlHandlung(
   zufall: () => number,
 ): RlHandlung {
   const erlaubt = rlErlaubt(l, g);
+  // E243: Einstieg nach Regel (kein Q-Wert, kein Erkunden) – gelernt wird nur der Ausstieg
+  if (!l.haelt) return erlaubt.includes("kaufen") ? "kaufen" : "warten";
   if (g.erkunden > 0 && zufall() < g.erkunden)
     return erlaubt[
       Math.min(erlaubt.length - 1, Math.floor(zufall() * erlaubt.length))
@@ -212,6 +226,9 @@ export interface RlSchritt {
   v1m?: number | null;
   v5m?: number | null;
   alarm?: RlAlarm;
+  /** E243: Ertrags-Modell und seine Kaufschwelle (null = nicht aktiv) */
+  ertrag?: number | null;
+  ertragSchwelle?: number | null;
 }
 export type RlEpisode = RlSchritt[];
 
@@ -254,7 +271,8 @@ export function rlErklaeren(
   preis: number,
 ): RlEntscheidung {
   const erlaubt = rlErlaubt(l, g);
-  const q = m?.q[rlZustand(l)];
+  // E243: Einstiege entscheidet die Regel (Ertrags-Modell bzw. Signale) – keine Q-Werte
+  const q = l.haelt ? m?.q[rlZustand(l)] : undefined;
   const werte = q
     ? erlaubt
         .map((a) => ({ handlung: a, wert: q[RL_HANDLUNGEN.indexOf(a)] ?? 0 }))
@@ -383,6 +401,8 @@ async function simulieren(
       r: number;
       weiter: string | null;
       erlaubt: number[];
+      /** E243: Verkauf schließt den Trade – kein Folgezustand */
+      ende?: boolean;
     }[] = [];
     for (let i = 0; i < ep.length; i++) {
       const schritt = ep[i]!;
@@ -394,6 +414,8 @@ async function simulieren(
         tief5: schritt.tief5 ?? null,
         v1m: schritt.v1m ?? null,
         v5m: schritt.v5m ?? null,
+        ertrag: schritt.ertrag ?? null,
+        ertragSchwelle: schritt.ertragSchwelle ?? null,
         // Alarm wie im Training berechnet (fehlt er im Schritt, leitet rlAlarm ihn aus der Lage ab)
         ...(schritt.alarm !== undefined ? { alarm: schritt.alarm } : {}),
         haelt: pos !== null,
@@ -402,10 +424,11 @@ async function simulieren(
         trend30Prozent: schritt.trend30Prozent,
       };
       const s = rlZustand(lage);
-      if (lernen) {
+      // E243: gelernt wird nur in gehaltenen Lagen; nach dem Verkauf ist die Episode für den Trade zu Ende (Folgewert 0)
+      if (lernen && lage.haelt) {
         qVon(s);
         const vorher = pfad[pfad.length - 1];
-        if (vorher) {
+        if (vorher && vorher.weiter === null && !vorher.ende) {
           vorher.weiter = s;
           vorher.erlaubt = rlErlaubt(lage, g).map((a) =>
             RL_HANDLUNGEN.indexOf(a),
@@ -448,13 +471,15 @@ async function simulieren(
         r += verkauf(pos, preis, 0.5);
         pos.halb++;
       }
-      if (lernen)
+      // E243: nur Entscheidungen in gehaltenen Lagen lernen (Einstiege macht die Regel)
+      if (lernen && lage.haelt)
         pfad.push({
           s,
           a: RL_HANDLUNGEN.indexOf(a),
           r,
           weiter: null,
           erlaubt: [],
+          ende: pos === null,
         });
       await warte();
     }

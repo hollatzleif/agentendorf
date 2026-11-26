@@ -3,7 +3,8 @@
 // E236: dazu Früh-Merkmale „seit Start“ (für junge Tokens), größter Einzelkauf/-verkauf, Label in beide Richtungen,
 // Hoch/Tief im Horizont (extreme) und der Rat aus allen Signalen.
 // E237: Kursänderung nach h Sekunden (rendite – Label der Kursvorhersage) und der Alarm (alarmAus) für alle Bots.
-import { KRYPTO_VERLAUF_SEK } from "@dorf/shared";
+import { KRYPTO_STANDARD, KRYPTO_VERLAUF_SEK, type KryptoEinstellung } from "@dorf/shared";
+import { GRUNDGEBUEHR_SOL, kaufen, kurveAusKurs, verkaufen } from "../kurve.js";
 import type { MusterSignale, Tick, TokenMeta, Ziel } from "./typen.js";
 
 const FENSTER_MS = 120_000;
@@ -384,7 +385,7 @@ export function schichtUrteil(
   s: MusterSignale,
   fallProzent: number,
   a: AlarmSchwellen = ALARM_STANDARD,
-): { fall: string | null; steigt: boolean; raus: string | null } {
+): { fall: string | null; steigt: boolean; raus: string | null; kauf: string | null } {
   const alarm = alarmAus(s, a);
   const kurz = [vorhersage(s, 30), vorhersage(s, 60)].filter((x): x is number => x != null);
   const lang = [vorhersage(s, 120), vorhersage(s, 300)].filter((x): x is number => x != null);
@@ -402,5 +403,84 @@ export function schichtUrteil(
   else if (alarm === "absturz") raus = "💥 Alarm";
   else if (kurz.length && Math.min(...kurz) <= -fallProzent && !(langWert != null && langWert > 0))
     raus = `kurz ${pzt(Math.min(...kurz))}, lang ${langWert == null ? "–" : pzt(langWert)}`;
-  return { fall, steigt: langWert != null && langWert > 0, raus };
+  // E243: Ertrags-Modell ab seiner Kaufschwelle → Zusatzkauf (nur ohne vorhergesagten Fall und ohne negativen erwarteten Ertrag)
+  let kauf: string | null = null;
+  if (
+    !fall &&
+    s.ertrag != null &&
+    s.ertragSchwelle != null &&
+    s.ertrag >= s.ertragSchwelle &&
+    !(s.ertragWert != null && s.ertragWert <= 0)
+  )
+    kauf = `💰 Ertrag ${Math.round(s.ertrag * 100)} % ≥ Schwelle ${Math.round(s.ertragSchwelle * 100)} %${s.ertragWert != null ? ` (erwartet ${pzt(s.ertragWert)})` : ""}`;
+  return { fall, steigt: langWert != null && langWert > 0, raus, kauf };
+}
+
+/** E243: Ertrags-Label – Einsatz, Verzögerung und Gebühren wie im Paper/RL-Zeitraffer */
+export const ERTRAG_EINSATZ_SOL = 0.5;
+export const ERTRAG_VERZOEGERUNG_MS = 5_000;
+const ERTRAG_PORTAL = 0.005;
+const ERTRAG_NETZ_SOL = GRUNDGEBUEHR_SOL + 0.0001;
+/** so lange muss die Aufzeichnung nach dem Einstieg mindestens reichen, wenn kein Ausstieg gegriffen hat */
+export const ERTRAG_MIN_NACHLAUF_MS = 5 * 60_000;
+
+/**
+ * E243: Was hätte ein Kauf bei t gebracht? Netto-Ertrag in % des Einsatzes nach ALLEN Gebühren (Bonding-Curve-Gebühr,
+ * Slippage über kaufen()/verkaufen(), PumpPortal 0,5 % je Seite, Netzgebühr) mit den Ausstiegsregeln `ausstieg`
+ * (Standard = KRYPTO_STANDARD: TP-Stufen, Stop-Loss, Trailing, Haltedauer – Reihenfolge wie positionenPflegen im Kryptowerk).
+ * Entscheidung bei t → Kauf zum Kurs bei t + 5 s; jeder Verkauf zum Kurs 5 s nach dem auslösenden Tick.
+ * Greift kein Ausstieg, bevor die Aufzeichnung endet: Verkauf zum letzten Kurs, wenn sie mindestens 5 min nach dem Einstieg
+ * reicht (ein Token, mit dem niemand mehr handelt, bleibt auf diesem Kurs stehen), sonst null (Ausgang unbekannt).
+ */
+export function ertragLabel(
+  ticks: Tick[],
+  t: number,
+  ausstieg: KryptoEinstellung["ausstieg"] = KRYPTO_STANDARD.ausstieg,
+): number | null {
+  const kursBei = (zeit: number) => {
+    const i = letzterIndex(ticks, zeit);
+    return i < 0 ? null : ticks[i]!.preis;
+  };
+  const start = t + ERTRAG_VERZOEGERUNG_MS;
+  const letzte = ticks[ticks.length - 1];
+  if (!letzte || letzte.zeit < start) return null;
+  const p0 = kursBei(start);
+  if (!(p0 != null && p0 > 0)) return null;
+  const f = kaufen(kurveAusKurs(p0), ERTRAG_EINSATZ_SOL, ERTRAG_PORTAL);
+  const kosten = ERTRAG_EINSATZ_SOL + ERTRAG_NETZ_SOL;
+  const tokenGesamt = f.token;
+  let rest = f.token;
+  let erloes = 0;
+  let stufe = 0;
+  let hoechst = p0;
+  const verkauf = (menge: number, ausloeser: number) => {
+    const px = kursBei(ausloeser + ERTRAG_VERZOEGERUNG_MS) ?? p0;
+    const v = verkaufen(kurveAusKurs(px > 0 ? px : p0 * 1e-6), menge, ERTRAG_PORTAL);
+    erloes += Math.max(0, v.sol - ERTRAG_NETZ_SOL);
+    rest -= menge;
+  };
+  let j = letzterIndex(ticks, start) + 1;
+  for (; j < ticks.length && rest > 1e-9; j++) {
+    const k = ticks[j]!;
+    const kurs = k.preis;
+    if (!(kurs > 0)) continue;
+    if (kurs > hoechst) hoechst = kurs;
+    const plus = (kurs / p0 - 1) * 100;
+    if (plus <= -ausstieg.stopLossProzent) verkauf(rest, k.zeit);
+    else if (ausstieg.trailingProzent > 0 && hoechst > p0 && kurs <= hoechst * (1 - ausstieg.trailingProzent / 100)) verkauf(rest, k.zeit);
+    else if (k.zeit - start >= ausstieg.maxHaltMinuten * 60_000) verkauf(rest, k.zeit);
+    else {
+      const tp = ausstieg.takeProfit[stufe];
+      if (tp && plus >= tp.beiProzent) {
+        const letzteStufe = stufe === ausstieg.takeProfit.length - 1;
+        stufe++;
+        verkauf(letzteStufe ? rest : Math.min(rest, (tokenGesamt * tp.verkaufProzent) / 100), k.zeit);
+      }
+    }
+  }
+  if (rest > 1e-9) {
+    if (letzte.zeit - start < ERTRAG_MIN_NACHLAUF_MS) return null;
+    verkauf(rest, letzte.zeit);
+  }
+  return Math.max(EXTREM_MIN, Math.min(EXTREM_MAX, ((erloes - kosten) / kosten) * 100));
 }

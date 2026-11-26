@@ -62,6 +62,10 @@ export function signaleAusMerkmalen(
     tief5: vorhersage(modelle.tief5, x, true),
     frueh: fruehPump !== null || fruehAbsturz !== null,
     verlauf: VERLAUF_SCHLUESSEL.map((k) => vorhersage(modelle[k], x, true)),
+    // E243: Ertrags-Modell (Meta-Labeling) mit seiner Kaufschwelle
+    ertrag: vorhersage(modelle.ertrag, x, false),
+    ertragSchwelle: modelle.ertrag?.schwelle ?? null,
+    ertragWert: vorhersage(modelle.ertragWert, x, true),
   };
 }
 

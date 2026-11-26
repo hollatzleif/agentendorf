@@ -182,7 +182,10 @@ export type KryptoMusterSchluessel =
   | 'verlauf30s'
   | 'verlauf1m'
   | 'verlauf2m'
-  | 'verlauf5m';
+  | 'verlauf5m'
+  // E243: Ertrags-Modell (Meta-Labeling) – lohnt sich ein Kauf JETZT nach allen Gebühren mit den Standard-Ausstiegen?
+  | 'ertrag'
+  | 'ertragWert';
 /** E237: Horizonte der Kursvorhersage in Sekunden (Reihenfolge = MusterSignale.verlauf, KryptoMusterRat.verlauf) */
 export const KRYPTO_VERLAUF_SEK = [5, 15, 30, 60, 120, 300] as const;
 export const KRYPTO_MUSTER_MODELLE: { schluessel: KryptoMusterSchluessel; name: string; art: 'wahrscheinlichkeit' | 'wert' }[] = [
@@ -201,7 +204,11 @@ export const KRYPTO_MUSTER_MODELLE: { schluessel: KryptoMusterSchluessel; name: 
   { schluessel: 'verlauf1m', name: '📈 Kurs in 1 min (%)', art: 'wert' },
   { schluessel: 'verlauf2m', name: '📈 Kurs in 2 min (%)', art: 'wert' },
   { schluessel: 'verlauf5m', name: '📈 Kurs in 5 min (%)', art: 'wert' },
+  { schluessel: 'ertrag', name: '💰 Ertrag – Trade im Plus nach Gebühren', art: 'wahrscheinlichkeit' },
+  { schluessel: 'ertragWert', name: '💰 Ertrag je Trade nach Gebühren (%)', art: 'wert' },
 ];
+/** E243: Ausstieg, mit dem das Ertrags-Label gerechnet wird (wie KRYPTO_STANDARD.ausstieg), Einsatz 0,5 SOL, 5 s Verzögerung */
+export const KRYPTO_ERTRAG_HORIZONT_MIN = 120;
 
 /** E236: Stand eines einzelnen Muster-Modells */
 export interface KryptoMusterModellInfo {
@@ -228,6 +235,12 @@ export interface KryptoMusterModellInfo {
     /** E237 (nur verlauf*): Alarme im Test – n = ausgelöst, treffer = Kurs bewegte sich danach mindestens halb so stark in diese Richtung */
     alarmAnstieg?: { n: number; treffer: number } | null;
     alarmFall?: { n: number; treffer: number } | null;
+    /** E243 (nur ertrag): Kaufschwelle (gewählt auf der ersten Hälfte der Testdaten), auf der zweiten Hälfte: Trades ab
+     *  Schwelle, mittlerer Ertrag je Trade (%) und zum Vergleich der mittlere Ertrag, wenn man jeden Zeitpunkt kaufte */
+    schwelle?: number | null;
+    trades?: number | null;
+    ertragJeTrade?: number | null;
+    ertragAlle?: number | null;
   };
   merkmale: { name: string; wichtigkeit: number }[];
   /** E239: Verlust auf Lern- und Testdaten nach `baum` Bäumen (Skala wie im Training; fehlt bei Läufen vor E239) */
