@@ -155,9 +155,10 @@ function Rahmen() {
           {nav('/heute', 'Heute', pfad === '/heute')}
           {nav('/bibliothek', 'Bibliothek', pfad === '/bibliothek')}
           {nav('/einstellungen', 'Einstellungen', pfad === '/einstellungen' || pfad === '/paketwerk')}
-          <LetzteChats variante="dorf" kinder="Letzte Chats" />
         </nav>
         <div className="status">
+          {/* E245: rechts bei den Abzeichen – in der Navigation verdeckte es am Handy die Abzeichen */}
+          <LetzteChats variante="dorf" kinder={<><span className="letzte-chats-text">Letzte Chats</span><span className="letzte-chats-symbol" aria-hidden>💬</span></>} />
           <DunkelSchalter />
           {nf > 0 && (
             <a href="/gebaeude/Rathaus?reiter=freigaben" onClick={linkKlick} className="abzeichen brief" title="Freigaben warten auf dich">

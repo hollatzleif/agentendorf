@@ -2113,7 +2113,7 @@ details.karte > summary { cursor: pointer; }
   background: var(--karte, #fff); color: var(--text, #222); border: 2px solid var(--rand, rgb(0 0 0 / 0.15)); border-radius: 12px;
   box-shadow: 0 10px 28px rgb(0 0 0 / 0.25);
 }
-.letzte-chats-dorf .letzte-chats-liste { left: 0; right: auto; }
+/* rechts in der Kopfleiste – nach links aufklappen */
 .letzte-chats-liste > p { margin: 0.4rem 0.6rem; }
 .letzte-chats-eintrag {
   display: flex; flex-direction: column; align-items: stretch; gap: 1px; text-align: left; width: 100%;
@@ -2132,4 +2132,10 @@ details.karte > summary { cursor: pointer; }
 @media (max-width: 760px), (pointer: coarse) {
   .letzte-chats-dorf .letzte-chats-liste { position: fixed; top: 64px; left: 8px; right: 8px; width: auto; z-index: 500; max-height: 70vh; overflow: auto; }
   .letzte-chats-knopf { padding: 0.35rem 0.5rem; font-size: 0.95rem; }
+}
+/* E245: schmal nur das Symbol – sonst bricht die Kopfleiste am Handy um */
+.letzte-chats-symbol { display: none; }
+@media (max-width: 760px) {
+  .letzte-chats-text { display: none; }
+  .letzte-chats-symbol { display: inline; }
 }

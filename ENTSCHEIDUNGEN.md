@@ -2747,7 +2747,7 @@ Leif: „Kannst du machen, dass bei allen Chats die Arbeitsanweisungen immer aus
 
   Die ganze Anweisung steht darunter klein und zugeklappt („Arbeitsanweisung“) – zum Nachsehen, falls ein Ergebnis seltsam ist. Freie Chats (Leif schreibt selbst) bleiben wie sie sind.
 - **Letzte Chats** (`GET /api/chats/letzte`, `LetzteChats.tsx`): die 5 Chats mit der jüngsten Nachricht von Leif oder einem Modell (nicht Werkzeug/Hinweis), über alle Gebäude inkl. Bürgermeister. System-Chats (Post-Einordnung, Hafen-Bewertungen, Zeitung …, `rolle = system`) zählen nicht – sie würden die Liste fluten. Die Vorschau zeigt nie die Arbeitsanweisung und beim Modell nur die Antwort ohne das Protokoll („## Zusammenfassung“).
-  - Dorf: Eintrag „Letzte Chats“ in der Navigation.
+  - Dorf: „Letzte Chats“ rechts in der Kopfleiste bei den Abzeichen (am Handy nur 💬 – in der Navigation verdeckte es dort die Abzeichen).
   - Apple: Glasknopf mit Sprechblase in der Kopfleiste.
   - Öffnen beim Überfahren, Antippen auf dem Handy (dort als Tafel oben, weil die Navigation unten liegen kann), Esc/Klick daneben schließt.
   - Live aktualisiert über die Chat-Ereignisse.
