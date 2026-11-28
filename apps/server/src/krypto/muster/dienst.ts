@@ -121,6 +121,10 @@ export class MusterDienst {
   private rlInfo: KryptoMusterStatus['rl'] = null;
   private bericht = 'Noch kein Training gelaufen.';
   private laeuft = false;
+  /** E249: für /diagnose – läuft gerade ein Training, wie weit (0–1) */
+  get trainingStand() {
+    return { laeuft: this.laeuft, fortschritt: Math.round(this.fortschritt * 100) };
+  }
   private fortschritt = 0;
   private letzter: number | null = null;
   private naechster: number;

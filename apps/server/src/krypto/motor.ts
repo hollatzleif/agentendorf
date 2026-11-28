@@ -617,6 +617,7 @@ export class Kryptowerk {
 
   /** Eine Änderung der Bonding Curve (≈ ein Trade): Kurs sofort übernehmen, Ausstiege gehaltener Tokens sofort prüfen */
   kurveTick(mint: string, stand: KurveStand, zeit: number) {
+    this.zaehler.summeTicks++;
     const vorher = this.stromKurs.get(mint);
     this.stromKurs.set(mint, { zeit, preis: stand.preisSol, vSol: stand.vSol, echtSol: stand.echtSol });
     const l = this.stromTicks.get(mint) ?? [];
@@ -709,9 +710,27 @@ export class Kryptowerk {
   }
 
   /** ein Takt: Kurse holen, Aufträge ausführen, Positionen pflegen, Neues bewerten, Equity merken */
+  /** E249: Zähler für /diagnose (Summen wachsen nur – die Differenz zweier Stände ergibt die Rate) */
+  private zaehler = { summeTicks: 0, summeTakte: 0, summeTaktMs: 0, summeTaktUebersprungen: 0 };
+  zaehlerStand(): Record<string, number | string> {
+    return {
+      ...this.zaehler,
+      beobachteteTokens: this.tokens.size,
+      stromTokens: this.stromTicks.size,
+      stromTicksImSpeicher: [...this.stromTicks.values()].reduce((n, l) => n + l.length, 0),
+      auftraege: this.auftraege.length,
+      offenePositionen: this.offenePositionen().length,
+      positionenGesamt: (this.o.db.prepare('SELECT COUNT(*) AS n FROM positionen').get() as { n: number }).n,
+      laufendeBots: this.laufendeBots().length,
+      speicherMb: Math.round(process.memoryUsage().heapUsed / 1e6),
+    };
+  }
+
   async takt() {
-    if (this.taktLaeuft) return;
+    if (this.taktLaeuft) return void this.zaehler.summeTaktUebersprungen++;
     this.taktLaeuft = true;
+    const t0 = performance.now();
+    this.zaehler.summeTakte++;
     try {
       await this.kurseHolen();
       this.stromAbgleichen();
@@ -732,6 +751,7 @@ export class Kryptowerk {
       this.kurseAusduennen();
     } finally {
       this.taktLaeuft = false;
+      this.zaehler.summeTaktMs += Math.round(performance.now() - t0);
     }
   }
 

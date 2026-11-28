@@ -26,3 +26,32 @@ describe('Kryptowerk: Abfragen im Takt nutzen Indizes (E248)', () => {
     expect(performance.now() - t).toBeLessThan(500);
   });
 });
+
+describe('Diagnose im Kryptowerk (E249)', () => {
+  it('GET /diagnose: CPU-Profil mit Eigenzeit je Funktion + Zähler – nur mit Bearer', async () => {
+    const { Kryptowerk } = await import('../src/krypto/motor.js');
+    const { kryptoServer } = await import('../src/krypto/server.js');
+    const { TestUhr } = await import('../src/uhr.js');
+    const db = kryptoDb(':memory:');
+    const werk = new Kryptowerk({ db, uhr: new TestUhr(), dex: { async paare() { return { schnappschuesse: [], solUsd: 140 }; } } as never, rug: { bereit: () => true } as never });
+    const G = 'g'.repeat(40);
+    const app = kryptoServer(werk, G);
+    expect((await app.inject({ url: '/diagnose?sek=1' })).statusCode).toBe(401);
+    // etwas Last, damit das Profil etwas sieht
+    const last = setInterval(() => {
+      let x = 0;
+      for (let i = 0; i < 2e6; i++) x += Math.sqrt(i);
+      void x;
+    }, 50);
+    const r = await app.inject({ url: '/diagnose?sek=1', headers: { authorization: `Bearer ${G}` } });
+    clearInterval(last);
+    expect(r.statusCode).toBe(200);
+    expect(r.headers['content-type']).toMatch(/text\/plain/);
+    expect(r.body).toMatch(/summeTicks: 0 in 1 s/);
+    expect(r.body).toMatch(/positionenGesamt: 0/);
+    expect(r.body).toMatch(/Profil über \d,\d s – Leerlauf \d+ %/);
+    expect(r.body).toMatch(/Eigenzeit je Funktion:\n\s+\d+ ms/);
+    expect((await app.inject({ url: '/diagnose?sek=999', headers: { authorization: `Bearer ${G}` } })).statusCode).toBe(400);
+    await app.close();
+  }, 20_000);
+});

@@ -8,6 +8,7 @@ import { KRYPTO_KERZEN_TAKTE } from '@dorf/shared';
 import { KryptoFehler, type Kryptowerk } from './motor.js';
 import type { Backtests } from './backtest.js';
 import type { MusterDienst } from './muster/dienst.js';
+import { cpuProfil } from './diagnose.js';
 
 export function kryptoServer(werk: Kryptowerk, geheimnis: string, backtests?: Backtests, muster?: MusterDienst): FastifyInstance {
   if (geheimnis.length < 32) throw new Error('KRYPTO_GEHEIMNIS fehlt oder ist zu kurz');
@@ -27,6 +28,17 @@ export function kryptoServer(werk: Kryptowerk, geheimnis: string, backtests?: Ba
 
   app.get('/gesund', async () => ({ ok: true }));
   app.get('/uebersicht', async () => werk.uebersicht());
+  // E249: CPU-Profil + Zähler (Text) – für die Fehlersuche auf dem Server (docker exec … /diagnose)
+  app.get('/diagnose', async (req, reply) => {
+    const sek = z.object({ sek: z.coerce.number().int().min(1).max(120).default(20) }).parse(req.query).sek;
+    const vorher = werk.zaehlerStand();
+    const profil = await cpuProfil(sek * 1000);
+    const nachher = werk.zaehlerStand();
+    const z2 = Object.entries(nachher).map(([k, v]) => `${k}: ${typeof v === 'number' && typeof vorher[k] === 'number' && k.startsWith('summe') ? `${v - (vorher[k] as number)} in ${sek} s` : v}`);
+    const tr = muster?.trainingStand;
+    if (tr) z2.push(`Muster-Training: ${tr.laeuft ? `läuft (${tr.fortschritt} %)` : 'läuft nicht'}`);
+    return reply.type('text/plain; charset=utf-8').send(`${z2.join('\n')}\n\n${profil}\n`);
+  });
   app.post('/bots', async (req) => {
     const b = z.object({ einstellung: z.unknown(), modus: z.unknown().optional() }).parse(req.body);
     return werk.anlegen(b.einstellung, b.modus ?? 'paper');

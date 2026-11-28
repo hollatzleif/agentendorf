@@ -2810,3 +2810,13 @@ Leif: „Kryptowerk ist konsequent nicht erreichbar.“
   - Dazu `trades_position` (das Terminal suchte je Trade den letzten Verkauf über alle Trades) und `tokens_erstellt` (Archiv und Smart-Money-Ergebnisse lasen alle Tokens).
   - Test e248 prüft per `EXPLAIN QUERY PLAN`, dass die Abfragen die Indizes nutzen.
 - **Frühwarnung:** Das Kryptowerk misst die Verzögerung der Ereignisschleife. Lag sie in 10 min über 2 s, steht das im Log (`dorf logs kryptowerk`).
+
+## E249 – Diagnose im Kryptowerk (28.11.)
+
+Nach E248 antwortete das Kryptowerk immer noch erst nach 24–30 s. Der Index hat einen Teil gelöst, meine lokale Lastprobe traf den echten Engpass aber nicht. Statt weiter zu raten, misst das Kryptowerk jetzt selbst, wo die Zeit hängt.
+
+- **`GET /diagnose?sek=20`** (Bearer wie alle Routen, nur im internen Netz) liefert Text:
+  - Zähler: Ticks, Takte, Takt-Rechenzeit, übersprungene Takte, Tokens, Strom-Tokens, Positionen, Speicher, Stand des Muster-Trainings.
+  - CPU-Profil über den eingebauten Inspector (in-process, kein offener Port): Eigenzeit je Funktion und je Datei.
+- **Aufruf auf dem Server:** `docker exec dorf-kryptowerk-1 node -e …` (Befehl siehe Chat).
+- Danach wird gezielt das behoben, was das Profil zeigt.
