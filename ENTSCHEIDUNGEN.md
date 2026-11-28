@@ -2795,3 +2795,18 @@ Leif: „Mach auch, dass das Mustermodell den Einsatz immer davon abhängig mach
   - Training und Regelwahl (E246) bleiben bei gleich großem Einsatz, damit die Lernsignale vergleichbar sind.
 - **Nebenbei repariert:** „Halb verkaufen“ schloss im Zeitraffer bei einem Rest unter 0,1 SOL ganz. Das war fest an 0,5 SOL gebunden, jetzt gilt ein Rest unter 20 % des Einsatzes. Bei 0,5 SOL ist das dasselbe; kleinere Einsätze verkauften sonst früh und kauften am Episodenende verlustreich nach.
 - **Ehrlich:** Die Formel ist von Hand gesetzt, nicht gelernt. Ob sie sich lohnt, zeigt der Vergleich im Zeitraffer bei jedem Training.
+
+## E248 – Kryptowerk „nicht erreichbar“: fehlender Index (28.11.)
+
+Leif: „Kryptowerk ist konsequent nicht erreichbar.“
+
+- **Befund:** Der Container lief seit 43 h und war „healthy“, aber im Container brauchte `/gesund` 51 s und `/uebersicht` 41 s. Das Dorf gibt nach 15 s auf, im Log liefen alle Abrufe nach draußen in Timeouts. Ursache war also kein Absturz: Die Ereignisschleife kam nicht hinterher.
+- **Ursache:** Jeder Echtzeit-Kurs (dutzende je Sekunde) und viele Takt-Schritte fragen `offenePositionen()` ab, also `SELECT … WHERE offen = 1` über alle Bots. Der einzige Index war `(bot_id, offen)`, darum las SQLite jedes Mal ALLE Positionen aller Zeiten. Seit E246 handelt der Muster-RL viel, die Tabelle wuchs schnell, und jeder Kurs wurde teurer.
+- **Messung:** Lokale Lastprobe mit 14 Bots, 40 000 alten Positionen und 30 Kursen je Sekunde über 60 s.
+  - Vorher: 4,7 s Rechenzeit je Minute, davon 4,0 s in `offenePositionen`. Mit 4× so vielen Positionen entsprechend mehr. Auf dem Server mit 0,5 CPU und mehr Kursen reichte das nicht mehr.
+  - Nachher: 0,65 s, unabhängig von der Zahl alter Positionen.
+- **Fix:**
+  - Migration mit Teilindex `positionen_offen ON positionen (offen) WHERE offen = 1`.
+  - Dazu `trades_position` (das Terminal suchte je Trade den letzten Verkauf über alle Trades) und `tokens_erstellt` (Archiv und Smart-Money-Ergebnisse lasen alle Tokens).
+  - Test e248 prüft per `EXPLAIN QUERY PLAN`, dass die Abfragen die Indizes nutzen.
+- **Frühwarnung:** Das Kryptowerk misst die Verzögerung der Ereignisschleife. Lag sie in 10 min über 2 s, steht das im Log (`dorf logs kryptowerk`).

@@ -121,6 +121,12 @@ const MIGRATIONEN = [
    CREATE TABLE fruehe_kaeufer (mint TEXT NOT NULL, wallet TEXT NOT NULL, zeit INTEGER NOT NULL, PRIMARY KEY (mint, wallet)) WITHOUT ROWID;
    CREATE INDEX fruehe_kaeufer_wallet ON fruehe_kaeufer (wallet);
    CREATE TABLE token_ergebnis (mint TEXT PRIMARY KEY, gewinner INTEGER NOT NULL, faktor REAL, zeit INTEGER NOT NULL);`,
+  // E248: Die offenen Positionen aller Bots fragt jeder Echtzeit-Kurs ab (dutzende je Sekunde) – ohne diesen Index las SQLite jedes Mal
+  // ALLE Positionen aller Zeiten (der RL-Bot handelt viel); das Kryptowerk kam nicht mehr hinterher und antwortete nach 40–50 s.
+  // Dazu trades nach Position (Terminal: letzter Verkauf je Trade) und tokens nach Startzeit (Archiv, Smart-Money-Ergebnisse).
+  `CREATE INDEX positionen_offen ON positionen (offen) WHERE offen = 1;
+   CREATE INDEX trades_position ON trades (position_id);
+   CREATE INDEX tokens_erstellt ON tokens (erstellt);`,
 ];
 
 export function kryptoDb(datei: string): KDB {

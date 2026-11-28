@@ -1,5 +1,6 @@
 // E227: Einstieg des Kryptowerk-Containers (gleiches Image wie das Dorf, eigener Prozess, eigene Datenbank).
 // Kein Vault, keine Dorf-Geheimnisse – nur KRYPTO_GEHEIMNIS. Bewertungen mit LLM laufen über das Dorf (interner Port).
+import { monitorEventLoopDelay } from 'node:perf_hooks';
 import path from 'node:path';
 import fs from 'node:fs';
 import { z } from 'zod';
@@ -84,6 +85,15 @@ werk.starten();
 muster.starten();
 await app.listen({ host: '0.0.0.0', port: Number(process.env.PORT ?? 4300) });
 log('bereit');
+// E248: Hängt die Ereignisschleife (Rechnen im Takt, Training), meldet das Log es – sonst sieht man nur Timeouts nach draußen und ein
+// „nicht erreichbar“ im Dorf. Alle 10 min, nur wenn eine Verzögerung über 2 s lag.
+const schleife = monitorEventLoopDelay({ resolution: 50 });
+schleife.enable();
+setInterval(() => {
+  const max = schleife.max / 1e6;
+  if (max > 2000) log(`Ereignisschleife hing bis ${(max / 1000).toFixed(1)} s (99 %: ${(schleife.percentile(99) / 1e6).toFixed(0)} ms, Mittel ${(schleife.mean / 1e6).toFixed(0)} ms) in den letzten 10 min`);
+  schleife.reset();
+}, 10 * 60_000).unref();
 const ende = () => {
   muster.beenden();
   werk.beenden();
